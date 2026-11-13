@@ -23,7 +23,7 @@ Coder supports the following provider types:
 | Anthropic         | Claude models via Anthropic API          |
 | OpenAI            | GPT and o-series models via OpenAI API   |
 | Google            | Gemini models via Google AI API          |
-| Azure OpenAI      | OpenAI models hosted on Azure            |
+| Azure OpenAI      | GPT-4o and newer OpenAI models on Azure  |
 | AWS Bedrock       | Models via AWS Bedrock                   |
 | OpenAI Compatible | Any endpoint implementing the OpenAI API |
 | OpenRouter        | Multi-model routing via OpenRouter       |
@@ -31,6 +31,9 @@ Coder supports the following provider types:
 
 The **OpenAI Compatible** type is a catch-all for any service that exposes an OpenAI-compatible chat completions endpoint.
 Use it to connect to self-hosted models, internal gateways, or third-party proxies like LiteLLM.
+
+Use the **Azure OpenAI** type for GPT-4o and newer OpenAI models.
+For other models that your Azure resource serves, such as GPT-4 Turbo, DeepSeek, or Kimi, add an **OpenAI Compatible** provider with the same endpoint/base URL and API key.
 
 Coder Agents route model requests through AI Gateway automatically by using the provider configuration stored in Coder's database.
 
@@ -286,7 +289,7 @@ These fields appear dynamically in the admin UI when you select a provider.
 
 > [!NOTE]
 > Azure OpenAI uses the same options as OpenAI except Reasoning Mode.
-> Azure OpenAI models use the Chat Completions API unless you set **Use Responses API** to **On**, because the deployment name doesn't identify the model.
+> Azure OpenAI models use the Chat Completions API unless you set **Use Responses API** to **On**, because an Azure deployment name doesn't identify the model.
 > AWS Bedrock uses the same model configuration options as Anthropic (thinking budget, reasoning effort).
 
 ### Prompt caching

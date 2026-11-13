@@ -220,7 +220,7 @@ Supported providers include:
 | Anthropic         | Claude models via Anthropic API          |
 | OpenAI            | GPT and Codex models via OpenAI API      |
 | Google            | Gemini models via Google AI API          |
-| Azure OpenAI      | OpenAI models hosted on Azure            |
+| Azure OpenAI      | GPT-4o and newer OpenAI models on Azure  |
 | AWS Bedrock       | Models available through AWS Bedrock     |
 | OpenAI Compatible | Any endpoint implementing the OpenAI API |
 | OpenRouter        | Multi-model routing via OpenRouter       |
