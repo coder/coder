@@ -139,7 +139,7 @@ func TestCreate(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	f := newFixture(t, db, nil)
-	target, createdBy := f.chat(t), f.chat(t)
+	target := f.chat(t)
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
 	secret := "whsec_" + base64.StdEncoding.EncodeToString([]byte(uuid.NewString()))
 	prompt := strings.Repeat("p", testLimits.MaxPromptBytes)
@@ -206,7 +206,7 @@ func TestCreate(t *testing.T) {
 			name := testutil.GetRandomName(t)
 			req := request(t, strings.NewReplacer("$NAME", name, "$TARGET", target.ID.String(), "$MODEL", f.model.ID.String(), "$PROJECT", project.ID.String()), base, tc.patch)
 			want := database.ChatAutomation{
-				OrganizationID: f.org.ID, OwnerID: f.owner.ID, Name: name, CreatedByChatID: nullID(createdBy.ID),
+				OrganizationID: f.org.ID, OwnerID: f.owner.ID, Name: name,
 				Kind: database.ChatAutomationKindWebhook, Enabled: true, Prompt: prompt,
 				TargetMode: database.ChatAutomationTargetModeExistingChat, TargetChatID: nullID(target.ID),
 				WhenBusy: busy(database.ChatAutomationWhenBusyQueue), WebhookAuth: auth(database.ChatAutomationWebhookAuthBearer),
@@ -216,10 +216,8 @@ func TestCreate(t *testing.T) {
 				tc.want(&want)
 			}
 			h, actor := newHarness(t, db, testLimits), userActor(t, db, f.owner.ID)
-			p := createParams(f.org.ID, req)
-			p.CreatedByChatID = want.CreatedByChatID
 
-			result, err := h.creator.Create(ctx, actor, p)
+			result, err := h.creator.Create(ctx, actor, createParams(f.org.ID, req))
 			require.NoError(t, err)
 
 			got, err := h.store.GetChatAutomationByID(dbauthz.As(ctx, actor), result.Automation.ID)
@@ -462,46 +460,6 @@ func TestCreateUnwrappedStore(t *testing.T) {
 	require.Zero(t, count)
 }
 
-// TestCreateCreatingChat sets the creating chat that the agent tool passes. The
-// API never sets it, so these are errors for the tool and not field violations.
-func TestCreateCreatingChat(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	f, other := newFixture(t, db, nil), newFixture(t, db, nil)
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
-	actor := userActor(t, db, f.owner.ID)
-	stranger := dbgen.Chat(t, db, database.Chat{OrganizationID: f.org.ID, OwnerID: member(t, db, f.org.ID).ID, LastModelConfigID: f.model.ID})
-	foreign := dbgen.Chat(t, db, database.Chat{OrganizationID: other.org.ID, OwnerID: f.owner.ID, LastModelConfigID: other.model.ID})
-
-	for _, tc := range []struct {
-		name  string
-		chat  uuid.UUID
-		check func(t *testing.T, err error)
-	}{
-		// The insert would report a missing chat as a missing owner.
-		{name: "Missing", chat: uuid.New(), check: func(t *testing.T, err error) {
-			require.ErrorIs(t, err, sql.ErrNoRows)
-			require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
-		}},
-		{name: "OfAnotherUser", chat: stranger.ID, check: func(t *testing.T, err error) { require.ErrorIs(t, err, chatautomation.ErrCreateForbidden) }},
-		{name: "InAnotherOrganization", chat: foreign.ID, check: func(t *testing.T, err error) {
-			require.ErrorContains(t, err, "not in this organization")
-			require.NotErrorIs(t, err, chatautomation.ErrCreateForbidden)
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			p := createParams(f.org.ID, webhookToNewChat(t, f))
-			p.CreatedByChatID = nullID(tc.chat)
-
-			_, err := newHarness(t, db, testLimits).creator.Create(ctx, actor, p)
-
-			tc.check(t, err)
-		})
-	}
-}
-
 // TestCreateReferenceDeleted deletes the target chat or the project after
 // dbauthz has read it again for the insert, so that a trigger of the table finds
 // it missing. The owner is fine, so the answer must not say that the owner is
@@ -544,30 +502,25 @@ func TestCreateReferenceDeleted(t *testing.T) {
 	}
 }
 
-// TestCreateReferenceDeletedWhileInserting leaves a delete of the target chat,
-// the creating chat or the project open until the insert waits on it. The
-// trigger of the table still reads the row, so the foreign key check is what
-// fails when the delete commits. dbpurge deletes chats in one long transaction,
-// so that window is not short.
+// TestCreateReferenceDeletedWhileInserting leaves a delete of the target chat
+// or the project open until the insert waits on it. The trigger of the table
+// still reads the row, so the foreign key check is what fails when the delete
+// commits. dbpurge deletes chats in one long transaction, so that window is not
+// short.
 func TestCreateReferenceDeletedWhileInserting(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		// reference sets the chat or project that the request names and returns
 		// the statement that deletes it.
-		reference func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, p *chatautomation.CreateParams) (deleteSQL string, id uuid.UUID)
+		reference func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest) (deleteSQL string, id uuid.UUID)
 	}{
-		{name: "TargetChat", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, _ *chatautomation.CreateParams) (string, uuid.UUID) {
+		{name: "TargetChat", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest) (string, uuid.UUID) {
 			target := f.chat(t)
 			req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
 			return "DELETE FROM chats WHERE id = $1", target.ID
 		}},
-		{name: "CreatingChat", reference: func(t *testing.T, f fixture, _ *codersdk.CreateChatAutomationRequest, p *chatautomation.CreateParams) (string, uuid.UUID) {
-			creating := f.chat(t)
-			p.CreatedByChatID = nullID(creating.ID)
-			return "DELETE FROM chats WHERE id = $1", creating.ID
-		}},
-		{name: "Project", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, _ *chatautomation.CreateParams) (string, uuid.UUID) {
+		{name: "Project", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest) (string, uuid.UUID) {
 			project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
 			req.ProjectID = &project.ID
 			return "DELETE FROM chat_projects WHERE id = $1", project.ID
@@ -579,9 +532,8 @@ func TestCreateReferenceDeletedWhileInserting(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			f := newFixture(t, db, sqlDB)
 			req := webhookToNewChat(t, f)
+			deleteSQL, id := tc.reference(t, f, &req)
 			p := createParams(f.org.ID, req)
-			deleteSQL, id := tc.reference(t, f, &req, &p)
-			p.Request = req
 			h, actor := newHarness(t, db, testLimits), userActor(t, db, f.owner.ID)
 
 			tx, err := sqlDB.BeginTx(ctx, nil)

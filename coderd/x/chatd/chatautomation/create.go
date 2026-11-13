@@ -34,10 +34,7 @@ func NewCreator(db database.Store, authorizer rbac.Authorizer, limits Limits) *C
 // another owner.
 type CreateParams struct {
 	OrganizationID uuid.UUID
-	// CreatedByChatID is the chat of the agent tool that creates the
-	// automation. The API leaves it unset.
-	CreatedByChatID uuid.NullUUID
-	Request         codersdk.CreateChatAutomationRequest
+	Request        codersdk.CreateChatAutomationRequest
 	// Now is the time that the first run of a schedule follows.
 	Now time.Time
 }
@@ -144,8 +141,7 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 		case dbauthz.IsNotAuthorizedError(err):
 			return ErrCreateForbidden
 		case database.IsCheckViolation(err, chatOrganizationTrigger, projectOrganizationTrigger),
-			database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsTargetChatID,
-				database.ForeignKeyChatAutomationsCreatedByChatID, database.ForeignKeyChatAutomationsProjectID):
+			database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsTargetChatID, database.ForeignKeyChatAutomationsProjectID):
 			return ErrReferenceUnavailable
 		case err != nil:
 			return xerrors.Errorf("insert chat automation: %w", err)
@@ -160,9 +156,9 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 }
 
 // missingRow says why the insert returned no row. The owner guard of the insert
-// refuses a deleted owner. The insert also reads the target chat, creating
-// chat, model configuration and project again, so when the owner is fine, one
-// of them was deleted since checkReferences read it.
+// refuses a deleted owner. The insert also reads the target chat, model
+// configuration and project again, so when the owner is fine, one of them was
+// deleted since checkReferences read it.
 func missingRow(ctx context.Context, tx database.Store, owner uuid.UUID) error {
 	user, err := tx.GetUserByID(ctx, owner)
 	switch {
@@ -183,21 +179,6 @@ func (c *Creator) checkReferences(ctx context.Context, actor rbac.Subject, owner
 	actorCtx := dbauthz.As(ctx, actor)
 	req := p.Request
 	var v violations
-
-	// Only the agent tool sets a creating chat. The insert would report a
-	// missing one as a missing owner, and the database would refuse one from
-	// another organization.
-	if p.CreatedByChatID.Valid {
-		chat, err := c.db.GetChatByID(actorCtx, p.CreatedByChatID.UUID)
-		switch {
-		case dbauthz.IsNotAuthorizedError(err):
-			return nil, ErrCreateForbidden
-		case err != nil:
-			return nil, xerrors.Errorf("get creating chat: %w", err)
-		case chat.OrganizationID != p.OrganizationID:
-			return nil, xerrors.New("creating chat is not in this organization")
-		}
-	}
 
 	if req.TargetChatID != nil {
 		chat, err := c.db.GetChatByID(actorCtx, *req.TargetChatID)
@@ -283,7 +264,7 @@ func insertParams(owner uuid.UUID, p CreateParams, n normalized) (database.Inser
 		OrganizationID:       p.OrganizationID,
 		OwnerID:              owner,
 		Name:                 n.name,
-		CreatedByChatID:      p.CreatedByChatID,
+		CreatedByChatID:      uuid.NullUUID{}, // The automation has no creating chat.
 		Kind:                 database.ChatAutomationKind(req.Kind),
 		Enabled:              n.enabled,
 		Prompt:               req.Prompt,
