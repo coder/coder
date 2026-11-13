@@ -99,7 +99,7 @@ vercel = { version = "54.14.0", os = ["linux", "macos"] }
 # through every mise shim at runtime and break cross-compilation of
 # coderd (scripts/build_go.sh expects cgo=0 for slim builds).
 [tools."go:github.com/coder/sqlc/cmd/sqlc"]
-version = "337309bfb9524f38466a5090e310040fc7af0203"
+version = "fb627c9c93f089ff1888f6799ca348986b2818e0"
 install_env = { CGO_ENABLED = "1" }
 
 # Consumed by `mise oci build` to produce the dogfood image on top of
