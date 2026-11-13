@@ -231,24 +231,23 @@ func TestGitHubStatusIssueGate(t *testing.T) {
 		},
 	}
 	for i, change := range changes {
-		t.Run(change.name, func(t *testing.T) {
-			state.change(func() {
-				for key, value := range change.issue {
-					state.issue[key] = value
-				}
-				for key, value := range change.pull {
-					state.pull[key] = value
-				}
-				state.issueVersion++
-				updatedAt := clock.Now().Add(time.Duration(i) * time.Second).Format(time.RFC3339)
-				state.issue["updated_at"] = updatedAt
-				state.pull["updated_at"] = updatedAt
-			})
-			change.check(fetch())
-			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1})
-			change.check(fetch())
-			state.assertRequests(t, map[string]int{"issue": 1, "reviews": 1}, map[string]int{})
+		t.Logf("PR change: %s", change.name)
+		state.change(func() {
+			for key, value := range change.issue {
+				state.issue[key] = value
+			}
+			for key, value := range change.pull {
+				state.pull[key] = value
+			}
+			state.issueVersion++
+			updatedAt := clock.Now().Add(time.Duration(i) * time.Second).Format(time.RFC3339)
+			state.issue["updated_at"] = updatedAt
+			state.pull["updated_at"] = updatedAt
 		})
+		change.check(fetch())
+		state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1})
+		change.check(fetch())
+		state.assertRequests(t, map[string]int{"issue": 1, "reviews": 1}, map[string]int{})
 	}
 
 	state.change(func() {
