@@ -1,8 +1,9 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useSyncExternalStore } from "react";
 import { useQuery } from "react-query";
-import { fn, screen, spyOn } from "storybook/test";
+import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	agentTemplates,
 	richParameters,
@@ -84,6 +85,10 @@ const withRefetch =
 		</RefetchOnMount>
 	);
 
+// The dialog refreshes the project list, so stories seed it to avoid a
+// request.
+const projectsQuery = { key: chatProjectsKey, data: [MockChatProject] };
+
 const meta: Meta<typeof ProjectTemplatesDialog> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectTemplatesDialog",
 	component: ProjectTemplatesDialog,
@@ -98,6 +103,7 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 	},
 	parameters: {
 		queries: [
+			projectsQuery,
 			{
 				key: agentTemplates(MockChatProject.organization_id).queryKey,
 				data: [dockerTemplate, kubernetesTemplate],
@@ -112,7 +118,7 @@ type Story = StoryObj<typeof ProjectTemplatesDialog>;
 export const NoTemplates: Story = {};
 
 export const Loading: Story = {
-	parameters: { queries: [] },
+	parameters: { queries: [projectsQuery] },
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockReturnValue(new Promise(() => {}));
 	},
@@ -122,6 +128,7 @@ export const DefaultPreset: Story = {
 	args: { project: projectWithDefaultPreset },
 	parameters: {
 		queries: [
+			projectsQuery,
 			{
 				key: agentTemplates(MockChatProject.organization_id).queryKey,
 				data: [dockerTemplate, kubernetesTemplate],
@@ -138,6 +145,7 @@ export const DefaultParameters: Story = {
 	args: { project: projectWithDefaultParameters },
 	parameters: {
 		queries: [
+			projectsQuery,
 			{
 				key: agentTemplates(MockChatProject.organization_id).queryKey,
 				data: [dockerTemplate, kubernetesTemplate],
@@ -263,10 +271,41 @@ export const Conflict: Story = {
 		);
 		return <ProjectTemplatesDialog {...args} project={project} />;
 	},
-	play: () => {
+	play: async () => {
+		// An untouched draft follows the saved templates, so edit it first.
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Remove Kubernetes" }),
+		);
+		await userEvent.keyboard("{Escape}");
 		serverProject.set({
 			...projectWithDefaultPreset,
 			templates: { template_ids: [kubernetesTemplate.id] },
 		});
+	},
+};
+
+/** The saved default preset is not in the template's active version. */
+export const StaleDefaultPreset: Story = {
+	args: {
+		project: {
+			...projectWithDefaultPreset,
+			templates: {
+				...projectWithDefaultPreset.templates,
+				default_preset_id: "preset-from-old-version",
+			},
+		},
+	},
+	parameters: DefaultPreset.parameters,
+};
+
+/** One saved template is no longer available to agents. */
+export const IneligibleTemplate: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			templates: {
+				template_ids: [dockerTemplate.id, "template-deprecated"],
+			},
+		},
 	},
 };

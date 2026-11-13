@@ -1,4 +1,3 @@
-import type { Ref } from "react";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 
@@ -10,7 +9,7 @@ type ProjectEditConflictAlertProps = {
 	readonly onKeepDraft: () => void;
 	/** Replaces the draft with the newer change. */
 	readonly onLoadLatest: () => void;
-	readonly loadLatestButtonRef?: Ref<HTMLButtonElement>;
+	readonly loadLatestButtonRef?: React.Ref<HTMLButtonElement>;
 };
 
 /**

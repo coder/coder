@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "react-query";
 import { isApiValidationError } from "#/api/errors";
-import { agentTemplates } from "#/api/queries/templates";
+import { chatProjects } from "#/api/queries/chatProjects";
+import {
+	agentTemplates,
+	templateVersionPresets,
+} from "#/api/queries/templates";
 import type { ChatProject, ChatProjectTemplates } from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -136,22 +141,53 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [baseTemplates, setBaseTemplates] = useState(project.templates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
+	// Templates are shared by every editor of the project, so refresh them
+	// on open and when the tab regains focus to detect changes made elsewhere.
+	useQuery({ ...chatProjects(), refetchOnWindowFocus: true });
+	const isDraftUntouched =
+		JSON.stringify(value) === JSON.stringify(initialValue);
+	if (
+		isDraftUntouched &&
+		serializeTemplates(project.templates) !== serializeTemplates(baseTemplates)
+	) {
+		setBaseTemplates(project.templates);
+		setValue(chatProjectTemplatesValues(project.templates));
+	}
 	const templatesQuery = useQuery(agentTemplates(project.organization_id));
 	const eligibleTemplates = templatesQuery.data;
+	const defaultTemplate = eligibleTemplates?.find(
+		(template) => template.id === value.defaultTemplateId,
+	);
+	const hasDefaultPreset =
+		value.defaultsKind === "preset" && value.defaultPresetId !== "";
+	const presetsQuery = useQuery({
+		...templateVersionPresets(defaultTemplate?.active_version_id ?? ""),
+		enabled: defaultTemplate !== undefined && hasDefaultPreset,
+	});
+	// A new template version can drop the saved default preset. Chats skip
+	// it, and the server rejects saving it again, so the form clears it.
+	const hasStalePreset =
+		hasDefaultPreset &&
+		presetsQuery.data !== undefined &&
+		!(presetsQuery.data ?? []).some(
+			(preset) => preset.ID === value.defaultPresetId,
+		);
+	const formValue = hasStalePreset ? { ...value, defaultPresetId: "" } : value;
 	const request =
 		eligibleTemplates &&
 		keepSavedEmptyParameters(
-			chatProjectTemplatesRequest(value, eligibleTemplates),
-			value,
+			chatProjectTemplatesRequest(formValue, eligibleTemplates),
+			formValue,
 			baseTemplates,
 		);
 	// Saving drops templates that are no longer eligible, so a draft that
 	// still holds any differs from the saved templates even when untouched.
-	const dropsIneligible =
-		request !== undefined &&
-		request.template_ids.length < value.templateIds.length;
+	const droppedTemplateCount =
+		request === undefined
+			? 0
+			: value.templateIds.length - request.template_ids.length;
 	const isUnchanged =
-		!dropsIneligible && JSON.stringify(value) === JSON.stringify(initialValue);
+		droppedTemplateCount === 0 && !hasStalePreset && isDraftUntouched;
 	// Save replaces every template setting, so a change saved elsewhere must
 	// be resolved first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
@@ -180,7 +216,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				templates={eligibleTemplates}
 				templatesError={templatesQuery.error}
 				saveError={templatesValidationDetail(error)}
-				value={value}
+				value={formValue}
 				onChange={(next) => {
 					setValue(next);
 					if (error) {
@@ -189,6 +225,27 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}}
 				disabled={isSaving}
 			/>
+			{(droppedTemplateCount > 0 || hasStalePreset) && (
+				<Alert severity="warning">
+					{droppedTemplateCount > 0 && (
+						<AlertDescription>
+							{droppedTemplateCount === 1
+								? "1 template is"
+								: `${droppedTemplateCount} templates are`}{" "}
+							no longer available to agents (deleted, deprecated, or no longer
+							allowed for agents). Saving removes{" "}
+							{droppedTemplateCount === 1 ? "it" : "them"} from the project.
+						</AlertDescription>
+					)}
+					{hasStalePreset && (
+						<AlertDescription>
+							The default preset is no longer in the template's active version,
+							so chats do not use it. Choose another preset, or save to clear
+							it.
+						</AlertDescription>
+					)}
+				</Alert>
+			)}
 			{hasConflict && (
 				<ProjectEditConflictAlert
 					disabled={isSaving}

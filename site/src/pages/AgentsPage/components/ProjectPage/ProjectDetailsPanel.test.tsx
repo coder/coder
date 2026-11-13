@@ -666,6 +666,7 @@ const kubernetesTemplate: Template = {
 describe("ProjectDetailsPanel templates", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+		focusManager.setFocused(undefined);
 	});
 
 	const setup = () => {
@@ -677,7 +678,10 @@ describe("ProjectDetailsPanel templates", () => {
 		const updateProject = vi
 			.spyOn(API.experimental, "updateChatProject")
 			.mockResolvedValue(MockChatProject);
-		return { updateProject, ...renderPanel() };
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValue([MockChatProject]);
+		return { updateProject, getProjects, ...renderPanel() };
 	};
 
 	it("saves the templates picked in the editor", async () => {
@@ -851,6 +855,47 @@ describe("ProjectDetailsPanel templates", () => {
 				MockChatProject.organization_id,
 				MockChatProject.id,
 				{ templates: draft },
+			),
+		);
+	});
+
+	it("refetches the project's templates on open and when the window regains focus", async () => {
+		const { user, getProjects } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(1));
+
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
+	});
+
+	it("starts an untouched draft from templates saved while the editor is open", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [kubernetesTemplate.id] },
+		});
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{
+					templates: {
+						template_ids: [dockerTemplate.id, kubernetesTemplate.id],
+					},
+				},
 			),
 		);
 	});

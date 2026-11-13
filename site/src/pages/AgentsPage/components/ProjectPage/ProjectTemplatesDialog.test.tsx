@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,9 @@ type DialogProps = React.ComponentProps<typeof ProjectTemplatesDialog>;
 
 const renderDialog = (props: Partial<DialogProps> = {}) => {
 	vi.spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+	vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+		MockChatProject,
+	]);
 	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
 		MockTemplateVersionParameter1,
 		MockTemplateVersionParameter2,
@@ -84,6 +87,29 @@ describe("ProjectTemplatesDialog", () => {
 				[MockTemplateVersionParameter1.name]: "",
 				[MockTemplateVersionParameter2.name]: "new",
 			},
+		});
+	});
+
+	it("clears a default preset that is no longer in the active version", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		const { user, props } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: {
+					template_ids: [MockTemplate.id],
+					default_template_id: MockTemplate.id,
+					default_preset_id: "stale-preset",
+				},
+			},
+		});
+
+		const save = await screen.findByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		expect(props.onSave).toHaveBeenCalledWith({
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
 		});
 	});
 });
