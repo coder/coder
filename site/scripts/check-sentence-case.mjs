@@ -92,6 +92,7 @@ const PROPER_NOUNS = [
 	"Inc",
 	"JetBrains Gateway",
 	"JetBrains Toolbox",
+	"Mantle",
 	"Markdown",
 	"Mermaid",
 	"React",
@@ -189,10 +190,10 @@ const OPENING_MARK = /[([{“‘"']/;
 const CLOSING_MARK = /[)\]}”’"']/;
 
 // Punctuation that ends a sentence or label, so the next word starts a
-// new phrase and may be capitalized. A comma continues the phrase
-// ("Create a workspace, then open settings"); lists of names such as
-// "Menlo, Monaco" rely on PROPER_NOUNS.
-const PHRASE_END = /[.!?:;…]["'’)\]]*$/;
+// new phrase and may be capitalized. Commas and semicolons continue the
+// sentence ("Create a workspace; then open settings"); lists of names
+// such as "Menlo, Monaco" rely on PROPER_NOUNS.
+const PHRASE_END = /[.!?:…]["'’)\]]*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
@@ -444,6 +445,7 @@ function isNonDisplayLiteral(literal) {
 		ts.isExternalModuleReference(parent) ||
 		ts.isLiteralTypeNode(parent) ||
 		ts.isCaseClause(parent) ||
+		ts.isEnumMember(parent) ||
 		ts.isElementAccessExpression(parent) ||
 		ts.isTaggedTemplateExpression(parent)
 	) {
@@ -602,6 +604,18 @@ function escapeAt(sourceText, position) {
 			return null;
 		}
 		decoded = String.fromCodePoint(codePoint);
+		// An escaped surrogate pair, such as "\\uD801\\uDC00", is one
+		// character.
+		const low =
+			codePoint >= 0xd800 &&
+			codePoint <= 0xdbff &&
+			escapeAt(sourceText, position + escape.length);
+		if (low && /^[\uDC00-\uDFFF]$/.test(low.decoded)) {
+			return {
+				decoded: decoded + low.decoded,
+				length: escape.length + low.length,
+			};
+		}
 	} else if (/^[\r\n\u2028\u2029]/.test(char)) {
 		// A line continuation renders nothing.
 		decoded = "";

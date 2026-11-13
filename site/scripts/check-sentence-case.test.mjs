@@ -56,6 +56,7 @@ describe("findTitleCaseWords", () => {
 	it("continues a sentence after a comma", () => {
 		expect(words("Create a workspace, then Open settings")).toEqual(["Open"]);
 		expect(words("Create a workspace, Then open settings")).toEqual(["Then"]);
+		expect(words("Create a workspace; Then open settings")).toEqual(["Then"]);
 	});
 
 	it("resumes the surrounding phrase after a bracket or quote closes", () => {
@@ -127,6 +128,7 @@ describe("checkSource", () => {
 			'if (event === "Task Events" + suffix) {}',
 			"if (event === `Task Events ${suffix}`) {}",
 			'switch (group) { case "User Events"!: break; }',
+			'enum Event { Task = "Task Events" }',
 		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
@@ -316,8 +318,11 @@ describe("checkSource", () => {
 	});
 
 	it("lowercases capitals outside the Basic Multilingual Plane", () => {
-		const { fixedText } = checkSource("file.ts", 'const a = "Open 𐐀est";');
-		expect(fixedText).toBe('const a = "Open 𐐨est";');
+		const { fixedText } = checkSource(
+			"file.ts",
+			'const a = "Open 𐐀est";\nconst b = "Open \\uD801\\uDC00est";',
+		);
+		expect(fixedText).toBe('const a = "Open 𐐨est";\nconst b = "Open 𐐨est";');
 	});
 
 	it("fixes words that start with an HTML entity", () => {
