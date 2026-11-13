@@ -10,7 +10,7 @@ import {
 import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
-	FolderKanbanIcon,
+	FoldersIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -594,7 +594,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				/>
 				{chatProjectsEnabled && (
 					<SettingsNavItem
-						icon={FolderKanbanIcon}
+						icon={FoldersIcon}
 						label="Projects"
 						active={isProjectsActive}
 						// Takes focus when the move dialog's chat or the last pinned
