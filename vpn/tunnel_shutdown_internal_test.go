@@ -109,6 +109,13 @@ func TestTunnel_StopAfterWriterExits(t *testing.T) {
 	go func() {
 		updateDone <- tun.Update(tailnet.WorkspaceUpdate{})
 	}()
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		if tun.updater.mu.TryLock() {
+			tun.updater.mu.Unlock()
+			return false
+		}
+		return true
+	}, testutil.IntervalFast, "update did not take the updater mutex")
 	writeStop(t, manager)
 	// The manager closes without reading, so the blocked write fails and
 	// nothing reads the send channel again.
