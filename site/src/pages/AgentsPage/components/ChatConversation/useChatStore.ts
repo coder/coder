@@ -100,7 +100,7 @@ export const useChatStore = (
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
 
-	const invalidateMessageQueries = useEffectEvent(
+	const invalidatePromptAndSearchQueries = useEffectEvent(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (messages.length === 0) {
 				return;
@@ -251,7 +251,7 @@ export const useChatStore = (
 			const flushMessages = () => {
 				if (pendingMessages.length > 0) {
 					store.upsertDurableMessages(pendingMessages, userMessageVersion);
-					invalidateMessageQueries(pendingMessages.splice(0));
+					invalidatePromptAndSearchQueries(pendingMessages.splice(0));
 					userMessageVersion = 0;
 				}
 			};
