@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -212,6 +213,35 @@ func TestServerTailnet_DERPConnects(t *testing.T) {
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
 	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_connects_total"))
+}
+
+func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	reused := func(conn workspacesdk.AgentConn) (bool, error) {
+		var reused atomic.Bool
+		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			GotConn: func(info httptrace.GotConnInfo) {
+				reused.Store(info.Reused)
+			},
+		})
+		_, err := conn.ListeningPorts(traceCtx)
+		return reused.Load(), err
+	}
+
+	conn, release, err := coderd.ServerTailnetKeepAliveAgentConn(serverTailnet, ctx, agents[0].id)
+	require.NoError(t, err)
+	r, err := reused(conn)
+	require.NoError(t, err)
+	require.False(t, r)
+	r, err = reused(conn)
+	require.NoError(t, err)
+	require.True(t, r, "the connection reuses its API connection")
+	release()
+	_, err = reused(conn)
+	require.Error(t, err, "release closes the connection")
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
