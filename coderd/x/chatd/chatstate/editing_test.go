@@ -16,22 +16,24 @@ import (
 func setEditing(t *testing.T, m *chatstate.ChatMachine, id int64, editing bool) chatstate.EditQueuedMessageResult {
 	t.Helper()
 	var res chatstate.EditQueuedMessageResult
-	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		res, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{QueuedMessageID: id, Editing: &editing})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return res
 }
 
 func finishTurn(t *testing.T, m *chatstate.ChatMachine) chatstate.FinishTurnResult {
 	t.Helper()
 	var res chatstate.FinishTurnResult
-	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		res, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return res
 }
 
@@ -101,7 +103,7 @@ func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 		require.ErrorAs(t, err, &queueFull, "%s: a queue send to a full queue", tc.state)
 		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, chatstate.BusyBehaviorSteer, full, int(full))
 		var sent chatstate.SendMessageResult
-		sendErr := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, sendErr := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			var err error
 			sent, err = tx.SendMessage(chatstate.SendMessageInput{
 				Message:      userTextMessage("steer at the cap", f.User.ID, f.Model.ID),
@@ -161,11 +163,12 @@ func TestEditing_LeavingPaused(t *testing.T) {
 			require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
 
 			var chat *database.Chat
-			require.NoError(t, chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 				var err error
 				chat, err = tc.apply(tx, seeded)
 				return err
-			}))
+			})
+			require.NoError(t, err)
 			require.Equal(t, tc.want, f.classify(ctx, t, seeded.chatID))
 			after := f.readChat(ctx, t, seeded.chatID)
 			if tc.want == chatstate.StateP {

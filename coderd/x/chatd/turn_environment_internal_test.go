@@ -1212,7 +1212,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		t.Helper()
 		ctx := chatdTestContext(t)
 		machine := chatstate.NewChatMachine(server.db, server.pubsub, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.CommitStep(chatstate.CommitStepInput{
 				Messages: []chatstate.Message{
 					{
@@ -1225,7 +1225,8 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 				},
 			})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 	}
 
 	t.Run("WaitingDerivesFromHistory", func(t *testing.T) {

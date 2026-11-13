@@ -1859,10 +1859,11 @@ func TestActOnChatAsUser(t *testing.T) {
 		t.Helper()
 		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
-		require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 	}
 	message := codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello again"}},
