@@ -179,9 +179,10 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
-		// The writes above may have made the snapshot stale, so the
-		// transition reads the chat itself.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
+			// The writes above may have made the snapshot stale, so the
+			// transition reads the chat itself.
+			Snapshot:     nil,
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
@@ -397,9 +398,10 @@ func (p *Server) EditMessage(
 			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
 		}
 
-		// The writes above may have made the snapshot stale, so the
-		// transition reads the chat itself.
 		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
+			// The writes above may have made the snapshot stale, so the
+			// transition reads the chat itself.
+			Snapshot:                nil,
 			MessageID:               opts.EditedMessageID,
 			SuffixMessages:          suffixMessages,
 			CreatedBy:               opts.CreatedBy,

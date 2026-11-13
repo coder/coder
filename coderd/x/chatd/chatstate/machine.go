@@ -59,16 +59,14 @@ type Tx struct {
 	chatID uuid.UUID
 }
 
-// ChatSnapshot is the chat row and queue state at one point in a
-// transaction. A transition given a snapshot in its input's Snapshot
-// field validates against it instead of reading the chat. Chat carries
-// the bumped snapshot_version, but the snapshot is otherwise unrelated
-// to it.
+// ChatSnapshot is the locked chat row and its queue state, read by
+// Update before the callback runs. It is used as a performance
+// optimization to avoid refetching the chat row at the beginning of a
+// transition.
 //
-// Nothing updates a snapshot. Any write to the chat row or its queued
-// messages, by a transition or through the store, makes it stale, so
-// pass it only to the first transition in a callback, and only when the
-// callback has not written before that transition.
+// The chat row is never refreshed and should only be passed to a
+// callback's first transition, and only if nothing has written the chat
+// or its queue beforehand.
 type ChatSnapshot struct {
 	Chat  database.Chat
 	Queue QueueState
