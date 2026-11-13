@@ -168,25 +168,32 @@ func TestReadMatchesTerraformShow(t *testing.T) {
 	}
 	require.NotNil(t, agent, "terraform_data.host has the agent")
 	require.Len(t, agent.Apps, 2)
-	require.Len(t, agent.ExtraEnvs, 11+16) // coder_env.counted and coder_env.keys
-	require.Len(t, agent.Scripts, 19+11+2) // module.child, module.counted, and the two wrap modules
+	require.Len(t, agent.ExtraEnvs, 11+18)   // coder_env.counted and coder_env.keys
+	require.Len(t, agent.Scripts, 21+11+2+1) // module.child, module.counted, the two wrap modules, and module.deep
 
 	// A failed replacement leaves a tainted and a deposed object.
 	_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve",
-		"-replace=coder_agent.replaced", "-var=fail_provisioner=true")
+		"-replace=coder_agent.replaced", "-replace=terraform_data.replaced[0]", "-var=fail_provisioner=true")
 	require.Error(t, err)
 	modules, _ := requireReadMatchesShow(ctx, t, w)
-	var replaced []*tfjson.StateResource
+	replaced := map[string][]*tfjson.StateResource{}
 	for _, resource := range resources(modules) {
-		if resource.Address == "coder_agent.replaced" {
-			replaced = append(replaced, resource)
+		if resource.Name == "replaced" {
+			replaced[resource.Type] = append(replaced[resource.Type], resource)
 		}
 	}
-	require.Len(t, replaced, 2)
-	require.True(t, replaced[0].Tainted)
-	require.Empty(t, replaced[0].DeposedKey)
-	require.False(t, replaced[1].Tainted)
-	require.NotEmpty(t, replaced[1].DeposedKey)
+	agents := replaced["coder_agent"]
+	require.Len(t, agents, 2)
+	require.True(t, agents[0].Tainted)
+	require.Empty(t, agents[0].DeposedKey)
+	require.False(t, agents[1].Tainted)
+	require.NotEmpty(t, agents[1].DeposedKey)
+	// Both objects of the first instance come before the second instance.
+	counted := replaced["terraform_data"]
+	require.Len(t, counted, 3)
+	require.True(t, counted[0].Tainted)
+	require.NotEmpty(t, counted[1].DeposedKey)
+	require.Equal(t, "terraform_data.replaced[1]", counted[2].Address)
 
 	// A delete build leaves an empty state.
 	_, err = w.run(ctx, "destroy", "-no-color", "-input=false", "-auto-approve")

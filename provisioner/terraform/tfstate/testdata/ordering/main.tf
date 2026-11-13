@@ -74,12 +74,13 @@ resource "coder_env" "counted" {
   value    = tostring(count.index)
 }
 
-# Keys for coder_env.keys and module.child.
+# Keys for coder_env.keys and module.child. "10" and "2" are strings that
+# read like count indexes.
 locals {
   keys = toset([
     "", "B", "a", "web ui", "quote\"d", "back\\slash", "a$${b}", "c%%{d}",
     "tab\there", "new\nline", "cr\rlf\n", "bell\u0007", "del\u007f",
-    "nbsp\u00a0", "ünïcödé", "🚀",
+    "nbsp\u00a0", "ünïcödé", "🚀", "10", "2",
   ])
 }
 
@@ -107,11 +108,30 @@ resource "coder_agent" "replaced" {
   }
 }
 
+# Replacing the first of these the same way leaves its tainted and deposed
+# objects listed before the second instance.
+resource "terraform_data" "replaced" {
+  count = 2
+  lifecycle {
+    create_before_destroy = true
+  }
+  provisioner "local-exec" {
+    command = var.fail_provisioner ? "exit 1" : "exit 0"
+  }
+}
+
 # module.child holds no resources itself. Its keys are the ones above, and
 # some that read like parts of an address.
 module "child" {
   for_each = setunion(local.keys, ["x.module.y", "bracket]", "[\"x\"]"])
   source   = "./child"
+  agent_id = coder_agent.main.id
+}
+
+# Neither module.deep nor the module.child inside it holds resources, so
+# both are listed only as ancestors of the module below them.
+module "deep" {
+  source   = "./deep"
   agent_id = coder_agent.main.id
 }
 
