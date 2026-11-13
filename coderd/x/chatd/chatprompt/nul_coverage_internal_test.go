@@ -1,4 +1,4 @@
-package chatprompt_test
+package chatprompt
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -54,7 +53,7 @@ func TestNeedsNulEncodingInJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprompt.NeedsNulEncodingInJSONForTest(tt.raw)
+			got := needsNulEncodingInJSON(tt.raw)
 			require.Equalf(t, tt.want, got, "needsNulEncodingInJSON(%s)", tt.raw)
 		})
 	}
@@ -64,7 +63,7 @@ func TestEncodeNulInJSONPreservesCleanInput(t *testing.T) {
 	t.Parallel()
 
 	raw := json.RawMessage(`{"number":1.2300,"pair":"\uD83D\uDE00","literal":"\\u0000"}`)
-	encoded := chatprompt.EncodeNulInJSONForTest(raw)
+	encoded := encodeNulInJSON(raw)
 	require.Equal(t, raw, encoded, "clean JSON changed")
 	require.Same(t, &raw[0], &encoded[0], "clean JSON did not preserve its backing array")
 }
@@ -73,7 +72,7 @@ func TestEncodeNulInJSONNormalizesSurrogates(t *testing.T) {
 	t.Parallel()
 
 	raw := json.RawMessage(`{"high":"\uD800","low":"\uDC00","pair":"\uD83D\uDE00","literal":"\\uD800"}`)
-	encoded := chatprompt.EncodeNulInJSONForTest(raw)
+	encoded := encodeNulInJSON(raw)
 	require.Truef(t, json.Valid(encoded), "encoded invalid JSON: %s", encoded)
 	var got map[string]string
 	require.NoError(t, json.Unmarshal(encoded, &got))
@@ -90,7 +89,7 @@ func TestEncodeNulInJSONPreservesInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	raw := json.RawMessage(`{"value":"\uD800"} trailing`)
-	encoded := chatprompt.EncodeNulInJSONForTest(raw)
+	encoded := encodeNulInJSON(raw)
 	require.Equal(t, raw, encoded, "invalid JSON changed")
 }
 
@@ -111,12 +110,12 @@ func TestChatMessagePartNaturalSentinelCoverage(t *testing.T) {
 			part.Field(i).Set(chatMessagePartNaturalSentinelProbeValue(t, field.Type))
 			parts := []codersdk.ChatMessagePart{part.Interface().(codersdk.ChatMessagePart)}
 
-			encoded, err := chatprompt.MarshalParts(parts)
+			encoded, err := MarshalParts(parts)
 			require.NoErrorf(t, err, "MarshalParts rejected natural sentinels in ChatMessagePart.%s (%s)", field.Name, field.Type)
-			decoded, err := chatprompt.ParseContent(database.ChatMessage{
+			decoded, err := ParseContent(database.ChatMessage{
 				Role:           database.ChatMessageRoleAssistant,
 				Content:        encoded,
-				ContentVersion: chatprompt.CurrentContentVersion,
+				ContentVersion: CurrentContentVersion,
 			})
 			require.NoErrorf(t, err, "ParseContent with natural sentinels in ChatMessagePart.%s (%s)", field.Name, field.Type)
 			require.Equalf(t, parts, decoded, "natural sentinels in ChatMessagePart.%s did not round-trip", field.Name)
@@ -143,7 +142,7 @@ func TestChatMessagePartNULCoverage(t *testing.T) {
 			want.Field(i).Set(chatMessagePartNULProbeValue(t, field.Type))
 			wantParts := []codersdk.ChatMessagePart{want.Interface().(codersdk.ChatMessagePart)}
 
-			encoded, err := chatprompt.MarshalParts(parts)
+			encoded, err := MarshalParts(parts)
 			require.Equalf(t, wantParts, parts, "MarshalParts mutated caller-owned ChatMessagePart.%s data", field.Name)
 			if err != nil {
 				require.Truef(t, transforms, "MarshalParts rejected NUL-free ChatMessagePart.%s (%s): %v", field.Name, field.Type, err)
@@ -156,10 +155,10 @@ func TestChatMessagePartNULCoverage(t *testing.T) {
 				require.NotContainsf(t, string(encoded.RawMessage), `\u0000`, "ChatMessagePart.%s is neither rejected nor handled by encodeNulInParts", field.Name)
 			}
 
-			decoded, err := chatprompt.ParseContent(database.ChatMessage{
+			decoded, err := ParseContent(database.ChatMessage{
 				Role:           database.ChatMessageRoleAssistant,
 				Content:        encoded,
-				ContentVersion: chatprompt.CurrentContentVersion,
+				ContentVersion: CurrentContentVersion,
 			})
 			require.NoErrorf(t, err, "ParseContent with ChatMessagePart.%s (%s)", field.Name, field.Type)
 			require.Equalf(t, wantParts, decoded, "ChatMessagePart.%s is not handled by decodeNulInParts", field.Name)
