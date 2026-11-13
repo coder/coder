@@ -4,6 +4,11 @@
 # chat for one PR runs in that PR's review workspace, and a run stops its
 # chat and the workspace when it ends.
 #
+# Scheduling: a push first waits in a short debounce job, which the next
+# push cancels, so a burst of pushes starts one review. A review that has
+# started runs to the end. Later pushes wait behind it, and GitHub keeps only
+# the newest of them, so the next review covers the latest head.
+#
 # Triggers:
 #   - New PR opened: Initial documentation review
 #   - PR updated (synchronize): Re-review after changes
@@ -37,8 +42,38 @@ on:
 permissions: {}
 
 jobs:
+  # Waits before a push review, so a burst of pushes starts one review. Each
+  # new push cancels the wait in progress, which costs nothing, and only the
+  # last push of a burst reaches the review job. Other triggers do not wait.
+  debounce:
+    name: Wait for more pushes
+    runs-on: ubuntu-latest
+    # The same gate as the review job, so a skipped trigger holds no runner.
+    if: |
+      vars.DOC_CHECK_ENABLED == 'true' &&
+      (
+        github.event.action == 'opened' ||
+        github.event.action == 'synchronize' ||
+        github.event.label.name == 'doc-check' ||
+        github.event.action == 'ready_for_review' ||
+        github.event_name == 'workflow_dispatch'
+      ) &&
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    concurrency:
+      group: doc-check-debounce-${{ github.event.pull_request.html_url || inputs.pr_url }}
+      cancel-in-progress: true
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Wait for more pushes
+        env:
+          WAIT_SECONDS: ${{ github.event.action == 'synchronize' && '300' || '0' }}
+        run: sleep "${WAIT_SECONDS}"
+
   doc-check:
     name: Analyze PR for Documentation Updates Needed
+    needs: debounce
     runs-on: ubuntu-latest
     # Set the repository variable DOC_CHECK_ENABLED to 'true' to run reviews.
     # Unset or any other value turns reviews off without a code change. The
@@ -56,18 +91,19 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    # Runs for one PR share its review workspace, so any new run in the
-    # group cancels the one in progress, and the cancelled run's last step
-    # stops that review before the new run starts. The key is the PR URL, so
-    # a manual run and a pull request run for one PR share the group;
+    # Runs for one PR share its review workspace, so they run one at a time.
+    # A review that has started is not cancelled by a push: cancelling throws
+    # away the prompt reading the model already did, and a PR that gets
+    # pushes faster than a review takes would never get a verdict. GitHub
+    # keeps one pending run per group and replaces it on each new push, so
+    # the next review covers the latest head. The key is the PR URL, so a
+    # manual run and a pull request run for one PR share the group;
     # workflow_dispatch validates pr_url to the same
-    # https://github.com/<owner>/<repo>/pull/<number> form. A push therefore
-    # cancels a manual run too, and on a PR whose changed files all skip
-    # review, the push run then skips; dispatch again after the push, or add
-    # the doc-check label.
+    # https://github.com/<owner>/<repo>/pull/<number> form. A merge still
+    # cancels the review in progress (see delete-workspace).
     concurrency:
       group: doc-check-${{ github.event.pull_request.html_url || inputs.pr_url }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     # GitHub-hosted jobs stop at 6 hours. The chat wait is 5 hours, which
     # leaves room for both stop steps (6 minutes each) and the workspace
     # start (up to 3 minutes).
@@ -178,8 +214,8 @@ jobs:
         env:
           # The doc-check label and a manual dispatch always force a review, so
           # any skip below stays overridable from the pull request. The label
-          # keeps forcing reviews on later pushes, because a push cancels the
-          # labeled run in progress.
+          # keeps forcing reviews on later pushes until it is removed, so a
+          # push run on a PR whose changed files all skip review still runs.
           FORCED: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'doc-check') }}
           ALL_COUNT: ${{ steps.filter.outputs.all_count }}
           NODOCS_COUNT: ${{ steps.filter.outputs.nodocs_count }}
@@ -541,8 +577,8 @@ jobs:
           workspace-id: ${{ steps.check-workspace.outputs.workspace_id }}
           wait: complete
           # Waiting keeps the job, and so the concurrency group, around for
-          # the whole review, so a newer run cancels this one and the last
-          # step stops the review. Reviews on the local model took a median
+          # the whole review, so the next run for this PR starts only after
+          # this review ends. Reviews on the local model took a median
           # of 61 minutes when clean and 247 minutes with findings
           # (2026-11-04 to 11-11), so wait 5 hours. A review that runs past
           # the wait fails the job, and the last step stops it.
@@ -553,8 +589,8 @@ jobs:
 
       # Nothing may keep generating on the shared model once this job stops
       # watching: not a review past the wait, and not one whose run was
-      # cancelled by a newer push. Stop the review and its workspace after
-      # every run. The next run starts the workspace again.
+      # cancelled by a merge or by hand. Stop the review and its workspace
+      # after every run. The next run starts the workspace again.
       - name: Stop the review and its workspace
         if: always() && steps.checkout-scripts.outcome == 'success'
         # Sized like the timeout on "Stop the previous review and its
@@ -594,9 +630,10 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository
-    # A review still running when its PR merges has no reader left. Cancel
-    # its run, whose last step stops the review, and delete the workspace
-    # after that.
+    # A review still running when its PR merges has no reader left. This
+    # job's cancel-in-progress cancels that run, even though the review job
+    # itself does not cancel on a push. The cancelled run's last step stops
+    # the review, and this job deletes the workspace after that.
     concurrency:
       group: doc-check-${{ github.event.pull_request.html_url }}
       cancel-in-progress: true
