@@ -944,6 +944,47 @@ describe("pending actions", () => {
 		},
 	);
 
+	const mockRowX = makeQueuedMessage(5, "X");
+	const mockRowY = makeQueuedMessage(6, "Y");
+	const beginEdits = () => {
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockRowX, mockRowY],
+			"running",
+		);
+		addPending(store, {
+			kind: "editQueued",
+			queuedMessageID: 5,
+			editing: true,
+		});
+		addPending(store, {
+			kind: "editQueued",
+			queuedMessageID: 6,
+			editing: true,
+		});
+		expect(visible(store).queue).toEqual(["queue:X", "queue:Y (editing)"]);
+		return store;
+	};
+
+	it("ends a begin of an edit that replaced an earlier begin at one queue update", () => {
+		const store = beginEdits();
+
+		store.setQueuedMessages([mockRowX, underEdit(mockRowY)]);
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store).queue).toEqual(["queue:X", "queue:Y (editing)"]);
+	});
+
+	it("keeps a begin of an edit through the earlier begin's queue update", () => {
+		const store = beginEdits();
+
+		store.setQueuedMessages([underEdit(mockRowX), mockRowY]);
+		expect(visible(store).queue).toEqual(["queue:X", "queue:Y (editing)"]);
+
+		store.setQueuedMessages([mockRowX, underEdit(mockRowY)]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
 	it("hides a promoted row once the stream stores its message", () => {
 		const store = seededStore(
 			[mockFirstMessage],

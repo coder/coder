@@ -504,11 +504,19 @@ export const createChatStore = (): ChatStore => {
 			const rowID = queuedRowID(action);
 			setState((current) => ({
 				...current,
-				// A queued row has one pending action, the latest.
+				// A queued row has one pending action, the latest. A chat has one
+				// row under edit, so a begin also replaces an earlier begin on
+				// another row, whose result can no longer show.
 				pendingEntries: [
 					...current.pendingEntries.filter(
-						(earlier) =>
-							rowID === undefined || queuedRowID(earlier.action) !== rowID,
+						({ action: earlier }) =>
+							(rowID === undefined || queuedRowID(earlier) !== rowID) &&
+							!(
+								action.kind === "editQueued" &&
+								action.editing &&
+								earlier.kind === "editQueued" &&
+								earlier.editing
+							),
 					),
 					entry,
 				],
