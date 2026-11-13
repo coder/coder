@@ -1732,6 +1732,19 @@ export interface AppearanceConfig {
 	readonly codernauts_enabled: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * ArchiveChatProjectRequest archives a chat project and every chat in it.
+ */
+export interface ArchiveChatProjectRequest {
+	/**
+	 * StopActiveChats confirms that active chats in the project are
+	 * stopped and archived. Without it, a project with active chats is
+	 * not archived.
+	 */
+	readonly stop_active_chats: boolean;
+}
+
 // From codersdk/templates.go
 export interface ArchiveTemplateVersionsRequest {
 	/**
@@ -3584,6 +3597,13 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * ArchivedAt is set while the project is archived. An archived
+	 * project's settings, sharing, instructions, skills and memories
+	 * cannot change, chats cannot be created in it or moved into it,
+	 * and its chats can only be unarchived by unarchiving the project.
+	 */
+	readonly archived_at?: string;
 	readonly permissions: ChatProjectPermissions;
 }
 
@@ -3599,6 +3619,23 @@ export interface ChatProjectACL {
 	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectArchivePreview counts what archiving a project affects.
+ */
+export interface ChatProjectArchivePreview {
+	/**
+	 * ChatCount is the number of unarchived root chats in the project,
+	 * of every owner.
+	 */
+	readonly chat_count: number;
+	/**
+	 * ActiveChatCount is the number of those chats that archiving stops
+	 * because they or one of their subagent chats are active.
+	 */
+	readonly active_chat_count: number;
 }
 
 // From codersdk/chats.go
@@ -3648,6 +3685,10 @@ export interface ChatProjectPermissions {
 	readonly update: boolean;
 	readonly delete: boolean;
 	readonly share: boolean;
+	/**
+	 * Archive covers archiving and unarchiving the project.
+	 */
+	readonly archive: boolean;
 }
 
 // From codersdk/chats.go

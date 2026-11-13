@@ -1771,6 +1771,20 @@ None
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 | `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
 
+## codersdk.ArchiveChatProjectRequest
+
+```json
+{
+  "stop_active_chats": true
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                    |
+|---------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `stop_active_chats` | boolean | false    |              | Stop active chats confirms that active chats in the project are stopped and archived. Without it, a project with active chats is not archived. |
+
 ## codersdk.ArchiveTemplateVersionsRequest
 
 ```json
@@ -5035,6 +5049,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "archived_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "icon": "string",
@@ -5043,6 +5058,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "permissions": {
+    "archive": true,
     "delete": true,
     "share": true,
     "update": true
@@ -5053,17 +5069,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
-|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string                                                             | false    |              |                                                                                               |
-| `description`     | string                                                             | false    |              |                                                                                               |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string                                                             | false    |              |                                                                                               |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string                                                             | false    |              |                                                                                               |
-| `owner_id`        | string                                                             | false    |              |                                                                                               |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
-| `updated_at`      | string                                                             | false    |              |                                                                                               |
+| Name              | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                  |
+|-------------------|--------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `archived_at`     | string                                                             | false    |              | Archived at is set while the project is archived. An archived project's settings, sharing, instructions, skills and memories cannot change, chats cannot be created in it or moved into it, and its chats can only be unarchived by unarchiving the project. |
+| `created_at`      | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
+| `description`     | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
+| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                                                                                                |
+| `id`              | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
+| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                                                                                                        |
+| `organization_id` | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
+| `owner_id`        | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
+| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                                                                                                                                                                                              |
+| `updated_at`      | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
 
 ## codersdk.ChatProjectACL
 
@@ -5125,6 +5142,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
 | `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
 | `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
+
+## codersdk.ChatProjectArchivePreview
+
+```json
+{
+  "active_chat_count": 0,
+  "chat_count": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                 |
+|---------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `active_chat_count` | integer | false    |              | Active chat count is the number of those chats that archiving stops because they or one of their subagent chats are active. |
+| `chat_count`        | integer | false    |              | Chat count is the number of unarchived root chats in the project, of every owner.                                           |
 
 ## codersdk.ChatProjectGroup
 
@@ -5242,6 +5275,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "archive": true,
   "delete": true,
   "share": true,
   "update": true
@@ -5250,11 +5284,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name     | Type    | Required | Restrictions | Description |
-|----------|---------|----------|--------------|-------------|
-| `delete` | boolean | false    |              |             |
-| `share`  | boolean | false    |              |             |
-| `update` | boolean | false    |              |             |
+| Name      | Type    | Required | Restrictions | Description                                           |
+|-----------|---------|----------|--------------|-------------------------------------------------------|
+| `archive` | boolean | false    |              | Archive covers archiving and unarchiving the project. |
+| `delete`  | boolean | false    |              |                                                       |
+| `share`   | boolean | false    |              |                                                       |
+| `update`  | boolean | false    |              |                                                       |
 
 ## codersdk.ChatProjectRole
 
@@ -5283,6 +5318,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "pin_order": 0,
   "pinned": true,
   "project": {
+    "archived_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "description": "string",
     "icon": "string",
@@ -5291,6 +5327,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "permissions": {
+      "archive": true,
       "delete": true,
       "share": true,
       "update": true

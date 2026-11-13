@@ -236,7 +236,7 @@ func TestChatProjectSummaries(t *testing.T) {
 	} {
 		got := summaries[project]
 		require.True(t, got.Pinned)
-		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true}, got.Project.Permissions)
+		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true, Archive: true}, got.Project.Permissions)
 		lastActivity := ptr.NilToDefault(got.LastActivityAt, time.Time{}).UTC()
 		gotSummary := summary{got.OwnChatCount, got.OwnUnreadCount, got.MemberCount, got.OwnRunning, got.OwnNeedsAttention, lastActivity}
 		require.Equal(t, want, gotSummary, got.Project.Name)

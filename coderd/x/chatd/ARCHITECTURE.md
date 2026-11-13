@@ -27,6 +27,7 @@ We say that the following data constitutes a chat's **execution state**:
 
 - chat status on the `chats` table, such as `waiting`, `running`, `interrupting`, `requires_action`, `error`, or `paused`;
 - the `archived` marker on the `chats` table;
+- the `archived_with_project` marker on the `chats` table, which is `true` only on chats that a project archive archived;
 - message history in the `chat_messages` table, including the `revision` field;
 - queued user messages in the `chat_queued_messages` table, including the `position`, `created_by`, and `busy_behavior` fields;
 - `worker_id` and `runner_id` fields on the `chats` table (ownership fields);
@@ -60,6 +61,8 @@ Files uploaded into the chat's workspace through `POST /api/v2/chats/{chat}/work
 Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
 
 Project skills are the project's enabled skills, which every chat in the project gets as a project skill source alongside personal, organization, and workspace skills. Each turn checks ChatProjectUsableBy once for the chat owner, and that one result gates both project instructions and skills, so a chat gets both or neither. Skills are then read as chatd, so role grants do not count. Subagents use the root chat's project. If loading fails, the turn continues without them.
+
+A project can be archived. `chat_projects.archived_at` is set while it is archived. No chat can join an archived project, and none of its chats can be unarchived on its own. Archiving a project archives every unarchived chat in it, subagent chats included, and sets `archived_with_project` on each chat it changed. Chats that were already archived keep the marker unset, so unarchiving the project restores only the chats its archive changed. Any unarchive clears the marker. The marker doesn't change a chat's execution state: a marked chat is in `XW`, `XE0`, `XE1`, or `XE1P` like any other archived chat.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
@@ -138,8 +141,15 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 ### Transitions used by the HTTP endpoints
 
 - `Create(initialMessages, initialStatus)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `initialStatus`. The initial status defaults to `running`; a caller can request `waiting` instead to create an idle chat, which starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
-- When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
-- `SetArchived(archived)` sets or clears the archived marker for one chat.
+- When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family. When it creates a root chat in a project, it fails if the project is archived.
+- `SetArchived(archived)` sets or clears the archived marker for one chat. Unarchiving a family fails while its root chat's project is archived.
+- `ArchiveProjectChats(stop_active_chats)` sets the project's `archived_at` and archives every unarchived chat in the project, of every owner, in one transaction. It's a bulk transition outside the per-chat machine: one `UPDATE` applies it to every family in the project, so its writes must stay in sync with the per-chat transitions. Each chat lands in the archived state that matches its status and queue:
+  - `W`, `R0`, `I0`, and `A0` land in `XW`.
+  - `E0`, `E1`, and `E1P` land in `XE0`, `XE1`, and `XE1P`, and keep their `last_error`.
+  - `R1`, `I1`, and `A1` land in `XE1`, and `R1P`, `I1P`, `A1P`, and `P` land in `XE1P`. No archived state is waiting with a queue, so these chats keep their queued messages, move to `error`, and get `last_error` "Stopped when the project was archived."
+
+  It sets `archived_with_project`, clears `worker_id`, `runner_id`, `requires_action_deadline_at`, `compaction_requested_at`, `retry_state`, and `pin_order`, and advances `snapshot_version`. It doesn't answer pending dynamic tool calls of an `A0`, `A1`, or `A1P` chat. After the commit it publishes `chat:update` for each archived chat, so a runner that owns one sees `archived` and abandons it, discarding any partial reply. Without `stop_active_chats`, it fails without changing anything when a member of any family is `running`, `interrupting`, `requires_action`, or `paused`.
+- `UnarchiveProjectChats` clears the project's `archived_at` and unarchives the marked chats of every family whose root has `archived_with_project`, clearing the marker. It doesn't change status, queue, or `last_error`, so `XW`, `XE0`, `XE1`, and `XE1P` land in `W`, `E0`, `E1`, and `E1P`. Chats archived before the project stay archived. Like `ArchiveProjectChats`, it publishes `chat:update` for each chat it changed after the commit.
 - `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0`, `E1`, `E1P` or `P`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` names the lane and must be `queue` or `steer` (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send stores `m` in its lane and keeps the status, except a `steer` send from `E1P` or `P`. From `E1`, `E1P`, and `P`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. A `queue` send never runs before a message under edit.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
@@ -174,6 +184,8 @@ Now comes maybe the densest part of this document. It's a diagram that shows all
 
 A transition between input state `A` and output state `B` is allowed only if it's listed in the diagram below (`A --> B: Transition Name`). If a transition is not allowed, the core state machine implementation must reject it.
 
+`ArchiveProjectChats` and `UnarchiveProjectChats` run outside the per-chat machine, but their edges are listed too. Edges out of `R0`, `R1`, `R1P`, `I0`, `I1`, `I1P`, `A0`, `A1`, `A1P`, and `P` require `stop_active_chats`.
+
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -191,6 +203,7 @@ stateDiagram-v2
     W --> E0: FinishError
     W --> XW: SetArchived(true)
     W --> W: SetProject
+    W --> XW: ArchiveProjectChats
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
@@ -199,6 +212,7 @@ stateDiagram-v2
     E0 --> E0: Interrupt
     E0 --> XE0: SetArchived(true)
     E0 --> E0: SetProject
+    E0 --> XE0: ArchiveProjectChats
 
     E1 --> R1: SendMessage(queue)
     E1 --> R0: SendMessage(steer) / promoted last queued
@@ -217,6 +231,7 @@ stateDiagram-v2
     E1 --> E1: Interrupt
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
+    E1 --> XE1: ArchiveProjectChats
 
     E1P --> E1P: SendMessage(queue)
     E1P --> R1P: SendMessage(steer)
@@ -233,6 +248,7 @@ stateDiagram-v2
     E1P --> E1: EditQueuedMessage / end head edit or begin edit behind head
     E1P --> E1P: Interrupt
     E1P --> XE1P: SetArchived(true)
+    E1P --> XE1P: ArchiveProjectChats
 
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
@@ -245,6 +261,7 @@ stateDiagram-v2
     R0 --> R1: SendMessage(queue)
     R0 --> R1: SendMessage(steer)
     R0 --> R0: DeliverSteerMessages
+    R0 --> XW: ArchiveProjectChats(stop_active_chats)
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
@@ -266,6 +283,7 @@ stateDiagram-v2
     R1 --> R0: FinishTurn / promoted last queued
     R1 --> R1: FinishTurn / queue still non-empty after promoting
     R1 --> R1P: FinishTurn / new head under edit
+    R1 --> XE1: ArchiveProjectChats(stop_active_chats)
 
     R1P --> R1P: RecordGenerationAttempt
     R1P --> R1P: RecordRetryState
@@ -283,11 +301,13 @@ stateDiagram-v2
     R1P --> R1P: EditQueuedMessage / content edit
     R1P --> R1: EditQueuedMessage / end head edit or begin edit behind head
     R1P --> P: FinishTurn
+    R1P --> XE1P: ArchiveProjectChats(stop_active_chats)
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
     I0 --> I0: Interrupt
     I0 --> W: FinishInterruption
+    I0 --> XW: ArchiveProjectChats(stop_active_chats)
 
     I1 --> I1: SendMessage
     I1 --> R0: EditMessage
@@ -301,6 +321,7 @@ stateDiagram-v2
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
     I1 --> R1P: FinishInterruption / new head under edit
+    I1 --> XE1: ArchiveProjectChats(stop_active_chats)
 
     I1P --> I1P: SendMessage(queue)
     I1P --> I1: SendMessage(steer)
@@ -313,6 +334,7 @@ stateDiagram-v2
     I1P --> I1: EditQueuedMessage / end head edit or begin edit behind head
     I1P --> I1P: Interrupt
     I1P --> P: FinishInterruption
+    I1P --> XE1P: ArchiveProjectChats(stop_active_chats)
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
@@ -320,6 +342,7 @@ stateDiagram-v2
     A0 --> A1: SendMessage(queue)
     A0 --> A1: SendMessage(steer)
     A0 --> R0: EditMessage
+    A0 --> XW: ArchiveProjectChats(stop_active_chats)
 
     A1 --> R1: CompleteRequiresAction
     A1 --> R1: Interrupt
@@ -333,6 +356,7 @@ stateDiagram-v2
     A1 --> A1: SteerQueuedMessage
     A1 --> A1: EditQueuedMessage / content edit or edit behind head
     A1 --> A1P: EditQueuedMessage / begin edit on head
+    A1 --> XE1: ArchiveProjectChats(stop_active_chats)
 
     A1P --> R1P: CompleteRequiresAction
     A1P --> R1P: Interrupt
@@ -346,6 +370,7 @@ stateDiagram-v2
     A1P --> A1: SteerQueuedMessage
     A1P --> A1P: EditQueuedMessage / content edit
     A1P --> A1: EditQueuedMessage / end head edit or begin edit behind head
+    A1P --> XE1P: ArchiveProjectChats(stop_active_chats)
 
     P --> P: SendMessage(queue)
     P --> R1P: SendMessage(steer)
@@ -362,11 +387,16 @@ stateDiagram-v2
     P --> R0: EditQueuedMessage / end head edit, promoted last queued
     P --> R1: EditQueuedMessage / end head edit, queue still non-empty
     P --> P: Interrupt
+    P --> XE1P: ArchiveProjectChats(stop_active_chats)
 
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
     XE1 --> E1: SetArchived(false)
     XE1P --> E1P: SetArchived(false)
+    XW --> W: UnarchiveProjectChats
+    XE0 --> E0: UnarchiveProjectChats
+    XE1 --> E1: UnarchiveProjectChats
+    XE1P --> E1P: UnarchiveProjectChats
 
     [Invalid] --> E0: ReconcileInvalidState / no queued messages
     [Invalid] --> E1: ReconcileInvalidState / ready head
@@ -392,9 +422,12 @@ Notice that the `Acquire` and `Abandon` transitions only affect ownership state,
 
 ### Miscellaneous transition rules
 
-- Any transition that's not `CompleteRequiresAction` which supports `A0`, `A1`, or `A1P` as input states, and lands in output states different from `A0`, `A1`, or `A1P`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history.
+- Any transition that's not `CompleteRequiresAction` which supports `A0`, `A1`, or `A1P` as input states, and lands in output states different from `A0`, `A1`, or `A1P`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history. `ArchiveProjectChats` is the exception: it leaves the calls pending, and the archived chat can't run until it is unarchived. After that, the next transition that delivers a user message answers them under the rule below, and building the prompt fills in synthetic results for any that remain.
 - Any transition that inserts a new user message into active history must answer outstanding tool calls in active history before inserting the user message. It may do this by inserting synthetic cancellation tool-call results.
-- Any transition leaving `E0`, `E1`, or `E1P` (except `SetArchived(true)`) should clear the `last_error` field.
+- Any transition leaving `E0`, `E1`, or `E1P` (except `SetArchived(true)` and `ArchiveProjectChats`) should clear the `last_error` field.
+- `ArchiveProjectChats` locks the project row `FOR UPDATE`, then the project's unarchived root chats in ID order, then their unarchived subagent chats in ID order. Only then does it count active chats and archive, so no chat can start running or gain a queued message between the check and the archive. Creating a child chat holds its root `FOR SHARE`, so once the roots are locked no child can join a family. `UnarchiveProjectChats` locks the project row `FOR UPDATE` and then the chats it unarchives.
+- `Create` of a root chat in a project, `SetProject` into a project, and unarchiving a family whose root is in a project hold the project row `FOR SHARE` until commit. Each of these locks conflicts with the project archive's `FOR UPDATE`, so a write either commits before the archive or sees the project archived and fails.
+- Unarchiving a family locks the root chat before the project, the reverse of `UnarchiveProjectChats`, and multi-row chat writers such as worker heartbeats lock several chats in one statement in their own order. Postgres can then abort a project archive or unarchive to break a deadlock. Both run their transaction up to 3 times on a deadlock error, discard the `chat:update` notifications of an aborted attempt, and chatd logs each retry.
 
 ### Invalid states
 
@@ -807,6 +840,18 @@ No other input states are supported: generating chats and chats with queued mess
 ### `POST /api/v2/chats/{chat}/workspace-files`
 
 This endpoint uses no transition and writes nothing to the chat. Only the chat owner can upload, and they must have SSH access to the chat's workspace. It rejects archived chats and works in every other execution state, including while a turn is running. It streams the request body into the chat's workspace through a workspace agent and returns the file's path for the client to reference from a later message. The upload prefers the agent the chat is bound to. Otherwise it picks one with the chat worker's deterministic agent selection without binding the chat, so the file lands on the agent whose tools will read it.
+
+### Project archive endpoints
+
+The project routes are experimental. The archive endpoints below need the same access as deleting the project, `chat_project:delete`, so a project sharing grant isn't enough.
+
+`POST /api/experimental/organizations/{organization}/chats/projects/{project}/archive` uses `ArchiveProjectChats(stop_active_chats)`. The request body is optional. Without `"stop_active_chats": true`, a project with active chats returns `409` with the number of root chats whose family has an active member, and nothing changes. An already archived project returns `409`. On success, the archived chats are announced to chat watchers as deleted, and their debug data is scheduled for cleanup as for any archived chat. If publishing `chat:update` fails after the commit, the archive stands, and a runner still stops at its next heartbeat because its ownership was cleared.
+
+`POST /api/experimental/organizations/{organization}/chats/projects/{project}/unarchive` uses `UnarchiveProjectChats`. A project that isn't archived returns `409`. The restored chats are announced to chat watchers as created.
+
+`GET /api/experimental/organizations/{organization}/chats/projects/{project}/archive-preview` uses no transition. It returns `chat_count`, the number of unarchived root chats in the project, and `active_chat_count`, the number of those whose family has a member in `running`, `interrupting`, `requires_action`, or `paused`. It counts every owner's chats, which the caller may not be able to read, so it reads as the system.
+
+Deleting an archived project is allowed: its chats are detached and stay archived.
 
 ## Pubsub
 
