@@ -3812,18 +3812,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                            |
-|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                |
-| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
+| Name               | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------|-------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`         | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                                                                                           |
+| `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot version, a number that the server increases each time it changes the chat's messages, queue or status. The server sets it only when the request has neither before_id nor after_id. Pass it as the stream's snapshot_version parameter. The server reads this version before the page's messages and queued messages, so the page can include changes made at a higher version. The stream can send changes that are already in the page. |
+| `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatModel
 
@@ -5518,6 +5520,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
+  "history_reset": {
+    "from_message_id": 0
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -5722,6 +5727,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
   },
+  "snapshot_version": 0,
   "status": {
     "status": "waiting"
   },
@@ -5731,17 +5737,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                                             |
-|-------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                         |
-| `chat_id`         | string                                                                 | false    |              |                                                                                                         |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                         |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                         |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                         |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages. |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                         |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                         |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                         |
+| Name               | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+|--------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `chat_id`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `history_reset`    | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                        |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                        |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `snapshot_version` | integer                                                                | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events. |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                |
 
 ## codersdk.ChatStreamEventType
 
@@ -5756,6 +5764,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                                                                                   |
 |----------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+
+## codersdk.ChatStreamHistoryReset
+
+```json
+{
+  "from_message_id": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                   |
+|-------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept. |
 
 ## codersdk.ChatStreamMessagePart
 

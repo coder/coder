@@ -144,7 +144,6 @@ type sqlcQuerier interface {
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error
-	DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error
 	DeleteAllChatQueuedMessagesReturningCount(ctx context.Context, chatID uuid.UUID) (int64, error)
 	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) ([]DeleteAllTailnetTunnelsRow, error)
 	// Deletes all existing webpush subscriptions.
@@ -174,7 +173,6 @@ type sqlcQuerier interface {
 	DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
-	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
@@ -1274,10 +1272,6 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
-	// Legacy queue insertion path. When no caller-supplied creator exists,
-	// preserve the created_by invariant by attributing the queued row to the
-	// chat owner.
-	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
@@ -1514,7 +1508,6 @@ type sqlcQuerier interface {
 	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
-	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
@@ -1529,9 +1522,6 @@ type sqlcQuerier interface {
 	// granted, so a lease that a committed admission counted as stale cannot
 	// be renewed afterwards.
 	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
-	// Mutates only created_at on the target row; ids are unchanged so
-	// consumers can keep tracking queued messages by id.
-	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1547,9 +1537,7 @@ type sqlcQuerier interface {
 	// A wait longer than lock_timeout_ms fails with lock_not_available
 	// instead of blocking. The setting reverts when the transaction ends.
 	SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error
-	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
-	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
 	// Marks agents from all prior builds of this workspace as deleted,
 	// preserving only agents belonging to @current_build_id. Called from
 	// provisionerdserver when a workspace build completes, after the new
