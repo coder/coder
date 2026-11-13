@@ -180,7 +180,8 @@ export const TemplateCustomizationsStep: React.FC<
 							)}
 						/>
 						<p className="text-xs text-content-secondary">
-							Used by both humans and agents to identify templates.
+							{/* sentence-case-expect: Agents is the product name. */}
+							Used by both humans and Agents to identify templates.
 						</p>
 
 						<IconField

@@ -77,7 +77,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							the daily count of unique users who engaged at least once, with
 							additional insights available through the{" "}
 							<Link size="sm" asChild>
-								<RouterLink to="/audit">Activity audit</RouterLink>
+								<RouterLink to="/audit">activity audit</RouterLink>
 							</Link>{" "}
 							and{" "}
 							<Link size="sm" asChild>

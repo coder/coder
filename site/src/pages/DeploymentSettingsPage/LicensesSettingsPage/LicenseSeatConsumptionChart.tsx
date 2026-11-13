@@ -98,7 +98,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 									<div className="w-full border-dashed border-content-disabled" />
 								</div>
 								Current license seat limit, or the maximum number of allowed
-								Active accounts.
+								active accounts.
 							</li>
 						</ul>
 						<div>
