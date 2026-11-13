@@ -190,7 +190,7 @@ export const WorkspaceParametersPageView: React.FC<
 						<div
 							key={`diagnostic-${diagnostic.summary}-${index}`}
 							className={cn(
-								"text-xs flex flex-col rounded-md border px-4 pb-3 border-solid",
+								"text-xs flex flex-col rounded-md border px-4 pb-3",
 								diagnostic.severity === "error"
 									? "text-content-destructive border-border-destructive"
 									: "text-content-warning border-border-warning",
@@ -210,7 +210,7 @@ export const WorkspaceParametersPageView: React.FC<
 			{(templateVersionId || workspace.latest_build.template_version_id) && (
 				<div className="flex flex-col gap-2">
 					<Label className="text-sm text-content-secondary">Version ID</Label>
-					<p className="m-0 text-xs font-medium font-mono">
+					<p className="m-0 text-xs font-mono">
 						{templateVersionId ?? workspace.latest_build.template_version_id}
 					</p>
 				</div>

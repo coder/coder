@@ -282,6 +282,21 @@ Use a gradual cutover so that you can validate the standalone data plane before 
 Keep `CODER_AI_GATEWAY_ENABLED=true` on `coderd` after the cutover.
 The setting is required for standalone control connections and Coder features that use the in-process gateway.
 
+### Disable the embedded gateway
+
+After all AI Gateway traffic goes through standalone replicas, you can stop `coderd` from starting its embedded gateway:
+
+```sh
+CODER_AI_GATEWAY_ENABLED=true
+CODER_AI_GATEWAY_EMBEDDED_ENABLED=false
+```
+
+With this configuration, the AI Governance entitlement and standalone control connections continue to work.
+Requests to `<Coder access URL>/api/v2/ai-gateway/<provider-name>/` return `404 Not Found`, so update every client and `CODER_AI_GATEWAY_PROXY_TARGET` before you disable the embedded gateway.
+
+Coder Agents requires the embedded gateway.
+If you use Coder Agents, keep `CODER_AI_GATEWAY_EMBEDDED_ENABLED=true`.
+
 ## Roll back to the embedded gateway
 
 To return traffic to the embedded gateway:

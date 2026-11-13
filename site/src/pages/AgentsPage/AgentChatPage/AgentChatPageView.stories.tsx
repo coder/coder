@@ -1335,7 +1335,7 @@ const UnderflowPaginationStory: React.FC = () => {
 	};
 
 	return (
-		<div className="flex h-[600px] flex-col">
+		<div className="flex h-150 flex-col">
 			<StoryAgentChatPageView
 				store={store}
 				hasMoreMessages={loadedPages < 2}
@@ -1409,7 +1409,7 @@ const RetryPaginationStory: React.FC = () => {
 	};
 
 	return (
-		<div className="flex h-[600px] flex-col">
+		<div className="flex h-150 flex-col">
 			<StoryAgentChatPageView
 				store={store}
 				hasMoreMessages

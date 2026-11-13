@@ -43,7 +43,6 @@ import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -136,90 +135,80 @@ const ParameterLabel: React.FC<ParameterLabelProps> = ({
 						)}
 					</span>
 					{!parameter.mutable && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="warning">
-											<TriangleAlertIcon />
-											Immutable
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									This value cannot be modified after the workspace has been
-									created.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="warning">
+										<TriangleAlertIcon />
+										Immutable
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This value cannot be modified after the workspace has been
+								created.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{parameter.ephemeral && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="green">
-											<HourglassIcon />
-											Ephemeral
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									This parameter is ephemeral and will reset to the template
-									default on workspace restart.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="green">
+										<HourglassIcon />
+										Ephemeral
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This parameter is ephemeral and will reset to the template
+								default on workspace restart.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{isPreset && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm">
-											<SettingsIcon />
-											Preset
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									Preset parameters cannot be modified.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm">
+										<SettingsIcon />
+										Preset
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Preset parameters cannot be modified.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{autofill && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm">
-											<LinkIcon />
-											URL Autofill
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									Autofilled from the URL.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm">
+										<LinkIcon />
+										URL Autofill
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Autofilled from the URL.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{hasRequiredDiagnostic && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="destructive">
-											Required
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									{hasRequiredDiagnostic.summary || "Required parameter"}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="destructive">
+										Required
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								{hasRequiredDiagnostic.summary || "Required parameter"}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</Label>
 
@@ -554,7 +543,7 @@ const MaskableTextArea: React.FC<MaskableInputProps> = ({
 				ref={textareaRef}
 				id={id}
 				className={cn(
-					"overflow-y-auto max-h-[500px]",
+					"overflow-y-auto max-h-125",
 					masked && !showMaskedInput && "[-webkit-text-security:disc]",
 				)}
 				value={value}
@@ -631,16 +620,14 @@ const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 			)}
 			<span>{option.name}</span>
 			{option.description && (
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent side="right" sideOffset={10}>
-							{option.description}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<InfoIcon className="size-3.5 text-content-secondary" />
+					</TooltipTrigger>
+					<TooltipContent side="right" sideOffset={10}>
+						{option.description}
+					</TooltipContent>
+				</Tooltip>
 			)}
 		</div>
 	);
@@ -924,7 +911,7 @@ export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
 					className={cn(
-						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid",
+						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5",
 						diagnostic.severity === "error"
 							? "text-content-primary border-border-destructive bg-content-destructive/15"
 							: "text-content-primary border-border-warning bg-content-warning/15",

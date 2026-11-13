@@ -621,6 +621,7 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
+	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
@@ -834,7 +835,7 @@ type sqlcQuerier interface {
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
 	// GetPresetsAtFailureLimit groups workspace builds by preset ID.
 	// Each preset is associated with exactly one template version ID.
-	// For each preset, the query checks the last hard_limit builds.
+	// For each preset, the query checks the last hard_limit finished builds.
 	// If all of them failed, the preset is considered to have hit the hard failure limit.
 	// The query returns a list of preset IDs that have reached this failure threshold.
 	// Only active template versions with configured presets are considered.
@@ -1153,6 +1154,7 @@ type sqlcQuerier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
