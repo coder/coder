@@ -106,7 +106,7 @@ export const WorkspaceTimings: React.FC<WorkspaceTimingsProps> = ({
 		<Collapsible
 			open={isOpen}
 			onOpenChange={setIsOpen}
-			className="rounded-lg border border-solid bg-surface-primary"
+			className="rounded-lg border bg-surface-primary"
 		>
 			<div className="flex items-center justify-between px-4 py-1.5 relative">
 				<CollapsibleTrigger asChild>
@@ -130,7 +130,7 @@ export const WorkspaceTimings: React.FC<WorkspaceTimingsProps> = ({
 			{!isLoading && (
 				<CollapsibleContent>
 					<div
-						className="border-solid border-0 border-t flex flex-col"
+						className="border-t flex flex-col"
 						style={{
 							height: "var(--collapse-body-height, 420px)",
 						}}

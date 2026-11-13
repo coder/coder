@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
+	chatProjectSummaries,
 	chatProjects,
-	createChatProject,
 	deleteChatProject,
+	getPinnedProjectSummaries,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
 import { userChatProviderConfigs } from "#/api/queries/chats";
@@ -17,11 +18,9 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
-import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
 import { ArchiveProjectDialog } from "./dialogs/ArchiveProjectDialog";
 import {
@@ -121,7 +120,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		...chatProjects(),
 		enabled: chatProjectsEnabled,
 	});
-	const createProjectMutation = useMutation(createChatProject(queryClient));
+	const summariesQuery = useQuery({
+		...chatProjectSummaries(),
+		enabled: chatProjectsEnabled,
+	});
+	const pinnedProjects = getPinnedProjectSummaries(summariesQuery.data ?? []);
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation({
 		...deleteChatProject(queryClient),
@@ -140,9 +143,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 
 	// Each dialog keeps its content after closing so the exit animation does
 	// not flash empty.
-	const [projectDialog, setProjectDialog] = useState<ProjectDialogState>({
-		mode: "create",
-	});
+	const [editedProject, setEditedProject] = useState<ChatProject>();
 	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
 	const [deleteDialog, setDeleteDialog] = useState<{
 		project: ChatProject | null;
@@ -155,40 +156,21 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		open: boolean;
 	}>({ project: null, trigger: null, open: false });
 
-	const openProjectDialog = (dialog: ProjectDialogState) => {
-		if (dialog.mode === "create") {
-			createProjectMutation.reset();
-		} else {
-			updateProjectMutation.reset();
-		}
-		setProjectDialog(dialog);
+	const openProjectDialog = (project: ChatProject) => {
+		updateProjectMutation.reset();
+		setEditedProject(project);
 		setIsProjectDialogOpen(true);
 	};
 	const closeProjectDialog = () => setIsProjectDialogOpen(false);
 
 	const handleProjectSubmit = ({
-		organizationId,
+		organizationId: _,
 		...request
 	}: ChatProjectFormValues) => {
-		if (projectDialog.mode === "edit") {
+		if (editedProject) {
 			updateProjectMutation.mutate(
-				{ project: projectDialog.project, request },
+				{ project: editedProject, request },
 				{ onSuccess: closeProjectDialog },
-			);
-			return;
-		}
-		if (organizationId) {
-			createProjectMutation.mutate(
-				{ organizationId, request },
-				{
-					onSuccess: (project) => {
-						closeProjectDialog();
-						navigate({
-							pathname: buildAgentProjectPath({ projectId: project.id }),
-							search: location.search,
-						});
-					},
-				},
 			);
 		}
 	};
@@ -261,16 +243,16 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	};
 
 	return (
-		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
-				projects={projectsQuery.data ?? []}
+				pinnedProjects={pinnedProjects}
+				projectSummaries={summariesQuery.data ?? []}
 				organizations={organizations}
-				isProjectsLoading={projectsQuery.isLoading}
-				projectsError={projectsQuery.error}
-				isProjectsLoadError={projectsQuery.isLoadingError}
-				onRetryProjects={() => void projectsQuery.refetch()}
-				onOpenProjectDialog={openProjectDialog}
+				isPinnedProjectsLoading={summariesQuery.isLoading}
+				pinnedProjectsError={summariesQuery.error}
+				onRetryPinnedProjects={() => void summariesQuery.refetch()}
+				onEditProject={openProjectDialog}
 				onArchiveProject={(project, trigger) =>
 					setArchiveDialog({ project, trigger, open: true })
 				}
@@ -300,7 +282,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId
+					!sidebarView.projectId &&
+					!sidebarView.projectsPage
+				}
+				isProjectsActive={
+					sidebarView.panel === "chats" &&
+					(Boolean(sidebarView.projectsPage) || Boolean(viewedProjectId))
 				}
 				location={location}
 				currentUserId={currentUserId}
@@ -323,23 +310,13 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatProjectDialog
 				organizations={organizations}
 				initialOrganizationId={initialOrganizationId}
-				project={
-					projectDialog.mode === "edit" ? projectDialog.project : undefined
-				}
+				project={editedProject}
 				open={isProjectDialogOpen}
 				onOpenChange={(open) => {
 					if (!open) closeProjectDialog();
 				}}
-				isSubmitting={
-					projectDialog.mode === "edit"
-						? updateProjectMutation.isPending
-						: createProjectMutation.isPending
-				}
-				error={
-					projectDialog.mode === "edit"
-						? updateProjectMutation.error
-						: createProjectMutation.error
-				}
+				isSubmitting={updateProjectMutation.isPending}
+				error={updateProjectMutation.error}
 				onSubmit={handleProjectSubmit}
 			/>
 			<DeleteDialog

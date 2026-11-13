@@ -1824,6 +1824,28 @@ func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
+// authorizeChatProjectPin authorizes the actor to change their own pin on a
+// project. A pin is a personal preference, so reading the project is
+// enough.
+func (q *querier) authorizeChatProjectPin(ctx context.Context, userID, projectID uuid.UUID) error {
+	if err := requireActorIsUser(ctx, userID); err != nil {
+		return err
+	}
+	return q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID)
+}
+
+// requireActorIsUser rejects queries about another user's personal data.
+func requireActorIsUser(ctx context.Context, userID uuid.UUID) error {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return ErrNoActor
+	}
+	if act.ID != userID.String() {
+		return NotAuthorizedError{Err: xerrors.New("actor does not match the user")}
+	}
+	return nil
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -3491,11 +3513,19 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 		return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	}
 
+	// Authorize read on each parent chat with a single fetch rather than
+	// one GetChatByID round trip per chat.
+	chats, err := q.GetChatsByIDs(ctx, chatIDs)
+	if err != nil {
+		return nil, err
+	}
+	found := make(map[uuid.UUID]struct{}, len(chats))
+	for _, chat := range chats {
+		found[chat.ID] = struct{}{}
+	}
 	for _, chatID := range chatIDs {
-		// Authorize read on each parent chat.
-		_, err := q.GetChatByID(ctx, chatID)
-		if err != nil {
-			return nil, err
+		if _, ok := found[chatID]; !ok {
+			return nil, sql.ErrNoRows
 		}
 	}
 
@@ -3878,6 +3908,23 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
+func (q *querier) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (database.GetChatProjectPinTelemetryRow, error) {
+	// Telemetry queries are called from system contexts only.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetChatProjectPinTelemetryRow{}, err
+	}
+	return q.db.GetChatProjectPinTelemetry(ctx, aclEnabled)
+}
+
+// GetChatProjectSummariesByUserID returns the caller's own pins and chat
+// counts, so it only answers for the actor.
+func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	if err := requireActorIsUser(ctx, arg.UserID); err != nil {
+		return nil, err
+	}
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectSummariesByUserID)(ctx, arg)
+}
+
 func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg database.GetChatProjectsOwnedOrSharedWithUserIDParams) ([]database.ChatProject, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsOwnedOrSharedWithUserID)(ctx, arg)
 }
@@ -4029,6 +4076,19 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	chats, err := q.db.GetChatsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, chat := range chats {
+		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return nil, err
+		}
+	}
+	return chats, nil
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -6194,6 +6254,13 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
+func (q *querier) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]database.GetWorkspaceLastUsedForMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceLastUsedForMetrics(ctx)
+}
+
 func (q *querier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -6588,6 +6655,13 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 		return database.ChatProjectMemory{}, err
 	}
 	return q.db.InsertChatProjectMemory(ctx, arg)
+}
+
+func (q *querier) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.InsertChatProjectPin(ctx, arg)
 }
 
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
@@ -7634,6 +7708,13 @@ func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.PinChatByID(ctx, id)
 }
 
+func (q *querier) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.PinChatProject(ctx, arg)
+}
+
 func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -7877,6 +7958,13 @@ func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return q.db.UnpinChatByID(ctx, id)
+}
+
+func (q *querier) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.UnpinChatProject(ctx, arg)
 }
 
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
