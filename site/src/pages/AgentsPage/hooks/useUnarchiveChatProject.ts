@@ -8,10 +8,9 @@ import type { ChatProject } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 
 /**
- * Unarchives one project and toasts the outcome. Every caller for the same
- * project shares the pending state, so a project page's menu and banner
- * can't send the request twice. onSuccess runs after the success toast,
- * even when the caller has unmounted.
+ * Unarchives one project and toasts the outcome. Callers for the same
+ * project share the pending state, so none can send the request twice.
+ * onSuccess runs after the success toast, even if the caller unmounted.
  */
 export const useUnarchiveChatProject = (
 	project: ChatProject,

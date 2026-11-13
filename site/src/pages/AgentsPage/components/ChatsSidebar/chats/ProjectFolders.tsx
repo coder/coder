@@ -78,12 +78,15 @@ export type ProjectFoldersProps = {
 	readonly error: unknown;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
-	/** Moves focus out of the folders when the user unpins the last one. */
+	/**
+	 * Moves focus out of the folders when unpinning or archiving removes the
+	 * last one.
+	 */
 	readonly focusUnpinFallback?: () => void;
 };
 
-// Focuses the folder after the unpinned one, else the one before it, else
-// the fallback.
+// Focuses the folder after a removed one, else the one before it, else the
+// fallback.
 const focusNextFolder = (
 	pinnedProjects: readonly ChatProjectSummary[],
 	projectId: string,
