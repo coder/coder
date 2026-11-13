@@ -19843,6 +19843,10 @@
 				"last_turn_summary": {
 					"type": "string"
 				},
+				"manage_automations_enabled": {
+					"description": "ManageAutomationsEnabled is the owner's switch for the\nmanage_automations tool. The tool also needs the chat-automations\nexperiment and a root chat. Experimental.",
+					"type": "boolean"
+				},
 				"mcp_server_ids": {
 					"type": "array",
 					"items": {
@@ -30907,6 +30911,10 @@
 					"additionalProperties": {
 						"type": "string"
 					}
+				},
+				"manage_automations_enabled": {
+					"description": "ManageAutomationsEnabled switches the manage_automations tool for the\nchat. Only the chat owner can change it, and turning it on needs the\nchat-automations experiment. nil: no change. Experimental.",
+					"type": "boolean"
 				},
 				"pin_order": {
 					"description": "PinOrder controls the chat's pinned state and position.\n- nil: no change to pin state.\n- 0: unpin the chat.\n- \u003e0 (chat is unpinned): pin the chat, appending it to\n  the end of the pinned list. The specific value is\n  ignored; the server assigns the next available position.\n- \u003e0 (chat is already pinned): move the chat to the\n  requested position, shifting neighbors as needed. The\n  value is clamped to [1, pinned_count].",

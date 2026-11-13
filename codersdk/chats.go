@@ -219,6 +219,10 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// ManageAutomationsEnabled is the owner's switch for the
+	// manage_automations tool. The tool also needs the chat-automations
+	// experiment and a root chat. Experimental.
+	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 	// InlineMCPServers lists the inline MCP servers declared on the chat,
 	// without headers. Only the single-chat GET sets it.
 	// Experimental.
@@ -997,6 +1001,10 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// ManageAutomationsEnabled switches the manage_automations tool for the
+	// chat. Only the chat owner can change it, and turning it on needs the
+	// chat-automations experiment. nil: no change. Experimental.
+	ManageAutomationsEnabled *bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // ChatBusyBehavior controls when a message sent to a busy chat reaches

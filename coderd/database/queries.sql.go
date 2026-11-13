@@ -13015,7 +13015,8 @@ INSERT INTO chats (
     mcp_server_ids,
     labels,
     dynamic_tools,
-    client_type
+    client_type,
+    manage_automations_enabled
 ) VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
@@ -13035,7 +13036,8 @@ INSERT INTO chats (
     COALESCE($16::uuid[], '{}'::uuid[]),
     COALESCE($17::jsonb, '{}'::jsonb),
     $18::jsonb,
-    $19::chat_client_type
+    $19::chat_client_type,
+    $20::boolean
 )
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id, title_source, title_updated_at, automation_id, manage_automations_enabled
 ),
@@ -13103,25 +13105,26 @@ FROM chats_expanded
 `
 
 type InsertChatParams struct {
-	ID                uuid.NullUUID         `db:"id" json:"id"`
-	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
-	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
-	ProjectID         uuid.NullUUID         `db:"project_id" json:"project_id"`
-	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	BuildID           uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID           uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	ParentChatID      uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID        uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Title             string                `db:"title" json:"title"`
-	TitleSource       NullChatTitleSource   `db:"title_source" json:"title_source"`
-	Mode              NullChatMode          `db:"mode" json:"mode"`
-	PlanMode          NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	Status            ChatStatus            `db:"status" json:"status"`
-	MCPServerIDs      []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels            pqtype.NullRawMessage `db:"labels" json:"labels"`
-	DynamicTools      pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	ClientType        ChatClientType        `db:"client_type" json:"client_type"`
+	ID                       uuid.NullUUID         `db:"id" json:"id"`
+	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
+	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
+	ProjectID                uuid.NullUUID         `db:"project_id" json:"project_id"`
+	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Title                    string                `db:"title" json:"title"`
+	TitleSource              NullChatTitleSource   `db:"title_source" json:"title_source"`
+	Mode                     NullChatMode          `db:"mode" json:"mode"`
+	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	Status                   ChatStatus            `db:"status" json:"status"`
+	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   pqtype.NullRawMessage `db:"labels" json:"labels"`
+	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
+	ManageAutomationsEnabled bool                  `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
@@ -13145,6 +13148,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.Labels,
 		arg.DynamicTools,
 		arg.ClientType,
+		arg.ManageAutomationsEnabled,
 	)
 	var i Chat
 	err := row.Scan(
@@ -15352,6 +15356,31 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.ManageAutomationsEnabled,
 	)
 	return i, err
+}
+
+const updateChatManageAutomationsEnabledByID = `-- name: UpdateChatManageAutomationsEnabledByID :execrows
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    manage_automations_enabled = $1::boolean
+WHERE
+    id = $2::uuid
+`
+
+type UpdateChatManageAutomationsEnabledByIDParams struct {
+	ManageAutomationsEnabled bool      `db:"manage_automations_enabled" json:"manage_automations_enabled"`
+	ID                       uuid.UUID `db:"id" json:"id"`
+}
+
+// Sets the manage_automations_enabled switch of one chat. The row count is 0
+// when the chat no longer exists.
+func (q *sqlQuerier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg UpdateChatManageAutomationsEnabledByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatManageAutomationsEnabledByID, arg.ManageAutomationsEnabled, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatPinOrder = `-- name: UpdateChatPinOrder :exec

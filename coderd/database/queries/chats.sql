@@ -910,7 +910,8 @@ INSERT INTO chats (
     mcp_server_ids,
     labels,
     dynamic_tools,
-    client_type
+    client_type,
+    manage_automations_enabled
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
@@ -930,7 +931,8 @@ INSERT INTO chats (
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb,
-    @client_type::chat_client_type
+    @client_type::chat_client_type,
+    @manage_automations_enabled::boolean
 )
 RETURNING *
 ),
@@ -1250,6 +1252,17 @@ chats_expanded AS (
 )
 SELECT *
 FROM chats_expanded;
+
+-- name: UpdateChatManageAutomationsEnabledByID :execrows
+-- Sets the manage_automations_enabled switch of one chat. The row count is 0
+-- when the chat no longer exists.
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    manage_automations_enabled = @manage_automations_enabled::boolean
+WHERE
+    id = @id::uuid;
 
 -- name: UpdateChatProjectIDByID :exec
 -- Sets the project of one chat. A NULL project_id removes the chat from

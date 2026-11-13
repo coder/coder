@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -202,6 +203,9 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	// experimentEvaluator decides user-scoped experiments. Nil means that
+	// every user-scoped experiment is off.
+	experimentEvaluator *experimentrules.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -779,6 +783,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		// RFC: "The tool is enabled by default while the experiment is on.
+		// ... Sub-agent and automation-created chats start with it off."
+		ManageAutomationsEnabled: !opts.ParentChatID.Valid && p.automationsExperimentEnabled(ctx, opts.OwnerID),
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1243,8 +1250,11 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	PrometheusRegistry             prometheus.Registerer
-	TracerProvider                 trace.TracerProvider
+	// ExperimentEvaluator decides user-scoped experiments per user. Nil
+	// means that they are off for everyone.
+	ExperimentEvaluator *experimentrules.Evaluator
+	PrometheusRegistry  prometheus.Registerer
+	TracerProvider      trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1365,6 +1375,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
+		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,

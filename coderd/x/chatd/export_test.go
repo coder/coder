@@ -21,3 +21,7 @@ func SpanAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
 	}
 	return value.Emit()
 }
+
+// ManageAutomationsAvailable reports whether a turn of chat offers the
+// manage_automations tool.
+var ManageAutomationsAvailable = (*Server).manageAutomationsAvailable
