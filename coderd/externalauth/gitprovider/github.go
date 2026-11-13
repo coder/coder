@@ -453,7 +453,17 @@ func (g *githubProvider) requestJSON(
 	if readErr != nil {
 		return nil, xerrors.Errorf("github request failed with status %d", resp.StatusCode)
 	}
-	return nil, xerrors.Errorf("github request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	message := fmt.Sprintf("github request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	return nil, &githubRequestError{statusCode: resp.StatusCode, message: message}
+}
+
+type githubRequestError struct {
+	statusCode int
+	message    string
+}
+
+func (e *githubRequestError) Error() string {
+	return e.message
 }
 
 func (g *githubProvider) do(ctx context.Context, req *http.Request, source promoauth.Oauth2Source) (*http.Response, error) {

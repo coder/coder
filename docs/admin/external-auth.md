@@ -332,13 +332,16 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
 
-   | Name          | Permission   | Description                                            |
-   |---------------|--------------|--------------------------------------------------------|
-   | Contents      | Read & Write | Grants access to code and commit statuses.             |
-   | Pull requests | Read & Write | Grants access to create and update pull requests.      |
-   | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
-   | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
-   | Members       | Read-only    | Grants access to organization members and teams.       |
+   | Name          | Permission           | Description                                            |
+   |---------------|----------------------|--------------------------------------------------------|
+   | Contents      | Read & Write         | Grants access to code and commit statuses.             |
+   | Pull requests | Read & Write         | Grants access to create and update pull requests.      |
+   | Workflows     | Read & Write         | Grants access to update files in `.github/workflows/`. |
+   | Metadata      | Read-only            | Grants access to metadata written by GitHub Apps.      |
+   | Members       | Read-only            | Grants access to organization members and teams.       |
+   | Issues        | Read-only (optional) | Grants access to issues.                               |
+
+   Coder Agents reduces primary rate-limit usage for unchanged pull requests with **Issues** read access and fetches each pull request on every status check when GitHub rejects issue access.
 
 1. Install the App for your organization.
    You can grant access to a subset of repositories.

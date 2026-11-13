@@ -37,6 +37,10 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
+			if mode.Load() == 4 {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 			etag = fmt.Sprintf(`"issue-%d"`, mode.Load())
 			body = `{"title":"PR","state":"open","draft":false,"updated_at":"2026-11-13T12:00:00Z","pull_request":{"merged_at":null}}`
 		case "/api/v3/repos/owner/repo/pulls/1":
@@ -118,6 +122,15 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 	var rateLimitErr *gitprovider.RateLimitError
 	require.ErrorAs(t, err, &rateLimitErr)
 	assert.Equal(t, 1, count("GitProviderReviews", http.StatusTooManyRequests))
+
+	mode.Store(4)
+	pullsBefore := count("GitProviderPullRequest", http.StatusNotModified)
+	for range 2 {
+		_, err = provider.FetchPullRequestStatus(ctx, "test-token", ref)
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 1, count("GitProviderIssue", http.StatusForbidden))
+	assert.Equal(t, pullsBefore+2, count("GitProviderPullRequest", http.StatusNotModified))
 
 	branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feature"}
 	_, err = provider.ResolveBranchPullRequest(ctx, "test-token", branch)

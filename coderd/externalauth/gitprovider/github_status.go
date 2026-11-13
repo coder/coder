@@ -3,9 +3,11 @@ package gitprovider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -16,6 +18,9 @@ import (
 // Bound reuse of pull fields not covered by the issue ETag to one hour.
 // A base force push may change diff stats without an observed issue change.
 const githubPullRequestMaxAge = time.Hour
+
+// Retry rejected issue requests after one hour, unless their LRU entry is evicted.
+const githubIssueRejectionTTL = time.Hour
 
 type githubPullRequest struct {
 	Title        string    `json:"title"`
@@ -56,7 +61,8 @@ type githubIssueState struct {
 }
 
 // githubPullRequestSnapshot shares one response-cache entry with the issue's
-// ETag. Neither the PR description nor the embedded repositories are retained.
+// ETag. Without issue access, the entry has no issue ETag but retains PullETag.
+// Neither the PR description nor the embedded repositories are retained.
 type githubPullRequestSnapshot struct {
 	Pull      githubPullRequest `json:"pull"`
 	Issue     githubIssueState  `json:"issue"`
@@ -65,7 +71,10 @@ type githubPullRequestSnapshot struct {
 }
 
 func (g *githubProvider) fetchPullRequest(ctx context.Context, token string, ref PRRef, pullEndpoint string) (githubPullRequest, error) {
-	issueEndpoint := fmt.Sprintf("%s/repos/%s/%s/issues/%d", g.apiBaseURL, url.PathEscape(ref.Owner), url.PathEscape(ref.Repo), ref.Number)
+	repositoryEndpoint := fmt.Sprintf("%s/repos/%s/%s", g.apiBaseURL, url.PathEscape(ref.Owner), url.PathEscape(ref.Repo))
+	issueEndpoint := fmt.Sprintf("%s/issues/%d", repositoryEndpoint, ref.Number)
+	rejectionKey := responseCacheKey(strings.ToLower(repositoryEndpoint), token)
+	rejectionKey = "issue-rejection:" + rejectionKey
 	cacheKey := responseCacheKey(issueEndpoint, token)
 	issueETag, body, haveCached := g.cache.load(cacheKey)
 	var snapshot githubPullRequestSnapshot
@@ -75,26 +84,46 @@ func (g *githubProvider) fetchPullRequest(ctx context.Context, token string, ref
 		}
 	}
 
-	issueResponse, err := g.requestJSON(ctx, issueEndpoint, token, issueETag, promoauth.SourceGitProviderIssue)
-	if err != nil {
-		return githubPullRequest{}, err
+	issueRejected := g.cache.issueRejected(rejectionKey, g.clock.Now())
+	if !issueRejected {
+		issueResponse, err := g.requestJSON(ctx, issueEndpoint, token, issueETag, promoauth.SourceGitProviderIssue)
+		if err != nil {
+			requestErr, ok := errors.AsType[*githubRequestError](err)
+			if !ok {
+				return githubPullRequest{}, err
+			}
+			switch requestErr.statusCode {
+			case http.StatusForbidden, http.StatusNotFound, http.StatusGone:
+				issueRejected = true
+				g.cache.storeEntry(cachedResponse{
+					key:                rejectionKey,
+					issueRejectedUntil: g.clock.Now().Add(githubIssueRejectionTTL),
+				})
+			default:
+				return githubPullRequest{}, err
+			}
+		} else {
+			defer issueResponse.Body.Close()
+			if issueResponse.StatusCode == http.StatusNotModified {
+				if !haveCached || issueETag == "" {
+					return githubPullRequest{}, xerrors.New("github issue returned 304 without a cached pull request")
+				}
+				if g.clock.Now().Sub(snapshot.CheckedAt) < githubPullRequestMaxAge {
+					return snapshot.Pull, nil
+				}
+			} else {
+				var issue githubIssueState
+				if err := json.NewDecoder(issueResponse.Body).Decode(&issue); err != nil {
+					return githubPullRequest{}, xerrors.Errorf("decode github issue: %w", err)
+				}
+				snapshot.Issue = issue
+				issueETag = issueResponse.Header.Get("ETag")
+			}
+		}
 	}
-	defer issueResponse.Body.Close()
-
-	if issueResponse.StatusCode == http.StatusNotModified {
-		if !haveCached {
-			return githubPullRequest{}, xerrors.New("github issue returned 304 without a cached pull request")
-		}
-		if g.clock.Now().Sub(snapshot.CheckedAt) < githubPullRequestMaxAge {
-			return snapshot.Pull, nil
-		}
-	} else {
-		var issue githubIssueState
-		if err := json.NewDecoder(issueResponse.Body).Decode(&issue); err != nil {
-			return githubPullRequest{}, xerrors.Errorf("decode github issue: %w", err)
-		}
-		snapshot.Issue = issue
-		issueETag = issueResponse.Header.Get("ETag")
+	if issueRejected {
+		issueETag = ""
+		snapshot.Issue = githubIssueState{}
 	}
 
 	checkedAt := g.clock.Now()
@@ -105,7 +134,7 @@ func (g *githubProvider) fetchPullRequest(ctx context.Context, token string, ref
 	defer pullResponse.Body.Close()
 
 	if pullResponse.StatusCode == http.StatusNotModified {
-		if !haveCached {
+		if !haveCached || snapshot.PullETag == "" {
 			return githubPullRequest{}, xerrors.New("github pull request returned 304 without a cached response")
 		}
 	} else {
@@ -125,13 +154,13 @@ func (g *githubProvider) fetchPullRequest(ctx context.Context, token string, ref
 	matchesIssue := !issue.UpdatedAt.IsZero() && !pull.UpdatedAt.Before(issue.UpdatedAt) &&
 		pull.Title == issue.Title && pull.State == issue.State && pull.Draft == issue.Draft &&
 		pull.Merged == (issue.PullRequest.MergedAt != nil) && pull.User == issue.User
-	if matchesIssue {
+	if issueRejected || matchesIssue {
 		snapshot.CheckedAt = checkedAt
 		projection, err := json.Marshal(snapshot)
 		if err != nil {
 			return githubPullRequest{}, xerrors.Errorf("encode github pull request snapshot: %w", err)
 		}
-		g.cache.store(cacheKey, issueETag, projection)
+		g.cache.storeEntry(cachedResponse{key: cacheKey, etag: issueETag, body: projection})
 	}
 	return pull, nil
 }

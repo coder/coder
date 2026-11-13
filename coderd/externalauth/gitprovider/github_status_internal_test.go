@@ -2,17 +2,23 @@ package gitprovider
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -30,6 +36,7 @@ type githubStatusServer struct {
 	requests      map[string]int
 	charged       map[string]int
 	issueStatus   int
+	issueHeaders  http.Header
 	pullStatus    int
 	reviewStatus  int
 }
@@ -64,21 +71,31 @@ func newGitHubStatusServer(t *testing.T) (*githubStatusServer, *httptest.Server)
 		var body any
 		var status int
 		switch r.URL.Path {
-		case "/api/v3/repos/owner/repo/issues/1":
+		case "/api/v3/repos/owner/repo/issues/1", "/api/v3/repos/owner/repo/issues/2", "/api/v3/repos/owner/other/issues/1":
+			for name, values := range state.issueHeaders {
+				w.Header()[name] = values
+			}
+			if validator := r.Header.Get("If-None-Match"); validator != "" {
+				assert.True(t, strings.HasPrefix(validator, `"issue-`), "issue request must use an issue ETag")
+			}
 			endpoint = "issue"
 			etag = fmt.Sprintf(`"issue-%d"`, state.issueVersion)
 			body = state.issue
 			status = state.issueStatus
-		case "/api/v3/repos/owner/repo/pulls/1":
+		case "/api/v3/repos/owner/repo/pulls/1", "/api/v3/repos/owner/repo/pulls/2", "/api/v3/repos/owner/other/pulls/1":
 			endpoint = "pull"
 			state.pullRequests++
 			etag = fmt.Sprintf(`"pull-%d"`, state.pullRequests)
 			if state.pullETag != "" {
 				etag = state.pullETag
 			}
-			body = state.pull
+			pull := maps.Clone(state.pull)
+			if strings.HasSuffix(r.URL.Path, "/2") {
+				pull["number"] = 2
+			}
+			body = pull
 			status = state.pullStatus
-		case "/api/v3/repos/owner/repo/pulls/1/reviews":
+		case "/api/v3/repos/owner/repo/pulls/1/reviews", "/api/v3/repos/owner/repo/pulls/2/reviews", "/api/v3/repos/owner/other/pulls/1/reviews":
 			endpoint = "reviews"
 			assert.Equal(t, "100", r.URL.Query().Get("per_page"))
 			etag = fmt.Sprintf(`"reviews-%d"`, state.reviewVersion)
@@ -91,7 +108,9 @@ func newGitHubStatusServer(t *testing.T) (*githubStatusServer, *httptest.Server)
 		}
 		state.requests[endpoint]++
 		if status != 0 {
+			state.charged[endpoint]++
 			w.WriteHeader(status)
+			_, _ = fmt.Fprintf(w, `{"message":%q}`, endpoint+" request error")
 			return
 		}
 		w.Header().Set("ETag", etag)
@@ -118,7 +137,9 @@ func (s *githubStatusServer) assertRequests(t *testing.T, requests, charged map[
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	assert.Equal(t, requests, s.requests, "requests by endpoint")
-	assert.Equal(t, charged, s.charged, "charged requests by endpoint")
+	if charged != nil {
+		assert.Equal(t, charged, s.charged, "charged requests by endpoint")
+	}
 	clear(s.requests)
 	clear(s.charged)
 }
@@ -456,6 +477,220 @@ func TestGitHubStatusUnchangedRequestCounts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGitHubStatusIssueRejectionFallback(t *testing.T) {
+	t.Parallel()
+
+	for _, statusCode := range []int{http.StatusForbidden, http.StatusNotFound, http.StatusGone} {
+		t.Run(fmt.Sprint(statusCode), func(t *testing.T) {
+			t.Parallel()
+			state, srv := newGitHubStatusServer(t)
+			state.change(func() {
+				state.issueStatus = statusCode
+				state.pullETag = `"unchanged-pull"`
+				state.reviews = []map[string]any{{"id": 1, "state": "APPROVED", "user": map[string]any{"login": "reviewer"}}}
+			})
+			clock := quartz.NewMock(t)
+			clock.Set(time.Date(2026, 11, 13, 12, 1, 0, 0, time.UTC))
+			provider, err := New("github", srv.URL+"/api/v3", srv.Client(), WithClock(clock))
+			require.NoError(t, err)
+			ref := PRRef{Owner: "owner", Repo: "repo", Number: 1}
+			want := &PRStatus{
+				Title: "Original title", State: PRStateOpen, HeadSHA: "abc123", HeadBranch: "feature",
+				BaseBranch: "main", PRNumber: 1, Commits: 2,
+				AuthorLogin: "author", AuthorAvatarURL: "https://example.com/author.png",
+				DiffStats: DiffStats{Additions: 10, Deletions: 5, ChangedFiles: 3},
+				Approved:  true, ReviewerCount: 1, FetchedAt: clock.Now(),
+			}
+			first, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			require.Equal(t, want, first)
+			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+
+			clock.Advance(59 * time.Minute)
+			second, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			want.FetchedAt = clock.Now()
+			require.Equal(t, want, second)
+			state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{})
+
+			state.change(func() {
+				state.pull["head"] = map[string]any{"sha": "updated-head", "ref": "feature"}
+				state.pull["additions"] = 20
+				state.pullETag = `"updated-pull"`
+				state.pull["updated_at"] = clock.Now().Format(time.RFC3339)
+				state.issue["updated_at"] = state.pull["updated_at"]
+				state.issueVersion++
+			})
+			changed, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			assert.Equal(t, "updated-head", changed.HeadSHA)
+			assert.Equal(t, int32(20), changed.DiffStats.Additions)
+			state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{"pull": 1})
+
+			// The rejection applies to the repository, not only this PR.
+			otherPR, err := provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "repo", Number: 2})
+			require.NoError(t, err)
+			assert.Equal(t, 2, otherPR.PRNumber)
+			state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{"pull": 1, "reviews": 1})
+			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "other", Number: 1})
+			require.NoError(t, err)
+			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+
+			state.change(func() { state.issueStatus = 0 })
+			clock.Advance(time.Minute)
+			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1})
+			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			state.assertRequests(t, map[string]int{"issue": 1, "reviews": 1}, map[string]int{})
+
+			state.change(func() { state.issueStatus = statusCode })
+			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1})
+			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+			require.NoError(t, err)
+			state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{})
+		})
+	}
+}
+
+func TestGitHubStatusIssueRejectionIsolationAndEviction(t *testing.T) {
+	t.Parallel()
+
+	state, srv := newGitHubStatusServer(t)
+	state.change(func() {
+		state.issueStatus = http.StatusForbidden
+		state.pullETag = `"unchanged-pull"`
+	})
+	provider, err := New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
+	github, ok := provider.(*githubProvider)
+	require.True(t, ok)
+	github.cache = newResponseCache(6)
+	ref := PRRef{Owner: "owner", Repo: "repo", Number: 1}
+	_, err = provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
+	require.NoError(t, err)
+	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+
+	state.change(func() { state.issueStatus = 0 })
+	_, err = provider.FetchPullRequestStatus(t.Context(), "token-b", ref)
+	require.NoError(t, err)
+	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+	state.change(func() { state.issueStatus = http.StatusForbidden })
+	_, err = provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
+	require.NoError(t, err)
+	state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{})
+
+	// Rejection markers compete with responses for the same entry limit.
+	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+	require.NoError(t, err)
+	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "other", Number: 1})
+	require.NoError(t, err)
+	state.assertRequests(t, map[string]int{"issue": 2, "pull": 2, "reviews": 2}, map[string]int{"issue": 2, "pull": 2, "reviews": 2})
+	github.cache.mu.Lock()
+	assert.Len(t, github.cache.entries, 6)
+	github.cache.mu.Unlock()
+	_, err = provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
+	require.NoError(t, err)
+	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+}
+
+func TestGitHubStatusIssueErrors(t *testing.T) {
+	t.Parallel()
+
+	reset := time.Date(2026, 11, 13, 12, 2, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name           string
+		status         int
+		headers        http.Header
+		rateLimited    bool
+		transportError bool
+		bodyError      bool
+	}{
+		{name: "RetryAfter", status: http.StatusForbidden, headers: http.Header{"Retry-After": {"60"}}, rateLimited: true},
+		{name: "Reset", status: http.StatusForbidden, headers: http.Header{"X-Ratelimit-Reset": {fmt.Sprint(reset.Unix())}}, rateLimited: true},
+		{name: "TooManyRequests", status: http.StatusTooManyRequests, headers: http.Header{"Retry-After": {"60"}}, rateLimited: true},
+		{name: "TooManyRequestsWithoutHeaders", status: http.StatusTooManyRequests},
+		{name: "Unauthorized", status: http.StatusUnauthorized},
+		{name: "Transport", transportError: true},
+		{name: "ReadError", status: http.StatusForbidden, bodyError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			state, srv := newGitHubStatusServer(t)
+			state.change(func() {
+				state.issueStatus = tc.status
+				state.issueHeaders = tc.headers
+			})
+			clock := quartz.NewMock(t)
+			clock.Set(reset.Add(-time.Minute))
+			client := srv.Client()
+			var transportRequests atomic.Int64
+			if tc.transportError || tc.bodyError {
+				transport := client.Transport
+				if transport == nil {
+					transport = http.DefaultTransport
+				}
+				client.Transport = testutil.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if strings.Contains(req.URL.Path, "/issues/") {
+						transportRequests.Add(1)
+						if tc.transportError {
+							return nil, errors.New("issue transport error")
+						}
+						return &http.Response{
+							StatusCode: tc.status,
+							Header:     make(http.Header),
+							Body:       io.NopCloser(iotest.ErrReader(errors.New("issue body error"))),
+						}, nil
+					}
+					return transport.RoundTrip(req)
+				})
+			}
+			provider, err := New("github", srv.URL+"/api/v3", client, WithClock(clock))
+			require.NoError(t, err)
+			for range 2 {
+				_, err := provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "repo", Number: 1})
+				require.Error(t, err)
+				if tc.rateLimited {
+					var limit *RateLimitError
+					require.ErrorAs(t, err, &limit)
+				} else if tc.transportError {
+					require.ErrorContains(t, err, "issue transport error")
+				} else {
+					require.ErrorContains(t, err, fmt.Sprint(tc.status))
+				}
+			}
+			if tc.transportError || tc.bodyError {
+				assert.EqualValues(t, 2, transportRequests.Load())
+				state.assertRequests(t, map[string]int{}, nil)
+			} else {
+				state.assertRequests(t, map[string]int{"issue": 2}, nil)
+			}
+		})
+	}
+}
+
+func TestGitHubStatusMissingPull(t *testing.T) {
+	t.Parallel()
+
+	state, srv := newGitHubStatusServer(t)
+	state.change(func() {
+		state.issueStatus = http.StatusNotFound
+		state.pullStatus = http.StatusNotFound
+	})
+	provider, err := New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
+	ref := PRRef{Owner: "owner", Repo: "repo", Number: 1}
+	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+	require.EqualError(t, err, `github request failed with status 404: {"message":"pull request error"}`)
+	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1}, map[string]int{"issue": 1, "pull": 1})
+	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
+	require.ErrorContains(t, err, "pull request error")
+	state.assertRequests(t, map[string]int{"pull": 1}, map[string]int{"pull": 1})
 }
 
 func TestGitHubStatusRequestFailure(t *testing.T) {
