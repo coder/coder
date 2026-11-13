@@ -39,9 +39,9 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
 	return (
 		<div
 			key={resource.id}
-			className="resource-card border border-solid bg-surface-primary not-last:border-b-0 first:rounded-t-[8px] last:rounded-b-[8px]"
+			className="resource-card border bg-surface-primary not-last:border-b-0 first:rounded-t-[8px] last:rounded-b-[8px]"
 		>
-			<div className="flex items-start gap-20 border-0 border-b border-solid px-8 py-6 last:border-b-0 max-md:w-full max-md:overflow-auto">
+			<div className="flex items-start gap-20 border-b px-8 py-6 last:border-b-0 max-md:w-full max-md:overflow-auto">
 				<div className="flex w-fit min-w-55 shrink-0 gap-2">
 					<div>
 						<ResourceAvatar resource={resource} />

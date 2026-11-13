@@ -15,6 +15,7 @@ type SettingsNavItemProps = {
 	ariaLabel?: string;
 	className?: string;
 	disabled?: boolean;
+	ref?: (element: HTMLElement | null) => void;
 	trailing?: React.ReactNode;
 	trailingIcon?: React.FC<{ className?: string }>;
 } & (
@@ -33,7 +34,7 @@ const navItemClassName = (
 	className: string | undefined,
 ) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-1.5 text-left text-sm cursor-pointer transition-colors no-underline",
+		"flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer transition-colors no-underline",
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -86,11 +87,13 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 	disabled,
 	trailing,
 	trailingIcon,
+	ref,
 	...rest
 }) => {
 	if (rest.to != null) {
 		return (
 			<Link
+				ref={ref}
 				to={rest.to}
 				replace={rest.replace}
 				state={rest.state}
@@ -113,6 +116,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 
 	return (
 		<button
+			ref={ref}
 			type="button"
 			onClick={rest.onClick}
 			disabled={disabled}

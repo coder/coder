@@ -54,9 +54,11 @@ jobs:
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'main' || '' }}
     permissions:
       contents: read
       packages: write # push the dogfood base image to ghcr.io/coder/oss-dogfood-base
+      id-token: write # authenticate to Depot and Docker Hub with OIDC
     env:
       # MISE_EXPERIMENTAL opts into the experimental `oci` subcommand.
       MISE_EXPERIMENTAL: "1"
@@ -121,19 +123,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to DockerHub
-        if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
       - name: Build base image
         uses: depot/build-push-action@98e78adca7817480b8185f474a400b451d74e287 # v1.18.0
         if: ${{ !github.event.pull_request.head.repo.fork }}
         with:
           project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
           # Context is the repo root so Dockerfile.base can COPY the
           # distro-specific files/ tree. It is the checkout rather than
           # {{defaultContext}}: when Depot's cached git clone lacks a commit
@@ -197,6 +191,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/dogfood/test_image.sh "dogfood-test:${{ matrix.image-version }}"
 
+      - name: Login to DockerHub
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        env:
+          DOCKERHUB_OIDC_CONNECTIONID: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
+          DOCKERHUB_OIDC_EXPIREIN: "3600"
+        with:
+          username: codercom
+
       - name: Push final Ubuntu 26.04 image
         if: matrix.image-version == '26.04' && github.ref == 'refs/heads/main'
         env:
@@ -212,7 +215,6 @@ jobs:
         uses: depot/build-push-action@98e78adca7817480b8185f474a400b451d74e287 # v1.18.0
         with:
           project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
           context: dogfood/vscode-coder
           pull: true
           save: true
@@ -224,6 +226,7 @@ jobs:
     needs:
       - build_image
     runs-on: ubuntu-latest
+    environment: main
     # Only main pushes the image that workspaces pull.
     if: failure() && github.ref == 'refs/heads/main'
     permissions: {}
