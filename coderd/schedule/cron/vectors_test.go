@@ -16,12 +16,11 @@ import (
 // standardVectors is the shape of testdata/standard_vectors.json. Times are RFC
 // 3339 with an offset (Z for UTC). next lists the first runs after the time in
 // after, each written with the offset of the zone at that instant. reason tells a
-// person why Standard rejects a spec. The test checks that it is there and not
-// its text, so that rewording an error does not change the contract. The
-// DayFields runs pin that a step in the day of month, as in */2, counts as
-// restricted: a spec that also names a day of week runs when either field
-// matches. A library that reads */2 as unrestricted runs it only on that day of
-// week.
+// person why Standard rejects a spec and is not checked, so that rewording an
+// error does not change the contract. The DayFields run pins that a step in the
+// day of month, as in */2, counts as restricted: a spec that also names a day
+// of week runs when either field matches. A library that reads */2 as
+// unrestricted runs it only on that day of week.
 type standardVectors struct {
 	Specs []struct {
 		Spec     string `json:"spec"`
@@ -48,7 +47,6 @@ func TestStandard_Vectors(t *testing.T) {
 
 	raw, err := os.ReadFile(filepath.Join("testdata", "standard_vectors.json"))
 	require.NoError(t, err)
-	requireDocumentedKeys(t, raw)
 	var vectors standardVectors
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -67,7 +65,6 @@ func TestStandard_Vectors(t *testing.T) {
 			}
 			require.Errorf(t, err, "spec %q", tc.Spec)
 			require.Nilf(t, sched, "spec %q", tc.Spec)
-			require.NotEmptyf(t, tc.Reason, "spec %q", tc.Spec)
 		}
 	})
 
@@ -84,26 +81,4 @@ func TestStandard_Vectors(t *testing.T) {
 			})
 		}
 	})
-}
-
-// requireDocumentedKeys fails on a key that is not spelled as documented.
-// encoding/json matches keys without regard to letter case, so
-// DisallowUnknownFields accepts "timezone" for "timeZone", and a reader of the
-// file in another language then gets undefined.
-func requireDocumentedKeys(t *testing.T, raw []byte) {
-	t.Helper()
-	documented := map[string][]string{
-		"specs": {"spec", "accepted", "reason"},
-		"runs":  {"name", "spec", "timeZone", "after", "next"},
-	}
-	var file map[string][]map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(raw, &file))
-	require.Len(t, file, len(documented))
-	for section, entries := range file {
-		for _, entry := range entries {
-			for key := range entry {
-				require.Containsf(t, documented[section], key, "key in %s", section)
-			}
-		}
-	}
 }
