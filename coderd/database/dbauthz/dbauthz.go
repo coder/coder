@@ -3514,11 +3514,19 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 		return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	}
 
+	// Authorize read on each parent chat with a single fetch rather than
+	// one GetChatByID round trip per chat.
+	chats, err := q.GetChatsByIDs(ctx, chatIDs)
+	if err != nil {
+		return nil, err
+	}
+	found := make(map[uuid.UUID]struct{}, len(chats))
+	for _, chat := range chats {
+		found[chat.ID] = struct{}{}
+	}
 	for _, chatID := range chatIDs {
-		// Authorize read on each parent chat.
-		_, err := q.GetChatByID(ctx, chatID)
-		if err != nil {
-			return nil, err
+		if _, ok := found[chatID]; !ok {
+			return nil, sql.ErrNoRows
 		}
 	}
 
@@ -4048,6 +4056,19 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	chats, err := q.db.GetChatsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, chat := range chats {
+		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return nil, err
+		}
+	}
+	return chats, nil
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {

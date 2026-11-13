@@ -1,3 +1,4 @@
+import { DEFAULT_CODE_VIEW_FILE_METRICS } from "@pierre/diffs";
 import type {
 	CodeViewHandle,
 	CodeViewItem,
@@ -13,13 +14,15 @@ import { cn } from "cn";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	DIFFS_GIT_COLOR_CSS,
+	DIFFS_GIT_COLOR_STYLE,
+} from "#/components/SyntaxHighlighter/diffsGitColors";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import {
-	DIFFS_GIT_COLOR_STYLE,
-	SEPARATOR_CSS,
-} from "../ChatElements/tools/utils";
+import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import { DiffStatsText } from "./DiffStats";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
@@ -57,6 +60,9 @@ const DIFF_STYLE_KEY = "agents.diff-view-style";
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
 const HUNK_SEPARATOR_HEIGHT = 28;
+// Card surface visible around the code, at the sides and below it.
+const DIFF_CARD_INSET = 4;
+const DIFF_CARD_GAP = 8;
 
 // Minimum width (px) of the diff container at which the file tree sidebar is
 // shown alongside the diff. Below this the diff takes the full width unless the
@@ -71,10 +77,33 @@ const diffViewerStyle = {
 	...DIFFS_GIT_COLOR_STYLE,
 } satisfies React.CSSProperties;
 
+/**
+ * Renders each file as a card: the header and a frame around the inset code
+ * use the secondary surface, and the code sits on the page surface. The code
+ * background is set here because the app's worker pool theme replaces the
+ * `theme` option, and its editor background matches the card.
+ */
+const DIFF_CARD_CSS = [
+	":host {",
+	"  --diffs-bg: hsl(var(--surface-primary));",
+	"  display: flow-root;",
+	"  overflow: clip;",
+	"  border-radius: 8px;",
+	"  background-color: hsl(var(--surface-secondary));",
+	"}",
+	"pre[data-diff] {",
+	`  margin: 0 ${DIFF_CARD_INSET}px ${DIFF_CARD_INSET}px;`,
+	"  border-radius: 6px;",
+	"}",
+].join(" ");
+
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 	diffHeaderHeight: DIFF_HEADER_HEIGHT,
 	hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT,
 	lineHeight: DIFF_VIEWER_LINE_HEIGHT,
+	// CodeView computes item heights from these metrics instead of measuring
+	// them, so the card frame below the code is added to the default padding.
+	paddingBottom: DEFAULT_CODE_VIEW_FILE_METRICS.spacing + DIFF_CARD_INSET,
 };
 
 const fileTreeStyle = {
@@ -186,7 +215,7 @@ function gitStatusForFile(
 function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-b bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 bg-surface-secondary py-2 px-2.5 font-sans text-sm">
 			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
 				<span
 					className={cn(
@@ -205,20 +234,7 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 					{fileDiff.name}
 				</span>
 			</div>
-			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border font-mono text-xs leading-5">
-					{deletions > 0 && (
-						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
-							&minus;{deletions}
-						</span>
-					)}
-					{additions > 0 && (
-						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
-							+{additions}
-						</span>
-					)}
-				</span>
-			)}
+			<DiffStatsText additions={additions} deletions={deletions} />
 		</div>
 	);
 }
@@ -311,8 +327,8 @@ export function saveDiffStyle(style: DiffStyle): void {
 	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
-// The loading state mirrors the real diff layout: flat, full-width
-// file headers with a change badge and stat pill, gutter-aligned code
+// The loading state mirrors the real diff layout: file cards with a
+// header holding a change badge and line counts, gutter-aligned code
 // lines, and centered hunk separators. Keeping the same shape avoids a
 // jarring swap when the parsed diff replaces the placeholder.
 function SkeletonLine({ width }: { width: string }) {
@@ -339,15 +355,15 @@ function SkeletonSeparator() {
 
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
-		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-b bg-surface-secondary py-2 pr-1.5 pl-2.5">
+		<div className="rounded-lg bg-surface-secondary px-1 pb-1">
+			<div className="flex h-8 items-center justify-between gap-3 py-2 px-1.5">
 				<div className="flex items-center gap-2">
 					<Skeleton className="size-3 rounded-xs" />
 					<Skeleton className="h-3 w-44" />
 				</div>
-				<Skeleton className="h-5 w-14 rounded-[3px]" />
+				<Skeleton className="h-3 w-14" />
 			</div>
-			<div className="py-1">
+			<div className="rounded-md bg-surface-primary py-1">
 				{groups.map((lines, groupIndex) => (
 					<Fragment key={groupIndex}>
 						{groupIndex > 0 && <SkeletonSeparator />}
@@ -374,7 +390,12 @@ const DIFF_SKELETON_FILES = [
 
 function DiffViewerSkeleton() {
 	return (
-		<div role="status" aria-label="Loading diff" aria-busy>
+		<div
+			role="status"
+			aria-label="Loading diff"
+			aria-busy
+			className="flex flex-col gap-2 px-2"
+		>
 			{DIFF_SKELETON_FILES.map((groups, fileIndex) => (
 				<SkeletonFile key={fileIndex} groups={groups} />
 			))}
@@ -430,10 +451,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		diffIndicators: "bars",
 		overflow: "scroll",
 		stickyHeaders: true,
-		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
+		layout: { paddingTop: 0, paddingBottom: DIFF_CARD_GAP, gap: DIFF_CARD_GAP },
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: [SEPARATOR_CSS, DIFFS_GIT_COLOR_CSS, DIFF_CARD_CSS].join(" "),
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
@@ -542,7 +563,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				items={items}
 				options={options}
 				selectedLines={selectedLines}
-				className="h-full min-h-0 min-w-0 flex-1 overflow-auto"
+				className="h-full min-h-0 min-w-0 flex-1 overflow-auto px-2"
 				style={diffViewerStyle}
 				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
