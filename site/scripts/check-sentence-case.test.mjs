@@ -438,11 +438,17 @@ describe("checkSource", () => {
 			"const c = <kbd><span>Ctrl Shift</span></kbd>;",
 			'const d = <code aria-label="New Workspace">value</code>;',
 			'const e = <pre title="Delete File">{"Some Code"}</pre>;',
+			"const f = <div>Run <pre>cmd</pre>Next Steps</div>;",
+			'const g = <pre><button aria-label="New Workspace">Copy Code</button></pre>;',
+			'const h = <pre>{ok && <span title="Show Details">Some Code</span>}</pre>;',
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
 			[4, "Workspace"],
 			[5, "File"],
+			[6, "Steps"],
+			[7, "Workspace"],
+			[8, "Details"],
 		]);
 	});
 

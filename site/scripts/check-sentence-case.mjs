@@ -1087,17 +1087,26 @@ function createPieceBuilder(sourceFile, consumed) {
 			}
 		} else if (CODE_ELEMENTS.has(intrinsicTagName(node))) {
 			// Skip the rendered content, including text in expressions and
-			// nested elements. Attributes such as aria-label are still
-			// checked on their own.
+			// nested elements. Attributes, such as aria-label on the element
+			// or on elements inside it, are still checked on their own.
 			const consume = (child) => {
+				if (ts.isJsxSelfClosingElement(child)) {
+					return;
+				}
 				consumed.add(child);
-				ts.forEachChild(child, consume);
+				if (ts.isJsxElement(child) || ts.isJsxFragment(child)) {
+					child.children.forEach(consume);
+				} else {
+					ts.forEachChild(child, consume);
+				}
 			};
-			consumed.add(node);
-			for (const child of node.children) {
-				consume(child);
-			}
-			pieces.push({ kind: "substitution", inline });
+			consume(node);
+			// A pre element renders as a block; the others are inline.
+			pieces.push(
+				intrinsicTagName(node) === "pre"
+					? { kind: "break" }
+					: { kind: "substitution", inline },
+			);
 		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
 			consumed.add(node);
 			const tagName = intrinsicTagName(node);
