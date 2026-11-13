@@ -329,8 +329,24 @@ If you don't have a project in mind, ask the agent to generate something small y
 ### Make the workspace fit how you work
 
 The Quickstart template is a starting point.
-[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
-Each task takes about 10 minutes.
+To customize it, take the [Template Fundamentals course](https://coder.com/learn/coder-quickstart) on coder.com.
+It walks you through adding a language and installing your own command-line tools.
+
+To clone a private repository into your workspace, add a `coder_external_auth` data source to the template:
+
+```tf
+data "coder_external_auth" "github" {
+  id = "github"
+}
+```
+
+Publish the template, then update your workspace.
+Select **Login with GitHub** to authorize Coder, and set **Git Repository (Optional)** to your private repository URL.
+Workspaces clone the repository with no manual login.
+A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
+Adding this block makes GitHub authentication required to start a workspace.
+To let users skip it, set `optional = true`.
+For other providers, refer to [External authentication](../admin/external-auth.md).
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 

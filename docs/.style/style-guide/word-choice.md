@@ -480,7 +480,7 @@ It also avoids the "steps" mobility metaphor, so the ban on **Next steps** still
 ```markdown
 ## What's next?
 
-Now that you added a language, [install your own command-line tools](./install-command-line-tools.md).
+Now that you installed the CLI, [create your first template](./create-template.md).
 
 ## Learn more
 
