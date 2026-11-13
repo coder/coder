@@ -322,8 +322,7 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 
 /**
  * Moves a project between the cached active and archived lists, so pages
- * that look it up keep finding it while both lists refetch, and drops an
- * archived project from the cached summaries. A project in
+ * that look it up keep finding it while both lists refetch. A project in
  * neither list stays out of them and is updated where unlistedChatProject
  * cached it.
  */
@@ -349,7 +348,9 @@ const setCachedProjectArchiveState = (
 	queryClient.setQueriesData<TypesGen.ChatProject | null>(
 		{ queryKey: unlistedChatProjectKey(project.id) },
 		(cached) => (cached ? project : cached),
-	); // Summaries list only active projects. An unarchived project returns
+	);
+
+	// Summaries list only active projects. An unarchived project returns
 	// when they refetch.
 	if (project.archived_at) {
 		queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
