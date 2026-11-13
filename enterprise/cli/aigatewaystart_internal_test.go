@@ -345,6 +345,41 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	require.ErrorContains(t, err, shutdownErr.Error())
 }
 
+func TestRunStandaloneGateway_DaemonShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+	modifyTLS := func(p *standaloneGatewayParams) {
+		p.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
+		p.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
+	}
+	gateway, pool := newTestStandaloneGateway(t, modifyTLS, withClock(mClock))
+	// The pool shutdown blocks until its context is done, so daemon shutdown
+	// cannot finish before its timeout.
+	shutdownStarted := make(chan struct{}, 1)
+	pool.started = shutdownStarted
+	pool.release = make(chan struct{})
+
+	daemonShutdownTrap := mClock.Trap().AfterFunc("aigateway", "daemon_shutdown")
+	defer daemonShutdownTrap.Close()
+
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- gateway.run(testCtx)
+	}()
+	daemonShutdownCall := daemonShutdownTrap.MustWait(testCtx)
+	daemonShutdownCall.MustRelease(testCtx)
+	testutil.RequireReceive(testCtx, t, shutdownStarted)
+	require.Empty(t, runDone, "run is still waiting for the daemon")
+
+	mClock.Advance(daemonShutdownTimeout).MustWait(testCtx)
+	err := testutil.RequireReceive(testCtx, t, runDone)
+	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must not be marked closed after a daemon shutdown timeout")
+}
+
 func TestRunStandaloneGateway_ListenAndShutdownErrors(t *testing.T) {
 	t.Parallel()
 
