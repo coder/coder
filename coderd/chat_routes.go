@@ -127,6 +127,7 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 		r.Route("/{chat}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatParam(api.Database))
 			r.Get("/stream/desktop", api.watchChatDesktop)
+			r.Get("/previews", api.listChatPreviews)
 			r.Route("/debug", func(r chi.Router) {
 				r.Get("/runs", api.getChatDebugRuns)
 				r.Get("/runs/{debugRun}", api.getChatDebugRun)

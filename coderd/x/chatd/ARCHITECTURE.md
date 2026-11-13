@@ -565,6 +565,8 @@ This section maps the public endpoints that mutate chat state to the transitions
 
 Chat routes are registered by `registerChatAPIRoutes` and mounted under `/api/v2`. The routes that were not promoted are registered by `registerExperimentalChatRoutes` and answer only on `/api/experimental`: `GET /chats/{chat}/stream/desktop` and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. The `/api/v2` mount reserves `/chats/model-configs` so it returns 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
 
+<!-- TODO(DanielleMaywood): add `GET /chats/{chat}/previews` to the experimental-only routes; it lists the chat's `open_preview` results for its current workspace. -->
+
 ### Organization-scoped model discovery
 
 Clients discover models through `GET /api/v2/organizations/{organization}/chats/models`. The handler requires either full API token scope or chat model configuration read scope, then queries only configs in the requested organization that pass the caller's RBAC filter.

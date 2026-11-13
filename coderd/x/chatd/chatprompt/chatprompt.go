@@ -1614,9 +1614,10 @@ func parseJSONHexEscape(raw []byte) (uint16, bool) {
 	return value, true
 }
 
-// decodeNulInJSON walks all string values (and keys) inside a
-// json.RawMessage and applies decodeNulInString.
-func decodeNulInJSON(raw json.RawMessage) json.RawMessage {
+// DecodeNulInJSON reverses the NUL encoding that MarshalParts applies to
+// strings and keys in stored chat message content. Use it on JSON read from
+// chat_messages.content without ParseContent.
+func DecodeNulInJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return raw
 	}
@@ -1725,7 +1726,7 @@ func (f partNulField) decode(p *codersdk.ChatMessagePart) {
 	case f.str != nil:
 		*f.str(p) = decodeNulInString(*f.str(p))
 	case f.raw != nil:
-		*f.raw(p) = decodeNulInJSON(*f.raw(p))
+		*f.raw(p) = DecodeNulInJSON(*f.raw(p))
 	}
 }
 
