@@ -56,6 +56,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { canManageChat } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -147,13 +148,15 @@ const shouldInvalidateProjectSummaries = (
 	// A move out of a project leaves no project_id, but changes its counts.
 	(Boolean(chat.project_id) || eventKind === "project_change");
 
-// Sidebar lists leave out chats in projects the user has not pinned, unless
-// the chat itself is pinned. Without cached summaries, the list refetch
-// decides.
-const isInUnpinnedProject = (
+// Sidebar lists leave out the user's own chats in projects the user has not
+// pinned, unless the chat itself is pinned. Chats shared with the user are
+// always listed. Without cached summaries, the list refetch decides.
+const isHiddenByProjectPins = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
+	currentUserId: string,
 ): boolean =>
+	canManageChat(chat, currentUserId) &&
 	Boolean(chat.project_id) &&
 	chat.pin_order === 0 &&
 	queryClient
@@ -455,9 +458,10 @@ const AgentsPageLayout: React.FC = () => {
 							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							prependToInfiniteChatsCache(queryClient, updatedChat, {
-								inUnpinnedProject: isInUnpinnedProject(
+								hiddenByProjectPins: isHiddenByProjectPins(
 									queryClient,
 									updatedChat,
+									user.id,
 								),
 							});
 						}
@@ -531,7 +535,7 @@ const AgentsPageLayout: React.FC = () => {
 				}
 			},
 		});
-	}, [queryClient, invalidateProjectSummariesSoon]);
+	}, [queryClient, invalidateProjectSummariesSoon, user.id]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
