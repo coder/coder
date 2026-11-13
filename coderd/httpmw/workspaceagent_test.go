@@ -96,6 +96,33 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Contains(t, response.Message, `User is not active (status = "suspended")`)
 	})
 
+	t.Run("DormantUser", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		authToken := uuid.New()
+		req, rtr, workspace, _ := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: false,
+			}),
+		)
+
+		_, err := db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+			ID:        workspace.OwnerID,
+			Status:    database.UserStatusDormant,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		rw := httptest.NewRecorder()
+		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		rtr.ServeHTTP(rw, req)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
 	t.Run("Latest", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

@@ -44,6 +44,7 @@ Active users can access workspaces, templates, and interact with Coder using CLI
 
 A user account is set to _dormant_ status when they have not yet logged in, or have not logged into the Coder platform for the past 90&nbsp;days.
 Once the user logs in to the platform, the account status will switch to _active_.
+Workspace agents in a dormant user's workspaces can still connect to Coder.
 
 [Service accounts](./headless-auth.md) are an exception.
 They don't log in, so Coder creates them as _active_ by default and never marks them _dormant_.
@@ -53,6 +54,7 @@ Dormant accounts do not count towards the total number of licensed seats in a Co
 ### Suspended user
 
 When a user's account is marked as _suspended_ in Coder, it means that the account has been temporarily deactivated, and the user is unable to access the platform.
+Workspace agents in a suspended user's workspaces can't connect to Coder.
 
 Only user administrators or owners have the necessary permissions to manage suspended accounts and decide whether to lift the suspension and allow the user back into the Coder environment.
 This level of control makes sure that administrators can enforce security measures and handle any compliance-related issues promptly.
