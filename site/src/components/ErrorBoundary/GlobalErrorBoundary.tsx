@@ -39,7 +39,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 		error instanceof Error || isRouteErrorResponse(error);
 
 	return (
-		<div className="bg-surface-primary text-center w-full h-full flex justify-center items-center">
+		<div className="bg-surface-primary text-center size-full flex justify-center items-center">
 			<title>{errorPageTitle}</title>
 
 			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
@@ -75,7 +75,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 					</div>
 				</div>
 
-				<div className="flex flex-row flex-nowrap justify-center gap-2">
+				<div className="flex flex-nowrap justify-center gap-2">
 					<Button asChild className="min-w-32 ">
 						<a href={location.pathname}>Reload page</a>
 					</Button>
@@ -100,7 +100,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 type ErrorStackProps = Readonly<{ error: Error | ErrorResponse }>;
 const ErrorStack: React.FC<ErrorStackProps> = ({ error }) => {
 	return (
-		<aside className="p-4 text-left rounded-md border border-border border-solid">
+		<aside className="p-4 text-left rounded-md border">
 			{isRouteErrorResponse(error) ? (
 				<>
 					<h2 className="text-base font-bold text-content-primary m-0">

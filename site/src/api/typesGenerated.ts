@@ -45,6 +45,11 @@ export type AIBridgeAttribution = Record<string, string>;
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
+	 * EmbeddedEnabled controls whether coderd starts the in-memory AI
+	 * Gateway. It only takes effect when Enabled is true.
+	 */
+	readonly embedded_enabled: boolean;
+	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
@@ -2017,6 +2022,7 @@ export interface BuildInfoResponse {
 
 // From codersdk/workspacebuilds.go
 export type BuildReason =
+	| "autodelete"
 	| "autostart"
 	| "autostop"
 	| "cli"
@@ -2028,6 +2034,7 @@ export type BuildReason =
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
+	"autodelete",
 	"autostart",
 	"autostop",
 	"cli",
@@ -2304,9 +2311,9 @@ export interface ChatAutoArchiveDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatBusyBehavior = "interrupt" | "queue";
+export type ChatBusyBehavior = "queue" | "steer";
 
-export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["queue", "steer"];
 
 // From codersdk/chats.go
 export type ChatClientType = "api" | "ui";
@@ -2322,11 +2329,12 @@ export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
 
 // From codersdk/chats.go
-export type ChatComputerUseProvider = "anthropic" | "openai";
+export type ChatComputerUseProvider = "anthropic" | "openai" | "openai-compat";
 
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 	"anthropic",
 	"openai",
+	"openai-compat",
 ];
 
 // From codersdk/deployment.go
@@ -2812,6 +2820,9 @@ export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
 	readonly name?: string;
+	/**
+	 * Data holds an inline file's bytes, which JSON carries as a base64 string.
+	 */
 	readonly data?: string;
 	readonly file_id?: string;
 }
@@ -3113,6 +3124,10 @@ export interface ChatMessagesPaginationOptions {
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 	/**
@@ -3143,6 +3158,11 @@ export interface ChatModel {
 	 * the model's configured maximum.
 	 */
 	readonly reasoning_efforts?: readonly string[];
+	/**
+	 * ComputerUseProvider names the computer use tool that Coder sends for
+	 * this model. It is omitted when computer use can't run on the model.
+	 */
+	readonly computer_use_provider?: ChatComputerUseProvider;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -3569,10 +3589,14 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
- * ChatProjectACL lists who a chat project is shared with. The Everyone
- * group's ID is the organization ID.
+ * ChatProjectACL lists who a chat project is shared with and who owns
+ * it. The Everyone group's ID is the organization ID.
  */
 export interface ChatProjectACL {
+	/**
+	 * Owner is the project owner, who is never listed in Users.
+	 */
+	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
 }
@@ -3710,12 +3734,19 @@ export interface ChatQueuedMessage {
 	readonly chat_id: string;
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
+	/**
+	 * BusyBehavior is the lane of the message. Steer messages go in
+	 * before the next model call, and queue messages go in after the
+	 * turn ends.
+	 */
+	readonly busy_behavior: ChatBusyBehavior;
 	readonly created_at: string;
 	readonly reasoning_effort?: string;
 	/**
 	 * EditingSince is set while the owner edits the message. A message
-	 * under edit and every message behind it wait until the edit ends; a
-	 * turn that ends at a message under edit pauses the chat.
+	 * under edit and every message behind it wait until the edit ends. A
+	 * steer message under edit also holds the steer messages ahead of
+	 * it. A turn that ends at a message under edit pauses the chat.
 	 */
 	readonly editing_since?: string;
 }
@@ -3842,6 +3873,10 @@ export interface ChatStreamEvent {
 	readonly status?: ChatStreamStatus;
 	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
 }
@@ -4012,6 +4047,9 @@ export interface ChatToolResultPart {
 	readonly tool_call_id?: string;
 	readonly tool_name?: string;
 	readonly mcp_server_config_id?: string;
+	/**
+	 * Result is the tool output, which can be any JSON value.
+	 */
 	readonly result?: unknown;
 	readonly result_delta?: string;
 	readonly reasoning_delta?: string;
@@ -4377,6 +4415,11 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, empty: remove all.
 	 */
 	readonly inline_mcp_servers?: InlineMCPServerRequest[];
+	/**
+	 * BusyBehavior controls when the message reaches the agent if the
+	 * chat is busy. "steer", the default, delivers it before the next
+	 * model call. "queue" delivers it after the active turn ends.
+	 */
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -4394,8 +4437,11 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	/**
 	 * Messages contains all user-visible messages inserted by the send, in
-	 * insertion order. A queued send on an errored chat may promote the
-	 * previous queue head, so clients must upsert the full batch.
+	 * insertion order. A send to an errored or paused chat can also insert
+	 * queued messages: a steer send inserts the queued steer messages
+	 * before the new message, and a queue send to an errored chat inserts
+	 * the steer lane, or the first queue message when that lane is empty.
+	 * Clients must upsert the full batch.
 	 */
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
@@ -4976,6 +5022,10 @@ export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
 	readonly transition: WorkspaceTransition;
 	readonly dry_run?: boolean;
+	/**
+	 * ProvisionerState overrides the provisioner state for this build. JSON
+	 * carries it as a base64 string.
+	 */
 	readonly state?: string;
 	/**
 	 * Orphan may be set for the Destroy transition.
@@ -5740,6 +5790,7 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-acp-subagents"
+	| "chat-automations"
 	| "chat-inline-mcp-servers"
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
@@ -5819,6 +5870,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-acp-subagents",
+	"chat-automations",
 	"chat-inline-mcp-servers",
 	"chat-project-sharing",
 	"chat-stage-metrics",
@@ -6614,10 +6666,14 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode =
+	| "INSUFFICIENT_QUOTA"
+	| "MISSING_TEMPLATE_PARAMETER"
+	| "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = [
 	"INSUFFICIENT_QUOTA",
+	"MISSING_TEMPLATE_PARAMETER",
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
 
@@ -6764,11 +6820,19 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
+export type LoginType =
+	| "github"
+	| "none"
+	| "oauth2_provider_app"
+	| "oidc"
+	| "password"
+	| "token"
+	| "";
 
 export const LoginTypes: LoginType[] = [
 	"github",
 	"none",
+	"oauth2_provider_app",
 	"oidc",
 	"password",
 	"token",
@@ -8710,6 +8774,7 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
+	readonly collect_workspace_stats: boolean;
 }
 
 // From codersdk/chats.go
@@ -10485,6 +10550,10 @@ export interface TemplateBuilderModuleVariable {
 	readonly name: string;
 	readonly type: TemplateBuilderVariableType;
 	readonly description: string;
+	/**
+	 * Default is the variable's default as a JSON string, number, or boolean,
+	 * matching the variable's type.
+	 */
 	readonly default?: Record<string, string>;
 	readonly required: boolean;
 	readonly sensitive: boolean;
@@ -10828,6 +10897,9 @@ export interface TokensFilter {
  */
 export interface ToolResult {
 	readonly tool_call_id: string;
+	/**
+	 * Output is the tool output, which can be any JSON value.
+	 */
 	readonly output: Record<string, string>;
 	readonly is_error: boolean;
 }
@@ -11584,6 +11656,9 @@ export interface UpdateWorkspaceAutostartRequest {
  * provisioner state of a workspace build.
  */
 export interface UpdateWorkspaceBuildStateRequest {
+	/**
+	 * State is the provisioner state, which JSON carries as a base64 string.
+	 */
 	readonly state: string;
 }
 
@@ -12297,6 +12372,10 @@ export interface WorkspaceAgent {
 	readonly resource_id: string;
 	readonly instance_id?: string;
 	readonly architecture: string;
+	/**
+	 * EnvironmentVariables lists the variables set on the agent. Non-empty
+	 * values are redacted as "***REDACTED***" because they often hold credentials.
+	 */
 	readonly environment_variables: Record<string, string>;
 	readonly operating_system: string;
 	readonly logs_length: number;

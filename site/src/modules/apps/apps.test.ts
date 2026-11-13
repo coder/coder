@@ -16,6 +16,7 @@ import {
 	openAppInNewWindow,
 	SESSION_TOKEN_PLACEHOLDER,
 } from "./apps";
+import sessionTokenDestinationCases from "./sessionTokenDestinationCases.json";
 
 function buildApp(overrides: Partial<WorkspaceApp> = {}): WorkspaceApp {
 	return {
@@ -271,165 +272,22 @@ describe("getAppHref", () => {
 });
 
 describe("isSessionTokenDestinationTrusted", () => {
-	const origin = location.origin;
-	const token = SESSION_TOKEN_PLACEHOLDER;
+	// cli/open_internal_test.go runs the same cases against `coder open app`.
+	it.each(sessionTokenDestinationCases.cases)(
+		"$name (trusted: $trusted)",
+		({ url, trusted, origin }) => {
+			expect(
+				isSessionTokenDestinationTrusted(
+					url,
+					origin ?? sessionTokenDestinationCases.origin,
+				),
+			).toBe(trusted);
+		},
+	);
 
-	it.each([
-		[
-			"VS Code",
-			`vscode://coder.coder-remote/open?owner=a&workspace=b&url=${origin}&token=${token}`,
-		],
-		[
-			"trailing slash",
-			`cursor://coder.coder-remote/open?url=${origin}/&token=${token}`,
-		],
-		[
-			"JetBrains Toolbox",
-			`jetbrains://gateway/coder?&workspace=b&url=${origin}&token=${token}&ide_product_code=GO`,
-		],
-		[
-			"JetBrains Gateway",
-			`jetbrains-gateway://connect#type=coder&workspace=b&url=${origin}&token=${token}`,
-		],
-		[
-			"dev container",
-			`cursor://coder.coder-remote/openDevContainer?url=${origin}&token=${token}`,
-		],
-		[
-			"JetBrains Toolbox (documented path)",
-			`jetbrains://gateway/com.coder.toolbox?url=${origin}&token=${token}`,
-		],
-		[
-			"uppercase scheme and authority",
-			`VSCode://Coder.Coder-Remote/open?url=${origin}&token=${token}`,
-		],
-	])("allows %s links to this deployment", (_, url) => {
+	it("allows links to the current origin", () => {
+		const url = `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`;
 		expect(isSessionTokenDestinationTrusted(url, undefined)).toBe(true);
-	});
-
-	it.each([
-		[
-			"another origin",
-			`vscode://coder.coder-remote/open?url=https://attacker.example&token=${token}`,
-		],
-		[
-			"another port",
-			`vscode://coder.coder-remote/open?url=${location.protocol}//${location.hostname}:1&token=${token}`,
-		],
-		[
-			"an encoded other origin",
-			`vscode://coder.coder-remote/open?url=https%3A%2F%2Fattacker.example&token=${token}`,
-		],
-		["no url", `vscode://coder.coder-remote/open?token=${token}`],
-		[
-			"an unparsable url",
-			`vscode://coder.coder-remote/open?url=not-a-url&token=${token}`,
-		],
-		[
-			"duplicate url",
-			`vscode://coder.coder-remote/open?url=${origin}&url=https://attacker.example&token=${token}`,
-		],
-		[
-			"url in query and fragment",
-			`jetbrains-gateway://connect?url=https://attacker.example#url=${origin}&token=${token}`,
-		],
-		[
-			"the token outside the token param",
-			`jetbrains://gateway/coder?url=${origin}&token=x&ide_download_link=https://attacker.example/${token}`,
-		],
-		[
-			"the token twice",
-			`vscode://coder.coder-remote/open?url=${origin}&token=${token}&t=${token}`,
-		],
-		[
-			"the token in a VS Code fragment",
-			`vscode://coder.coder-remote/open?url=${origin}#token=${token}`,
-		],
-		[
-			"a url in the fragment",
-			`vscode://coder.coder-remote/open?url=${origin}&token=${token}#url=https://attacker.example`,
-		],
-		[
-			"another extension",
-			`vscode://attacker.ext/open?url=${origin}&token=${token}`,
-		],
-		["an unknown scheme", `coder://open?url=${origin}&token=${token}`],
-		[
-			"a workspace app path",
-			`vscode://coder.coder-remote/open?url=${origin}/@victim/ws.main/apps/evil/&token=${token}`,
-		],
-		[
-			"a double-encoded host",
-			`vscode://coder.coder-remote/open?url=https://attacker.example%252Fx@${location.host}/&token=${token}`,
-		],
-		[
-			"a double-encoded url param",
-			`vscode://coder.coder-remote/open?owner=x%26url%3Dhttps%253A%252F%252Fattacker.example&url=${origin}&token=${token}`,
-		],
-		[
-			"a triple-encoded url param",
-			`vscode://coder.coder-remote/open?x=%252526url%25253Dhttps%25253A%25252F%25252Fattacker.example&url=${origin}&token=${token}`,
-		],
-		[
-			"an opaque handler",
-			`vscode:coder.coder-remote/open?url=${origin}&token=${token}`,
-		],
-		[
-			"userinfo in the handler",
-			`vscode://x@coder.coder-remote/open?url=${origin}&token=${token}`,
-		],
-		[
-			"dot segments in the handler",
-			`vscode://coder.coder-remote/open/../open?url=${origin}&token=${token}`,
-		],
-		[
-			"params in a VS Code fragment",
-			`vscode://coder.coder-remote/open#url=${origin}&token=${token}`,
-		],
-		[
-			"params in a JetBrains Gateway query",
-			`jetbrains-gateway://connect?url=${origin}&token=${token}`,
-		],
-		[
-			"the placeholder outside the raw token entry",
-			`jetbrains-gateway://connect#type=coder&url=${origin}&token=%24SESSION_TOKEN&ide_download_link=https://attacker.example/${token}`,
-		],
-		[
-			"an encoded url name",
-			`jetbrains-gateway://connect#type=coder&%75rl=${origin}&token=${token}`,
-		],
-		[
-			"a non-Coder JetBrains Gateway provider",
-			`jetbrains-gateway://connect#type=ssh&host=attacker.example&url=${origin}&token=${token}`,
-		],
-		[
-			"a duplicate JetBrains Gateway type",
-			`jetbrains-gateway://connect#type=coder&url=${origin}&token=${token}&type=ssh`,
-		],
-		[
-			"params after a fragment",
-			`vscode://coder.coder-remote/open?x=1#&url=${origin}&token=${token}`,
-		],
-		[
-			"a non-ASCII scheme",
-			`\u212Airo://coder.coder-remote/open?url=${origin}&token=${token}`,
-		],
-		...["\t", "\n", "\r"].map((char) => [
-			`${JSON.stringify(char)} in a param name`,
-			`jetbrains-gateway://connect#type=coder&url=${origin}&ur${char}l=https://attacker.example&token=${token}`,
-		]),
-	])("rejects links with %s", (_, url) => {
-		expect(isSessionTokenDestinationTrusted(url, undefined)).toBe(false);
-	});
-
-	it("allows links to the access URL when the dashboard uses another host", () => {
-		const url = `vscode://coder.coder-remote/open?url=https://coder.example.com&token=${token}`;
-		expect(
-			isSessionTokenDestinationTrusted(url, "https://coder.example.com/"),
-		).toBe(true);
-		expect(
-			isSessionTokenDestinationTrusted(url, "https://other.example.com"),
-		).toBe(false);
 	});
 });
 

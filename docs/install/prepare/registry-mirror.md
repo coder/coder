@@ -143,7 +143,7 @@ services:
 
 ## Step 6: Point the template builder at your mirror
 
-The [template builder](../../admin/templates/creating-templates.md) resolves module sources against `registry.coder.com` by default.
+The [template builder](../../templates/creating-templates.md) resolves module sources against `registry.coder.com` by default.
 To make it generate module source paths that point at your Artifactory mirror instead, set the `CODER_TEMPLATE_BUILDER_REGISTRY_URL` environment variable on your control plane:
 
 ```sh
@@ -197,7 +197,7 @@ Check that your Artifactory token is valid and has read access to the `coder-reg
 
 ### Modules not caching
 
-Ensure the remote repository URL is set to `https://registry.coder.com` and not other paths.
+Make sure the remote repository URL is set to `https://registry.coder.com` and not other paths.
 
 ## Next Steps
 

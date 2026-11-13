@@ -21,6 +21,19 @@
 @source "../node_modules/streamdown";
 
 @theme inline {
+	--color-chart-success: var(--chart-success);
+	--color-chart-success-border: var(--chart-success-border);
+	--color-chart-error: var(--chart-error);
+	--color-chart-error-border: var(--chart-error-border);
+	--color-chart-warning: var(--chart-warning);
+	--color-chart-warning-border: var(--chart-warning-border);
+	--color-chart-active: var(--chart-active);
+	--color-chart-active-border: var(--chart-active-border);
+	--color-chart-inactive: var(--chart-inactive);
+	--color-chart-inactive-border: var(--chart-inactive-border);
+	--color-chart-notice: var(--chart-notice);
+	--color-chart-notice-border: var(--chart-notice-border);
+
 	--font-sans: "Geist Variable", system-ui, sans-serif;
 	/* `monospace, monospace` resets the font-size to 16px with the fallback. */
 	--font-mono: "Geist Mono Variable", monospace, monospace;
@@ -75,6 +88,10 @@
 	--color-surface-magenta: hsl(var(--surface-magenta));
 	--color-surface-git-added: hsl(var(--surface-git-added));
 	--color-surface-git-deleted: hsl(var(--surface-git-deleted));
+	--color-surface-git-added-emphasis: hsl(var(--surface-git-added-emphasis));
+	--color-surface-git-deleted-emphasis: hsl(
+		var(--surface-git-deleted-emphasis)
+	);
 	--color-surface-git-merged: hsl(var(--surface-git-merged));
 
 	--color-border: hsl(var(--border-default));
@@ -450,6 +467,28 @@
 @layer base {
 	:root,
 	.light {
+		--chart-success: var(--color-green-50);
+		--chart-success-border: var(--color-green-500);
+		--chart-error: hsl(var(--surface-destructive));
+		--chart-error-border: hsl(var(--border-destructive));
+		--chart-warning: var(--color-amber-50);
+		--chart-warning-border: var(--color-amber-300);
+		--chart-active: var(--color-sky-100);
+		--chart-active-border: var(--color-sky-500);
+		--chart-inactive: var(--color-gray-100);
+		--chart-inactive-border: var(--color-gray-400);
+		--chart-notice: var(--color-blue-50);
+		--chart-notice-border: var(--color-blue-400);
+		--confetti-primary: var(--color-sky-600);
+		--confetti-secondary: var(--color-zinc-500);
+		--editor-foreground: var(--color-zinc-950);
+		--editor-background: var(--color-zinc-100);
+		/* TODO: These are not tracked in Figma. They've been moved here from `monaco.ts` */
+		--editor-comment: #6b737c;
+		--editor-type: #682cd7;
+		--editor-string: #1766b4;
+		--editor-variable: #444444;
+		--editor-brace: #ebb325;
 		--content-primary: 240 10% 4%;
 		--content-secondary: 240 5% 34%;
 		--content-link: 221 83% 53%;
@@ -512,8 +551,11 @@
 		--git-added-bright: 142 72% 29%;
 		--git-deleted-bright: 0 74% 42%;
 		--git-merged-bright: 272 72% 47%;
-		--surface-git-added: 141 84% 93%;
-		--surface-git-deleted: 0 93% 94%;
+		--surface-git-added: 120 56.8% 92.7%;
+		--surface-git-deleted: 5.5 100% 95.7%;
+		/* Highlight the changed words within a diff line. */
+		--surface-git-added-emphasis: 118.6 48.9% 82.4%;
+		--surface-git-deleted-emphasis: 3.4 100% 89.6%;
 		--surface-git-merged: 269 100% 95%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
@@ -536,6 +578,28 @@
 		--avatar-xs: 1.125rem;
 	}
 	.dark {
+		--chart-success: var(--color-green-950);
+		--chart-success-border: var(--color-green-500);
+		--chart-error: hsl(var(--surface-destructive));
+		--chart-error-border: hsl(var(--border-destructive));
+		--chart-warning: var(--color-amber-950);
+		--chart-warning-border: var(--color-amber-300);
+		--chart-active: var(--color-sky-950);
+		--chart-active-border: var(--color-sky-500);
+		--chart-inactive: var(--color-zinc-950);
+		--chart-inactive-border: var(--color-zinc-500);
+		--chart-notice: var(--color-blue-950);
+		--chart-notice-border: var(--color-blue-400);
+		--confetti-primary: var(--color-sky-500);
+		--confetti-secondary: var(--color-zinc-500);
+		--editor-foreground: var(--color-zinc-50);
+		--editor-background: var(--color-zinc-900);
+		/* TODO: These are not tracked in Figma. They've been moved here from `monaco.ts` */
+		--editor-comment: #6b737c;
+		--editor-type: #b392f0;
+		--editor-string: #9db1c5;
+		--editor-variable: #dddddd;
+		--editor-brace: #ebb325;
 		--content-primary: 0 0% 100%;
 		--content-secondary: 240 5% 65%;
 		--content-link: 213 94% 68%;
@@ -590,8 +654,10 @@
 		--git-added-bright: 142 71% 45%;
 		--git-deleted-bright: 0 91% 71%;
 		--git-merged-bright: 270 95% 75%;
-		--surface-git-added: 145 80% 10%;
-		--surface-git-deleted: 0 75% 15%;
+		--surface-git-added: 120 20.5% 15.3%;
+		--surface-git-deleted: 3 23% 18%;
+		--surface-git-added-emphasis: 131.3 43.6% 21.6%;
+		--surface-git-deleted-emphasis: 1.2 34.8% 27.6%;
 		--surface-git-merged: 274 87% 21%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
@@ -626,6 +692,12 @@
 		  tritanopia.
 	*/
 	.light-protan-deuter {
+		--chart-success: var(--color-sky-100);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-100);
+		--chart-error-border: var(--color-red-500);
+		--chart-warning: var(--color-fuchsia-50);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 89% 48%;
 		--content-warning: 322 81% 43%;
 		--content-destructive: 24 95% 53%;
@@ -647,10 +719,18 @@
 		--git-modified: 271 91% 45%;
 		--git-added-bright: 199 89% 48%;
 		--git-deleted-bright: 24 95% 53%;
-		--surface-git-added: 204 94% 94%;
-		--surface-git-deleted: 33 100% 93%;
+		--surface-git-added: 204.8 100% 94.3%;
+		--surface-git-deleted: 19.3 100% 94.5%;
+		--surface-git-added-emphasis: 204.7 100% 85.7%;
+		--surface-git-deleted-emphasis: 18.9 100% 86.3%;
 	}
 	.dark-protan-deuter {
+		--chart-success: var(--color-sky-950);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-950);
+		--chart-error-border: var(--color-red-600);
+		--chart-warning: var(--color-fuchsia-950);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 82% 67%;
 		--content-warning: 322 81% 67%;
 		--content-destructive: 27 96% 67%;
@@ -670,10 +750,18 @@
 		--git-modified: 271 91% 65%;
 		--git-added-bright: 199 89% 48%;
 		--git-deleted-bright: 24 95% 53%;
-		--surface-git-added: 201 80% 14%;
-		--surface-git-deleted: 17 75% 15%;
+		--surface-git-added: 203 41% 16%;
+		--surface-git-deleted: 20.8 31% 16.5%;
+		--surface-git-added-emphasis: 199.2 94.5% 21.4%;
+		--surface-git-deleted-emphasis: 19.7 52.5% 23.9%;
 	}
 	.light-tritan {
+		--chart-success: var(--color-sky-100);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-100);
+		--chart-error-border: var(--color-red-500);
+		--chart-warning: var(--color-fuchsia-50);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 89% 48%;
 		--content-warning: 322 81% 43%;
 		--surface-green: 201 94% 86%;
@@ -689,9 +777,16 @@
 		--git-added: 199 89% 48%;
 		--git-modified: 322 81% 43%;
 		--git-added-bright: 199 89% 48%;
-		--surface-git-added: 204 94% 94%;
+		--surface-git-added: 204.8 100% 94.3%;
+		--surface-git-added-emphasis: 204.7 100% 85.7%;
 	}
 	.dark-tritan {
+		--chart-success: var(--color-sky-950);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-950);
+		--chart-error-border: var(--color-red-600);
+		--chart-warning: var(--color-fuchsia-950);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 82% 67%;
 		--content-warning: 322 81% 67%;
 		--surface-green: 201 80% 14%;
@@ -708,7 +803,8 @@
 		--git-added: 199 82% 67%;
 		--git-modified: 322 81% 72%;
 		--git-added-bright: 199 89% 48%;
-		--surface-git-added: 201 80% 14%;
+		--surface-git-added: 203 41% 16%;
+		--surface-git-added-emphasis: 199.2 94.5% 21.4%;
 	}
 }
 

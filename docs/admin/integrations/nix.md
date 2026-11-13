@@ -112,7 +112,7 @@ See the template README for prerequisites and limitations.
 
 Nix downloads prebuilt packages from binary caches (`cache.nixos.org` by default) instead of building them in the workspace.
 Public caches are shared infrastructure and don't have every package, so some packages still build locally.
-We recommend setting up your own cache server in each region where you are deploying workspaces to ensure the fastest download speeds possible.
+We recommend setting up your own cache server in each region where you are deploying workspaces to make sure you get the fastest download speeds possible.
 
 To add your own cache, set `extra-substituters` and `extra-trusted-public-keys` in the module's [Nix settings](https://registry.coder.com/modules/coder-labs/nix#nix-settings).
 To replace the default caches instead, set `substituters` and `trusted-public-keys`.

@@ -91,7 +91,7 @@ const FilterSubmenuCheckboxItem: React.FC<
 > = ({ className, ...props }) => (
 	<DropdownMenuCheckboxItem
 		className={cn(
-			"pl-9 pr-2 [&>span]:left-2 [&>span]:right-auto [&>span]:size-[18px] [&>span]:rounded-xs [&>span]:border [&>span]:border-solid [&>span]:border-border-control [&>span]:bg-surface-primary",
+			"pl-9 pr-2 [&>span]:left-2 [&>span]:right-auto [&>span]:size-icon-sm [&>span]:rounded-xs [&>span]:border [&>span]:border-border-control [&>span]:bg-surface-primary",
 			"data-[state=checked]:[&>span]:border-surface-invert-primary data-[state=checked]:[&>span]:bg-surface-invert-primary data-[state=checked]:[&>span]:text-content-invert",
 			"[&>span_svg]:stroke-[2.5]",
 			className,

@@ -69,12 +69,14 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
+	type AgentSidebarFilters,
 	getAgentSidebarFilters,
 	getSidebarChatListInput,
 } from "./utils/agentSidebarFilters";
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
+import { useOpenNotificationChat } from "./utils/notificationWindow";
 
 export type AgentsPageOutletContext = {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -98,16 +100,29 @@ export type AgentsPageOutletContext = {
 };
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
-	"diff_status_change",
 	"project_change",
 	"status_change",
 ]);
 
+/**
+ * Reports whether a watch event for a root chat can add it to or remove
+ * it from a chat list under the given sidebar filters.
+ */
 export const shouldInvalidateFilteredChatList = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,
-): boolean =>
-	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+	filters: AgentSidebarFilters,
+): boolean => {
+	if (chat.parent_chat_id) {
+		return false;
+	}
+	// The event carries the new diff status, so cached rows need no
+	// refetch. Only a PR status filter can gain or lose the chat.
+	if (eventKind === "diff_status_change") {
+		return filters.prStatuses.length > 0;
+	}
+	return FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+};
 
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (
@@ -175,6 +190,7 @@ const AgentsPageLayout: React.FC = () => {
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats(getSidebarChatListInput(sidebarFilters)),
 	);
+	useOpenNotificationChat(chatsQuery.isLoading);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
@@ -229,6 +245,7 @@ const AgentsPageLayout: React.FC = () => {
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
+	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
 	const [completedArchives, setCompletedArchives] = useState<string[]>([]);
 	// Completion must outlive the initiating row, but not this layout.
 	const navigateAfterArchive = (chatId: string) => {
@@ -398,7 +415,13 @@ const AgentsPageLayout: React.FC = () => {
 							activeChatId: activeChatIdForWatch(),
 							changedDiffStatus: chatEvent.changed_diff_status,
 						});
-						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
+						if (
+							shouldInvalidateFilteredChatList(
+								updatedChat,
+								chatEvent.kind,
+								sidebarFiltersForWatch(),
+							)
+						) {
 							void invalidateChatListQueries(queryClient);
 						}
 						if (shouldInvalidateChatSearches(chatEvent.kind)) {
@@ -505,10 +528,10 @@ const AgentsPageLayout: React.FC = () => {
 				className={cn(
 					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
-						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border"
+						? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b"
 						: isSettingsDetail
 							? "hidden sm:block shrink-0"
-							: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border sm:flex-none sm:border-t-0 sm:border-b-0",
+							: "order-2 sm:order-0 flex-1 min-h-0 border-b sm:flex-none sm:border-t-0 sm:border-b-0",
 					isSidebarCollapsed && "sm:hidden",
 				)}
 			>

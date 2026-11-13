@@ -570,10 +570,13 @@ type sqlcQuerier interface {
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
-	// Returns the queue head (lowest position, then lowest id).
+	// Returns the queue head: the first row in GetChatQueuedMessages order.
+	// A steer row under edit comes first instead, because it holds the
+	// whole steer lane.
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
-	// Returns the queue in promotion order (position ASC, id ASC), the same
-	// order chatstate uses to pick the head. Clients read the queue through
+	// Returns the queue in promotion order (steer lane first, then the queue
+	// lane, each by position ASC, id ASC), the same order chatstate uses to
+	// pick the head. Clients read the queue through
 	// this query, so it must not order by created_at: promoting a message
 	// changes only its position, and concurrent senders can commit with
 	// created_at and position in opposite orders.
@@ -618,6 +621,7 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
+	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
@@ -831,7 +835,7 @@ type sqlcQuerier interface {
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
 	// GetPresetsAtFailureLimit groups workspace builds by preset ID.
 	// Each preset is associated with exactly one template version ID.
-	// For each preset, the query checks the last hard_limit builds.
+	// For each preset, the query checks the last hard_limit finished builds.
 	// If all of them failed, the preset is considered to have hit the hard failure limit.
 	// The query returns a list of preset IDs that have reached this failure threshold.
 	// Only active template versions with configured presets are considered.
@@ -1133,6 +1137,10 @@ type sqlcQuerier interface {
 	// Also checks if all agents are ready and returns the worst status.
 	GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
+	// Matches parameters whose name is in names or starts with one of
+	// name_prefixes. starts_with is used instead of LIKE so an underscore in a
+	// prefix is matched literally rather than as a wildcard.
+	GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]WorkspaceBuildParameter, error)
 	// Fetches the provisioner state of a workspace build, joined through to the
 	// template so that dbauthz can enforce policy.ActionUpdate on the template.
 	// Provisioner state contains sensitive Terraform state and should only be
@@ -1146,6 +1154,7 @@ type sqlcQuerier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
@@ -1505,9 +1514,6 @@ type sqlcQuerier interface {
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
-	// Sets the target queued message's position to one less than the
-	// current minimum position for that chat, moving it to the head.
-	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1546,6 +1552,7 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	SteerChatQueuedMessage(ctx context.Context, arg SteerChatQueuedMessageParams) (int64, error)
 	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.

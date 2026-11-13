@@ -36,7 +36,7 @@ This is the recommended approach for most use cases.
 
 [Configure Dev Containers Integration](./integration.md)
 
-For user documentation, see the [Dev Containers user guide](../../../user-guides/devcontainers/index.md).
+For user documentation, see the [Dev Containers user guide](../../../workspaces/devcontainers/index.md).
 
 ## Envbuilder
 

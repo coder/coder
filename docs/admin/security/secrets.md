@@ -3,16 +3,16 @@ title: Secrets
 ---
 
 Coder is open-minded about how you get your secrets into your workspaces.
-For more information about how to use secrets and other security tips, visit our guide to [security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
+For more information about how to use secrets and other security tips, visit our guide to [security best practices](security-best-practices.md#secrets).
 
 Use this guide to configure how templates make secrets available to Coder workspaces.
 To authenticate workspace provisioners with Coder, see the <a href="../../install/operate/provisioners/index.md#authentication">provisioners documentation</a>.
-For secret values that developers manage themselves, see [User secrets](../../user-guides/user-secrets.md).
+For secret values that developers manage themselves, see [User secrets](../../workspaces/user-secrets.md).
 
 ## Before you begin
 
 Your first attempt to use secrets with Coder should be your local method.
-You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets may be brought over.
+You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets can be brought over.
 
 Often, this workflow is simply:
 
@@ -20,7 +20,7 @@ Often, this workflow is simply:
 1. Your users write them to a persistent file after they've built their workspace
 
 > [!WARNING]
-> [Template parameters](../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
+> [Template parameters](../../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
 > Coder shows parameter values in cleartext throughout the product.
 > Assume anyone with view access to a workspace can also see its parameters.
 
@@ -44,7 +44,7 @@ User secrets are developer-managed values that Coder injects at workspace start.
 If a user secret targets the same environment variable name or file path as a template-provided variable or file, Coder injects the user secret into that workspace.
 A secret can be disabled, in which case it is stored but not injected until it is re-enabled.
 User secret values are covered by [Database Encryption](./database-encryption.md) when it is enabled.
-See the [User secrets guide](../../user-guides/user-secrets.md).
+See the [User secrets guide](../../workspaces/user-secrets.md).
 
 ## Workspace secrets
 
@@ -120,4 +120,4 @@ Refer to our [HashiCorp Vault Integration](../integrations/vault.md) guide for m
 
 ## Next steps
 
-- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)
+- [Security - best practices](security-best-practices.md)

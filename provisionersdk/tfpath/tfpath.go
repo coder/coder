@@ -152,7 +152,9 @@ func extractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, direct
 				slog.F("path", headerPath),
 				slog.F("mode", fmt.Sprintf("%O", mode)))
 		case tar.TypeReg:
-			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
+			// Truncate so a file from a later archive fully replaces an
+			// earlier one.
+			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
 			if err != nil {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}

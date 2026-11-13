@@ -46,7 +46,7 @@ export const LongFilename: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="w-full max-w-[480px]">
+			<div className="w-full max-w-120">
 				<Story />
 			</div>
 		),

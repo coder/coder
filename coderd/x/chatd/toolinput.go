@@ -2,22 +2,21 @@ package chatd
 
 import (
 	"encoding/json"
+	"errors"
 
 	"charm.land/fantasy"
+	"github.com/google/jsonschema-go/jsonschema"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
-// partitionAmbiguousToolCalls separates the calls a consumer must not be asked
-// to decide from the rest, returning synthetic error results for them. Callers
-// reject before pre_tool_use so a hook consumer is never asked to authorize
-// bytes whose meaning depends on which reader resolves them, and so input that
-// cannot be carried in a hook payload fails as a retryable tool error instead
-// of a dispatch failure. allowedIndexes maps allowed calls back to the input
-// order without relying on duplicate-prone IDs.
-func partitionAmbiguousToolCalls(
+// partitionInvalidToolCalls rejects malformed JSON and invalid builtin inputs
+// before pre_tool_use or execution. Synthetic tool errors let the model correct
+// its arguments without failing the turn. allowedIndexes maps allowed calls
+// back to the input order without relying on duplicate-prone IDs.
+func partitionInvalidToolCalls(
 	prepared turnEnvironment,
 	toolCalls []fantasy.ToolCallContent,
 ) (allowed []fantasy.ToolCallContent, allowedIndexes []int, rejected []fantasy.ToolResultContent) {
@@ -27,7 +26,7 @@ func partitionAmbiguousToolCalls(
 			continue
 		}
 		if err := validateBuiltinToolInput(prepared, toolCall.ToolName, []byte(toolCall.Input)); err != nil {
-			rejected = append(rejected, ambiguousToolResult(toolCall, err))
+			rejected = append(rejected, invalidToolInputResult(toolCall, err))
 			continue
 		}
 		allowed = append(allowed, toolCall)
@@ -37,7 +36,7 @@ func partitionAmbiguousToolCalls(
 }
 
 // validateOverriddenToolInputs rechecks the inputs a pre_tool_use consumer
-// replaced. The model cannot fix an ambiguous override, so the turn fails
+// replaced. The model cannot fix an invalid override, so the turn fails
 // closed instead of executing it.
 func validateOverriddenToolInputs(prepared turnEnvironment, preflight chathooks.PreToolUseExecutionResult) error {
 	for _, toolCall := range preflight.Allowed {
@@ -63,9 +62,61 @@ func validateBuiltinToolInput(prepared turnEnvironment, toolName string, input [
 		if info.Name != toolName {
 			continue
 		}
-		return toolschema.ValidateUnambiguous(info.Parameters, input)
+		if err := toolschema.ValidateUnambiguous(info.Parameters, input); err != nil {
+			return err
+		}
+		schemaJSON, err := json.Marshal(info.Parameters)
+		if err != nil {
+			return xerrors.Errorf("marshal tool schema: %w", err)
+		}
+		schema := jsonschema.Schema{Type: "object", Required: info.Required}
+		if err := json.Unmarshal(schemaJSON, &schema.Properties); err != nil {
+			return xerrors.Errorf("decode tool schema: %w", err)
+		}
+		normalizeToolMapSchemas(&schema)
+		compiled, err := schema.Resolve(nil)
+		if err != nil {
+			return xerrors.Errorf("compile tool schema: %w", err)
+		}
+		var value any
+		if err := json.Unmarshal(input, &value); err != nil {
+			return xerrors.Errorf("decode tool input: %w", err)
+		}
+		// jsonschema-go wraps each recursive error with an absolute schema path.
+		// Keep the innermost wrapper so the location and cause are reported once,
+		// without repeating every ancestor path.
+		err = compiled.Validate(value)
+		for {
+			cause := errors.Unwrap(err)
+			if cause == nil || errors.Unwrap(cause) == nil {
+				return err
+			}
+			err = cause
+		}
 	}
 	return nil
+}
+
+// normalizeToolMapSchemas translates Fantasy's map[string]T wildcard property
+// into JSON Schema's additionalProperties, leaving the tool metadata intact.
+func normalizeToolMapSchemas(schema *jsonschema.Schema) {
+	if schema == nil {
+		return
+	}
+	for _, property := range schema.Properties {
+		normalizeToolMapSchemas(property)
+	}
+	normalizeToolMapSchemas(schema.Items)
+	normalizeToolMapSchemas(schema.AdditionalProperties)
+	for _, branches := range [][]*jsonschema.Schema{schema.AnyOf, schema.OneOf, schema.AllOf} {
+		for _, branch := range branches {
+			normalizeToolMapSchemas(branch)
+		}
+	}
+	if value, wildcard := schema.Properties["*"]; wildcard && len(schema.Properties) == 1 && schema.AdditionalProperties == nil {
+		schema.AdditionalProperties = value
+		schema.Properties = nil
+	}
 }
 
 // malformedToolResult reports input the tool decoder would reject anyway. It
@@ -82,9 +133,9 @@ func malformedToolResult(toolCall fantasy.ToolCallContent) fantasy.ToolResultCon
 	}
 }
 
-func ambiguousToolResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
-	message := "This tool call was not executed because its input is ambiguous: " + err.Error() +
-		". Retry with the exact property names from the tool schema, each key used once."
+func invalidToolInputResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
+	message := "This tool call was not executed because its input is invalid: " + err.Error() +
+		". Retry with a JSON object matching the tool schema, including all required properties and their declared types."
 	return fantasy.ToolResultContent{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,
