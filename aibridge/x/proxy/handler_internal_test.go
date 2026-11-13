@@ -588,18 +588,16 @@ func TestForwardingAPIDump(t *testing.T) {
 // pooled keys.
 func TestForwardingProviderCredentials(t *testing.T) {
 	t.Parallel()
-	// The pool enables failover, which BYOK requests must skip.
-	pool := newTestPool(t, "pool-secret-key")
 	for _, tc := range []struct {
 		name     string
-		provider func(t *testing.T, baseURL string) provider.Provider
+		provider func(t *testing.T, baseURL string, pool *keypool.Pool) provider.Provider
 		// header is added to the request's BYOK Authorization header.
 		header   http.Header
 		wantAuth http.Header
 	}{
 		{
 			name: "OpenAIConnectionAuth",
-			provider: func(_ *testing.T, baseURL string) provider.Provider {
+			provider: func(_ *testing.T, baseURL string, pool *keypool.Pool) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{BaseURL: baseURL, KeyPool: pool})
 			},
 			// ReverseProxy removes headers nominated by Connection.
@@ -609,7 +607,7 @@ func TestForwardingProviderCredentials(t *testing.T) {
 		},
 		{
 			name: "AnthropicAPIKey",
-			provider: func(t *testing.T, baseURL string) provider.Provider {
+			provider: func(t *testing.T, baseURL string, pool *keypool.Pool) provider.Provider {
 				prov, err := provider.NewAnthropic(t.Context(), config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil, nil)
 				require.NoError(t, err)
 				return prov
@@ -627,7 +625,8 @@ func TestForwardingProviderCredentials(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 			}))
 			t.Cleanup(upstream.Close)
-			prov := tc.provider(t, upstream.URL)
+			pool := newTestPool(t, "pool-secret-key")
+			prov := tc.provider(t, upstream.URL, pool)
 			req := requestWithAuth(t, nil)
 			req.URL.Path = prov.RoutePrefix() + "/messages"
 			for name, values := range tc.header {
