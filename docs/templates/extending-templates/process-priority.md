@@ -90,7 +90,8 @@ Make sure the process is dumpable (the agent handles this automatically, but it 
 ### Nice value is not applied
 
 If you see `coder-agent: failed to adjust niceness` before a command's output, the most likely cause is a `CODER_PROC_NICE_SCORE` that is lower than the agent's current nice value.
-Coder writes the message to the stderr of the command, not to the agent log, and the command still runs with the agent's nice value.
+Coder writes the message to the stderr of the command, so it appears with that command's output, for example in the terminal session that ran it.
+The command still runs with the agent's nice value.
 Set `CODER_PROC_NICE_SCORE` to a value at or above the agent's nice value, or remove it to use the default.
 For details, refer to [Nice score defaults](#nice-score-defaults).
 
