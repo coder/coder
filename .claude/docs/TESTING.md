@@ -83,9 +83,10 @@ dominate package wall time.
   rename the file to `*_internal_test.go` instead. A directive plus a
   justification comment is strictly worse than the established naming
   convention, and the repo standardizes on the latter.
-- **Do not add `export_test.go`.** If a test needs an unexported symbol,
-  move the test to a `*_internal_test.go` file or export the symbol for
-  real. The existing `export_test.go` files are legacy: do not extend them.
+- **Do not add `export_test.go`.** First rework the test so that it needs
+  only the exported API. As a last resort, move a test that needs an
+  unexported symbol to a `*_internal_test.go` file. The existing
+  `export_test.go` files are legacy: do not extend them.
 
 ## RFC Protocol Testing
 
