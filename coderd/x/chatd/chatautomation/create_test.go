@@ -138,7 +138,7 @@ func request(t testing.TB, placeholders *strings.Replacer, objects ...string) co
 func TestCreate(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
-	f := newFixture(t, db, nil)
+	f := newFixture(t, db)
 	target := f.chat(t)
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
 	secret := "whsec_" + base64.StdEncoding.EncodeToString([]byte(uuid.NewString()))
@@ -248,7 +248,7 @@ func TestCreateRejected(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	setup := testutil.Context(t, testutil.WaitMedium)
-	f, other := newFixture(t, db, nil), newFixture(t, db, nil)
+	f, other := newFixture(t, db), newFixture(t, db)
 	// The actor can read what it owns in both organizations, so the
 	// organization rule is what refuses the references of the other one.
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
@@ -371,7 +371,7 @@ func TestCreateCap(t *testing.T) {
 	t.Run("AcrossOrganizations", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		a, b := newFixture(t, db, nil), newFixture(t, db, nil)
+		a, b := newFixture(t, db), newFixture(t, db)
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: a.owner.ID, OrganizationID: b.org.ID})
 		h, actor := newHarness(t, db, limits), userActor(t, db, a.owner.ID)
 
@@ -396,7 +396,7 @@ func TestCreateCap(t *testing.T) {
 	t.Run("Concurrent", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		f, other := newFixture(t, db, nil), newFixture(t, db, nil)
+		f, other := newFixture(t, db), newFixture(t, db)
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
 		counted, release, results := make(chan struct{}, 1), make(chan struct{}), make(chan error, 2)
 		first := newHarness(t, hookStore{Store: db, afterCount: func() {
@@ -449,7 +449,7 @@ func TestCreateUnwrappedStore(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	f := newFixture(t, db, nil)
+	f := newFixture(t, db)
 	creator := chatautomation.NewCreator(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), testLimits)
 
 	_, err := creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, webhookToNewChat(t, f)))
@@ -478,7 +478,7 @@ func TestCreateReferenceDeleted(t *testing.T) {
 			t.Parallel()
 			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			f := newFixture(t, db, nil)
+			f := newFixture(t, db)
 			req := webhookToNewChat(t, f)
 			deleteSQL, id := "DELETE FROM chats WHERE id = $1", uuid.UUID{}
 			if tc.project {
@@ -531,7 +531,7 @@ func TestCreateReferenceDeletedWhileInserting(t *testing.T) {
 			t.Parallel()
 			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			ctx := testutil.Context(t, testutil.WaitLong)
-			f := newFixture(t, db, sqlDB)
+			f := newFixture(t, db)
 			req := webhookToNewChat(t, f)
 			deleteSQL, id := tc.reference(t, f, &req)
 			p := createParams(f.org.ID, req)

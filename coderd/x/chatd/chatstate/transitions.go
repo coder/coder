@@ -178,9 +178,6 @@ func insertChat(
 		// Insert the initial history under the new chat row. The
 		// message revision trigger advances `history_version` to the
 		// current `snapshot_version` (which is 1 for a brand new chat).
-		if err := validateMessages(input.InitialMessages); err != nil {
-			return xerrors.Errorf("insert initial messages: %w", err)
-		}
 		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
@@ -268,9 +265,6 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	if len(messages) == 0 {
 		return nil, nil
 	}
-	if err := validateMessages(messages); err != nil {
-		return nil, err
-	}
 	inserted, err := tx.store.InsertChatMessages(tx.ctx, toInsertParams(tx.chatID, messages))
 	if err != nil {
 		return nil, xerrors.Errorf("insert messages: %w", err)
@@ -308,13 +302,12 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavi
 		rawContent = json.RawMessage("null")
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:             tx.chatID,
-		Content:            rawContent,
-		ModelConfigID:      m.ModelConfigID,
-		ReasoningEffort:    m.ReasoningEffort,
-		CreatedBy:          createdBy,
-		BusyBehavior:       busyBehavior,
-		PromptHooksPending: m.PromptHooksPending,
+		ChatID:          tx.chatID,
+		Content:         rawContent,
+		ModelConfigID:   m.ModelConfigID,
+		ReasoningEffort: m.ReasoningEffort,
+		CreatedBy:       createdBy,
+		BusyBehavior:    busyBehavior,
 	})
 }
 
@@ -406,15 +399,14 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 		return Message{}, err
 	}
 	return Message{
-		Role:               database.ChatMessageRoleUser,
-		Content:            pqtype.NullRawMessage{RawMessage: queued.Content, Valid: queued.Content != nil},
-		Visibility:         database.ChatMessageVisibilityBoth,
-		ModelConfigID:      modelConfigID,
-		ReasoningEffort:    queued.ReasoningEffort,
-		CreatedBy:          uuid.NullUUID{UUID: queued.CreatedBy, Valid: true},
-		ContentVersion:     chatprompt.CurrentContentVersion,
-		QueuedMessageID:    sql.NullInt64{Int64: queued.ID, Valid: true},
-		PromptHooksPending: queued.PromptHooksPending,
+		Role:            database.ChatMessageRoleUser,
+		Content:         pqtype.NullRawMessage{RawMessage: queued.Content, Valid: queued.Content != nil},
+		Visibility:      database.ChatMessageVisibilityBoth,
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: queued.ReasoningEffort,
+		CreatedBy:       uuid.NullUUID{UUID: queued.CreatedBy, Valid: true},
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		QueuedMessageID: sql.NullInt64{Int64: queued.ID, Valid: true},
 	}, nil
 }
 
@@ -998,11 +990,6 @@ func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) 
 	inserted, err := tx.insertMessages(input.Messages)
 	if err != nil {
 		return ClearContextResult{}, xerrors.Errorf("insert clear boundary messages: %w", err)
-	}
-	// The reset hides every earlier message from the model, so a message
-	// that still waits for its hooks never starts a turn.
-	if err := tx.store.ClearChatMessagesPromptHooks(tx.ctx, tx.chatID); err != nil {
-		return ClearContextResult{}, xerrors.Errorf("clear pending prompt hooks: %w", err)
 	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusWaiting,
@@ -1833,51 +1820,6 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 	return CommitStepResult{
 		InsertedMessages: inserted,
 	}, nil
-}
-
-// ErrPromptHooksNotPending is returned by [Tx.ResolvePromptHooks] when the
-// message is not an undeleted message of the chat that waits for its hooks.
-// It deliberately does not wrap sql.ErrNoRows, which chatd treats as a
-// deleted chat.
-var ErrPromptHooksNotPending = xerrors.New("message is not waiting for its prompt hooks")
-
-// ResolvePromptHooksInput configures [Tx.ResolvePromptHooks].
-type ResolvePromptHooksInput struct {
-	MessageID int64
-	// Content replaces the content of the message when it is valid.
-	Content pqtype.NullRawMessage
-	// Deny soft-deletes the message.
-	Deny bool
-}
-
-// ResolvePromptHooksResult is returned by [Tx.ResolvePromptHooks].
-type ResolvePromptHooksResult struct {
-	Message database.ChatMessage
-}
-
-// ResolvePromptHooks settles a history message that was saved with
-// prompt_hooks_pending: it clears the flag, and it rewrites the content or
-// soft-deletes the message according to the outcome of the hooks. The status
-// does not change. A caller that denies the message follows with FinishError
-// in the same transaction.
-func (tx *Tx) ResolvePromptHooks(input ResolvePromptHooksInput) (ResolvePromptHooksResult, error) {
-	if _, _, err := tx.requireFromAllowed(TransitionResolvePromptHooks); err != nil {
-		return ResolvePromptHooksResult{}, err
-	}
-	message, err := tx.store.ResolveChatMessagePromptHooks(tx.ctx, database.ResolveChatMessagePromptHooksParams{
-		ID:             input.MessageID,
-		ChatID:         tx.chatID,
-		Content:        input.Content,
-		ContentVersion: sql.NullInt16{Int16: chatprompt.CurrentContentVersion, Valid: input.Content.Valid},
-		Deleted:        input.Deny,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return ResolvePromptHooksResult{}, xerrors.Errorf("message %d: %w", input.MessageID, ErrPromptHooksNotPending)
-	}
-	if err != nil {
-		return ResolvePromptHooksResult{}, xerrors.Errorf("resolve prompt hooks of message %d: %w", input.MessageID, err)
-	}
-	return ResolvePromptHooksResult{Message: message}, nil
 }
 
 // requiresActionTimeout is the time allowed for a client to submit

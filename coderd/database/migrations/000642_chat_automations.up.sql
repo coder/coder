@@ -124,14 +124,12 @@ CREATE FUNCTION enforce_chat_automation_organization() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	-- Validate a reference only when it or organization_id changes. Chat
-	-- deletion runs one ON DELETE SET NULL update per reference, and the
-	-- other, unchanged reference may point at a chat the same statement is
-	-- deleting.
+	-- Validate a reference only when it changes. Chat deletion runs one ON
+	-- DELETE SET NULL update per reference, and the other, unchanged
+	-- reference may point at a chat the same statement is deleting.
 	IF NEW.target_chat_id IS NOT NULL AND (
 		TG_OP = 'INSERT'
 		OR NEW.target_chat_id IS DISTINCT FROM OLD.target_chat_id
-		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
 	) AND NOT EXISTS (
 		SELECT 1 FROM chats
 		WHERE id = NEW.target_chat_id AND organization_id = NEW.organization_id
@@ -143,7 +141,6 @@ BEGIN
 	IF NEW.created_by_chat_id IS NOT NULL AND (
 		TG_OP = 'INSERT'
 		OR NEW.created_by_chat_id IS DISTINCT FROM OLD.created_by_chat_id
-		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
 	) AND NOT EXISTS (
 		SELECT 1 FROM chats
 		WHERE id = NEW.created_by_chat_id AND organization_id = NEW.organization_id
@@ -155,7 +152,6 @@ BEGIN
 	IF NEW.project_id IS NOT NULL AND (
 		TG_OP = 'INSERT'
 		OR NEW.project_id IS DISTINCT FROM OLD.project_id
-		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
 	) AND NOT EXISTS (
 		SELECT 1 FROM chat_projects
 		WHERE id = NEW.project_id AND organization_id = NEW.organization_id
@@ -169,7 +165,7 @@ END;
 $$;
 
 CREATE TRIGGER trigger_enforce_chat_automation_organization
-    BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id, project_id ON chat_automations
+    BEFORE INSERT OR UPDATE OF target_chat_id, created_by_chat_id, project_id ON chat_automations
     FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_organization();
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations (organization_id, owner_id);
