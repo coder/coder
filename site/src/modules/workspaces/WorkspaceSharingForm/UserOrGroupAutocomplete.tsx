@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationMembers } from "#/api/queries/organizations";
@@ -28,6 +28,8 @@ type UserOrGroupAutocompleteProps = {
 	triggerRef?: React.Ref<HTMLButtonElement>;
 };
 
+const label = "Search for user or group";
+
 const normalizeMember = (
 	member: OrganizationMemberWithUserData,
 ): OrganizationMember => ({
@@ -47,6 +49,9 @@ export const UserOrGroupAutocomplete: React.FC<
 	triggerAriaLabelledBy,
 	triggerRef,
 }) => {
+	const labelId = useId();
+	const generatedTriggerId = useId();
+	const triggerId = id ?? generatedTriggerId;
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 
@@ -110,42 +115,54 @@ export const UserOrGroupAutocomplete: React.FC<
 	].filter((result) => !excludeIds.includes(result.id));
 
 	return (
-		<Autocomplete
-			value={value}
-			onChange={onChange}
-			options={options}
-			getOptionValue={(option) => option.id}
-			getOptionLabel={(option) =>
-				isGroup(option) ? option.display_name || option.name : option.email
-			}
-			isOptionEqualToValue={(option, optionValue) =>
-				option.id === optionValue.id
-			}
-			renderOption={(option, isSelected) => (
-				<div className="flex items-center justify-between w-full">
-					<AvatarData
-						title={
-							isGroup(option)
-								? option.display_name || option.name
-								: option.username
-						}
-						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
-						src={option.avatar_url}
-					/>
-					{isSelected && <CheckIcon className="size-4 shrink-0" />}
-				</div>
-			)}
-			open={open}
-			onOpenChange={handleOpenChange}
-			inputValue={inputValue}
-			onInputChange={setInputValue}
-			loading={membersQuery.isFetching || groupsQuery.isFetching}
-			placeholder="Search for user or group"
-			noOptionsText="No users or groups found"
-			className={className}
-			id={id ?? "workspace-user-or-group-autocomplete"}
-			triggerAriaLabelledBy={triggerAriaLabelledBy}
-			triggerRef={triggerRef}
-		/>
+		<>
+			<span id={labelId} hidden>
+				{label}
+			</span>
+			<Autocomplete
+				value={value}
+				onChange={onChange}
+				options={options}
+				getOptionValue={(option) => option.id}
+				getOptionLabel={(option) =>
+					isGroup(option) ? option.display_name || option.name : option.email
+				}
+				isOptionEqualToValue={(option, optionValue) =>
+					option.id === optionValue.id
+				}
+				renderOption={(option, isSelected) => (
+					<div className="flex items-center justify-between w-full">
+						<AvatarData
+							title={
+								isGroup(option)
+									? option.display_name || option.name
+									: option.username
+							}
+							subtitle={
+								isGroup(option) ? getGroupSubtitle(option) : option.email
+							}
+							src={option.avatar_url}
+						/>
+						{isSelected && <CheckIcon className="size-4 shrink-0" />}
+					</div>
+				)}
+				open={open}
+				onOpenChange={handleOpenChange}
+				inputValue={inputValue}
+				onInputChange={setInputValue}
+				loading={membersQuery.isFetching || groupsQuery.isFetching}
+				placeholder={label}
+				noOptionsText="No users or groups found"
+				className={className}
+				id={triggerId}
+				// Once a selection replaces the placeholder, the name is the
+				// label followed by the selection the trigger shows.
+				triggerAriaLabelledBy={
+					triggerAriaLabelledBy ??
+					(value ? `${labelId} ${triggerId}` : undefined)
+				}
+				triggerRef={triggerRef}
+			/>
+		</>
 	);
 };
