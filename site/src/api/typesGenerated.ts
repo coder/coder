@@ -4719,8 +4719,9 @@ export interface CreateSkillRequest {
 	 */
 	readonly action?: boolean;
 	/**
-	 * ModelInvocable defaults to false when the content's frontmatter sets
-	 * disable-model-invocation: true, and to true otherwise.
+	 * ModelInvocable defaults to true, or to false when the content
+	 * frontmatter has `disable-model-invocation: true`. The server removes
+	 * that frontmatter key before storing the content.
 	 */
 	readonly model_invocable?: boolean;
 }
@@ -11516,6 +11517,12 @@ export interface UpdateSkillRequest {
 	 * Action is only accepted for project skills.
 	 */
 	readonly action?: boolean;
+	/**
+	 * ModelInvocable is left unchanged when unset, unless the new content
+	 * frontmatter sets `disable-model-invocation` to a boolean: true turns it
+	 * off and false turns it on. The server removes that frontmatter key
+	 * before storing the content.
+	 */
 	readonly model_invocable?: boolean;
 }
 

@@ -141,7 +141,7 @@ You can still invoke the skill from the `/` menu in the chat composer.
 For a workspace skill, `read_skill_file` still returns its supporting files, so the agent can read the files an invoked skill's instructions reference.
 When you invoke a workspace skill, the agent also gets the skill's directory, as long as the chat stays in that workspace, so the agent can run the scripts that the skill includes.
 
-For a personal, organization, or project skill, the key takes effect only when you create the skill.
+For a personal, organization, or project skill, the key turns off a stored setting instead.
 For details, refer to [Turn off automatic use](#turn-off-automatic-use).
 
 ### Naming and size constraints
@@ -281,6 +281,7 @@ A sub-agent chat uses the skills of the project its top-level chat belongs to.
 
 **Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
 Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu, by typing its alias, or with an action button.
+For details, refer to [Turn off automatic use](#turn-off-automatic-use).
 
 The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
 It is experimental and might change.
@@ -315,19 +316,32 @@ In that case, the column shows a switch that turns the skill off or on for your 
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
 The same applies to an organization skill that the chat owner turned off for their chats.
-When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
-A chat that has only workspace skills that set `disable-model-invocation: true` still gets `read_skill` and `read_skill_file`.
+When a chat has no skills the agent can choose from, the agent doesn't get the `read_skill` tool at all.
+A chat that has workspace skills still gets `read_skill` and `read_skill_file`, even when every workspace skill sets `disable-model-invocation: true`.
 
 ### Turn off automatic use
 
-When automatic use is off, the agent can't use the skill on its own, but you can still invoke it from the `/` menu.
-The `disable-model-invocation: true` key turns off automatic use for a personal, organization, or project skill only when you create the skill in one of these ways:
+Personal, organization, and project skills can be manual-only.
+Agents don't see a manual-only skill in their list of skills, and `read_skill` reports that the skill was not found.
+You can still run it from the `/` menu, by typing its alias, or, for project skills, with an action button.
 
-- You import a `SKILL.md` file that sets the key while you add a project skill.
-  The import turns off **Agents can use it automatically**, which [Project skills](#project-skills) describes.
-- You create the skill through the API from content that sets the key, and the request leaves out `model_invocable`.
+To make a project skill manual-only, turn off **Agents can use it automatically** in its editor.
+Importing a `SKILL.md` file that sets `disable-model-invocation: true` while you add a project skill turns the switch off.
+In the API, the setting is the `model_invocable` field, which is on by default.
 
-Adding the key to an existing skill doesn't change automatic use.
+When you create or update a skill through the API without setting `model_invocable`, Coder reads the `disable-model-invocation` frontmatter key that Claude Code, Cursor, and VS Code use:
+
+- `disable-model-invocation: true` makes the skill manual-only, and `disable-model-invocation: false` turns automatic use back on.
+  The value must be the YAML boolean `true` or `false`, not a quoted string.
+- A `model_invocable` value in the request takes priority over the key.
+- New content without the key leaves the setting as it was.
+
+Coder removes the key from the content you upload and keeps the setting in `model_invocable` instead.
+Coder also removes a key whose value it ignores, such as the quoted string `"true"`, so check `model_invocable` in the response to confirm the setting.
+
+When you select **Download** or **Export all** for a manual-only skill, Coder adds `disable-model-invocation: true` back, so other tools also treat the file as manual-only.
+A file that the extra line would push over the 64&nbsp;KB limit downloads without it.
+The API returns the stored content without the key, so read `model_invocable` to find out whether a skill is manual-only.
 
 ### Skills with the same name
 

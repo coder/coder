@@ -284,25 +284,37 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	return `${frontmatter.join("\n")}\n${body}\n`;
 };
 
+const isManualOnlyMarkdown = (content: string): boolean => {
+	const parsed = tryParseSkillMarkdown(content);
+	return parsed.ok && parsed.values.modelInvocable === false;
+};
+
 /**
- * Adds `disable-model-invocation: true` to SKILL.md frontmatter that lacks
- * it, so a downloaded manual-only skill keeps that setting when re-imported.
- * Content the marker would push past the size limit is returned unchanged.
+ * Returns the SKILL.md file to download for a skill. A manual-only skill gets
+ * `disable-model-invocation: true` in its frontmatter, so Claude Code, Cursor,
+ * and VS Code treat the file as manual-only too, and re-importing it keeps the
+ * setting. The content is returned unchanged when it already marks the skill
+ * manual-only, or when the marker would make it unparseable (for example, a
+ * duplicate key spelled differently) or push it past the size limit.
  */
-export const withDisabledModelInvocation = (content: string): string => {
-	const opening = /^---(\r?\n)/.exec(content);
-	const frontmatterEnd = content.search(/\r?\n---/);
-	if (!opening || frontmatterEnd < 3) {
+export const skillFileContent = (skill: Skill): string => {
+	const { content } = skill;
+	if (skill.model_invocable || isManualOnlyMarkdown(content)) {
 		return content;
 	}
-	if (/^disable-model-invocation:/m.test(content.slice(0, frontmatterEnd))) {
+	// The server accepts and stores content that starts with a UTF-8 BOM.
+	const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
+	const text = content.slice(bom.length);
+	const opening = /^---(\r?\n)/.exec(text);
+	if (!opening) {
 		return content;
 	}
 	const newline = opening[1];
-	const marked = `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
-	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
-		? content
-		: marked;
+	const marked = `${bom}---${newline}disable-model-invocation: true${newline}${text.slice(opening[0].length)}`;
+	return getSkillContentSizeBytes(marked) <= SKILL_MAX_SIZE_BYTES &&
+		isManualOnlyMarkdown(marked)
+		? marked
+		: content;
 };
 
 export const getSkillContentSizeBytes = (content: string): number =>

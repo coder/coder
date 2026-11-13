@@ -3,6 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockDisabledSkill,
 	MockOrganizationSkillPreferences,
+	MockSkill,
 	MockSkills,
 } from "#/testHelpers/skills";
 import {
@@ -16,8 +17,8 @@ import {
 	parseSkillMarkdown,
 	parseSkillTrigger,
 	SKILL_MAX_SIZE_BYTES,
+	skillFileContent,
 	tryParseSkillMarkdown,
-	withDisabledModelInvocation,
 } from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
@@ -419,7 +420,18 @@ describe("activeOrganizationSkills", () => {
 	});
 });
 
-describe("withDisabledModelInvocation", () => {
+describe("skillFileContent", () => {
+	const mockManualSkill: TypesGen.Skill = {
+		...MockSkill,
+		model_invocable: false,
+		content: "",
+	};
+
+	it("leaves an automatic skill's content unchanged", () => {
+		const content = "---\nname: triage\n---\nTriage issues.\n";
+		expect(skillFileContent({ ...MockSkill, content })).toBe(content);
+	});
+
 	it.each([
 		["LF", "---\nname: triage\n---\nTriage issues.\n"],
 		["CRLF", "---\r\nname: triage\r\n---\r\nTriage issues.\r\n"],
@@ -427,13 +439,39 @@ describe("withDisabledModelInvocation", () => {
 		"marks %s frontmatter so re-importing keeps the skill manual",
 		(_, content) => {
 			expect(
-				parseSkillMarkdown(withDisabledModelInvocation(content)).modelInvocable,
+				parseSkillMarkdown(skillFileContent({ ...mockManualSkill, content }))
+					.modelInvocable,
 			).toBe(false);
 		},
 	);
 
+	it("keeps a leading BOM ahead of the marker", () => {
+		expect(
+			skillFileContent({
+				...mockManualSkill,
+				content: "\uFEFF---\nname: triage\n---\nTriage issues.\n",
+			}),
+		).toBe(
+			"\uFEFF---\ndisable-model-invocation: true\nname: triage\n---\nTriage issues.\n",
+		);
+	});
+
+	it.each([
+		["quoted", '"disable-model-invocation": true'],
+		["spaced", "disable-model-invocation : true"],
+	])("keeps a %s key instead of adding a duplicate", (_, key) => {
+		const content = `---\nname: triage\n${key}\n---\nTriage issues.\n`;
+		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);
+	});
+
+	it("leaves content unmarked when a different spelling of the key would duplicate it", () => {
+		const content =
+			'---\nname: triage\n"disable-model-invocation": false\n---\nTriage issues.\n';
+		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);
+	});
+
 	it("leaves content unmarked when the marker would pass the size limit", () => {
 		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
-		expect(withDisabledModelInvocation(content)).toBe(content);
+		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);
 	});
 });
