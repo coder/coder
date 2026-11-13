@@ -38,6 +38,11 @@ type forwardedUnixHandler struct {
 	log                        slog.Logger
 	forwards                   map[forwardKey]net.Listener
 	blockReversePortForwarding bool
+
+	// socketMu serializes replacing a socket path (unlink and bind) with
+	// removing it on close, so a closing listener cannot unlink a socket
+	// that another session bound between its ownership check and unlink.
+	socketMu sync.Mutex
 }
 
 type forwardKey struct {
@@ -107,18 +112,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return false, nil
 		}
 
-		// Remove existing socket if it exists. We do not use os.Remove() here
-		// so that directories are kept. Note that it's possible that we will
-		// overwrite a regular file here. Both of these behaviors match OpenSSH,
-		// however, which is why we unlink.
-		err = unlink(addr)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			log.Warn(ctx, "remove existing socket for SSH unix forward request", slog.Error(err))
-			return false, nil
-		}
-
-		lc := &net.ListenConfig{}
-		ln, err := lc.Listen(ctx, "unix", addr)
+		ln, err := h.listen(ctx, addr)
 		if err != nil {
 			log.Warn(ctx, "listen on Unix socket for SSH unix forward request", slog.Error(err))
 			return false, nil
@@ -209,6 +203,93 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 	default:
 		return false, nil
 	}
+}
+
+// listen replaces any existing file at addr with a Unix socket listener. The
+// returned listener only removes the socket file on close if the path still
+// refers to the socket it bound, so closing an older session's forward does
+// not delete a socket that a newer session has bound at the same path.
+func (h *forwardedUnixHandler) listen(ctx context.Context, addr string) (net.Listener, error) {
+	h.socketMu.Lock()
+	defer h.socketMu.Unlock()
+
+	// Remove existing socket if it exists. We do not use os.Remove() here
+	// so that directories are kept. Note that it's possible that we will
+	// overwrite a regular file here. Both of these behaviors match OpenSSH,
+	// however, which is why we unlink.
+	err := unlink(addr)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, xerrors.Errorf("remove existing socket: %w", err)
+	}
+
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(ctx, "unix", addr)
+	if err != nil {
+		return nil, err
+	}
+	uln, ok := ln.(*net.UnixListener)
+	if !ok {
+		return ln, nil
+	}
+	uln.SetUnlinkOnClose(false)
+
+	// If the socket cannot be stat'd, info stays nil and Close falls back
+	// to unlinking the path unconditionally.
+	info, err := os.Lstat(addr)
+	if err != nil {
+		h.log.Debug(ctx, "stat SSH unix forward socket after bind", slog.F("socket_path", addr), slog.Error(err))
+		info = nil
+	}
+
+	return &unixForwardListener{
+		UnixListener: uln,
+		log:          h.log.With(slog.F("socket_path", addr)),
+		path:         addr,
+		info:         info,
+		socketMu:     &h.socketMu,
+	}, nil
+}
+
+// unixForwardListener is a Unix socket listener that removes its socket file
+// on close only while the path still refers to the socket it bound.
+type unixForwardListener struct {
+	*net.UnixListener
+	log      slog.Logger
+	path     string
+	info     fs.FileInfo
+	socketMu *sync.Mutex
+
+	closeOnce sync.Once
+	closeErr  error
+}
+
+func (l *unixForwardListener) Close() error {
+	l.closeOnce.Do(func() {
+		l.socketMu.Lock()
+		defer l.socketMu.Unlock()
+
+		// Unlink before closing so the bound socket still pins its inode,
+		// which prevents a newer socket at the same path from reusing it
+		// and passing the ownership check.
+		if l.ownsPath() {
+			if err := unlink(l.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				l.log.Warn(context.Background(), "remove SSH unix forward socket on close", slog.Error(err))
+			}
+		}
+		l.closeErr = l.UnixListener.Close()
+	})
+	return l.closeErr
+}
+
+func (l *unixForwardListener) ownsPath() bool {
+	if l.info == nil {
+		return true
+	}
+	info, err := os.Lstat(l.path)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(l.info, info)
 }
 
 // directStreamLocalPayload describes the extra data sent in a
