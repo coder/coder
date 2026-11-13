@@ -77,8 +77,11 @@ type x11Session struct {
 }
 
 // x11Callback is called when the client requests X11 forwarding.
-func (*Server) x11Callback(_ ssh.Context, _ ssh.X11) bool {
-	// Always allow.
+func (s *Server) x11Callback(ctx ssh.Context, _ ssh.X11) bool {
+	if s.config.BlockX11Forwarding {
+		s.logger.Warn(ctx, "x11 forward blocked")
+		return false
+	}
 	return true
 }
 
