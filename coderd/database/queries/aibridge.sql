@@ -760,9 +760,9 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
-	-- Filter client (prefix match to allow B-tree index usage).
+	-- Filter client (case-insensitive substring match).
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE @client::text || '%'
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') ILIKE '%' || @client::text || '%'
 		ELSE true
 	END
 	-- We use an `@authorize_filter` as we are attempting to list clients

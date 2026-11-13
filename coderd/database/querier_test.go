@@ -12104,7 +12104,7 @@ func TestListAIBridgeClients(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		endedAt := dbtime.Now()
 
-		// The clients filter resolves a selected value with a prefix search and
+		// The clients filter resolves a selected value with a substring search and
 		// limit 1, so longer siblings recorded before the exact client must not
 		// win that single slot.
 		for _, client := range []string{
@@ -12140,6 +12140,12 @@ func TestListAIBridgeClients(t *testing.T) {
 			"claude-code-router",
 			"claude-code-web",
 		}, clients)
+
+		clients, err = db.ListAIBridgeClients(ctx, database.ListAIBridgeClientsParams{
+			Client: "CODE-CLI",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"claude-code-cli"}, clients)
 	})
 }
 
