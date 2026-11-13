@@ -125,7 +125,6 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
-/** Serializes form values so parameter order does not matter. */
 const serializeValues = (values: ChatProjectTemplatesValues) =>
 	JSON.stringify({
 		...values,
@@ -272,10 +271,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!hasConflict &&
 		!refreshFailed &&
 		!projectsQuery.isFetching &&
+		// Templates missing from a stale list would be dropped on save.
+		!templatesQuery.isFetching &&
+		!templatesQuery.isError &&
 		!isBusy;
 	useEffect(() => {
-		if (isBusy) {
+		if (isBusy || projectsQuery.isFetching) {
 			return;
+		}
+		if (pendingFocusRef.current === "retry" && !refreshFailed) {
+			pendingFocusRef.current = null;
 		}
 		const target =
 			pendingFocusRef.current === "loadLatest" && hasConflict
@@ -289,7 +294,13 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			pendingFocusRef.current = null;
 			target.focus();
 		}
-	}, [isBusy, hasConflict, refreshFailed, shownError]);
+	}, [
+		isBusy,
+		projectsQuery.isFetching,
+		hasConflict,
+		refreshFailed,
+		shownError,
+	]);
 
 	return (
 		<form
@@ -391,7 +402,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 							size="sm"
 							variant="outline"
 							disabled={projectsQuery.isFetching}
-							onClick={() => void projectsQuery.refetch()}
+							onClick={() => {
+								pendingFocusRef.current = "retry";
+								void projectsQuery.refetch();
+							}}
 						>
 							Retry
 						</Button>
