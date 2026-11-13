@@ -624,7 +624,7 @@ func sseOffOriginServers(t *testing.T) (sseURL string, otherRec *headerRecorder)
 	return originSrv.URL + "/sse", otherRec
 }
 
-func TestReload_LegacySSEEndpointOffOriginGetsHeaders(t *testing.T) {
+func TestReloadCurrent_LegacySSEEndpointOffOriginGetsHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -636,7 +636,7 @@ func TestReload_LegacySSEEndpointOffOriginGetsHeaders(t *testing.T) {
 	}})
 	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
-	require.NoError(t, m.Reload(ctx, []string{path}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{path})))
 
 	seen := otherRec.headers("/msg")
 	require.NotEmpty(t, seen, "the message endpoint must be requested")
@@ -645,7 +645,7 @@ func TestReload_LegacySSEEndpointOffOriginGetsHeaders(t *testing.T) {
 	}
 }
 
-func TestReloadSources_PluginSSEEndpointOffOriginWithoutHeaders(t *testing.T) {
+func TestReloadCurrent_PluginSSEEndpointOffOriginWithoutHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -660,7 +660,7 @@ func TestReloadSources_PluginSSEEndpointOffOriginWithoutHeaders(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(sink)
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 
 	st := findStatus(t, m.Catalog(), "srv", "p")
 	assert.False(t, st.Connected)

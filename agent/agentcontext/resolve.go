@@ -1195,6 +1195,10 @@ type Resource struct {
 	// PluginVersion is the manifest version for KindPlugin, sanitized
 	// and capped at maxPluginVersionRunes.
 	PluginVersion string
+	// pluginOrder is the position at which a StatusOK KindPlugin
+	// claimed its name during the walk. Not hashed and not sent on
+	// the wire.
+	pluginOrder int
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the

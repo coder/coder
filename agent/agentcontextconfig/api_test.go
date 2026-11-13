@@ -518,6 +518,29 @@ func TestNewAPI_LazyDirectory(t *testing.T) {
 	require.Equal(t, []string{filepath.Join(dir, ".mcp.json")}, mcpFiles)
 }
 
+//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+func TestReadEnvConfig_MCPConfigFilesSet(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "Empty", value: "", want: false},
+		{name: "Whitespace", value: "  ", want: false},
+		{name: "Default", value: agentcontextconfig.DefaultMCPConfigFile, want: true},
+		{name: "Custom", value: platformAbsPath("etc", "mcp.json"), want: true},
+	} {
+		//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+		t.Run(tc.name, func(t *testing.T) {
+			setupConfigTestEnv(t, map[string]string{agentcontextconfig.EnvMCPConfigFiles: tc.value})
+
+			cfg := agentcontextconfig.ReadEnvConfig()
+			require.Equal(t, tc.want, cfg.MCPConfigFilesSet)
+			require.Equal(t, tc.want, agentcontextconfig.NewAPI(nil, cfg).MCPConfigFilesSet())
+		})
+	}
+}
+
 // TestClearEnvVars verifies that ClearEnvVars removes every
 // CODER_AGENT_EXP_* env var from the process.
 //
