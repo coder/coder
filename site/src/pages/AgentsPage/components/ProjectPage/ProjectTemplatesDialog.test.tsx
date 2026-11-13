@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProject } from "#/api/typesGenerated";
+import type { ChatProject, Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockTemplate,
@@ -16,8 +16,11 @@ import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 
 type DialogProps = React.ComponentProps<typeof ProjectTemplatesDialog>;
 
-const renderDialog = (props: Partial<DialogProps> = {}) => {
-	vi.spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+const renderDialog = (
+	props: Partial<DialogProps> = {},
+	template: Template = MockTemplate,
+) => {
+	vi.spyOn(API, "getTemplates").mockResolvedValue([template]);
 	vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
 		MockChatProject,
 	]);
@@ -113,20 +116,23 @@ describe("ProjectTemplatesDialog", () => {
 		});
 	});
 
-	it("drops default values for parameters the active version no longer has", async () => {
-		const { user, props } = renderDialog({
-			project: {
-				...MockChatProject,
-				templates: {
-					template_ids: [MockTemplate.id],
-					default_template_id: MockTemplate.id,
-					default_parameters: {
-						[MockTemplateVersionParameter1.name]: "kept",
-						removed_parameter: "gone",
-					},
-				},
+	const projectWithRemovedParameter: ChatProject = {
+		...MockChatProject,
+		templates: {
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
+			default_parameters: {
+				[MockTemplateVersionParameter1.name]: "kept",
+				removed_parameter: "gone",
 			},
-		});
+		},
+	};
+
+	it("drops default values for parameters a classic template no longer has", async () => {
+		const { user, props } = renderDialog(
+			{ project: projectWithRemovedParameter },
+			{ ...MockTemplate, use_classic_parameter_flow: true },
+		);
 
 		const save = await screen.findByRole("button", { name: "Save" });
 		await waitFor(() => expect(save).toBeEnabled());
@@ -137,5 +143,44 @@ describe("ProjectTemplatesDialog", () => {
 			default_template_id: MockTemplate.id,
 			default_parameters: { [MockTemplateVersionParameter1.name]: "kept" },
 		});
+	});
+
+	it("keeps default values a dynamic template may still evaluate", async () => {
+		const { user, props } = renderDialog({
+			project: projectWithRemovedParameter,
+		});
+
+		const kept = await screen.findByRole("textbox", {
+			name: MockTemplateVersionParameter1.name,
+		});
+		await user.type(kept, "!");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSave).toHaveBeenCalledWith({
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
+			default_parameters: {
+				[MockTemplateVersionParameter1.name]: "kept!",
+				removed_parameter: "gone",
+			},
+		});
+	});
+
+	it("pauses saving until the project refresh succeeds", async () => {
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockRejectedValueOnce(mockApiError({ message: "Network error." }));
+		const { user, props } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(props.onSave).not.toHaveBeenCalled();
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
+		const save = screen.getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+		expect(props.onSave).toHaveBeenCalled();
 	});
 });

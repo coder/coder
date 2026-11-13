@@ -85,10 +85,6 @@ const withRefetch =
 		</RefetchOnMount>
 	);
 
-// The dialog refreshes the project list, so stories seed it to avoid a
-// request.
-const projectsQuery = { key: chatProjectsKey, data: [MockChatProject] };
-
 const meta: Meta<typeof ProjectTemplatesDialog> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectTemplatesDialog",
 	component: ProjectTemplatesDialog,
@@ -103,7 +99,7 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 	},
 	parameters: {
 		queries: [
-			projectsQuery,
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplates(MockChatProject.organization_id).queryKey,
 				data: [dockerTemplate, kubernetesTemplate],
@@ -118,7 +114,9 @@ type Story = StoryObj<typeof ProjectTemplatesDialog>;
 export const NoTemplates: Story = {};
 
 export const Loading: Story = {
-	parameters: { queries: [projectsQuery] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockReturnValue(new Promise(() => {}));
 	},
@@ -128,7 +126,7 @@ export const DefaultPreset: Story = {
 	args: { project: projectWithDefaultPreset },
 	parameters: {
 		queries: [
-			projectsQuery,
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplates(MockChatProject.organization_id).queryKey,
 				data: [dockerTemplate, kubernetesTemplate],
@@ -145,7 +143,7 @@ export const DefaultParameters: Story = {
 	args: { project: projectWithDefaultParameters },
 	parameters: {
 		queries: [
-			projectsQuery,
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplates(MockChatProject.organization_id).queryKey,
 				data: [dockerTemplate, kubernetesTemplate],
@@ -307,5 +305,25 @@ export const IneligibleTemplate: Story = {
 				template_ids: [dockerTemplate.id, "template-deprecated"],
 			},
 		},
+	},
+};
+
+/** The dialog could not refresh the project, so saving is paused. */
+export const ProjectRefreshError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				data: [dockerTemplate, kubernetesTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load chat projects." }),
+		);
+	},
+	play: async () => {
+		await screen.findByRole("button", { name: "Retry" });
 	},
 };

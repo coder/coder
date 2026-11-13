@@ -144,7 +144,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [value, setValue] = useState(initialValue);
 	// Templates are shared by every editor of the project, so refresh them
 	// on open and when the tab regains focus to detect changes made elsewhere.
-	useQuery({ ...chatProjects(), refetchOnWindowFocus: true });
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		refetchOnWindowFocus: true,
+	});
 	const isDraftUntouched =
 		JSON.stringify(value) === JSON.stringify(initialValue);
 	if (
@@ -173,8 +176,11 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!(presetsQuery.data ?? []).some(
 			(preset) => preset.ID === value.defaultPresetId,
 		);
+	// Only classic templates have a fixed parameter list. Dynamic templates
+	// can add parameters during evaluation, which the static list misses.
 	const hasDefaultParameters =
 		value.defaultsKind === "parameters" &&
+		defaultTemplate?.use_classic_parameter_flow === true &&
 		Object.keys(value.defaultParameters).length > 0;
 	const parametersQuery = useQuery({
 		...richParameters(defaultTemplate?.active_version_id ?? ""),
@@ -225,8 +231,15 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		open &&
 		serializedLatest !== serializeTemplates(baseTemplates) &&
 		(request === undefined || serializedLatest !== serializeTemplates(request));
+	// Without a fresh copy of the project, Save could overwrite a change
+	// made elsewhere that the conflict check has not seen.
+	const refreshFailed = projectsQuery.isError;
 	const canSave =
-		request !== undefined && !isUnchanged && !hasConflict && !isSaving;
+		request !== undefined &&
+		!isUnchanged &&
+		!hasConflict &&
+		!refreshFailed &&
+		!isSaving;
 
 	return (
 		<form
@@ -282,6 +295,27 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 							it.
 						</AlertDescription>
 					)}
+				</Alert>
+			)}
+			{refreshFailed && (
+				<Alert
+					severity="error"
+					actions={
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							disabled={projectsQuery.isFetching}
+							onClick={() => void projectsQuery.refetch()}
+						>
+							Retry
+						</Button>
+					}
+				>
+					<AlertDescription>
+						Couldn't check for template changes made elsewhere, so saving is
+						paused.
+					</AlertDescription>
 				</Alert>
 			)}
 			{hasConflict && (
