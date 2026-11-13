@@ -180,10 +180,10 @@ export type ChatStore = {
 		action: PendingAction,
 		request: () => Promise<unknown>,
 	) => Promise<void>;
-	// Call when a stream connection opens. The returned function ends the
-	// pending actions whose requests had settled by then; call it in the
-	// store update that applies the connection's first events.
-	captureSettledActions: () => () => void;
+	// Call when a stream connection is requested. The returned function ends
+	// the pending actions whose requests had resolved by then; call it when
+	// that connection applies its first status event for the chat.
+	captureResolvedActions: () => () => void;
 	setClientError: (reason: ChatDetailError) => void;
 	clearClientError: () => void;
 	setRetryState: (state: RetryState) => void;
@@ -228,7 +228,7 @@ export const createChatStore = (): ChatStore => {
 	let nextPendingActionID = 1;
 	let nextPendingRowID = Number.MAX_SAFE_INTEGER;
 	// The pending actions whose requests resolved.
-	let settledActionIDs = new Set<number>();
+	let resolvedActionIDs = new Set<number>();
 	// The highest IDs stored. User content above them is new.
 	let highestMessageID = 0;
 	let highestQueuedID = 0;
@@ -311,20 +311,32 @@ export const createChatStore = (): ChatStore => {
 		highestQueuedID = Math.max(highestQueuedID, ...rows.map((row) => row.id));
 	};
 
-	// Each piece of new user content ends the oldest pending send or edit. A
-	// stored queue also ends the queued-row actions whose result it holds.
+	// An edit of M ends when M is gone and a later user message is stored;
+	// that message is its content. Each other piece of new user content ends
+	// the oldest pending send. A stored queue also ends the queued-row
+	// actions whose result it holds.
 	const endPending = (
 		messages: readonly TypesGen.ChatMessage[],
 		storedQueue?: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
 		const newUserContent = countNewUserContent(messages, storedQueue ?? []);
 		raiseHighestIDs(messages, storedQueue ?? []);
-		const endedTurns = state.pendingEntries
-			.filter(({ action }) => queuedRowID(action) === undefined)
-			.slice(0, newUserContent);
+		const endedEdits = state.pendingEntries.filter(
+			({ action }) =>
+				action.kind === "edit" &&
+				!state.messagesByID.has(action.editedMessageID) &&
+				messages.some(
+					(message) =>
+						message.role === "user" && message.id > action.editedMessageID,
+				),
+		);
+		const endedSends = state.pendingEntries
+			.filter(({ action }) => action.kind === "send")
+			.slice(0, Math.max(0, newUserContent - endedEdits.length));
 		removePending(
 			(entry) =>
-				endedTurns.includes(entry) ||
+				endedEdits.includes(entry) ||
+				endedSends.includes(entry) ||
 				(storedQueue !== undefined &&
 					queueHoldsResult(entry.action, storedQueue)),
 		);
@@ -506,17 +518,15 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				// A queued row has one pending action, the latest. A chat has one
 				// row under edit, so a begin also replaces an earlier begin on
-				// another row, whose result can no longer show.
+				// another row, whose result can no longer show. A message edit
+				// deletes the messages after the edited one and clears the queue,
+				// so it replaces the earlier sends, whose results cannot show.
 				pendingEntries: [
 					...current.pendingEntries.filter(
 						({ action: earlier }) =>
 							(rowID === undefined || queuedRowID(earlier) !== rowID) &&
-							!(
-								action.kind === "editQueued" &&
-								action.editing &&
-								earlier.kind === "editQueued" &&
-								earlier.editing
-							),
+							!(isEditBegin(action) && isEditBegin(earlier)) &&
+							!(action.kind === "edit" && earlier.kind === "send"),
 					),
 					entry,
 				],
@@ -527,17 +537,18 @@ export const createChatStore = (): ChatStore => {
 				removePending((pending) => pending.actionID === actionID);
 				throw error;
 			}
-			settledActionIDs.add(actionID);
+			resolvedActionIDs.add(actionID);
 		},
-		captureSettledActions: () => {
-			const settledAtOpen = new Set(
+		captureResolvedActions: () => {
+			const resolvedAtCapture = new Set(
 				state.pendingEntries
 					.map((entry) => entry.actionID)
-					.filter((id) => settledActionIDs.has(id)),
+					.filter((id) => resolvedActionIDs.has(id)),
 			);
 			// Forgets the actions that already ended.
-			settledActionIDs = new Set(settledAtOpen);
-			return () => removePending((entry) => settledAtOpen.has(entry.actionID));
+			resolvedActionIDs = new Set(resolvedAtCapture);
+			return () =>
+				removePending((entry) => resolvedAtCapture.has(entry.actionID));
 		},
 		setClientError: (reason) => {
 			setState((current) => {
@@ -717,6 +728,9 @@ const deliveredFrom = (
 
 const queuedRowID = (action: PendingAction): number | undefined =>
 	"queuedMessageID" in action ? action.queuedMessageID : undefined;
+
+const isEditBegin = (action: PendingAction): boolean =>
+	action.kind === "editQueued" && action.editing;
 
 // Whether the stored queue holds the result of an action on a queued row.
 const queueHoldsResult = (

@@ -985,6 +985,106 @@ describe("pending actions", () => {
 		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
+	const mockTurnMessages = [
+		mockFirstMessage,
+		makeMessage(2, "assistant", "b"),
+		makeMessage(3, "user", "c"),
+		makeMessage(4, "assistant", "d"),
+	];
+	const editThird: PendingAction = {
+		kind: "edit",
+		editedMessageID: 3,
+		content: [{ type: "text", text: "c2" }],
+	};
+	// The edit deletes messages 3 and 4, which cleared the queued send, and
+	// stores message 5.
+	const storeEditResult = (store: ChatStore, afterRead?: () => void) =>
+		store.batch(() => {
+			store.resetHistoryFrom(3, 7);
+			store.upsertDurableMessages([makeMessage(5, "user", "c2")]);
+			store.setQueuedMessages([]);
+			afterRead?.();
+		});
+
+	it("ends an edit whose request is in flight at a reconnect's first read", async () => {
+		const store = seededStore(mockTurnMessages, [], "running");
+		await store.runPendingAction(pendingSend("S1", "queue"), () =>
+			Promise.resolve(),
+		);
+		addPending(store, editThird);
+
+		storeEditResult(store, store.captureResolvedActions());
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "assistant:b", "user:c2"],
+			queue: [],
+		});
+	});
+
+	it("ends a send and an edit that one read reports together", () => {
+		const store = seededStore(mockTurnMessages, [], "running");
+		addPending(store, pendingSend("S1", "queue"));
+		addPending(store, editThird);
+
+		storeEditResult(store);
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "assistant:b", "user:c2"],
+			queue: [],
+		});
+	});
+
+	it("ends an edit and a later send each at its own content", () => {
+		const store = seededStore([mockFirstMessage], [], "waiting");
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 1,
+			content: [{ type: "text", text: "new" }],
+		});
+		addPending(store, pendingSend("two"));
+
+		store.batch(() => {
+			store.resetHistoryFrom(1, 2);
+			store.upsertDurableMessages([makeMessage(2, "user", "new")]);
+		});
+		expect(visible(store)).toEqual({
+			transcript: ["user:new"],
+			queue: ["steer:two"],
+		});
+		expect(
+			store.getSnapshot().pendingEntries.map(({ action }) => action.kind),
+		).toEqual(["send"]);
+
+		store.setQueuedMessages([steerRow(10, "two")]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
+	it("ends an edit after a send that the stream already reported", () => {
+		const store = seededStore(mockTurnMessages.slice(0, 2), [], "waiting");
+		addPending(store, pendingSend("S"));
+		store.upsertDurableMessages([makeMessage(3, "user", "S")]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 3,
+			content: [{ type: "text", text: "S2" }],
+		});
+		store.batch(() => {
+			store.resetHistoryFrom(3, 7);
+			store.upsertDurableMessages([makeMessage(4, "user", "S2")]);
+		});
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store).transcript).toEqual([
+			"user:first",
+			"assistant:b",
+			"user:S2",
+		]);
+	});
+
 	it("hides a promoted row once the stream stores its message", () => {
 		const store = seededStore(
 			[mockFirstMessage],
