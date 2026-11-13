@@ -18,35 +18,35 @@ To supply Coder with the appropriate certificates, and have it connect over SSL,
 
 1. Create a Kubernetes secret that holds the client certificate and its private key, if not already present:
 
-```sh
-kubectl create secret generic postgres-certs -n coder --from-file=tls.crt=postgres.crt --from-file=tls.key=postgres.key
-```
+   ```sh
+   kubectl create secret generic postgres-certs -n coder --from-file=tls.crt=postgres.crt --from-file=tls.key=postgres.key
+   ```
 
 1. Define the secret volume and volumeMounts in the Helm chart:
 
-```yaml
-coder:
-  podSecurityContext:
-    fsGroup: 1000
-  volumes:
-    - name: "pg-certs-mount"
-      secret:
-        secretName: "postgres-certs"
-        defaultMode: 416
-  volumeMounts:
-    - name: "pg-certs-mount"
-      mountPath: "/home/coder/.postgresql"
-      readOnly: true
-```
+   ```yaml
+   coder:
+     podSecurityContext:
+       fsGroup: 1000
+     volumes:
+       - name: "pg-certs-mount"
+         secret:
+           secretName: "postgres-certs"
+           defaultMode: 416
+     volumeMounts:
+       - name: "pg-certs-mount"
+         mountPath: "/home/coder/.postgresql"
+         readOnly: true
+   ```
 
-The `fsGroup` setting gives the Coder user, which runs as user ID (UID) 1000, group access to the mounted files.
-The `defaultMode` value `416` is octal `0640`, which lets that group read the key.
+   The `fsGroup` setting gives the Coder user, which runs as user ID (UID) 1000, group access to the mounted files.
+   The `defaultMode` value `416` is octal `0640`, which lets that group read the key.
 
 1. Lastly, your PostgreSQL (PG) connection URL will look like:
 
-```sh
-postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert=/home/coder/.postgresql/tls.crt&sslkey=/home/coder/.postgresql/tls.key
-```
+   ```sh
+   postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert=/home/coder/.postgresql/tls.crt&sslkey=/home/coder/.postgresql/tls.key
+   ```
 
 ## Server verification (client verifies the server)
 

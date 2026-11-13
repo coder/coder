@@ -14,11 +14,11 @@ Configure the feature with environment variables in the environment that launche
 These must be set on the workspace container or host, not in the `coder_agent` resource's `env` block.
 The agent reads them from its own process environment at startup.
 
-| Variable                | Required | Default                       | Description                                                                                                                                                                                                                       |
-|-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_PROC_PRIO_MGMT`  | Yes      | None                          | Set to enable the feature. The agent checks whether the variable is present, not its value, so even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely.                                   |
-| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                                                     |
-| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority). A value below the agent's own nice value is not applied. Coder writes `failed to adjust niceness` to stderr, and the command still runs. |
+| Variable                | Required | Default                       | Description                                                                                                                                                                                                         |
+|-------------------------|----------|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_PROC_PRIO_MGMT`  | Yes      | None                          | Set to enable the feature. The agent checks whether the variable is present, not its value, so even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely.                     |
+| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                                       |
+| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority). A value below the agent's own nice value is not applied. Refer to [Nice value is not applied](#nice-value-is-not-applied). |
 
 ### OOM score defaults
 
@@ -89,7 +89,8 @@ Make sure the process is dumpable (the agent handles this automatically, but it 
 
 ### Nice value is not applied
 
-If you see `failed to adjust niceness` in stderr, the most likely cause is a `CODER_PROC_NICE_SCORE` that is lower than the agent's current nice value.
+If you see `coder-agent: failed to adjust niceness` before a command's output, the most likely cause is a `CODER_PROC_NICE_SCORE` that is lower than the agent's current nice value.
+Coder writes the message to the stderr of the command, not to the agent log, and the command still runs with the agent's nice value.
 Set `CODER_PROC_NICE_SCORE` to a value at or above the agent's nice value, or remove it to use the default.
 For details, refer to [Nice score defaults](#nice-score-defaults).
 
