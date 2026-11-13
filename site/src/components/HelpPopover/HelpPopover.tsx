@@ -56,7 +56,7 @@ export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 				type="button"
 				className={cn(
 					"flex size-6 items-center justify-center p-0",
-					"border-0 border-none bg-transparent cursor-pointer text-inherit",
+					"border-none bg-transparent cursor-pointer text-inherit",
 					size === "small" ? "[&_svg]:size-3" : "[&_svg]:size-4",
 					hoverEffect &&
 						"text-content-secondary hover:text-content-primary transition-colors",
@@ -145,7 +145,7 @@ export const HelpPopoverAction: React.FC<HelpPopoverActionProps> = ({
 		<button
 			type="button"
 			aria-label={ariaLabel ?? ""}
-			className="flex w-fit items-center bg-transparent border-0 border-none text-content-link p-0 cursor-pointer text-sm"
+			className="flex w-fit items-center bg-transparent border-none text-content-link p-0 cursor-pointer text-sm"
 			onClick={onClick}
 		>
 			<Icon className="size-3.5 mr-2" />

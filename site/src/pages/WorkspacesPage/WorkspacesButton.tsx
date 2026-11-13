@@ -66,7 +66,7 @@ export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 			<ComboboxContent
 				align="end"
 				className="w-[320px] max-w-[320px] overflow-hidden"
-				label="Search workspace templates"
+				label="Type/select a workspace template"
 			>
 				<ComboboxInput placeholder="Type/select a workspace template" />
 				<ComboboxList
@@ -119,7 +119,7 @@ export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 					) : (
 						<ComboboxEmpty>No templates found</ComboboxEmpty>
 					))}
-				<div className="shrink-0 border-0 border-t border-solid py-1">
+				<div className="shrink-0 border-t py-1">
 					<RouterLink
 						to="/templates"
 						className="flex items-center gap-3 rounded-sm px-4 py-2 text-sm text-content-link no-underline outline-hidden hover:bg-surface-secondary hover:no-underline focus:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"

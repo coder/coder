@@ -358,7 +358,7 @@ export function FilterCombobox({
 				<FilterComboboxInputGroup
 					className={cn(className, mobileOverlay && mobileOverlayClassName)}
 				>
-					<InputGroupAddon className="self-stretch items-start border-0 border-r border-solid p-0">
+					<InputGroupAddon className="self-stretch items-start border-r p-0">
 						<InputGroupButton
 							type="button"
 							variant="subtle"
@@ -946,7 +946,7 @@ function FlyoutSearch({
 			/>
 			<input
 				aria-label={`Search ${label}`}
-				className="h-10 w-full border-0 bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
+				className="h-10 w-full bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
 				placeholder={`Search ${label.toLowerCase()}…`}
 				value={value}
 				onChange={(event) => onChange(event.currentTarget.value)}

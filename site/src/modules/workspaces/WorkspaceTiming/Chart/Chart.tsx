@@ -79,7 +79,7 @@ export const ChartToolbar = (props: React.HTMLProps<HTMLDivElement>) => {
 			{...props}
 			className={cn(
 				"flex items-stretch border-b text-xs",
-				"border-solid border-0 border-b",
+				"border-b",
 				props.className,
 			)}
 		/>
@@ -116,7 +116,7 @@ export const ChartBreadcrumbs: React.FC<ChartBreadcrumbsProps> = ({
 							<>
 								<button
 									type="button"
-									className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-content-primary"
+									className="cursor-pointer bg-transparent p-0 text-inherit hover:text-content-primary"
 									onClick={b.onClick}
 								>
 									{b.label}
@@ -159,7 +159,7 @@ export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 				>
 					<div
 						className={cn(
-							"size-icon-sm rounded border border-solid bg-surface-primary",
+							"size-icon-sm rounded border bg-surface-primary",
 							l.className,
 						)}
 					/>
