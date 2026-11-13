@@ -587,7 +587,9 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 	return fmt.Sprintf("%s/%s/%s/-/merge_requests/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
-// wrapError adds GitLab action context unless it returns a RateLimitError.
+// wrapError returns a RateLimitError or, for an SDK 403 or 429 without a usable
+// retry time, an unwrapped RejectedError. Otherwise, it wraps err with the GitLab
+// action.
 func (g *gitlabProvider) wrapError(err error, action string) error {
 	errResp, isSDKError := errors.AsType[*gitlab.ErrorResponse](err)
 	if isSDKError {

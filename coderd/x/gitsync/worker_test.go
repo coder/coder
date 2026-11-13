@@ -564,9 +564,20 @@ func TestWorker_RateLimitAndRejectedBackoff(t *testing.T) {
 
 			require.Equal(t, int32(1), calls.Load(), "the other row must be skipped within its group")
 			require.Len(t, backoffs, len(rows))
+			earliest := clock.Now().UTC().Add(tc.wantBackoff)
 			for i, backoff := range backoffs {
 				require.Equal(t, rows[i].ChatID, backoff.ChatID)
-				require.Equal(t, clock.Now().UTC().Add(tc.wantBackoff), backoff.StaleAt)
+				if tc.rejected {
+					require.Equal(t, earliest, backoff.StaleAt)
+					continue
+				}
+
+				require.False(t, backoff.StaleAt.Before(earliest))
+				require.True(t, backoff.StaleAt.Before(earliest.Add(gitsync.DiffStatusTTL)))
+			}
+			if !tc.rejected {
+				require.NotEqual(t, backoffs[0].StaleAt, backoffs[1].StaleAt,
+					"each rate-limited row must get its own jitter")
 			}
 		})
 	}
