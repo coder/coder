@@ -8134,7 +8134,7 @@ const getChatProjectSummariesByUserID = `-- name: GetChatProjectSummariesByUserI
 WITH accessible AS (
     SELECT id, organization_id, owner_id, user_acl, group_acl
     FROM chat_projects
-    WHERE owner_id = $2::uuid
+    WHERE archived_at IS NULL AND (owner_id = $2::uuid
         OR (
             -- Grants count only while RBAC honors them, as in
             -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
@@ -8149,7 +8149,7 @@ WITH accessible AS (
                 WHERE organization_members.user_id = $2::uuid
                     AND organization_members.organization_id = chat_projects.organization_id
             )
-        )
+        ))
 ),
 project_members AS (
     SELECT id AS project_id, owner_id AS user_id FROM accessible
@@ -8239,11 +8239,11 @@ type GetChatProjectSummariesByUserIDRow struct {
 	MemberCount       int64        `db:"member_count" json:"member_count"`
 }
 
-// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
-// user's active pin and aggregates over the user's own top-level,
+// Returns the unarchived projects from GetChatProjectsOwnedOrSharedWithUserID
+// with the user's active pin and aggregates over the user's own top-level,
 // non-archived chats. Entries match regardless of the actions they grant,
 // so callers must authorize each row; pins on projects the user can no
-// longer see are never returned.
+// longer see, or on archived projects, are never returned.
 // Users who can use each project: the owner, granted users who are
 // organization members, and members of granted groups (including the
 // Everyone group). Counted only while project sharing is available;
@@ -8315,7 +8315,7 @@ const pinChatProject = `-- name: PinChatProject :exec
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
+        SELECT p.project_id, p.pin_order, cp.archived_at IS NOT NULL OR NOT (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = $1::uuid
             OR (
@@ -8375,8 +8375,8 @@ type PinChatProjectParams struct {
 // Pins a project, or moves an already pinned project, to pin_order. Without
 // pin_order a new pin goes to the end and an existing pin keeps its place.
 // Positions count only pins the user can still see, as the summaries do, and
-// are clamped to [1, count]. Pins on projects the user can no longer see move
-// after the visible ones. Callers must hold the per-user pin lock so
+// are clamped to [1, count]. Pins on projects the user can no longer see, or
+// on archived projects, move after the visible ones. Callers must hold the per-user pin lock so
 // concurrent writes cannot interleave.
 func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParams) error {
 	_, err := q.db.ExecContext(ctx, pinChatProject,
@@ -8395,7 +8395,7 @@ WITH target AS (
     WHERE user_id = $1::uuid AND project_id = $2::uuid AND unpinned_at IS NULL
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY cp.archived_at IS NOT NULL OR NOT (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = $1::uuid
         OR (
@@ -8434,8 +8434,8 @@ type UnpinChatProjectParams struct {
 // Turns a pin into a tombstone and compacts the remaining pins to 1..N.
 // The source is kept so telemetry can tell which pins users removed.
 // Unpinning a project that is not pinned changes nothing. Like
-// PinChatProject, pins the user can still see come first, and callers must
-// hold the per-user pin lock.
+// PinChatProject, pins the user can still see on unarchived projects come
+// first, and callers must hold the per-user pin lock.
 func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error {
 	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.ACLEnabled)
 	return err
@@ -8669,34 +8669,45 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
 SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.archived_at
 FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
+WHERE (
+    $1::boolean IS NULL
+    OR (chat_projects.archived_at IS NOT NULL) = $1::boolean
+)
+AND (
+    chat_projects.owner_id = $2::uuid
     OR (
         (
-            chat_projects.user_acl ? ($1::uuid)::text
+            chat_projects.user_acl ? ($2::uuid)::text
             OR chat_projects.group_acl ?| ARRAY(
                 SELECT group_members.group_id::text
                 FROM group_members
-                WHERE group_members.user_id = $1::uuid
+                WHERE group_members.user_id = $2::uuid
                 UNION ALL
                 SELECT organization_members.organization_id::text
                 FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
+                WHERE organization_members.user_id = $2::uuid
             )
         )
         AND EXISTS (
             SELECT 1
             FROM organization_members
-            WHERE organization_members.user_id = $1::uuid
+            WHERE organization_members.user_id = $2::uuid
                 AND organization_members.organization_id = chat_projects.organization_id
         )
     )
+)
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
+type GetChatProjectsOwnedOrSharedWithUserIDParams struct {
+	Archived sql.NullBool `db:"archived" json:"archived"`
+	UserID   uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
 // Entries match regardless of the actions they grant, so callers must
-// authorize each row.
-func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, userID)
+// authorize each row. A NULL archived returns archived and active projects.
+func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg GetChatProjectsOwnedOrSharedWithUserIDParams) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, arg.Archived, arg.UserID)
 	if err != nil {
 		return nil, err
 	}

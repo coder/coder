@@ -273,6 +273,12 @@ type ChatProjectArchivePreview struct {
 	ActiveChatCount int64 `json:"active_chat_count"`
 }
 
+// ListChatProjectsOptions filters ListChatProjects.
+type ListChatProjectsOptions struct {
+	// Archived lists archived projects instead of active ones.
+	Archived bool
+}
+
 // ChatProjectSummary is a project with the caller's pin and aggregates over
 // the caller's own top-level, non-archived chats in it.
 type ChatProjectSummary struct {
@@ -2583,9 +2589,20 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 }
 
 // ListChatProjects lists projects the user owns or that are shared with them,
-// across all organizations.
-func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
+// across all organizations. It lists active projects unless opts asks for
+// archived ones.
+func (c *ExperimentalClient) ListChatProjects(ctx context.Context, opts ...ListChatProjectsOptions) ([]ChatProject, error) {
+	var reqOpts []RequestOption
+	for _, opt := range opts {
+		if opt.Archived {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("archived", "true")
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+	}
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil, reqOpts...)
 	if err != nil {
 		return nil, err
 	}

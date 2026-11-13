@@ -585,11 +585,11 @@ type sqlcQuerier interface {
 	// No identifiers leave this query.
 	// Users act on pins by pinning, reordering, or unpinning a project.
 	GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error)
-	// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
-	// user's active pin and aggregates over the user's own top-level,
+	// Returns the unarchived projects from GetChatProjectsOwnedOrSharedWithUserID
+	// with the user's active pin and aggregates over the user's own top-level,
 	// non-archived chats. Entries match regardless of the actions they grant,
 	// so callers must authorize each row; pins on projects the user can no
-	// longer see are never returned.
+	// longer see, or on archived projects, are never returned.
 	// Users who can use each project: the owner, granted users who are
 	// organization members, and members of granted groups (including the
 	// Everyone group). Counted only while project sharing is available;
@@ -598,8 +598,8 @@ type sqlcQuerier interface {
 	// Read through idx_chats_owner.
 	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Entries match regardless of the actions they grant, so callers must
-	// authorize each row.
-	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
+	// authorize each row. A NULL archived returns archived and active projects.
+	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg GetChatProjectsOwnedOrSharedWithUserIDParams) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
@@ -1544,8 +1544,8 @@ type sqlcQuerier interface {
 	// Pins a project, or moves an already pinned project, to pin_order. Without
 	// pin_order a new pin goes to the end and an existing pin keeps its place.
 	// Positions count only pins the user can still see, as the summaries do, and
-	// are clamped to [1, count]. Pins on projects the user can no longer see move
-	// after the visible ones. Callers must hold the per-user pin lock so
+	// are clamped to [1, count]. Pins on projects the user can no longer see, or
+	// on archived projects, move after the visible ones. Callers must hold the per-user pin lock so
 	// concurrent writes cannot interleave.
 	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
@@ -1632,8 +1632,8 @@ type sqlcQuerier interface {
 	// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
 	// The source is kept so telemetry can tell which pins users removed.
 	// Unpinning a project that is not pinned changes nothing. Like
-	// PinChatProject, pins the user can still see come first, and callers must
-	// hold the per-user pin lock.
+	// PinChatProject, pins the user can still see on unarchived projects come
+	// first, and callers must hold the per-user pin lock.
 	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)

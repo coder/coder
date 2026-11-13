@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -33,6 +35,7 @@ import (
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param archived query bool false "List archived projects instead of active ones"
 // @Success 200 {array} codersdk.ChatProject
 // @Router /api/experimental/chats/projects [get]
 // @x-apidocgen {"skip": true}
@@ -40,7 +43,23 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, apiKey.UserID)
+	archived := false
+	if raw := r.URL.Query().Get("archived"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid archived query parameter.",
+				Validations: []codersdk.ValidationError{{Field: "archived", Detail: "Must be true or false."}},
+			})
+			return
+		}
+		archived = parsed
+	}
+
+	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, database.GetChatProjectsOwnedOrSharedWithUserIDParams{
+		UserID:   apiKey.UserID,
+		Archived: sql.NullBool{Bool: archived, Valid: true},
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",
@@ -188,6 +207,9 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
+	if rejectArchivedChatProject(ctx, rw, project) {
+		return
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -220,12 +242,23 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := api.Database.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
-		ID:          project.ID,
-		Name:        name,
-		Description: description,
-		Icon:        icon,
-	})
+	var updated database.ChatProject
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForUpdate, project.ID); err != nil {
+			return err
+		}
+		var err error
+		updated, err = tx.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+			ID:          project.ID,
+			Name:        name,
+			Description: description,
+			Icon:        icon,
+		})
+		return err
+	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat project.",
@@ -441,6 +474,55 @@ func (api *API) chatProjectArchivePreview(rw http.ResponseWriter, r *http.Reques
 		ChatCount:       preview.ChatCount,
 		ActiveChatCount: preview.ActiveChatCount,
 	})
+}
+
+// rejectArchivedChatProject writes a 409 response and returns true when the
+// project is archived. Archived projects are read-only until unarchived.
+func rejectArchivedChatProject(ctx context.Context, rw http.ResponseWriter, project database.ChatProject) bool {
+	if !project.ArchivedAt.Valid {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, chatProjectArchivedResponse)
+	return true
+}
+
+var chatProjectArchivedResponse = codersdk.Response{Message: "Chat project is archived."}
+
+// errChatProjectArchived reports that a project write found the project
+// archived under the project's row lock. It is the memory store's error, so
+// memory writes through chattool map to the same response.
+var errChatProjectArchived = chattool.ErrProjectArchived
+
+// lockUnarchivedChatProject locks the project row with lock, a
+// GetChatProjectByIDFor* query of the write's transaction, and returns
+// errChatProjectArchived if the project is archived. Archiving locks the row
+// FOR UPDATE, so a write that holds the lock until commit either commits
+// before the archive or sees it. Use FOR SHARE unless the transaction later
+// takes a stronger lock on the row, such as an update of the row or a skill
+// insert, whose trigger locks it FOR NO KEY UPDATE: two writers upgrading
+// from FOR SHARE would deadlock, so those use FOR UPDATE.
+func lockUnarchivedChatProject(ctx context.Context, lock func(context.Context, uuid.UUID) (database.ChatProject, error), projectID uuid.UUID) error {
+	// The caller authorized the write, and roles that grant update without
+	// read can write.
+	//nolint:gocritic // See above.
+	project, err := lock(dbauthz.AsSystemRestricted(ctx), projectID)
+	if err != nil {
+		return xerrors.Errorf("lock chat project: %w", err)
+	}
+	if project.ArchivedAt.Valid {
+		return errChatProjectArchived
+	}
+	return nil
+}
+
+// writeChatProjectArchivedError writes a 409 response and returns true when
+// err reports an archived project.
+func writeChatProjectArchivedError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	if !errors.Is(err, errChatProjectArchived) {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, chatProjectArchivedResponse)
+	return true
 }
 
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {

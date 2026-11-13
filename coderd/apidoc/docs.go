@@ -164,6 +164,14 @@ const docTemplate = `{
                 ],
                 "summary": "List chat projects",
                 "operationId": "list-chat-projects",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "List archived projects instead of active ones",
+                        "name": "archived",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

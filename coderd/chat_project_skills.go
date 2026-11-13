@@ -78,15 +78,24 @@ func (api *API) postChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	skill, ok := createSkill(ctx, rw, r, chatProjectSkillCreateErrors, skillOwnerProject, func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error) {
-		return api.Database.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID:             uuid.New(),
-			ProjectID:      project.ID,
-			Name:           parsed.Name,
-			Description:    parsed.Description,
-			Content:        create.Content,
-			Action:         create.Action,
-			ModelInvocable: create.ModelInvocable,
-		})
+		var skill database.Skill
+		err := api.Database.InTx(func(tx database.Store) error {
+			if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForUpdate, project.ID); err != nil {
+				return err
+			}
+			var err error
+			skill, err = tx.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+				ID:             uuid.New(),
+				ProjectID:      project.ID,
+				Name:           parsed.Name,
+				Description:    parsed.Description,
+				Content:        create.Content,
+				Action:         create.Action,
+				ModelInvocable: create.ModelInvocable,
+			})
+			return err
+		}, nil)
+		return skill, err
 	})
 	if !ok {
 		return
@@ -153,6 +162,9 @@ func (api *API) patchChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	oldSkill, skill, ok := api.updateSkill(ctx, rw, r, name, skillWriteErrors{}, skillOwnerProject, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return database.Skill{}, database.Skill{}, err
+		}
 		// Update on the project was checked above and the update below
 		// rechecks it, so reads use a system context for update-only roles.
 		//nolint:gocritic // See above.
@@ -209,10 +221,21 @@ func (api *API) deleteChatProjectSkill(rw http.ResponseWriter, r *http.Request) 
 	}
 	defer commitAudit()
 
-	deleted, err := api.Database.DeleteProjectSkillByProjectIDAndName(ctx, database.DeleteProjectSkillByProjectIDAndNameParams{
-		ProjectID: project.ID,
-		Name:      chi.URLParam(r, "skillName"),
-	})
+	var deleted database.Skill
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return err
+		}
+		var err error
+		deleted, err = tx.DeleteProjectSkillByProjectIDAndName(ctx, database.DeleteProjectSkillByProjectIDAndNameParams{
+			ProjectID: project.ID,
+			Name:      chi.URLParam(r, "skillName"),
+		})
+		return err
+	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -227,10 +250,14 @@ func (api *API) deleteChatProjectSkill(rw http.ResponseWriter, r *http.Request) 
 
 // startChatProjectSkillWrite checks update on the project before the request
 // body is read, then starts the write's audit entry. Callers who cannot update
-// the project get a 404, matching the project instructions routes.
+// the project get a 404, matching the project instructions routes. An
+// archived project gets a 409.
 func (api *API) startChatProjectSkillWrite(rw http.ResponseWriter, r *http.Request, project database.ChatProject, action database.AuditAction) (*audit.Request[database.AuditableChatProjectSkill], func(), bool) {
 	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return nil, nil, false
+	}
+	if rejectArchivedChatProject(r.Context(), rw, project) {
 		return nil, nil, false
 	}
 	aReq, commitAudit := audit.InitRequest[database.AuditableChatProjectSkill](rw, &audit.RequestParams{
