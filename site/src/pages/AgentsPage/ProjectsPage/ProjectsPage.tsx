@@ -117,9 +117,7 @@ const useProjectsTab = (archivedQuery: UseQueryResult<ChatProject[]>) => {
 	return {
 		tab,
 		showArchivedTab:
-			(archivedCount ?? 0) > 0 ||
-			tab === "archived" ||
-			(archivedQuery.isError && archivedCount === undefined),
+			(archivedCount ?? 0) > 0 || tab === "archived" || archivedQuery.isError,
 		changeTab: (next: ProjectsTab) =>
 			setSearchParams((params) => {
 				if (next === "yours") {
