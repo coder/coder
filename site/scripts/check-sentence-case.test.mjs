@@ -28,6 +28,11 @@ describe("findTitleCaseWords", () => {
 		expect(words("and Workspace Settings")).toEqual(["Settings"]);
 	});
 
+	it("handles accented capitals and lowercase letters", () => {
+		expect(words("Open Résumé Builder")).toEqual(["Résumé", "Builder"]);
+		expect(words("Édit café settings")).toEqual([]);
+	});
+
 	it("reports regular words that follow an acronym", () => {
 		expect(words("SSH Keys")).toEqual(["Keys"]);
 	});
@@ -108,6 +113,8 @@ describe("checkSource", () => {
 			'if (group === "Task Events") {}',
 			'switch (group) { case "User Events": break; }',
 			'const value = lookup["Other Key"];',
+			'if (event === ("Task Events" as const)) {}',
+			'switch (group) { case "User Events"!: break; }',
 		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
@@ -309,8 +316,11 @@ describe("checkSource", () => {
 	});
 
 	it("reads code elements as unknown text", () => {
-		const source =
-			"const a = <p>Send the header, for example <code>Bearer Token</code>.</p>;";
+		const source = [
+			"const a = <p>Send the header, for example <code>Bearer Token</code>.</p>;",
+			'const b = <code>{"New Workspace"}</code>;',
+			"const c = <kbd><span>Ctrl Shift</span></kbd>;",
+		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
 

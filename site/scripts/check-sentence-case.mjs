@@ -144,12 +144,12 @@ const LEADING_PUNCTUATION = /^[^\p{L}\p{N}]+/u;
 const TRAILING_PUNCTUATION = /[^\p{L}\p{N}]+$/u;
 
 // A regular capitalized word, like "Workspace" or "Don't".
-const CAPITALIZED_WORD = /^[A-Z][a-z]+(?:['’-][a-z]+)*$/;
+const CAPITALIZED_WORD = /^\p{Lu}\p{Ll}+(?:['’-]\p{Ll}+)*$/u;
 
 // One segment of a hyphenated word: a regular capitalized word or a
 // lowercase word. Words with a segment like "X" in "X-Forwarded-For" are
 // left alone, since they are usually names.
-const HYPHEN_SEGMENT = /^(?:[A-Z][a-z]+|[a-z]+)(?:['’][a-z]+)*$/;
+const HYPHEN_SEGMENT = /^(?:\p{Lu}\p{Ll}+|\p{Ll}+)(?:['’]\p{Ll}+)*$/u;
 
 /**
  * Returns the capitalized segments of a hyphenated word, such as "Based"
@@ -168,7 +168,7 @@ function capitalizedSegments(word, start = 0) {
 	const results = [];
 	let offset = start;
 	for (const segment of segments) {
-		if (/^[A-Z]/.test(segment)) {
+		if (/^\p{Lu}/u.test(segment)) {
 			results.push({ offset, word: segment });
 		}
 		offset += segment.length + 1;
@@ -249,7 +249,7 @@ export function findTitleCaseWords(text) {
 	let afterComma = false;
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
-		const capitalized = /^[A-Z]/.test(token.word);
+		const capitalized = /^\p{Lu}/u.test(token.word);
 		const startsListItem = afterComma && capitalized;
 		afterComma = false;
 		if (token.raw.includes(SUBSTITUTION)) {
@@ -291,8 +291,15 @@ export function findTitleCaseWords(text) {
 }
 
 /** Returns true when the literal is code rather than displayed text. */
-function isNonDisplayLiteral(node) {
-	const parent = node.parent;
+function isNonDisplayLiteral(literal) {
+	// Look through wrappers such as `("Task Events" as const)` to the node
+	// that uses the value.
+	let node = literal;
+	let parent = literal.parent;
+	while (isTransparent(parent)) {
+		node = parent;
+		parent = parent.parent;
+	}
 	if (
 		ts.isImportDeclaration(parent) ||
 		ts.isExportDeclaration(parent) ||
@@ -755,7 +762,13 @@ function createPieceBuilder(sourceFile, consumed) {
 				addExpression(node.expression, pieces);
 			}
 		} else if (CODE_ELEMENTS.has(intrinsicTagName(node))) {
-			consumed.add(node);
+			// Skip everything inside, including text in expressions and
+			// nested elements.
+			const consume = (child) => {
+				consumed.add(child);
+				ts.forEachChild(child, consume);
+			};
+			consume(node);
 			pieces.push({ kind: "substitution", inline });
 		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
 			consumed.add(node);
@@ -821,6 +834,11 @@ function createPieceBuilder(sourceFile, consumed) {
 function collectJsxTexts(container, sourceFile, consumed) {
 	const builder = createPieceBuilder(sourceFile, consumed);
 	const pieces = [];
+	if (CODE_ELEMENTS.has(intrinsicTagName(container))) {
+		// Consumes the code element without reading its text.
+		builder.addNode(container, pieces);
+		return [];
+	}
 	for (const child of container.children) {
 		builder.addNode(child, pieces);
 	}
