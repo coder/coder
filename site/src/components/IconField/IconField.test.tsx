@@ -103,16 +103,31 @@ describe("IconField", () => {
 		expect(iconsCategory).toHaveAttribute("aria-current", "true");
 	});
 
-	// ARIA grid indexes start at 1; Frimousse 0.4.0 emits 0-based ones, so
-	// site/patches/frimousse@0.4.0.patch shifts them.
-	it("numbers grid rows and cells from 1", async () => {
+	// ARIA grid indexes start at 1 and count category header rows; Frimousse
+	// 0.4.0 does neither, so site/patches/frimousse@0.4.0.patch fixes both.
+	it("numbers grid rows, including category headings, from 1", async () => {
 		renderComponent(<IconField onPickEmoji={vi.fn()} />);
 		const { user, search } = await openPicker();
 
-		await user.type(search, "docker");
-		const cell = await screen.findByRole("gridcell", { name: "docker" });
+		// One emoji row each in "Animals & nature" and "Food & drink".
+		await user.type(search, "cherr");
+		const cell = await screen.findByRole("gridcell", {
+			name: "cherry blossom",
+		});
+
+		const [animalsRow, emojiRow, foodRow] = screen.getAllByRole("row");
 
 		expect(cell).toHaveAttribute("aria-colindex", "1");
-		expect(screen.getByRole("row")).toHaveAttribute("aria-rowindex", "1");
+		expect(animalsRow).toHaveAttribute("aria-rowindex", "1");
+		expect(animalsRow).toContainElement(
+			screen.getByRole("heading", { level: 2, name: "Animals & nature" }),
+		);
+		expect(emojiRow).toHaveAttribute("aria-rowindex", "2");
+		expect(emojiRow).toContainElement(cell);
+		expect(foodRow).toHaveAttribute("aria-rowindex", "3");
+		expect(foodRow).toContainElement(
+			screen.getByRole("heading", { level: 2, name: "Food & drink" }),
+		);
+		expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "4");
 	});
 });

@@ -57,18 +57,28 @@ const CATEGORY_SELECTOR = "[frimousse-list-sizer] > [frimousse-category]";
 
 const CategoryHeader: React.FC<EmojiPickerListCategoryHeaderProps> = ({
 	category,
+	className,
 	...props
 }) => (
 	<div
-		className="bg-surface-primary px-3 pt-3 pb-1.5 text-xs font-medium text-content-secondary"
+		className={cn("bg-surface-primary px-3 pt-3 pb-1.5", className)}
 		{...props}
 	>
-		{category.label}
+		<h2 className="m-0 text-xs font-medium text-content-secondary">
+			{category.label}
+		</h2>
 	</div>
 );
 
-const Row: React.FC<EmojiPickerListRowProps> = ({ children, ...props }) => (
-	<div className="scroll-my-1.5 px-1.5 grid! grid-cols-9" {...props}>
+const Row: React.FC<EmojiPickerListRowProps> = ({
+	children,
+	className,
+	...props
+}) => (
+	<div
+		className={cn("scroll-my-1.5 px-1.5 grid! grid-cols-9", className)}
+		{...props}
+	>
 		{children}
 	</div>
 );
@@ -101,7 +111,11 @@ const EmojiImage: React.FC<EmojiImageProps> = ({ emoji }) => {
 	);
 };
 
-const Emoji: React.FC<EmojiPickerListEmojiProps> = ({ emoji, ...props }) => (
+const Emoji: React.FC<EmojiPickerListEmojiProps> = ({
+	emoji,
+	className,
+	...props
+}) => (
 	<button
 		type="button"
 		className={cn(
@@ -109,6 +123,7 @@ const Emoji: React.FC<EmojiPickerListEmojiProps> = ({ emoji, ...props }) => (
 			// The active emoji is the keyboard focus indicator: DOM focus stays
 			// in the search input or viewport while arrow keys move it.
 			"data-active:bg-surface-tertiary data-active:ring-2 data-active:ring-content-link data-active:ring-inset",
+			className,
 		)}
 		{...props}
 	>
