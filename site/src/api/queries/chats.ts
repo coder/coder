@@ -2149,7 +2149,10 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
 		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
 		copyFolderChatToSidebarList(queryClient, chatId);
-		return { previousProjectId: previousChat?.project_id };
+		return {
+			previousProjectId: previousChat?.project_id,
+			wasChatPinned: (previousChat?.pin_order ?? 0) > 0,
+		};
 	},
 	onError: (
 		_error: unknown,
