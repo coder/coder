@@ -61,7 +61,7 @@ export const OrganizationMembersPageView: React.FC<
 
 				<UsersFilter {...filterProps} />
 				{!canViewMembers && (
-					<div className="flex text-content-warning gap-2 items-center text-sm font-medium">
+					<div className="flex text-content-warning gap-2 items-center text-sm">
 						<TriangleAlertIcon className="size-icon-sm" />
 						<p>
 							You do not have permission to view members other than yourself.
@@ -110,7 +110,7 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 			>
 				<DialogContent
 					data-testid="dialog"
-					className="max-w-md gap-4 border-border bg-surface-primary p-8 text-content-primary"
+					className="max-w-md gap-4 bg-surface-primary p-8 text-content-primary"
 				>
 					<DialogTitle className="font-semibold text-content-primary">
 						Add user(s)

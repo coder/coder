@@ -15,7 +15,7 @@ import (
 func TestWorkspaceAppCors(t *testing.T) {
 	t.Parallel()
 
-	regex, err := appurl.CompileHostnamePattern("*--apps.dev.coder.com")
+	regex, err := appurl.CompileHostnamePattern("*--apps.coder.example.com")
 	require.NoError(t, err)
 
 	methods := []string{
@@ -36,7 +36,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 	}{
 		{
 			name:   "Self",
-			origin: "https://3000--agent--ws--user--apps.dev.coder.com",
+			origin: "https://3000--agent--ws--user--apps.coder.example.com",
 			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
@@ -47,7 +47,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		},
 		{
 			name:   "SameWorkspace",
-			origin: "https://8000--agent--ws--user--apps.dev.coder.com",
+			origin: "https://8000--agent--ws--user--apps.coder.example.com",
 			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
@@ -58,7 +58,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		},
 		{
 			name:   "SameUser",
-			origin: "https://8000--agent2--ws2--user--apps.dev.coder.com",
+			origin: "https://8000--agent2--ws2--user--apps.coder.example.com",
 			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
@@ -69,7 +69,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		},
 		{
 			name:   "DifferentOriginOwner",
-			origin: "https://3000--agent--ws--user2--apps.dev.coder.com",
+			origin: "https://3000--agent--ws--user2--apps.coder.example.com",
 			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
@@ -80,7 +80,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		},
 		{
 			name:   "DifferentHostOwner",
-			origin: "https://3000--agent--ws--user--apps.dev.coder.com",
+			origin: "https://3000--agent--ws--user--apps.coder.example.com",
 			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",

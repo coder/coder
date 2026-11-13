@@ -457,13 +457,13 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 											<ExternalImage
 												src={usage.icon}
 												alt=""
-												className="h-full w-full object-contain"
+												className="size-full object-contain"
 											/>
 										) : (
 											<BlocksIcon className="size-icon-sm text-content-secondary" />
 										)}
 									</div>
-									<div className="flex items-center gap-2 text-sm font-medium w-50">
+									<div className="flex items-center gap-2 text-sm w-50">
 										{usage.display_name}
 										{accountingDescription && (
 											<InfoTooltip size="small">
@@ -530,7 +530,7 @@ const TemplateParametersUsagePanel: React.FC<
 					return (
 						<div
 							key={parameter.name}
-							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
+							className="flex items-start gap-6 border-t border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
@@ -539,12 +539,10 @@ const TemplateParametersUsagePanel: React.FC<
 								</p>
 							</div>
 							<div className="flex-1 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
-								<div className="font-medium text-sm text-content-secondary py-1">
-									Value
-								</div>
+								<div className="text-sm text-content-secondary py-1">Value</div>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<div className="font-medium text-sm text-content-secondary text-right py-1 cursor-default">
+										<div className="text-sm text-content-secondary text-right py-1 cursor-default">
 											Count
 										</div>
 									</TooltipTrigger>
@@ -610,7 +608,7 @@ const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 						<ExternalImage
 							alt=""
 							src={icon}
-							className="w-full h-full object-contain"
+							className="size-full object-contain"
 							aria-labelledby={ariaId}
 						/>
 					</div>
@@ -686,7 +684,7 @@ const Panel: React.FC<PanelProps> = ({ children, className, ...attrs }) => {
 		<div
 			{...attrs}
 			className={cn(
-				"flex flex-col rounded-lg bg-surface-secondary border border-solid border-surface-quaternary",
+				"flex flex-col rounded-lg bg-surface-secondary border border-surface-quaternary",
 				className,
 			)}
 		>

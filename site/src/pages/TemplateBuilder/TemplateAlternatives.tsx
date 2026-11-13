@@ -34,7 +34,7 @@ const alternatives: readonly AlternativeLink[] = [
 
 export const TemplateAlternatives: React.FC = () => {
 	return (
-		<div className="p-6 border border-solid rounded-lg mt-6">
+		<div className="p-6 border rounded-lg mt-6">
 			<p className="text-sm text-content-secondary mb-4 mt-0">
 				Alternatives to create a template:
 			</p>

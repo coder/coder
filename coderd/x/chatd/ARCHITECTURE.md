@@ -862,7 +862,7 @@ A chat worker is identified by a **worker ID**, which is regenerated on worker s
 
 A chat may use model configs only from its own organization. Chat creation, message sends, and message edits reject an explicit config that is disabled, unavailable to the caller, or belongs to another organization.
 
-Queued-message promotion revalidates the stored model with daemon authorization. It keeps the model when the model and its provider are enabled and the model belongs to the chat's organization. Worker generation preparation revalidates with the chat owner's authorization context, so it also requires the model to remain readable by the owner. When those checks make the stored model unavailable, the path selects that organization's enabled default. If no local default is available, processing fails with `ErrNoDefaultChatModelConfig`; it never falls back to another organization's model.
+Queued-message promotion revalidates the stored model with daemon authorization. It keeps the model when the model and its provider are enabled and the model belongs to the chat's organization. Worker generation preparation revalidates with the chat owner's authorization context, so it also requires the model to remain readable by the owner. When the queued row's model fails promotion's checks, promotion uses the chat's last model if that model passes the same checks, and otherwise the organization's enabled default. When the chat's last model fails generation preparation's checks, generation preparation selects the organization's enabled default. If no local default is available, processing fails with `ErrNoDefaultChatModelConfig`; it never falls back to another organization's model.
 
 ## Acquisition loop
 
@@ -1247,7 +1247,7 @@ Request preparation reads the transport from the model instead of recomputing it
 
 - Provider option conversion chooses between the Responses and Chat Completions option structs. The SDK type-asserts the concrete struct, so a mismatch discards every OpenAI provider option rather than failing.
 - Reasoning effort injection creates those option structs when a config has no OpenAI options of its own.
-- File part conversion (`Model.AcceptsFilePartMediaType`) gates attachments, because the Responses API natively accepts only images and PDFs. A mismatch here drops text attachments.
+- File part conversion (`Model.AcceptsFilePartMediaType`) gates user attachments and tool-result media, because the Responses API natively accepts only images and PDFs. A mismatch here loses audio, the only media type that the two transports treat differently.
 
 The first two happen together in `chatprovider.ProviderOptionsForCall`, the only entry point in `chatprovider` that builds provider options for a call; it delegates transport-aware OpenAI conversion to `chatopenai.ProviderOptionsFromChatConfig`. Config conversion and effort injection cannot pick different option types because one function owns both.
 
@@ -1305,7 +1305,7 @@ Details that follow from the override:
   Failure to read the override row or load provider credentials stops preparation.
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
   The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
-- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
+- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts and tool-result media the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
 - Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
 #### Interrupt goroutine
@@ -1394,8 +1394,10 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
-- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it includes `from_message_id`, the ID of the edited message. The edit deleted that message and every message after it, so the client deletes its messages with that ID or higher. On other streams, the `message` events that follow replace the whole history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
+
+On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
 ## Endpoint lifecycle
 
@@ -1411,6 +1413,8 @@ When a client connects, the endpoint:
     - updating local state;
 
 When the endpoint exits, it deregisters from the sync poller, unsubscribes from pubsub, stops the stream loop, stops the relay forwarder, and closes request resources.
+
+If the pubsub subscription or the initial database fetch fails, the endpoint responds with 500 instead of upgrading the connection.
 
 ## Local stream state
 
@@ -1442,6 +1446,8 @@ Initial null state:
 - action-required cursor is `0`;
 - preview part sequence is `0`;
 - `attempt_retired` is false;
+
+When the client opens the stream with a `snapshot_version` parameter, the synchronized `history_version` and `queue_version` start one below it instead of at `0`, so the first sync sends the messages and the queue that last changed at that version or later. The stream then ignores `after_id`.
 
 ## Stream loop operations
 
@@ -1481,7 +1487,7 @@ The loop processes one operation at a time. It must not process another input ha
 
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
-The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted.
+The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted, except the messages and the queue that last changed before the version in the client's `snapshot_version` parameter.
 
 Applying the database result means, in deterministic order:
 
@@ -1495,6 +1501,8 @@ Applying the database result means, in deterministic order:
 8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
 9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
+
+On a stream opened with `snapshot_version`, the events of steps 1 and 2 are sorted by `snapshot_version` before step 3. Within one version, `history_reset` comes first, then `message` events by ID, then `queue_update`.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1560,11 +1568,17 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
 
+On a stream opened with `snapshot_version`, the stream does not fetch or resend the full history. Instead:
+
+1. Emit one `history_reset` per revision among the soft-deleted rows, with the lowest of their IDs as `from_message_id`.
+2. Emit `message` events for the rows that are not soft-deleted.
+
 TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
-Required invariant:
+Required invariants:
 
 - every client-visible message-history change advances the changed row revision and chat `history_version`.
+- only an edit soft-deletes messages, it soft-deletes the edited message and every later one, and a soft-deleted row keeps the revision of that edit.
 
 ### Queue synchronization
 

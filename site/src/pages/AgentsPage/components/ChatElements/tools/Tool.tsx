@@ -891,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 			</div>
 		)}
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"
@@ -980,7 +980,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	modelIntent,
 }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
 	// Media payloads are base64 blobs; keep them out of the text formatters.

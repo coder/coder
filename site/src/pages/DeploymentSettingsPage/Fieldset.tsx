@@ -21,7 +21,7 @@ export const Fieldset: React.FC<FieldsetProps> = ({
 }) => {
 	return (
 		<form
-			className="mt-8 overflow-hidden rounded-lg border border-solid border-border"
+			className="mt-8 overflow-hidden rounded-lg border"
 			onSubmit={onSubmit}
 		>
 			<header className="p-6">

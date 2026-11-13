@@ -88,7 +88,7 @@ describe("AgentLogs virtualized height", () => {
 });
 
 describe("AgentLogs source icons", () => {
-	it("tabs once per run of lines from the same source", async () => {
+	it("tabs to the scrollable logs, then once per run of lines from the same source", async () => {
 		const user = userEvent.setup();
 		const [startup, personalize] = MockSources;
 		const logs: Line[] = [
@@ -121,6 +121,8 @@ describe("AgentLogs source icons", () => {
 			name: personalize.display_name,
 		});
 
+		await user.tab();
+		expect(screen.getByRole("region", { name: "Agent logs" })).toHaveFocus();
 		await user.tab();
 		expect(firstStartup).toHaveFocus();
 		await waitFor(() =>

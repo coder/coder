@@ -38,10 +38,11 @@ func driveChatToWaiting(ctx context.Context, t *testing.T, api *coderd.API, chat
 	t.Helper()
 	chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
-	require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 }
 
 // driveChatToRequiresAction commits an assistant message with a single
@@ -71,7 +72,7 @@ func driveChatToRequiresAction(
 	require.NoError(t, err)
 
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-	require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{{
 				Role:           database.ChatMessageRoleAssistant,
@@ -86,7 +87,8 @@ func driveChatToRequiresAction(
 		}
 		_, err = tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return toolCallID
 }
 
@@ -595,18 +597,19 @@ func driveChatToInvalidWaitingWithQueue(
 	t.Helper()
 	sysCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // Test fixture writes invalid combination by design.
 
-	// Seed the queue with one row attributed to the chat owner. The
-	// content is a minimal valid JSON payload; only the row's
-	// presence matters for ClassifyExecutionState. The owner_id is
-	// filled from the chat row by the SQL.
+	// Only the row's presence matters for ClassifyExecutionState.
 	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("queued"),
 	})
 	require.NoError(t, err)
-	_, err = api.Database.InsertChatQueuedMessage(sysCtx, database.InsertChatQueuedMessageParams{
+	chat, err := api.Database.GetChatByID(sysCtx, chatID)
+	require.NoError(t, err)
+	_, err = api.Database.InsertChatQueuedMessageWithCreator(sysCtx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        chatID,
 		Content:       rawContent.RawMessage,
 		ModelConfigID: uuid.NullUUID{},
+		CreatedBy:     chat.OwnerID,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 

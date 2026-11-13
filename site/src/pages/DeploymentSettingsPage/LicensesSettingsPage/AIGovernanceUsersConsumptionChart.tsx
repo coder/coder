@@ -30,7 +30,7 @@ export const AIGovernanceUsersConsumption: React.FC<
 
 	if (!showUsageBar) {
 		return (
-			<div className="flex items-center justify-center rounded-lg border border-solid p-4">
+			<div className="flex items-center justify-center rounded-lg border p-4">
 				<div className="flex flex-col items-center justify-center">
 					<div className="flex flex-col items-center justify-center">
 						<span className="text-base">AI Governance add-on usage</span>

@@ -124,7 +124,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
 			<div className="flex flex-1 min-h-0">
 				<div className="flex">
-					<div className="flex flex-col h-full overflow-y-auto border-solid border-0 border-r border-r-border">
+					<div className="flex flex-col h-full overflow-y-auto border-r border-r-border">
 						<SidebarIconButton
 							isActive={sidebarOption.value === "resources"}
 							onClick={() => {
@@ -226,7 +226,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
 									{(!selectedResource.agents ||
 										selectedResource.agents?.length === 0) && (
-										<div className="flex justify-center items-center w-full h-full">
+										<div className="flex justify-center items-center size-full">
 											<div>
 												<h4 className="text-base font-medium">
 													No agents are currently assigned to this resource.

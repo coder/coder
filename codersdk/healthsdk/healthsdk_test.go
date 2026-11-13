@@ -30,6 +30,9 @@ func TestSummarize(t *testing.T) {
 			ProvisionerDaemons: healthsdk.ProvisionerDaemonsReport{
 				BaseReport: unhealthy,
 			},
+			Pubsub: healthsdk.PubsubReport{
+				BaseReport: unhealthy,
+			},
 			Websocket: healthsdk.WebsocketReport{
 				BaseReport: unhealthy,
 			},
@@ -49,6 +52,9 @@ func TestSummarize(t *testing.T) {
 			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Provisioner Daemons: Error: test error",
 			"Provisioner Daemons: Warn: TEST: testing",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
+			"Pubsub: Error: test error",
+			"Pubsub: Warn: TEST: testing",
 			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Websocket: Error: test error",
 			"Websocket: Warn: TEST: testing",

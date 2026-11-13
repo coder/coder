@@ -28,7 +28,7 @@ const ModelRow: React.FC<{ model: unknown }> = ({ model }) => {
 
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_96px_56px] items-center gap-x-2 px-2 py-1">
-			<span className="min-w-0 truncate text-xs font-medium leading-4.5 text-content-primary">
+			<span className="min-w-0 truncate text-xs leading-4.5 text-content-primary">
 				{title}
 			</span>
 			{effortRange ? (
@@ -71,20 +71,13 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 
 	return (
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border"
+			className="mt-1.5 rounded-md border"
 			viewportClassName="max-h-64"
 			ariaLabel="Available models"
 		>
 			<div className="px-1 py-1">
 				{Array.from(grouped.entries(), ([provider, providerModels], index) => (
-					<div
-						key={provider}
-						className={
-							index > 0
-								? "border-0 border-t border-solid border-border"
-								: undefined
-						}
-					>
+					<div key={provider} className={index > 0 ? "border-t" : undefined}>
 						<div className="flex items-center gap-1.5 px-2 py-1">
 							<ProviderIcon provider={provider} className="size-3.5" />
 							<span className="text-xs font-semibold leading-4.5 text-content-secondary">
