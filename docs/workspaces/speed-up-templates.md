@@ -95,10 +95,19 @@ Without caching, Terraform will download each provider on each build, and this c
 
 When Coder imports a template version, it keeps the lock file that `terraform init` produced.
 Builds on a provisioner with the same operating system and architecture as the importing one reuse it: they install the provider versions selected at import and verify cached providers against the lock file instead of fetching checksums and signatures.
-Terraform still asks the provider registry which versions are available.
+On Linux provisioners, when the [cache directory](#cache-directory) already holds those provider versions, `terraform init` installs them from it and doesn't contact the provider registry or a provider mirror.
+Otherwise, Terraform still asks the provider registry or provider mirror which versions are available.
+The build log describes providers installed from the cache directory as `unauthenticated`, but Terraform still verifies each one against the lock file.
 If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those versions, the build retries with the template's own lock file, or without one, and logs a warning.
 If the warning appears on every build, push a new template version and update workspaces to it.
 Coder doesn't reuse the lock file when [module caching](../templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
+
+Builds that install providers from the cache directory don't check that those provider versions are still available from the provider registry or a provider mirror.
+A provisioner removes a cached provider 30&nbsp;days after downloading it, and the next build on that provisioner that uses the provider contacts the provider registry or provider mirror again.
+A provider that Terraform linked into the cache from a filesystem mirror stays there until you delete it.
+To make builds check sooner (for example, after you withdraw a provider version from a provider mirror), delete that provider version from each provisioner's [cache directory](#cache-directory).
+Builds on a provisioner that sets `TF_CLI_ARGS` or `TF_CLI_ARGS_init` always contact the provider registry or provider mirror.
+
 Committing your own lock file also pins provider versions across template pushes.
 
 To use `terraform init` to build the static provider version list:
@@ -127,5 +136,7 @@ The next time the template is used, Terraform will attempt to cache the specific
 ### Cache directory
 
 Coder will instruct Terraform to cache its downloaded providers in the configured [`CODER_CACHE_DIRECTORY`](../reference/cli/server/index.md#--cache-dir) directory.
+Built-in provisioners keep cached providers in `provisioner-<n>/tf` under that directory, and external provisioners keep them in their own `--cache-dir`.
+Inside, a provider version is at `<hostname>/<namespace>/<type>/<version>`, for example `registry.terraform.io/coder/coder/2.20.0`.
 
 Make sure that this directory is set to a location on disk which will persist across restarts of Coder or [external provisioners](../install/operate/provisioners/index.md), if you're using them.
