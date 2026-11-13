@@ -7798,6 +7798,52 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Returns([]database.ListOrganizationAISpendUsersRow{row1, row2})
 	}))
 
+	s.Run("GetOrganizationAISpendPerDay", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row := testutil.Fake(s.T(), faker, database.GetOrganizationAISpendPerDayRow{})
+		arg := database.GetOrganizationAISpendPerDayParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 1),
+		}
+		dbm.EXPECT().GetOrganizationAISpendPerDay(gomock.Any(), arg).
+			Return([]database.GetOrganizationAISpendPerDayRow{row}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceGroupMember.InOrg(org.ID), policy.ActionRead).
+			Returns([]database.GetOrganizationAISpendPerDayRow{row})
+	}))
+
+	s.Run("GetOrganizationAISpendTotals", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row := testutil.Fake(s.T(), faker, database.GetOrganizationAISpendTotalsRow{})
+		arg := database.GetOrganizationAISpendTotalsParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 1),
+		}
+		dbm.EXPECT().GetOrganizationAISpendTotals(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceGroupMember.InOrg(org.ID), policy.ActionRead).
+			Returns(row)
+	}))
+
+	s.Run("ListOrganizationAISpendPerUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row1 := testutil.Fake(s.T(), faker, database.ListOrganizationAISpendPerUserRow{})
+		row2 := testutil.Fake(s.T(), faker, database.ListOrganizationAISpendPerUserRow{})
+		arg := database.ListOrganizationAISpendPerUserParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 1),
+			LimitOpt:       10,
+		}
+		dbm.EXPECT().ListOrganizationAISpendPerUser(gomock.Any(), arg).
+			Return([]database.ListOrganizationAISpendPerUserRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceGroupMember.InOrg(org.ID), policy.ActionRead).
+			Returns([]database.ListOrganizationAISpendPerUserRow{row1, row2})
+	}))
+
 	s.Run("GetGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		b := testutil.Fake(s.T(), faker, database.GroupAIBudget{GroupID: g.ID})

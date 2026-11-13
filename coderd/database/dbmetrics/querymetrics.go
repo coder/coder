@@ -2832,6 +2832,22 @@ func (m queryMetricsStore) GetOrganizationAIProviderModelConfig(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationAISpendPerDay(ctx context.Context, arg database.GetOrganizationAISpendPerDayParams) ([]database.GetOrganizationAISpendPerDayRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationAISpendPerDay(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAISpendPerDay").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAISpendPerDay").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationAISpendTotals(ctx context.Context, arg database.GetOrganizationAISpendTotalsParams) (database.GetOrganizationAISpendTotalsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationAISpendTotals(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAISpendTotals").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAISpendTotals").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationByID(ctx, id)
@@ -5213,6 +5229,14 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	r0, r1 := m.s.ListChatContextResourcesByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("ListChatContextResourcesByChatID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatContextResourcesByChatID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListOrganizationAISpendPerUser(ctx context.Context, arg database.ListOrganizationAISpendPerUserParams) ([]database.ListOrganizationAISpendPerUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListOrganizationAISpendPerUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListOrganizationAISpendPerUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationAISpendPerUser").Inc()
 	return r0, r1
 }
 

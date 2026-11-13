@@ -3432,6 +3432,111 @@ func (q *sqlQuerier) GetOrganizationAIProviderModelConfig(ctx context.Context, a
 	return i, err
 }
 
+const getOrganizationAISpendPerDay = `-- name: GetOrganizationAISpendPerDay :many
+SELECT
+	period_days.day::date AS day,
+	COALESCE(org_spend.spend_micros, 0)::BIGINT AS spend_micros
+FROM generate_series(
+	(($1::timestamptz) AT TIME ZONE 'UTC')::date,
+	(($2::timestamptz) AT TIME ZONE 'UTC')::date - 1,
+	'1 day'::interval
+) AS period_days(day)
+LEFT JOIN (
+	SELECT
+		spend.day,
+		SUM(spend.spend_micros) AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = $3
+		AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < (($2::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.day
+) org_spend ON org_spend.day = period_days.day::date
+ORDER BY period_days.day
+`
+
+type GetOrganizationAISpendPerDayParams struct {
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetOrganizationAISpendPerDayRow struct {
+	Day         time.Time `db:"day" json:"day"`
+	SpendMicros int64     `db:"spend_micros" json:"spend_micros"`
+}
+
+// Returns the AI spend in @organization_id for every UTC day in the
+// [period_start, period_end) window, including days without spend. Both
+// bounds are normalized to their UTC calendar day, matching
+// ai_user_daily_spend, so a period_end after midnight excludes that day.
+func (q *sqlQuerier) GetOrganizationAISpendPerDay(ctx context.Context, arg GetOrganizationAISpendPerDayParams) ([]GetOrganizationAISpendPerDayRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationAISpendPerDay, arg.PeriodStart, arg.PeriodEnd, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationAISpendPerDayRow
+	for rows.Next() {
+		var i GetOrganizationAISpendPerDayRow
+		if err := rows.Scan(&i.Day, &i.SpendMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrganizationAISpendTotals = `-- name: GetOrganizationAISpendTotals :one
+WITH user_spend AS (
+	SELECT
+		spend.user_id,
+		SUM(spend.spend_micros) AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = $1
+		AND spend.day >= (($2::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < (($3::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.user_id
+	HAVING SUM(spend.spend_micros) > 0
+)
+SELECT
+	COUNT(*)::BIGINT AS user_count,
+	COALESCE(SUM(spend_micros), 0)::BIGINT AS spend_micros,
+	COALESCE(ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY spend_micros::double precision)), 0)::BIGINT AS median_spend_micros
+FROM user_spend
+`
+
+type GetOrganizationAISpendTotalsParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+}
+
+type GetOrganizationAISpendTotalsRow struct {
+	UserCount         int64 `db:"user_count" json:"user_count"`
+	SpendMicros       int64 `db:"spend_micros" json:"spend_micros"`
+	MedianSpendMicros int64 `db:"median_spend_micros" json:"median_spend_micros"`
+}
+
+// Returns the number of users with AI spend in @organization_id over the
+// [period_start, period_end) window, their total spend, and the median of
+// their per-user totals. Both bounds are normalized to their UTC calendar day,
+// matching ai_user_daily_spend, so a period_end after midnight excludes that
+// day.
+func (q *sqlQuerier) GetOrganizationAISpendTotals(ctx context.Context, arg GetOrganizationAISpendTotalsParams) (GetOrganizationAISpendTotalsRow, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationAISpendTotals, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	var i GetOrganizationAISpendTotalsRow
+	err := row.Scan(&i.UserCount, &i.SpendMicros, &i.MedianSpendMicros)
+	return i, err
+}
+
 const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
 WITH queried_groups AS (
 	-- The requested groups that belong to the queried organization.
@@ -3894,6 +3999,119 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 		&i.SpendMicros,
 	)
 	return i, err
+}
+
+const listOrganizationAISpendPerUser = `-- name: ListOrganizationAISpendPerUser :many
+WITH group_spend AS (
+	SELECT
+		spend.user_id,
+		spend.effective_group_id AS group_id,
+		SUM(spend.spend_micros)::BIGINT AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = $1
+		AND spend.day >= (($2::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < (($3::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.user_id, spend.effective_group_id
+	HAVING SUM(spend.spend_micros) > 0
+),
+user_page AS (
+	SELECT
+		group_spend.user_id,
+		SUM(group_spend.spend_micros)::BIGINT AS spend_micros
+	FROM group_spend
+	JOIN users ON users.id = group_spend.user_id
+	GROUP BY group_spend.user_id, users.username
+	ORDER BY spend_micros DESC, LOWER(users.username), group_spend.user_id
+	LIMIT NULLIF($5::int, 0)
+	OFFSET $4::int
+)
+SELECT
+	user_page.user_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	user_page.spend_micros,
+	groups.id AS group_id,
+	groups.name AS group_name,
+	groups.display_name AS group_display_name,
+	group_spend.spend_micros AS group_spend_micros
+FROM user_page
+JOIN users ON users.id = user_page.user_id
+JOIN group_spend ON group_spend.user_id = user_page.user_id
+JOIN groups ON groups.id = group_spend.group_id
+ORDER BY
+	user_page.spend_micros DESC,
+	LOWER(users.username),
+	user_page.user_id,
+	group_spend.spend_micros DESC,
+	LOWER(groups.name),
+	groups.id
+`
+
+type ListOrganizationAISpendPerUserParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type ListOrganizationAISpendPerUserRow struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	Username         string    `db:"username" json:"username"`
+	Name             string    `db:"name" json:"name"`
+	AvatarURL        string    `db:"avatar_url" json:"avatar_url"`
+	SpendMicros      int64     `db:"spend_micros" json:"spend_micros"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	GroupName        string    `db:"group_name" json:"group_name"`
+	GroupDisplayName string    `db:"group_display_name" json:"group_display_name"`
+	GroupSpendMicros int64     `db:"group_spend_micros" json:"group_spend_micros"`
+}
+
+// Returns one page of users with AI spend in @organization_id over the
+// [period_start, period_end) window, most spend first, with one row for each
+// group their spend was attributed to. A user's rows are adjacent and ordered
+// by group spend. Both bounds are normalized to their UTC calendar day,
+// matching ai_user_daily_spend, so a period_end after midnight excludes that
+// day. Users match GetOrganizationAISpendTotals.
+func (q *sqlQuerier) ListOrganizationAISpendPerUser(ctx context.Context, arg ListOrganizationAISpendPerUserParams) ([]ListOrganizationAISpendPerUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendPerUser,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationAISpendPerUserRow
+	for rows.Next() {
+		var i ListOrganizationAISpendPerUserRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+			&i.SpendMicros,
+			&i.GroupID,
+			&i.GroupName,
+			&i.GroupDisplayName,
+			&i.GroupSpendMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many

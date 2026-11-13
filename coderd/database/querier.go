@@ -798,6 +798,17 @@ type sqlcQuerier interface {
 	// Returns the organization's live config for one model on one configured
 	// provider. Soft-deleted rows are ignored.
 	GetOrganizationAIProviderModelConfig(ctx context.Context, arg GetOrganizationAIProviderModelConfigParams) (AIModelConfig, error)
+	// Returns the AI spend in @organization_id for every UTC day in the
+	// [period_start, period_end) window, including days without spend. Both
+	// bounds are normalized to their UTC calendar day, matching
+	// ai_user_daily_spend, so a period_end after midnight excludes that day.
+	GetOrganizationAISpendPerDay(ctx context.Context, arg GetOrganizationAISpendPerDayParams) ([]GetOrganizationAISpendPerDayRow, error)
+	// Returns the number of users with AI spend in @organization_id over the
+	// [period_start, period_end) window, their total spend, and the median of
+	// their per-user totals. Both bounds are normalized to their UTC calendar day,
+	// matching ai_user_daily_spend, so a period_end after midnight excludes that
+	// day.
+	GetOrganizationAISpendTotals(ctx context.Context, arg GetOrganizationAISpendTotalsParams) (GetOrganizationAISpendTotalsRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
@@ -1428,6 +1439,13 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	// Returns one page of users with AI spend in @organization_id over the
+	// [period_start, period_end) window, most spend first, with one row for each
+	// group their spend was attributed to. A user's rows are adjacent and ordered
+	// by group spend. Both bounds are normalized to their UTC calendar day,
+	// matching ai_user_daily_spend, so a period_end after midnight excludes that
+	// day. Users match GetOrganizationAISpendTotals.
+	ListOrganizationAISpendPerUser(ctx context.Context, arg ListOrganizationAISpendPerUserParams) ([]ListOrganizationAISpendPerUserRow, error)
 	// Returns one page of per-user AI spend for @organization_id over the
 	// [period_start, period_end) window, most expensive first, together with the
 	// providers, clients, and models each user spent through and the count and

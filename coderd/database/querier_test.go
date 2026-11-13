@@ -20587,6 +20587,190 @@ func TestUpdateUserEmail(t *testing.T) {
 	})
 }
 
+func TestOrganizationAISpendOverviewQueries(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	start := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 3)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	alpha := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "alpha", DisplayName: "Alpha"})
+	beta := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "beta"})
+	gamma := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "Gamma"})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+
+	alice := dbgen.User(t, db, database.User{Username: "alice", Name: "Alice Liddell", AvatarURL: "https://example.com/alice.png"})
+	bob := dbgen.User(t, db, database.User{Username: "bob"})
+	carol := dbgen.User(t, db, database.User{Username: "carol"})
+	dave := dbgen.User(t, db, database.User{Username: "dave"})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, s := range []struct {
+		user  database.User
+		group database.Group
+		day   time.Time
+		spend int64
+	}{
+		// alice: 400 split across two groups.
+		{user: alice, group: alpha, day: start, spend: 100},
+		{user: alice, group: beta, day: start.AddDate(0, 0, 1), spend: 300},
+		// bob ties with alice and sorts after her by username.
+		{user: bob, group: alpha, day: start, spend: 400},
+		// carol spends the least, on the last day in the window, split evenly
+		// so her groups tie.
+		{user: carol, group: gamma, day: start.AddDate(0, 0, 2), spend: 50},
+		{user: carol, group: alpha, day: start.AddDate(0, 0, 2), spend: 50},
+		// Excluded: without spend.
+		{user: dave, group: alpha, day: start, spend: 0},
+		// Excluded: before the window.
+		{user: bob, group: alpha, day: start.AddDate(0, 0, -1), spend: 99_999},
+		// Excluded: at the exclusive end.
+		{user: bob, group: alpha, day: end, spend: 99_999},
+		// Excluded: attributed to another organization.
+		{user: bob, group: otherGroup, day: start, spend: 99_999},
+	} {
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: s.user.ID, EffectiveGroupID: s.group.ID, Day: s.day, CostMicros: s.spend,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("GetOrganizationAISpendPerDay", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name           string
+			organizationID uuid.UUID
+			periodEnd      time.Time
+			want           []int64
+		}{
+			{
+				// Day 1: alice 100 and bob 400. Day 2: alice 300. Day 3: carol 100.
+				name:           "Organization",
+				organizationID: org.ID,
+				periodEnd:      end,
+				want:           []int64{500, 300, 100},
+			},
+			{
+				// The other organization only has bob's 99_999 on day 1, so
+				// day 2 is zero.
+				name:           "OtherOrganization",
+				organizationID: otherOrg.ID,
+				periodEnd:      start.AddDate(0, 0, 2),
+				want:           []int64{99_999, 0},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := db.GetOrganizationAISpendPerDay(ctx, database.GetOrganizationAISpendPerDayParams{
+					OrganizationID: tc.organizationID, PeriodStart: start, PeriodEnd: tc.periodEnd,
+				})
+				require.NoError(t, err)
+				require.Len(t, got, len(tc.want))
+				for i, d := range got {
+					require.True(t, d.Day.Equal(start.AddDate(0, 0, i)), "day %d = %s", i, d.Day)
+					require.Equal(t, tc.want[i], d.SpendMicros, "day %d", i)
+				}
+			})
+		}
+	})
+
+	t.Run("GetOrganizationAISpendTotals", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name        string
+			periodStart time.Time
+			periodEnd   time.Time
+			want        database.GetOrganizationAISpendTotalsRow
+		}{
+			{
+				// alice 400, bob 400 and carol 100: 3 users, 900 in total, and
+				// a median of 400.
+				name:        "WithSpend",
+				periodStart: start,
+				periodEnd:   end,
+				want:        database.GetOrganizationAISpendTotalsRow{UserCount: 3, SpendMicros: 900, MedianSpendMicros: 400},
+			},
+			{
+				// No spend after the window, so every total is zero.
+				name:        "WithoutSpend",
+				periodStart: end.AddDate(0, 0, 1),
+				periodEnd:   end.AddDate(0, 0, 2),
+				want:        database.GetOrganizationAISpendTotalsRow{},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := db.GetOrganizationAISpendTotals(ctx, database.GetOrganizationAISpendTotalsParams{
+					OrganizationID: org.ID, PeriodStart: tc.periodStart, PeriodEnd: tc.periodEnd,
+				})
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
+			})
+		}
+	})
+
+	t.Run("ListOrganizationAISpendPerUser", func(t *testing.T) {
+		t.Parallel()
+		userGroupSpend := func(user database.User, userSpend int64, group database.Group, groupSpend int64) database.ListOrganizationAISpendPerUserRow {
+			return database.ListOrganizationAISpendPerUserRow{
+				UserID: user.ID, Username: user.Username, Name: user.Name, AvatarURL: user.AvatarURL, SpendMicros: userSpend,
+				GroupID: group.ID, GroupName: group.Name, GroupDisplayName: group.DisplayName, GroupSpendMicros: groupSpend,
+			}
+		}
+		for _, tc := range []struct {
+			name   string
+			limit  int32
+			offset int32
+			want   []database.ListOrganizationAISpendPerUserRow
+		}{
+			{
+				// alice and bob tie at 400 and sort by username, then carol at
+				// 100. alice's rows are ordered by group spend: beta 300, then
+				// alpha 100. carol's groups tie and sort by name, ignoring case:
+				// alpha, then Gamma.
+				name: "AllUsers",
+				want: []database.ListOrganizationAISpendPerUserRow{
+					userGroupSpend(alice, 400, beta, 300),
+					userGroupSpend(alice, 400, alpha, 100),
+					userGroupSpend(bob, 400, alpha, 400),
+					userGroupSpend(carol, 100, alpha, 50),
+					userGroupSpend(carol, 100, gamma, 50),
+				},
+			},
+			{
+				// The offset and limit count users, not groups: offset 1 skips
+				// both of alice's rows, and limit 1 returns only bob.
+				name:   "Pagination",
+				limit:  1,
+				offset: 1,
+				want:   []database.ListOrganizationAISpendPerUserRow{userGroupSpend(bob, 400, alpha, 400)},
+			},
+			{
+				// Offset 3 skips alice, bob and carol, the only users with
+				// spend, so the page is empty.
+				name:   "PaginationPastLastUser",
+				limit:  1,
+				offset: 3,
+				want:   nil,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := db.ListOrganizationAISpendPerUser(ctx, database.ListOrganizationAISpendPerUserParams{
+					OrganizationID: org.ID, PeriodStart: start, PeriodEnd: end, LimitOpt: tc.limit, OffsetOpt: tc.offset,
+				})
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
+			})
+		}
+	})
+}
+
 func TestListOrganizationAISpendUsers(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
