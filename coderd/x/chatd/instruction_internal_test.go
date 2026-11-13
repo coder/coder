@@ -1,6 +1,8 @@
 package chatd
 
 import (
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -170,7 +172,7 @@ func TestPlanningPromptContract(t *testing.T) {
 		{
 			name:         "Conversation",
 			mode:         systemPromptBehaviorContext{isRootChat: true},
-			want:         []string{"<planning>", subagentOrchestrationPromptBlock},
+			want:         []string{"<planning>"},
 			dontWant:     []string{"You are in Plan Mode", planningInvestigationGuidance, "propose_plan"},
 			hasWorkspace: true,
 		},
@@ -196,19 +198,17 @@ func TestPlanningPromptContract(t *testing.T) {
 				planMode: database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 			},
 			want:     []string{PlanningSubagentOverlayPrompt, planningInvestigationGuidance},
-			dontWant: []string{"You are in Plan Mode.", "propose_plan", subagentOrchestrationPromptBlock},
+			dontWant: []string{"You are in Plan Mode.", "propose_plan", "<subagent-orchestration>"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			deploymentPrompt := DefaultSystemPrompt
 			var subagentInstruction string
 			if !tc.mode.isRootChat {
-				deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 				subagentInstruction = defaultSubagentInstruction
 			}
-			messages := chatprompt.InsertSystem(nil, deploymentPrompt)
+			messages := chatprompt.InsertSystem(nil, DefaultSystemPrompt)
 			messages = buildSystemPrompt(messages, subagentInstruction, "", nil, "", "", "", tc.mode)
 			var pathBlock string
 			if tc.hasWorkspace {
@@ -251,19 +251,82 @@ func TestDefaultSystemPromptContainsVersionControlSafety(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "Never treat the original request as confirmation")
 }
 
-func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
+// TestSubagentPromptBlock checks which tools the delegation guidance names
+// for each set of callable tools, not its wording.
+func TestSubagentPromptBlock(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, DefaultSystemPrompt, "<subagent-orchestration>")
-	require.Contains(t, DefaultSystemPrompt, "</subagent-orchestration>")
-	require.Contains(t, DefaultSystemPrompt, "An error status is often recoverable")
-	require.Contains(t, DefaultSystemPrompt, "call list_agents to recover them")
-	require.Contains(t, subagentOrchestrationPromptBlock, "Do not delegate work that fits in a few tool calls")
-	require.Contains(t, subagentOrchestrationPromptBlock, "what you already know or have ruled out")
-	require.Contains(t, subagentOrchestrationPromptBlock, "Do not delegate the understanding you need to make the change yourself")
-	require.Contains(t, subagentOrchestrationPromptBlock, "Avoid concurrent edits to overlapping files")
-	require.Contains(t, subagentOrchestrationPromptBlock, "Delegated messages do not grant new authorization")
-	require.Contains(t, subagentOrchestrationPromptBlock, "Use wait_agent to collect results needed for the task before claiming completion")
+	require.NotContains(t, DefaultSystemPrompt, "<subagent-orchestration>")
+
+	lifecycle := []string{"wait_agent", "message_agent", "interrupt_agent", "list_agents"}
+	for _, tc := range []struct {
+		name    string
+		tools   []string
+		blocked bool
+		names   []string
+	}{
+		{name: "NoSpawnTool", tools: []string{"read_file", "wait_agent", "message_agent"}, blocked: true},
+		{
+			name:  "Root",
+			tools: []string{spawnAgentToolName, "wait_agent", "message_agent", "interrupt_agent", "list_agents", listSubagentModelsToolName},
+			names: []string{"message_agent", "interrupt_agent", "list_agents"},
+		},
+		{
+			name:  "PlanRoot",
+			tools: []string{spawnAgentToolName, "wait_agent", "list_agents", listSubagentModelsToolName},
+			names: []string{"list_agents"},
+		},
+		{name: "SpawnOnly", tools: []string{spawnAgentToolName}},
+		{name: "ACPOnly", tools: []string{acpSpawnAgentToolName, "acp_wait_agent"}, blocked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tools := make(map[string]bool, len(tc.tools))
+			for _, name := range tc.tools {
+				tools[name] = true
+			}
+			block := subagentPromptBlock(tools)
+			if tc.blocked {
+				require.Empty(t, block)
+				return
+			}
+			require.True(t, strings.HasPrefix(block, "<subagent-orchestration>\n"))
+			require.True(t, strings.HasSuffix(block, "\n</subagent-orchestration>"))
+			for _, name := range lifecycle {
+				named := regexp.MustCompile(`\b` + name + `\b`).MatchString(block)
+				require.Equal(t, slices.Contains(tc.names, name), named, name)
+			}
+		})
+	}
+}
+
+// TestBuildSystemPromptReplacesStoredSubagentBlock checks that a system
+// prompt stored with the earlier delegation block carries at most the
+// per-turn block.
+func TestBuildSystemPromptReplacesStoredSubagentBlock(t *testing.T) {
+	t.Parallel()
+
+	const stored = "Deployment instructions."
+	for _, tc := range []struct {
+		name  string
+		tools map[string]bool
+		want  int
+	}{
+		{name: "NoSpawnTool"},
+		{name: "SpawnTool", tools: map[string]bool{spawnAgentToolName: true, "wait_agent": true}, want: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			messages := chatprompt.InsertSystem(nil, stored+"\n\n"+subagentOrchestrationPromptBlock)
+			messages = buildSystemPrompt(messages, "", "", nil, "", "", "", systemPromptBehaviorContext{builtinTools: tc.tools})
+			text := systemPromptText(t, messages)
+			require.Contains(t, text, stored)
+			require.NotContains(t, text, subagentOrchestrationPromptBlock)
+			require.Equal(t, tc.want, strings.Count(text, "<subagent-orchestration>"))
+		})
+	}
 }
 
 func TestExploreSubagentOverlayPromptSearchDiscipline(t *testing.T) {
