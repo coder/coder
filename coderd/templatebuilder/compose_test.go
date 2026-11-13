@@ -772,3 +772,55 @@ func TestQuickstartCppInstallGuard(t *testing.T) {
 		})
 	}
 }
+
+// TestQuickstartDisablesAptRetries verifies the quickstart install script
+// writes an apt drop-in that sets Acquire::Retries to 0 before its first apt
+// call. Retried downloads are the attack path for CVE-2026-109518.
+func TestQuickstartDisablesAptRetries(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("requires bash")
+	}
+	bash, err := exec.LookPath("bash")
+	require.NoError(t, err)
+	head, err := exec.LookPath("head")
+	require.NoError(t, err)
+
+	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
+	require.NoError(t, err)
+	raw, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
+	require.NoError(t, err)
+	script := strings.ReplaceAll(string(raw), "${LANGUAGES}", "python,cpp")
+	script = strings.ReplaceAll(script, "$$", "$")
+
+	// PATH holds only the sudo stub, so every language is missing and the
+	// script reaches its apt calls.
+	binDir := t.TempDir()
+	require.NoError(t, os.Symlink(head, filepath.Join(binDir, "head")))
+	logDir := t.TempDir()
+	logPath := filepath.Join(logDir, "sudo.log")
+	teePath := filepath.Join(logDir, "tee.out")
+	// The sudo stub records its arguments, and the stdin of a tee call.
+	sudo := "#!" + bash + "\n" +
+		"echo \"$@\" >> " + logPath + "\n" +
+		"if [ \"$1\" = tee ]; then while IFS= read -r l; do echo \"$l\"; done > " + teePath + "; fi\n"
+	sudoPath := filepath.Join(binDir, "sudo")
+	require.NoError(t, os.WriteFile(sudoPath, []byte(sudo), 0o600))
+	require.NoError(t, os.Chmod(sudoPath, 0o700))
+
+	cmd := exec.Command(bash, "-c", script)
+	cmd.Env = []string{"PATH=" + binDir, "HOME=" + t.TempDir()}
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	logged, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	calls := strings.Split(strings.TrimSpace(string(logged)), "\n")
+	require.Equal(t, "tee /etc/apt/apt.conf.d/99-coder-disable-retries", calls[0],
+		"the retries drop-in must be written before any apt call")
+	require.Contains(t, string(logged), "apt-get install", "expected the script to reach its apt calls")
+
+	dropIn, err := os.ReadFile(teePath)
+	require.NoError(t, err)
+	require.Equal(t, "Acquire::Retries \"0\";\n", string(dropIn))
+}

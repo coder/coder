@@ -77,7 +77,9 @@ echo "Using DNS IP: $dns_ip"
 
 # Install dnsmasq to provide custom DNS resolution. This lightweight DNS
 # server allows us to override specific hostname lookups without affecting
-# other DNS queries.
+# other DNS queries. Disable apt download retries first, since retries are
+# the attack path for CVE-2026-109518.
+echo 'Acquire::Retries "0";' | sudo tee /etc/apt/apt.conf.d/99-coder-disable-retries >/dev/null
 sudo apt-get update -y
 sudo apt-get install -y dnsmasq
 
