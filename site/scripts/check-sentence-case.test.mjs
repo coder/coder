@@ -43,7 +43,13 @@ describe("findTitleCaseWords", () => {
 		expect(words("Saved. Next steps follow.")).toEqual([]);
 		expect(words("Warning: Read this")).toEqual([]);
 		expect(words("GitHub, GitLab, Bitbucket")).toEqual([]);
+		expect(words("Fonts: Menlo, Monaco, Consolas")).toEqual([]);
 		expect(words("Saved… Next step")).toEqual([]);
+	});
+
+	it("continues a sentence after a comma and a lowercase word", () => {
+		expect(words("Create a workspace, then Open settings")).toEqual(["Open"]);
+		expect(words("Saved, Open settings")).toEqual([]);
 	});
 
 	it("starts a new phrase after an opening bracket or quote", () => {
@@ -268,6 +274,23 @@ describe("checkSource", () => {
 		const { issues, fixedText } = checkSource("file.tsx", source);
 		expect(issues.map(({ word }) => word)).toEqual(["Workspace"]);
 		expect(fixedText).toBe("const a = <p>Create workspace</p>;");
+	});
+
+	it("joins inline sibling elements by the space between them", () => {
+		const source = [
+			"const a = <p><span>Create </span><strong>Workspace</strong></p>;",
+			"const b = <p><span>Create</span><strong>Workspace</strong></p>;",
+		].join("\n");
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "Workspace"],
+		]);
+	});
+
+	it("reads code elements as unknown text", () => {
+		const source =
+			"const a = <p>Send the header, for example <code>Bearer Token</code>.</p>;";
+		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
 
 	it("starts a new phrase at elements without a rendered space", () => {

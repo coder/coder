@@ -60,6 +60,11 @@ const PROPER_NOUNS = [
 	"Template Admin",
 	"Terms of Service",
 
+	// Keyboard keys, named in keyboard instructions.
+	"Enter",
+	"Escape",
+	"Space",
+
 	// Days of the week.
 	"Monday",
 	"Tuesday",
@@ -73,7 +78,9 @@ const PROPER_NOUNS = [
 	"Splunk",
 	"Anthropic",
 	"Azure Repos",
+	"Amazon Bedrock",
 	"Bedrock",
+	"Claude",
 	"Claude Platform",
 	"Copilot",
 	"Discord",
@@ -169,9 +176,14 @@ function capitalizedSegments(word, start = 0) {
 	return results;
 }
 
-// Punctuation that ends a sentence, label, or list item, so the next
-// word starts a new phrase and may be capitalized ("GitHub, GitLab").
-const PHRASE_END = /[.!?:;,…]["'’)\]]*$/;
+// Punctuation that ends a sentence or label, so the next word starts a
+// new phrase and may be capitalized.
+const PHRASE_END = /[.!?:;…]["'’)\]]*$/;
+
+// A comma ends a list item ("Menlo, Monaco") when the next word is
+// capitalized, and otherwise continues the sentence ("Create a
+// workspace, then open settings").
+const COMMA_END = /,["'’)\]]*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
@@ -234,12 +246,15 @@ export function findTitleCaseWords(text) {
 		}
 	};
 	let inPhrase = false;
+	let afterComma = false;
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
 		const capitalized = /^[A-Z]/.test(token.word);
+		const startsListItem = afterComma && capitalized;
+		afterComma = false;
 		if (token.raw.includes(SUBSTITUTION)) {
 			// Unknown text; keep the current phrase, if any, going.
-		} else if (!inPhrase || token.startsPhrase) {
+		} else if (!inPhrase || token.startsPhrase || startsListItem) {
 			// A lowercase word outside a phrase may continue text from
 			// elsewhere, so only a capitalized word starts a phrase.
 			inPhrase = capitalized;
@@ -268,6 +283,8 @@ export function findTitleCaseWords(text) {
 		}
 		if (PHRASE_END.test(token.raw)) {
 			inPhrase = false;
+		} else if (COMMA_END.test(token.raw)) {
+			afterComma = inPhrase;
 		}
 	}
 	return results;
@@ -403,6 +420,42 @@ function appendSource(target, sourceText, start, end, decodeEntities) {
  */
 function rendersSpace(whitespace) {
 	return whitespace.length > 0 && !whitespace.includes("\n");
+}
+
+// Elements whose text is code or keyboard input rather than prose. They
+// are read as unknown text inside the surrounding phrase.
+const CODE_ELEMENTS = new Set(["code", "kbd", "pre", "samp"]);
+
+// Inline HTML elements. Adjacent inline siblings render as one run of
+// text, so a phrase continues across them when an edge renders a space.
+const INLINE_ELEMENTS = new Set([
+	"a",
+	"abbr",
+	"b",
+	"cite",
+	"em",
+	"i",
+	"mark",
+	"q",
+	"s",
+	"small",
+	"span",
+	"strong",
+	"sub",
+	"sup",
+	"time",
+	"u",
+]);
+
+/** Returns the tag name of an intrinsic element, such as "span". */
+function intrinsicTagName(node) {
+	if (!ts.isJsxElement(node)) {
+		return null;
+	}
+	const tagName = node.openingElement.tagName;
+	return ts.isIdentifier(tagName) && /^[a-z]/.test(tagName.text)
+		? tagName.text
+		: null;
 }
 
 // Caps the rendered variants checked for one JSX element or string. Past
@@ -636,13 +689,19 @@ function createPieceBuilder(sourceFile, consumed) {
 			if (node.expression) {
 				addExpression(node.expression, pieces);
 			}
+		} else if (CODE_ELEMENTS.has(intrinsicTagName(node))) {
+			consumed.add(node);
+			pieces.push({ kind: "substitution", inline });
 		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
 			consumed.add(node);
-			pieces.push({ kind: "boundary", edge: "open" });
+			const tagName = intrinsicTagName(node);
+			const inlineElement =
+				ts.isJsxFragment(node) || INLINE_ELEMENTS.has(tagName);
+			pieces.push({ kind: "boundary", edge: "open", inlineElement });
 			for (const child of node.children) {
 				addNode(child, pieces);
 			}
-			pieces.push({ kind: "boundary", edge: "close" });
+			pieces.push({ kind: "boundary", edge: "close", inlineElement });
 		} else {
 			// A self-closing element, such as an icon, sits between
 			// separate labels more often than inside a phrase.
@@ -766,10 +825,12 @@ function joinJsxPieces(pieces, sourceText) {
 		if (
 			piece.kind === "boundary" &&
 			piece.edge === "open" &&
-			pieces[i - 1]?.edge === "close"
+			pieces[i - 1]?.edge === "close" &&
+			!(piece.inlineElement && pieces[i - 1].inlineElement)
 		) {
 			// Sibling elements with nothing rendered between them are
-			// separate labels, whatever whitespace they hold inside.
+			// separate labels, whatever whitespace they hold inside,
+			// unless both are inline elements in one run of text.
 			endPhrase();
 		} else if (piece.kind === "boundary") {
 			let before = i - 1;
