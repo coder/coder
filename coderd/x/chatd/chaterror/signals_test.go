@@ -1,10 +1,12 @@
-package chaterror
+package chaterror_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
 func TestExtractStatusCode(t *testing.T) {
@@ -38,7 +40,7 @@ func TestExtractStatusCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, extractStatusCode(strings.ToLower(tt.input)))
+			require.Equal(t, tt.want, chaterror.Classify(xerrors.New(tt.input)).StatusCode)
 		})
 	}
 }
@@ -64,7 +66,7 @@ func TestDetectProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, detectProvider(strings.ToLower(tt.input)))
+			require.Equal(t, tt.want, chaterror.Classify(xerrors.New(tt.input)).Provider)
 		})
 	}
 }

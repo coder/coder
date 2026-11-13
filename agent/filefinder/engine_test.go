@@ -1,4 +1,4 @@
-package filefinder
+package filefinder_test
 
 import (
 	"context"
@@ -11,18 +11,19 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func newTestEngine(t *testing.T) (*Engine, context.Context) {
+func newTestEngine(t *testing.T) (*filefinder.Engine, context.Context) {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	eng := NewEngine(logger)
+	eng := filefinder.NewEngine(logger)
 	t.Cleanup(func() { _ = eng.Close() })
 	return eng, context.Background()
 }
 
-func requireResultHasPath(t *testing.T, results []Result, path string) {
+func requireResultHasPath(t *testing.T, results []filefinder.Result, path string) {
 	t.Helper()
 	for _, r := range results {
 		if r.Path == path {
@@ -42,7 +43,7 @@ func TestEngine_SearchFindsKnownFile(t *testing.T) {
 	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	results, err := eng.Search(ctx, "main.go", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "main.go", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotEmpty(t, results, "expected to find main.go")
 	requireResultHasPath(t, results, "src/main.go")
@@ -59,7 +60,7 @@ func TestEngine_SearchFuzzyMatch(t *testing.T) {
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
 	// "handler" should match "user_handler.go".
-	results, err := eng.Search(ctx, "handler", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "handler", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	// The query is a subsequence of "user_handler.go" so it
 	// should appear somewhere in the results.
@@ -76,7 +77,7 @@ func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 	createFile(t, dir, "newfile_unique.txt", "world")
 
 	require.Eventually(t, func() bool {
-		results, sErr := eng.Search(ctx, "newfile_unique", DefaultSearchOptions())
+		results, sErr := eng.Search(ctx, "newfile_unique", filefinder.DefaultSearchOptions())
 		if sErr != nil {
 			return false
 		}
@@ -98,14 +99,14 @@ func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
 	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	results, err := eng.Search(ctx, "deleteme_unique", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "deleteme_unique", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotEmpty(t, results, "expected to find deleteme_unique.txt initially")
 
 	require.NoError(t, os.Remove(filepath.Join(dir, "deleteme_unique.txt")))
 
 	require.Eventually(t, func() bool {
-		results, sErr := eng.Search(ctx, "deleteme_unique", DefaultSearchOptions())
+		results, sErr := eng.Search(ctx, "deleteme_unique", filefinder.DefaultSearchOptions())
 		if sErr != nil {
 			return false
 		}
@@ -129,11 +130,11 @@ func TestEngine_MultipleRoots(t *testing.T) {
 	require.NoError(t, eng.AddRoot(ctx, dir1))
 	require.NoError(t, eng.AddRoot(ctx, dir2))
 
-	results, err := eng.Search(ctx, "alpha_unique", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "alpha_unique", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	requireResultHasPath(t, results, "alpha_unique.go")
 
-	results, err = eng.Search(ctx, "beta_unique", DefaultSearchOptions())
+	results, err = eng.Search(ctx, "beta_unique", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	requireResultHasPath(t, results, "beta_unique.go")
 }
@@ -146,7 +147,7 @@ func TestEngine_EmptyQueryReturnsEmpty(t *testing.T) {
 	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	results, err := eng.Search(ctx, "", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.Empty(t, results, "empty query should return no results")
 }
@@ -158,11 +159,11 @@ func TestEngine_CloseIsClean(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx := context.Background()
-	eng := NewEngine(logger)
+	eng := filefinder.NewEngine(logger)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 	require.NoError(t, eng.Close())
 
-	_, err := eng.Search(ctx, "file", DefaultSearchOptions())
+	_, err := eng.Search(ctx, "file", filefinder.DefaultSearchOptions())
 	require.Error(t, err)
 }
 
@@ -175,8 +176,9 @@ func TestEngine_AddRootIdempotent(t *testing.T) {
 	require.NoError(t, eng.AddRoot(ctx, dir))
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	snapLen := engineSnapLen(eng)
-	require.Equal(t, 1, snapLen, "expected exactly one root after duplicate add")
+	results, err := eng.Search(ctx, "file", filefinder.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Len(t, results, 1, "expected exactly one root after duplicate add")
 }
 
 func TestEngine_RemoveRoot(t *testing.T) {
@@ -187,13 +189,13 @@ func TestEngine_RemoveRoot(t *testing.T) {
 	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	results, err := eng.Search(ctx, "file", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "file", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotEmpty(t, results)
 
 	require.NoError(t, eng.RemoveRoot(dir))
 
-	results, err = eng.Search(ctx, "file", DefaultSearchOptions())
+	results, err = eng.Search(ctx, "file", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.Empty(t, results)
 }
@@ -209,19 +211,9 @@ func TestEngine_Rebuild(t *testing.T) {
 	createFile(t, dir, "sneaky_rebuild.txt", "hidden")
 	require.NoError(t, eng.Rebuild(ctx, dir))
 
-	results, err := eng.Search(ctx, "sneaky_rebuild", DefaultSearchOptions())
+	results, err := eng.Search(ctx, "sneaky_rebuild", filefinder.DefaultSearchOptions())
 	require.NoError(t, err)
 	requireResultHasPath(t, results, "sneaky_rebuild.txt")
-}
-
-// engineSnapLen returns the number of root snapshots currently held
-// by the engine, or -1 if the pointer is nil.
-func engineSnapLen(eng *Engine) int {
-	p := eng.snap.Load()
-	if p == nil {
-		return -1
-	}
-	return len(*p)
 }
 
 // createFile creates a file (and parent dirs) at relPath under dir.
@@ -232,7 +224,7 @@ func createFile(t *testing.T, dir, relPath, content string) {
 	require.NoError(t, os.WriteFile(full, []byte(content), 0o600))
 }
 
-func resultPaths(results []Result) []string {
+func resultPaths(results []filefinder.Result) []string {
 	paths := make([]string, len(results))
 	for i, r := range results {
 		paths[i] = r.Path
