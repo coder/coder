@@ -119,14 +119,14 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			logVersion(ctx, "detected terraform version",
 				slog.F("installed_version", binaryDetails.version.String()),
 				slog.F("min_version", minTerraformVersion.String()),
-				slog.F("max_version", maxTerraformVersion.String()))
+				slog.F("max_version", MaxTerraformVersion.String()))
 			// Warn if the installed version is newer than what we've decided is the max.
 			// We used to ignore it and download our own version but this makes it easier
 			// to test out newer versions of Terraform.
-			if binaryDetails.version.GreaterThanOrEqual(maxTerraformVersion) {
+			if binaryDetails.version.GreaterThanOrEqual(MaxTerraformVersion) {
 				options.Logger.Warn(ctx, "installed terraform version newer than expected, you may experience bugs",
 					slog.F("installed_version", binaryDetails.version.String()),
-					slog.F("max_version", maxTerraformVersion.String()))
+					slog.F("max_version", MaxTerraformVersion.String()))
 			}
 			options.BinaryPath = binaryDetails.absolutePath
 		}

@@ -25,7 +25,9 @@ var (
 	TerraformVersion = version.Must(version.NewVersion("1.17.1"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.17.9")) // use .9 to automatically allow patch releases
+	// MaxTerraformVersion is the first Terraform version newer than the
+	// ones the provisioner is tested with.
+	MaxTerraformVersion = version.Must(version.NewVersion("1.17.9")) // use .9 to automatically allow patch releases
 
 	errTerraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
