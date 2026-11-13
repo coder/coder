@@ -47,7 +47,7 @@ resource "coder_agent" "main" {
     # calculates CPU usage by summing the "us" and "sy" columns of
     # top.
     script = <<EOT
-    top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$3+$4}'
+    top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$4}'
     EOT
     interval = 1
     timeout = 1

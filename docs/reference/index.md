@@ -95,8 +95,7 @@ Workspace agents have a special token that can send logs, metrics, and workspace
     deadline=$(date -u -d '+1 hour' +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v+1H +'%Y-%m-%dT%H:%M:%SZ')
     current=$(curl -fsS "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID" \
     -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq -r '.latest_build.deadline')
-    # Skip the request when the current deadline is already later.
-    # The comparison is on text, so it applies only to a UTC timestamp, which ends in Z.
+    # Text comparison, so it is correct only for UTC timestamps, which end in Z.
     if [[ "$current" != *Z || "$current" < "$deadline" ]]
     then
       curl -fsS -X PUT "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID/extend" \
