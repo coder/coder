@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -42,7 +41,7 @@ func (e EnterpriseIDPSync) SiteRoleSyncEnabled() bool {
 	return e.SiteRoleField != ""
 }
 
-func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.RoleParams, *idpsync.HTTPError) {
+func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims map[string]any) (idpsync.RoleParams, *idpsync.HTTPError) {
 	if !e.RoleSyncEntitled() {
 		return e.AGPLIDPSync.ParseRoleClaims(ctx, mergedClaims)
 	}

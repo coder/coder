@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
@@ -294,10 +296,10 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	}
 
 	c := &license.Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
+		RegisteredClaims: jwtutils.RegisteredClaims{
 			ID:        uuid.NewString(),
 			Issuer:    "test@testing.test",
-			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
+			Expiry:    jwt.NewNumericDate(options.ExpiresAt),
 			NotBefore: jwt.NewNumericDate(options.NotBefore),
 			IssuedAt:  jwt.NewNumericDate(issuedAt),
 		},
@@ -316,11 +318,14 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	return GenerateLicenseRaw(t, c)
 }
 
-func GenerateLicenseRaw(t *testing.T, claims jwt.Claims) string {
+func GenerateLicenseRaw(t *testing.T, claims any) string {
 	t.Helper()
-	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
-	tok.Header[license.HeaderKeyID] = testKeyID
-	signedTok, err := tok.SignedString(testPrivateKey)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.EdDSA,
+		Key:       testPrivateKey,
+	}, (&jose.SignerOptions{}).WithType("JWT").WithHeader(license.HeaderKeyID, testKeyID))
+	require.NoError(t, err)
+	signedTok, err := jwt.Signed(signer).Claims(claims).Serialize()
 	require.NoError(t, err)
 	return signedTok
 }

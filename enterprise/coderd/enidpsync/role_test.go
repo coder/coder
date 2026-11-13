@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/entitlements"
@@ -33,7 +32,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		mgr := runtimeconfig.NewManager()
 		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitlements.New(), idpsync.DeploymentSyncSettings{})
 
-		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
+		params, err := s.ParseRoleClaims(context.Background(), map[string]any{})
 		require.Nil(t, err)
 		require.False(t, params.SyncEntitled)
 		require.False(t, params.SyncSiteWide)
@@ -48,7 +47,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			SiteRoleField: "roles",
 		})
 
-		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
+		params, err := s.ParseRoleClaims(context.Background(), map[string]any{})
 		require.Nil(t, err)
 		require.False(t, params.SyncEntitled)
 		require.False(t, params.SyncSiteWide)
@@ -60,7 +59,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		mgr := runtimeconfig.NewManager()
 		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitled, idpsync.DeploymentSyncSettings{})
 
-		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
+		params, err := s.ParseRoleClaims(context.Background(), map[string]any{})
 		require.Nil(t, err)
 		require.True(t, params.SyncEntitled)
 		require.False(t, params.SyncSiteWide)
@@ -76,7 +75,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			SiteDefaultRoles: []string{rbac.RoleTemplateAdmin().Name},
 		})
 
-		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{
+		params, err := s.ParseRoleClaims(context.Background(), map[string]any{
 			"roles": []string{rbac.RoleAuditor().Name},
 		})
 		require.Nil(t, err)
@@ -101,7 +100,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			SiteDefaultRoles: []string{rbac.RoleTemplateAdmin().Name},
 		})
 
-		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{
+		params, err := s.ParseRoleClaims(context.Background(), map[string]any{
 			"roles": []string{"foo", "bar", "random"},
 		})
 		require.Nil(t, err)
@@ -130,7 +129,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			SiteDefaultRoles: []string{rbac.RoleAuditor().Name},
 		})
 
-		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{
+		params, err := s.ParseRoleClaims(context.Background(), map[string]any{
 			"roles": []string{"foo", "bar", rbac.RoleAuditor().Name, rbac.RoleOwner().Name},
 		})
 		require.Nil(t, err)

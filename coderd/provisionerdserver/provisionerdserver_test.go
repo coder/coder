@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +99,7 @@ func TestTokenIsRefreshedEarly(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
 
 		// Setup an OIDC user.
-		client, _ := fake.Login(t, owner, jwt.MapClaims{
+		client, _ := fake.Login(t, owner, map[string]any{
 			"email":          "user@unauthorized.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -129,7 +128,7 @@ func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
 	cfg := fake.OIDCConfig(t, nil)
 
 	// Fetch a valid token from the fake OIDC provider
-	token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
+	token, err := fake.GenerateAuthenticatedToken(map[string]any{
 		"email":          "user@unauthorized.com",
 		"email_verified": true,
 		"sub":            uuid.NewString(),

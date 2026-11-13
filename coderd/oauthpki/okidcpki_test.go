@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,7 +170,7 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 
 	// Create a user and login
 	const email = "alice@coder.com"
-	claims := jwt.MapClaims{
+	claims := map[string]any{
 		"email": email,
 		"sub":   uuid.NewString(),
 	}
@@ -341,15 +342,16 @@ func assertJWTAuth(t testing.TB, r *http.Request) url.Values {
 	assert.Equal(t, "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", vals.Get("client_assertion_type"))
 	jwtToken := vals.Get("client_assertion")
 	// No need to actually verify the jwt is signed right.
-	parsedToken, _, err := (&jwt.Parser{}).ParseUnverified(jwtToken, jwt.MapClaims{})
-	if !assert.NoError(t, err, "failed to parse jwt token") {
+	parsedToken, err := jwt.ParseSigned(jwtToken, []jose.SignatureAlgorithm{jose.RS256})
+	if !assert.NoError(t, err, "failed to parse jwt token") || !assert.Len(t, parsedToken.Headers, 1) {
 		return nil
 	}
+	header := parsedToken.Headers[0]
 
 	// Azure requirements
-	assert.NotEmpty(t, parsedToken.Header["x5t"], "hashed cert missing")
-	assert.Equal(t, "RS256", parsedToken.Header["alg"], "azure only accepts RS256")
-	assert.Equal(t, "JWT", parsedToken.Header["typ"], "azure only accepts JWT")
+	assert.NotEmpty(t, header.ExtraHeaders["x5t"], "hashed cert missing")
+	assert.Equal(t, string(jose.RS256), header.Algorithm, "azure only accepts RS256")
+	assert.Equal(t, "JWT", header.ExtraHeaders[jose.HeaderType], "azure only accepts JWT")
 
 	return vals
 }

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1052,7 +1051,7 @@ func TestPostUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to log in with OIDC.
-		userClient, _ := fake.Login(t, client, jwt.MapClaims{
+		userClient, _ := fake.Login(t, client, map[string]any{
 			"email":          email,
 			"email_verified": true,
 			"sub":            uuid.NewString(),

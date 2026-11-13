@@ -3,7 +3,6 @@ package enidpsync_test
 import (
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -36,7 +35,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
+		params, err := s.ParseGroupClaims(ctx, map[string]any{})
 		require.Nil(t, err)
 
 		require.False(t, params.SyncEntitled)
@@ -58,14 +57,14 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Try with incorrect group
-		_, err := s.ParseGroupClaims(ctx, jwt.MapClaims{
+		_, err := s.ParseGroupClaims(ctx, map[string]any{
 			"groups": []string{"bar"},
 		})
 		require.NotNil(t, err)
 		require.Equal(t, 403, err.Code)
 
 		// Try with no groups
-		_, err = s.ParseGroupClaims(ctx, jwt.MapClaims{})
+		_, err = s.ParseGroupClaims(ctx, map[string]any{})
 		require.NotNil(t, err)
 		require.Equal(t, 403, err.Code)
 	})
@@ -85,7 +84,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"groups": []string{"foo", "bar"},
 		}
 		params, err := s.ParseGroupClaims(ctx, claims)

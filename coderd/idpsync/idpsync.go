@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -32,7 +31,7 @@ type IDPSync interface {
 	OrganizationSyncEnabled(ctx context.Context, db database.Store) bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
-	ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (OrganizationParams, *HTTPError)
+	ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]any) (OrganizationParams, *HTTPError)
 	// SyncOrganizations assigns and removed users from organizations based on the
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
@@ -40,7 +39,7 @@ type IDPSync interface {
 	GroupSyncEntitled() bool
 	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
 	// for group syncing. Most of the logic happens in SyncGroups.
-	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
+	ParseGroupClaims(ctx context.Context, mergedClaims map[string]any) (GroupParams, *HTTPError)
 	// SyncGroups assigns and removes users from groups based on the provided params.
 	SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error
 	// GroupSyncSettings is exposed for the API to implement CRUD operations
@@ -63,7 +62,7 @@ type IDPSync interface {
 	UpdateRoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error
 	// ParseRoleClaims takes claims from an OIDC provider, and returns the params
 	// for role syncing. Most of the logic happens in SyncRoles.
-	ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (RoleParams, *HTTPError)
+	ParseRoleClaims(ctx context.Context, mergedClaims map[string]any) (RoleParams, *HTTPError)
 	// SyncRoles assigns and removes users from roles based on the provided params.
 	// Site & org roles are handled in this method.
 	SyncRoles(ctx context.Context, db database.Store, user database.User, params RoleParams) error

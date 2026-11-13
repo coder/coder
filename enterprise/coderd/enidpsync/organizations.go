@@ -3,8 +3,6 @@ package enidpsync
 import (
 	"context"
 
-	"github.com/golang-jwt/jwt/v4"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -28,7 +26,7 @@ func (e EnterpriseIDPSync) OrganizationSyncEnabled(ctx context.Context, db datab
 	return false
 }
 
-func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.OrganizationParams, *idpsync.HTTPError) {
+func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]any) (idpsync.OrganizationParams, *idpsync.HTTPError) {
 	if !e.OrganizationSyncEntitled() {
 		// Default to agpl if multi-org is not enabled
 		return e.AGPLIDPSync.ParseOrganizationClaims(ctx, mergedClaims)
