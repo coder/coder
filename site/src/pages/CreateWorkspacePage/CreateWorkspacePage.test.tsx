@@ -394,14 +394,17 @@ describe("CreateWorkspacePage", () => {
 					value: "not-blank",
 				},
 			];
-			editParameters(...editedParameters);
+			await editParameters(...editedParameters);
 
-			// Send a message with different values.
+			// Respond to the edit's request with different values.
+			await waitFor(() => {
+				expect(mockPublisher.clientSentData).toHaveLength(1);
+			});
 			await act(async () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
-							id: 2,
+							id: 0,
 							parameters: [
 								MockPreviewParameter1,
 								MockPreviewParameter2, // new field
