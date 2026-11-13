@@ -411,6 +411,30 @@ function rendersSpace(whitespace) {
 const MAX_VARIANTS = 64;
 
 /**
+ * Returns true for an expression that renders its operand unchanged:
+ * parentheses and type-only wrappers such as `as const`, `satisfies`,
+ * and `!`.
+ */
+function isTransparent(node) {
+	return (
+		ts.isParenthesizedExpression(node) ||
+		ts.isAsExpression(node) ||
+		ts.isSatisfiesExpression(node) ||
+		ts.isNonNullExpression(node) ||
+		ts.isTypeAssertionExpression(node)
+	);
+}
+
+/** Returns the expression inside any transparent wrappers. */
+function skipTransparent(node) {
+	let inner = node;
+	while (isTransparent(inner)) {
+		inner = inner.expression;
+	}
+	return inner;
+}
+
+/**
  * Returns what an inline JSX expression may render: a JSX node, string
  * literal, or template literal to read as text, null for nothing, or "substitution" for an
  * unknown value. `cond && <b>Text</b>` renders the element or nothing,
@@ -418,10 +442,7 @@ const MAX_VARIANTS = 64;
  * fallback, and a conditional renders either branch.
  */
 function renderedOptions(expression) {
-	let node = expression;
-	while (ts.isParenthesizedExpression(node)) {
-		node = node.expression;
-	}
+	const node = skipTransparent(expression);
 	if (
 		ts.isJsxElement(node) ||
 		ts.isJsxFragment(node) ||
@@ -502,10 +523,7 @@ function isPlus(node) {
 function concatenationOperands(node) {
 	const operands = [];
 	const add = (operand) => {
-		let inner = operand;
-		while (ts.isParenthesizedExpression(inner)) {
-			inner = inner.expression;
-		}
+		const inner = skipTransparent(operand);
 		if (isPlus(inner)) {
 			add(inner.left);
 			add(inner.right);
@@ -528,7 +546,7 @@ function isStringConcatenation(node) {
  */
 function isOutermostConcatenation(node) {
 	let parent = node.parent;
-	while (ts.isParenthesizedExpression(parent)) {
+	while (isTransparent(parent)) {
 		parent = parent.parent;
 	}
 	return isStringConcatenation(node) && !isPlus(parent);

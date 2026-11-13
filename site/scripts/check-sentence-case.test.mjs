@@ -159,6 +159,23 @@ describe("checkSource", () => {
 		);
 	});
 
+	it("reads through type-only wrappers in JSX", () => {
+		const source = [
+			'const a = <p>Create {"New Workspace" as const}</p>;',
+			'const b = <p>Create {("New Template" satisfies string)}</p>;',
+			'const c = <p>Create {label! || "New Group"}</p>;',
+		].join("\n");
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "New"],
+			[1, "Workspace"],
+			[2, "New"],
+			[2, "Template"],
+			[3, "New"],
+			[3, "Group"],
+		]);
+	});
+
 	it("checks fallback values rendered in JSX in place", () => {
 		const source = [
 			'const a = <p>Create {label || "New Workspace"}</p>;',
