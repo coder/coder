@@ -294,11 +294,11 @@ export const RemoveUser: Story = {
 		await waitFor(() => {
 			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
 		});
-		// Groups render before users, so the user row menu is the second one.
-		const menuButtons = await body.findAllByRole("button", {
-			name: "Open menu",
-		});
-		await userEvent.click(menuButtons[1]);
+		await userEvent.click(
+			await body.findByRole("button", {
+				name: `Open menu for ${chatUser.username}`,
+			}),
+		);
 		const removeItem = await body.findByRole("menuitem", { name: "Remove" });
 		await userEvent.click(removeItem);
 
@@ -321,11 +321,11 @@ export const RemoveGroup: Story = {
 		await waitFor(() => {
 			expect(body.getAllByText(chatGroup.name).length).toBeGreaterThan(0);
 		});
-		// Groups render before users, so the group row menu is the first one.
-		const menuButtons = await body.findAllByRole("button", {
-			name: "Open menu",
-		});
-		await userEvent.click(menuButtons[0]);
+		await userEvent.click(
+			await body.findByRole("button", {
+				name: `Open menu for ${chatGroup.display_name || chatGroup.name}`,
+			}),
+		);
 		const removeItem = await body.findByRole("menuitem", { name: "Remove" });
 		await userEvent.click(removeItem);
 

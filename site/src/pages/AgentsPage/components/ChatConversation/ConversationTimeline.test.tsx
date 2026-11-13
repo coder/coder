@@ -182,7 +182,7 @@ describe("ConversationTimeline working blocks", () => {
 		await user.click(
 			within(screen.getByTestId("chat-message-message:6:1")).getByRole(
 				"button",
-				{ name: "Copy message" },
+				{ name: /^Copy message/ },
 			),
 		);
 
@@ -201,7 +201,7 @@ describe("ConversationTimeline working blocks", () => {
 		await user.click(
 			within(screen.getByTestId("chat-message-message:23")).getByRole(
 				"button",
-				{ name: "Copy message" },
+				{ name: "Copy message: The dashboard matches the spec." },
 			),
 		);
 
@@ -932,5 +932,42 @@ describe("ConversationTimeline attachment previews", () => {
 		await user.keyboard("{Escape}");
 
 		await waitFor(() => expect(attachment).toHaveFocus());
+	});
+});
+
+const mockDeployLogsMessage: ChatMessage = {
+	...MockChatMessage,
+	id: 1,
+	role: "user",
+	created_at: workingFixtureTime(1),
+	content: [{ type: "text", text: "Check the deploy logs" }],
+};
+
+const mockLoginBugMessage: ChatMessage = {
+	...MockChatMessage,
+	id: 2,
+	role: "user",
+	created_at: workingFixtureTime(2),
+	content: [
+		{ type: "text", text: "Fix the [login](https://example.com) bug\nnow" },
+	],
+};
+
+describe("ConversationTimeline message actions", () => {
+	it("names each message's actions after the message they act on", async () => {
+		const user = userEvent.setup();
+		const onEditUserMessage = vi.fn();
+		renderTimeline({
+			messages: [mockDeployLogsMessage, mockLoginBugMessage],
+			onEditUserMessage,
+		});
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Edit message: Fix the login bug now",
+			}),
+		);
+
+		expect(onEditUserMessage).toHaveBeenCalledWith(2);
 	});
 });
