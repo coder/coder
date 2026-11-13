@@ -1,21 +1,29 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // setupAIModelPricesTest returns a client entitled to manage model prices.
@@ -620,5 +628,193 @@ func TestListAIModelPrices(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+}
+
+func TestOrganizationUnpricedAIModels(t *testing.T) {
+	t.Parallel()
+
+	// Use fixed dates to keep every subtest deterministic.
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+	monthStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	monthEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+	db, ps := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps, Clock: clock},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureAIBridge:              1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: owner.OrganizationID})
+	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+
+	// Given unpriced usage of a model in the organization's group. The model is
+	// not in the price book the deployment seeds at startup.
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Name:        "anthropic-prod",
+		DisplayName: sql.NullString{String: "Anthropic", Valid: true},
+		Icon:        "/icon/anthropic.svg",
+		Type:        database.AIProviderTypeAnthropic,
+	})
+	interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: owner.UserID, Provider: string(provider.Type), ProviderName: provider.Name, Model: "model-without-price", StartedAt: inMonth,
+	}, nil)
+	dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+		InterceptionID:   interception.ID,
+		CreatedAt:        inMonth,
+		EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
+		InputTokens:      300,
+		OutputTokens:     200,
+	})
+	model := codersdk.UnpricedAIModel{
+		ProviderName:        "anthropic-prod",
+		ProviderDisplayName: "Anthropic",
+		ProviderIcon:        "/icon/anthropic.svg",
+		ProviderType:        codersdk.AIProviderType(database.AIProviderTypeAnthropic),
+		Model:               "model-without-price",
+		TokenCount:          500,
+	}
+
+	t.Run("DefaultPeriod", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When listing without a period.
+		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+
+		// Then the current month is applied and the model is listed.
+		require.NoError(t, err)
+		require.Equal(t, codersdk.UnpricedAIModels{
+			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
+			Count:               1,
+			Models:              []codersdk.UnpricedAIModel{model},
+		}, got)
+	})
+
+	t.Run("ExplicitPeriodWithoutUsage", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: inMonth.Add(-time.Hour)}
+
+		// When listing a period that ends before the usage.
+		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, window)
+
+		// Then the applied period is echoed with no models.
+		require.NoError(t, err)
+		require.Equal(t, codersdk.UnpricedAIModels{
+			AISpendPeriodWindow: window,
+			Models:              []codersdk.UnpricedAIModel{},
+		}, got)
+	})
+
+	t.Run("OtherOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When listing another organization, which has no usage.
+		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, otherOrg.ID, codersdk.AISpendPeriodWindow{})
+
+		// Then the usage of the first organization is not listed.
+		require.NoError(t, err)
+		require.Equal(t, codersdk.UnpricedAIModels{
+			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
+			Models:              []codersdk.UnpricedAIModel{},
+		}, got)
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name        string
+			params      map[string]string
+			wantMessage string
+		}{
+			{
+				name:        "UnknownParameter",
+				params:      map[string]string{"limit": "10"},
+				wantMessage: "Query parameters have invalid values.",
+			},
+			{
+				name:        "OnlyStart",
+				params:      map[string]string{"period_start": monthStart.Format(time.RFC3339)},
+				wantMessage: `Query parameters "period_start" and "period_end" must be provided together.`,
+			},
+			{
+				// Token usage is subject to data retention, and the deployment keeps
+				// the default 60d retention.
+				name:        "BeforeRetention",
+				params:      map[string]string{"period_start": monthStart.AddDate(0, -3, 0).Format(time.RFC3339), "period_end": monthStart.AddDate(0, -3, 1).Format(time.RFC3339)},
+				wantMessage: "the configured AI Gateway data retention window",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				res, err := ownerClient.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices/unpriced", owner.OrganizationID), nil, func(r *http.Request) {
+					q := r.URL.Query()
+					for k, v := range tc.params {
+						q.Set(k, v)
+					}
+					r.URL.RawQuery = q.Encode()
+				})
+				require.NoError(t, err)
+				defer res.Body.Close()
+				require.Equal(t, http.StatusBadRequest, res.StatusCode)
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
+				require.Contains(t, sdkErr.Message, tc.wantMessage)
+			})
+		}
+	})
+
+	// Only roles that can read the organization's prices can list its
+	// unpriced models.
+	t.Run("RoleAccess", func(t *testing.T) {
+		t.Parallel()
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+		orgAuditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
+		orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		otherOrgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID, rbac.ScopedRoleOrgAdmin(otherOrg.ID))
+
+		cases := []struct {
+			name       string
+			client     *codersdk.Client
+			wantStatus int // zero means the request succeeds
+		}{
+			{name: "Owner", client: ownerClient},
+			{name: "OrgAdmin", client: orgAdminClient},
+			{name: "OrgAuditor", client: orgAuditorClient, wantStatus: http.StatusForbidden},
+			{name: "OrgUserAdmin", client: orgUserAdminClient, wantStatus: http.StatusForbidden},
+			{name: "Member", client: memberClient, wantStatus: http.StatusForbidden},
+			// An admin of another organization cannot see this one, so it is not found.
+			{name: "OtherOrgAdmin", client: otherOrgAdminClient, wantStatus: http.StatusNotFound},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := codersdk.NewExperimentalClient(tc.client).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+				if tc.wantStatus != 0 {
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, err, &sdkErr)
+					require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, []codersdk.UnpricedAIModel{model}, got.Models)
+			})
+		}
 	})
 }

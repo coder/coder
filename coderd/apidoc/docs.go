@@ -357,6 +357,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/ai/model-prices/unpriced": {
+            "get": {
+                "description": "Returns, for each provider, the requested models with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List organization unpriced AI models",
+                "operationId": "list-organization-unpriced-ai-models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UnpricedAIModels"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/ai/spend": {
             "get": {
                 "description": "Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day, and with the current day only including the spend recorded so far), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.\nThe optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
@@ -32891,6 +32944,58 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UnpricedAIModel": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "provider_display_name": {
+                    "description": "ProviderDisplayName falls back to the provider name when unset.",
+                    "type": "string"
+                },
+                "provider_icon": {
+                    "description": "ProviderIcon is empty when the provider has no configured icon.",
+                    "type": "string"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "provider_type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
+                },
+                "token_count": {
+                    "description": "TokenCount is the number of tokens used without a price in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UnpricedAIModels": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of models listed.",
+                    "type": "integer"
+                },
+                "models": {
+                    "description": "Models are ordered by unpriced token count, highest first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UnpricedAIModel"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
