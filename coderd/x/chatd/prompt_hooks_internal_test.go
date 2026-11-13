@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -46,6 +47,9 @@ type promptHooksHarness struct {
 	requests []agenthooks.Request
 	gate     chan struct{}
 	entered  chan struct{}
+	// hold parks every session_start request at the consumer until it is
+	// closed.
+	hold chan struct{}
 }
 
 // newPromptHooksHarness starts a hook consumer that answers request n (from 1)
@@ -76,9 +80,15 @@ func newPromptHooksHarness(t *testing.T, reply func(n int) (status int, body str
 		h.mu.Lock()
 		h.requests = append(h.requests, request)
 		n := len(h.requests)
-		gate, entered := h.gate, h.entered
+		gate, entered, hold := h.gate, h.entered, h.hold
 		h.gate, h.entered = nil, nil
 		h.mu.Unlock()
+		if hold != nil && request.Type == agenthooks.EventSessionStart {
+			select {
+			case <-hold:
+			case <-r.Context().Done():
+			}
+		}
 		if gate != nil {
 			entered <- struct{}{}
 			select {
@@ -234,6 +244,9 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 		wantStatus   database.ChatStatus
 		wantKind     codersdk.ChatErrorKind
 		wantErr      string
+		// exactErr compares the whole error text, so a denial that gains a
+		// prefix or a suffix fails the test.
+		exactErr bool
 	}{
 		{
 			name:         "Allow",
@@ -257,6 +270,7 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 			wantStatus:   database.ChatStatusError,
 			wantKind:     codersdk.ChatErrorKindHookDenied,
 			wantErr:      "blocked by policy",
+			exactErr:     true,
 		},
 		{
 			name:         "DenyWithoutUserMessage",
@@ -266,6 +280,7 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 			wantStatus:   database.ChatStatusError,
 			wantKind:     codersdk.ChatErrorKindHookDenied,
 			wantErr:      promptHooksDeniedFallback,
+			exactErr:     true,
 		},
 		{
 			// The consumer made no decision, so the message stays and waits.
@@ -313,7 +328,11 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 			require.Equal(t, tt.wantStatus, h.chatNow(t).Status)
 			if tt.wantStatus == database.ChatStatusError {
 				chatErr := h.chatError(t)
-				require.Contains(t, chatErr.Message, tt.wantErr)
+				if tt.exactErr {
+					require.Equal(t, tt.wantErr, chatErr.Message)
+				} else {
+					require.Contains(t, chatErr.Message, tt.wantErr)
+				}
 				if tt.wantKind != "" {
 					require.Equal(t, tt.wantKind, chatErr.Kind)
 				}
@@ -330,34 +349,43 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 // its hooks must still run.
 func TestResolvePromptHooksUsesReservedCapacity(t *testing.T) {
 	t.Parallel()
-	// The admission share of the dispatcher, maxAdmissionDispatches in the
-	// dispatch package.
-	const admissionShare = 192
+	// More admission dispatches than the dispatcher can admit at once, so the
+	// test fails loudly when its admission share outgrows this number.
+	const attempts = 300
 	ctx := testutil.Context(t, testutil.WaitLong)
+	h := newPromptHooksHarness(t, func(int) (int, string) { return http.StatusOK, hookAllow })
 	release := make(chan struct{})
-	h := newPromptHooksHarness(t, func(n int) (int, string) {
-		if n <= admissionShare {
-			<-release
-		}
-		return http.StatusOK, hookAllow
-	})
-	var held sync.WaitGroup
-	defer held.Wait()
+	h.mu.Lock()
+	h.hold = release
+	h.mu.Unlock()
+	var (
+		wg      sync.WaitGroup
+		refused atomic.Int32
+	)
+	defer wg.Wait()
 	defer close(release)
-	for range admissionShare {
-		held.Add(1)
+	for range attempts {
+		wg.Add(1)
 		go func() {
-			defer held.Done()
-			_, _ = h.starter.server.hooks.Trigger(ctx, chathooks.ChatFor(h.chat, nil),
+			defer wg.Done()
+			_, err := h.starter.server.hooks.Trigger(ctx, chathooks.ChatFor(h.chat, nil),
 				chathooks.Message{Source: chathooks.SessionStartSourceStartup},
 				agenthooks.EventSessionStart, dispatch.CapacityClassAdmission)
+			if err != nil {
+				refused.Add(1)
+			}
 		}()
 	}
-	testutil.Eventually(ctx, t, func(context.Context) bool { return h.requestCount() == admissionShare }, testutil.IntervalFast)
+	// Each dispatch is now held at the consumer or refused for capacity.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return h.requestCount()+int(refused.Load()) == attempts
+	}, testutil.IntervalFast)
+	require.NotZero(t, refused.Load(), "the admission share must be full")
+	held := h.requestCount()
 
 	require.NoError(t, h.run(ctx, t, h.workerID, h.runnerID))
 
-	require.Equal(t, admissionShare+1, h.requestCount())
+	require.Equal(t, held+1, h.requestCount())
 	require.Equal(t, promptHooksRow{parts: plain("flagged")}, h.row(t, h.flagged.ID))
 	require.Equal(t, database.ChatStatusRunning, h.chatNow(t).Status)
 }
