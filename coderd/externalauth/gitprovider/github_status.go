@@ -117,9 +117,9 @@ type githubIssueResult struct {
 // fetchPullRequest returns the pull request's fields, using the issue
 // endpoint as a gate. A push to any branch of the repository changes the pull
 // ETag through the embedded repositories, without changing the pull request.
-// The issue ETag does not change. While the issue returns 304 and the
-// snapshot has not expired, the cached pull is reused. When the token cannot
-// read the issue, the pull is requested every time.
+// Those pushes do not change the issue ETag. While the issue returns 304 and
+// the snapshot has not expired, the cached pull is reused. When the token
+// cannot read the issue, the pull is requested every time.
 func (g *githubProvider) fetchPullRequest(ctx context.Context, token string, ref PRRef, pullEndpoint string) (githubPullRequest, error) {
 	lookup := g.pullRequestLookup(token, ref, pullEndpoint)
 
