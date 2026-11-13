@@ -32,9 +32,9 @@ func TestBuilder(t *testing.T) {
 			wantErr bool
 		}{
 			{name: "NoConfiguration", wantErr: true},
-			{name: "HumanEmpty", options: []clilog.Option{clilog.WithHuman("")}, wantErr: true},
 			{name: "HumanDevNull", options: []clilog.Option{clilog.WithHuman("/dev/null")}},
 			{name: "JSONDevNull", options: []clilog.Option{clilog.WithJSON("/dev/null")}},
+			{name: "StackdriverDevNull", options: []clilog.Option{clilog.WithStackdriver("/dev/null")}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -141,6 +141,22 @@ func TestBuilder(t *testing.T) {
 
 			assertLogs(t, stdoutPath, "")
 			assertLogs(t, stderrPath, infoLog, warnLog)
+		})
+
+		// An empty variable counts as set, so it replaces the /dev/stderr
+		// default and leaves the logger with no sink.
+		t.Run("EmptyHumanEnv", func(t *testing.T) {
+			var dv codersdk.DeploymentValues
+			opts := dv.Options()
+			require.NoError(t, opts.ParseEnv([]serpent.EnvVar{{Name: "CODER_LOGGING_HUMAN", Value: ""}}))
+			require.NoError(t, opts.SetDefaults())
+
+			cmd := &serpent.Command{
+				Use:     "test",
+				Handler: testHandler(t, clilog.FromDeploymentValues(&dv)),
+			}
+			err := cmd.Invoke().Run()
+			require.ErrorContains(t, err, "no loggers provided, use /dev/null to disable logging")
 		})
 
 		t.Run("Override", func(t *testing.T) {

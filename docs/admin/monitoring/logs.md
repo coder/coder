@@ -18,7 +18,7 @@ You can access these logs via `kubectl logs deployment/coder -n <coder-namespace
 > To disable human-readable logging, set `--log-human` (or `CODER_LOGGING_HUMAN`) to `/dev/null`.
 > If you set no JSON or Stackdriver log location, Coder then writes no logs.
 > Do not use an empty value to disable logging.
-> If every log location is empty, the server exits with `no loggers provided, use /dev/null to disable logging`.
+> If every log location is empty and tracing is off, the server exits with `no loggers provided, use /dev/null to disable logging`.
 
 Events such as server errors, audit logs, user activities, and single sign-on (SSO) & OpenID Connect logs are all captured in the `coderd` logs.
 
