@@ -458,4 +458,34 @@ describe("ProjectTemplatesDialog", () => {
 		);
 		expect(getTemplates).toHaveBeenCalledTimes(2);
 	});
+
+	it("pauses saving until the default preset list loads", async () => {
+		const getPresets = vi
+			.spyOn(API, "getTemplateVersionPresets")
+			.mockRejectedValueOnce(mockApiError({ message: "Network error." }))
+			.mockResolvedValue([]);
+		const { user, props } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: {
+					template_ids: [MockTemplate.id],
+					default_template_id: MockTemplate.id,
+					default_preset_id: "preset-id",
+				},
+			},
+		});
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+			}),
+		);
+		expect(getPresets).toHaveBeenCalledTimes(2);
+	});
 });

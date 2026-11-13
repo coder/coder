@@ -260,17 +260,28 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		(request === undefined || serializedLatest !== serializeTemplates(request));
 	// Without a fresh copy of the project, Save could overwrite a change
 	// made elsewhere that the conflict check has not seen.
-	const refreshFailed = projectsQuery.isError || templatesQuery.isError;
+	// The defaults queries decide which stale values the save clears.
+	const failedQueries = [
+		projectsQuery,
+		templatesQuery,
+		presetsQuery,
+		parametersQuery,
+	].filter((query) => query.isError);
+	const refreshFailed = failedQueries.length > 0;
 	// Templates missing from a stale list would be dropped on save. The
 	// pre-save check's own refresh leaves Save enabled, so focus stays on it.
 	const isRefreshing =
 		(projectsQuery.isFetching && !isCheckingBeforeSave) ||
-		templatesQuery.isFetching;
+		templatesQuery.isFetching ||
+		presetsQuery.isFetching ||
+		parametersQuery.isFetching;
 	const isBusy =
 		isSaving ||
 		isCheckingBeforeSave ||
 		projectsQuery.isFetching ||
-		templatesQuery.isFetching;
+		templatesQuery.isFetching ||
+		presetsQuery.isFetching ||
+		parametersQuery.isFetching;
 	const canSave =
 		request !== undefined &&
 		!isUnchanged &&
@@ -416,15 +427,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 							size="sm"
 							variant="outline"
 							onClick={() => {
-								if (projectsQuery.isFetching || templatesQuery.isFetching) {
+								if (failedQueries.some((query) => query.isFetching)) {
 									return;
 								}
 								pendingFocusRef.current = "retry";
-								if (projectsQuery.isError) {
-									void projectsQuery.refetch();
-								}
-								if (templatesQuery.isError) {
-									void templatesQuery.refetch();
+								for (const query of failedQueries) {
+									void query.refetch();
 								}
 							}}
 						>
@@ -433,7 +441,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					}
 				>
 					<AlertDescription>
-						Couldn't check for template changes made elsewhere, so saving is
+						Couldn't load the latest templates and their defaults, so saving is
 						paused.
 					</AlertDescription>
 				</Alert>
