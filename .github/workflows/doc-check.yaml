@@ -502,9 +502,10 @@ jobs:
           Read the skill and its persona files from the base branch, and
           read everything else from the PR head.
 
-          Follow the skill in full: every workflow step, every persona, the
-          verifier, and the posting rules in its output.md. A PR that edits
-          docs still gets the full review. Post nothing when no finding
+          Follow the skill in full, in its CI review mode: every workflow
+          step, every persona that mode runs, the verifier, and the posting
+          rules in its output.md. A PR that edits docs still gets the
+          review. Post nothing when no finding
           survives verification. End your final message with the
           doc-check-trace block, even when you post nothing.
 

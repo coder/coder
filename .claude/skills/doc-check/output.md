@@ -39,6 +39,9 @@ A finding whose `quote` does not appear at `file:line` is dropped before verific
 A finding about a page the change does not touch cannot be an inline comment.
 Put it in the summary comment.
 
+A CI review posts only `wrong`, `missing`, and `broken` findings.
+Refer to [CI review scope](./SKILL.md#ci-review-scope).
+
 ## Posting in CI
 
 Post nothing when no finding survives verification.
