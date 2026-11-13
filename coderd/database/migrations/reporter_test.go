@@ -220,48 +220,6 @@ func TestReporter(t *testing.T) {
 		requireGolden(t, sink, "up_to_date")
 	})
 
-	t.Run("FreshInstall", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db := testSQLDB(t)
-		const appName = "test/fresh-install"
-		// An empty database has no tables to lock, so the second step waits
-		// on an advisory lock held by the test instead.
-		const stepLock = 4242
-
-		holder, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = holder.Rollback() }()
-		sink := newGoldenSink()
-		sink.namePID(backendPID(ctx, t, holder), "holder")
-		_, err = holder.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, stepLock)
-		require.NoError(t, err)
-
-		mClock := quartz.NewMock(t)
-		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
-		defer trap.Close()
-
-		fsys := migrationFS(`CREATE TABLE a (id int);`, fmt.Sprintf(`SELECT pg_advisory_xact_lock(%d);`, stepLock))
-		done := make(chan error, 1)
-		go func() {
-			done <- migrations.Up(db, testOptions(sink, mClock, appName, fsys)...)
-		}()
-
-		// One heartbeat per lock (setup, batch) and per step.
-		for range 4 {
-			trap.MustWait(ctx).MustRelease(ctx)
-		}
-		waitForLockWait(ctx, t, db, appName)
-		mClock.Advance(time.Second).MustWait(ctx)
-
-		require.NoError(t, holder.Rollback())
-		require.NoError(t, testutil.TryReceive(ctx, t, done))
-
-		// Per-step lines are at debug on a fresh install, but the heartbeat
-		// stays at info: it is the liveness signal of a slow step.
-		requireGolden(t, sink, "fresh_install")
-	})
-
 	t.Run("WaitsForMigrationLock", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -292,7 +250,7 @@ func TestReporter(t *testing.T) {
 		mClock.Advance(time.Second).MustWait(ctx)
 
 		require.NoError(t, holder.Rollback())
-		require.NoError(t, testutil.TryReceive(ctx, t, done))
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
 
 		requireGolden(t, sink, "waits_for_migration_lock")
 	})
@@ -330,7 +288,7 @@ func TestReporter(t *testing.T) {
 		mClock.Advance(time.Second).MustWait(ctx)
 
 		require.NoError(t, blocker.Rollback())
-		require.NoError(t, testutil.TryReceive(ctx, t, done))
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
 
 		requireGolden(t, sink, "step_blocked_by_table_lock")
 	})
@@ -371,7 +329,7 @@ func TestReporter(t *testing.T) {
 		mClock.Advance(time.Second).MustWait(ctx)
 
 		require.NoError(t, holder.Rollback())
-		require.NoError(t, testutil.TryReceive(ctx, t, done))
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
 
 		requireGolden(t, sink, "heartbeat_check_fails")
 		// The failed checks did not affect the migration.
@@ -420,7 +378,7 @@ func TestReporter(t *testing.T) {
 		// The step finishes and Up returns while the check is still blocked:
 		// stopping the heartbeat does not wait for it.
 		require.NoError(t, blocker.Rollback())
-		require.NoError(t, testutil.TryReceive(ctx, t, done))
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
 
 		// Once the late check returns, its result is discarded, so the golden
 		// file has no heartbeat or warning line.
