@@ -100,7 +100,9 @@ const openStartupScripts = async (canvasElement: HTMLElement) => {
 	const user = userEvent.setup();
 	const canvas = within(canvasElement);
 	await user.click(
-		canvas.getByRole("button", { name: "View run startup scripts details" }),
+		canvas.getByRole("button", {
+			name: /^View run startup scripts details \d/,
+		}),
 	);
 	return { user, canvas, body: within(canvasElement.ownerDocument.body) };
 };
@@ -219,7 +221,7 @@ export const NavigateToPlanStage: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const detailsButton = canvas.getByRole("button", {
-			name: "View plan details",
+			name: /^View plan details \d/,
 		});
 		await user.click(detailsButton);
 		await canvas.findByText(
@@ -239,7 +241,9 @@ export const ResourceBarFocused: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(canvas.getByRole("button", { name: "View plan details" }));
+		await user.click(
+			canvas.getByRole("button", { name: /^View plan details \d/ }),
+		);
 		await user.click(canvas.getByRole("textbox"));
 		await user.tab();
 	},
@@ -251,7 +255,7 @@ export const NavigateToStartStage: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const detailsButton = canvas.getByRole("button", {
-			name: "View run startup scripts details",
+			name: /^View run startup scripts details \d/,
 		});
 		await user.click(detailsButton);
 		await canvas.findByText("Startup Script");
@@ -263,7 +267,9 @@ export const ScriptBarFocused: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		await user.click(
-			canvas.getByRole("button", { name: "View run startup scripts details" }),
+			canvas.getByRole("button", {
+				name: /^View run startup scripts details \d/,
+			}),
 		);
 		await user.click(canvas.getByRole("textbox"));
 		await user.tab();
@@ -387,7 +393,7 @@ export const MissedAction: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const applyButton = canvas.getByRole("button", {
-			name: "View apply details",
+			name: /^View apply details \d/,
 		});
 		await user.click(applyButton);
 		await canvas.findByText("missed action");

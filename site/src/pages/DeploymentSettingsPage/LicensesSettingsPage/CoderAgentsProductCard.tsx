@@ -52,7 +52,7 @@ const MetricLabel: React.FC<{ label: string; tooltip: string }> = ({
 				<button
 					type="button"
 					aria-label={`${label} information`}
-					className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+					className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 				>
 					<InfoIcon className="size-3" />
 				</button>
@@ -151,14 +151,13 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 
 	return (
 		<CardContainer
-			className={cn(
-				"border-solid",
+			className={
 				isOverage
 					? "border-border-destructive"
 					: isSoftLimitReached
 						? "border-border-warning"
-						: "",
-			)}
+						: ""
+			}
 			headerEnd={
 				isHardLimitExceeded ? (
 					<Badge variant="destructive" size="sm" role="status">

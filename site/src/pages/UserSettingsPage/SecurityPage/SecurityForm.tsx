@@ -70,7 +70,7 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
 	return (
 		<>
 			<SettingsHeader>
-				<SettingsHeaderTitle hierarchy="secondary">
+				<SettingsHeaderTitle level="h2" hierarchy="secondary">
 					Password
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

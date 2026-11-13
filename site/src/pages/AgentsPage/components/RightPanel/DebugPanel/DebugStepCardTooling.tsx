@@ -64,7 +64,7 @@ export const ToolEventCard: React.FC<ToolEventCardProps> = ({
 	copyLabel,
 }) => {
 	return (
-		<div className="rounded-md border border-solid border-border/40 bg-surface-secondary/10 p-2.5">
+		<div className="rounded-md border border-border/40 bg-surface-secondary/10 p-2.5">
 			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				<ToolBadge label={badgeLabel} />
 				{toolCallId ? (
@@ -147,7 +147,7 @@ const TranscriptTextRow: React.FC<MessageRowProps> = ({ msg, clamp }) => {
 						<button
 							type="button"
 							onClick={() => setExpanded((prev) => !prev)}
-							className="border-0 bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
+							className="bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
 							aria-label={`See ${expanded ? "less" : "more"} of ${msg.role} message`}
 						>
 							{expanded ? "see less" : "see more"}
