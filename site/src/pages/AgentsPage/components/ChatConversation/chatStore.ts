@@ -84,8 +84,8 @@ export const isTurnCompletedChatStatus = (
 ): boolean => status === "waiting" || status === "paused";
 
 /**
- * A user request whose expected result the store shows from the click until
- * the stream reports it.
+ * A user request whose direct effect the store shows from the click until
+ * the stream stores its result.
  */
 export type PendingAction =
 	| {
@@ -111,28 +111,14 @@ export type PendingAction =
 			content?: readonly TypesGen.ChatMessagePart[];
 	  };
 
-type StreamChange = "user_message" | "queue_update" | "history_reset";
-
-/**
- * What a pending action shows, computed at the click from the shown state.
- * The server can place the change differently, because it uses the state
- * that the request finds.
- */
-type PendingPart = {
+type PendingEntry = {
 	actionID: number;
-	// The snapshot version synced at the click. An event at or below it
-	// reports a change made before the request.
-	syncedVersion: number;
-	// The part ends at the first of these changes above syncedVersion, even
-	// if another request made that change.
-	endsAt: readonly StreamChange[];
-	// Hides the transcript from this message on, and the response that the
-	// agent is writing.
-	hideFromID?: number;
-	// Added to the end of the transcript.
-	messages?: readonly TypesGen.ChatMessage[];
-	// Replaces the queue.
-	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	action: PendingAction;
+	// A send's or an edit's message, added to the end of the transcript.
+	message?: TypesGen.ChatMessage;
+	// A send's new row, or the acted-on row as a promote or a queued edit
+	// shows it.
+	row?: TypesGen.ChatQueuedMessage;
 };
 
 export type ChatStoreState = {
@@ -150,8 +136,11 @@ export type ChatStoreState = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	// Whether older messages exist below the oldest held one.
 	hasMoreMessages: boolean;
+	// The IDs of the queued rows that stored messages were delivered from.
+	// A row ID never returns, so the set only grows.
+	deliveredQueuedIDs: ReadonlySet<number>;
 	// These change only what view shows. view applies them in click order.
-	pendingParts: readonly PendingPart[];
+	pendingActions: readonly PendingEntry[];
 	// Built once per state, so selectors reading one state get the same
 	// values, which useSyncExternalStore requires.
 	view: ChatView;
@@ -190,8 +179,8 @@ export type ChatStore = {
 	// The highest snapshot version of the newest page and the applied events.
 	getSyncedSnapshotVersion: () => number;
 	advanceSnapshotVersion: (version: number) => void;
-	// Shows the action's result until the stream reports it or request
-	// rejects.
+	// Shows the action's direct effect until the stream stores its result
+	// or request rejects. Requests run one at a time, in click order.
 	runPendingAction: (
 		action: PendingAction,
 		request: () => Promise<unknown>,
@@ -224,7 +213,8 @@ const createInitialState = (): ChatStoreState => {
 		queuedMessages: [],
 		subagentStatusOverrides: new Map(),
 		hasMoreMessages: false,
-		pendingParts: [],
+		deliveredQueuedIDs: new Set(),
+		pendingActions: [],
 	};
 	return { ...state, view: buildView(state) };
 };
@@ -238,6 +228,10 @@ export const createChatStore = (): ChatStore => {
 	let historyResetVersion = 0;
 	let nextPendingActionID = 1;
 	let nextPendingRowID = Number.MAX_SAFE_INTEGER;
+	let previousRequest: Promise<unknown> = Promise.resolve();
+	// The highest IDs stored. User content above them is new.
+	let highestMessageID = 0;
+	let highestQueuedID = 0;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -280,27 +274,52 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const endPending = (change: StreamChange, version: number): void => {
+	// Each user message or queued row with an ID above the highest stored
+	// ones is the result of one send or edit, and ends the oldest pending
+	// one. A stored queue also ends the queued-row actions whose result it
+	// holds.
+	const endPending = (
+		messages: readonly TypesGen.ChatMessage[],
+		storedQueue?: readonly TypesGen.ChatQueuedMessage[],
+	): void => {
+		const rows = storedQueue ?? [];
+		let unmatched =
+			messages.filter(
+				({ id, role, queued_message_id: queuedID }) =>
+					role === "user" &&
+					(queuedID === undefined
+						? id > highestMessageID
+						: queuedID > highestQueuedID),
+			).length + rows.filter((row) => row.id > highestQueuedID).length;
+		for (const { id, queued_message_id: queuedID = 0 } of messages) {
+			highestMessageID = Math.max(highestMessageID, id);
+			highestQueuedID = Math.max(highestQueuedID, queuedID);
+		}
+		highestQueuedID = Math.max(highestQueuedID, ...rows.map((row) => row.id));
 		setState((current) => {
-			const pendingParts = current.pendingParts.filter(
-				(part) =>
-					version <= part.syncedVersion || !part.endsAt.includes(change),
+			const pendingActions = current.pendingActions.filter(({ action }) =>
+				action.kind === "send" || action.kind === "edit"
+					? unmatched-- <= 0
+					: !storedQueue || !queueHoldsResult(action, storedQueue),
 			);
-			return pendingParts.length === current.pendingParts.length
+			return pendingActions.length === current.pendingActions.length
 				? current
-				: { ...current, pendingParts };
+				: { ...current, pendingActions };
 		});
 	};
 
 	const seed = (page: TypesGen.ChatMessagesResponse): void => {
 		syncedSnapshotVersion = page.snapshot_version ?? 0;
 		historyResetVersion = syncedSnapshotVersion;
+		// Raises the highest stored IDs. The page ends no pending action.
+		endPending(page.messages, page.queued_messages);
 		setState((current) => ({
 			...current,
 			messagesByID: buildMessageMap(page.messages),
 			orderedMessageIDs: buildOrderedMessageIDs(page.messages),
 			queuedMessages: page.queued_messages,
 			hasMoreMessages: page.has_more,
+			deliveredQueuedIDs: deliveredFrom(page.messages),
 		}));
 	};
 
@@ -333,6 +352,7 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				deliveredQueuedIDs: deliveredFrom(messages, current.deliveredQueuedIDs),
 			};
 		});
 	};
@@ -366,24 +386,22 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		upsertDurableMessages: (messages, userMessageVersion) => {
+		upsertDurableMessages: (messages) => {
 			batch(() => {
 				writeMessages(messages);
-				if (messages.some((message) => message.role === "user")) {
-					endPending("user_message", userMessageVersion);
-				}
+				endPending(messages);
 			});
 		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
-		setQueuedMessages: (queuedMessages, snapshotVersion) => {
+		setQueuedMessages: (queuedMessages) => {
 			batch(() => {
 				setState((current) =>
 					isEqual(current.queuedMessages, queuedMessages)
 						? current
 						: { ...current, queuedMessages },
 				);
-				endPending("queue_update", snapshotVersion);
+				endPending([], queuedMessages);
 			});
 		},
 		seed,
@@ -392,18 +410,15 @@ export const createChatStore = (): ChatStore => {
 				return;
 			}
 			historyResetVersion = snapshotVersion;
-			batch(() => {
-				setState((current) => ({
-					...current,
-					messagesByID: new Map(
-						[...current.messagesByID].filter(([id]) => id < fromID),
-					),
-					orderedMessageIDs: current.orderedMessageIDs.filter(
-						(id) => id < fromID,
-					),
-				}));
-				endPending("history_reset", snapshotVersion);
-			});
+			setState((current) => ({
+				...current,
+				messagesByID: new Map(
+					[...current.messagesByID].filter(([id]) => id < fromID),
+				),
+				orderedMessageIDs: current.orderedMessageIDs.filter(
+					(id) => id < fromID,
+				),
+			}));
 		},
 		loadOlderMessages: async (fetchPage) => {
 			const oldestID = state.orderedMessageIDs[0];
@@ -450,24 +465,40 @@ export const createChatStore = (): ChatStore => {
 		},
 		runPendingAction: async (action, request) => {
 			const actionID = nextPendingActionID++;
-			const syncedVersion = syncedSnapshotVersion;
-			const parts = pendingChanges(
+			const entry: PendingEntry = {
+				actionID,
 				action,
-				state.view,
-				state.chatStatus,
-				() => nextPendingRowID--,
-			).map((change) => ({ ...change, actionID, syncedVersion }));
+				...pendingEffect(
+					action,
+					state.view,
+					state.chatStatus,
+					() => nextPendingRowID--,
+				),
+			};
+			const rowID = queuedRowID(action);
 			setState((current) => ({
 				...current,
-				pendingParts: [...current.pendingParts, ...parts],
+				// A queued row has one pending action, the latest.
+				pendingActions: [
+					...current.pendingActions.filter(
+						(earlier) =>
+							rowID === undefined || queuedRowID(earlier.action) !== rowID,
+					),
+					entry,
+				],
 			}));
+			// A request starts when the previous one settles, so the server
+			// makes the changes in click order, the order in which new user
+			// content ends pending sends and edits.
+			const settled = previousRequest.then(() => request());
+			previousRequest = settled.catch(() => {});
 			try {
-				await request();
+				await settled;
 			} catch (error) {
 				setState((current) => ({
 					...current,
-					pendingParts: current.pendingParts.filter(
-						(part) => part.actionID !== actionID,
+					pendingActions: current.pendingActions.filter(
+						(pending) => pending.actionID !== actionID,
 					),
 				}));
 				throw error;
@@ -640,160 +671,121 @@ const nextDelivery = (
 	return next.some((row) => row.editing_since) ? [] : next;
 };
 
-type PendingChange = Omit<PendingPart, "actionID" | "syncedVersion">;
+const deliveredFrom = (
+	messages: readonly TypesGen.ChatMessage[],
+	delivered: ReadonlySet<number> = new Set(),
+): ReadonlySet<number> =>
+	new Set([
+		...delivered,
+		...messages.flatMap((message) => message.queued_message_id ?? []),
+	]);
 
-// A change to the queue. If the chat resumes, the server also sends the
-// next rows, which then show as messages.
-const queueChange = (
+const queuedRowID = (action: PendingAction): number | undefined =>
+	"queuedMessageID" in action ? action.queuedMessageID : undefined;
+
+// Whether the stored queue holds the result of an action on a queued row.
+const queueHoldsResult = (
+	action: Extract<PendingAction, { queuedMessageID: number }>,
 	rows: readonly TypesGen.ChatQueuedMessage[],
-	resumes: boolean,
-	endsAt: readonly StreamChange[],
-	nextRowID: () => number,
-): PendingChange => {
-	const sent = resumes ? nextDelivery(rows) : [];
-	return {
-		endsAt,
-		messages: sent.map((row) => ({
-			id: nextRowID(),
-			chat_id: row.chat_id,
-			created_at: row.created_at,
-			role: "user",
-			content: row.content,
-			model_config_id: row.model_config_id,
-		})),
-		queuedMessages: rows.filter((row) => !sent.includes(row)),
-	};
+): boolean => {
+	const row = rows.find((stored) => stored.id === action.queuedMessageID);
+	return (
+		!row ||
+		(action.kind === "promoteQueued" && isSteerRow(row)) ||
+		(action.kind === "editQueued" &&
+			Boolean(row.editing_since) === action.editing)
+	);
 };
 
-// pendingChanges places an action's result as the chatstate transitions
-// SendMessage, EditMessage, SteerQueuedMessage, DeleteQueuedMessage and
-// EditQueuedMessage do. A send or a promote resumes a chat that runs no
-// turn. A delete or the end of a row's edit resumes only a paused chat.
-const pendingChanges = (
+// What a pending action shows, computed at the click from the shown state. A
+// send shows its row where the chatstate SendMessage transition places it:
+// as a message when a chat that runs no turn delivers the row next, else in
+// its lane. Changes to other rows show when the stream stores them.
+const pendingEffect = (
 	action: PendingAction,
 	view: ChatView,
 	status: TypesGen.ChatStatus | null,
 	nextRowID: () => number,
-): readonly PendingChange[] => {
-	const rows = view.queuedMessages;
-	const isIdle = !isActiveChatStatus(status);
-	const isPaused = status === "paused";
+): Pick<PendingEntry, "message" | "row"> => {
 	if (action.kind === "edit") {
 		const edited = view.messagesByID.get(action.editedMessageID);
-		const transcript: PendingChange = {
-			endsAt: ["history_reset"],
-			hideFromID: action.editedMessageID,
-			messages: edited && [
-				{ ...edited, id: nextRowID(), content: action.content },
-			],
-		};
-		// An edit clears the queue. The server sends no queue_update when the
-		// queue is already empty.
-		return rows.length > 0
-			? [transcript, { endsAt: ["queue_update"], queuedMessages: [] }]
-			: [transcript];
+		const id = nextRowID();
+		return { message: edited && { ...edited, id, content: action.content } };
 	}
 	if (action.kind === "send") {
-		const row: TypesGen.ChatQueuedMessage = {
-			id: nextRowID(),
-			chat_id: action.chatID,
-			model_config_id: action.modelConfigID,
-			content: action.content,
-			busy_behavior: action.busyBehavior,
-			created_at: new Date().toISOString(),
-		};
-		return [
-			queueChange(
-				appendToLane(rows, row),
-				isIdle,
-				["user_message", "queue_update"],
-				nextRowID,
-			),
-		];
+		const { chatID: chat_id, content, modelConfigID: model_config_id } = action;
+		const created_at = new Date().toISOString();
+		const shared = { id: nextRowID(), chat_id, content, model_config_id };
+		const row = { ...shared, created_at, busy_behavior: action.busyBehavior };
+		return !isActiveChatStatus(status) &&
+			nextDelivery(appendToLane(view.queuedMessages, row)).includes(row)
+			? { message: { ...shared, created_at, role: "user" } }
+			: { row };
 	}
-	const target = rows.find((row) => row.id === action.queuedMessageID);
-	if (!target) {
-		return [];
+	const target = view.queuedMessages.find(
+		(row) => row.id === action.queuedMessageID,
+	);
+	if (!target || action.kind === "deleteQueued") {
+		return {};
 	}
-	const others = rows.filter((row) => row !== target);
-	switch (action.kind) {
-		case "promoteQueued":
-			return [
-				queueChange(
-					appendToLane(others, {
+	const editingSince = target.editing_since ?? new Date().toISOString();
+	return {
+		row:
+			action.kind === "promoteQueued"
+				? { ...target, busy_behavior: "steer", editing_since: undefined }
+				: {
 						...target,
-						busy_behavior: "steer",
-						editing_since: undefined,
-					}),
-					isIdle,
-					["user_message", "queue_update"],
-					nextRowID,
-				),
-			];
-		case "deleteQueued":
-			return [queueChange(others, isPaused, ["queue_update"], nextRowID)];
-		case "editQueued": {
-			const edited = {
-				...target,
-				content: action.content ?? target.content,
-				editing_since: action.editing
-					? (target.editing_since ?? new Date().toISOString())
-					: undefined,
-			};
-			return [
-				queueChange(
-					rows.map((row) => {
-						if (row === target) {
-							return edited;
-						}
-						// A chat has at most one row under edit.
-						return action.editing && row.editing_since
-							? { ...row, editing_since: undefined }
-							: row;
-					}),
-					isPaused && !action.editing,
-					["queue_update"],
-					nextRowID,
-				),
-			];
-		}
-	}
+						content: action.content ?? target.content,
+						editing_since: action.editing ? editingSince : undefined,
+					},
+	};
 };
 
 const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
-	const view: ChatView = {
-		messagesByID: state.messagesByID,
-		orderedMessageIDs: state.orderedMessageIDs,
-		queuedMessages: state.queuedMessages,
-		streamState: state.streamState,
-	};
-	for (const part of state.pendingParts) {
-		const { hideFromID, messages = [], queuedMessages } = part;
-		if (hideFromID !== undefined) {
-			view.orderedMessageIDs = view.orderedMessageIDs.filter(
-				(id) => id < hideFromID,
-			);
-			view.streamState = null;
+	let { messagesByID, orderedMessageIDs, queuedMessages, streamState } = state;
+	for (const { action, message, row } of state.pendingActions) {
+		if (action.kind === "edit") {
+			// Hides the transcript from the edited message on, and the response
+			// that the agent is writing.
+			const fromID = action.editedMessageID;
+			messagesByID = new Map([...messagesByID].filter(([id]) => id < fromID));
+			orderedMessageIDs = orderedMessageIDs.filter((id) => id < fromID);
+			streamState = null;
 		}
-		if (hideFromID !== undefined || messages.length > 0) {
-			view.messagesByID = new Map(
-				[...view.messagesByID].filter(
-					([id]) => hideFromID === undefined || id < hideFromID,
-				),
-			);
-			for (const message of messages) {
-				view.messagesByID.set(message.id, message);
-			}
-			view.orderedMessageIDs = [
-				...view.orderedMessageIDs,
-				...messages.map((message) => message.id),
-			];
+		if (message) {
+			messagesByID = new Map(messagesByID).set(message.id, message);
+			orderedMessageIDs = [...orderedMessageIDs, message.id];
 		}
-		if (queuedMessages) {
-			view.queuedMessages = queuedMessages;
+		const rowID = queuedRowID(action);
+		const others = queuedMessages.filter((other) => other.id !== rowID);
+		if (action.kind === "deleteQueued") {
+			queuedMessages = others;
+		} else if (action.kind === "editQueued" && row) {
+			// A chat has at most one row under edit.
+			queuedMessages = queuedMessages.map((other) =>
+				other.id === rowID
+					? row
+					: action.editing && other.editing_since
+						? { ...other, editing_since: undefined }
+						: other,
+			);
+		} else if (
+			row &&
+			(action.kind === "send" || others.length < queuedMessages.length)
+		) {
+			// A send's row, or a promoted row that the queue still holds.
+			queuedMessages = appendToLane(others, row);
 		}
 	}
-	return view;
+	// The stream can store a row's message before the queue_update that
+	// removes the row.
+	const { deliveredQueuedIDs } = state;
+	if (queuedMessages.some((row) => deliveredQueuedIDs.has(row.id))) {
+		queuedMessages = queuedMessages.filter(
+			(row) => !deliveredQueuedIDs.has(row.id),
+		);
+	}
+	return { messagesByID, orderedMessageIDs, queuedMessages, streamState };
 };
 
 export const selectMessagesByID = (state: ChatStoreState) =>
