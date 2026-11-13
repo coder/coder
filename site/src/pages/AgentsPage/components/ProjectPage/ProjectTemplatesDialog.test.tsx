@@ -310,7 +310,7 @@ describe("ProjectTemplatesDialog", () => {
 		await waitFor(() => expect(props.onSave).toHaveBeenCalledWith(templates));
 	});
 
-	it("freezes the draft while it checks for newer templates, then saves it", async () => {
+	it("saves nothing when the draft changes during the check", async () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
@@ -324,14 +324,12 @@ describe("ProjectTemplatesDialog", () => {
 		);
 
 		await user.click(save);
-		expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
 		finishCheck([MockChatProject]);
 
-		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-			}),
-		);
+		await waitFor(() => expect(getProjects).toHaveBeenCalled());
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(props.onSave).not.toHaveBeenCalled();
 	});
 
 	it("cancels the save when the dialog closes during the check", async () => {
@@ -348,7 +346,7 @@ describe("ProjectTemplatesDialog", () => {
 		);
 
 		await user.click(save);
-		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
 		expect(props.onOpenChange).toHaveBeenCalledWith(false);
 		finishCheck([MockChatProject]);
 
@@ -357,7 +355,7 @@ describe("ProjectTemplatesDialog", () => {
 		expect(props.onSave).not.toHaveBeenCalled();
 	});
 
-	it("moves focus to Load latest when the check finds a newer save", async () => {
+	it("moves focus to the conflict warning when the check finds a newer save", async () => {
 		const { user, rerenderWithProject } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
@@ -375,9 +373,15 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(save);
 		rerenderWithProject(newer);
 
+		// The warning, not Load latest, so a repeated Enter keeps the draft.
 		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Load latest" })).toHaveFocus(),
+			expect(document.activeElement).toHaveTextContent(
+				/Someone else changed these templates/,
+			),
 		);
+		expect(
+			screen.getByRole("button", { name: "Load latest" }),
+		).not.toHaveFocus();
 	});
 
 	it("moves focus to Retry when the check fails", async () => {
@@ -433,5 +437,25 @@ describe("ProjectTemplatesDialog", () => {
 				default_parameters: { [MockTemplateVersionParameter1.name]: "z!" },
 			}),
 		);
+	});
+
+	it("retries loading the eligible templates and then allows saving", async () => {
+		const getTemplates = vi
+			.spyOn(API, "getTemplates")
+			.mockRejectedValueOnce(mockApiError({ message: "Network error." }));
+		const { user, props } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+			}),
+		);
+		expect(getTemplates).toHaveBeenCalledTimes(2);
 	});
 });
