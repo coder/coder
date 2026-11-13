@@ -835,6 +835,17 @@ export const MCPSubmenuOpen: Story = {
 	play: openMCPSubmenu,
 };
 
+const mockSentryMCPForceOnNotShared = { ...sentryMCP, acl_granted: false };
+
+export const MCPSubmenuForceOnNotShared: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [mockSentryMCPForceOnNotShared, linearMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: openMCPSubmenu,
+};
+
 export const MCPSubmenuSelectedDisconnected: Story = {
 	args: {
 		...mcpDefaults,

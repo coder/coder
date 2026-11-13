@@ -1,8 +1,14 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
 /**
+ * Reports whether Force On applies to the caller. Admins can list servers
+ * whose ACL does not share them with the admin, and those stay optional.
+ */
+export const isForcedOn = (server: TypesGen.MCPServerConfig) =>
+	server.availability === "force_on" && server.acl_granted;
+
+/**
  * Compute the default selection based on server availability policies.
- * force_on and default_on servers are selected by default.
  */
 export const getDefaultMCPSelection = (
 	servers: readonly TypesGen.MCPServerConfig[],
@@ -11,6 +17,7 @@ export const getDefaultMCPSelection = (
 	for (const server of servers) {
 		if (
 			server.enabled &&
+			server.acl_granted &&
 			(server.availability === "force_on" ||
 				server.availability === "default_on")
 		) {
@@ -67,7 +74,7 @@ export const getSavedMCPSelection = (
 		for (const server of servers) {
 			if (!server.enabled) continue;
 			enabledIds.add(server.id);
-			if (server.availability === "force_on") {
+			if (isForcedOn(server)) {
 				forceOnIds.push(server.id);
 			}
 		}

@@ -210,6 +210,15 @@ describe("MCP selection persistence", () => {
 			// Only force_on should be present.
 			expect(result).toEqual(["s1"]);
 		});
+
+		it("does not merge force_on servers whose ACL excludes the caller", () => {
+			saveMCPSelection(organizationId, []);
+			const result = getSavedMCPSelection(organizationId, [
+				...servers,
+				buildServer({ id: "s4", availability: "force_on", acl_granted: false }),
+			]);
+			expect(result).toEqual(["s1"]);
+		});
 	});
 
 	describe("getDefaultMCPSelection", () => {
@@ -220,6 +229,18 @@ describe("MCP selection persistence", () => {
 				buildServer({ id: "c", availability: "default_off" }),
 			];
 			expect(getDefaultMCPSelection(servers)).toEqual(["a", "b"]);
+		});
+
+		it("excludes servers whose ACL excludes the caller", () => {
+			const servers = [
+				buildServer({ id: "a", availability: "force_on", acl_granted: false }),
+				buildServer({
+					id: "b",
+					availability: "default_on",
+					acl_granted: false,
+				}),
+			];
+			expect(getDefaultMCPSelection(servers)).toEqual([]);
 		});
 
 		it("excludes disabled servers", () => {

@@ -7,6 +7,7 @@ package chatd_test
 // the conversation.
 
 import (
+	"context"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -157,6 +158,112 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 		"force_on MCP tools must be offered to the LLM despite a stripped mcp_server_ids list")
 	require.NotContains(t, calls[0], "acl-denied-forced-mcp__echo",
 		"force_on MCP tools must not be offered when the server's ACL denies the chat owner")
+}
+
+// TestCreateChat_ForceOnMCPServerRequiresACLGrant checks that role-wide
+// read access does not force a server on: a site Owner or org admin can
+// read every config, but only configs whose ACL shares them with the
+// chat owner attach.
+func TestCreateChat_ForceOnMCPServerRequiresACLGrant(t *testing.T) {
+	t.Parallel()
+
+	for name, grantRole := range map[string]func(t *testing.T, db database.Store, user database.User, org database.Organization){
+		"SiteOwner": func(t *testing.T, db database.Store, user database.User, _ database.Organization) {
+			_, err := db.UpdateUserRoles(context.Background(), database.UpdateUserRolesParams{
+				ID:           user.ID,
+				GrantedRoles: []string{codersdk.RoleOwner},
+			})
+			require.NoError(t, err)
+		},
+		"OrgAdmin": func(t *testing.T, db database.Store, user database.User, org database.Organization) {
+			_, err := db.UpdateMemberRoles(context.Background(), database.UpdateMemberRolesParams{
+				UserID:       user.ID,
+				OrgID:        org.ID,
+				GrantedRoles: []string{codersdk.RoleOrganizationAdmin},
+			})
+			require.NoError(t, err)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			openAIURL, recordedCalls := newToolRecordingOpenAI(t)
+
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			grantRole(t, db, user, org)
+			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+			dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+			otherUser := dbgen.User(t, db, database.User{})
+			read := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+
+			// Shared through a group the chat owner belongs to.
+			groupGranted := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+				OrganizationID: org.ID,
+				DisplayName:    "Group Granted MCP",
+				Slug:           "group-granted-mcp",
+				Url:            newEchoMCPTestServer(t, "group-granted-mcp"),
+				Availability:   "force_on",
+				GroupACL:       database.ChatACL{group.ID.String(): read},
+				UserACL:        database.ChatACL{},
+			})
+			// Shared with another user only, Everyone removed.
+			dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+				OrganizationID: org.ID,
+				DisplayName:    "Other User MCP",
+				Slug:           "other-user-mcp",
+				Url:            newEchoMCPTestServer(t, "other-user-mcp"),
+				Availability:   "force_on",
+				GroupACL:       database.ChatACL{},
+				UserACL:        database.ChatACL{otherUser.ID.String(): read},
+			})
+
+			authzDB := dbauthz.New(
+				db,
+				rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				coderdtest.AccessControlStorePointer(),
+			)
+			server := newActiveTestServer(t, authzDB, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			})
+
+			ownerSubject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), db, user.ID, rbac.ScopeAll)
+			require.NoError(t, err)
+			ownerCtx := dbauthz.As(ctx, ownerSubject)
+
+			chat, err := server.CreateChat(ownerCtx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          "forced-mcp-acl",
+				ModelConfigID:  model.ID,
+				MCPServerIDs:   []uuid.UUID{},
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("hello"),
+				},
+			})
+			require.NoError(t, err)
+
+			dbChat, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []uuid.UUID{groupGranted.ID}, dbChat.MCPServerIDs,
+				"only the ACL-granted force_on server may be enforced")
+
+			waitForChatProcessed(ctx, t, db, chat.ID, server)
+			chatResult, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			if chatResult.Status == database.ChatStatusError {
+				require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+			}
+
+			calls := recordedCalls()
+			require.NotEmpty(t, calls)
+			require.Contains(t, calls[0], "group-granted-mcp__echo")
+			require.NotContains(t, calls[0], "other-user-mcp__echo",
+				"role-wide read must not force a server whose ACL excludes the chat owner")
+		})
+	}
 }
 
 // TestSendMessage_ForceOnMCPServerEnforced reproduces CDM-02-010 for

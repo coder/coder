@@ -10,6 +10,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isForcedOn } from "../utils/mcpSelection";
 import {
 	countMCPServersNeedingSignIn,
 	getMCPMenuServers,
@@ -30,7 +31,7 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 	isDisabled,
 	onToggle,
 }) => {
-	const isForceOn = server.availability === "force_on";
+	const isForceOn = isForcedOn(server);
 	let switchLabel = `Enable ${server.display_name}`;
 	if (isForceOn) {
 		switchLabel = `${server.display_name} always on`;

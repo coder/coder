@@ -268,6 +268,40 @@ func (m MCPServerConfig) RBACObject() rbac.Object {
 		WithACLUserList(m.UserACL.RBACACL())
 }
 
+// ACLGrants reports whether the config's own ACL grants the subject the
+// action, ignoring any permission the subject's roles carry. Availability
+// policies such as Force On use it so that role-wide read access, like a
+// site Owner's, does not count as being shared the config.
+//
+// Matching mirrors the acl_allow rules in policy.rego: the subject must
+// belong to the config's organization, and a user entry, a group entry,
+// or the organization's Everyone group entry (keyed by the organization
+// ID) must hold the action or "*".
+func (m MCPServerConfig) ACLGrants(subject rbac.Subject, action policy.Action) (bool, error) {
+	member, err := subject.HasOrganizationMembership(m.OrganizationID)
+	if err != nil {
+		return false, err
+	}
+	if !member {
+		return false, nil
+	}
+	grants := func(entry ChatACLEntry, ok bool) bool {
+		return ok && (slices.Contains(entry.Permissions, action) || slices.Contains(entry.Permissions, policy.WildcardSymbol))
+	}
+	if entry, ok := m.UserACL[subject.ID]; grants(entry, ok) {
+		return true, nil
+	}
+	if entry, ok := m.GroupACL[m.OrganizationID.String()]; grants(entry, ok) {
+		return true, nil
+	}
+	for _, group := range subject.Groups {
+		if entry, ok := m.GroupACL[group]; grants(entry, ok) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (c Chat) IsSubChat() bool {
 	return c.RootChatID.Valid || c.ParentChatID.Valid
 }
