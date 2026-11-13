@@ -209,7 +209,8 @@ const AFTER_LETTER_NAME = new Set([
 
 /**
  * Returns true when `token` is the article "A" mid-phrase: a bare "A"
- * followed directly by a lowercase word that does not suggest a name.
+ * followed directly by a regular word that does not suggest a name, as
+ * in "Create A workspace" or "Enter A Valid Name".
  */
 function isArticleA(token, next) {
 	return (
@@ -217,8 +218,8 @@ function isArticleA(token, next) {
 		token.raw === "A" &&
 		next !== undefined &&
 		!next.startsPhrase &&
-		/^\p{Ll}+$/u.test(next.word) &&
-		!AFTER_LETTER_NAME.has(next.word)
+		(/^\p{Ll}+$/u.test(next.word) || CAPITALIZED_WORD.test(next.word)) &&
+		!AFTER_LETTER_NAME.has(next.word.toLowerCase())
 	);
 }
 
@@ -360,6 +361,14 @@ export function findTitleCaseWords(text) {
 // ARIA_TEXT_ATTRIBUTES are code too.
 const CODE_ATTRIBUTES = new Set([
 	"accept",
+	"archive",
+	"cite",
+	"classID",
+	"codeBase",
+	"data",
+	"icon",
+	"longDesc",
+	"manifest",
 	"acceptCharset",
 	"accessKey",
 	"action",
@@ -408,6 +417,7 @@ const CODE_ATTRIBUTES = new Set([
 	"nonce",
 	"part",
 	"pattern",
+	"poster",
 	"ping",
 	"points",
 	"referrerPolicy",
@@ -589,8 +599,10 @@ function isInCodeProperty(node) {
 	return false;
 }
 
-// Functions and constructors whose string arguments are code: patterns,
-// selectors, storage keys, URLs, event names, and attribute names.
+// Functions and constructors whose first argument, when a string, is
+// code: a pattern, selector, storage key, URL, event name, or attribute
+// name. Later arguments may be displayed text, such as the message in
+// Yup's `matches(pattern, message)`.
 const CODE_ARGUMENT_CALLS = new Set([
 	"CustomEvent",
 	"Event",
@@ -664,7 +676,7 @@ function isNonDisplayLiteral(literal) {
 	}
 	if (
 		(ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
-		parent.arguments?.includes(node) &&
+		parent.arguments?.[0] === node &&
 		CODE_ARGUMENT_CALLS.has(calleeName(parent.expression))
 	) {
 		return true;
@@ -1171,15 +1183,13 @@ function createPieceBuilder(sourceFile, consumed) {
 			}
 		} else if (ts.isArrayLiteralExpression(node)) {
 			// React renders an array's items one after another, including
-			// the items of a spread array literal.
+			// the items of spread arrays, per rendered variant.
 			for (const element of node.elements) {
-				const spread =
-					ts.isSpreadElement(element) && skipTransparent(element.expression);
-				if (spread && ts.isArrayLiteralExpression(spread)) {
-					addNode(spread, pieces, inline);
-				} else {
-					addExpression(element, pieces, inline);
-				}
+				addExpression(
+					ts.isSpreadElement(element) ? element.expression : element,
+					pieces,
+					inline,
+				);
 			}
 		} else if (ts.isJsxExpression(node)) {
 			// An empty expression, such as {/* note */}, renders nothing.

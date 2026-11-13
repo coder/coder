@@ -156,8 +156,11 @@ describe("checkSource", () => {
 			'localStorage.setItem("Recent Items", value);',
 			'window.addEventListener("Custom Event", handler);',
 			'node.setAttribute("Some Name", value);',
+			'const v = Yup.string().matches(/^a$/, "Enter A Valid Name");',
 		].join("\n");
-		expect(checkSource("file.tsx", source).issues).toEqual([]);
+		expect(
+			checkSource("file.tsx", source).issues.map(({ word }) => word),
+		).toEqual(["A", "Valid", "Name"]);
 	});
 
 	it("checks template literals as one phrase", () => {
@@ -234,6 +237,7 @@ describe("checkSource", () => {
 		const source = [
 			'const a = <p>Create {["New ", "Workspace"]}</p>;',
 			'const b = <p>Create {["New ", ...["Workspace Settings"]]}</p>;',
+			'const c = <p>Create {[...(ok ? ["Big Workspace"] : ["Old Template"])]}</p>;',
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ word }) => word)).toEqual([
@@ -242,6 +246,10 @@ describe("checkSource", () => {
 			"New",
 			"Workspace",
 			"Settings",
+			"Big",
+			"Workspace",
+			"Old",
+			"Template",
 		]);
 	});
 
@@ -402,6 +410,7 @@ describe("checkSource", () => {
 			"const g = <div style={{ gridTemplateAreas: '\"Main Header\"' }} />;",
 			'const h = <div data-values={items.map(() => "New Workspace")} />;',
 			'const i = <td headers="Plan Name" />;',
+			'const poster = <video poster="Preview Image" />;',
 			'const j = <div {...{ className: "Foo Bar", "data-x": "Is On" }} />;',
 			'const k = <Card className="Foo Bar" value="Some Value" />;',
 			'const n = <div {...(ok ? { className: "Foo Bar" } : {})} />;',
@@ -419,8 +428,8 @@ describe("checkSource", () => {
 			[4, "Workspaces"],
 			[4, "File"],
 			[5, "Template"],
-			[18, "Week"],
-			[20, "Workspace"],
+			[19, "Week"],
+			[21, "Workspace"],
 		]);
 	});
 
