@@ -1,8 +1,10 @@
 package chattool
 
 import (
+	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,16 +70,15 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			wantErr: "questions[0].options[0].label is required",
 		},
 		{
-			name: "OptionDescriptionRequired",
+			name: "OptionDescriptionOptional",
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "What should we build?",
 				Options: []askUserQuestionOption{
-					{Label: "Backend", Description: "\t"},
+					{Label: "Backend"},
 					{Label: "Frontend", Description: "Build the UI first."},
 				},
 			}}},
-			wantErr: "questions[0].options[0].description is required",
 		},
 		{
 			name: "ValidTwoOptions",
@@ -126,6 +127,38 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			require.EqualError(t, err, testCase.wantErr)
 		})
 	}
+}
+
+func TestAskUserQuestionToolOptionalDescriptions(t *testing.T) {
+	t.Parallel()
+
+	input := `{
+		"questions": [{
+			"header": "Scope",
+			"question": "What should we build?",
+			"options": [
+				{"label": "Backend", "description": "Build the API first."},
+				{"label": "Frontend"}
+			]
+		}]
+	}`
+	tool := NewAskUserQuestionTool()
+
+	response, err := tool.Run(t.Context(), fantasy.ToolCall{Input: input})
+	require.NoError(t, err)
+	require.False(t, response.IsError, response.Content)
+
+	var result struct {
+		Questions []struct {
+			Options []map[string]string `json:"options"`
+		} `json:"questions"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
+	require.Len(t, result.Questions, 1)
+	options := result.Questions[0].Options
+	require.Len(t, options, 2)
+	require.Equal(t, "Build the API first.", options[0]["description"])
+	require.NotContains(t, options[1], "description")
 }
 
 func validAskUserQuestionOptions(count int) []askUserQuestionOption {
