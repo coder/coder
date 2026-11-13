@@ -556,4 +556,23 @@ describe("ProjectTemplatesDialog", () => {
 
 		expect(props.onSave).toHaveBeenCalledTimes(1);
 	});
+
+	it("saves when only a template outside the draft changes during the check", async () => {
+		const { user, props } = renderDialog();
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		vi.mocked(API.getTemplates).mockResolvedValue([
+			MockTemplate,
+			{ ...MockTemplate, id: "unrelated-template" },
+		]);
+
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+			}),
+		);
+	});
 });

@@ -70,7 +70,11 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 		}
 		checkIdRef.current += 1;
 		// A hung check would otherwise keep the next open dialog waiting.
-		void queryClient.cancelQueries({ queryKey: chatProjectsKey, exact: true });
+		// Other views share the list, so a fresh request replaces it.
+		const listKey = { queryKey: chatProjectsKey, exact: true };
+		void queryClient
+			.cancelQueries(listKey)
+			.then(() => queryClient.invalidateQueries(listKey));
 		onOpenChange(false);
 	};
 
@@ -119,12 +123,17 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
-/** Covers what the request depends on: eligibility and active versions. */
+/**
+ * Covers what a request for the draft's templates depends on: which of them
+ * are eligible, and their active versions.
+ */
 const serializeEligibleTemplates = (
 	templates: readonly Template[] | undefined,
+	draftTemplateIds: readonly string[],
 ) =>
 	JSON.stringify(
 		(templates ?? [])
+			.filter(({ id }) => draftTemplateIds.includes(id))
 			.map(({ id, active_version_id }) => `${id}:${active_version_id}`)
 			.sort(),
 	);
@@ -362,6 +371,11 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					return;
 				}
 				isSubmittingRef.current = true;
+				// The previous failure's error would otherwise unblock Save again
+				// while this save runs.
+				if (shownError) {
+					onResetError();
+				}
 				// A change saved elsewhere since the last refresh would otherwise
 				// be overwritten, so check first. A newer save shows the conflict
 				// warning instead.
@@ -388,8 +402,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}
 				// A changed list rebuilds the request; the user saves again.
 				if (
-					serializeEligibleTemplates(refreshedTemplates.data) !==
-					serializeEligibleTemplates(eligibleTemplates)
+					serializeEligibleTemplates(
+						refreshedTemplates.data,
+						value.templateIds,
+					) !== serializeEligibleTemplates(eligibleTemplates, value.templateIds)
 				) {
 					return;
 				}
