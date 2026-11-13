@@ -66,7 +66,8 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 		},
 	});
 
-	const { unarchive } = useUnarchiveChatProject(project);
+	const { unarchive, isPending: isUnarchiving } =
+		useUnarchiveChatProject(project);
 
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isArchiveOpen, setIsArchiveOpen] = useState(false);
@@ -117,7 +118,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 										setIsEditOpen(true);
 									}}
 									onArchive={() => setIsArchiveOpen(true)}
-									onUnarchive={unarchive}
+									onUnarchive={isUnarchiving ? undefined : unarchive}
 									onDelete={() => setIsDeleteOpen(true)}
 								/>
 							</DropdownMenuContent>
