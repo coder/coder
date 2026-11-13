@@ -2704,6 +2704,7 @@ func WithMaxIdleConns(n int) PostgresConnectOption {
 
 // ConnectToPostgres takes in the migration command to run on the database once
 // it connects. To avoid running migrations, pass in `nil` or a no-op function.
+// The migration command reports its progress to logger, named "migrations".
 // Regardless of the passed in migration function, if the database is not fully
 // migrated, an error will be returned. This can happen if the database is on a
 // future or past migration version.
@@ -2786,7 +2787,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
 	if migrate != nil {
-		err = migrate(sqlDB)
+		err = migrate(sqlDB, migrations.WithLogger(logger.Named("migrations")))
 		if err != nil {
 			return nil, xerrors.Errorf("migrate up: %w", err)
 		}
