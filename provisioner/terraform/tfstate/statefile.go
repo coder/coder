@@ -62,8 +62,9 @@ type stateFileInstance struct {
 // state file at path, without starting Terraform and the providers. It is
 // the only element of the result, which is empty for a state without
 // resources. The two agree when the providers that wrote the file are the
-// ones show would start, as they are right after apply. Otherwise show would
-// first upgrade the resources to those providers' schemas.
+// ones show would start, as they are right after apply. Otherwise show fails
+// on a resource whose schema version changed, where Read returns the
+// attributes as the file stores them.
 //
 // Read returns an error for a state file it can't convert, such as one
 // written by a Terraform version that SupportsTerraformVersion rejects.
