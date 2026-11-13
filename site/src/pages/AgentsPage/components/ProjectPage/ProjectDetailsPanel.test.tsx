@@ -885,6 +885,8 @@ describe("ProjectDetailsPanel templates", () => {
 			focusManager.setFocused(true);
 		});
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
+		// Saving drops templates missing from this list, so it refreshes too.
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
 	});
 
 	it("starts an untouched draft from templates saved while the editor is open", async () => {

@@ -66,7 +66,7 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 		}
 		checkIdRef.current += 1;
 		// A hung check would otherwise keep the next open dialog waiting.
-		void queryClient.cancelQueries({ queryKey: chatProjectsKey });
+		void queryClient.cancelQueries({ queryKey: chatProjectsKey, exact: true });
 		onOpenChange(false);
 	};
 
@@ -107,7 +107,7 @@ type ProjectTemplatesFormProps = Omit<
  */
 const serializeTemplates = (templates: ChatProjectTemplates) =>
 	JSON.stringify([
-		templates.template_ids,
+		[...templates.template_ids].sort(),
 		templates.default_template_id ?? "",
 		templates.default_preset_id ?? "",
 		Object.entries(templates.default_parameters ?? {}).sort(([a], [b]) =>
@@ -118,6 +118,7 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 const serializeValues = (values: ChatProjectTemplatesValues) =>
 	JSON.stringify({
 		...values,
+		templateIds: [...values.templateIds].sort(),
 		defaultParameters: Object.entries(values.defaultParameters).sort(
 			([a], [b]) => a.localeCompare(b),
 		),
@@ -143,15 +144,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// moment cannot cancel that check's request and save unchecked.
 	const isSubmittingRef = useRef(false);
 	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
-	// Save and Retry are disabled when a check or save fails, which drops
-	// their focus. Focus then moves to what explains the outcome.
+	// Save and Retry are disabled while their operation runs, which drops
+	// their focus. When it ends without closing the dialog, focus moves to
+	// what explains the outcome.
 	const pendingFocusRef = useRef<"conflict" | "retry" | "save" | null>(null);
 	const conflictAlertRef = useRef<HTMLDivElement>(null);
 	const retryButtonRef = useRef<HTMLButtonElement>(null);
 	const saveButtonRef = useRef<HTMLButtonElement>(null);
-	// The draft stays editable during the pre-save check, so the check
-	// compares the request it started with against the latest one.
-	const latestRequestRef = useRef<ChatProjectTemplates | undefined>(undefined);
+	// Counts draft edits. The draft stays editable during the pre-save
+	// check, so a check that sees a newer edit saves nothing.
+	const draftVersionRef = useRef(0);
 	// A rejected save no longer applies once the draft follows newer
 	// templates, so its error is hidden.
 	const [dismissedError, setDismissedError] = useState<unknown>();
@@ -290,9 +292,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!isRefreshing &&
 		!isSaving;
 	useEffect(() => {
-		latestRequestRef.current = request;
-	});
-	useEffect(() => {
 		if (isBusy) {
 			return;
 		}
@@ -335,15 +334,14 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				// be overwritten, so check first. A newer save shows the conflict
 				// warning instead.
 				const checkId = onBeginCheck();
+				const draftVersion = draftVersionRef.current;
 				setIsCheckingBeforeSave(true);
 				const refreshed = await projectsQuery.refetch();
 				isSubmittingRef.current = false;
 				setIsCheckingBeforeSave(false);
-				const latestRequest = latestRequestRef.current;
 				if (
 					!isCheckCurrent(checkId) ||
-					latestRequest === undefined ||
-					serializeTemplates(latestRequest) !== serializeTemplates(request)
+					draftVersion !== draftVersionRef.current
 				) {
 					return;
 				}
@@ -377,6 +375,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				saveError={templatesValidationDetail(shownError)}
 				value={formValue}
 				onChange={(next) => {
+					draftVersionRef.current += 1;
 					setValue(next);
 					if (shownError) {
 						onResetError();
@@ -449,11 +448,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			{hasConflict && (
 				// Focus lands on the warning rather than Load latest, so a repeated
 				// Enter cannot discard the draft.
-				<div ref={conflictAlertRef} tabIndex={-1} className="outline-none">
+				<div
+					ref={conflictAlertRef}
+					tabIndex={-1}
+					className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+				>
 					<ProjectEditConflictAlert
 						disabled={isSaving}
 						onKeepDraft={() => setBaseTemplates(project.templates)}
 						onLoadLatest={() => {
+							draftVersionRef.current += 1;
 							setBaseTemplates(project.templates);
 							setValue(chatProjectTemplatesValues(project.templates));
 							onResetError();

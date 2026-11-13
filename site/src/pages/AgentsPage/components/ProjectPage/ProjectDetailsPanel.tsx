@@ -174,8 +174,13 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				open={isTemplatesEditorOpen}
 				onOpenChange={setIsTemplatesEditorOpen}
 				onCloseAutoFocus={(event) => {
-					event.preventDefault();
-					editTemplatesButtonRef.current?.focus();
+					// The button is gone if a refresh removed edit permission;
+					// Radix then picks the fallback focus.
+					const button = editTemplatesButtonRef.current;
+					if (button?.isConnected && !button.disabled) {
+						event.preventDefault();
+						button.focus();
+					}
 				}}
 				isSaving={updateTemplatesMutation.isPending}
 				error={updateTemplatesMutation.error}
