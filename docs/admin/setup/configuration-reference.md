@@ -629,6 +629,19 @@ Must be at least 1.
 - YAML key: `chat.maxAttachmentsPerChat`
 - Default value: `50`
 
+### Max automations per owner
+
+Maximum number of chat automations that one user can own across all organizations.
+Creating one more fails with HTTP 409.
+Lowering the limit does not delete existing automations.
+Must be at least 1.
+
+- Type: `int`
+- Environment variable: `CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER`
+- CLI flag: [`--chat-max-automations-per-owner`](../../reference/cli/server/index.md#--chat-max-automations-per-owner)
+- YAML key: `chat.maxAutomationsPerOwner`
+- Default value: `50`
+
 ### Max concurrent recording uploads
 
 Maximum number of virtual desktop recordings that each Coder server stores at the same time.
@@ -693,6 +706,22 @@ Must be at least 1.
 - CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server/index.md#--chat-max-steps-per-turn)
 - YAML key: `chat.maxStepsPerTurn`
 - Default value: `1200`
+
+### Min automation schedule interval
+
+Minimum time between two runs of a chat automation schedule.
+Creating a schedule that runs more often fails with HTTP 400.
+The check compares only the times of day of a schedule, counted around the clock.
+It ignores the days, so it can refuse a schedule whose runs near midnight fall on different days.
+It ignores clock changes, so on the day that a time zone changes its clock a schedule can run closer than this.
+Existing schedules are not changed.
+Must be between 1m and 24h.
+
+- Type: `duration`
+- Environment variable: `CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL`
+- CLI flag: [`--chat-min-automation-schedule-interval`](../../reference/cli/server/index.md#--chat-min-automation-schedule-interval)
+- YAML key: `chat.minAutomationScheduleInterval`
+- Default value: `5m0s`
 
 ### Stream silence timeout
 

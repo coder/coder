@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -630,6 +631,16 @@ func TestChatAutomationQueries(t *testing.T) {
 		count, err = db.CountChatAutomationsByOwnerID(ctx, uuid.New())
 		require.NoError(t, err)
 		require.Zero(t, count)
+
+		// The last member of a deleted organization can still create there,
+		// so its automations count.
+		member := dbgen.User(t, db, database.User{})
+		gone := newChatAutomationOrg(t, db, member)
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: gone.org.ID, OwnerID: member.ID})
+		require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{ID: gone.org.ID, UpdatedAt: dbtime.Now()}))
+		count, err = db.CountChatAutomationsByOwnerID(ctx, member.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
 	})
 
 	// A list covers every automation of an organization, so it must not
@@ -644,4 +655,76 @@ func TestChatAutomationQueries(t *testing.T) {
 		full := reflect.TypeOf(database.ChatAutomation{})
 		require.Equal(t, full.NumField()-2, row.NumField(), "the list leaves out the secret and its key ID only")
 	})
+}
+
+func TestInsertChatAutomationOwnerGuard(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
+
+	for _, tc := range []struct {
+		name    string
+		ownerID uuid.UUID
+	}{
+		{name: "SoftDeletedOwner", ownerID: dbgen.User(t, db, database.User{Deleted: true}).ID},
+		{name: "SystemUser", ownerID: database.PrebuildsSystemUserID},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			params := o.scheduleParams()
+			params.ID = nullUUID(uuid.New())
+			params.OwnerID = tc.ownerID
+			_, err := db.InsertChatAutomation(ctx, params)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+			_, err = db.GetChatAutomationByID(ctx, params.ID.UUID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "no row exists")
+		})
+	}
+}
+
+// TestInsertChatAutomationRacesUserSoftDelete covers a soft delete that starts
+// while an insert is open. The other order, a user that is already deleted, is
+// the SoftDeletedOwner row of TestInsertChatAutomationOwnerGuard.
+func TestInsertChatAutomationRacesUserSoftDelete(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
+
+	var automationID uuid.UUID
+	softDelete := make(chan error, 1)
+	err := db.InTx(func(tx database.Store) error {
+		automation, err := tx.InsertChatAutomation(ctx, o.scheduleParams())
+		if err != nil {
+			return err
+		}
+		automationID = automation.ID
+		// The pool gives the soft delete another connection, outside
+		// this transaction.
+		go func() { softDelete <- db.UpdateUserDeletedByID(ctx, o.user.ID) }() // intxcheck:ignore // the soft delete must run outside this transaction
+		// The shared lock on the owner row must block the soft delete
+		// until this transaction commits.
+		require.Eventually(t, func() bool {
+			var waiting bool
+			err := sqlDB.QueryRowContext(ctx, `SELECT EXISTS (
+					SELECT 1 FROM pg_stat_activity
+					WHERE datname = current_database() AND wait_event_type = 'Lock'
+					AND query LIKE '%UpdateUserDeletedByID%'
+				)`).Scan(&waiting)
+			return err == nil && waiting
+		}, testutil.WaitShort, testutil.IntervalFast, "the soft delete waits on the owner row lock")
+		require.Empty(t, softDelete, "the soft delete finished before the insert committed")
+		return nil
+	}, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, testutil.RequireReceive(ctx, t, softDelete))
+	_, err = db.GetChatAutomationByID(ctx, automationID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the user cleanup trigger deletes the automation")
+	var userDeleted bool
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT deleted FROM users WHERE id = $1`, o.user.ID).Scan(&userDeleted))
+	require.True(t, userDeleted)
 }
