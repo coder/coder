@@ -99,7 +99,7 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 		if s.Source == skillspkg.SourceWorkspace {
 			hasWorkspaceSkill = true
 		}
-		if s.Alias == skillspkg.QualifiedAlias(s.Source, s.Name) {
+		if s.Alias == s.QualifiedAlias() {
 			hasQualifiedAlias = true
 		}
 	}
@@ -520,7 +520,7 @@ func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, f
 	// Stored skills have no supporting files, so a name that names a
 	// hidden workspace skill means that skill, even when the bare name
 	// also names one or more listed stored skills.
-	bareName := strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, ""))
+	bareName := strings.TrimPrefix(name, skillspkg.Skill{Source: skillspkg.SourceWorkspace}.QualifiedAlias())
 	if skill, ok := findSkill(options.GetSkills, bareName); ok && !skill.ModelInvocable() {
 		return skill, fantasy.ToolResponse{}, true
 	}

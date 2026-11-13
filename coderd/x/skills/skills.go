@@ -38,6 +38,9 @@ const (
 	SourceProject Source = "project"
 	// SourceWorkspace identifies a filesystem-discovered workspace skill.
 	SourceWorkspace Source = "workspace"
+	// SourcePlugin identifies an Agent Plugin skill, keyed by
+	// (PluginName, Name).
+	SourcePlugin Source = "plugin"
 )
 
 var (
@@ -52,7 +55,8 @@ var (
 	ErrSkillDescriptionTooLarge = xerrors.New("skill description is too large")
 	// ErrSkillNotFound indicates that a skill lookup did not match any alias.
 	ErrSkillNotFound = xerrors.New("skill not found")
-	// ErrSkillAmbiguous indicates that a skill lookup matched multiple sources.
+	// ErrSkillAmbiguous indicates that a bare skill name matched more than
+	// one skill.
 	ErrSkillAmbiguous = xerrors.New("skill lookup is ambiguous")
 )
 
@@ -61,6 +65,20 @@ type Skill struct {
 	Name        string
 	Description string
 	Source      Source
+	// PluginName is set only for SourcePlugin skills.
+	PluginName string
+}
+
+// QualifiedAlias returns the stable source-qualified alias for the skill:
+// personal/<name>, org/<name>, project/<name>, workspace/<name>, or
+// plugin/<plugin>/<name>.
+// The plugin/ prefix keeps a plugin named "personal" from colliding with
+// personal skills.
+func (s Skill) QualifiedAlias() string {
+	if s.Source == SourcePlugin {
+		return string(SourcePlugin) + "/" + s.PluginName + "/" + s.Name
+	}
+	return string(s.Source) + "/" + s.Name
 }
 
 // ParsedSkill is a parsed skill with the Markdown body after frontmatter.
@@ -152,15 +170,20 @@ type SourceSkills struct {
 
 // MergeSkills combines skills from several sources into a deterministic list
 // with aliases for chat tool display and lookup. Skills are sorted by name,
-// then by the order of sources as passed. A name found in more than one source
-// gets a qualified alias in every source that has it, so no source overrides
-// another; a name found in one source keeps its bare alias. Skill names must
-// already be valid kebab-case names because qualified aliases use / as a
-// separator. If a source contains duplicate names, the first skill for that
-// source wins.
+// then by the order of sources as passed, with SourcePlugin skills ordered by
+// plugin name. A name held by one skill keeps a bare alias; otherwise every
+// holder gets a qualified alias, so no skill overrides another. Names must
+// already be valid kebab-case because qualified aliases use / as a separator.
+// Duplicates within a source or plugin keep the first. Source is set from the
+// SourceSkills entry. PluginName is kept only for SourcePlugin, whose skills
+// with an empty PluginName are dropped.
 func MergeSkills(sourceSkills ...SourceSkills) []ResolvedSkill {
-	sources := make([]map[string]Skill, 0, len(sourceSkills))
+	sources := make([]map[string][]Skill, 0, len(sourceSkills))
 	for _, source := range sourceSkills {
+		if source.Source == SourcePlugin {
+			sources = append(sources, pluginSkillsByName(source.Skills))
+			continue
+		}
 		sources = append(sources, skillsByName(source.Skills, source.Source))
 	}
 
@@ -173,18 +196,17 @@ func MergeSkills(sourceSkills ...SourceSkills) []ResolvedSkill {
 
 	resolved := make([]ResolvedSkill, 0, len(names))
 	for _, name := range slices.Sorted(maps.Keys(names)) {
-		var matches []Skill
+		var holders []Skill
 		for _, byName := range sources {
-			if skill, ok := byName[name]; ok {
-				matches = append(matches, skill)
-			}
+			holders = append(holders, byName[name]...)
 		}
-		for _, skill := range matches {
+
+		for _, holder := range holders {
 			alias := name
-			if len(matches) > 1 {
-				alias = QualifiedAlias(skill.Source, name)
+			if len(holders) > 1 {
+				alias = holder.QualifiedAlias()
 			}
-			resolved = append(resolved, ResolvedSkill{Skill: skill, Alias: alias})
+			resolved = append(resolved, ResolvedSkill{Skill: holder, Alias: alias})
 		}
 	}
 	return resolved
@@ -192,14 +214,14 @@ func MergeSkills(sourceSkills ...SourceSkills) []ResolvedSkill {
 
 // Lookup finds a resolved skill by bare alias or qualified source alias. It
 // returns ErrSkillNotFound if no alias matches, or ErrSkillAmbiguous if a bare
-// name matches skills from multiple sources.
+// name matches more than one skill.
 func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 	var (
 		bareNameMatch ResolvedSkill
 		matches       []string
 	)
 	for _, skill := range resolved {
-		qualifiedAlias := QualifiedAlias(skill.Source, skill.Name)
+		qualifiedAlias := skill.QualifiedAlias()
 		if lookup == skill.Alias || lookup == qualifiedAlias {
 			return skill, nil
 		}
@@ -223,19 +245,45 @@ func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 	}
 }
 
-// QualifiedAlias returns the stable source-qualified alias for a skill name.
-func QualifiedAlias(source Source, name string) string {
-	return string(source) + "/" + name
-}
-
-func skillsByName(skills []Skill, source Source) map[string]Skill {
-	byName := make(map[string]Skill, len(skills))
+func skillsByName(skills []Skill, source Source) map[string][]Skill {
+	byName := make(map[string][]Skill, len(skills))
 	for _, skill := range skills {
 		if _, ok := byName[skill.Name]; ok {
 			continue
 		}
 		skill.Source = source
-		byName[skill.Name] = skill
+		skill.PluginName = ""
+		byName[skill.Name] = []Skill{skill}
+	}
+	return byName
+}
+
+type pluginSkillKey struct {
+	pluginName string
+	name       string
+}
+
+// Skills with an empty PluginName are dropped because their qualified alias
+// would be plugin//<name>.
+func pluginSkillsByName(skills []Skill) map[string][]Skill {
+	seen := make(map[pluginSkillKey]struct{}, len(skills))
+	byName := make(map[string][]Skill)
+	for _, skill := range skills {
+		if skill.PluginName == "" {
+			continue
+		}
+		key := pluginSkillKey{pluginName: skill.PluginName, name: skill.Name}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		skill.Source = SourcePlugin
+		byName[skill.Name] = append(byName[skill.Name], skill)
+	}
+	for name := range byName {
+		slices.SortFunc(byName[name], func(a, b Skill) int {
+			return strings.Compare(a.PluginName, b.PluginName)
+		})
 	}
 	return byName
 }
