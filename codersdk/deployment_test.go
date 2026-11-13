@@ -2195,3 +2195,56 @@ func TestExperimentsSafeAreKnown(t *testing.T) {
 		require.Contains(t, codersdk.ExperimentsKnown, ex)
 	}
 }
+
+// TestPackagedCoderEnvKeepsDefaultHTTPAddress loads the coder.env shipped in
+// the Linux packages and checks that the server keeps its default HTTP
+// listener. An empty CODER_HTTP_ADDRESS is set as an empty value, which
+// disables the listener and stops the server before it starts.
+func TestPackagedCoderEnvKeepsDefaultHTTPAddress(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "coder.env"))
+	require.NoError(t, err)
+	lf := strings.ReplaceAll(string(raw), "\r\n", "\n")
+
+	for _, tc := range []struct {
+		name    string
+		content string
+	}{
+		{name: "LF", content: lf},
+		{name: "CRLF", content: strings.ReplaceAll(lf, "\n", "\r\n")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+			// Same order as a real invocation: the environment is parsed
+			// first, and defaults fill only the options that it left unset.
+			require.NoError(t, opts.ParseEnv(envVarsFromFile(t, tc.content)))
+			require.NoError(t, opts.SetDefaults())
+
+			assert.Equal(t, "127.0.0.1:3000", dv.HTTPAddress.String(), "HTTP address must keep its default")
+			assert.False(t, dv.TLS.Enable.Value(), "TLS must stay disabled")
+		})
+	}
+}
+
+// envVarsFromFile returns the variables set in an EnvironmentFile-style
+// file. Blank lines and lines starting with "#" are skipped, and a trailing
+// "\r" is removed so CRLF files parse the same as LF files.
+func envVarsFromFile(t *testing.T, content string) []serpent.EnvVar {
+	t.Helper()
+
+	var envs []serpent.EnvVar
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		name, value, ok := strings.Cut(line, "=")
+		require.True(t, ok, "malformed line %q", line)
+		envs = append(envs, serpent.EnvVar{Name: name, Value: value})
+	}
+	return envs
+}
