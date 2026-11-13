@@ -313,11 +313,12 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "jobreaper"},
 				DisplayName: "Job Reaper Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:         {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceProvisionerJobs.Type:  {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceSystem.Type:            {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:          {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspaceDormant.Type:  {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -5019,6 +5020,10 @@ func (q *querier) GetProvisionerJobsToBeReaped(ctx context.Context, arg database
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
 		return nil, err
 	}
+	// This query reads provisioner daemons, so require daemon read access.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon); err != nil {
+		return nil, err
+	}
 	return q.db.GetProvisionerJobsToBeReaped(ctx, arg)
 }
 
@@ -6387,6 +6392,17 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 		return nil, err
 	}
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
+}
+
+func (q *querier) HasProvisionerDaemonMakingProgress(ctx context.Context, arg database.HasProvisionerDaemonMakingProgressParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return false, err
+	}
+	// This query reads provisioner daemons, so require daemon read access.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon); err != nil {
+		return false, err
+	}
+	return q.db.HasProvisionerDaemonMakingProgress(ctx, arg)
 }
 
 func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {

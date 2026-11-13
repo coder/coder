@@ -1212,6 +1212,11 @@ type sqlcQuerier interface {
 	// reminder notification (which only stamps a marker, no transition).
 	GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForLifecycleActionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
+	// Returns true when any of the given daemons is making progress, using the
+	// progress rule from GetProvisionerJobsToBeReaped (keep the two in sync). It
+	// does not check heartbeat or eligibility, so callers must pass only online,
+	// eligible daemons.
+	HasProvisionerDaemonMakingProgress(ctx context.Context, arg HasProvisionerDaemonMakingProgressParams) (bool, error)
 	// Reports whether the given file is referenced as cached module files by any
 	// template version in the given organization. Used to authorize provisioner
 	// module-file downloads so a daemon cannot read another organization's cached
