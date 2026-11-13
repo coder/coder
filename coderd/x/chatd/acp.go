@@ -19,6 +19,8 @@ import (
 // Leave room beyond the agent's 90-second session request budget for transit.
 const acpRequestTimeout = 2 * time.Minute
 
+const acpSpawnAgentToolName = "acp_spawn_agent"
+
 type acpSpawnArgs struct {
 	Prompt           string `json:"prompt"`
 	WorkingDirectory string `json:"working_directory"`
@@ -79,7 +81,7 @@ func newACPTools(toolset acpToolset) []fantasy.AgentTool {
 	}
 	return []fantasy.AgentTool{
 		acpSpawnTool{
-			AgentTool:  fantasy.NewParallelAgentTool("acp_spawn_agent", "Start a workspace-local ACP subagent using a configured external harness. The harness uses its own credentials and does not inherit this chat's MCP servers. Use acp_wait_agent to collect its response.", toolset.spawn),
+			AgentTool:  fantasy.NewParallelAgentTool(acpSpawnAgentToolName, "Start a workspace-local ACP subagent using a configured external harness. The harness uses its own credentials and does not inherit this chat's MCP servers. Use acp_wait_agent to collect its response.", toolset.spawn),
 			parameters: acpSpawnProperties(toolset.harnesses),
 		},
 		fantasy.NewParallelAgentTool("acp_wait_agent", "Wait for an ACP session to stop running and collect its assistant response. Streams the transcript to the user. Timeout and cancellation leave the session running.", toolset.wait),

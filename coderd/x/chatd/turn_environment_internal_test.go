@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -867,6 +868,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
 		proposePlan      = "When the plan is ready, call propose_plan"
 		advisorGuidance  = chatadvisor.ParentGuidanceBlock
+		subagentGuidance = "<subagent-orchestration>"
 	)
 	rootOnlyTools := []string{
 		"list_templates", "read_template", "create_workspace", "start_workspace", "stop_workspace",
@@ -891,7 +893,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	}{
 		{
 			name:   "Root",
-			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
+			prompt: []string{advisorGuidance, subagentGuidance, acpSubagentPromptBlock},
 			want: append([]string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
@@ -909,7 +911,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:     "PlanRoot",
 			planMode: plan,
 			spawn:    true,
-			prompt:   []string{planRootOverlay, proposePlan},
+			prompt:   []string{planRootOverlay, proposePlan, subagentGuidance},
 			want: []string{
 				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "propose_plan",
 				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
@@ -1084,8 +1086,17 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance, acpSubagentPromptBlock} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance, subagentGuidance, acpSubagentPromptBlock} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
+			}
+			// Guidance must not name a delegation tool the turn does not offer.
+			for _, name := range []string{
+				"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents", "list_subagent_models",
+				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
+			} {
+				if regexp.MustCompile(`\b` + name + `\b`).MatchString(system.String()) {
+					require.Contains(t, offered, name)
+				}
 			}
 
 			if tt.spawn {

@@ -348,9 +348,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, err
 	}
-	// Delegated chats cannot call list_agents or message_agent, so
-	// strip the root-only orchestration guidance from their prompt.
-	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 	organizationPrompt, err := p.resolveOrganizationSystemPrompt(ctx, parent.OrganizationID)
 	if err != nil {
 		return database.Chat{}, err

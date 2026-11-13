@@ -483,7 +483,10 @@ func (p *Server) subagentTools(
 				"list_agents; do not take over its work without an acknowledged "+
 				"handoff. A timeout with status paused means the child's owner is "+
 				"editing one of its queued messages; the child continues when the "+
-				"edit ends, so keep waiting unless the owner says otherwise.",
+				"edit ends, so keep waiting unless the owner says otherwise. After "+
+				"an error or interruption, the returned response may be older than "+
+				"your latest message; check its status and content before claiming "+
+				"completion.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil

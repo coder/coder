@@ -162,7 +162,7 @@ func TestACPHarnessSchemaAndGating(t *testing.T) {
 			server := &Server{db: db, experiments: tc.experiments}
 			tools := server.acpTools(context.Background(), rootChatToolsOptions{chat: chat, isPlanModeTurn: tc.plan})
 			require.Len(t, tools, tc.want)
-			prompt := buildSystemPrompt(nil, "", "", nil, "", "", "", systemPromptBehaviorContext{acpSubagentsAvailable: len(tools) > 0})
+			prompt := buildSystemPrompt(nil, "", "", nil, "", "", "", systemPromptBehaviorContext{builtinTools: callableToolNames(tools, database.NullChatPlanMode{}, database.NullChatMode{}, chat.ParentChatID)})
 			text := systemPromptText(t, prompt)
 			if tc.want > 0 {
 				require.Contains(t, text, acpSubagentPromptBlock)
