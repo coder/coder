@@ -171,7 +171,7 @@ function capitalizedSegments(word, start = 0) {
 
 // Punctuation that ends a sentence, label, or list item, so the next
 // word starts a new phrase and may be capitalized ("GitHub, GitLab").
-const PHRASE_END = /[.!?:;,]["'’)\]]*$/;
+const PHRASE_END = /[.!?:;,…]["'’)\]]*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
@@ -418,7 +418,8 @@ function renderedOptions(expression) {
 		ts.isJsxSelfClosingElement(node) ||
 		ts.isStringLiteral(node) ||
 		ts.isNoSubstitutionTemplateLiteral(node) ||
-		ts.isTemplateExpression(node)
+		ts.isTemplateExpression(node) ||
+		isStringConcatenation(node)
 	) {
 		return [node];
 	}
@@ -467,6 +468,83 @@ function templateParts(node, sourceFile) {
 			start: literal.getStart(sourceFile) + 1,
 			end: literal.end - (isTail ? 1 : 2),
 		});
+	}
+	return parts;
+}
+
+/** Returns true for a string literal or template literal. */
+function isStringNode(node) {
+	return (
+		ts.isStringLiteral(node) ||
+		ts.isNoSubstitutionTemplateLiteral(node) ||
+		ts.isTemplateExpression(node)
+	);
+}
+
+function isPlus(node) {
+	return (
+		ts.isBinaryExpression(node) &&
+		node.operatorToken.kind === ts.SyntaxKind.PlusToken
+	);
+}
+
+/** Returns the operands of a chain of `+` expressions, in order. */
+function concatenationOperands(node) {
+	const operands = [];
+	const add = (operand) => {
+		let inner = operand;
+		while (ts.isParenthesizedExpression(inner)) {
+			inner = inner.expression;
+		}
+		if (isPlus(inner)) {
+			add(inner.left);
+			add(inner.right);
+		} else {
+			operands.push(inner);
+		}
+	};
+	add(node);
+	return operands;
+}
+
+/** Returns true for a `+` expression that joins at least one string. */
+function isStringConcatenation(node) {
+	return isPlus(node) && concatenationOperands(node).some(isStringNode);
+}
+
+/**
+ * Returns true for the outermost `+` expression of a string
+ * concatenation, so the inner `+` expressions are not read again.
+ */
+function isOutermostConcatenation(node) {
+	let parent = node.parent;
+	while (ts.isParenthesizedExpression(parent)) {
+		parent = parent.parent;
+	}
+	return isStringConcatenation(node) && !isPlus(parent);
+}
+
+/**
+ * Returns the parts of a string concatenation in order, like
+ * templateParts: the source range of each string's text, and a
+ * substitution for each other operand. `"New " + name` renders as one
+ * phrase. The strings read here are added to `consumed`.
+ */
+function concatenationParts(node, sourceFile, consumed) {
+	const parts = [];
+	for (const operand of concatenationOperands(node)) {
+		if (ts.isTemplateExpression(operand)) {
+			consumed.add(operand);
+			parts.push(...templateParts(operand, sourceFile));
+		} else if (isStringNode(operand)) {
+			consumed.add(operand);
+			parts.push({
+				start: operand.getStart(sourceFile) + 1,
+				end: operand.end - 1,
+			});
+		} else {
+			parts.push({ substitution: true });
+		}
 	}
 	return parts;
 }
@@ -522,12 +600,12 @@ function collectJsxTexts(container, sourceFile, consumed) {
 				start: node.getStart(sourceFile) + 1,
 				end: node.end - 1,
 			});
-		} else if (ts.isTemplateExpression(node)) {
+		} else if (ts.isTemplateExpression(node) || isPlus(node)) {
 			consumed.add(node);
-			for (const { start, end, substitution } of templateParts(
-				node,
-				sourceFile,
-			)) {
+			const parts = isPlus(node)
+				? concatenationParts(node, sourceFile, consumed)
+				: templateParts(node, sourceFile);
+			for (const { start, end, substitution } of parts) {
 				pieces.push(
 					substitution
 						? { kind: "substitution", inline: true }
@@ -715,15 +793,21 @@ function collectTexts(sourceFile) {
 					);
 				}
 				break;
+			case ts.SyntaxKind.BinaryExpression:
 			case ts.SyntaxKind.TemplateExpression: {
-				if (consumed.has(node) || isNonDisplayLiteral(node)) {
+				if (
+					consumed.has(node) ||
+					isNonDisplayLiteral(node) ||
+					(isPlus(node) && !isOutermostConcatenation(node)) ||
+					(ts.isBinaryExpression(node) && !isPlus(node))
+				) {
 					break;
 				}
+				const parts = isPlus(node)
+					? concatenationParts(node, sourceFile, consumed)
+					: templateParts(node, sourceFile);
 				const text = { text: "", positions: [] };
-				for (const { start, end, substitution } of templateParts(
-					node,
-					sourceFile,
-				)) {
+				for (const { start, end, substitution } of parts) {
 					if (substitution) {
 						text.text += SUBSTITUTION;
 						text.positions.push(-1);

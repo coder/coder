@@ -43,6 +43,7 @@ describe("findTitleCaseWords", () => {
 		expect(words("Saved. Next steps follow.")).toEqual([]);
 		expect(words("Warning: Read this")).toEqual([]);
 		expect(words("GitHub, GitLab, Bitbucket")).toEqual([]);
+		expect(words("Saved… Next step")).toEqual([]);
 	});
 
 	it("starts a new phrase after an opening bracket or quote", () => {
@@ -200,11 +201,32 @@ describe("checkSource", () => {
 		);
 	});
 
+	it("checks string concatenation as one phrase", () => {
+		const source = [
+			'const a = <p>Create {"New " + "Workspace"}</p>;',
+			'const b = "Create " + "New Workspace";',
+			'const c = "Retry in " + count + " Seconds";',
+			"const d = total + 1;",
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "New"],
+			[1, "Workspace"],
+			[2, "New"],
+			[2, "Workspace"],
+			[3, "Seconds"],
+		]);
+		expect(fixedText.split("\n")[0]).toBe(
+			'const a = <p>Create {"new " + "workspace"}</p>;',
+		);
+	});
+
 	it("decodes HTML entities in JSX text and attributes", () => {
 		const source = [
 			"const a = <p>Test Validate&hellip;</p>;",
 			'const b = <Button title="Delete&nbsp;File" />;',
 			"const c = <p>Click Don&apos;t</p>;",
+			"const d = <p>Saved&hellip; Next step</p>;",
 		].join("\n");
 		const { issues, fixedText } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
