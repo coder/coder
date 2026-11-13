@@ -3364,7 +3364,21 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		  filename = "%s"
 		}
 	`, indicatorFile)
-	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
+	// The provider cache is keyed on the file contents. mainTfTemplate holds
+	// a temporary path that is new on every run, so it would never find the
+	// cached providers.
+	tfCliConfigPath := downloadProviders(t, `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+				local = {
+					source = "hashicorp/local"
+				}
+			}
+		}
+	`)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
