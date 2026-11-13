@@ -21,6 +21,6 @@ When you report an issue, include the following:
 If your organization has a [Premium license](../install/prepare/licensing.md), open and track support tickets in the [Coder support portal](https://help.coder.com).
 You can also [contact your account team](https://coder.com/contact).
 
-For what Coder support covers, how to submit a request, and severity levels, see the [Scope of Support](https://kb.coder.com/articles/8704847707-scope-of-support) article.
+For what Coder support covers, how to submit a request, and severity levels, visit the [Scope of Support KB article](https://kb.coder.com/articles/8704847707-scope-of-support) article.
 
 <children></children>
