@@ -90,7 +90,12 @@ describe("chat project mutations", () => {
 	});
 
 	it("moves a project between the active and archived lists and refreshes its chats", async () => {
-		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+		// Lists sort by lowercased name, so this sorts before "Launch".
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			name: "alpha",
+		};
 		const mockOtherSummary = {
 			...MockChatProjectSummary,
 			project: mockOtherProject,
@@ -109,7 +114,7 @@ describe("chat project mutations", () => {
 						archiveChatProject(queryClient),
 					).mutate({ project: MockChatProject, stopActiveChats: false }),
 				before: {
-					active: [MockChatProject, mockOtherProject],
+					active: [mockOtherProject, MockChatProject],
 					archived: [],
 					summaries: [MockChatProjectSummary, mockOtherSummary],
 				},
@@ -132,7 +137,7 @@ describe("chat project mutations", () => {
 				},
 				// Summaries pick the project up when they refetch.
 				after: {
-					active: [MockChatProject, mockOtherProject],
+					active: [mockOtherProject, MockChatProject],
 					archived: [],
 					summaries: [mockOtherSummary],
 				},
