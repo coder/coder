@@ -404,9 +404,23 @@ Combine with --ai-gateway-structured-logging-source=gateway to keep exporting th
 - YAML key: `ai_gateway.disable_content_recording`
 - Default value: `false`
 
+### Embedded enabled
+
+Whether to start an in-memory AI Gateway instance inside coderd.
+Has no effect unless --ai-gateway-enabled is true.
+Set to false when all AI Gateway traffic is served by standalone AI Gateway instances.
+Coder Agents requires this option to be set to true.
+
+- Type: `bool`
+- Environment variable: `CODER_AI_GATEWAY_EMBEDDED_ENABLED`
+- CLI flag: [`--ai-gateway-embedded-enabled`](../../reference/cli/server/index.md#--ai-gateway-embedded-enabled)
+- YAML key: `ai_gateway.embedded_enabled`
+- Default value: `true`
+
 ### Enabled
 
-Whether to start an in-memory AI Gateway instance.
+Whether to enable AI Gateway.
+Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`
@@ -658,7 +672,7 @@ Must be at least 1.
 ### Max queued messages per chat
 
 Maximum number of messages that can be queued in a chat.
-Sending a message to a chat whose queue is full fails with HTTP 429.
+Sending a message that would make a full queue longer fails with HTTP 429.
 Must be at least 1.
 
 - Type: `int`
@@ -1023,6 +1037,16 @@ If set to false, a reduced set of database metrics are still collected.
 - Environment variable: `CODER_PROMETHEUS_COLLECT_DB_METRICS`
 - CLI flag: [`--prometheus-collect-db-metrics`](../../reference/cli/server/index.md#--prometheus-collect-db-metrics)
 - YAML key: `introspection.prometheus.collect_db_metrics`
+- Default value: `false`
+
+#### Collect workspace stats
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
+- Type: `bool`
+- Environment variable: `CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS`
+- CLI flag: [`--prometheus-collect-workspace-stats`](../../reference/cli/server/index.md#--prometheus-collect-workspace-stats)
+- YAML key: `introspection.prometheus.collect_workspace_stats`
 - Default value: `false`
 
 #### Enable
@@ -2144,7 +2168,7 @@ Tune the behavior of the provisioner, which is responsible for creating, updatin
 
 ### Disable Terraform module cache
 
-Disable the reuse of Terraform modules cached at template import for all templates.
+Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates.
 Modules are re-downloaded on every workspace build.
 Individual templates cannot opt back in.
 
@@ -2276,7 +2300,7 @@ Set to 0 to disable automatic deletion.
 
 Telemetry is critical to our ability to improve Coder.
 We strip all personal information before sending data to our servers.
-Please only disable telemetry when required by your organization's security policy.
+Only disable telemetry when required by your organization's security policy.
 
 ### Enable
 

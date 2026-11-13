@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lib/pq"
@@ -15,6 +16,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 // Listener represents a pubsub handler.
@@ -54,6 +57,13 @@ type Pubsub interface {
 	Subscriber
 	Publisher
 	Close() error
+}
+
+// ReportingPubsub is a Pubsub that can report on its own health.
+type ReportingPubsub interface {
+	Pubsub
+	// HealthReport returns the health of the pubsub backend.
+	HealthReport(ctx context.Context) healthsdk.PubsubReport
 }
 
 // msgOrErr either contains a message or an error
@@ -230,6 +240,10 @@ type PGPubsub struct {
 	closedListener   bool
 	closeListenerErr error
 
+	// connected tracks whether pgListener currently has a connection to
+	// PostgreSQL, as reported by its event callback.
+	connected atomic.Bool
+
 	metrics *BackendMetrics
 }
 
@@ -380,13 +394,32 @@ func (p *PGPubsub) Publish(event string, message []byte) error {
 	return nil
 }
 
+// HealthReport implements ReportingPubsub. It warns when the listener is not
+// connected to PostgreSQL, since no messages are received until it reconnects.
+func (p *PGPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	report := healthsdk.PubsubReport{
+		BaseReport: healthsdk.BaseReport{
+			Severity: health.SeverityOK,
+			Warnings: []health.Message{},
+		},
+		Backend: BackendPostgres,
+	}
+	if !p.connected.Load() {
+		report.Severity = health.SeverityWarning
+		report.Warnings = append(report.Warnings,
+			health.Messagef(health.CodePubsubNotConnected, "pubsub listener is not connected to PostgreSQL"))
+	}
+	return report
+}
+
 // Close closes the pubsub instance.
 func (p *PGPubsub) Close() error {
 	p.logger.Info(context.Background(), "pubsub is closing")
-	// Stop the latency loop before closing the listener so an in-flight
-	// probe unsubscribes first. No-op if the loop was never started.
-	p.metrics.StopLatencyLoop()
+	// Close the listener before waiting for the latency loop. While Postgres
+	// is unreachable, an in-flight probe blocks in pq.Listener.Listen until
+	// the listener reconnects or closes, so waiting first can hang forever.
 	err := p.closeListener()
+	p.metrics.StopLatencyLoop()
 	<-p.listenDone
 	p.logger.Debug(context.Background(), "pubsub closed")
 	return err
@@ -401,6 +434,7 @@ func (p *PGPubsub) closeListener() error {
 	}
 	p.closedListener = true
 	p.closeListenerErr = p.pgListener.Close()
+	p.connected.Store(false)
 
 	return p.closeListenerErr
 }
@@ -539,13 +573,16 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			switch t {
 			case pq.ListenerEventConnected:
 				p.logger.Debug(ctx, "pubsub connected to postgres")
+				p.connected.Store(true)
 				p.metrics.MarkConnected()
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
+				p.connected.Store(false)
 				p.metrics.RecordDisconnect()
 				p.metrics.MarkDisconnected()
 			case pq.ListenerEventReconnected:
 				p.logger.Info(ctx, "pubsub reconnected to postgres")
+				p.connected.Store(true)
 				p.metrics.MarkConnected()
 			case pq.ListenerEventConnectionAttemptFailed:
 				p.logger.Error(ctx, "pubsub failed to connect to postgres", slog.Error(err))

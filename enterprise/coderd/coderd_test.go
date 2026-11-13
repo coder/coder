@@ -687,7 +687,10 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	subject := "nats.replica"
 	messages := make(chan []byte, 1)
 	cancel, err := natsB.Subscribe(subject, func(_ context.Context, msg []byte) {
-		messages <- msg
+		select {
+		case messages <- msg:
+		default:
+		}
 	})
 	require.NoError(t, err)
 	defer cancel()
@@ -696,6 +699,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	var publishErr error
 	var flushErr error
 	var updateErr error
+	var got []byte
 	require.Eventually(t, func() bool {
 		updateErr = mgr.PublishUpdate()
 		if updateErr != nil {
@@ -710,8 +714,8 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 			return false
 		}
 		select {
-		case got := <-messages:
-			return string(got) == string(payload)
+		case got = <-messages:
+			return true
 		default:
 			return false
 		}
@@ -719,6 +723,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	require.NoError(t, updateErr)
 	require.NoError(t, publishErr)
 	require.NoError(t, flushErr)
+	require.Equal(t, payload, got)
 }
 
 func TestSCIMDisabled(t *testing.T) {

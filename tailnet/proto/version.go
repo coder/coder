@@ -111,6 +111,11 @@ import (
 //   - A v2.15 agent reports skipped and canceled startup scripts.
 //
 // API v2.16:
+//   - Added template_id and template_name to Manifest on the Agent API.
+//   - A v2.16 agent exports them as CODER_WORKSPACE_TEMPLATE_ID and
+//     CODER_WORKSPACE_TEMPLATE_NAME.
+//
+// API v2.17:
 //   - Added the PluginBody variant to ContextResource on the Agent API, for
 //     Agent Plugins (agent-plugins.org). PluginBody carries the plugin's
 //     skills and MCP servers as nested ContextResources.
@@ -118,7 +123,7 @@ import (
 //     it when the agent-plugins experiment is enabled.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 16
+	CurrentMinor = 17
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

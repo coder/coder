@@ -243,9 +243,11 @@ export const deleteUserAIBudgetOverride = (
 	};
 };
 
+export const apiKeyQueryKey = [...meKey, "apiKey"];
+
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 	return {
-		queryKey: [...meKey, "apiKey"],
+		queryKey: apiKeyQueryKey,
 		queryFn: () => API.getApiKey(),
 	};
 }

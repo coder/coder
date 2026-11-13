@@ -4,6 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatModel,
 	MockCompactionChatModel,
+	MockComputerUseChatModel,
 } from "#/testHelpers/chatModels";
 import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
@@ -12,12 +13,36 @@ const model: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "model-1",
 	display_name: "Model One",
+	computer_use_provider: "openai",
 };
 const alternateModel: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "model-2",
 	model: "model-two",
 	display_name: "Model Two",
+	computer_use_provider: "openai",
+};
+const mockGoogleModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-gemini",
+	ai_provider_id: "provider-google",
+	model: "gemini-3.8-flash",
+	display_name: "Gemini Flash",
+};
+const mockBedrockClaudeModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-bedrock-claude",
+	ai_provider_id: "provider-bedrock",
+	model: "us.anthropic.claude-opus-5-5",
+	display_name: "Claude Opus 5.5 on Bedrock",
+	computer_use_provider: "anthropic",
+};
+const mockBedrockNovaModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-bedrock-nova",
+	ai_provider_id: "provider-bedrock",
+	model: "amazon.nova-pro-v1:0",
+	display_name: "Nova Pro on Bedrock",
 };
 const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
 	...MockChatModel,
@@ -51,6 +76,7 @@ const saveByContext = new Map<
 	["title_generation", fn()],
 	["compaction", fn()],
 	["advisor", fn()],
+	["computer_use", fn()],
 ]);
 
 const meta: Meta<typeof OrganizationAgentSettingsView> = {
@@ -75,7 +101,7 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		overridesRefetchError: null,
 		modelsError: null,
 		canEdit: true,
-		showAdvisor: true,
+		showComputerUse: false,
 		saveByContext,
 		savingContexts: new Set(),
 		errorContexts: new Set(),
@@ -238,14 +264,135 @@ export const CompactionTriggerWarningManyModels: Story = {
 	play: CompactionTriggerWarning.play,
 };
 
-export const AdvisorDisabled: Story = {
-	args: { showAdvisor: false },
+const computerUseArgs = {
+	showComputerUse: true,
+	enabledModels: [
+		model,
+		alternateModel,
+		MockComputerUseChatModel,
+		mockGoogleModel,
+		mockBedrockClaudeModel,
+		mockBedrockNovaModel,
+	],
+	providerInfoByID: new Map([
+		[
+			model.ai_provider_id,
+			{ provider: "openai", displayName: "OpenAI", icon: "" },
+		],
+		[
+			MockComputerUseChatModel.ai_provider_id,
+			{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+		],
+		[
+			mockGoogleModel.ai_provider_id,
+			{ provider: "google", displayName: "Google", icon: "" },
+		],
+		[
+			mockBedrockClaudeModel.ai_provider_id,
+			{ provider: "bedrock", displayName: "AWS Bedrock", icon: "" },
+		],
+	]),
+};
+const mockUnverifiedComputerUseOverrides: readonly TypesGen.ChatModelOverrideResponse[] =
+	[...overrides, { context: "computer_use", model_config_id: model.id }];
+
+// The gpt-5 model behind model-1 is not on the curated computer use list.
+export const ComputerUseUnverifiedModel: Story = {
+	args: { ...computerUseArgs, overrides: mockUnverifiedComputerUseOverrides },
 	play: async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).queryByText("Advisor"),
-		).not.toBeInTheDocument();
+		within(canvasElement)
+			.getByRole("button", { name: "Computer use model warning" })
+			.focus();
 	},
 };
+
+export const ComputerUseVerifiedModel: Story = {
+	args: {
+		...computerUseArgs,
+		overrides: [
+			...overrides,
+			{ context: "computer_use", model_config_id: MockComputerUseChatModel.id },
+		],
+	},
+};
+
+export const ComputerUseUnverifiedDefaultModel: Story = {
+	args: computerUseArgs,
+	play: ComputerUseUnverifiedModel.play,
+};
+
+const mockResponsesAPIDisabledModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-gpt-5-4",
+	model: "gpt-5.4",
+	display_name: "GPT-5.4",
+	model_config: { openai_config: { use_responses_api: false } },
+	computer_use_provider: "openai",
+};
+
+// gpt-5.4 is on the curated list, but OpenAI computer use needs the Responses
+// API.
+export const ComputerUseResponsesAPIDisabled: Story = {
+	args: {
+		...computerUseArgs,
+		enabledModels: [
+			...computerUseArgs.enabledModels,
+			mockResponsesAPIDisabledModel,
+		],
+		overrides: [
+			...overrides,
+			{
+				context: "computer_use",
+				model_config_id: mockResponsesAPIDisabledModel.id,
+			},
+		],
+	},
+	play: ComputerUseUnverifiedModel.play,
+};
+
+export const ComputerUseNoDefaultModel: Story = {
+	args: { ...computerUseArgs, defaultModelID: undefined },
+};
+
+export const ComputerUseModelOptions: Story = {
+	args: computerUseArgs,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: /^Computer use,/ }),
+		);
+	},
+};
+
+export const ComputerUseNoProviderModels: Story = {
+	args: { ...computerUseArgs, enabledModels: [mockGoogleModel] },
+};
+
+export const ComputerUseUnavailableSavedModel: Story = {
+	args: {
+		...computerUseArgs,
+		overrides: [
+			...overrides,
+			{ context: "computer_use", model_config_id: "model-gone" },
+		],
+	},
+};
+
+export const ComputerUseOverridesLoading: Story = {
+	args: { ...computerUseArgs, isOverridesLoading: true, overrides: undefined },
+};
+
+export const ComputerUseSaveError: Story = {
+	args: { ...computerUseArgs, errorContexts: new Set(["computer_use"]) },
+};
+
+export const ComputerUseReadOnly: Story = {
+	args: {
+		...computerUseArgs,
+		canEdit: false,
+		overrides: mockUnverifiedComputerUseOverrides,
+	},
+};
+
 export const ReadOnly: Story = {
 	args: { canEdit: false },
 	play: async ({ canvasElement }) => {

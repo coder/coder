@@ -92,25 +92,37 @@ func singleChatMessageInsertParams(
 	modelConfigID uuid.UUID,
 	createdBy uuid.UUID,
 ) database.InsertChatMessagesParams {
-	return database.InsertChatMessagesParams{
-		ChatID:              chatID,
-		CreatedBy:           []uuid.UUID{createdBy},
-		ModelConfigID:       []uuid.UUID{modelConfigID},
-		ReasoningEffort:     []string{""},
-		Role:                []database.ChatMessageRole{role},
-		Content:             []string{string(content.RawMessage)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		RuntimeMs:           []int64{0},
-	}
+	params := database.InsertChatMessagesParams{ChatID: chatID}
+	appendChatMessageInsertParams(&params, role, content, modelConfigID, createdBy)
+	return params
+}
+
+// appendChatMessageInsertParams adds one visible message with no usage
+// data to params, so many messages can be written in a single
+// InsertChatMessages call.
+func appendChatMessageInsertParams(
+	params *database.InsertChatMessagesParams,
+	role database.ChatMessageRole,
+	content pqtype.NullRawMessage,
+	modelConfigID uuid.UUID,
+	createdBy uuid.UUID,
+) {
+	params.CreatedBy = append(params.CreatedBy, createdBy)
+	params.ModelConfigID = append(params.ModelConfigID, modelConfigID)
+	params.ReasoningEffort = append(params.ReasoningEffort, "")
+	params.Role = append(params.Role, role)
+	params.Content = append(params.Content, string(content.RawMessage))
+	params.ContentVersion = append(params.ContentVersion, chatprompt.CurrentContentVersion)
+	params.Visibility = append(params.Visibility, database.ChatMessageVisibilityBoth)
+	params.InputTokens = append(params.InputTokens, 0)
+	params.OutputTokens = append(params.OutputTokens, 0)
+	params.TotalTokens = append(params.TotalTokens, 0)
+	params.ReasoningTokens = append(params.ReasoningTokens, 0)
+	params.CacheCreationTokens = append(params.CacheCreationTokens, 0)
+	params.CacheReadTokens = append(params.CacheReadTokens, 0)
+	params.ContextLimit = append(params.ContextLimit, 0)
+	params.Compressed = append(params.Compressed, false)
+	params.RuntimeMs = append(params.RuntimeMs, 0)
 }
 
 func insertSystemTextMessage(

@@ -166,7 +166,7 @@ export const UserSettings: Story = {
 
 function withNavbarMock(Story: React.FC) {
 	return (
-		<div className="h-[72px] border-0 border-b border-solid px-6 flex items-center justify-end">
+		<div className="h-18 border-b px-6 flex items-center justify-end">
 			<Story />
 		</div>
 	);

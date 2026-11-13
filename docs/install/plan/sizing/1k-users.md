@@ -26,7 +26,7 @@ If your needs exceed any of these limits, consider increasing deployment resourc
 - If deploying on Kubernetes:
   - Set CPU request and limit to `2000m`
   - Set Memory request and limit to `8Gi`
-- `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
+- `coderd` does not typically benefit from high performance disks like solid-state drives (SSDs), unless you are co-locating provisioners.
 - For small deployments (ca.
   100 users, 10 concurrent workspace builds), it is acceptable to deploy provisioners on `coderd` replicas.
 - `coderd` instances should be deployed in the same region as the database.
