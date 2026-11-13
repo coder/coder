@@ -21437,19 +21437,19 @@ WITH acquired AS (
                 leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
-                         WHERE (
-                             (
-                                 -- message is in acquirable states
-                                 nm.status IN (
-                                               'pending'::notification_message_status,
-                                               'temporary_failure'::notification_message_status
-                                     )
-                                 )
-                                 -- or somehow the message was left in leased for longer than its lease period
-                                 OR (
-                                 nm.status = 'leased'::notification_message_status
-                                     AND nm.leased_until < NOW()
-                                 )
+                         -- This status list must match the predicate of
+                         -- idx_notification_messages_queued_created_at so the
+                         -- scan follows created_at order and stops at the limit.
+                         WHERE nm.status IN (
+                                             'pending'::notification_message_status,
+                                             'temporary_failure'::notification_message_status,
+                                             'leased'::notification_message_status
+                             )
+                           -- pending and temporary_failure messages are acquirable; leased
+                           -- messages only once they have outlived their lease period
+                           AND (
+                             nm.status != 'leased'::notification_message_status
+                                 OR nm.leased_until < NOW()
                              )
                            AND (
                              -- exclude all messages which have exceeded the max attempts; these will be purged later
@@ -26798,7 +26798,27 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 }
 
 const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
-WITH pending_jobs AS (
+WITH filtered_jobs AS (
+	-- Apply the filters and the limit before the joins below, which are all
+	-- at most one row per job. The newest jobs of the organization are then
+	-- read from idx_provisioner_jobs_organization_id_created_at instead of
+	-- joining every job of the organization and sorting the result.
+	SELECT
+		provisioner_jobs.id
+	FROM
+		provisioner_jobs
+	WHERE
+		provisioner_jobs.organization_id = $1::uuid
+		AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR provisioner_jobs.id = ANY($2::uuid[]))
+		AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR provisioner_jobs.job_status = ANY($3::provisioner_job_status[]))
+		AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(provisioner_jobs.tags::tagset, $4::tagset))
+		AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR provisioner_jobs.initiator_id = $5::uuid)
+	ORDER BY
+		provisioner_jobs.created_at DESC
+	LIMIT
+		$6::int
+),
+pending_jobs AS (
     SELECT
         id, initiator_id, created_at
     FROM
@@ -26853,7 +26873,9 @@ SELECT
 	COALESCE(pd.name, '') AS worker_name,
 	wb.transition as workspace_build_transition
 FROM
-	provisioner_jobs pj
+	filtered_jobs fj
+INNER JOIN
+	provisioner_jobs pj ON pj.id = fj.id
 LEFT JOIN
 	queue_position qp ON qp.id = pj.id
 LEFT JOIN
@@ -26879,29 +26901,8 @@ LEFT JOIN
 LEFT JOIN
 	-- Join to get the daemon name corresponding to the job's worker_id
 	provisioner_daemons pd ON pd.id = pj.worker_id
-WHERE
-	pj.organization_id = $1::uuid
-	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
-	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
-	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
-	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
-GROUP BY
-	pj.id,
-	qp.queue_position,
-	qs.count,
-	tv.name,
-	t.id,
-	t.name,
-	t.display_name,
-	t.icon,
-	w.id,
-	w.name,
-	pd.name,
-	wb.transition
 ORDER BY
 	pj.created_at DESC
-LIMIT
-	$6::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -37120,19 +37121,23 @@ func (q *sqlQuerier) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg 
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
-	latest_builds AS (
-		SELECT
-			workspace_id, max(build_number) AS max_build_number
+	-- Start from agents that still have logs so the work scales with the
+	-- logs table instead of every agent, resource, and build ever created.
+	log_agents AS (
+		SELECT DISTINCT
+			agent_id
 		FROM
-			workspace_builds
-		GROUP BY
-			workspace_id
+			workspace_agent_logs
 	),
 	old_agents AS (
 		SELECT
 			wa.id
 		FROM
+			log_agents
+		JOIN
 			workspace_agents AS wa
+		ON
+			wa.id = log_agents.agent_id
 		JOIN
 			workspace_resources AS wr
 		ON
@@ -37141,15 +37146,18 @@ WITH
 			workspace_builds AS wb
 		ON
 			wb.job_id = wr.job_id
-		LEFT JOIN
-			latest_builds
-		ON
-			latest_builds.workspace_id = wb.workspace_id
-		AND
-			latest_builds.max_build_number = wb.build_number
 		WHERE
 			-- Filter out the latest builds for each workspace.
-			latest_builds.workspace_id IS NULL
+			EXISTS (
+				SELECT
+					1
+				FROM
+					workspace_builds AS newer_builds
+				WHERE
+					newer_builds.workspace_id = wb.workspace_id
+				AND
+					newer_builds.build_number > wb.build_number
+			)
 		AND CASE
 			-- If the last time the agent connected was before @threshold
 			WHEN wa.last_connected_at IS NOT NULL THEN
@@ -43753,8 +43761,20 @@ SELECT
 	workspace_builds.template_version_id as build_template_version_id
 FROM
 	workspaces
-LEFT JOIN
-	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN LATERAL (
+	-- Fetch only the latest build per workspace with one backward index probe.
+	-- Matching build_number against a correlated MAX() made the planner hash
+	-- every workspace and sequentially scan all builds.
+	SELECT
+		id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline
+	FROM
+		workspace_builds
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		workspace_builds.build_number DESC
+	LIMIT 1
+) workspace_builds ON true
 INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
@@ -43762,15 +43782,6 @@ INNER JOIN
 INNER JOIN
 	users ON workspaces.owner_id = users.id
 WHERE
-	workspace_builds.build_number = (
-		SELECT
-			MAX(build_number)
-		FROM
-			workspace_builds
-		WHERE
-			workspace_builds.workspace_id = workspaces.id
-	) AND
-
 	(
 		-- A workspace may be eligible for autostop if the following are true:
 		--   * The provisioner job has not failed.
@@ -43930,9 +43941,9 @@ WHERE
 `
 
 type GetWorkspacesEligibleForLifecycleActionRow struct {
-	ID                     uuid.UUID     `db:"id" json:"id"`
-	Name                   string        `db:"name" json:"name"`
-	BuildTemplateVersionID uuid.NullUUID `db:"build_template_version_id" json:"build_template_version_id"`
+	ID                     uuid.UUID `db:"id" json:"id"`
+	Name                   string    `db:"name" json:"name"`
+	BuildTemplateVersionID uuid.UUID `db:"build_template_version_id" json:"build_template_version_id"`
 }
 
 // Returns workspaces the lifecycle executor must act on this tick. An

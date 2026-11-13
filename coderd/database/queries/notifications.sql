@@ -46,19 +46,19 @@ WITH acquired AS (
                 leased_until = NOW() + CONCAT(sqlc.arg('lease_seconds')::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
-                         WHERE (
-                             (
-                                 -- message is in acquirable states
-                                 nm.status IN (
-                                               'pending'::notification_message_status,
-                                               'temporary_failure'::notification_message_status
-                                     )
-                                 )
-                                 -- or somehow the message was left in leased for longer than its lease period
-                                 OR (
-                                 nm.status = 'leased'::notification_message_status
-                                     AND nm.leased_until < NOW()
-                                 )
+                         -- This status list must match the predicate of
+                         -- idx_notification_messages_queued_created_at so the
+                         -- scan follows created_at order and stops at the limit.
+                         WHERE nm.status IN (
+                                             'pending'::notification_message_status,
+                                             'temporary_failure'::notification_message_status,
+                                             'leased'::notification_message_status
+                             )
+                           -- pending and temporary_failure messages are acquirable; leased
+                           -- messages only once they have outlived their lease period
+                           AND (
+                             nm.status != 'leased'::notification_message_status
+                                 OR nm.leased_until < NOW()
                              )
                            AND (
                              -- exclude all messages which have exceeded the max attempts; these will be purged later
