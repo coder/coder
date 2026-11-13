@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { useQuery } from "react-query";
 import { getErrorMessage, isApiValidationError } from "#/api/errors";
 import {
@@ -171,7 +171,9 @@ export const ChatProjectTemplatesFields: React.FC<
 							<p className="m-0 text-center text-sm text-content-secondary">
 								{options.length === 0
 									? "No templates in this organization allow agents."
-									: "No matching templates."}
+									: options.length === value.templateIds.length
+										? "Every template is selected."
+										: "No matching templates."}
 							</p>
 						}
 						disabled={disabled}
@@ -255,6 +257,7 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 	const parametersKindId = useId();
 	const presetId = useId();
 	const parameterIdPrefix = useId();
+	const parameterInputs = useRef(new Map<string, HTMLInputElement>());
 	const presetsQuery = useQuery({
 		...templateVersionPresets(template.active_version_id),
 		enabled: value.defaultsKind === "preset",
@@ -363,12 +366,14 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 											variant="subtle"
 											size="sm"
 											disabled={disabled}
-											onClick={() =>
+											onClick={() => {
 												onChange({
 													...value,
 													defaultParameters: otherParameters,
-												})
-											}
+												});
+												// The button goes away, so keep focus on the field.
+												parameterInputs.current.get(parameter.name)?.focus();
+											}}
 										>
 											Use template default
 										</Button>
@@ -376,6 +381,13 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 								</div>
 								<Input
 									id={id}
+									ref={(input) => {
+										if (input) {
+											parameterInputs.current.set(parameter.name, input);
+										} else {
+											parameterInputs.current.delete(parameter.name);
+										}
+									}}
 									value={current ?? ""}
 									placeholder={
 										isSavedEmpty ? "Empty value" : parameter.default_value
