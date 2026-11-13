@@ -461,7 +461,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param project_id query string false "Only chats in this project." format(uuid)
-// @Param pinned_projects_only query bool false "Leave out chats in projects the caller has not pinned, unless the chat is pinned. Chats in projects the caller can no longer use are still returned."
+// @Param pinned_projects_only query bool false "Leave out the caller's own chats in projects the caller has not pinned, unless the chat is pinned. Chats shared with the caller and chats in projects the caller can no longer use are still returned."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {

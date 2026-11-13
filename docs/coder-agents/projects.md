@@ -49,7 +49,7 @@ Coder records project, instruction, skill, and memory changes in the [audit log]
 New projects start pinned to your sidebar.
 The project page shows a **Details** panel with the project owner, creation date, organization, skills, and instructions, and lists your chats in the project.
 
-To rename or delete a project, open the project's menu on its page, on its card, or in the sidebar and select **Edit project** or **Delete project**.
+To rename or delete a project, open the project's menu on its page, on its card, or in the sidebar and select **Edit** or **Delete**.
 Deleting a project deletes its instructions, skills, and memories.
 Its chats are kept and move back to your chat list.
 
@@ -75,10 +75,10 @@ Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000
 
 ## Pin a project
 
-- To pin a project, open its card's menu on the **Projects** page and select **Pin project**.
+- To pin a project, open its card's menu on the **Projects** page and select **Pin**.
   The project appears at the end of the **Pinned** area of the sidebar, below your pinned chats.
 - To unpin a project, select the pin icon on its card.
-- You can also open the project's menu on its card or in the sidebar and select **Unpin project**.
+- You can also open the project's menu on its card or in the sidebar and select **Unpin**.
 - To reorder pinned projects, drag them in the **Pinned** area of the sidebar.
 
 Pins are personal and change only your own sidebar.
