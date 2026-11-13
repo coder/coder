@@ -153,6 +153,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const [archiveDialog, setArchiveDialog] = useState<{
 		project: ChatProject | null;
 		trigger: HTMLButtonElement | null;
+		focusAfterRemoval?: () => void;
 		open: boolean;
 	}>({ project: null, trigger: null, open: false });
 
@@ -253,8 +254,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				pinnedProjectsError={summariesQuery.error}
 				onRetryPinnedProjects={() => void summariesQuery.refetch()}
 				onEditProject={openProjectDialog}
-				onArchiveProject={(project, trigger) =>
-					setArchiveDialog({ project, trigger, open: true })
+				onArchiveProject={(project, trigger, focusAfterRemoval) =>
+					setArchiveDialog({ project, trigger, focusAfterRemoval, open: true })
 				}
 				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}
@@ -342,6 +343,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onCloseAutoFocus={(event) => {
 					if (archiveDialog.trigger) {
 						returnFocusTo(archiveDialog.trigger)(event);
+					}
+					// The archived project's folder, and its actions button,
+					// left the sidebar.
+					if (!event.defaultPrevented) {
+						event.preventDefault();
+						archiveDialog.focusAfterRemoval?.();
 					}
 				}}
 			/>
