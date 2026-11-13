@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"sync"
+	"time"
 )
 
 // Defaults for the conditional-request response cache. These bound
@@ -34,6 +35,11 @@ type cachedResponse struct {
 	key  string
 	etag string
 	body []byte
+	// expiresAt is optional metadata for the caller. An entry stored only
+	// for its expiry has no etag or body. loadEntry ignores expiresAt, so
+	// an expired response can still validate a conditional request; active
+	// deletes an expired entry.
+	expiresAt time.Time
 }
 
 // responseCache is a small, concurrency-safe LRU cache of GitHub
@@ -67,48 +73,82 @@ func newResponseCache(maxSize int) *responseCache {
 // marks the entry as most-recently-used. The returned body aliases
 // the cache's copy and must not be mutated.
 func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
+	entry, ok := c.loadEntry(key)
+	return entry.etag, entry.body, ok
+}
+
+// loadEntry returns a copy of the entry for key, if present, and marks the
+// entry as most-recently-used. The body aliases the cache's copy and must not
+// be mutated.
+func (c *responseCache) loadEntry(key string) (cachedResponse, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	elem, found := c.entries[key]
 	if !found {
-		return "", nil, false
+		return cachedResponse{}, false
 	}
 	c.ll.MoveToFront(elem)
-	cr := cachedEntry(elem)
-	return cr.etag, cr.body, true
+	return *cachedEntry(elem), true
 }
 
 // store records the ETag and body for key, evicting the
 // least-recently-used entry when the cache is full. Empty ETags and
 // bodies larger than maxCachedBodyBytes are not stored.
 func (c *responseCache) store(key, etag string, body []byte) {
-	if etag == "" || len(body) > maxCachedBodyBytes {
+	if etag == "" {
 		return
 	}
+	c.storeEntry(cachedResponse{key: key, etag: etag, body: body})
+}
 
-	stored := bytes.Clone(body)
+// storeEntry records an entry regardless of ETag, subject to the body limit and
+// LRU eviction.
+func (c *responseCache) storeEntry(entry cachedResponse) {
+	if len(entry.body) > maxCachedBodyBytes {
+		return
+	}
+	entry.body = bytes.Clone(entry.body)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if elem, found := c.entries[key]; found {
+	if elem, found := c.entries[entry.key]; found {
 		c.ll.MoveToFront(elem)
 		cr := cachedEntry(elem)
-		cr.etag = etag
 		// Replace the body slice entirely; never write into the
 		// existing slice in place. A concurrent reader may hold a
 		// reference to the old slice while json.Unmarshal is reading
 		// it.
-		cr.body = stored
+		*cr = entry
 		return
 	}
 
-	elem := c.ll.PushFront(&cachedResponse{key: key, etag: etag, body: stored})
-	c.entries[key] = elem
+	elem := c.ll.PushFront(&entry)
+	c.entries[entry.key] = elem
 
 	if c.ll.Len() > c.maxSize {
 		c.evictOldest()
 	}
+}
+
+// active reports whether key is present and now is before its expiresAt. It
+// deletes the entry once expiresAt has passed, so it suits only entries that
+// are not needed after they expire.
+func (c *responseCache) active(key string, now time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	elem, found := c.entries[key]
+	if !found {
+		return false
+	}
+	if !now.Before(cachedEntry(elem).expiresAt) {
+		c.ll.Remove(elem)
+		delete(c.entries, key)
+		return false
+	}
+	c.ll.MoveToFront(elem)
+	return true
 }
 
 // evictOldest removes the least-recently-used entry. The caller must
