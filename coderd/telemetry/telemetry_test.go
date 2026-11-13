@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"sort"
 	"testing"
@@ -864,6 +866,86 @@ func collectSnapshot(
 	t.Cleanup(reporter.Close)
 
 	return testutil.RequireReceive(ctx, t, deployment), testutil.RequireReceive(ctx, t, snapshot)
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// TestTelemetry_ReportSurvivesDefaultTransportCloseIdleConnections covers a
+// CloseIdleConnections call on http.DefaultTransport, which any parallel test
+// in a process can make (httptest.Server.Close does). net/http returns the
+// connection of a response without a body, like the telemetry server's 202,
+// to the idle pool before it hands the response to the caller. A
+// CloseIdleConnections call in between fails a request that already succeeded.
+// The trace hook below forces that window for every request that goes through
+// http.DefaultTransport.
+//
+//nolint:paralleltest // Replaces the process-global http.DefaultTransport.
+func TestTelemetry_ReportSurvivesDefaultTransportCloseIdleConnections(t *testing.T) {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok)
+	http.DefaultTransport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		returned := make(chan struct{})
+		defer close(returned)
+		trace := &httptrace.ClientTrace{PutIdleConn: func(err error) {
+			if err != nil {
+				return
+			}
+			base.CloseIdleConnections()
+			// Keep the response back until RoundTrip has seen the closed
+			// connection.
+			select {
+			case <-returned:
+			case <-req.Context().Done():
+			}
+		}}
+		return base.RoundTrip(req.WithContext(httptrace.WithClientTrace(req.Context(), trace)))
+	})
+	t.Cleanup(func() {
+		http.DefaultTransport = base
+		base.CloseIdleConnections()
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	// The snapshot follows the deployment only when the deployment request
+	// succeeded.
+	collectSnapshot(ctx, t, db, nil)
+}
+
+//nolint:paralleltest // Another test closing the default transport must not close the connection under test.
+func TestTelemetry_CloseClosesIdleConnections(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	closed := make(chan struct{}, 16)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateClosed {
+			select {
+			case closed <- struct{}{}:
+			default:
+			}
+		}
+	}
+	server.Start()
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	reporter, err := telemetry.New(telemetry.Options{
+		Database:     db,
+		Logger:       testutil.Logger(t),
+		URL:          serverURL,
+		DeploymentID: uuid.NewString(),
+	})
+	require.NoError(t, err)
+	reporter.Close()
+
+	testutil.TryReceive(ctx, t, closed)
 }
 
 func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
