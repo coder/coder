@@ -12,8 +12,8 @@
 # - A step is an ordered-list item whose marker is `1.` or `1)`. A nested
 #   ordered item is its own step. Bullet items, even under a step, are not
 #   steps.
-# - A step is split into paragraph segments, and only the first segment, the
-#   step's instruction, is counted. Later segments explain the step and follow
+# - A step is split into paragraph segments, and only the first sentence of
+#   the first segment, the step's instruction, is counted. Later segments explain the step and follow
 #   the body prose target instead. A segment is the marker line plus the lines
 #   that follow it. It ends at a blank line, a fence, a nested list (ordered
 #   or bullet), a table row, a blockquote, block-level HTML, or an explicit
@@ -37,9 +37,12 @@
 #   letters.
 # - A token with no letter or digit, such as the `>` in `**A** > **B**`, is
 #   not a word.
-# - Sentence boundaries do not matter: the limit applies to the whole first
-#   segment, so an action and an expected result in it are counted together.
-# - The match spans the offending segment, from its first word to its last.
+# - The first sentence ends at the first word whose last character is `.`,
+#   `?`, or `!`, ignoring closing `*`, `_`, `)`, and quote characters, so a
+#   bold label such as `**Clone the repository.**` ends it. Punctuation inside
+#   a code span doesn't. Later sentences in the segment explain the step, the
+#   same as later segments, and aren't counted.
+# - The match spans the offending sentence, from its first word to its last.
 #   Vale locates a match by its text, so a span of only the first word of a
 #   wrapped segment can resolve to an earlier line that repeats the word.
 extends: script
@@ -165,15 +168,27 @@ script: |
     return i
   }
 
-  // report records a match that spans the whole paragraph segment. Vale
+  // ends_sentence reports whether a word token ends a sentence: its last
+  // character, after any closing emphasis, parenthesis, or quote, is `.`, `?`,
+  // or `!`. A token that ends in a code span never ends a sentence.
+  ends_sentence := func(tok) {
+    j := len(tok)
+    for j > 0 && (tok[j-1] == '*' || tok[j-1] == '_' || tok[j-1] == ')' || tok[j-1] == '"' || tok[j-1] == '\'') {
+      j -= 1
+    }
+    return j > 0 && (tok[j-1] == '.' || tok[j-1] == '?' || tok[j-1] == '!')
+  }
+
+  // report records a match that spans the instruction sentence. Vale
   // locates a match by its text, and a span that is only the first word of a
   // wrapped segment can resolve to an earlier line that repeats the word.
   report := func(base, first, last_end) {
     matches = append(matches, {begin: base + first, end: base + last_end})
   }
 
-  // check counts the words in the step paragraph in s, which begins at
-  // absolute offset base, and reports it when it is over the limit.
+  // check counts the words in the first sentence of the step paragraph in s,
+  // which begins at absolute offset base, and reports it when it is over the
+  // limit.
   check := func(s, base) {
     n := len(s)
     i := 0
@@ -246,6 +261,9 @@ script: |
         }
         last_end = i
         count += 1
+      }
+      if count > 0 && ends_sentence(s[start:i]) {
+        break
       }
     }
     if count > limit {
