@@ -70,7 +70,8 @@ func NewTunnel(
 	if err != nil {
 		return nil, err
 	}
-	uCtx, uCancel := context.WithCancel(ctx)
+	// The updater only sends to the manager, so it stops when sending does.
+	uCtx, uCancel := context.WithCancel(s.sendCtx)
 	t := &Tunnel{
 		//nolint:govet // safe to copy the locks here because we haven't started the speaker
 		speaker:         *(s),
