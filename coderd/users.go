@@ -741,10 +741,12 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// The user is deleted. The queued messages of the automations go next,
-	// one chat per transaction. A failure there is logged and does not fail
-	// the request.
-	chatautomation.DeleteQueuedMessagesByChat(ctx, api.Logger, api.Database, api.Pubsub, automationIDs)
+	// The user is deleted. The queued messages of the automations go last,
+	// one chat per transaction, when the notifications are sent and the
+	// response is written: the cleanup can wait for a chat lock, and a
+	// client that goes away meanwhile must change neither. A failure of the
+	// cleanup is logged and does not fail the request.
+	defer chatautomation.DeleteQueuedMessagesByChat(ctx, api.Logger, api.Database, api.Pubsub, automationIDs)
 	user.Deleted = true
 	aReq.New = user
 

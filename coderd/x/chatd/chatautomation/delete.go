@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -61,6 +62,13 @@ func LockByOwner(ctx context.Context, tx database.Store, ownerID uuid.UUID) ([]u
 // each automation, so no run queues a message meanwhile. The chats are locked
 // in chat ID order, after the automation locks, as on every other path.
 //
+// The purge of old chats locks the chats of a batch in the order of its plan,
+// so it can form a lock cycle with a transaction that holds one chat and
+// waits for another. A cleanup of two or more chats therefore takes the
+// advisory lock of the purge job first. A purge tick holds that lock from its
+// start to its commit, and it skips when the lock is taken, so the two never
+// run side by side.
+//
 // A chat in an invalid state refuses the removal, as it refuses every
 // transition but the reconcile: the error wraps chatstate.ErrInvalidState and
 // names the chat.
@@ -81,6 +89,11 @@ func DeleteQueuedMessages(
 	chatIDs, err := tx.GetChatIDsWithQueuedMessagesByAutomationIDs(chatdCtx, automationIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get chats with queued messages: %w", err)
+	}
+	if len(chatIDs) > 1 {
+		if err := tx.AcquireLock(chatdCtx, database.LockIDDBPurge); err != nil {
+			return nil, xerrors.Errorf("lock out the purge of old chats: %w", err)
+		}
 	}
 
 	updates := chatstate.NewPublishBuffer(ps)
@@ -214,12 +227,14 @@ func publishStatusChange(ps chatstate.Publisher, chat database.Chat) error {
 // that holds an automation row must not wait for a chat row. See
 // DeleteQueuedMessages for the cleanup and its errors.
 //
-// actor needs delete on the automation. The row delete checks it, so for an
-// actor without it the cleanup rolls back with the transaction.
+// actor needs delete on the automation. auth checks it before the cleanup,
+// which changes chats and can fail with the ID of a chat. The row delete
+// checks it again.
 func Delete(
 	ctx context.Context,
 	logger slog.Logger,
 	db database.Store,
+	auth rbac.Authorizer,
 	ps chatstate.Publisher,
 	actor rbac.Subject,
 	organizationID, id uuid.UUID,
@@ -239,14 +254,14 @@ func Delete(
 		if automation.OrganizationID != organizationID {
 			return sql.ErrNoRows
 		}
+		if err := auth.Authorize(actorCtx, actor, policy.ActionDelete, automation.RBACObject()); err != nil {
+			return ErrDeleteForbidden
+		}
 		publish, err = DeleteQueuedMessages(ctx, logger, tx, ps, []uuid.UUID{id})
 		if err != nil {
 			return err
 		}
 		rows, err := tx.DeleteChatAutomationByID(actorCtx, id)
-		if dbauthz.IsNotAuthorizedError(err) {
-			return ErrDeleteForbidden
-		}
 		if err != nil {
 			return xerrors.Errorf("delete chat automation: %w", err)
 		}

@@ -24,6 +24,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -42,6 +44,8 @@ type chatAutomationEnv struct {
 	sqlDB   *sql.DB
 	auditor *audit.MockAuditor
 	model   database.ChatModelConfig
+	// enqueuer keeps the notifications that the deployment sends.
+	enqueuer *notificationstest.FakeEnqueuer
 }
 
 func newChatAutomationEnv(t *testing.T, wrap func(database.Store) database.Store) chatAutomationEnv {
@@ -54,16 +58,18 @@ func newChatAutomationEnv(t *testing.T, wrap func(database.Store) database.Store
 	values := coderdtest.DeploymentValues(t)
 	values.Experiments = []string{string(codersdk.ExperimentChatAutomations)}
 	auditor := audit.NewMock()
+	enqueuer := &notificationstest.FakeEnqueuer{}
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:   values,
-		Database:           store,
-		Pubsub:             ps,
-		Auditor:            auditor,
-		ChatWorkerDisabled: true,
+		DeploymentValues:      values,
+		Database:              store,
+		Pubsub:                ps,
+		Auditor:               auditor,
+		NotificationsEnqueuer: enqueuer,
+		ChatWorkerDisabled:    true,
 	})
 	first := coderdtest.CreateFirstUser(t, client)
 	return chatAutomationEnv{
-		owner: client, first: first, api: api, db: db, sqlDB: sqlDB, auditor: auditor,
+		owner: client, first: first, api: api, db: db, sqlDB: sqlDB, auditor: auditor, enqueuer: enqueuer,
 		model: dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: first.OrganizationID}),
 	}
 }
@@ -863,4 +869,87 @@ func TestDeleteUserChatAutomationLocks(t *testing.T) {
 			require.Zero(t, left)
 		})
 	}
+}
+
+// requestStore hands out the request context of a user delete.
+type requestStore struct {
+	database.Store
+	requests chan<- context.Context
+}
+
+func (s requestStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(requestStore{Store: tx, requests: s.requests})
+	}, opts)
+}
+
+func (s requestStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	select {
+	case s.requests <- ctx:
+	default:
+	}
+	return s.Store.UpdateUserDeletedByID(ctx, id)
+}
+
+// TestDeleteUserClientGoesAway deletes a user while another transaction
+// holds a chat that the cleanup needs, and the client gives up meanwhile.
+// The delete has succeeded by then: the administrators are notified, the
+// audit entry records the success, and the cleanup goes on.
+func TestDeleteUserClientGoesAway(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	requests := make(chan context.Context, 1)
+	env := newChatAutomationEnv(t, func(db database.Store) database.Store {
+		return requestStore{Store: db, requests: requests}
+	})
+	_, user := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID)
+	automation := env.automation(t, database.ChatAutomation{OwnerID: user.ID})
+	chat := env.queuedChat(t, user.ID, database.ChatStatusRunning, automation.ID)
+	env.auditor.ResetLogs()
+
+	holder, err := env.sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	var holderPID int
+	require.NoError(t, holder.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&holderPID))
+	_, err = holder.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chat.ID)
+	require.NoError(t, err)
+	clientCtx, goAway := context.WithCancel(ctx)
+	defer goAway()
+	done, finished := make(chan error, 1), make(chan struct{})
+	go func() {
+		defer close(finished)
+		done <- env.owner.DeleteUser(clientCtx, user.ID)
+	}()
+	// A failed assertion releases the chat, so the delete returns.
+	t.Cleanup(func() {
+		_ = holder.Rollback()
+		<-finished
+	})
+	request := testutil.RequireReceive(ctx, t, requests)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var n int
+		err := env.sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE wait_event_type = 'Lock' AND $1 = ANY(pg_blocking_pids(pid))`, holderPID).Scan(&n)
+		return err == nil && n > 0
+	}, testutil.IntervalFast, "the cleanup never waited for the chat")
+
+	goAway()
+	require.Error(t, testutil.RequireReceive(ctx, t, done))
+	select {
+	case <-request.Done():
+	case <-ctx.Done():
+		require.FailNow(t, "the server never noticed that the client went away")
+	}
+	require.NoError(t, holder.Commit())
+
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return len(env.auditor.AuditLogs()) > 0
+	}, testutil.IntervalFast, "the delete never wrote its audit entry")
+	logs := env.auditor.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, user.ID, logs[0].ResourceID)
+	require.EqualValues(t, http.StatusOK, logs[0].StatusCode)
+	require.Len(t, env.enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateUserAccountDeleted)), 1)
+	left, _ := env.queued(t, chat.ID)
+	require.Zero(t, left)
 }
