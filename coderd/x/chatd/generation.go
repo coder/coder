@@ -50,9 +50,6 @@ type generationPrepareInput struct {
 		debug *generationDebug,
 		summaries []mcpclient.ConnectSummary,
 	)
-	// TurnExperiments holds the turn's user-scoped experiment
-	// decisions, shared by every step of the turn. Required.
-	TurnExperiments *turnExperimentDecisions
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -138,7 +135,11 @@ func compactionStillOverLimitError(source compactionTriggerSource, otherOverLimi
 type generationDecision struct {
 	kind           generationActionKind
 	localToolCalls []fantasy.ToolCallContent
-	finishReason   generationFinishReason
+	// observedToolCalls is the step's batch for chatloop step observers
+	// and halting tools: localToolCalls plus the calls answered before
+	// execution, in call order.
+	observedToolCalls []fantasy.ToolCallContent
+	finishReason      generationFinishReason
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced            bool
@@ -197,12 +198,14 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if input.maxSteps < 1 {
 		return generationDecision{}, terminalGeneration(xerrors.Errorf("max steps must be positive, got %d", input.maxSteps))
 	}
-	localCalls, dynamicCalls, messageID, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
+	stepCalls, answered, messageID, err := lastStepToolCalls(input.messages)
 	if err != nil {
 		return generationDecision{}, err
 	}
+	localCalls, dynamicCalls := unansweredToolCalls(stepCalls, answered, input.dynamicToolNames)
 	if len(localCalls) > 0 {
-		if len(dynamicCalls) > 0 && hasExclusiveToolCall(localCalls, input.exclusiveToolNames) {
+		runsDynamic := len(dynamicCalls) > 0 && hasExclusiveToolCall(localCalls, input.exclusiveToolNames)
+		if runsDynamic {
 			for _, dynamicCall := range dynamicCalls {
 				localCalls = append(localCalls, fantasy.ToolCallContent{
 					ToolCallID: dynamicCall.ToolCallID,
@@ -211,7 +214,24 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 				})
 			}
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls, toolCallMessageID: messageID}, nil
+		// The results of executed calls commit together, so a call
+		// answered before its batch runs was rejected without running,
+		// for example by a pre_tool_use hook or for malformed input.
+		// Pending dynamic calls stay out unless they run here, because
+		// the client runs them.
+		observedCalls := make([]fantasy.ToolCallContent, 0, len(stepCalls))
+		for _, call := range stepCalls {
+			if !answered[call.ToolCallID] && input.dynamicToolNames[call.ToolName] && !runsDynamic {
+				continue
+			}
+			observedCalls = append(observedCalls, call)
+		}
+		return generationDecision{
+			kind:              generationActionExecuteLocalTools,
+			localToolCalls:    localCalls,
+			observedToolCalls: observedCalls,
+			toolCallMessageID: messageID,
+		}, nil
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction}, nil
@@ -306,6 +326,18 @@ func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
 ) ([]fantasy.ToolCallContent, []pendingDynamicToolCall, int64, error) {
+	stepCalls, answered, messageID, err := lastStepToolCalls(messages)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	localCalls, dynamicCalls := unansweredToolCalls(stepCalls, answered, dynamicToolNames)
+	return localCalls, dynamicCalls, messageID, nil
+}
+
+// lastStepToolCalls returns the tool calls of the last assistant message that
+// are not provider-executed, in call order, with the IDs of the calls already
+// answered and the message ID.
+func lastStepToolCalls(messages []database.ChatMessage) ([]fantasy.ToolCallContent, map[string]bool, int64, error) {
 	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
 		return msg.Role == database.ChatMessageRoleAssistant
 	})
@@ -316,32 +348,48 @@ func unresolvedToolCallsFromHistory(
 	if err != nil {
 		return nil, nil, 0, xerrors.Errorf("parse assistant message: %w", err)
 	}
-	handled, err := handledToolCallIDs(messages[assistantIndex+1:])
+	answered, err := handledToolCallIDs(messages[assistantIndex+1:])
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	localCalls := make([]fantasy.ToolCallContent, 0)
-	dynamicCalls := make([]pendingDynamicToolCall, 0)
+	calls := make([]fantasy.ToolCallContent, 0, len(assistantParts))
 	for _, part := range assistantParts {
-		if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ProviderExecuted || handled[part.ToolCallID] {
+		if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ProviderExecuted {
 			continue
 		}
-		if dynamicToolNames[part.ToolName] {
+		calls = append(calls, fantasy.ToolCallContent{
+			ToolCallID: part.ToolCallID,
+			ToolName:   part.ToolName,
+			Input:      string(part.Args),
+		})
+	}
+	return calls, answered, messages[assistantIndex].ID, nil
+}
+
+// unansweredToolCalls splits the calls not yet answered into local calls and
+// dynamic calls, which the client runs.
+func unansweredToolCalls(
+	calls []fantasy.ToolCallContent,
+	answered map[string]bool,
+	dynamicToolNames map[string]bool,
+) ([]fantasy.ToolCallContent, []pendingDynamicToolCall) {
+	localCalls := make([]fantasy.ToolCallContent, 0)
+	dynamicCalls := make([]pendingDynamicToolCall, 0)
+	for _, call := range calls {
+		if answered[call.ToolCallID] {
+			continue
+		}
+		if dynamicToolNames[call.ToolName] {
 			dynamicCalls = append(dynamicCalls, pendingDynamicToolCall{
-				ToolCallID: part.ToolCallID,
-				ToolName:   part.ToolName,
-				Args:       string(part.Args),
+				ToolCallID: call.ToolCallID,
+				ToolName:   call.ToolName,
+				Args:       call.Input,
 			})
 			continue
 		}
-		localCalls = append(localCalls, fantasy.ToolCallContent{
-			ToolCallID:       part.ToolCallID,
-			ToolName:         part.ToolName,
-			Input:            string(part.Args),
-			ProviderExecuted: part.ProviderExecuted,
-		})
+		localCalls = append(localCalls, call)
 	}
-	return localCalls, dynamicCalls, messages[assistantIndex].ID, nil
+	return localCalls, dynamicCalls
 }
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
@@ -481,9 +529,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	if input.StopNudges == nil {
 		input.StopNudges = &stopNudgeTracker{}
 	}
-	if input.TurnExperiments == nil {
-		input.TurnExperiments = &turnExperimentDecisions{}
-	}
 	if input.TurnID == uuid.Nil {
 		input.TurnID = uuid.New()
 	}
@@ -601,7 +646,6 @@ func (s *taskStarter) runGenerationStep(
 		Chat:                      chat,
 		Messages:                  messages,
 		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
-		TurnExperiments:           input.TurnExperiments,
 	}
 	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
 	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (turnEnvironment, error) {
@@ -886,9 +930,12 @@ func (s *taskStarter) generateAssistant(
 	input chatWorkerTaskStartInput,
 	prepared turnEnvironment,
 ) error {
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	attempt, delivered, err := s.beginAssistantGenerationAttempt(ctx, machine, input)
 	if err != nil {
-		return xerrors.Errorf("begin generation attempt: %w", err)
+		return xerrors.Errorf("begin assistant generation attempt: %w", err)
+	}
+	if delivered {
+		return nil
 	}
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
@@ -969,9 +1016,8 @@ func (s *taskStarter) admitStepToolCalls(
 	prepared turnEnvironment,
 	content []fantasy.Content,
 ) (chathooks.PreToolUseExecutionResult, error) {
-	if !s.server.hooks.Enabled() {
-		return chathooks.PreToolUseExecutionResult{}, nil
-	}
+	// Validate even without hooks: JSONB persistence discards duplicate keys,
+	// so execution cannot detect them after the assistant step is committed.
 	pending := chathooks.PendingToolCalls(content)
 	toolCalls := withoutResolvedToolCalls(content, pending)
 	if len(pending) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
@@ -997,8 +1043,8 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
-	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
+	valid, _, invalid := partitionInvalidToolCalls(prepared, toolCalls)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), valid)
 	if err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
@@ -1007,7 +1053,7 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	preflight.Denied = append(preflight.Denied, ambiguous...)
+	preflight.Denied = append(preflight.Denied, invalid...)
 	// Calls denied at admission persist synthetic results with the
 	// assistant step, so they never surface as unresolved calls where
 	// executeLocalTools counts find_tools invocations; count them here.
@@ -1077,7 +1123,7 @@ func (s *taskStarter) executeLocalTools(
 	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
 	if !exclusiveRejected {
-		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+		allowed, allowedIndexes, denied = partitionInvalidToolCalls(prepared, decision.localToolCalls)
 	}
 	// find_tools calls are counted here, at the single point every
 	// model-emitted call passes through, because rejections upstream of
@@ -1119,13 +1165,12 @@ func (s *taskStarter) executeLocalTools(
 			AllowInactiveTools: prepared.AllowInactiveTools,
 			ProviderTools:      prepared.ProviderTools,
 			ToolCalls:          allowed,
-			ObservedToolCalls:  decision.localToolCalls,
+			ObservedToolCalls:  decision.observedToolCalls,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
 			ModelName:          modelName,
 			ContextLimit:       prepared.ContextLimitFallback,
-			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			BillingRecorder:    billingRecorder,
 			ToolCallContext: func(ctx context.Context, tc fantasy.ToolCallContent) context.Context {
@@ -1259,7 +1304,6 @@ func (s *taskStarter) generateCompaction(
 			logger,
 			compactionOpts.Messages,
 			overrideModel.model,
-			overrideModel.resolvedProvider,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.dbConfig,
 			prepared.ReasoningProvenance.Model,
@@ -1399,20 +1443,81 @@ func (s *taskStarter) beginGenerationAttempt(
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
-		if err != nil {
-			return xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
-		}
-		attempt = result.GenerationAttempt
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
-		}
-		return nil
+		var err error
+		attempt, committed, err = recordGenerationAttempt(ctx, tx, store, input.ChatID)
+		return err
 	})
 	if err != nil {
 		return generationAttempt{}, normalizeTaskTransitionError(err, "record generation attempt")
 	}
+	return s.openGenerationAttempt(ctx, input, committed, attempt)
+}
+
+// If delivered is true, the caller must return without generating:
+// the history change starts a new generation task.
+func (s *taskStarter) beginAssistantGenerationAttempt(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+) (attempt generationAttempt, delivered bool, err error) {
+	var number int64
+	var committed database.Chat
+	var promotedQueuedAt time.Time
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+			return xerrors.Errorf("load chat for task: %w", err)
+		}
+		result, err := tx.DeliverSteerMessages(chatstate.DeliverSteerMessagesInput{})
+		if err != nil {
+			return xerrors.Errorf("tx.DeliverSteerMessages: %w", err)
+		}
+		if len(result.DeliveredMessages) > 0 {
+			delivered = true
+			promotedQueuedAt = result.PromotedQueuedAt
+			committed, err = store.GetChatByID(ctx, input.ChatID)
+			if err != nil {
+				return xerrors.Errorf("load committed chat: %w", err)
+			}
+			return nil
+		}
+		number, committed, err = recordGenerationAttempt(ctx, tx, store, input.ChatID)
+		return err
+	})
+	if err != nil {
+		return generationAttempt{}, false, normalizeTaskTransitionError(err, "begin assistant generation attempt")
+	}
+	if delivered {
+		s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
+		s.routeStateHint(ctx, stateUpdateFromChat(committed))
+		return generationAttempt{}, true, nil
+	}
+	attempt, err = s.openGenerationAttempt(ctx, input, committed, number)
+	return attempt, false, err
+}
+
+func recordGenerationAttempt(
+	ctx context.Context,
+	tx *chatstate.Tx,
+	store database.Store,
+	chatID uuid.UUID,
+) (int64, database.Chat, error) {
+	result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
+	if err != nil {
+		return 0, database.Chat{}, xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
+	}
+	committed, err := store.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, database.Chat{}, xerrors.Errorf("load committed chat: %w", err)
+	}
+	return result.GenerationAttempt, committed, nil
+}
+
+func (s *taskStarter) openGenerationAttempt(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	committed database.Chat,
+	attempt int64,
+) (generationAttempt, error) {
 	key := messagepartbuffer.Key{
 		ChatID:            input.ChatID,
 		HistoryVersion:    committed.HistoryVersion,

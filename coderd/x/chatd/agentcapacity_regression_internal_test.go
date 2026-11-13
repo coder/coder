@@ -168,7 +168,7 @@ func TestAdmission_InterruptWithMessageOnWaitingChatStaysWithinCapacity(t *testi
 		return limiter.refusals(waiting.ID) > 0
 	}, testutil.WaitLong, testutil.IntervalFast, "the waiting chat must first be refused for capacity")
 
-	// The user sends a message with busy_behavior=interrupt.
+	// The user interrupts the chat and sends a steer message.
 	interrupted := interruptChat(t, f, waiting.ID)
 	require.Equal(t, database.ChatStatusRunning, interrupted.Status, "the message is promoted without a runner")
 	require.False(t, interrupted.WorkerID.Valid)
@@ -273,7 +273,7 @@ func TestRunnerManager_HeartbeatDoesNotReviveStaleLease(t *testing.T) {
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatA.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID, f.apiKey.ID),
+			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})

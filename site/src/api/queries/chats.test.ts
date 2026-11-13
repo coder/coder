@@ -14,7 +14,9 @@ import {
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
+	MockChatAttachment,
 	MockChatMessage,
+	MockChatQueuedMessageNotFoundError,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -26,6 +28,7 @@ import {
 	MockMCPServerConfigACLAvailable,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
@@ -46,6 +49,8 @@ import {
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
+	chatAttachments,
+	chatAttachmentsKey,
 	chatCost,
 	chatCostTreeKey,
 	chatDebugRunKey,
@@ -108,6 +113,7 @@ import {
 	prependToInfiniteChatsCache,
 	projectChats,
 	projectChatsKey,
+	projectFolderChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChatEntity,
@@ -145,6 +151,7 @@ vi.mock("#/api/api", () => ({
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
+			getChatAttachments: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
 			getChatMessages: vi.fn(),
@@ -681,6 +688,7 @@ describe("invalidateChatListQueries", () => {
 		{ status: "interrupting", matchingFilters: ["working"] },
 		{ status: "error", matchingFilters: ["error", "attention"] },
 		{ status: "requires_action", matchingFilters: ["action", "attention"] },
+		{ status: "paused", matchingFilters: ["paused"] },
 	])(
 		"prepends $status root chats only to matching list caches",
 		({ status, matchingFilters }) => {
@@ -696,10 +704,17 @@ describe("invalidateChatListQueries", () => {
 					name: "attention",
 					input: { statuses: ["error", "requires_action"] },
 				},
+				{ name: "paused", input: { statuses: ["paused"] } },
 				{
 					name: "all",
 					input: {
-						statuses: ["requires_action", "error", "running", "waiting"],
+						statuses: [
+							"requires_action",
+							"error",
+							"running",
+							"waiting",
+							"paused",
+						],
 					},
 				},
 				{ name: "archived", input: { archived: true, statuses: [status] } },
@@ -1350,6 +1365,38 @@ describe("unarchiveChat optimistic update", () => {
 		expect(rows?.find((row) => row.id === "chat-2")).toEqual(unrelatedRow);
 	});
 
+	it("restores a project folder list on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const folderKey = projectFolderChatsKey(
+			"project-1",
+			toChatListParams({ archived: true }),
+		);
+		queryClient.setQueryData(folderKey, {
+			pages: [
+				[
+					makeChat(chatId, { archived: true }),
+					makeChat("chat-2", { archived: true }),
+				],
+			],
+			pageParams: [0],
+		});
+
+		const mutation = unarchiveChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === "chat-2" ? { ...chat, title: "Renamed" } : chat,
+			),
+		);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		const [chat, otherChat] =
+			queryClient.getQueryData<InfiniteData>(folderKey)?.pages[0] ?? [];
+		expect(chat?.archived).toBe(true);
+		expect(otherChat?.title).toBe("Renamed");
+	});
+
 	it("rolls back both caches on error", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -1548,9 +1595,76 @@ describe("pinChat optimistic update", () => {
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
 		).toBe(5);
 	});
+
+	it("copies a chat only a project folder fetched into the matching sidebar list", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-folder-only";
+		seedInfiniteChats(queryClient, [makeChat("chat-loaded")]);
+		const sharedListKey = chatListKey(
+			toChatListParams({ sources: ["shared_with_me"] }),
+		);
+		queryClient.setQueryData(sharedListKey, { pages: [[]], pageParams: [0] });
+		queryClient.setQueryData(
+			projectFolderChatsKey("project-1", toChatListParams({})),
+			{
+				pages: [[makeChat(chatId, { project_id: "project-1" })]],
+				pageParams: [0],
+			},
+		);
+
+		const mutation = pinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
+				?.pin_order,
+		).toBe(1);
+		expect(
+			queryClient.getQueryData<InfiniteData>(sharedListKey)?.pages,
+		).toEqual([[]]);
+	});
+
+	it("restores the project list on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId, { project_id: "project-1" })]],
+			pageParams: [0],
+		});
+
+		const mutation = pinChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0][0].pin_order,
+		).toBe(0);
+	});
 });
 
 describe("moveChatToProject", () => {
+	it("gives the sidebar a copy of a chat only its old folder fetched", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-folder-only";
+		seedInfiniteChats(queryClient, [makeChat("chat-loaded")]);
+		queryClient.setQueryData(
+			projectFolderChatsKey("project-a", toChatListParams({})),
+			{
+				pages: [[makeChat(chatId, { project_id: "project-a" })]],
+				pageParams: [0],
+			},
+		);
+
+		const mutation = moveChatToProject(queryClient);
+		await mutation.onMutate({ chatId, projectId: "project-b" });
+
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
+				?.project_id,
+		).toBe("project-b");
+	});
+
 	it("restores the project when the move fails", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -1605,33 +1719,29 @@ describe("unpinChat optimistic update", () => {
 		).toBe(0);
 	});
 
-	it("rolls back both caches on error", async () => {
+	it("restores the list and entity caches on error", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })]);
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { pin_order: 3 }),
-		);
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const chat = makeChat(chatId, { pin_order: 3, project_id: "project-1" });
+		seedInfiniteChats(queryClient, [chat]);
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[chat]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), chat);
 
 		const mutation = unpinChat(queryClient);
 		const context = await mutation.onMutate(chatId);
-
-		// Verify optimistic update.
 		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
-		).toBe(0);
 
-		// Roll back.
+		// Restored without a refetch, which can fail too.
 		mutation.onError(new Error("server error"), chatId, context);
 
-		// The chats list is rolled back via invalidation.
-		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatListFamilyKey }),
-		);
-		// The individual chat cache is restored directly.
+		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(3);
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0][0].pin_order,
+		).toBe(3);
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
 		).toBe(3);
@@ -1716,6 +1826,70 @@ describe("chat cost query factories", () => {
 			chatId,
 			expect.any(AbortSignal),
 		);
+	});
+});
+
+describe("chatAttachments", () => {
+	const mockEarlierAttachment: TypesGen.ChatAttachment = {
+		...MockChatAttachment,
+		message_id: 5,
+	};
+
+	it.each([
+		{
+			name: "seeds an earlier boundary from a later boundary's list",
+			chatId: "chat-1",
+			beforeId: 10,
+			seeded: true,
+		},
+		{
+			name: "fetches a boundary that no cached list covers",
+			chatId: "chat-1",
+			beforeId: 30,
+			seeded: false,
+		},
+		{
+			name: "fetches another chat's boundary",
+			chatId: "chat-2",
+			beforeId: 10,
+			seeded: false,
+		},
+	])("$name", ({ chatId, beforeId, seeded }) => {
+		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
+			new Promise(() => {}),
+		);
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatAttachmentsKey("chat-1", 20), {
+			attachments: [
+				{ ...MockChatAttachment, message_id: 15 },
+				mockEarlierAttachment,
+			],
+		});
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, chatId, beforeId),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(observer.getCurrentResult().data).toEqual(
+			seeded ? { attachments: [mockEarlierAttachment] } : undefined,
+		);
+		expect(API.experimental.getChatAttachments).toHaveBeenCalledTimes(
+			seeded ? 0 : 1,
+		);
+		unsubscribe();
+	});
+
+	it("requests nothing until a boundary exists", () => {
+		const queryClient = createTestQueryClient();
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, "chat-1", undefined),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(API.experimental.getChatAttachments).not.toHaveBeenCalled();
+		unsubscribe();
 	});
 });
 
@@ -1904,6 +2078,7 @@ describe("mutation invalidation scope", () => {
 	): TypesGen.ChatQueuedMessage => ({
 		id,
 		chat_id: chatId,
+		busy_behavior: "queue",
 		created_at: `2025-01-01T00:10:${String(id).padStart(2, "0")}Z`,
 		content: [{ type: "text" as const, text: `queued ${id}` }],
 	});
@@ -2503,6 +2678,27 @@ describe("mutation invalidation scope", () => {
 	});
 });
 
+describe("deleteChatQueuedMessage", () => {
+	it("treats a missing row as deleted", async () => {
+		vi.mocked(API.experimental.deleteChatQueuedMessage).mockRejectedValue(
+			MockChatQueuedMessageNotFoundError,
+		);
+		const mutation = deleteChatQueuedMessage(createTestQueryClient(), "chat-1");
+
+		await expect(mutation.mutationFn(7)).resolves.toBeUndefined();
+	});
+
+	it("rethrows other errors", async () => {
+		const serverError = mockApiError({ message: "Internal error." });
+		vi.mocked(API.experimental.deleteChatQueuedMessage).mockRejectedValue(
+			serverError,
+		);
+		const mutation = deleteChatQueuedMessage(createTestQueryClient(), "chat-1");
+
+		await expect(mutation.mutationFn(7)).rejects.toBe(serverError);
+	});
+});
+
 describe("chatListKey shape", () => {
 	it("places the params object one slot after the list family prefix", () => {
 		const key = chatListKey(toChatListParams({ archived: true }));
@@ -2558,12 +2754,20 @@ describe("getChatListQueryString", () => {
 		expect(
 			getChatListQueryString(
 				toChatListParams({
+					statuses: ["paused", "waiting"],
+				}),
+			),
+		).toBe("archived:false status:waiting,paused");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
 					statuses: [
 						"requires_action",
 						"error",
 						"running",
 						"interrupting",
 						"waiting",
+						"paused",
 					],
 				}),
 			),
@@ -2947,6 +3151,46 @@ describe("project chat list caches", () => {
 		expect(
 			queryClient.getQueryState(projectChatsKey("project-2"))?.isInvalidated,
 		).toBe(false);
+	});
+
+	it("keeps an archived chat in an archived folder list and drops it from an active one", () => {
+		const queryClient = createTestQueryClient();
+		const activeKey = projectFolderChatsKey("project-1", toChatListParams());
+		const archivedKey = projectFolderChatsKey(
+			"project-1",
+			toChatListParams({ archived: true }),
+		);
+		for (const key of [activeKey, archivedKey]) {
+			queryClient.setQueryData(key, {
+				pages: [[makeChat("chat-1")]],
+				pageParams: [0],
+			});
+		}
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(activeKey)?.pages.flat(),
+		).toEqual([]);
+		expect(
+			queryClient
+				.getQueryData<InfiniteData>(archivedKey)
+				?.pages.flat()
+				.map((chat) => chat.archived),
+		).toEqual([true]);
+	});
+
+	it("marks a chat read in a project list", async () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-1", { has_unread: true }),
+		]);
+
+		await markChatRead(queryClient).onMutate("chat-1");
+
+		expect(readProjectChats(queryClient, "project-1")?.[0].has_unread).toBe(
+			false,
+		);
 	});
 
 	it("finds a chat that is only cached in a project list", () => {
@@ -5464,6 +5708,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queuedMessage: TypesGen.ChatQueuedMessage = {
 			id: 1,
 			chat_id: "chat-1",
+			busy_behavior: "queue",
 			created_at: "2025-01-01T00:10:00.000Z",
 			content: [{ type: "text", text: "queued" }],
 		};

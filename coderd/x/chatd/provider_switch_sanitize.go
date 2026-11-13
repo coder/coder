@@ -25,19 +25,6 @@ type providerSwitchStripStats struct {
 	DroppedMessages    int
 }
 
-// modelConfigProviderIdentity returns a stable identity for the upstream provider
-// behind a model config. When the config has an AIProviderID (the modern path),
-// the identity is the provider instance UUID, so two providers of the same type
-// (e.g. two openai-compat providers at different base URLs) are distinguished.
-// When AIProviderID is invalid (legacy configs with no provider row), the
-// identity falls back to the normalized provider type name.
-func modelConfigProviderIdentity(modelConfig database.ChatModelConfig, normalizedProvider string) string {
-	if modelConfig.AIProviderID.Valid {
-		return modelConfig.AIProviderID.UUID.String()
-	}
-	return normalizedProvider
-}
-
 const (
 	reasoningCredentialDeployment = "deployment"
 	reasoningCredentialUser       = "user"
@@ -124,7 +111,8 @@ func currentReasoningEpoch(rows []database.ChatMessage, target reasoningProvenan
 // stripping are dropped; rows that fail to parse or re-marshal are kept
 // unchanged.
 //
-// See modelConfigProviderIdentity for how identity is derived.
+// Provider identity is a model config's AI provider ID, so two providers of
+// the same type are distinct.
 func stripForeignProviderStateRows(
 	rows []database.ChatMessage,
 	target reasoningProvenance,
@@ -235,11 +223,11 @@ func (server *Server) sanitizeForeignProviderStateRows(
 		if _, seen := origins[id.UUID]; seen {
 			continue
 		}
-		originCfg, provider, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
+		originCfg, _, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
 		switch {
 		case err == nil:
 			origins[id.UUID] = reasoningProvenance{
-				ProviderIdentity: modelConfigProviderIdentity(originCfg, provider),
+				ProviderIdentity: originCfg.AIProviderID.UUID.String(),
 				Model:            originCfg.Model,
 			}
 		case modelConfigUnavailable(err):

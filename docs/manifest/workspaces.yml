@@ -1,0 +1,42 @@
+title: Workspaces
+description: Guides for Coder end users on accessing, managing, and personalizing their workspaces.
+path: ./workspaces/index.md
+icon_path: ./images/icons/users.svg
+children:
+  - include: workspaces/workspace-access.yml
+  - include: workspaces/desktop.yml
+  - title: Manage workspaces
+    description: Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.
+    path: ./workspaces/workspace-management.md
+    icon_path: ./images/icons/generic.svg
+  - title: Shared workspaces
+    description: Let multiple users securely connect to a single Coder workspace to program and debug together.
+    path: ./workspaces/shared-workspaces.md
+    icon_path: ./images/icons/generic.svg
+  - title: Persistent shared workspaces
+    description: Set up long-lived shared workspaces with service accounts and workspace sharing.
+    path: ./workspaces/persistent-shared-workspaces.md
+    state: [premium]
+  - title: Manage workspace schedules
+    description: Control cloud costs by scheduling when your Coder workspaces automatically start and stop.
+    path: ./workspaces/workspace-scheduling.md
+    icon_path: ./images/icons/stopwatch.svg
+  - title: Workspace lifecycle
+    description: A guide to the workspace lifecycle, from creation and status through stopping and deletion.
+    path: ./workspaces/workspace-lifecycle.md
+    icon_path: ./images/icons/circle-dot.svg
+  - include: workspaces/devcontainers.yml
+  - title: Dotfiles
+    description: Personalize your Coder workspaces by applying your dotfiles repository with the coder dotfiles command.
+    path: ./workspaces/workspace-dotfiles.md
+    icon_path: ./images/icons/art-pad.svg
+  - title: User secrets
+    description: Store secret values in Coder and automatically inject them into workspaces.
+    path: ./workspaces/user-secrets.md
+    icon_path: ./images/icons/secrets.svg
+  - title: Cloning Git repositories
+    description: Learn how to automatically clone Git repositories into your Coder workspaces on startup.
+    path: ./workspaces/cloning-git-repositories.md
+  - title: Speed up your workspaces
+    description: Speed up Coder template builds and workspace startup with practical optimizations.
+    path: ./workspaces/speed-up-templates.md

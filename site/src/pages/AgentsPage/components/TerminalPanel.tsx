@@ -15,6 +15,7 @@ import {
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { useTerminalClientSessionId } from "../context/TerminalClientSessionContext";
+import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 
 /** Promote a freshly created terminal tab after this delay if no output has painted. */
 const READY_FALLBACK_MS = 100;
@@ -27,13 +28,11 @@ type TerminalPanelProps = {
 	reconnectionToken?: string;
 	/** Command run when the PTY session is first created, such as a command app. */
 	initialCommand?: string;
-	/** Whether this terminal should hold live xterm and WebSocket resources. */
-	isHot: boolean;
 	/**
-	 * Gate on active-tab status, not just connect, so a tab connecting off screen
-	 * does not steal focus from the user.
+	 * Whether the tab is waiting for this terminal to be ready before it
+	 * switches to it. A pending terminal holds live resources while hidden.
 	 */
-	autoFocus: boolean;
+	isPending: boolean;
 	/**
 	 * Fires once the terminal is ready to be shown: the first output has
 	 * painted, the connection dropped, or a brief fallback timeout elapsed.
@@ -47,12 +46,16 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 	chatId,
 	reconnectionToken = chatId,
 	initialCommand,
-	isHot,
-	autoFocus,
+	isPending,
 	onReady,
 	workspace,
 	workspaceAgent,
 }) => {
+	const { isActive, isPanelOpen } = useTabPanelState();
+
+	// Whether this terminal should hold live xterm and WebSocket resources.
+	const isHot = isPanelOpen && (isActive || isPending);
+
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
@@ -158,7 +161,9 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 						agentId={workspaceAgent.id}
 						operatingSystem={workspaceAgent.operating_system}
 						isVisible={shouldMountTerminal}
-						autoFocus={isHot && autoFocus}
+						// Gate on active-tab status, not just connect, so a tab
+						// connecting off screen does not steal focus from the user.
+						autoFocus={isPanelOpen && isActive}
 						onStatusChange={handleStatusChange}
 						onContentReady={signalReady}
 						onError={handleTerminalError}

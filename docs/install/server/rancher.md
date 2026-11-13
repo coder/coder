@@ -40,11 +40,11 @@ We recommend that you use a managed PostgreSQL service, but you can use an in-cl
 For production deployments, we recommend using a managed PostgreSQL service:
 
 - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/)
-- [AWS RDS for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
+- [AWS Relational Database Service (RDS) for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
 - [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/)
 - [DigitalOcean Managed PostgreSQL](https://www.digitalocean.com/products/managed-databases-postgresql)
 
-Ensure that your PostgreSQL service:
+Make sure that your PostgreSQL service:
 
 - Is running and accessible from your cluster
 - Is in the same network/project as your cluster
@@ -135,9 +135,9 @@ kubectl create secret generic coder-db-url -n coder \
 1. Select a Coder version:
 
    - **Mainline**:
-     `2.38.0`
+     `2.39.0`
    - **Stable**:
-     `2.37.5`
+     `2.38.6`
 
    Learn more about release channels in the [Releases documentation](../../reference/releases.md).
 
@@ -160,5 +160,5 @@ To update or manage your Coder deployment later:
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

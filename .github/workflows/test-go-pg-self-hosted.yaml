@@ -1,0 +1,114 @@
+name: test-go-pg-self-hosted
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test-go-pg-self-hosted:
+    if: github.repository_owner == 'coder'
+    runs-on: coder-large
+    permissions:
+      contents: read
+    # Allow time for diagnostics and artifact uploads after the Go test timeout.
+    timeout-minutes: 30
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go Paths
+        uses: ./.github/actions/setup-go-paths
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go terraform"
+
+      - name: Install Go mise tools
+        shell: bash
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
+
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-pg-self-hosted-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        # Stable timestamps allow Go test cache reuse across CI runs.
+        run: |
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
+
+      - name: Normalize Terraform Path for Caching
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/sym"
+          source scripts/normalize_path.sh
+          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
+
+      - name: Test with PostgreSQL Database (Linux)
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "8"
+          # Run without the test cache on main, matching the Linux CI job.
+          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          gotestsum-json-file: default
+
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
+        with:
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
+
+      - name: Upload failed test db dumps
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failed-test-db-dump-linux
+          path: "**/*.test.sql"
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}

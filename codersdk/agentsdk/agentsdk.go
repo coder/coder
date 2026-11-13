@@ -120,9 +120,10 @@ type Manifest struct {
 	OwnerName     string    `json:"owner_name"`
 	WorkspaceID   uuid.UUID `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
-	// WorkspaceBuildID is the build that created this agent. It is
-	// uuid.Nil when the server predates the field.
+	// WorkspaceBuildID is the build that created this agent.
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
+	TemplateID       uuid.UUID `json:"template_id"`
+	TemplateName     string    `json:"template_name"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
@@ -411,6 +412,19 @@ func (c *Client) ConnectRPC215WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 15), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC216WithRole returns a dRPC client to the Agent API v2.16, which
+// adds the template ID and name to the manifest. Pass role "agent" for
+// workspace agents to enable connection monitoring.
+func (c *Client) ConnectRPC216WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 16), role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -730,7 +744,8 @@ type PatchAppStatus struct {
 	AppSlug string                           `json:"app_slug"`
 	State   codersdk.WorkspaceAppStatusState `json:"state"`
 	Message string                           `json:"message"`
-	URI     string                           `json:"uri"`
+	// Only http, https, and file URIs are kept; others are dropped.
+	URI string `json:"uri"`
 	// Deprecated: this field is unused and will be removed in a future version.
 	Icon string `json:"icon"`
 	// Deprecated: this field is unused and will be removed in a future version.
