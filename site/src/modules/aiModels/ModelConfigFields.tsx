@@ -812,7 +812,9 @@ export const PricingEstimateFields: React.FC<{
 									className="min-w-0 cursor-not-allowed text-content-secondary"
 									value={price?.value ?? ""}
 									aria-describedby={
-										price?.belowThreshold ? `${fieldId}-threshold` : undefined
+										price?.belowThreshold
+											? `${fieldId}-threshold`
+											: `${fieldId}-unit`
 									}
 									readOnly
 								/>
@@ -822,12 +824,13 @@ export const PricingEstimateFields: React.FC<{
 									{`less than $${price.value} USD per million tokens`}
 								</span>
 							)}
-							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-secondary">
-									USD/1M tokens
-								</span>
-							</InputGroupAddon>
 						</InputGroup>
+						<p
+							id={`${fieldId}-unit`}
+							className="m-0 text-xs text-content-secondary"
+						>
+							USD per 1M tokens
+						</p>
 					</div>
 				);
 			})}
