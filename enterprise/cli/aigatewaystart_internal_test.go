@@ -470,6 +470,50 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	require.True(t, gateway.drpcClosed.Load(), "DRPC connection must close during daemon shutdown")
 }
 
+func TestStandaloneGatewayServe_ProviderReloadShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+
+	// The reloader blocks in its first Reload call and ignores cancellation,
+	// so provider reload cannot stop before its shutdown timeout.
+	reloadStarted := make(chan struct{}, 1)
+	releaseReload := make(chan struct{})
+	defer close(releaseReload)
+	reloader := &mockReloader{onReload: func() {
+		reloadStarted <- struct{}{}
+		<-releaseReload
+	}}
+	gateway, _ := newTestStandaloneGateway(t, withClock(mClock))
+	gateway.reloader = reloader
+
+	providerReloadShutdownTrap := mClock.Trap().AfterFunc("aigateway", "provider_reload_shutdown")
+	defer providerReloadShutdownTrap.Close()
+
+	serveCtx, cancelServe := context.WithCancel(testCtx)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- gateway.serve(serveCtx)
+	}()
+	requireListening(testCtx, t, gateway, serveDone)
+	testutil.RequireReceive(testCtx, t, reloadStarted)
+
+	cancelServe()
+	providerReloadShutdownCall := providerReloadShutdownTrap.MustWait(testCtx)
+	providerReloadShutdownCall.MustRelease(testCtx)
+	require.Empty(t, serveDone, "serve must still be waiting for provider reload")
+
+	// Advance past the provider reload timeout. Serve must give up waiting
+	// for provider reload and still drain and close the HTTP server.
+	mClock.Advance(providerReloadShutdownTimeout).MustWait(testCtx)
+	err := testutil.RequireReceive(testCtx, t, serveDone)
+	require.ErrorContains(t, err, "provider reload did not stop within")
+	require.False(t, gateway.providerRefreshStopped.Load(), "provider refresh must not be marked stopped after a timeout")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed after serve returns")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until its runtime owner shuts it down")
+}
+
 // requireListening waits until the gateway's HTTP listener is bound and returns
 // its resolved address. It reports the serve error, such as a port clash, rather
 // than leaving callers to time out on an unrelated assertion.
