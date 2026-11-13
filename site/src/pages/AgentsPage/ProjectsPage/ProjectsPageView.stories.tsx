@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, userEvent, within } from "storybook/test";
 import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockChatProjectSummary,
 	MockUserMember,
@@ -126,7 +127,7 @@ const meta: Meta<typeof ProjectsPageView> = {
 		archivedProjects: [],
 		archivedError: undefined,
 		onRetryArchived: fn(),
-		onUnarchive: fn(),
+		onUnarchived: fn(),
 	},
 };
 
@@ -139,30 +140,31 @@ export const SharedWithYou: Story = { args: { tab: "shared" } };
 
 export const Loading: Story = { args: { projects: undefined } };
 
-const mockArchivedProjects: ChatProject[] = [
-	{
-		...MockChatProject,
-		id: "archived-release",
-		name: "Release 2.0",
-		description: "Chats from the 2.0 release.",
-		archived_at: "2026-11-01T12:00:00Z",
-	},
-	{
-		...MockChatProject,
-		id: "archived-shared",
-		name: "Shared archive",
-		description: "",
-		owner_id: MockUserMember.id,
-		archived_at: "2026-10-20T12:00:00Z",
-		permissions: { update: false, delete: false, share: false, archive: false },
-	},
-];
-
 export const Archived: Story = {
 	args: {
 		tab: "archived",
 		showArchivedTab: true,
-		archivedProjects: mockArchivedProjects,
+		archivedProjects: [
+			{
+				...MockArchivedChatProject,
+				id: "archived-release",
+				name: "Release 2.0",
+				description: "Chats from the 2.0 release.",
+			},
+			{
+				...MockArchivedChatProject,
+				id: "archived-shared",
+				name: "Shared archive",
+				description: "",
+				owner_id: MockUserMember.id,
+				permissions: {
+					update: false,
+					delete: false,
+					share: false,
+					archive: false,
+				},
+			},
+		],
 	},
 };
 
@@ -174,7 +176,19 @@ export const ArchivedActionsMenuOpen: Story = {
 				name: "Open project actions for Release 2.0",
 			}),
 		);
-		await screen.findByRole("menuitem", { name: "Unarchive project" });
+	},
+};
+
+export const ArchivedLoading: Story = {
+	args: { ...Archived.args, archivedProjects: undefined },
+};
+
+export const ArchivedLoadError: Story = {
+	args: {
+		...Archived.args,
+		archivedError: mockApiError({
+			message: "Failed to load archived projects.",
+		}),
 	},
 };
 

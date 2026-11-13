@@ -1,14 +1,19 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ChatProjectSummary } from "#/api/typesGenerated";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockChatProjectSummary,
 } from "#/testHelpers/entities";
-import { renderComponent } from "#/testHelpers/renderHelpers";
-import { ProjectCard } from "./ProjectCard";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
+import { ArchivedProjectCard, ProjectCard } from "./ProjectCard";
 
 const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 	const callbacks = {
@@ -88,5 +93,36 @@ describe("ProjectCard", () => {
 		await screen.findByRole("menuitem", { name: "Pin project" });
 		await user.keyboard("{Enter}");
 		expect(onPin).toHaveBeenCalledOnce();
+	});
+});
+
+describe("ArchivedProjectCard", () => {
+	// In a browser, a dialog that opens before the menu has finished closing
+	// loses focus to the menu.
+	it("opens Delete project once the menu has closed", async () => {
+		vi.useFakeTimers();
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ delay: null });
+		const onDelete = vi.fn();
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<MemoryRouter>
+					<ArchivedProjectCard
+						project={MockArchivedChatProject}
+						to="/agents/projects/chat-project-1"
+						onUnarchived={vi.fn()}
+						onDelete={onDelete}
+					/>
+				</MemoryRouter>
+			</QueryClientProvider>,
+		);
+		const actions = screen.getByRole("button", { name: /^Open project/ });
+		await user.click(actions);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		expect(onDelete).not.toHaveBeenCalled();
+		act(() => vi.runOnlyPendingTimers());
+		expect(onDelete).toHaveBeenCalledExactlyOnceWith(actions);
 	});
 });
