@@ -150,6 +150,7 @@ describe("checkSource", () => {
 			"if (event === `Task Events ${suffix}`) {}",
 			'switch (group) { case "User Events"!: break; }',
 			'enum Event { Task = "Task Events" }',
+			'const handlers = { ["Task Events"]: handle, [`Ops ${x} Log`]: h };',
 		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
@@ -391,6 +392,7 @@ describe("checkSource", () => {
 			'const k = <Card className="Foo Bar" value="Some Value" />;',
 			'const n = <div {...(ok ? { className: "Foo Bar" } : {})} />;',
 			'const o = <div {...(ok && { "data-x": "Is On" })} />;',
+			'const p = <div {...{ ["className"]: "Foo Bar" }} />;',
 			'const l = <input name="Plan Name" />;',
 			'const m = <ModuleCard name="New Workspace" />;',
 		].join("\n");
@@ -399,7 +401,7 @@ describe("checkSource", () => {
 			[4, "Workspaces"],
 			[4, "File"],
 			[5, "Template"],
-			[15, "Workspace"],
+			[16, "Workspace"],
 		]);
 	});
 

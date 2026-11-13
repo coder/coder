@@ -498,15 +498,29 @@ function enclosingJsxAttribute(node) {
 		isSpreadObject(property.parent, parent)
 	) {
 		// The outermost property of the spread object names the attribute.
-		name = ts.isStringLiteral(property.name)
-			? property.name.text
-			: property.name.getText();
+		name = staticPropertyName(property.name);
 	} else {
 		return null;
 	}
 	const tagName = parent.parent.parent.tagName;
 	const intrinsic = ts.isIdentifier(tagName) && /^[a-z]/.test(tagName.text);
 	return { name, intrinsic };
+}
+
+/**
+ * Returns the static text of a property name: `className`, "className",
+ * and ["className"] all return className.
+ */
+function staticPropertyName(name) {
+	const key = ts.isComputedPropertyName(name)
+		? skipTransparent(name.expression)
+		: name;
+	return ts.isIdentifier(key) ||
+		ts.isStringLiteral(key) ||
+		ts.isNoSubstitutionTemplateLiteral(key) ||
+		ts.isNumericLiteral(key)
+		? key.text
+		: name.getText();
 }
 
 /**
@@ -564,6 +578,7 @@ function isNonDisplayLiteral(literal) {
 		ts.isLiteralTypeNode(parent) ||
 		ts.isCaseClause(parent) ||
 		ts.isEnumMember(parent) ||
+		ts.isComputedPropertyName(parent) ||
 		ts.isElementAccessExpression(parent) ||
 		ts.isTaggedTemplateExpression(parent)
 	) {
