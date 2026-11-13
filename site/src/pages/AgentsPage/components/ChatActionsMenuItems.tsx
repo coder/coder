@@ -361,7 +361,7 @@ type UnarchiveBlockedReason =
 	| "projectCheckFailed";
 
 const unarchiveBlockedHints: Record<UnarchiveBlockedReason, string> = {
-	projectArchived: "Unarchive the project to restore this chat.",
+	projectArchived: "Unarchive the project before restoring this chat.",
 	checkingProject: "Checking whether the project is archived.",
 	projectCheckFailed:
 		"Couldn't check whether the project is archived. Reopen this menu to retry.",
