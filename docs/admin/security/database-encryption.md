@@ -25,8 +25,30 @@ The following database fields are currently encrypted:
 - `user_secrets.value`
 - `gitsshkeys.private_key`
 - `chat_mcp_servers.headers`
+- `ai_providers.settings`
+- `ai_provider_keys.api_key`
+- `user_ai_provider_keys.api_key`
+- `workspace_secrets.value`
+- `mcp_server_configs.oauth2_client_secret`
+- `mcp_server_configs.api_key_value`
+- `mcp_server_configs.custom_headers`
+- `mcp_server_configs.signing_secret`
+- `mcp_server_user_tokens.access_token`
+- `mcp_server_user_tokens.refresh_token`
 
 Additional database fields might be encrypted in the future.
+
+### Fields that the dbcrypt commands skip
+
+The `coder server dbcrypt` commands `rotate`, `decrypt`, and `delete` do not process the following encrypted fields:
+
+- `crypto_keys.secret`
+- `mcp_server_configs.oauth2_client_secret`
+- `mcp_server_configs.api_key_value`
+- `mcp_server_configs.custom_headers`
+- `mcp_server_configs.signing_secret`
+- `mcp_server_user_tokens.access_token`
+- `mcp_server_user_tokens.refresh_token`
 
 ### Implementation notes
 
@@ -34,7 +56,7 @@ Each encrypted database column `$C` has a corresponding `$C_key_id` column.
 This column is used to determine which encryption key was used to encrypt the data.
 This allows Coder to rotate encryption keys without invalidating existing tokens, and provides referential integrity for encrypted data.
 
-The `$C_key_id` column stores the first 7 bytes of the SHA-256 hash of the encryption key used to encrypt the data.
+The `$C_key_id` column stores the first 7 hexadecimal characters of the SHA-256 digest of the cipher name and the encryption key.
 
 Encryption keys in use are stored in `dbcrypt_keys`.
 This table stores a record of all encryption keys that have been used to encrypt data.
@@ -120,6 +142,11 @@ data:
   This command requires direct access to the database.
   If you are using the built-in PostgreSQL database, you can run [`coder server postgres-builtin-url`](../../reference/cli/server/postgres-builtin-url.md) to get the connection URL.
 
+  > [!NOTE]
+  > This command does not re-encrypt the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
+  > These values keep referencing the key that encrypted them.
+  > For a known issue that affects revoking keys, refer to [Troubleshooting](#troubleshooting).
+
 - Once the above command completes successfully, remove the old encryption key from Coder's configuration and restart Coder once more.
   You can now safely delete the old key from your secret store.
 
@@ -139,6 +166,9 @@ To disable encryption, perform the following actions:
   This command will decrypt all encrypted user tokens and revoke all active encryption keys.
 
   > [!NOTE]
+  > This command does not decrypt the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
+  > For a known issue that affects revoking keys, refer to [Troubleshooting](#troubleshooting).
+  >
   > for `decrypt` command, the equivalent environment variable for `--keys` is `CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS` and not `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`.
   > This is explicitly named differently to help prevent accidentally decrypting data.
 
@@ -165,6 +195,10 @@ To delete all encrypted data from your database, perform the following actions:
 - Run [`coder server dbcrypt delete`](../../reference/cli/server/dbcrypt/delete.md).
   This command will delete all encrypted user tokens and revoke all active encryption keys.
 
+  > [!NOTE]
+  > This command does not delete the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
+  > For a known issue that affects revoking keys, refer to [Troubleshooting](#troubleshooting).
+
 - Remove all [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys) from Coder's configuration.
 
 - Start `coderd`.
@@ -178,6 +212,8 @@ To delete all encrypted data from your database, perform the following actions:
   If you are seeing this behavior, make sure that the encryption keys provided are correct and that you have not revoked any keys that are still in use.
 - Decryption might fail if newly encrypted data is written while decryption is in progress.
   If this happens, make sure that all active coder instances are stopped, and retry.
+- Revoking encryption keys during rotate, decrypt, or delete can fail with a foreign key violation while rows in the fields that these commands do not handle still reference the key.
+  For details, visit [GitHub issue 25381](https://github.com/coder/coder/issues/25381).
 
 ## Next steps
 

@@ -38,22 +38,25 @@ Take this example resource:
 data "coder_workspace" "me" {
 }
 
+data "coder_workspace_owner" "me" {
+}
+
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-home"
+  name = "coder-${data.coder_workspace_owner.me.name}-home"
 }
 ```
 
-Because we depend on `coder_workspace.me.owner`, if the owner changes their username, Terraform will recreate the volume (wiping its data!) the next time that Coder starts the workspace.
+Because we depend on `data.coder_workspace_owner.me.name`, if the owner changes their username, Terraform will recreate the volume (wiping its data!) the next time that Coder starts the workspace.
 
 ✅ To prevent this, use immutable IDs:
 
-- `coder_workspace.me.owner_id`
-- `coder_workspace.me.id`
+- `data.coder_workspace_owner.me.id`
+- `data.coder_workspace.me.id`
 
 ⚠️ Avoid mutable IDs:
 
-- `coder_workspace.me.name`
-- `coder_workspace.me.owner`
+- `data.coder_workspace.me.name`
+- `data.coder_workspace_owner.me.name`
 
 Workspace renaming is disabled by default to help prevent this kind of destruction, but a template admin can enable it.
 Refer to [Workspace renaming](../managing-templates/index.md#workspace-renaming).
@@ -65,7 +68,7 @@ data "coder_workspace" "me" {
 resource "docker_volume" "home_volume" {
   # This volume will survive until the Workspace is deleted or the template
   # admin changes this resource block.
-  name = "coder-${data.coder_workspace.id}-home"
+  name = "coder-${data.coder_workspace.me.id}-home"
 }
 ```
 

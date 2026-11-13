@@ -50,11 +50,8 @@ export const ConnectionLogPageView: React.FC<ConnectionLogPageViewProps> = ({
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
-				<PageHeaderTitle>
-					<div className="flex gap-2 items-center">
-						<span>Connection Log</span>
-						<ConnectionLogHelpPopover />
-					</div>
+				<PageHeaderTitle tooltip={<ConnectionLogHelpPopover />}>
+					Connection Log
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					View workspace connection events.{" "}

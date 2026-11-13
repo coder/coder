@@ -108,7 +108,7 @@ resource "coder_agent" "main" {
 Use the latest module version from the registry.
 
 > [!NOTE]
-> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
+> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.16.0 or later, and receive the credential as a workspace build secret.
 > Do not set `AGENT_RELAY_CURSOR_TOKEN` in the template yourself.
 > To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
@@ -197,7 +197,8 @@ Worker startup after the build doesn't.
 - The default is `10m` and the maximum is `15m`.
   Set `0` to turn off the deadline.
 - When the deadline passes, Agent Relay deletes the workspace and the developer's chat shows `agent-relay: workspace build exceeded the spawn budget`.
-- Regardless of the deadline, Agent Relay deletes a workspace that's still building after the [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from its latest build by default.
+- Regardless of the deadline, Agent Relay deletes a workspace that's still building after the longer of `dispatch_deadline` and the reaper's [startup grace](./configuration.md#--reap-startup-grace).
+  The grace is 15&nbsp;minutes by default and starts when the latest build is created.
 
 Slow templates are the most common reason sessions don't start.
 Pre-pull images, avoid persistent volumes, and bake the Cursor CLI into the image with `install_cli = false`.
@@ -327,6 +328,47 @@ For workspace credentials:
 Each pool maps to one template.
 Use separate pools when repositories need different templates or credentials.
 
+To give one repository a template of its own, such as an image that has the repository cloned and its toolchain installed, set [`repo_url`](./configuration.md#cursor-pool-fields) on a pool for that repository.
+Cursor calls this a repo-backed pool.
+A pool without `repo_url` is an any-repo pool, which serves sessions for any repository, so its workspaces get the repository in one of the ways described earlier in this section.
+For how Cursor routes sessions to each kind of pool, refer to [Cursor's any-repo pools documentation](https://cursor.com/docs/cloud-agent/self-hosted/pool#any-repo-pools).
+
+In a repo-backed pool, start the worker in the clone.
+The worker runs sessions in the directory it starts in, and the module doesn't pass `--worker-dir`, so the worker starts in the agent's directory, which is usually the home directory.
+Set `dir` on `coder_agent` to the clone's path:
+
+```tf
+resource "coder_agent" "main" {
+  os   = "linux"
+  arch = "amd64"
+  # The path the template or image clones the repository into.
+  dir  = "/home/coder/repo"
+}
+```
+
+The directory must exist before the worker starts, so clone into it in the image or in a [script that runs before the module](./setup.md#start-the-worker-after-workspace-setup).
+To start the worker in a different directory than the agent, pass `additional_args = ["--worker-dir", "/home/coder/repo"]` to the module instead.
+
+For example, these two pools share one API key:
+
+```yaml
+# Under cursorWorkerPools in config.yaml, or pools.cursor in values.yaml.
+- name: coder-repo
+  secret_env: CURSOR_SERVICE_ACCOUNT_KEY
+  cursor_pool_name: coder-repo
+  organization: coder
+  # The image has coder/coder cloned and its toolchain installed.
+  template: cursor-coder
+  repo_url: https://github.com/coder/coder
+- name: any-repo
+  secret_env: CURSOR_SERVICE_ACCOUNT_KEY
+  cursor_pool_name: any-repo
+  organization: coder
+  template: cursor-relay
+```
+
+In the Cursor dashboard, `coder-repo` appears under the `coder/coder` repository, and `any-repo` appears under **Any repo**.
+
 ## Workspace lifecycle
 
 The module reports the worker's state through `agent_relay_status`, and Agent Relay's reaper acts on it:
@@ -341,7 +383,7 @@ The module reports the worker's state through `agent_relay_status`, and Agent Re
 | `done <exitcode>` | The worker exited with that status. `0` is a normal release.                       | Delete on `0`, fail on anything else.                           |
 | `failed <reason>` | The worker couldn't start, such as `runner-agent-missing` when the CLI is absent.  | Fail.                                                           |
 
-Both delete and fail remove the workspace.
+Both delete and fail remove the workspace, after the [reap delay](./configuration.md#--reap-delay) if you set one.
 A failure is also recorded in logs and metrics, and ends the developer's turn in Cursor with an error if the turn is still waiting.
 
 After each turn, the worker waits for a follow-up for the pool's `idle_release_timeout`, then exits, and Agent Relay deletes the workspace.

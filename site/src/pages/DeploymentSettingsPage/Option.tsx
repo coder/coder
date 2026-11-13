@@ -3,7 +3,7 @@ import { WrenchIcon } from "lucide-react";
 import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 
 export const OptionName: React.FC<React.PropsWithChildren> = ({ children }) => {
-	return <span className="block text-sm text-content-primary">{children}</span>;
+	return <h3 className="m-0 text-sm text-content-primary">{children}</h3>;
 };
 
 export const OptionDescription: React.FC<React.PropsWithChildren> = ({
@@ -108,7 +108,7 @@ export const OptionConfig: React.FC<OptionConfigProps> = ({
 		<div
 			{...attrs}
 			className={cn(
-				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
+				"inline-flex items-center gap-1.5 rounded border p-1.5",
 				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&

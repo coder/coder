@@ -63,7 +63,7 @@ func TestNewRequestProxy(t *testing.T) {
 			require.NoError(t, err)
 			captures := make(chan proxyCaptures, 3)
 			gateway, client := startServer(t, tc.http2, func(w http.ResponseWriter, r *http.Request) {
-				requestCapture := replaybody.NewRequest(r)
+				forwarded, requestCapture := replaybody.NewRequest(r)
 				var responseCapture *replaybody.TeeBuffer
 				proxy := &httputil.ReverseProxy{
 					Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(target) },
@@ -76,7 +76,7 @@ func TestNewRequestProxy(t *testing.T) {
 						return response, nil
 					}),
 				}
-				proxy.ServeHTTP(w, r)
+				proxy.ServeHTTP(w, forwarded)
 				_ = requestCapture.Close()
 				_ = responseCapture.Close()
 				var c proxyCaptures
@@ -113,8 +113,8 @@ func TestNewRequestProxy(t *testing.T) {
 }
 
 // TestNewRequestReplay checks the wrapped request without a server: the
-// declared length is preserved, and Body and GetBody each replay the full
-// payload.
+// inbound request is unchanged, the declared length is preserved, and Body and
+// GetBody each replay the full payload.
 func TestNewRequestReplay(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -126,9 +126,12 @@ func TestNewRequestReplay(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("payload"))
-			capture := replaybody.NewRequest(request)
+			inbound := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("payload"))
+			inboundBody := inbound.Body
+			request, capture := replaybody.NewRequest(inbound)
 			defer capture.Close()
+			require.Equal(t, inboundBody, inbound.Body, "wrapping must not modify the inbound request")
+			require.Nil(t, inbound.GetBody, "wrapping must not modify the inbound request")
 			require.EqualValues(t, len("payload"), request.ContentLength, "wrapping must preserve the declared length")
 			require.NotNil(t, request.GetBody, "wrapped requests must expose GetBody")
 			var initial io.Reader = request.Body
@@ -201,7 +204,7 @@ func TestNewResponseProxy(t *testing.T) {
 			require.NoError(t, err)
 			captures := make(chan proxyCaptures, 2)
 			gateway, client := startServer(t, false, func(w http.ResponseWriter, r *http.Request) {
-				requestCapture := replaybody.NewRequest(r)
+				forwarded, requestCapture := replaybody.NewRequest(r)
 				var responseCapture *replaybody.TeeBuffer
 				proxy := &httputil.ReverseProxy{
 					Rewrite:       func(r *httputil.ProxyRequest) { r.SetURL(target) },
@@ -223,7 +226,7 @@ func TestNewResponseProxy(t *testing.T) {
 						return response, nil
 					}),
 				}
-				proxy.ServeHTTP(w, r)
+				proxy.ServeHTTP(w, forwarded)
 				_ = requestCapture.Close()
 				_ = responseCapture.Close()
 				var c proxyCaptures
@@ -263,10 +266,13 @@ func TestNewResponseProxy(t *testing.T) {
 // Body that reads EOF rather than http.NoBody.
 func TestNewRequestZeroLength(t *testing.T) {
 	t.Parallel()
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
-	request.Body = io.NopCloser(strings.NewReader(""))
-	capture := replaybody.NewRequest(request)
+	inbound := httptest.NewRequest(http.MethodGet, "/", nil)
+	inbound.Body = io.NopCloser(strings.NewReader(""))
+	inboundBody := inbound.Body
+	request, capture := replaybody.NewRequest(inbound)
 	t.Cleanup(func() { require.NoError(t, capture.Close()) })
+	require.Equal(t, inboundBody, inbound.Body, "wrapping must not modify the inbound request")
+	require.Nil(t, inbound.GetBody, "wrapping must not modify the inbound request")
 	require.Equal(t, http.NoBody, request.Body, "zero-length bodies must become http.NoBody")
 	require.Zero(t, request.ContentLength, "zero-length requests must keep a zero length")
 	replay, err := request.GetBody()
@@ -288,9 +294,9 @@ func TestHTTPConstructorsEmpty(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			request := httptest.NewRequest(http.MethodPost, "/", nil)
-			request.Body = tc.body
-			requestCapture := replaybody.NewRequest(request)
+			inbound := httptest.NewRequest(http.MethodPost, "/", nil)
+			inbound.Body = tc.body
+			request, requestCapture := replaybody.NewRequest(inbound)
 			require.NotNil(t, requestCapture, "empty requests must still return a buffer")
 			require.Equal(t, http.NoBody, request.Body, "empty request bodies must use http.NoBody")
 			require.Zero(t, request.ContentLength, "empty requests must keep a zero length")

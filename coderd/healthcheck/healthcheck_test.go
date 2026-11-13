@@ -21,6 +21,7 @@ type testChecker struct {
 	DatabaseReport           healthsdk.DatabaseReport
 	WorkspaceProxyReport     healthsdk.WorkspaceProxyReport
 	ProvisionerDaemonsReport healthsdk.ProvisionerDaemonsReport
+	PubsubReport             healthsdk.PubsubReport
 }
 
 func (c *testChecker) DERP(context.Context, *derphealth.ReportOptions) healthsdk.DERPHealthReport {
@@ -45,6 +46,10 @@ func (c *testChecker) WorkspaceProxy(context.Context, *healthcheck.WorkspaceProx
 
 func (c *testChecker) ProvisionerDaemons(context.Context, *healthcheck.ProvisionerDaemonsReportDeps) healthsdk.ProvisionerDaemonsReport {
 	return c.ProvisionerDaemonsReport
+}
+
+func (c *testChecker) Pubsub(context.Context, *healthcheck.PubsubReportOptions) healthsdk.PubsubReport {
+	return c.PubsubReport
 }
 
 // healthyChecker returns a testChecker where all reports are healthy
@@ -73,6 +78,9 @@ func healthyChecker() *testChecker {
 			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
 		},
 		ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		PubsubReport: healthsdk.PubsubReport{
 			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
 		},
 	}
@@ -218,6 +226,33 @@ func TestHealthcheck(t *testing.T) {
 			severity: health.SeverityWarning,
 		},
 		{
+			name: "PubsubFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.PubsubReport = healthsdk.PubsubReport{
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
+		},
+		{
+			name: "PubsubWarn",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.PubsubReport = healthsdk.PubsubReport{
+					BaseReport: healthsdk.BaseReport{
+						Severity: health.SeverityWarning,
+						Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
+					},
+				}
+				return c
+			}(),
+			healthy:  true,
+			severity: health.SeverityWarning,
+		},
+		{
 			name:    "AllFail",
 			healthy: false,
 			checker: &testChecker{
@@ -244,6 +279,9 @@ func TestHealthcheck(t *testing.T) {
 				ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
 					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
 				},
+				PubsubReport: healthsdk.PubsubReport{
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				},
 			},
 			severity: health.SeverityError,
 		},
@@ -268,6 +306,8 @@ func TestHealthcheck(t *testing.T) {
 			assert.Equal(t, c.checker.WebsocketReport.Severity, report.Websocket.Severity)
 			assert.Equal(t, c.checker.DatabaseReport.Healthy, report.Database.Healthy)
 			assert.Equal(t, c.checker.DatabaseReport.Severity, report.Database.Severity)
+			assert.Equal(t, c.checker.PubsubReport.Severity, report.Pubsub.Severity)
+			assert.Equal(t, c.checker.PubsubReport.Warnings, report.Pubsub.Warnings)
 			assert.NotZero(t, report.Time)
 			assert.NotZero(t, report.CoderVersion)
 		})

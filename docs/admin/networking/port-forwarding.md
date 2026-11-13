@@ -113,9 +113,10 @@ Coder will also detect if apps inside the workspace are listening on ports, and 
 ### Share ports
 
 We allow developers to share ports as URLs, either with other authenticated coder users or publicly.
-Using the open ports interface, developers can assign a sharing levels that match our `coder_app`’s share option in [Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share-1).
+Using the open ports interface, developers can assign a sharing level to a port.
 
 - `owner` (Default): The implicit sharing level for all listening ports, only visible to the workspace owner
+- `organization`: Accessible by authenticated users in the same organization as the workspace.
 - `authenticated`: Accessible by other authenticated Coder users on the same deployment.
 - `public`: Accessible by any user with the associated URL.
 
@@ -136,7 +137,7 @@ The `share` attribute on `coder_app` resource uses a different method of authent
 
 Premium-licensed template admins can control the maximum port sharing level for workspaces under a given template in the template settings.
 By default, the maximum sharing level is set to `Owner`, meaning port sharing is disabled for end-users.
-OSS deployments allow all workspaces to share ports at both the `authenticated` and `public` levels.
+OSS deployments allow all workspaces to share ports at all levels, including `organization`.
 
 ![Max port sharing level in the UI](../../images/networking/portsharingmax.png)
 
@@ -196,11 +197,16 @@ Credentials are allowed and the allowed methods and headers will echo whatever t
 
 #### Configuration
 
-These cross-origin headers are not configurable by administrative settings.
+Template admins set the **CORS Behavior** in the template's **Settings** page.
+The setting applies to every app and port in the template's workspaces.
+It has two values:
 
-If applications set any of the above headers they will be stripped from the response except for `Vary` headers that are set to a value other than the ones listed above.
+- `Simple` (recommended): Coder applies its built-in CORS handling, as described in this section.
+  If an application sets any of the headers above, Coder strips them from the response, except for `Vary` headers that are set to a value other than the ones listed above.
+- `Passthru`: Coder bypasses its built-in CORS protection and passes the application's own CORS headers through to the browser.
 
-In other words, CORS behavior through the dashboard is not currently configurable by either admins or users.
+Passthru reduces protection against cross-origin requests, so only use it for applications that handle CORS correctly.
+For more about managing template settings, refer to [Managing templates](../../templates/managing-templates/index.md).
 
 #### Allowed by default
 

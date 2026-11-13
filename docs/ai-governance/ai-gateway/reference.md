@@ -142,8 +142,6 @@ The legacy [`/v1/completions`](https://platform.openai.com/docs/api-reference/co
 
 ### Anthropic
 
-The Anthropic provider also serves the AWS Bedrock provider type.
-
 #### Intercepted
 
 - [`/v1/messages`](https://docs.claude.com/en/api/messages)
@@ -153,6 +151,13 @@ The Anthropic provider also serves the AWS Bedrock provider type.
 - [`/v1/messages/count_tokens`](https://docs.claude.com/en/api/messages-count-tokens)
 - [`/v1/models(/*)`](https://docs.claude.com/en/api/models-list)
 - `/api/event_logging/*`
+
+### Amazon Bedrock
+
+#### Intercepted
+
+- [`/v1/messages`](https://docs.claude.com/en/api/messages), for both InvokeModel and Mantle
+- `/v1/chat/completions` and `/v1/responses`, for Mantle only
 
 ### GitHub Copilot
 

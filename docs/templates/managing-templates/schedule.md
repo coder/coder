@@ -78,9 +78,6 @@ It cannot be changed from the default of 1 if you have selected "Daily" for "Day
 When using a value greater than 1, workspaces will be automatically stopped every N weeks on the day specified by "Days" and the user's quiet hours.
 The autostop week is synchronized for all workspaces on the same template.
 
-Autostop requirement is disabled when the template is using the deprecated max lifetime feature.
-Templates can choose to use a max lifetime or an autostop requirement during the deprecation period, but only one can be used at a time.
-
 ## User quiet hours
 
 > [!NOTE]

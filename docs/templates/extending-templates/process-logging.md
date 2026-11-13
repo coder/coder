@@ -202,7 +202,7 @@ If you have an existing Kubernetes or Kubernetes with `envbox` template that you
    > `exectrace` requires root privileges and a privileged container to attach probes to the kernel.
    > This is a requirement of eBPF.
 
-1. Add the following environment variable to your workspace pod:
+1. Add the following environment variable to the container in your workspace pod:
 
    <!--
      If you are updating this section, please also update the example templates
@@ -211,16 +211,18 @@ If you have an existing Kubernetes or Kubernetes with `envbox` template that you
 
    ```tf
    resource "kubernetes_pod" "main" {
-     ...
+     # ...
      spec {
-       ...
-       env {
-         name = "CODER_AGENT_SUBSYSTEM"
-         value = "exectrace"
+       # ...
+       container {
+         # ...
+         env {
+           name  = "CODER_AGENT_SUBSYSTEM"
+           value = "exectrace"
+         }
+         # ...
        }
-       ...
      }
-     ...
    }
    ```
 

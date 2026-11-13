@@ -413,6 +413,7 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
+  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -441,6 +442,7 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `embedded_enabled`                  | boolean | false    |              | Embedded enabled controls whether coderd starts the in-memory AI Gateway. It only takes effect when Enabled is true.                                                                                                                                                   |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1129,6 +1131,7 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
+    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -3809,18 +3812,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                            |
-|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                |
-| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
+| Name               | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------|-------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`         | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                                                                                           |
+| `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot version, a number that the server increases each time it changes the chat's messages, queue or status. The server sets it only when the request has neither before_id nor after_id. Pass it as the stream's snapshot_version parameter. The server reads this version before the page's messages and queued messages, so the page can include changes made at a higher version. The stream can send changes that are already in the page. |
+| `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatModel
 
@@ -5515,6 +5520,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
+  "history_reset": {
+    "from_message_id": 0
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -5719,6 +5727,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
   },
+  "snapshot_version": 0,
   "status": {
     "status": "waiting"
   },
@@ -5728,17 +5737,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                                             |
-|-------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                         |
-| `chat_id`         | string                                                                 | false    |              |                                                                                                         |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                         |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                         |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                         |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages. |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                         |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                         |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                         |
+| Name               | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+|--------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `chat_id`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `history_reset`    | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                        |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                        |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `snapshot_version` | integer                                                                | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events. |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                |
 
 ## codersdk.ChatStreamEventType
 
@@ -5753,6 +5764,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                                                                                   |
 |----------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+
+## codersdk.ChatStreamHistoryReset
+
+```json
+{
+  "from_message_id": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                   |
+|-------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept. |
 
 ## codersdk.ChatStreamMessagePart
 
@@ -8271,6 +8296,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
+        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8606,6 +8632,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
+      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -8909,6 +8936,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
+      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -9244,6 +9272,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
+    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -9976,9 +10005,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agent-plugins`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -12566,6 +12595,140 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendOverview
+
+```json
+{
+  "count": 0,
+  "intervals": [
+    {
+      "end_time": "2019-08-24T14:15:22Z",
+      "spend_micros": 0,
+      "start_time": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "median_spend_micros": 0,
+    "spend_micros": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "groups": [
+        {
+          "group_display_name": "string",
+          "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+          "group_name": "string",
+          "spend_micros": 0
+        }
+      ],
+      "name": "string",
+      "spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                            |
+|----------------|-------------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`        | integer                                                                                               | false    |              | Count is the number of users with spend in the period.                                                                                                                                                                                 |
+| `intervals`    | array of [codersdk.OrganizationAISpendOverviewInterval](#codersdkorganizationaispendoverviewinterval) | false    |              | Intervals holds the daily spend, one interval per UTC day in the period (omitting days after the current day). Days without spend are zero. When the period includes the current day, its interval only has the spend recorded so far. |
+| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                  |
+| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                |
+| `totals`       | [codersdk.OrganizationAISpendOverviewTotals](#codersdkorganizationaispendoverviewtotals)              | false    |              |                                                                                                                                                                                                                                        |
+| `users`        | array of [codersdk.OrganizationAISpendOverviewUser](#codersdkorganizationaispendoverviewuser)         | false    |              | Users is the requested page, most spend first.                                                                                                                                                                                         |
+
+## codersdk.OrganizationAISpendOverviewGroup
+
+```json
+{
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                              |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------|
+| `group_display_name` | string  | false    |              |                                                                          |
+| `group_id`           | string  | false    |              |                                                                          |
+| `group_name`         | string  | false    |              |                                                                          |
+| `spend_micros`       | integer | false    |              | Spend micros is the user's spend attributed to this group in the period. |
+
+## codersdk.OrganizationAISpendOverviewInterval
+
+```json
+{
+  "end_time": "2019-08-24T14:15:22Z",
+  "spend_micros": 0,
+  "start_time": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `end_time`     | string  | false    |              |             |
+| `spend_micros` | integer | false    |              |             |
+| `start_time`   | string  | false    |              |             |
+
+## codersdk.OrganizationAISpendOverviewTotals
+
+```json
+{
+  "median_spend_micros": 0,
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                                       |
+|-----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `median_spend_micros` | integer | false    |              | Median spend micros is the median spend across users with spend in the period. It is zero when no user has spend. |
+| `spend_micros`        | integer | false    |              | Spend micros is the total spend of all users in the period.                                                       |
+
+## codersdk.OrganizationAISpendOverviewUser
+
+```json
+{
+  "avatar_url": "string",
+  "groups": [
+    {
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "spend_micros": 0
+    }
+  ],
+  "name": "string",
+  "spend_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                            | Required | Restrictions | Description                                                                       |
+|----------------|-------------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `avatar_url`   | string                                                                                          | false    |              |                                                                                   |
+| `groups`       | array of [codersdk.OrganizationAISpendOverviewGroup](#codersdkorganizationaispendoverviewgroup) | false    |              | Groups are the groups the user's spend was attributed to, most spend first.       |
+| `name`         | string                                                                                          | false    |              |                                                                                   |
+| `spend_micros` | integer                                                                                         | false    |              | Spend micros is the user's total spend in the period, across all of their groups. |
+| `user_id`      | string                                                                                          | false    |              |                                                                                   |
+| `username`     | string                                                                                          | false    |              |                                                                                   |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -13922,6 +14085,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
+  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13934,6 +14098,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
+| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
@@ -19367,7 +19532,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                                                                                        |
-| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `environment_variables`      | object                                                                                       | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -21439,9 +21604,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EPS01`, `EPS02`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 
@@ -21966,9 +22131,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Websocket`, `WorkspaceProxy` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Pubsub`, `Websocket`, `WorkspaceProxy` |
 
 ## healthsdk.HealthSettings
 
@@ -22297,6 +22462,18 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       }
     ]
   },
+  "pubsub": {
+    "backend": "string",
+    "dismissed": true,
+    "error": "string",
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
   "websocket": {
@@ -22369,6 +22546,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `pubsub`              | [healthsdk.PubsubReport](#healthsdkpubsubreport)                         | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`                | string                                                                   | false    |              | Time is the time the report was generated at.                                       |
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
@@ -22495,6 +22673,33 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 |----------------------|----------------------------------------------------------|----------|--------------|-------------|
 | `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
+
+## healthsdk.PubsubReport
+
+```json
+{
+  "backend": "string",
+  "dismissed": true,
+  "error": "string",
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                      | Required | Restrictions | Description                                  |
+|-------------|-------------------------------------------|----------|--------------|----------------------------------------------|
+| `backend`   | string                                    | false    |              | Backend is the pubsub implementation in use. |
+| `dismissed` | boolean                                   | false    |              |                                              |
+| `error`     | string                                    | false    |              |                                              |
+| `severity`  | [health.Severity](#healthseverity)        | false    |              |                                              |
+| `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                              |
 
 ## healthsdk.STUNReport
 

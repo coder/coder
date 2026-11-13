@@ -290,7 +290,7 @@ export function Autocomplete<TOption>({
 						}}
 						onKeyDownCapture={handleInlineKeyDown}
 						className={cn(
-							"flex h-10 w-full items-center rounded-md border border-border border-solid",
+							"flex h-10 w-full items-center rounded-md border",
 							"bg-transparent px-3 py-2 text-sm shadow-xs transition-colors",
 							"placeholder:text-content-secondary text-content-primary",
 							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
@@ -374,7 +374,7 @@ export function Autocomplete<TOption>({
 						disabled={disabled}
 						className={cn(
 							"flex h-10 w-full items-center justify-between gap-2",
-							"rounded-md border border-border border-solid bg-transparent px-3 py-2",
+							"rounded-md border bg-transparent px-3 py-2",
 							"text-sm shadow-xs transition-colors",
 							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 							"disabled:cursor-not-allowed disabled:opacity-50",

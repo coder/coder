@@ -45,10 +45,13 @@ The current list endpoint returns up to 100 of the newest runs.
 
 ### API access
 
+> [!NOTE]
+> These endpoints are experimental and might change in a future release.
+
 The same data is available through the API:
 
-- `GET /api/v2/chats/{chat}/debug/runs` lists the most recent runs for a chat (up to 100, newest first).
-- `GET /api/v2/chats/{chat}/debug/runs/{debugRun}` returns a single run with all of its steps, including normalized request and response bodies.
+- `GET /api/experimental/chats/{chat}/debug/runs` lists the most recent runs for a chat (up to 100, newest first).
+- `GET /api/experimental/chats/{chat}/debug/runs/{debugRun}` returns a single run with all of its steps, including normalized request and response bodies.
 
 Fetch a single run and save it as JSON:
 
@@ -60,7 +63,7 @@ export RUN_ID="11111111-1111-1111-1111-111111111111"
 
 curl -fsS \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-  "$CODER_URL/api/v2/chats/$CHAT_ID/debug/runs/$RUN_ID" \
+  "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs/$RUN_ID" \
   | jq . > "coder-agents-debug-run-$RUN_ID.json"
 ```
 
@@ -70,7 +73,7 @@ Using the same `CODER_URL`, `CODER_SESSION_TOKEN`, and `CHAT_ID` variables from 
 ```sh
 RUN_IDS=$(curl -fsS \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-  "$CODER_URL/api/v2/chats/$CHAT_ID/debug/runs" \
+  "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs" \
   | jq -r '.[].id') || {
   echo "Failed to list debug runs" >&2
   exit 1
@@ -82,7 +85,7 @@ trap 'rm -f "$RUN_EXPORTS"' EXIT
 for RUN_ID in $RUN_IDS; do
   curl -fsS \
     -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-    "$CODER_URL/api/v2/chats/$CHAT_ID/debug/runs/$RUN_ID" \
+    "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs/$RUN_ID" \
     >> "$RUN_EXPORTS" || {
       echo "Failed to fetch debug run $RUN_ID" >&2
       exit 1

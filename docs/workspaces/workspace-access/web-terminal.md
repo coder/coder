@@ -78,7 +78,7 @@ The terminal uses reconnection tokens to maintain session state:
 - Each terminal session has a unique universally unique identifier (UUID)
 - If the connection drops, the same token is used to reconnect
 - The workspace agent buffers output during disconnections
-- Your shell session continues running even when the browser is closed
+- Your shell session keeps running while the browser is connected and for about 5&nbsp;minutes after it disconnects, then it ends.
 
 ## Customization
 
@@ -111,7 +111,8 @@ Administrators can configure the terminal renderer for performance optimization:
 
 ```yaml
 # In your Coder deployment configuration
-webTerminalRenderer: "canvas" # Options: canvas, webgl, dom
+client:
+  webTerminalRenderer: "canvas" # Options: canvas, webgl, dom
 ```
 
 Or via environment variable:
