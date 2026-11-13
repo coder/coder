@@ -92,7 +92,7 @@ export const WorkspaceAutostopSettings: React.FC<
 			title="Workspace autostop fallback"
 			description="Set a default autostop for agent-created workspaces that don't have one defined in their template. Template-defined autostop rules always take precedence. Active conversations will extend the stop time."
 			docsHref={docs(
-				"/ai-coder/agents/platform-controls#workspace-autostop-fallback",
+				"/coder-agents/platform-controls#workspace-autostop-fallback",
 			)}
 			checked={form.values.enabled}
 			onCheckedChange={handleToggleAutostop}

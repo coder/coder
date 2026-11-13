@@ -46,7 +46,7 @@ const CostSetupWarning: React.FC<{ scope: SpendScope }> = ({ scope }) => {
 				<button
 					type="button"
 					aria-label={`Cost setup for ${scope.user}`}
-					className="flex cursor-default items-center border-0 bg-transparent p-0 text-content-warning opacity-75 transition-opacity hover:opacity-100 [&_svg]:size-3"
+					className="flex cursor-default items-center bg-transparent p-0 text-content-warning opacity-75 transition-opacity hover:opacity-100 [&_svg]:size-3"
 				>
 					<TriangleAlertIcon />
 				</button>

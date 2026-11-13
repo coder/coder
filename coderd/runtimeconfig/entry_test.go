@@ -34,7 +34,7 @@ func TestEntry(t *testing.T) {
 		mgr := runtimeconfig.NewManager()
 		db, _ := dbtestutil.NewDB(t)
 
-		override := serpent.String("dogfood@dev.coder.com")
+		override := serpent.String("dogfood@coder.example.com")
 
 		field := runtimeconfig.MustNew[*serpent.String]("string-field")
 

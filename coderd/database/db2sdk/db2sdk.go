@@ -537,6 +537,32 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 	return envs, nil
 }
 
+// RedactedEnvValue replaces non-empty environment variable values in API
+// responses. Template authors commonly pass credentials through coder_env, and
+// there is no way to tell which values are sensitive. It matches the marker
+// used by the support bundle and the agent debug manifest.
+const RedactedEnvValue = "***REDACTED***"
+
+// redactEnv returns a copy of envs with every non-empty value replaced by
+// RedactedEnvValue. Keys are preserved so users can see which variables are
+// set. Empty values carry no secret and are kept as is.
+func redactEnv(envs map[string]string) map[string]string {
+	if envs == nil {
+		return nil
+	}
+	redacted := make(map[string]string, len(envs))
+	for k, v := range envs {
+		if v != "" {
+			v = RedactedEnvValue
+		}
+		redacted[k] = v
+	}
+	return redacted
+}
+
+// WorkspaceAgent converts a database agent to its API representation.
+// Environment variable values are redacted with RedactedEnvValue; the agent
+// receives the real values through its manifest instead.
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
@@ -582,7 +608,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		LogSources:               logSources,
 		Version:                  dbAgent.Version,
 		APIVersion:               dbAgent.APIVersion,
-		EnvironmentVariables:     envs,
+		EnvironmentVariables:     redactEnv(envs),
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
 		Apps:                     apps,
@@ -1292,6 +1318,8 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 			CacheReadInputTokens:  session.CacheReadInputTokens,
 			CacheWriteInputTokens: session.CacheWriteInputTokens,
 			Metadata:              sessionTokenMeta,
+			CostMicros:            session.CostMicros,
+			HasUnpricedUsage:      session.HasUnpricedUsage,
 		},
 		Threads: threads,
 	}
@@ -1466,6 +1494,7 @@ func buildAIBridgeThread(
 			Model:          intc.Model,
 			Attribution:    aiBridgeInterceptionAttribution(intc),
 			TokenUsage:     actionTokenUsage,
+			PricedModel:    aiBridgePricedModel(tokensByInterception[intc.ID]),
 			Thinking:       thinking,
 			ToolCalls:      toolCalls,
 		})
@@ -1488,18 +1517,46 @@ func buildAIBridgeThread(
 		threadTokens = append(threadTokens, tokensByInterception[intc.ID]...)
 	}
 	thread.TokenUsage = aggregateTokenUsage(threadTokens)
+	// Root interception only, each agentic action carries its own priced model.
+	thread.PricedModel = aiBridgePricedModel(tokensByInterception[threadID])
 
 	return thread
 }
 
+// aiBridgePricedModel returns the model and prices from the first priced
+// token usage row, or nil when none of the rows were priced. Rows of one
+// interception share the same priced model, and only the prices can differ
+// if they changed mid-request.
+func aiBridgePricedModel(tokens []database.AIBridgeTokenUsage) *codersdk.AIBridgePricedModel {
+	for _, tu := range tokens {
+		if !tu.PricedModel.Valid {
+			continue
+		}
+		return &codersdk.AIBridgePricedModel{
+			Model:           tu.PricedModel.String,
+			InputPrice:      nullInt64Ptr(tu.InputPriceMicros),
+			OutputPrice:     nullInt64Ptr(tu.OutputPriceMicros),
+			CacheReadPrice:  nullInt64Ptr(tu.CacheReadPriceMicros),
+			CacheWritePrice: nullInt64Ptr(tu.CacheWritePriceMicros),
+		}
+	}
+	return nil
+}
+
 // aggregateTokenUsage sums token usage rows and aggregates metadata.
 func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridgeSessionThreadsTokenUsage {
-	var inputTokens, outputTokens, cacheRead, cacheWrite int64
+	var inputTokens, outputTokens, cacheRead, cacheWrite, costMicros int64
+	var hasUnpriced bool
 	for _, tu := range tokens {
 		inputTokens += tu.InputTokens
 		outputTokens += tu.OutputTokens
 		cacheRead += tu.CacheReadInputTokens
 		cacheWrite += tu.CacheWriteInputTokens
+		if tu.CostMicros.Valid {
+			costMicros += tu.CostMicros.Int64
+		} else {
+			hasUnpriced = true
+		}
 	}
 	return codersdk.AIBridgeSessionThreadsTokenUsage{
 		InputTokens:           inputTokens,
@@ -1507,6 +1564,8 @@ func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridge
 		CacheReadInputTokens:  cacheRead,
 		CacheWriteInputTokens: cacheWrite,
 		Metadata:              aggregateTokenMetadata(tokens),
+		CostMicros:            costMicros,
+		HasUnpricedUsage:      hasUnpriced,
 	}
 }
 
@@ -1606,6 +1665,46 @@ func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) coder
 		Clients:            row.Clients,
 		Models:             row.Models,
 	}
+}
+
+func OrganizationAISpendOverviewUsers(rows []database.ListOrganizationAISpendPerUserRow) []codersdk.OrganizationAISpendOverviewUser {
+	users := make([]codersdk.OrganizationAISpendOverviewUser, 0, len(rows))
+	// userIndex maps a user to their position in users, which keeps the
+	// query's user order.
+	userIndex := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		i, ok := userIndex[row.UserID]
+		if !ok {
+			i = len(users)
+			userIndex[row.UserID] = i
+			users = append(users, codersdk.OrganizationAISpendOverviewUser{
+				UserID:      row.UserID,
+				Username:    row.Username,
+				Name:        row.Name,
+				AvatarURL:   row.AvatarURL,
+				SpendMicros: row.SpendMicros,
+				Groups:      []codersdk.OrganizationAISpendOverviewGroup{},
+			})
+		}
+		users[i].Groups = append(users[i].Groups, codersdk.OrganizationAISpendOverviewGroup{
+			GroupID:          row.GroupID,
+			GroupName:        row.GroupName,
+			GroupDisplayName: row.GroupDisplayName,
+			SpendMicros:      row.GroupSpendMicros,
+		})
+	}
+	return users
+}
+
+func OrganizationAISpendOverviewIntervals(rows []database.GetOrganizationAISpendPerDayRow) []codersdk.OrganizationAISpendOverviewInterval {
+	return slice.List(rows, func(row database.GetOrganizationAISpendPerDayRow) codersdk.OrganizationAISpendOverviewInterval {
+		start := row.Day.UTC()
+		return codersdk.OrganizationAISpendOverviewInterval{
+			StartTime:   start,
+			EndTime:     start.AddDate(0, 0, 1),
+			SpendMicros: row.SpendMicros,
+		}
+	})
 }
 
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
@@ -1760,13 +1859,20 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		parts = nil
 	}
 
-	return codersdk.ChatQueuedMessage{
+	queued := codersdk.ChatQueuedMessage{
 		ID:            message.ID,
 		ChatID:        message.ChatID,
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
+		BusyBehavior:  codersdk.ChatBusyBehavior(message.BusyBehavior),
 		CreatedAt:     message.CreatedAt,
+		EditingSince:  nullTimePtr(message.EditingSince),
 	}
+	if message.ReasoningEffort.Valid {
+		effort := string(message.ReasoningEffort.ChatReasoningEffort)
+		queued.ReasoningEffort = &effort
+	}
+	return queued
 }
 
 // ChatQueuedMessages converts a slice of database queued messages
@@ -2468,12 +2574,14 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 func Skill(skill database.Skill) codersdk.Skill {
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
-			ID:          skill.ID,
-			Name:        skill.Name,
-			Description: skill.Description,
-			Enabled:     skill.Enabled,
-			CreatedAt:   skill.CreatedAt,
-			UpdatedAt:   skill.UpdatedAt,
+			ID:             skill.ID,
+			Name:           skill.Name,
+			Description:    skill.Description,
+			Enabled:        skill.Enabled,
+			Action:         skill.Action,
+			ModelInvocable: skill.ModelInvocable,
+			CreatedAt:      skill.CreatedAt,
+			UpdatedAt:      skill.UpdatedAt,
 		},
 		Content: skill.Content,
 	}
@@ -2485,12 +2593,14 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2502,12 +2612,14 @@ func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadata
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2518,12 +2630,14 @@ func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []c
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata

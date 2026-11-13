@@ -104,6 +104,7 @@ type Checker interface {
 	Database(ctx context.Context, opts *DatabaseReportOptions) healthsdk.DatabaseReport
 	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) healthsdk.WorkspaceProxyReport
 	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) healthsdk.ProvisionerDaemonsReport
+	Pubsub(ctx context.Context, opts *PubsubReportOptions) healthsdk.PubsubReport
 }
 
 type ReportOptions struct {
@@ -113,6 +114,7 @@ type ReportOptions struct {
 	Websocket          WebsocketReportOptions
 	WorkspaceProxy     WorkspaceProxyReportOptions
 	ProvisionerDaemons ProvisionerDaemonsReportDeps
+	Pubsub             PubsubReportOptions
 
 	Checker Checker
 
@@ -157,6 +159,12 @@ func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerD
 	var report ProvisionerDaemonsReport
 	report.Run(ctx, opts)
 	return healthsdk.ProvisionerDaemonsReport(report)
+}
+
+func (defaultChecker) Pubsub(ctx context.Context, opts *PubsubReportOptions) healthsdk.PubsubReport {
+	var report PubsubReport
+	report.Run(ctx, opts)
+	return healthsdk.PubsubReport(report)
 }
 
 func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport {
@@ -265,6 +273,22 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 		report.ProvisionerDaemons = opts.Checker.ProvisionerDaemons(ctx, &opts.ProvisionerDaemons)
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				report.Pubsub.Error = health.Errorf(health.CodeUnknown, "pubsub report panic: %s", err)
+			}
+		}()
+
+		if opts.Progress != nil {
+			opts.Progress.Start("Pubsub")
+			defer opts.Progress.Complete("Pubsub")
+		}
+		report.Pubsub = opts.Checker.Pubsub(ctx, &opts.Pubsub)
+	}()
+
 	report.CoderVersion = buildinfo.Version()
 	wg.Wait()
 
@@ -287,6 +311,9 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 	}
 	if report.ProvisionerDaemons.Severity.Value() > health.SeverityWarning.Value() {
 		failingSections = append(failingSections, healthsdk.HealthSectionProvisionerDaemons)
+	}
+	if report.Pubsub.Severity.Value() > health.SeverityWarning.Value() {
+		failingSections = append(failingSections, healthsdk.HealthSectionPubsub)
 	}
 
 	report.Healthy = len(failingSections) == 0
@@ -311,6 +338,9 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 	}
 	if report.ProvisionerDaemons.Severity.Value() > report.Severity.Value() {
 		report.Severity = report.ProvisionerDaemons.Severity
+	}
+	if report.Pubsub.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.Pubsub.Severity
 	}
 	return &report
 }

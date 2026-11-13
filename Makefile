@@ -71,6 +71,7 @@ endif
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/theme/icons.json \
@@ -361,7 +362,9 @@ site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
-		tar cf "../../../build/$(@F)" coder-*
+		# Group binaries by architecture so that zstd's long-distance matching
+		# window can deduplicate code shared across operating systems.
+		tar cf "../../../build/$(@F)" $$(ls coder-* | sort -t- -k3)
 	popd
 
 	# delete the uncompressed binaries from the embedded dir
@@ -594,24 +597,25 @@ $(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VE
 		--chart $* \
 		--output "$@"
 
-node_modules/.installed: package.json pnpm-lock.yaml
+node_modules/.installed: package.json pnpm-lock.yaml pnpm-workspace.yaml
 	./scripts/pnpm_install.sh
 	touch "$@"
 
-offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml
+offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml offlinedocs/pnpm-workspace.yaml
 	(cd offlinedocs/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
+site/node_modules/.installed: site/package.json site/pnpm-lock.yaml site/pnpm-workspace.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
+scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml scripts/apidocgen/pnpm-workspace.yaml
 	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
 	touch "$@"
 
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -852,9 +856,9 @@ lint/docs-html:
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
 # invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, source files that nothing references, or a page description
+# generated route, source files that nothing references, a page description
 # (in the sources, a generated fragment, or page front matter) that doesn't end
-# with a period.
+# with a period, or a route state that repeats a state set on an ancestor.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
@@ -863,9 +867,10 @@ lint/docs-manifest: _gen/bin/docsmanifestgen
 # Fails when docs/redirects.json, the redirects the docs site applies for pages
 # that moved or were removed, is malformed, points at a page that is not in
 # docs/manifest.json, hides a live page, or has duplicate, chained, or looping
-# rules. Also warns, without failing, when a pull request removes docs routes
-# and leaves the file alone. Passes when the file does not exist. See
-# scripts/docsredirectscheck/README.md.
+# rules. Also fails when a route that worked on the base branch or on the live
+# site for the target branch no longer resolves. The live page list needs
+# network access; pass -offline to skip it. Passes when the file does not
+# exist. See scripts/docsredirectscheck/README.md.
 lint/docs-redirects:
 	echo "--- check docs/redirects.json"
 	go run ./scripts/docsredirectscheck
@@ -1173,7 +1178,7 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: site/node_modules/.installed _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
 .PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
@@ -1222,6 +1227,7 @@ gen/mark-fresh:
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
 		codersdk/dbenums_gen.go \
+		site/src/api/appFamiliesGenerated.ts \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1432,6 +1438,9 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
 
+site/src/api/appFamiliesGenerated.ts: site/node_modules/.installed scripts/typegen/appfamilies.tstmpl scripts/typegen/main.go codersdk/appname.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen appfamilies,./scripts/biome_format.sh)
+
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
@@ -1441,7 +1450,7 @@ site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typ
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
 	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
 
-site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
+site/src/api/chatModelOptionsGenerated.json: site/node_modules/.installed scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
 	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metricsdocgen-scanner
@@ -1489,7 +1498,9 @@ docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/sco
 
 coderd/apidoc/.gen: \
 	node_modules/.installed \
+	site/node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
+	site/node_modules/.installed \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \

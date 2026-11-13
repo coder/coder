@@ -12,7 +12,7 @@ The Application Gateway supports:
 - Websocket traffic (required for workspace connections)
 - TLS termination
 
-Refer to Microsoft's documentation on how to [enable application gateway ingress controller add-on for an existing AKS cluster with an existing application gateway](https://learn.microsoft.com/en-us/azure/application-gateway/tutorial-ingress-controller-add-on-existing).
+Refer to Microsoft's documentation on how to [enable application gateway ingress controller add-on for an existing Azure Kubernetes Service (AKS) cluster with an existing application gateway](https://learn.microsoft.com/en-us/azure/application-gateway/tutorial-ingress-controller-add-on-existing).
 The steps here follow the Microsoft tutorial for a Coder deployment.
 
 ## Deploy Coder on Azure with an Application Gateway
@@ -134,6 +134,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    ```
 
 1. Create a `values.yaml` file for the Coder Helm chart.
+
    Replace `<app-gateway-public-ip>` with the IP address from the previous step, or with a domain that resolves to it:
 
    ```yaml

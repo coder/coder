@@ -1,3 +1,4 @@
+import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { cn } from "cn";
 import {
 	$createLineBreakNode,
@@ -18,7 +19,11 @@ import {
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import type { SkillSource } from "../../utils/skillAliases";
-import { useFileReferenceSpacing } from "./FileReferenceNode";
+import {
+	$createFileReferenceNode,
+	FileReferenceNode,
+	useFileReferenceSpacing,
+} from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
 
 type SerializedSkillInvocationNode = Spread<
@@ -105,6 +110,7 @@ const SkillChipWrapper: React.FC<{
 	source: SkillSource;
 	name: string;
 }> = ({ editor, nodeKey, source, name }) => {
+	const [isSelected] = useLexicalNodeSelection(nodeKey);
 	const spacing = useFileReferenceSpacing(editor, nodeKey);
 	const handleRemove = () => {
 		editor.update(() => {
@@ -116,6 +122,7 @@ const SkillChipWrapper: React.FC<{
 		<EditableSkillChip
 			source={source}
 			name={name}
+			data-selected={isSelected}
 			onRemove={handleRemove}
 			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
@@ -176,12 +183,15 @@ export function $insertSkillInvocation(
 	chip.selectNext().insertText(" ");
 }
 
-/** Serializes a sent message's text and skill chips as a composer draft. */
+/**
+ * Returns the message as serialized Lexical editor state, the form the
+ * composer restores a draft from, so its chips survive the round trip.
+ */
 export const serializeMessageDraft = (
 	content: readonly ChatMessagePart[],
 ): string => {
 	const editor = createEditor({
-		nodes: [SkillInvocationNode],
+		nodes: [SkillInvocationNode, FileReferenceNode],
 		onError: (error) => {
 			throw error;
 		},
@@ -193,6 +203,15 @@ export const serializeMessageDraft = (
 				if (part.type === "skill-invocation") {
 					paragraph.append(
 						new SkillInvocationNode(part.skill_source, part.skill_name),
+					);
+				} else if (part.type === "file-reference") {
+					paragraph.append(
+						$createFileReferenceNode(
+							part.file_name,
+							part.start_line,
+							part.end_line,
+							part.content,
+						),
 					);
 				} else if (part.type === "text") {
 					for (const [index, line] of part.text.split("\n").entries()) {

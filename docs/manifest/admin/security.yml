@@ -14,3 +14,6 @@ children:
     description: Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.
     path: ./admin/security/database-encryption.md
     state: [premium]
+  - title: Security - best practices
+    description: Follow security best practices to harden your Coder deployment against common risks.
+    path: ./admin/security/security-best-practices.md

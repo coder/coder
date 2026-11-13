@@ -33,6 +33,20 @@ func writeErrorResponse(t testing.TB, w http.ResponseWriter, errResp *ErrorRespo
 	}
 }
 
+func responseShapeError(stream, hasStreaming, hasNonStreaming bool) string {
+	switch {
+	case hasStreaming && hasNonStreaming:
+		return "handler returned both streaming and non-streaming responses"
+	case !hasStreaming && !hasNonStreaming:
+		return "handler returned empty response"
+	case stream && !hasStreaming:
+		return "handler returned non-streaming response for streaming request"
+	case !stream && !hasNonStreaming:
+		return "handler returned streaming response for non-streaming request"
+	}
+	return ""
+}
+
 // OpenAIErrorResponse returns an OpenAIResponse that causes the
 // test server to respond with the given HTTP status code and error.
 func OpenAIErrorResponse(statusCode int, errorType, message string) OpenAIResponse {

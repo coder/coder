@@ -364,6 +364,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
+			r.Get("/", api.organizationAISpend)
 			r.Get("/users", api.organizationAISpendUsers)
 		})
 	})
@@ -1057,6 +1058,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				committer := committer{
 					Log:      api.Logger.Named("quota_committer"),
 					Database: api.Database,
+					Clock:    api.Clock,
 				}
 				qcPtr := proto.QuotaCommitter(&committer)
 				api.AGPL.QuotaCommitter.Store(&qcPtr)

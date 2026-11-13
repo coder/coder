@@ -110,3 +110,14 @@ export const Loading: Story = {
 		isLoading: true,
 	},
 };
+
+export const RolesHelpOpen: Story = {
+	args: Example.args,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", {
+				name: "More info about roles",
+			}),
+		);
+	},
+};
