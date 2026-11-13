@@ -224,8 +224,8 @@ Then send the `before_id` request again with the lowest message ID that you have
 
 Send actions, such as new messages, edits, and tool results, as HTTP requests.
 Do not apply their response bodies to your client's state, because the stream sends the result of each action.
-The response to a new message, an edit, or a change to a queued message includes the `snapshot_version` of that change.
-The stream sends the events of one read of the chat in one WebSocket message, so your client has the change after it applies a WebSocket message that contains that `snapshot_version` or a higher one.
+The response to a new message, an edit, or a change to a queued message includes the `snapshot_version` of that change, unless the request changed nothing.
+After you apply a WebSocket message that contains that `snapshot_version` or a higher one, your client has the result of the action.
 
 For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../reference/api/chats.md#stream-chat-events-via-websockets).
 

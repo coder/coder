@@ -1079,7 +1079,8 @@ type EditChatMessageResponse struct {
 	DeletedMessageIDs []int64  `json:"deleted_message_ids,omitempty"`
 	Warnings          []string `json:"warnings,omitempty"`
 	// SnapshotVersion is the chat's snapshot version at which the server
-	// made the edit. See CreateChatMessageResponse.SnapshotVersion.
+	// made the edit. For how a client uses it, refer to the
+	// snapshot_version field of CreateChatMessageResponse.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
@@ -1087,9 +1088,10 @@ type EditChatMessageResponse struct {
 // editing a queued message.
 type ChatQueueChangeResponse struct {
 	// SnapshotVersion is the chat's snapshot version at which the server
-	// changed the queue. See CreateChatMessageResponse.SnapshotVersion. It
-	// is omitted when the request changed nothing, as a promote of a
-	// message that is already in the steer lane can.
+	// changed the queue. For how a client uses it, refer to the
+	// snapshot_version field of CreateChatMessageResponse. It is omitted
+	// when the request changed nothing, as a promote of a message that is
+	// already in the steer lane can.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
@@ -2398,10 +2400,10 @@ type ChatStreamEvent struct {
 	// snapshot version when the change that the event reports was made. To
 	// reconnect, open the stream with the highest one received from the
 	// messages page or from events. Such a stream sends the events of one
-	// read of the chat in one WebSocket message, so a client that has
-	// applied a WebSocket message that contains a snapshot version has every
-	// change to the messages and the queue made at that version or a lower
-	// one.
+	// read of the chat in one WebSocket message. After a client applies a
+	// WebSocket message that contains a snapshot version, the client has
+	// every change to the messages and the queue made at that version or a
+	// lower one.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 

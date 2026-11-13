@@ -3990,7 +3990,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description
 // @Description On such a stream, the server sends the events of one read in one WebSocket message.
 // @Description After you apply a WebSocket message that contains a `snapshot_version` of `N`, you have every change to the messages and the queue with a `snapshot_version` of `N` or lower.
-// @Description The responses to the requests that send or edit a message, and that delete, promote, or edit a queued message, include the `snapshot_version` of the request's change.
+// @Description The responses to the requests that send or edit a message, and that delete, promote, or edit a queued message, include the `snapshot_version` of the request's change, unless the request changed nothing.
 // @Description You have that change after you apply a WebSocket message that contains that `snapshot_version` or a higher one.
 // @Description
 // @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
