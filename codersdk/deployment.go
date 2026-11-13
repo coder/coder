@@ -1008,6 +1008,7 @@ type PrometheusConfig struct {
 	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
 	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	CollectWorkspaceStats serpent.Bool        `json:"collect_workspace_stats" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -2709,6 +2710,16 @@ communicating directly.`,
 			Group:   &deploymentGroupIntrospectionPrometheus,
 			YAML:    "collect_db_metrics",
 			Default: "false",
+		},
+		{
+			Name:        "Prometheus Collect Workspace Stats",
+			Description: "Collect per-workspace stats (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-workspace-stats",
+			Env:         "CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS",
+			Value:       &c.Prometheus.CollectWorkspaceStats,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_workspace_stats",
+			Default:     "false",
 		},
 		// Pprof settings
 		{
@@ -5530,6 +5541,7 @@ const (
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
+	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5564,6 +5576,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatACPSubagents:
 		return "Chat ACP Subagents"
+	case ExperimentChatAutomations:
+		return "Chat Automations"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5590,6 +5604,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
+	ExperimentChatAutomations,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5606,6 +5621,7 @@ var ExperimentsSafe = Experiments{
 // startup list and need a restart to change.
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
+	ExperimentChatAutomations,
 }
 
 // Experiments is a list of experiments.
