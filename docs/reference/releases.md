@@ -46,7 +46,10 @@ A patch release becomes unsupported when a newer patch release on the same minor
 This means that you should apply the latest patch release to your Coder deployment to get the latest bug fixes and security patches.
 The Coder Support Team may ask you during troubleshooting to apply the latest patch release as a troubleshooting step.
 
-Every fix is merged to `main` first, then backported to the release branches that are eligible for it:
+To request a patch release for an issue that affects your deployment, [contact Coder support](../support/index.md) with your Coder version, the impact, and any deadline.
+To test a fix before it's released, use the `preview` image described in [Release schedule](#release-schedule).
+
+Fixes are backported to the release branches that are eligible for them:
 
 | Release channel          | Backported fixes                        |
 |--------------------------|-----------------------------------------|
@@ -61,9 +64,6 @@ A fix might ship only in mainline and stable, in which case the supported path f
 Fixes that require a database schema change aren't backported.
 They ship in the next minor release.
 
-To request a patch release for an issue that affects your deployment, [contact Coder support](../support/index.md) with your Coder version, the impact, and any deadline.
-To test a fix before it's released, use the `preview` image described in [Release schedule](#release-schedule).
-
 ## Release channels
 
 Coder ships in four primary release channels:
@@ -73,7 +73,8 @@ Coder ships in four primary release channels:
 - **Security Support**
 - **Extended Support Release**
 
-Coder will occasionally ship release candidates, which are ad-hoc builds meant to validate in-development features.
+Coder also occasionally ships release candidates (RCs), which are ad-hoc builds meant to validate in-development features.
+RCs are separate from the four primary channels and are described [below](#release-candidates).
 
 The Coder Team launches each new minor version as mainline at release time and promotes it to stable after one month.
 The security support version receives patches only for security issues or Common Vulnerabilities and Exposures (CVEs).
@@ -115,7 +116,7 @@ For more information on feature rollout, visit the [feature stages documentation
 ### Extended Support Release
 
 Two releases each year are designated as Extended Support Releases (ESRs).
-Each ESR is supported for 12 months from the date of its `.0` release.
+Each ESR is supported for 12&nbsp;months from the date of its `.0` release.
 ESRs:
 
 - Are designed for organizations that prioritize long-term stability.
@@ -146,6 +147,12 @@ They exist purely as a feedback mechanism: the Coder Team can ship targeted buil
 
 Download the latest stable or mainline release from the [Coder downloads page](https://coder.com/downloads).
 To install a specific version, use the [coder/coder releases page on GitHub](https://github.com/coder/coder/releases).
+
+You can also use the `install.sh` script with the `--stable` flag to install the latest stable release:
+
+```sh
+curl -fsSL https://coder.com/install.sh | sh -s -- --stable
+```
 
 You can find best practices for installing Coder in the [Install](../install/index.md) section.
 
