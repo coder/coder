@@ -1,13 +1,115 @@
 package cli_test
 
 import (
+	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestExpChatContextRefreshOutput(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name                string
+		ready               bool
+		snapshotError       string
+		resyncErr           error
+		wantOutput          string
+		wantErr             string
+		wantRefreshRequests int32
+	}{
+		{
+			name:                "Startup",
+			wantOutput:          "Context will be collected after startup scripts finish. Chats were not refreshed.\n",
+			wantRefreshRequests: 0,
+		},
+		{
+			name:                "Ready",
+			ready:               true,
+			wantOutput:          "Resolved agent context (2 resources); coderd stored it or a newer snapshot.\nRefreshed 2 drifted chat(s).\n",
+			wantRefreshRequests: 1,
+		},
+		{
+			name:                "SnapshotError",
+			ready:               true,
+			snapshotError:       "unreadable file",
+			wantOutput:          "Resolved agent context (2 resources); coderd stored it or a newer snapshot.\nSnapshot reported an error: unreadable file\nRefreshed 2 drifted chat(s).\n",
+			wantRefreshRequests: 1,
+		},
+		{
+			name:                "PushUnavailable",
+			ready:               true,
+			resyncErr:           agentcontext.ErrPushUnavailable,
+			wantErr:             "workspace context sync is disabled on this deployment",
+			wantRefreshRequests: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var requests atomic.Int32
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "/api/v2/workspaceagents/me/experimental/chat-context/refresh", r.URL.Path)
+				_, _ = w.Write([]byte(`{"refreshed":2}`))
+			}))
+			defer api.Close()
+
+			cm := &refreshContextManager{err: tc.resyncErr}
+			if tc.ready {
+				cm.snapshot = agentcontext.Snapshot{
+					Version:       2,
+					SnapshotError: tc.snapshotError,
+					Resources: []agentcontext.Resource{
+						{Kind: agentcontext.KindInstructionFile},
+						{Kind: agentcontext.KindMCPServer},
+					},
+				}
+			}
+			socketPath := testutil.AgentSocketPath(t)
+			server, err := agentsocket.NewServer(testutil.Logger(t),
+				agentsocket.WithPath(socketPath), agentsocket.WithContextManager(cm))
+			require.NoError(t, err)
+			defer server.Close()
+			inv, _ := clitest.New(t, "exp", "chat", "context", "refresh",
+				"--socket-path", socketPath, "--agent-url", api.URL, "--agent-token", "test-agent-token")
+			var out bytes.Buffer
+			inv.Stdout = &out
+			err = inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantOutput, out.String())
+			require.Equal(t, tc.wantRefreshRequests, requests.Load())
+		})
+	}
+}
+
+type refreshContextManager struct {
+	agentsocket.ContextManager
+	snapshot agentcontext.Snapshot
+	err      error
+}
+
+func (m *refreshContextManager) Snapshot() agentcontext.Snapshot { return m.snapshot }
+
+func (m *refreshContextManager) Resync(context.Context) (agentcontext.Snapshot, error) {
+	return m.snapshot, m.err
+}
 
 func TestExpChatContextAdd(t *testing.T) {
 	t.Parallel()

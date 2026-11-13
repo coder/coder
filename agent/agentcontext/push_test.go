@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +16,12 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+)
+
+const (
+	initialPushVersion  uint64 = 1
+	resyncVersion       uint64 = 2
+	newerPassServerName        = "pass-2"
 )
 
 // fakePusher records every push and lets the test control the
@@ -25,31 +33,42 @@ type fakePusher struct {
 	err      error
 	// errOnce is non-nil to simulate a single transient
 	// failure followed by success.
-	errOnce error
-	signal  chan struct{}
+	errOnce     error
+	pushStarted chan *agentcontext.PushRequest
+	// release blocks each recorded push until the test sends an acknowledgement.
+	release <-chan struct{}
 }
 
 func newFakePusher() *fakePusher {
 	return &fakePusher{
-		resp:   &agentcontext.PushResponse{Accepted: true},
-		signal: make(chan struct{}, 16),
+		resp:        &agentcontext.PushResponse{Accepted: true},
+		pushStarted: make(chan *agentcontext.PushRequest, 16),
 	}
 }
 
-func (p *fakePusher) PushContextState(_ context.Context, req *agentcontext.PushRequest) (*agentcontext.PushResponse, error) {
+func (p *fakePusher) PushContextState(ctx context.Context, req *agentcontext.PushRequest) (*agentcontext.PushResponse, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.requests = append(p.requests, req)
 	if p.errOnce != nil {
 		err := p.errOnce
 		p.errOnce = nil
+		p.mu.Unlock()
 		return nil, err
 	}
 	select {
-	case p.signal <- struct{}{}:
+	case p.pushStarted <- req:
 	default:
 	}
-	return p.resp, p.err
+	resp, err := p.resp, p.err
+	p.mu.Unlock()
+	if p.release != nil {
+		select {
+		case <-p.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return resp, err
 }
 
 func (p *fakePusher) snapshot() []*agentcontext.PushRequest {
@@ -58,6 +77,308 @@ func (p *fakePusher) snapshot() []*agentcontext.PushRequest {
 	out := make([]*agentcontext.PushRequest, len(p.requests))
 	copy(out, p.requests)
 	return out
+}
+
+func TestManager_ResyncWaitsForPush(t *testing.T) {
+	t.Parallel()
+
+	// Even unchanged content must wait for acknowledgement of the new version.
+	for _, tc := range []struct {
+		name    string
+		content string
+	}{
+		{name: "Unchanged", content: "first"},
+		{name: "Changed", content: "second"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				dir := t.TempDir()
+				mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "first")
+				m := newTestManager(t, agentcontext.ManagerOptions{
+					WorkingDir: func() string { return dir },
+				})
+				p := newFakePusher()
+				acknowledgePush := make(chan struct{})
+				p.release = acknowledgePush
+				startTestPush(t, m, p)
+
+				// Hold the initial push while the resync publishes its version.
+				initialPush := <-p.pushStarted
+				require.Equal(t, initialPushVersion, initialPush.Version)
+				mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), tc.content)
+				done := startResync(t.Context(), m)
+				synctest.Wait()
+				require.Empty(t, done, "resync must wait for its push")
+
+				// Acknowledging the initial version must not release the resync.
+				acknowledgePush <- struct{}{}
+				resyncPush := <-p.pushStarted
+				require.Equal(t, resyncVersion, resyncPush.Version)
+				synctest.Wait()
+				require.Empty(t, done, "an older acknowledgement must not release resync")
+
+				// Acknowledging the resync's version releases its waiter.
+				acknowledgePush <- struct{}{}
+				result := testutil.RequireReceive(t.Context(), t, done)
+				require.NoError(t, result.err)
+				require.Equal(t, resyncVersion, result.snapshot.Version)
+				require.Equal(t, resyncPush.AggregateHash, result.snapshot.AggregateHash)
+				require.Len(t, result.snapshot.Resources, 1)
+				require.Equal(t, tc.content, string(result.snapshot.Resources[0].Payload))
+			})
+		})
+	}
+
+	t.Run("Superseded", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			m := newTestManager(t, agentcontext.ManagerOptions{})
+			p := newFakePusher()
+			acknowledgePush := make(chan struct{})
+			p.release = acknowledgePush
+			startTestPush(t, m, p)
+
+			// Hold the initial push while the first resync starts waiting.
+			initialPush := <-p.pushStarted
+			require.Equal(t, initialPushVersion, initialPush.Version)
+			first := startResync(t.Context(), m)
+			synctest.Wait()
+			require.Empty(t, first)
+			acknowledgePush <- struct{}{}
+			resyncPush := <-p.pushStarted
+			require.Equal(t, resyncVersion, resyncPush.Version)
+			synctest.Wait()
+			require.Empty(t, first)
+
+			// A later resolve must not extend the first resync's target.
+			later := startResync(t.Context(), m)
+			synctest.Wait()
+			acknowledgePush <- struct{}{}
+			firstResult := testutil.RequireReceive(t.Context(), t, first)
+			require.NoError(t, firstResult.err)
+			require.Equal(t, resyncVersion, firstResult.snapshot.Version)
+
+			// The later resync still waits for its own acknowledgement.
+			laterPush := <-p.pushStarted
+			require.Equal(t, resyncVersion+1, laterPush.Version)
+			require.Empty(t, later)
+			acknowledgePush <- struct{}{}
+			laterResult := testutil.RequireReceive(t.Context(), t, later)
+			require.NoError(t, laterResult.err)
+			require.Equal(t, laterPush.Version, laterResult.snapshot.Version)
+		})
+	})
+}
+
+func TestManager_ResyncWaitsForNewerResolve(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NewerSucceeds", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			resyncs := startOverlappingResyncs(t)
+			close(resyncs.olderPassRelease)
+			synctest.Wait()
+			require.Empty(t, resyncs.olderDone, "the published snapshot predates both resync passes")
+
+			close(resyncs.newerPassRelease)
+			newerResult := testutil.RequireReceive(t.Context(), t, resyncs.newerDone)
+			require.NoError(t, newerResult.err)
+			require.Equal(t, resyncVersion, newerResult.snapshot.Version)
+			olderResult := testutil.RequireReceive(t.Context(), t, resyncs.olderDone)
+			require.NoError(t, olderResult.err)
+			require.Equal(t, resyncVersion, olderResult.snapshot.Version)
+			require.NotNil(t, findMCPServerResource(olderResult.snapshot, newerPassServerName))
+		})
+	})
+
+	t.Run("NewerCanceled", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			resyncs := startOverlappingResyncs(t)
+			close(resyncs.olderPassRelease)
+			synctest.Wait()
+			require.Empty(t, resyncs.olderDone, "the published snapshot predates both resync passes")
+
+			resyncs.cancelNewer()
+			synctest.Wait()
+			require.Len(t, resyncs.newerDone, 1, "caller cancellation must not wait for the resolve pass")
+			newerResult := testutil.RequireReceive(t.Context(), t, resyncs.newerDone)
+			require.ErrorIs(t, newerResult.err, context.Canceled)
+
+			close(resyncs.newerPassRelease)
+			olderResult := testutil.RequireReceive(t.Context(), t, resyncs.olderDone)
+			require.NoError(t, olderResult.err, "a canceled newer caller must not strand a live resync")
+			require.Equal(t, resyncVersion, olderResult.snapshot.Version)
+			require.NotNil(t, findMCPServerResource(olderResult.snapshot, newerPassServerName))
+		})
+	})
+}
+
+type overlappingResyncs struct {
+	olderPassRelease chan struct{}
+	newerPassRelease chan struct{}
+	olderDone        <-chan resyncResult
+	newerDone        <-chan resyncResult
+	cancelNewer      context.CancelFunc
+}
+
+func startOverlappingResyncs(t *testing.T) overlappingResyncs {
+	t.Helper()
+	olderPassStarted := make(chan struct{})
+	newerPassStarted := make(chan struct{})
+	resyncs := overlappingResyncs{
+		olderPassRelease: make(chan struct{}),
+		newerPassRelease: make(chan struct{}),
+	}
+	var calls atomic.Int32
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		MCPCatalog: func() []agentcontext.MCPServerStatus {
+			switch calls.Add(1) {
+			case 1:
+				// SetReady's initial resolve pass is not blocked.
+				return []agentcontext.MCPServerStatus{{Name: "pass-0"}}
+			case 2:
+				close(olderPassStarted)
+				select {
+				case <-resyncs.olderPassRelease:
+				case <-t.Context().Done():
+				}
+				return []agentcontext.MCPServerStatus{{Name: "pass-1"}}
+			case 3:
+				close(newerPassStarted)
+				select {
+				case <-resyncs.newerPassRelease:
+				case <-t.Context().Done():
+				}
+				return []agentcontext.MCPServerStatus{{Name: newerPassServerName}}
+			default:
+				t.Error("unexpected resolve pass")
+				return nil
+			}
+		},
+	})
+	startTestPush(t, m, newFakePusher())
+	resyncs.olderDone = startResync(t.Context(), m)
+	testutil.TryReceive(t.Context(), t, olderPassStarted)
+	newerCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	resyncs.cancelNewer = cancel
+	resyncs.newerDone = startResync(newerCtx, m)
+	testutil.TryReceive(t.Context(), t, newerPassStarted)
+	return resyncs
+}
+
+func TestManager_ResyncPushWaitErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoPushLoop", func(t *testing.T) {
+		t.Parallel()
+		waiter := startWaitingResync(t)
+		_, advanced := waiter.clock.AdvanceNext()
+		advanced.MustWait(waiter.ctx)
+		result := testutil.RequireReceive(waiter.ctx, t, waiter.done)
+		require.ErrorIs(t, result.err, context.DeadlineExceeded)
+		require.ErrorContains(t, result.err, "no acknowledged context snapshot within 30s")
+		require.ErrorContains(t, result.err, "disconnected from coderd or context push may be failing")
+		require.ErrorContains(t, result.err, "check the agent logs for context push errors")
+	})
+
+	t.Run("Canceled", func(t *testing.T) {
+		t.Parallel()
+		waiter := startWaitingResync(t)
+		waiter.cancel()
+		result := testutil.RequireReceive(waiter.ctx, t, waiter.done)
+		require.ErrorIs(t, result.err, context.Canceled)
+	})
+
+	t.Run("CanceledWithAcknowledgement", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			clock := quartz.NewMock(t)
+			trap := clock.Trap().NewTimer()
+			defer trap.Close()
+			m := newTestManager(t, agentcontext.ManagerOptions{Clock: clock})
+			p := newFakePusher()
+			startTestPush(t, m, p)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			done := startResync(ctx, m)
+
+			// Pause the waiter before it can observe the acknowledgement.
+			call := trap.MustWait(t.Context())
+			synctest.Wait()
+			pushes := p.snapshot()
+			require.NotEmpty(t, pushes)
+			require.Equal(t, resyncVersion, pushes[len(pushes)-1].Version)
+
+			cancel()
+			call.MustRelease(t.Context())
+			result := testutil.RequireReceive(t.Context(), t, done)
+			require.ErrorIs(t, result.err, context.Canceled)
+		})
+	})
+
+	t.Run("Closed", func(t *testing.T) {
+		t.Parallel()
+		waiter := startWaitingResync(t)
+		require.NoError(t, waiter.manager.Close())
+		result := testutil.RequireReceive(waiter.ctx, t, waiter.done)
+		require.ErrorIs(t, result.err, agentcontext.ErrManagerClosed)
+	})
+}
+
+type waitingResync struct {
+	manager *agentcontext.Manager
+	clock   *quartz.Mock
+	ctx     context.Context
+	cancel  context.CancelFunc
+	done    <-chan resyncResult
+}
+
+func startWaitingResync(t *testing.T) waitingResync {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().NewTimer()
+	defer trap.Close()
+	m := newTestManager(t, agentcontext.ManagerOptions{Clock: clock})
+	resyncCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	done := startResync(resyncCtx, m)
+	trap.MustWait(ctx).MustRelease(ctx)
+	return waitingResync{manager: m, clock: clock, ctx: ctx, cancel: cancel, done: done}
+}
+
+type resyncResult struct {
+	snapshot agentcontext.Snapshot
+	err      error
+}
+
+func startResync(ctx context.Context, m *agentcontext.Manager) <-chan resyncResult {
+	done := make(chan resyncResult, 1)
+	go func() {
+		snapshot, err := m.Resync(ctx)
+		done <- resyncResult{snapshot: snapshot, err: err}
+	}()
+	return done
+}
+
+func startTestPush(t *testing.T, m *agentcontext.Manager, p agentcontext.Pusher) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- m.RunPush(ctx, p, agentcontext.PushOptions{Logger: testutil.Logger(t)})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		err := <-done
+		if err != nil {
+			require.ErrorIs(t, err, context.Canceled)
+		}
+	})
 }
 
 func TestRunPush_FirstPushIsInitial(t *testing.T) {
@@ -82,7 +403,7 @@ func TestRunPush_FirstPushIsInitial(t *testing.T) {
 
 	// Wait for the first push.
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-time.After(testutil.WaitShort):
 		t.Fatalf("expected initial push")
 	}
@@ -117,7 +438,7 @@ func TestRunPush_SubsequentPushOnChange(t *testing.T) {
 	}()
 
 	// Initial push.
-	<-p.signal
+	<-p.pushStarted
 
 	// Trigger a resync via Resync.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600))
@@ -126,7 +447,7 @@ func TestRunPush_SubsequentPushOnChange(t *testing.T) {
 
 	// Second push.
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-time.After(testutil.WaitShort):
 		t.Fatalf("expected second push after resync")
 	}
@@ -145,18 +466,42 @@ func TestRunPush_SubsequentPushOnChange(t *testing.T) {
 
 func TestRunPush_StopsOnUnimplemented(t *testing.T) {
 	t.Parallel()
-	m := newTestManager(t, agentcontext.ManagerOptions{
-		WorkingDir: func() string { return t.TempDir() },
-	})
+	synctest.Test(t, func(t *testing.T) {
+		m := newTestManager(t, agentcontext.ManagerOptions{})
+		p := newFakePusher()
+		p.err = agentcontext.ErrPushUnimplemented
+		release := make(chan struct{})
+		p.release = release
+		// Keep the first push in flight until a resync is waiting.
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		pushDone := make(chan error, 1)
+		go func() {
+			pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{Logger: testutil.Logger(t)})
+		}()
+		<-p.pushStarted
+		resyncDone := startResync(ctx, m)
+		synctest.Wait()
 
-	p := newFakePusher()
-	p.err = agentcontext.ErrPushUnimplemented
+		// An unavailable push stops the loop and wakes its resync waiter.
+		release <- struct{}{}
+		require.NoError(t, <-pushDone, "Unimplemented must stop the loop cleanly")
+		synctest.Wait()
+		select {
+		case result := <-resyncDone:
+			require.ErrorIs(t, result.err, agentcontext.ErrPushUnavailable)
+		default:
+			t.Fatal("an unimplemented push did not wake the resync waiter")
+		}
+		_, err := m.Resync(ctx)
+		require.ErrorIs(t, err, agentcontext.ErrPushUnavailable)
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	err := m.RunPush(ctx, p, agentcontext.PushOptions{
-		Logger: testutil.Logger(t).Named("push"),
+		// A later successful push clears the unavailable state.
+		startTestPush(t, m, newFakePusher())
+		synctest.Wait()
+		_, err = m.Resync(ctx)
+		require.NoError(t, err, "a successful push must restore availability")
 	})
-	require.NoError(t, err, "Unimplemented must stop the loop cleanly")
 }
 
 func TestRunPush_RetriesTransientError(t *testing.T) {
@@ -190,7 +535,7 @@ func TestRunPush_RetriesTransientError(t *testing.T) {
 	mClock.Advance(time.Second).MustWait(ctx)
 
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-time.After(testutil.WaitShort):
 		t.Fatalf("expected push after transient error")
 	}
@@ -224,7 +569,7 @@ func TestRunPush_ClosesOnManagerClose(t *testing.T) {
 	// change channel, then close the Manager and assert that
 	// RunPush returns promptly with a nil error.
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-ctx.Done():
 		t.Fatalf("initial push never landed: %v", ctx.Err())
 	}
@@ -267,7 +612,7 @@ func TestRunPush_RejectedResponseProceeds(t *testing.T) {
 	// Initial push delivered and accepted=false; loop must park
 	// on changes, not retry the same payload.
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-ctx.Done():
 		t.Fatalf("initial push never landed: %v", ctx.Err())
 	}
@@ -279,7 +624,7 @@ func TestRunPush_RejectedResponseProceeds(t *testing.T) {
 	require.NoError(t, err)
 
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-ctx.Done():
 		t.Fatalf("second push never landed after change: %v", ctx.Err())
 	}
@@ -320,7 +665,7 @@ func TestRunPush_WaitsForReady(t *testing.T) {
 
 	// While gated, no push must be sent even though AGENTS.md exists.
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 		t.Fatal("push loop shipped a snapshot before SetReady")
 	case <-time.After(testutil.IntervalMedium):
 	}
@@ -331,7 +676,7 @@ func TestRunPush_WaitsForReady(t *testing.T) {
 	m.SetReady()
 
 	select {
-	case <-p.signal:
+	case <-p.pushStarted:
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("expected a push after SetReady")
 	}

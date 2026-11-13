@@ -269,6 +269,7 @@ func TestManager_ResyncReturnsLatestSnapshot(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	startTestPush(t, m, newFakePusher())
 	runDone := make(chan struct{})
 	go func() {
 		defer close(runDone)
@@ -401,6 +402,7 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	require.Len(t, sources, 1)
 	require.Equal(t, late, sources[0].Path)
 
+	startTestPush(t, m, newFakePusher())
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
 	require.Len(t, snap.Resources, 1)
@@ -423,8 +425,13 @@ func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, "CLAUDE.md")))
 	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, ".cursorrules")))
 
+	var reconnects atomic.Int32
 	m := newPendingTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return dir },
+		MCPReconnect: func(context.Context) error {
+			reconnects.Add(1)
+			return nil
+		},
 	})
 
 	// Before SetReady the snapshot is the version-0 placeholder: no
@@ -440,6 +447,7 @@ func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, rs.Version)
 	require.Empty(t, rs.Resources)
+	require.Zero(t, reconnects.Load(), "startup refresh must not reconnect MCP servers")
 
 	// Startup finishes: AGENTS.md now exists, so the symlinks resolve.
 	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "# rules\n")

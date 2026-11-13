@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
@@ -275,9 +277,12 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"<chat> argument, refreshes that chat and works from anywhere.\n\nWith no " +
 			"argument, run from inside the workspace: forces the agent to re-resolve its " +
 			"sources (catching freshly-cloned repos and startup-script writes the watcher " +
-			"has not seen yet) and retry MCP servers that failed to connect, then " +
-			"refreshes every drifted chat. This path authenticates " +
-			"with the agent token, so it does not require 'coder login'.",
+			"has not seen yet) and retry MCP servers that failed to connect. It then " +
+			"waits up to 30 seconds for coderd to store that snapshot or a newer one " +
+			"before refreshing this agent's drifted chats. The wait fails if coderd " +
+			"is unreachable. Before startup scripts finish, it resolves nothing and " +
+			"refreshes no chats. This path authenticates with the agent token, so it " +
+			"does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -315,10 +320,17 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			}
 			defer sock.Close()
 			snap, err := sock.ResyncContext(ctx)
+			if errors.Is(err, agentcontext.ErrPushUnavailable) {
+				return xerrors.New("workspace context sync is disabled on this deployment; chats were not refreshed")
+			}
 			if err != nil {
 				return xerrors.Errorf("re-resolve agent context: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Re-resolved agent context (version %d, %d resources).\n", snap.Version, len(snap.Resources))
+			if snap.Version == 0 {
+				_, _ = fmt.Fprintln(inv.Stdout, "Context will be collected after startup scripts finish. Chats were not refreshed.")
+				return nil
+			}
+			_, _ = fmt.Fprintf(inv.Stdout, "Resolved agent context (%d resources); coderd stored it or a newer snapshot.\n", len(snap.Resources))
 			if snap.SnapshotError != "" {
 				_, _ = fmt.Fprintf(inv.Stdout, "Snapshot reported an error: %s\n", snap.SnapshotError)
 			}

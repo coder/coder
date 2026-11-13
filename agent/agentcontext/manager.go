@@ -12,6 +12,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+const resyncTimeout = 30 * time.Second
+
 // ManagerOptions configures a Manager. Zero values get sensible
 // defaults.
 type ManagerOptions struct {
@@ -67,6 +69,11 @@ type Source struct {
 // Pusher fan-out. Construct with NewManager; start its lifecycle
 // goroutines with Run; tear down with Close.
 type Manager struct {
+	// ctx and cancel bound resolve passes to the Manager's lifetime.
+	ctx    context.Context
+	cancel context.CancelFunc
+	// resolveWG tracks resolve passes so Close can wait for them.
+	resolveWG    sync.WaitGroup
 	logger       slog.Logger
 	clock        quartz.Clock
 	workingDir   func() string
@@ -94,6 +101,15 @@ type Manager struct {
 	// an old walk's stale result from overwriting a newer one's
 	// fresh result at a higher version number.
 	resolveEpoch uint64
+	// snapshotEpoch identifies the pass that published snapshot.
+	snapshotEpoch uint64
+	// ackedVersion is the highest version coderd acknowledged, including
+	// snapshots superseded by a newer stored version.
+	ackedVersion uint64
+	// pushUnavailable records a peer that does not accept context snapshots.
+	pushUnavailable bool
+	// resyncCh wakes all waiters on publication or acknowledgement.
+	resyncCh chan struct{}
 
 	// subscribers receive a non-blocking signal whenever the
 	// snapshot changes. Subscribers must drain their channel
@@ -104,7 +120,7 @@ type Manager struct {
 	// observe a change.
 	trigger chan struct{}
 
-	// ready gates collection. While false (until the first SetReady
+	// ready gates resolve passes. While false (until the first SetReady
 	// call) the Manager does not scan; Snapshot() returns the empty
 	// version-0 value, which the push loop never sends to coderd.
 	// Guarded by mu.
@@ -138,7 +154,10 @@ func NewManager(opts ManagerOptions) *Manager {
 		resolver = &Resolver{}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	m := &Manager{
+		ctx:          ctx,
+		cancel:       cancel,
 		logger:       opts.Logger,
 		clock:        clock,
 		workingDir:   opts.WorkingDir,
@@ -148,6 +167,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		mcpReconnect: opts.MCPReconnect,
 		sources:      make([]Source, 0),
 		sourceIndex:  make(map[string]int),
+		resyncCh:     make(chan struct{}),
 		subscribers:  make(map[chan struct{}]struct{}),
 		trigger:      make(chan struct{}, 1),
 		closedCh:     make(chan struct{}),
@@ -239,10 +259,6 @@ func (m *Manager) Run(ctx context.Context) error {
 		case <-m.closedCh:
 			return nil
 		case <-m.trigger:
-			m.mu.Lock()
-			roots := m.scanRootsLocked()
-			m.mu.Unlock()
-			watcher.Sync(ctx, roots)
 			m.resolveAndBroadcast(ctx)
 		}
 	}
@@ -256,25 +272,21 @@ func (m *Manager) started() <-chan struct{} {
 	return m.runStartedCh
 }
 
-// Close stops the Manager. Close is idempotent; subsequent
-// calls block until Run exits.
+// Close stops the Manager and waits for Run and resolve passes to finish.
+// Close is idempotent.
 func (m *Manager) Close() error {
 	m.mu.Lock()
-	if m.closed {
-		running := m.running
-		m.mu.Unlock()
-		if running {
-			<-m.runDoneCh
-		}
-		return nil
+	if !m.closed {
+		m.closed = true
+		m.cancel()
+		close(m.closedCh)
 	}
-	m.closed = true
 	running := m.running
-	close(m.closedCh)
 	m.mu.Unlock()
 	if running {
 		<-m.runDoneCh
 	}
+	m.resolveWG.Wait()
 	return nil
 }
 
@@ -438,23 +450,17 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 	return ch, unsub
 }
 
-// Resync forces an immediate re-resolve and returns the new
-// Snapshot. Resync is safe to call regardless of whether Run is
-// active. Like resolveAndBroadcast, Resync drops the Manager's
-// mutex around the resolver pass so concurrent Sources,
-// AddSource, RemoveSource, and Snapshot calls do not block on
-// filesystem I/O. When the watcher is active, Resync also
-// re-arms it so newly added scan roots are observed for
-// subsequent edits.
+// Resync retries failed MCP servers and starts a resolve pass, then waits up to
+// resyncTimeout for coderd to acknowledge its snapshot or a newer version.
+// The wait returns ErrManagerClosed after Close, or ErrPushUnavailable when
+// coderd does not accept pushes. Cancellation stops the caller's wait.
+// Before SetReady it returns the version-0 placeholder without resolving or
+// reconnecting MCP servers. Resolve passes use the Manager's context and outlive
+// cancellation of ctx. The filesystem walk does not hold the Manager's mutex.
+// An active watcher is synchronized with newly added scan roots.
 func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
-	}
-
-	if m.mcpReconnect != nil {
-		if err := m.mcpReconnect(ctx); err != nil {
-			m.logger.Warn(ctx, "failed to reconnect MCP servers", slog.Error(err))
-		}
 	}
 
 	m.mu.Lock()
@@ -463,80 +469,117 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		return m.Snapshot(), ErrManagerClosed
 	}
 	if !m.ready {
-		// Gated until SetReady: return the version-0 placeholder, no scan.
 		snap := m.snapshot
 		m.mu.Unlock()
 		return snap, nil
 	}
-	roots := m.scanRootsLocked()
-	resolver := m.resolver
-	watcher := m.watcher
-	m.resolveEpoch++
-	myEpoch := m.resolveEpoch
+	if m.pushUnavailable {
+		snap := m.snapshot
+		m.mu.Unlock()
+		return snap, ErrPushUnavailable
+	}
 	m.mu.Unlock()
 
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return m.Snapshot(), ctxErr
-	}
-	snap := resolver.ResolveContext(ctx, roots)
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		// Cancellation mid-walk yields a partial or empty
-		// Snapshot whose SnapshotError is set to
-		// "context canceled". Publishing it would replace
-		// the live Snapshot with empty resources until the
-		// next trigger, so bail without touching state.
-		return m.Snapshot(), ctxErr
-	}
-	if snap.SnapshotError == "" && watcher != nil {
-		if d := watcher.Degraded(); d != "" {
-			snap.SnapshotError = d
+	if m.mcpReconnect != nil {
+		if err := m.mcpReconnect(ctx); err != nil {
+			m.logger.Warn(ctx, "failed to reconnect MCP servers", slog.Error(err))
 		}
 	}
 
+	// Close may have run during the MCP reconnect.
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
 	}
-	if m.resolveEpoch != myEpoch {
-		// A newer resolve pass started while this one was
-		// walking the filesystem. The newer pass's data
-		// strictly supersedes ours, so skip the publish to
-		// avoid overwriting a fresher Snapshot at a higher
-		// version. Return the currently published Snapshot,
-		// which is at least as fresh as ours. The watcher
-		// is NOT re-armed: the winning pass already synced
-		// with the current roots, and replaying our stale
-		// root set here would drop watches on sources that
-		// only the newer pass knows about.
-		published := m.snapshot
+	if ctxErr := ctx.Err(); ctxErr != nil {
 		m.mu.Unlock()
-		return published, nil
+		return m.Snapshot(), ctxErr
 	}
-	m.version++
-	snap.Version = m.version
-	m.snapshot = snap
-	subs := make([]chan struct{}, 0, len(m.subscribers))
-	for ch := range m.subscribers {
-		subs = append(subs, ch)
-	}
+	roots, watcher, epoch := m.beginResolveLocked()
 	m.mu.Unlock()
 
-	if watcher != nil {
-		watcher.Sync(ctx, roots)
-	}
+	go m.resolve(roots, watcher, epoch)
+	return m.waitForPush(ctx, epoch)
+}
 
-	// The broadcast is unconditional: Resync waiters that
-	// triggered the pass without an actual content change
-	// still need to wake up. Subscribers compare snapshots via
-	// AggregateHash if they want to filter.
-	for _, ch := range subs {
+// waitForPush waits for acknowledgement of a snapshot published by epoch or
+// later, including acknowledgement of a newer version.
+func (m *Manager) waitForPush(ctx context.Context, epoch uint64) (Snapshot, error) {
+	timer := m.clock.NewTimer(resyncTimeout)
+	defer timer.Stop()
+
+	var target Snapshot
+	for {
+		// Check cancellation before the acknowledgement fast path.
+		if err := ctx.Err(); err != nil {
+			return m.Snapshot(), xerrors.Errorf("wait for an acknowledged context snapshot: %w", err)
+		}
+		m.mu.Lock()
+		snap := m.snapshot
+		haveTarget := target.Version > 0
+		// Keep the first qualifying snapshot so later passes do not extend the wait.
+		if !haveTarget && m.snapshotEpoch >= epoch {
+			target = snap
+			haveTarget = true
+		}
+
+		closed := m.closed
+		unavailable := m.pushUnavailable
+		acknowledged := haveTarget && m.ackedVersion >= target.Version
+		changed := m.resyncCh
+		m.mu.Unlock()
+		if closed {
+			return snap, ErrManagerClosed
+		}
+		if unavailable {
+			return snap, ErrPushUnavailable
+		}
+		if acknowledged {
+			return target, nil
+		}
 		select {
-		case ch <- struct{}{}:
-		default:
+		case <-ctx.Done():
+			continue // Reported by the cancellation check above.
+		case <-m.closedCh:
+			return m.Snapshot(), ErrManagerClosed
+		case <-timer.C:
+			return m.Snapshot(), resyncTimeoutError()
+		case <-changed:
 		}
 	}
-	return snap, nil
+}
+
+func resyncTimeoutError() error {
+	return xerrors.Errorf(
+		"no acknowledged context snapshot within %s; "+
+			"the agent may be disconnected from coderd or context push may be failing; "+
+			"check the agent logs for context push errors: %w",
+		resyncTimeout, context.DeadlineExceeded,
+	)
+}
+
+// recordPushAcked records an acknowledgement and restores push availability.
+func (m *Manager) recordPushAcked(version uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ackedVersion = max(m.ackedVersion, version)
+	m.pushUnavailable = false
+	m.notifyResyncLocked()
+}
+
+// recordPushUnavailable wakes waiters when context pushes are unavailable.
+func (m *Manager) recordPushUnavailable() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pushUnavailable = true
+	m.notifyResyncLocked()
+}
+
+// notifyResyncLocked wakes every Resync waiter. m.mu must be held.
+func (m *Manager) notifyResyncLocked() {
+	close(m.resyncCh)
+	m.resyncCh = make(chan struct{})
 }
 
 // signal triggers a re-resolve. Sends are non-blocking; the
@@ -559,10 +602,9 @@ func (m *Manager) Trigger() {
 	m.signal()
 }
 
-// SetReady starts context collection: the agent calls it once startup
-// scripts finish (or terminally fail) so context is never collected
-// from a half-built workspace. Idempotent; the first call triggers the
-// first resolve and push.
+// SetReady starts resolve passes. Call it once startup scripts finish or
+// terminally fail so context is never resolved from a half-built workspace.
+// Idempotent; the first call triggers the first resolve and push.
 func (m *Manager) SetReady() {
 	m.mu.Lock()
 	if m.ready || m.closed {
@@ -637,11 +679,9 @@ func (m *Manager) effectiveAllowedRoots() []string {
 	return roots
 }
 
-// resolveAndBroadcast computes a fresh snapshot and notifies
-// every subscriber. The broadcast is unconditional: Resync
-// waiters that triggered the pass without an actual content
-// change still need to wake up. Subscribers compare snapshots
-// via AggregateHash if they want to filter.
+// resolveAndBroadcast broadcasts even unchanged snapshots so RunPush delivers
+// their new versions for acknowledgement. ctx gates starting the pass;
+// resolve passes use the Manager's context.
 func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// Snapshot the inputs under the lock, then release it
 	// before running the resolver. The resolver walks the
@@ -650,29 +690,34 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// RemoveSource, Snapshot, and SubscribeChanges for the
 	// duration of the pass.
 	m.mu.Lock()
-	if !m.ready {
-		// Gated until SetReady: no scan, no broadcast.
+	if !m.ready || m.closed || ctx.Err() != nil {
 		m.mu.Unlock()
 		return
 	}
-	roots := m.scanRootsLocked()
-	resolver := m.resolver
-	watcher := m.watcher
-	m.resolveEpoch++
-	myEpoch := m.resolveEpoch
+	roots, watcher, epoch := m.beginResolveLocked()
 	m.mu.Unlock()
+	m.resolve(roots, watcher, epoch)
+}
 
+// beginResolveLocked captures the inputs and registers a resolve pass.
+// The Manager's mutex must be held.
+func (m *Manager) beginResolveLocked() (roots []ScanRoot, watcher *Watcher, epoch uint64) {
+	roots = m.scanRootsLocked()
+	m.resolveEpoch++
+	m.resolveWG.Add(1)
+	return roots, m.watcher, m.resolveEpoch
+}
+
+// resolve runs a registered pass and releases its resolveWG entry on return.
+func (m *Manager) resolve(roots []ScanRoot, watcher *Watcher, epoch uint64) {
+	defer m.resolveWG.Done()
+	ctx := m.ctx
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := m.resolver.ResolveContext(ctx, roots)
 	if err := ctx.Err(); err != nil {
-		// Cancellation mid-walk yields a partial or empty
-		// Snapshot. Publishing it would replace the live
-		// Snapshot with empty resources, so bail without
-		// touching state. The Run loop's gracefulCtx is
-		// canceled only at shutdown, but defensive checks
-		// keep the publish contract uniform with Resync.
+		// A canceled walk can return an empty snapshot; keep the live snapshot.
 		return
 	}
 	// Surface watcher degradation as a snapshot-level error
@@ -684,24 +729,26 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	}
 
 	m.mu.Lock()
-	if m.resolveEpoch != myEpoch {
-		// A newer resolve pass started while this one was
-		// walking the filesystem. Skip the publish so a
-		// stale-epoch result does not overwrite a fresher
-		// Snapshot at a higher version number. The newer
-		// pass will broadcast its own result.
+	if m.closed || m.resolveEpoch != epoch {
+		// A closed or superseded pass must not overwrite a newer snapshot or
+		// synchronize stale roots.
 		m.mu.Unlock()
 		return
 	}
 	m.version++
 	snap.Version = m.version
 	m.snapshot = snap
+	m.snapshotEpoch = epoch
+	m.notifyResyncLocked()
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
 		subs = append(subs, ch)
 	}
 	m.mu.Unlock()
 
+	if watcher != nil {
+		watcher.Sync(ctx, roots)
+	}
 	for _, ch := range subs {
 		select {
 		case ch <- struct{}{}:
