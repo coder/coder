@@ -1399,7 +1399,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 
 On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
-TODO (#32169): the endpoint writes the events of one `Sync` in one WebSocket message, and on streams opened with `snapshot_version` also those of the initial fetch. The responses to `SendMessage`, `EditMessage`, `DeleteQueuedMessage`, `EditQueuedMessage`, and `SteerQueuedMessage` requests include the transition's `snapshot_version`. Describe both here and in [Endpoint lifecycle](#endpoint-lifecycle).
+TODO (#32169): on streams opened with `snapshot_version`, each `Sync` that applies a read, including the initial fetch, ends with a `synced` event that carries the chat's `snapshot_version` at that read. The responses to `SendMessage`, `EditMessage`, `DeleteQueuedMessage`, `EditQueuedMessage`, and `SteerQueuedMessage` requests include the transition's `snapshot_version`. Describe both here and in [Endpoint lifecycle](#endpoint-lifecycle).
 
 ## Endpoint lifecycle
 

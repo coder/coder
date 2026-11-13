@@ -190,6 +190,7 @@ Each event has a `type` field:
 | `retry`           | The control plane is retrying a failed LLM call                                                                         |
 | `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
 | `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
+| `synced`          | After you apply it, your client has every change to the messages and the queue at or below its `snapshot_version`       |
 
 The server increases a chat's `snapshot_version` each time it changes the chat's messages, queue, or status.
 To keep your client in sync with the chat:
@@ -225,7 +226,7 @@ Then send the `before_id` request again with the lowest message ID that you have
 Send actions, such as new messages, edits, and tool results, as HTTP requests.
 Do not apply their response bodies to your client's state, because the stream sends the result of each action.
 The response to a new message, an edit, or a change to a queued message includes the `snapshot_version` of that change, unless the request changed nothing.
-After you apply a WebSocket message that contains that `snapshot_version` or a higher one, your client has the result of the action.
+After you apply a `synced` event with that `snapshot_version` or a higher one, your client has the result of the action.
 
 For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../reference/api/chats.md#stream-chat-events-via-websockets).
 
