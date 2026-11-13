@@ -2,14 +2,20 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -615,7 +621,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1", "workspace2"},
+				hostNames:        []string{"workspace1", "workspace2"},
 				waitEnum:         "auto",
 			},
 			want: []string{
@@ -634,7 +640,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   nil,
+				hostNames:        nil,
 				waitEnum:         "auto",
 			},
 			notWant: []string{"Host", "ProxyCommand", "Match"},
@@ -646,7 +652,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				userHostPrefix:   "coder.",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1", "workspace2"},
+				hostNames:        []string{"workspace1", "workspace2"},
 				waitEnum:         "auto",
 			},
 			want: []string{
@@ -663,7 +669,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1"},
+				hostNames:        []string{"workspace1"},
 				skipProxyCommand: true,
 				waitEnum:         "auto",
 			},
@@ -677,7 +683,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				userHostPrefix:   "coder.",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1"},
+				hostNames:        []string{"workspace1"},
 				skipProxyCommand: true,
 				waitEnum:         "auto",
 			},
@@ -691,7 +697,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				globalConfigPath: "/tmp/coder",
 				hostnameSuffix:   "coder",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1", "workspace2"},
+				hostNames:        []string{"workspace1", "workspace2"},
 				sshOptions:       []string{"ForwardAgent=yes", "LogLevel=DEBUG"},
 				waitEnum:         "auto",
 			},
@@ -724,7 +730,7 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 				userHostPrefix:   "coder.",
 				hostnameSuffix:   "testy",
 				noWildcard:       true,
-				workspaceNames:   []string{"workspace1"},
+				hostNames:        []string{"workspace1"},
 				waitEnum:         "auto",
 			},
 			want: []string{
@@ -751,6 +757,150 @@ func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
 			for _, nw := range tt.notWant {
 				assert.NotContains(t, got, nw, "unexpected substring found")
 			}
+		})
+	}
+}
+
+func Test_noWildcardHostNames(t *testing.T) {
+	t.Parallel()
+
+	resource := func(transition codersdk.WorkspaceTransition, agents ...string) codersdk.WorkspaceResource {
+		r := codersdk.WorkspaceResource{Transition: transition}
+		for _, name := range agents {
+			r.Agents = append(r.Agents, codersdk.WorkspaceAgent{Name: name})
+		}
+		return r
+	}
+	workspace := func(name string, workspaceID uuid.UUID, resources ...codersdk.WorkspaceResource) codersdk.Workspace {
+		return codersdk.Workspace{
+			ID:        workspaceID,
+			Name:      name,
+			OwnerName: "alice",
+			LatestBuild: codersdk.WorkspaceBuild{
+				TemplateVersionID: uuid.New(),
+				Resources:         resources,
+			},
+		}
+	}
+
+	fetched, missing := uuid.New(), uuid.New()
+	workspaceResources := map[uuid.UUID][]codersdk.WorkspaceResource{
+		fetched: {
+			resource(codersdk.WorkspaceTransitionStart, "main"),
+			// Stop-transition resources must not contribute agent entries.
+			resource(codersdk.WorkspaceTransitionStop, "ignored"),
+		},
+	}
+
+	got := noWildcardHostNames([]codersdk.Workspace{
+		// Agents of a running workspace come from its latest build, sorted,
+		// skipping names that are unsafe to interpolate into SSH config.
+		workspace("running", fetched, resource(codersdk.WorkspaceTransitionStart, "web", "dev", "dev_box", "bad name", "bad\nname", "bad*", "bad.name", "bad;name", "-bad", "bad--name")),
+		// A stopped workspace uses its last successful start resources.
+		workspace("stopped", fetched, resource(codersdk.WorkspaceTransitionStop)),
+		// If previous start resources could not be fetched, only the workspace
+		// itself gets an entry.
+		workspace("unknown", missing),
+		// So does a workspace whose name is not a valid name, such as one
+		// created before underscores were rejected.
+		workspace("legacy_name", fetched, resource(codersdk.WorkspaceTransitionStart, "dev")),
+	}, workspaceResources)
+
+	require.Equal(t, []string{
+		"running",
+		"dev.running.alice",
+		"dev_box.running.alice",
+		"web.running.alice",
+		"stopped",
+		"main.stopped.alice",
+		"unknown",
+		"legacy_name",
+	}, got)
+}
+
+func Test_previousStartResources(t *testing.T) {
+	t.Parallel()
+
+	versionID := uuid.New()
+	resources := []codersdk.WorkspaceResource{{
+		Transition: codersdk.WorkspaceTransitionStart,
+		Agents:     []codersdk.WorkspaceAgent{{Name: "main"}},
+	}}
+	start := codersdk.WorkspaceBuild{
+		BuildNumber:       1,
+		Transition:        codersdk.WorkspaceTransitionStart,
+		TemplateVersionID: versionID,
+		Job:               codersdk.ProvisionerJob{Status: codersdk.ProvisionerJobSucceeded},
+		Resources:         resources,
+	}
+	future := start
+	future.BuildNumber = 32
+	future.Resources = []codersdk.WorkspaceResource{{Agents: []codersdk.WorkspaceAgent{{Name: "future"}}}}
+	failed := start
+	failed.BuildNumber = 30
+	failed.Resources = []codersdk.WorkspaceResource{{Agents: []codersdk.WorkspaceAgent{{Name: "failed"}}}}
+	failed.Job.Status = codersdk.ProvisionerJobFailed
+	paged := []codersdk.WorkspaceBuild{future, failed}
+	for number := int32(29); number >= 2; number-- {
+		paged = append(paged, codersdk.WorkspaceBuild{
+			BuildNumber: number,
+			Transition:  codersdk.WorkspaceTransitionStop,
+			Job:         codersdk.ProvisionerJob{Status: codersdk.ProvisionerJobSucceeded},
+		})
+	}
+	paged = append(paged, start)
+	changedVersion := start
+	changedVersion.BuildNumber = 2
+	changedVersion.TemplateVersionID = uuid.New()
+
+	for _, tc := range []struct {
+		name   string
+		builds []codersdk.WorkspaceBuild
+		fail   bool
+		want   []codersdk.WorkspaceResource
+	}{
+		{name: "PaginatedHistory", builds: paged, want: resources},
+		{name: "ChangedTemplateVersion", builds: []codersdk.WorkspaceBuild{changedVersion, start}},
+		{name: "NoSuccessfulStart", builds: []codersdk.WorkspaceBuild{failed}},
+		{name: "FetchError", fail: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ws := codersdk.Workspace{
+				ID: uuid.New(),
+				LatestBuild: codersdk.WorkspaceBuild{
+					BuildNumber:       31,
+					TemplateVersionID: versionID,
+				},
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/api/v2/workspaces/"+ws.ID.String()+"/builds", r.URL.Path)
+				if tc.fail {
+					w.WriteHeader(http.StatusInternalServerError)
+					assert.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "history unavailable"}))
+					return
+				}
+				offset := 0
+				if value := r.URL.Query().Get("offset"); value != "" {
+					var err error
+					offset, err = strconv.Atoi(value)
+					assert.NoError(t, err)
+				}
+				limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+				assert.NoError(t, err)
+				assert.Positive(t, limit)
+				assert.NoError(t, json.NewEncoder(w).Encode(tc.builds[offset:min(offset+limit, len(tc.builds))]))
+			}))
+			t.Cleanup(srv.Close)
+			u, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+			got, err := previousStartResources(t.Context(), codersdk.New(u), ws)
+			if tc.fail {
+				require.ErrorContains(t, err, "history unavailable")
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.want, got)
 		})
 	}
 }

@@ -131,7 +131,7 @@ export const OrganizationAutocomplete: React.FC<
 				align="start"
 				className="w-(--radix-popover-trigger-width) p-0"
 			>
-				<Command loop>
+				<Command loop label="Find organization">
 					<CommandInput placeholder="Find organization…" />
 					<CommandList>
 						<CommandEmpty>No organizations found.</CommandEmpty>
@@ -155,7 +155,7 @@ export const OrganizationAutocomplete: React.FC<
 										{getOrganizationLabel(org, labelContext)}
 									</span>
 									{value?.id === org.id && (
-										<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+										<CheckIcon className="ml-auto size-icon-sm shrink-0 text-content-primary" />
 									)}
 								</CommandItem>
 							))}
@@ -190,7 +190,7 @@ const OrganizationValue: React.FC<OrganizationValueProps> = ({
 			role="group"
 			aria-label={`Organization ${label}`}
 			className={cn(
-				"flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-primary",
+				"flex h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm text-content-primary",
 				className,
 			)}
 		>

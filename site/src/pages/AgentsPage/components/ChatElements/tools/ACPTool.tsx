@@ -53,7 +53,7 @@ type AgentContentCardProps = {
 
 const AgentContentCard: React.FC<AgentContentCardProps> = ({ children }) => {
 	return (
-		<div className="mt-2 rounded-lg border border-solid border-border [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0">
+		<div className="mt-2 rounded-lg border **:data-[streamdown=table-wrapper]:border-0 **:data-[streamdown=table-wrapper]:bg-transparent **:data-[streamdown=table-wrapper]:p-0">
 			<div className="p-3">{children}</div>
 		</div>
 	);
@@ -127,7 +127,7 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 			<ToolCall.Content>
 				{waiting ? (
 					<ToolCall.Scrollable
-						className="mt-2 mb-4 rounded-lg border border-solid border-border [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0"
+						className="mt-2 mb-4 rounded-lg border **:data-[streamdown=table-wrapper]:border-0 **:data-[streamdown=table-wrapper]:bg-transparent **:data-[streamdown=table-wrapper]:p-0"
 						viewportClassName="max-h-96"
 						ariaLabel="Agent activity"
 					>

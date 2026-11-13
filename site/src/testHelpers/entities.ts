@@ -595,6 +595,22 @@ export const MockUserMember: TypesGen.User = {
 	name: "Mock User The Second",
 };
 
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
+};
+
 export const SuspendedMockUser: TypesGen.User = {
 	id: "suspended-mock-user",
 	username: "SuspendedMockUser",
@@ -3417,6 +3433,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 	],
 };
 
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
+};
+
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
 	users: [{ ...MockUserMember, role: "read" }],
 	groups: [
@@ -4807,6 +4829,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 			],
 		},
 	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
+	},
 	provisioner_daemons: {
 		severity: "ok",
 		warnings: [
@@ -5029,6 +5057,12 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				},
 			],
 		},
+	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
 	},
 	provisioner_daemons: {
 		severity: "error",

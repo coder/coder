@@ -308,7 +308,9 @@ const WorkspaceParametersPage: React.FC = () => {
 								<br />
 								<Link
 									size="sm"
-									href={docs("/admin/templates/extending-templates/parameters")}
+									href={docs("/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
 								>
 									View docs
 								</Link>
@@ -347,11 +349,13 @@ const WorkspaceParametersPage: React.FC = () => {
 				/>
 			) : (
 				<EmptyState
-					className="border border-border border-solid rounded-md"
+					className="border rounded-md"
 					message="This workspace has no parameters"
 					cta={
 						<Link
-							href={docs("/admin/templates/extending-templates/parameters")}
+							href={docs("/templates/extending-templates/parameters")}
+							target="_blank"
+							rel="noreferrer"
 						>
 							Learn more about parameters
 						</Link>

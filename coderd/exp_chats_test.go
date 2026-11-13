@@ -10,6 +10,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -47,15 +48,18 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -170,13 +174,17 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 ) database.ChatQueuedMessage {
 	t.Helper()
 
-	queued, err := db.InsertChatQueuedMessage(
+	chat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(
 		dbauthz.AsSystemRestricted(ctx),
-		database.InsertChatQueuedMessageParams{
+		database.InsertChatQueuedMessageWithCreatorParams{
 			ChatID:          chatID,
 			Content:         content,
 			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
+			CreatedBy:       chat.OwnerID,
+			BusyBehavior:    database.ChatBusyBehaviorQueue,
 		},
 	)
 	require.NoError(t, err)
@@ -4240,6 +4248,46 @@ func TestListChatModelConfigs(t *testing.T) {
 		}
 		t.Fatal("bedrock provider descriptor not found")
 	})
+
+	t.Run("ComputerUseProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		anthropicProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+		bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeBedrock})
+		compatProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
+
+		want := map[uuid.UUID]codersdk.ChatComputerUseProvider{}
+		for _, tc := range []struct {
+			provider database.AIProvider
+			model    string
+			want     codersdk.ChatComputerUseProvider
+		}{
+			{provider: anthropicProvider, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+			{provider: bedrockProvider, model: "us.anthropic.claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+			{provider: bedrockProvider, model: "openai.gpt-5.4"},
+			{provider: compatProvider, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderOpenAICompat},
+		} {
+			config := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				AIProviderID:   uuid.NullUUID{UUID: tc.provider.ID, Valid: true},
+				Model:          tc.model,
+				OrganizationID: firstUser.OrganizationID,
+			})
+			want[config.ID] = tc.want
+		}
+
+		models, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		got := map[uuid.UUID]codersdk.ChatComputerUseProvider{}
+		for _, model := range models.Models {
+			if _, ok := want[model.ID]; ok {
+				got[model.ID] = model.ComputerUseProvider
+			}
+		}
+		require.Equal(t, want, got)
+	})
 }
 
 func TestGetChatModel(t *testing.T) {
@@ -6111,7 +6159,10 @@ func TestGetChatUserPrompts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		if deleted {
-			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
+			require.NoError(t, db.SoftDeleteChatMessagesAfterID(dbauthz.AsSystemRestricted(ctx), database.SoftDeleteChatMessagesAfterIDParams{
+				ChatID:  chatID,
+				AfterID: msgs[0].ID - 1,
+			}))
 		}
 		return database.ChatMessage(msgs[0])
 	}
@@ -6455,7 +6506,10 @@ func TestGetChatAttachments(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		if deleted {
-			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
+			require.NoError(t, db.SoftDeleteChatMessagesAfterID(dbauthz.AsSystemRestricted(ctx), database.SoftDeleteChatMessagesAfterIDParams{
+				ChatID:  chat.ID,
+				AfterID: msgs[0].ID - 1,
+			}))
 		}
 		return database.ChatMessage(msgs[0])
 	}
@@ -8391,7 +8445,6 @@ func TestSendMessageWithReasoningEffortUpdatesLastReasoningEffort(t *testing.T) 
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "and another thing",
 		}},
-		BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
 
@@ -9304,7 +9357,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// The fallback title derives from the pasted attachment
 		// content instead of "New Chat".
-		require.Equal(t, "Fix the flaky test in coderd…", chat.Title)
+		require.Equal(t, "Fix the flaky test in coderd please", chat.Title)
 	})
 
 	t.Run("InvalidFileID", func(t *testing.T) {
@@ -10716,6 +10769,264 @@ func TestStreamChat(t *testing.T) {
 		requireFullHistory("deleted cursor from another chat must fall back to the full history")
 	})
 
+	t.Run("EditedChatSyncsOnlyChangedHistory", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		_ = sendChatMessage(ctx, t, client, chat.ID, "second prompt")
+
+		newestPage := func() codersdk.ChatMessagesResponse {
+			t.Helper()
+			page, err := client.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			require.False(t, page.HasMore)
+			return page
+		}
+		lastPromptID := func(page codersdk.ChatMessagesResponse) int64 {
+			t.Helper()
+			var id int64
+			for _, m := range page.Messages {
+				if m.Role == codersdk.ChatMessageRoleUser {
+					id = max(id, m.ID)
+				}
+			}
+			require.NotZero(t, id)
+			return id
+		}
+		edit := func(messageID int64, text string) {
+			t.Helper()
+			resp, err := client.EditChatMessage(ctx, chat.ID, messageID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.DeletedMessageIDs)
+		}
+		requireResetFrom := func(events []codersdk.ChatStreamEvent, fromID int64) {
+			t.Helper()
+			resets := 0
+			for _, event := range events {
+				switch event.Type {
+				case codersdk.ChatStreamEventTypeHistoryReset:
+					resets++
+					require.NotNil(t, event.HistoryReset, "the reset replaced the whole history")
+					require.Equal(t, fromID, event.HistoryReset.FromMessageID)
+					require.Positive(t, event.SnapshotVersion)
+				case codersdk.ChatStreamEventTypeMessage:
+					require.GreaterOrEqual(t, event.Message.ID, fromID, "a message below the edit was resent")
+					require.Positive(t, event.SnapshotVersion)
+				}
+			}
+			require.Equal(t, 1, resets)
+		}
+		// A stream opened at a snapshot version resends the messages written
+		// at that version or later, which the tab already has.
+		requireOnlyResent := func(held []int64, events []codersdk.ChatStreamEvent) {
+			t.Helper()
+			for _, event := range events {
+				require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "the stream reset the history")
+				if event.Message != nil {
+					require.Contains(t, held, event.Message.ID, "the stream sent a message the tab did not hold")
+				}
+			}
+		}
+
+		// Opening a chat edited earlier must not reset the history, even though
+		// the rows the edit soft-deleted are still in the chat.
+		edit(lastPromptID(newestPage()), "edited once")
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		page := newestPage()
+		live := newChatTab(page)
+		pageIDs := live.sortedIDs()
+		applied, events := live.connect(ctx, t, client, chat.ID)
+		requireOnlyResent(pageIDs, applied)
+
+		// An edit while the stream is open resets the history from the
+		// edited message.
+		stale := newChatTab(page)
+		editedID := lastPromptID(page)
+		edit(editedID, "edited twice")
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		wantIDs := liveChatMessageIDs(ctx, t, client, chat.ID)
+		applied = live.applyUntil(ctx, t, events, func(codersdk.ChatStreamEvent) bool {
+			return slices.Equal(wantIDs, live.sortedIDs())
+		})
+		requireResetFrom(applied, editedID)
+
+		// Reconnecting with the highest snapshot version the tab received
+		// does not reset the history again.
+		applied, _ = live.connect(ctx, t, client, chat.ID)
+		requireOnlyResent(wantIDs, applied)
+
+		// A tab that missed the edit and then sent a message holds both the
+		// deleted messages and a newer message ID. Its reconnect must still
+		// reset the history from the edited message.
+		stale.hold(sendChatMessage(ctx, t, client, chat.ID, "sent while the stream was down")...)
+		applied, _ = stale.connect(ctx, t, client, chat.ID)
+		requireResetFrom(applied, editedID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), stale.sortedIDs(), "the tab still shows deleted messages or is missing their replacements")
+
+		// A client without a snapshot version that holds message after_id
+		// gets no history reset, and no event includes snapshot_version.
+		legacy := newChatTab(newestPage())
+		legacy.withoutSnapshotVersion = true
+		applied, _ = legacy.connect(ctx, t, client, chat.ID)
+		for _, event := range applied {
+			require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "a client that holds message after_id got a history reset")
+			require.Zero(t, event.SnapshotVersion, "a %s event includes snapshot_version on a stream opened without it", event.Type)
+		}
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
+	})
+
+	t.Run("ReconnectReceivesMessagesSentElsewhere", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		tab := newChatTab(page)
+		_, _ = tab.connect(ctx, t, client, chat.ID)
+
+		// While this tab is not reading its stream, another tab sends a message
+		// and then this tab sends one and holds it. The other tab's message
+		// has the lower ID, so after_id alone would skip it.
+		_ = sendChatMessage(ctx, t, client, chat.ID, "from another tab")
+		tab.hold(sendChatMessage(ctx, t, client, chat.ID, "from this tab")...)
+
+		_, _ = tab.connect(ctx, t, client, chat.ID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while it was not reading its stream")
+	})
+
+	t.Run("InvalidSnapshotVersionReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+
+		for _, version := range []string{"0", "-1", "abc"} {
+			res, err := client.Request(
+				ctx,
+				http.MethodGet,
+				fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=%s", chat.ID, version),
+				nil,
+			)
+			require.NoError(t, err)
+			_ = res.Body.Close()
+			require.Equal(t, http.StatusBadRequest, res.StatusCode, "snapshot_version=%s", version)
+		}
+	})
+
+	t.Run("SnapshotVersionAboveChatReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=%d", chat.ID, page.SnapshotVersion+100),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	// A failed setup is an HTTP error before the upgrade, not an error
+	// event a client would show as the chat's state.
+	t.Run("SetupFailureReturnsHTTPError", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name          string
+			failRead      bool
+			failSubscribe bool
+		}{
+			{name: "ReadFails", failRead: true},
+			{name: "SubscribeFails", failSubscribe: true},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				rawDB, rawPS := dbtestutil.NewDB(t)
+				store := &chatStreamReadFailStore{Store: rawDB, fail: &atomic.Pointer[chatStreamReadFailure]{}}
+				ps := &chatStreamSubscribeFailPubsub{Pubsub: rawPS}
+				client := newChatClient(t, withChatWorkerDisabled, func(opts *coderdtest.Options) {
+					opts.Database = store
+					opts.Pubsub = ps
+				})
+				user := coderdtest.CreateFirstUser(t, client.Client)
+				model := createChatModel(t, client)
+				chat := dbgen.Chat(t, rawDB, database.Chat{
+					OrganizationID:    user.OrganizationID,
+					OwnerID:           user.UserID,
+					LastModelConfigID: model.ID,
+					Title:             "stream setup failure",
+					Status:            database.ChatStatusWaiting,
+				})
+				if tt.failRead {
+					store.fail.Store(&chatStreamReadFailure{chatID: chat.ID, err: xerrors.New("read failed")})
+				}
+				if tt.failSubscribe {
+					event := coderdpubsub.ChatStateUpdateChannel(chat.ID)
+					ps.failEvent.Store(&event)
+				}
+
+				u, err := client.URL.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID))
+				require.NoError(t, err)
+				conn, res, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+					HTTPHeader: http.Header{codersdk.SessionTokenHeader: {client.SessionToken()}},
+				})
+				if conn != nil {
+					_ = conn.Close(websocket.StatusNormalClosure, "")
+				}
+				require.Error(t, err, "the stream upgraded despite the failed setup")
+				require.NotNil(t, res)
+				if res.Body != nil {
+					_ = res.Body.Close()
+				}
+				require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+			})
+		}
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 
@@ -11520,9 +11831,10 @@ func TestClearChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = db.InsertChatQueuedMessageWithCreator(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageWithCreatorParams{
-			ChatID:    chat.ID,
-			Content:   queuedContent.RawMessage,
-			CreatedBy: user.UserID,
+			ChatID:       chat.ID,
+			Content:      queuedContent.RawMessage,
+			CreatedBy:    user.UserID,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 
@@ -12062,7 +12374,7 @@ func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
 	require.NoError(t, err)
 	// The create response carries the synchronous fallback title derived
 	// from the pasted attachment content.
-	require.Equal(t, "panic: runtime error: invalid memory address…", chat.Title)
+	require.Equal(t, pasteContent, chat.Title)
 
 	select {
 	case <-titleRequested:
@@ -12809,6 +13121,40 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		require.Equal(t, "Invalid queued message ID.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
 	})
+
+	t.Run("ArchivedChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "delete queued archived",
+		})
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		_, err = db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodDelete,
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+		require.Equal(t, "Cannot delete queued messages in an archived chat.", sdkErr.Message)
+	})
 }
 
 func TestPromoteChatQueuedMessage(t *testing.T) {
@@ -13111,7 +13457,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
@@ -13164,9 +13510,12 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:     chat.ID,
-			Status: database.ChatStatusRequiresAction,
+		// The worker can take over an unowned requires_action chat. A
+		// missing deadline makes it cancel the pending tool call at once.
+		_, err = db.UpdateChatExecutionState(dbauthz.AsSystemRestricted(ctx), database.UpdateChatExecutionStateParams{
+			ID:                       chat.ID,
+			Status:                   database.ChatStatusRequiresAction,
+			RequiresActionDeadlineAt: sql.NullTime{Time: dbtime.Now().Add(time.Hour), Valid: true},
 		})
 		require.NoError(t, err)
 
@@ -13191,25 +13540,37 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
 		require.NotEmpty(t, resp.Message)
 
+		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRequiresAction, after.Status,
+			"Send now does not cancel the pending tool call")
+		queued, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Len(t, queued, 1)
+		require.Equal(t, queuedMessage.ID, queued[0].ID)
+		require.Equal(t, database.ChatBusyBehaviorSteer, queued[0].BusyBehavior)
+
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{ToolCallID: pendingToolCallID, Output: json.RawMessage(`"done"`)}},
+		})
+		require.NoError(t, err)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
 		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
 		})
 		require.NoError(t, err)
-
-		var (
-			syntheticID int64
-			promotedID  int64
-		)
+		var resultID, promotedID, replyID int64
 		for _, msg := range messages {
-			parts, parseErr := chatprompt.ParseContent(msg)
-			require.NoError(t, parseErr)
+			parts, err := chatprompt.ParseContent(msg)
+			require.NoError(t, err)
 			for _, part := range parts {
 				if msg.Role == database.ChatMessageRoleTool &&
 					part.Type == codersdk.ChatMessagePartTypeToolResult &&
-					part.ToolCallID == pendingToolCallID &&
-					part.IsError {
-					syntheticID = msg.ID
+					part.ToolCallID == pendingToolCallID {
+					require.False(t, part.IsError, "the submitted result is the only result")
+					resultID = msg.ID
 				}
 				if msg.Role == database.ChatMessageRoleUser &&
 					part.Type == codersdk.ChatMessagePartTypeText &&
@@ -13217,19 +13578,19 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 					promotedID = msg.ID
 				}
 			}
+			if msg.Role == database.ChatMessageRoleAssistant && promotedID != 0 && replyID == 0 {
+				replyID = msg.ID
+			}
 		}
-		require.NotZero(t, syntheticID,
-			"expected a synthetic error tool result for the pending tool call")
-		require.NotZero(t, promotedID,
-			"expected the promoted user message in chat history")
-		require.Less(t, syntheticID, promotedID,
-			"synthetic tool result must precede the promoted user message")
+		require.NotZero(t, resultID, "expected the submitted tool result")
+		require.Less(t, resultID, promotedID,
+			"the steered message goes in after the submitted tool result")
+		require.NotZero(t, replyID,
+			"expected an assistant reply after the steered message")
 
 		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
-		for _, qm := range queuedRemaining {
-			require.NotEqual(t, queuedMessage.ID, qm.ID)
-		}
+		require.Empty(t, queuedRemaining)
 	})
 
 	t.Run("WhileRunning", func(t *testing.T) {
@@ -13250,15 +13611,12 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Simulate an active worker by setting status to running.
-		// We do not start a real worker; the running-case behavior
-		// reorders the queue and moves the chat to interrupting. The
-		// deferred auto-promote is exercised by chatd-package tests
-		// where a real worker is involved.
+		// No real worker runs here, so this test stops before delivery.
+		workerID := uuid.New()
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
 			Status:      database.ChatStatusRunning,
-			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
 			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 			HeartbeatAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		})
@@ -13286,16 +13644,17 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, database.ChatStatusInterrupting, after.Status,
-			"running-case promote must transition chat to interrupting")
-		require.True(t, after.WorkerID.Valid,
-			"running-case promote keeps current worker ownership")
+		require.Equal(t, database.ChatStatusRunning, after.Status,
+			"Send now does not interrupt a running chat")
+		require.Equal(t, uuid.NullUUID{UUID: workerID, Valid: true}, after.WorkerID,
+			"Send now keeps the worker")
 
 		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.Len(t, queuedRemaining, 1)
 		require.Equal(t, queuedMessage.ID, queuedRemaining[0].ID,
-			"queued message ID must stay stable across reorder")
+			"queued message ID must stay stable when it moves to the steer lane")
+		require.Equal(t, database.ChatBusyBehaviorSteer, queuedRemaining[0].BusyBehavior)
 	})
 }
 
@@ -14661,6 +15020,173 @@ func seedChatWithDeletedModelConfig(
 func createChatModel(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModel {
 	t.Helper()
 	return coderdtest.CreateOpenAICompatChatModel(t, client, "")
+}
+
+func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient, chatID uuid.UUID, want codersdk.ChatStatus) {
+	t.Helper()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		chat, err := client.GetChat(ctx, chatID)
+		return err == nil && chat.Status == want
+	}, testutil.IntervalFast, "chat did not reach status %s", want)
+}
+
+// chatTab models the state a web client tab keeps for one chat: the IDs
+// of the messages it holds and its snapshot version.
+type chatTab struct {
+	ids             map[int64]bool
+	snapshotVersion int64
+	// withoutSnapshotVersion opens the stream without snapshot_version, as
+	// clients that predate it do.
+	withoutSnapshotVersion bool
+}
+
+func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
+	tab := &chatTab{ids: map[int64]bool{}, snapshotVersion: page.SnapshotVersion}
+	tab.hold(page.Messages...)
+	return tab
+}
+
+func (tab *chatTab) hold(messages ...codersdk.ChatMessage) {
+	for _, m := range messages {
+		tab.ids[m.ID] = true
+	}
+}
+
+func (tab *chatTab) sortedIDs() []int64 {
+	return slices.Sorted(maps.Keys(tab.ids))
+}
+
+// connect opens the stream with the tab's newest message ID and snapshot
+// version, and applies events through the status event, which every initial
+// sync sends after its versioned events.
+func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
+	t.Helper()
+	afterID := slices.Max(append(tab.sortedIDs(), 0))
+	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
+	if !tab.withoutSnapshotVersion {
+		opts.SnapshotVersion = tab.snapshotVersion
+	}
+	events, closer, err := client.StreamChat(ctx, chatID, opts)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = closer.Close() })
+	applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
+		return event.Type == codersdk.ChatStreamEventTypeStatus
+	})
+	return applied, events
+}
+
+// applyUntil fails the test if the stream closes or ctx expires before done
+// returns true.
+func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent, done func(codersdk.ChatStreamEvent) bool) []codersdk.ChatStreamEvent {
+	t.Helper()
+	var applied []codersdk.ChatStreamEvent
+	progress := func() string {
+		types := make([]codersdk.ChatStreamEventType, 0, len(applied))
+		for _, event := range applied {
+			types = append(types, event.Type)
+		}
+		return fmt.Sprintf("applied %v, snapshot version %d", types, tab.snapshotVersion)
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out applying stream events", progress())
+		case event, ok := <-events:
+			if !ok {
+				require.FailNow(t, "stream closed early", progress())
+			}
+			applied = append(applied, event)
+			tab.snapshotVersion = max(tab.snapshotVersion, event.SnapshotVersion)
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeHistoryReset:
+				var fromID int64
+				if event.HistoryReset != nil {
+					fromID = event.HistoryReset.FromMessageID
+				}
+				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
+			case codersdk.ChatStreamEventTypeMessage:
+				tab.hold(*event.Message)
+			}
+			if done(event) {
+				return applied
+			}
+		}
+	}
+}
+
+// sendChatMessage sends text, waits for the chat to return to waiting,
+// and returns the messages in the response.
+func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID, text string) []codersdk.ChatMessage {
+	t.Helper()
+	resp, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Queued)
+	waitForChatStatus(ctx, t, client, chatID, codersdk.ChatStatusWaiting)
+	if len(resp.Messages) > 0 {
+		return resp.Messages
+	}
+	require.NotNil(t, resp.Message)
+	return []codersdk.ChatMessage{*resp.Message}
+}
+
+func liveChatMessageIDs(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) []int64 {
+	t.Helper()
+	page, err := client.GetChatMessages(ctx, chatID, nil)
+	require.NoError(t, err)
+	require.False(t, page.HasMore)
+	ids := make([]int64, 0, len(page.Messages))
+	for _, m := range page.Messages {
+		ids = append(ids, m.ID)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// chatStreamReadFailStore fails reads of one chat inside transactions, so
+// the stream's first sync fails while the route's read, outside one,
+// succeeds.
+type chatStreamReadFailStore struct {
+	database.Store
+	fail *atomic.Pointer[chatStreamReadFailure]
+}
+
+type chatStreamReadFailure struct {
+	chatID uuid.UUID
+	err    error
+}
+
+func (s *chatStreamReadFailStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&chatStreamReadFailTx{Store: tx, fail: s.fail})
+	}, txOpts)
+}
+
+type chatStreamReadFailTx struct {
+	database.Store
+	fail *atomic.Pointer[chatStreamReadFailure]
+}
+
+func (s *chatStreamReadFailTx) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if failure := s.fail.Load(); failure != nil && failure.chatID == id {
+		return database.Chat{}, failure.err
+	}
+	return s.Store.GetChatByID(ctx, id)
+}
+
+// chatStreamSubscribeFailPubsub fails subscriptions to failEvent only, so
+// coderd's other subscriptions keep working.
+type chatStreamSubscribeFailPubsub struct {
+	dbpubsub.Pubsub
+	failEvent atomic.Pointer[string]
+}
+
+func (p *chatStreamSubscribeFailPubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	if failEvent := p.failEvent.Load(); failEvent != nil && *failEvent == event {
+		return nil, xerrors.New("subscribe failed")
+	}
+	return p.Pubsub.SubscribeWithErr(event, listener)
 }
 
 func createChatModelWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModel {
@@ -16161,6 +16687,32 @@ func TestChatModelOverridesComputerUse(t *testing.T) {
 	update := func(req codersdk.UpdateChatModelOverrideRequest) (codersdk.ChatModelOverrideResponse, error) {
 		return adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextComputerUse, req)
 	}
+	// Bedrock providers require Bedrock settings and reject API keys.
+	createBedrockChatModel := func(t *testing.T, model string) codersdk.ChatModel {
+		t.Helper()
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "test-bedrock-" + uuid.NewString(),
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          model,
+					SmallFastModel: model,
+				},
+			},
+		})
+		require.NoError(t, err)
+		contextLimit := int64(4096)
+		created, err := adminClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
+			AIProviderID: &provider.ID,
+			ContextLimit: &contextLimit,
+			Model:        model,
+		})
+		require.NoError(t, err)
+		return created
+	}
 
 	for _, providerType := range []string{"anthropic", "openai"} {
 		t.Run("Accepts"+providerType, func(t *testing.T) {
@@ -16179,20 +16731,56 @@ func TestChatModelOverridesComputerUse(t *testing.T) {
 		})
 	}
 
+	t.Run("AcceptsOpenAICompat", func(t *testing.T) {
+		// An OpenAI-compatible model declares computer use as a function tool,
+		// so any model on such a provider is selectable for computer use.
+		model := createAdditionalChatModel(t, adminClient, coderdtest.TestChatProviderOpenAICompat, "computer-use-compat-"+uuid.NewString())
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAICompat, model.ComputerUseProvider)
+		updated, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		require.NoError(t, err)
+		require.Equal(t, model.ID.String(), updated.ModelConfigID)
+		stored, err := getRow()
+		require.NoError(t, err)
+		require.Equal(t, model.ID, stored.ModelConfigID)
+	})
+
 	t.Run("RejectsUnsupportedProviderType", func(t *testing.T) {
 		valid := createAdditionalChatModel(t, adminClient, "anthropic", "computer-use-valid-"+uuid.NewString())
 		_, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: valid.ID.String()})
 		require.NoError(t, err)
 		before, err := getRow()
 		require.NoError(t, err)
-		model := createAdditionalChatModel(t, adminClient, coderdtest.TestChatProviderOpenAICompat, "computer-use-compat-"+uuid.NewString())
+		model := createAdditionalChatModel(t, adminClient, "google", "computer-use-google-"+uuid.NewString())
 		_, err = update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Computer use requires a model from an Anthropic or OpenAI AI provider.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, `of type "openai-compat"`)
+		require.Equal(t, "Computer use requires "+chatprovider.ComputerUseModelRequirement+".", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, `of type "google"`)
 		after, err := getRow()
 		require.NoError(t, err)
 		require.Equal(t, before.ModelConfigID, after.ModelConfigID)
+	})
+
+	t.Run("AcceptsBedrockClaude", func(t *testing.T) {
+		model := createBedrockChatModel(t, "us.anthropic.claude-opus-5-5")
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, model.ComputerUseProvider)
+		fetched, err := adminClient.ChatModel(ctx, firstUser.OrganizationID, model.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, fetched.ComputerUseProvider)
+		patched, err := adminClient.UpdateChatModel(ctx, firstUser.OrganizationID, model.ID, codersdk.UpdateChatModelRequest{DisplayName: "Bedrock Claude"})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, patched.ComputerUseProvider)
+		updated, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		require.NoError(t, err)
+		require.Equal(t, model.ID.String(), updated.ModelConfigID)
+	})
+
+	t.Run("RejectsBedrockNonClaude", func(t *testing.T) {
+		model := createBedrockChatModel(t, "openai.gpt-5.4")
+		require.Empty(t, model.ComputerUseProvider)
+		_, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Computer use requires "+chatprovider.ComputerUseModelRequirement+".", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, `of type "bedrock"`)
 	})
 
 	t.Run("RejectsMalformedID", func(t *testing.T) {
@@ -19004,6 +19592,8 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.hasMore, resp.HasMore)
 			require.Len(t, resp.QueuedMessages, tc.wantQueued)
+			// A cursored page can leave out newer messages.
+			require.Equal(t, tc.opts == nil, resp.SnapshotVersion != 0, "only the page without a cursor includes snapshot_version")
 
 			want := make([]int64, len(tc.want))
 			for i, pos := range tc.want {
@@ -19164,11 +19754,14 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 	_ = insert(roleUser, modelOnly)
 	afterModelOnly := insert(roleAssistant, both)
 	deletedPrompt := insert(roleUser, both)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.NoError(t, db.SoftDeleteChatMessagesAfterID(dbauthz.AsSystemRestricted(ctx), database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: deletedPrompt - 1,
+	}))
 	afterDeletedPrompt := insert(roleAssistant, both)
 	lastPrompt := insert(roleUser, both)
 	lastStep := insert(roleAssistant, both)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt))
 
 	tests := []struct {
 		name string

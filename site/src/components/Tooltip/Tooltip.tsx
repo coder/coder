@@ -20,8 +20,7 @@ import {
 export const TooltipProvider = TooltipPrimitive.Provider;
 
 /**
- * Shared open delay (ms) for tooltips. Used by the app-wide provider and by
- * self-contained tooltips such as InfoTooltip so hover timing stays consistent.
+ * Shared open delay (ms) for the app-wide provider and interactive tooltips.
  */
 export const TOOLTIP_DELAY_DURATION = 100;
 
@@ -194,7 +193,7 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 			aria-controls={context.open ? context.id : undefined}
 			aria-describedby={context.open ? context.id : undefined}
 			className={cn(
-				"m-0 inline-flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm",
+				"m-0 inline-flex items-center bg-transparent p-0 text-inherit rounded-sm",
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				className,
 			)}
@@ -251,7 +250,7 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 /** Surface styles shared by plain and interactive tooltips. */
 const tooltipContentClassName = cn(
 	"z-50 overflow-hidden rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
-	"border border-solid border-border animate-in fade-in-0 duration-150",
+	"border animate-in fade-in-0 duration-150",
 	"data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
 );
 
@@ -380,7 +379,7 @@ export const TooltipMessage: React.FC<React.ComponentProps<"p">> = ({
 	...props
 }) => (
 	<p
-		className={cn("m-0 text-content-secondary [&_a]:mt-2", className)}
+		className={cn("m-0 text-content-secondary [&_a]:mt-1", className)}
 		{...props}
 	/>
 );

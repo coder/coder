@@ -1,33 +1,11 @@
-import type * as monaco from "monaco-editor";
-import type { Branding } from "./branding";
-import dark from "./dark";
-import darkProtanDeuter from "./darkProtanDeuter";
-import darkTritan from "./darkTritan";
-import type { NewTheme } from "./experimental";
-import type { ExternalImageModeStyles } from "./externalImages";
-import light from "./light";
-import lightProtanDeuter from "./lightProtanDeuter";
-import lightTritan from "./lightTritan";
-import type { Palette } from "./palette";
-import type { Roles } from "./roles";
+import {
+	type ExternalImageModeStyles,
+	forDarkThemes,
+	forLightThemes,
+} from "./externalImages";
 
 export type Theme = {
-	/** @deprecated prefer roles or CSS variables when possible */
-	palette: Palette;
-
-	/** Sets of colors that can be used based on the role that a UI element serves
-	 * for the user.
-	 * Does it signify an error? a warning? that something is currently running? etc.
-	 */
-	roles: Roles;
-
-	/** Theme properties that we're testing out but haven't committed to. */
-	experimental: NewTheme;
-
-	/** Theme colors related to marketing */
-	branding: Branding;
-
-	monaco: monaco.editor.IStandaloneThemeData;
+	mode: "dark" | "light";
 	externalImages: ExternalImageModeStyles;
 };
 
@@ -100,13 +78,16 @@ export const baseModeFor = (
 	return concreteName.startsWith("dark") ? "dark" : "light";
 };
 
+const dark: Theme = { mode: "dark", externalImages: forDarkThemes };
+const light: Theme = { mode: "light", externalImages: forLightThemes };
+
 const theme = {
 	dark,
 	light,
-	"dark-protan-deuter": darkProtanDeuter,
-	"light-protan-deuter": lightProtanDeuter,
-	"dark-tritan": darkTritan,
-	"light-tritan": lightTritan,
+	"dark-protan-deuter": dark,
+	"light-protan-deuter": light,
+	"dark-tritan": dark,
+	"light-tritan": light,
 } satisfies Record<ConcreteThemeName, Theme>;
 
 export default theme;

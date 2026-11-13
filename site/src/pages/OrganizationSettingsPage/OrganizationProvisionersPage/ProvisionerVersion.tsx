@@ -16,9 +16,7 @@ export const ProvisionerVersion: React.FC<ProvisionerVersionProps> = ({
 	buildVersion,
 }) => {
 	return provisionerVersion === buildVersion ? (
-		<span className="text-xs font-medium text-content-secondary">
-			Up to date
-		</span>
+		<span className="text-xs text-content-secondary">Up to date</span>
 	) : (
 		<Tooltip>
 			<TooltipTrigger asChild>

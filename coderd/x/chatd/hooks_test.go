@@ -570,10 +570,12 @@ func seedErroredChatWithQueuedMessage(t *testing.T, db database.Store, text stri
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
-	queued, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        chat.ID,
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		CreatedBy:     user.ID,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	return chat, queued
@@ -660,10 +662,11 @@ func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, db.DeleteChatQueuedMessage(r.Context(), database.DeleteChatQueuedMessageParams{
+		_, err := db.DeleteChatQueuedMessageReturningCount(r.Context(), database.DeleteChatQueuedMessageReturningCountParams{
 			ID: queued.ID, ChatID: chat.ID,
-		}))
-		_, err := db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
 			ID:     chat.ID,
 			Status: database.ChatStatusWaiting,
 		})
@@ -836,6 +839,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 					Content:       queuedContent.RawMessage,
 					ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 					CreatedBy:     user.ID,
+					BusyBehavior:  database.ChatBusyBehaviorQueue,
 				})
 				require.NoError(t, err)
 			}
@@ -862,60 +866,6 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 				t.Fatalf("admission-rejected prompt dispatched %s", request.Type)
 			default:
 			}
-		})
-	}
-
-	// An interrupt from these states is inserted ahead of the queue, so a
-	// full queue does not refuse it before the hook dispatch.
-	for _, tc := range []struct {
-		name   string
-		status database.ChatStatus
-		// editing marks the queued row under edit, which P requires.
-		editing bool
-	}{
-		{name: "Error", status: database.ChatStatusError},
-		{name: "Paused", status: database.ChatStatusPaused, editing: true},
-	} {
-		t.Run("InterruptSkipsFullQueue/"+tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			db, server, received := newPreflightServer(t, chatd.Limits{MaxQueuedMessagesPerChat: 1})
-			user, org, model := seedChatDependencies(t, db)
-			chat := dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				LastModelConfigID: model.ID,
-				Status:            tc.status,
-			})
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
-			require.NoError(t, err)
-			queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-				ChatID:        chat.ID,
-				Content:       queuedContent.RawMessage,
-				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-				CreatedBy:     user.ID,
-			})
-			require.NoError(t, err)
-			if tc.editing {
-				_, err = db.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
-					ID:      queued.ID,
-					ChatID:  chat.ID,
-					Editing: true,
-				})
-				require.NoError(t, err)
-			}
-
-			result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-				ChatID:       chat.ID,
-				Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("interrupt")},
-				BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
-			})
-			require.NoError(t, err)
-			require.False(t, result.Queued)
-			request := testutil.RequireReceive(ctx, t, received)
-			require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
 		})
 	}
 }
