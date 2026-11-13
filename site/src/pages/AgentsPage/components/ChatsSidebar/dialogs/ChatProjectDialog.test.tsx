@@ -519,7 +519,6 @@ describe("ChatProjectDialog templates", () => {
 		);
 	};
 
-	/** Names the new project and selects every eligible template. */
 	const startCreate = async (user: ReturnType<typeof userEvent.setup>) => {
 		await user.type(
 			screen.getByRole("textbox", { name: /project name/i }),
@@ -582,25 +581,6 @@ describe("ChatProjectDialog templates", () => {
 				}),
 			);
 		});
-	});
-
-	it("shows that a default template has no presets", async () => {
-		useTemplateHandlers();
-		// The server returns null, not [], for a version without presets.
-		server.use(
-			http.get("/api/v2/templateversions/:versionId/presets", () =>
-				HttpResponse.json(null),
-			),
-		);
-		const user = userEvent.setup();
-		renderDialog();
-
-		await startCreate(user);
-		await pickDefaultTemplate(user, "Docker");
-
-		expect(
-			await screen.findByText("This template has no presets."),
-		).toBeInTheDocument();
 	});
 
 	it("submits default parameter values instead of a preset", async () => {

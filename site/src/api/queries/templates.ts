@@ -390,7 +390,10 @@ export const previousTemplateVersion = (
 	};
 };
 
-/** Query key for {@link templateVersionPresets}. */
+/**
+ * Query key for {@link templateVersionPresets}. It sits under the template
+ * version's key, so invalidating a version also refetches its presets.
+ */
 export const templateVersionPresetsKey = (versionId: string) => [
 	templateVersionRoot,
 	versionId,
