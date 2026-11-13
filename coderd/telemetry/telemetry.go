@@ -104,10 +104,22 @@ func New(options Options) (Reporter, error) {
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Time(options.Clock.Now()).UTC(),
-		client:        &http.Client{},
+		client:        newHTTPClient(),
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
+}
+
+// newHTTPClient returns a client with its own connection pool. On
+// http.DefaultTransport, any CloseIdleConnections call in the process, such as
+// the one in httptest.Server.Close, can fail a request that is just returning
+// its connection to the pool.
+func newHTTPClient() *http.Client {
+	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
+	return &http.Client{Transport: transport}
 }
 
 // NewNoop creates a new telemetry reporter that entirely discards all requests.
@@ -192,6 +204,9 @@ func (r *remoteReporter) Close() {
 		r.reportWithDeployment()
 	}
 	r.closeFunc()
+	// Only this reporter uses the pool, and the canceled context stops any
+	// later request from adding a connection to it.
+	r.client.CloseIdleConnections()
 }
 
 func (r *remoteReporter) isClosed() bool {
