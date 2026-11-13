@@ -1,4 +1,4 @@
-import { PinOffIcon, SquarePenIcon } from "lucide-react";
+import { PinIcon, PinOffIcon, SquarePenIcon } from "lucide-react";
 import { Link, type To } from "react-router";
 import type { ChatProjectPermissions } from "#/api/typesGenerated";
 import type {
@@ -22,6 +22,8 @@ type ProjectActionsMenuItemsProps = {
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
 	readonly onNewChatInPlace?: () => void;
+	/** Adds a "Pin project" item. */
+	readonly onPin?: () => void;
 	/** Adds an "Unpin project" item. */
 	readonly onUnpin?: () => void;
 	readonly permissions: ChatProjectPermissions;
@@ -42,6 +44,7 @@ export const ProjectActionsMenuItems: React.FC<
 	Separator,
 	projectPath,
 	onNewChatInPlace,
+	onPin,
 	onUnpin,
 	permissions,
 	onEdit,
@@ -60,10 +63,16 @@ export const ProjectActionsMenuItems: React.FC<
 						New chat
 					</Link>
 				</Item>
-				{(onUnpin || hasProjectUpdateOrDeleteAction(permissions)) && (
+				{(onPin || onUnpin || hasProjectUpdateOrDeleteAction(permissions)) && (
 					<Separator />
 				)}
 			</>
+		)}
+		{onPin && (
+			<Item onSelect={onPin}>
+				<PinIcon />
+				Pin project
+			</Item>
 		)}
 		{onUnpin && (
 			<Item onSelect={onUnpin}>
