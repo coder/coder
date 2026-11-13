@@ -2,12 +2,15 @@ package agentcontext
 
 import (
 	"context"
+	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/structpb"
 	"storj.io/drpc/drpcerr"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // DRPCPusher adapts a generated DRPCAgentClient to the
@@ -52,7 +55,15 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 // generated protobuf equivalent. The Kind on each Resource
 // selects which body variant of the proto oneof is set; a body
 // is always set (zero-valued if necessary) so coderd can tell
-// the kind even when Status != OK.
+// the kind even when Status != OK. Each Error has invalid UTF-8
+// replaced, since proto3 strings must be valid UTF-8 or the whole
+// request fails to marshal, and is truncated to
+// workspacesdk.MaxContextErrorBytes.
+//
+// Each resource with a PluginName is nested in the StatusOK KindPlugin
+// resource of that name. req must hold such a plugin for every
+// PluginName: a resource without one is dropped, but AggregateHash
+// still covers it.
 func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 	pb := &agentproto.PushContextStateRequest{
 		Version:       req.Version,
@@ -61,23 +72,59 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 		SnapshotError: req.SnapshotError,
 		Resources:     make([]*agentproto.ContextResource, 0, len(req.Resources)),
 	}
-	for i := range req.Resources {
-		r := req.Resources[i]
-		entry := &agentproto.ContextResource{
-			Source:      r.Source,
-			ContentHash: append([]byte(nil), r.ContentHash[:]...),
-			Status:      resourceStatusToProto(r.Status),
-			SizeBytes:   r.SizeBytes,
-			Error:       r.Error,
+	plugins := make(map[string]*agentproto.PluginBody)
+	for _, r := range req.Resources {
+		if r.PluginName != "" {
+			continue
 		}
-		setResourceBody(entry, r)
-		if r.SourcePath != "" {
-			sp := r.SourcePath
-			entry.SourcePath = &sp
-		}
+		entry := resourceToProto(r)
 		pb.Resources = append(pb.Resources, entry)
+		if r.Kind == KindPlugin && r.Status == StatusOK {
+			plugins[r.Name] = entry.GetPlugin()
+		}
+	}
+	for _, r := range req.Resources {
+		plugin, ok := plugins[r.PluginName]
+		if r.PluginName == "" || !ok {
+			continue
+		}
+		switch r.Kind {
+		case KindSkill:
+			plugin.Skills = append(plugin.Skills, resourceToProto(r))
+		case KindMCPServer:
+			plugin.McpServers = append(plugin.McpServers, resourceToProto(r))
+		}
 	}
 	return pb
+}
+
+func resourceToProto(r Resource) *agentproto.ContextResource {
+	entry := &agentproto.ContextResource{
+		Source:      r.Source,
+		ContentHash: append([]byte(nil), r.ContentHash[:]...),
+		Status:      resourceStatusToProto(r.Status),
+		SizeBytes:   r.SizeBytes,
+		Error:       truncateUTF8Bytes(strings.ToValidUTF8(r.Error, "\uFFFD"), workspacesdk.MaxContextErrorBytes),
+	}
+	setResourceBody(entry, r)
+	if r.SourcePath != "" {
+		sp := r.SourcePath
+		entry.SourcePath = &sp
+	}
+	return entry
+}
+
+// truncateUTF8Bytes cuts s to at most limit bytes without splitting a
+// UTF-8 sequence.
+func truncateUTF8Bytes(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // setResourceBody picks the proto oneof variant for r's Kind and
@@ -127,6 +174,14 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 				ServerName:  serverNameOrSource(r),
 				Description: r.Description,
 				Tools:       mcpToolsToProto(r.Tools),
+			},
+		}
+	case KindPlugin:
+		entry.Body = &agentproto.ContextResource_Plugin{
+			Plugin: &agentproto.PluginBody{
+				Name:        r.Name,
+				Version:     r.PluginVersion,
+				Description: r.Description,
 			},
 		}
 	}

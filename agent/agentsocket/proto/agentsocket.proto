@@ -121,6 +121,8 @@ message ContextResource {
   string error = 8;
   string name = 9;
   string description = 10;
+  string plugin_name = 11;
+  string plugin_version = 12;
 }
 
 // ContextSnapshot is the agent's resolved context state.

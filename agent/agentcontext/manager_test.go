@@ -17,10 +17,10 @@ import (
 
 // TestMain points the test binary's HOME (and USERPROFILE on
 // Windows) at a fresh empty directory before any test runs.
-// The package's built-in scan roots (~/.coder,
-// ~/.coder/skills, ~/.claude/plugins/cache) canonicalize
-// against this directory, so they resolve to non-existent
-// paths and the resolver silently skips them. Without this,
+// The package's built-in scan roots (~/.coder and
+// ~/.coder/skills) canonicalize against this directory, so they
+// resolve to non-existent paths and the resolver silently skips
+// them. Without this,
 // running the tests on a developer host pulls real Coder and
 // Claude config files into snapshots and breaks every
 // Len(Resources, N) assertion.

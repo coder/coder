@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -305,7 +306,8 @@ func (s *DRPCAgentSocketService) ResyncContext(ctx context.Context, _ *proto.Res
 
 // contextSnapshotToProto converts an agentcontext.Snapshot to its on-wire
 // form. Payload bytes are intentionally omitted; they reach coderd via the
-// drpc PushContextState path. Keep the per-resource field mapping in sync
+// drpc PushContextState path. Strings are made valid UTF-8, which proto3
+// string fields require. Keep the per-resource field mapping in sync
 // with snapshotResponse in agent/agentcontext/api.go.
 func contextSnapshotToProto(s agentcontext.Snapshot) *proto.ContextSnapshot {
 	out := &proto.ContextSnapshot{
@@ -313,21 +315,27 @@ func contextSnapshotToProto(s agentcontext.Snapshot) *proto.ContextSnapshot {
 		AggregateHash: hex.EncodeToString(s.AggregateHash[:]),
 		Resources:     make([]*proto.ContextResource, 0, len(s.Resources)),
 		PayloadBytes:  s.PayloadBytes,
-		SnapshotError: s.SnapshotError,
+		SnapshotError: validUTF8(s.SnapshotError),
 	}
 	for _, r := range s.Resources {
 		out.Resources = append(out.Resources, &proto.ContextResource{
-			Id:          r.ID,
-			Kind:        r.Kind.String(),
-			Source:      r.Source,
-			SourcePath:  r.SourcePath,
-			ContentHash: hex.EncodeToString(r.ContentHash[:]),
-			SizeBytes:   r.SizeBytes,
-			Status:      r.Status.String(),
-			Error:       r.Error,
-			Name:        r.Name,
-			Description: r.Description,
+			Id:            validUTF8(r.ID),
+			Kind:          r.Kind.String(),
+			Source:        validUTF8(r.Source),
+			SourcePath:    validUTF8(r.SourcePath),
+			ContentHash:   hex.EncodeToString(r.ContentHash[:]),
+			SizeBytes:     r.SizeBytes,
+			Status:        r.Status.String(),
+			Error:         validUTF8(r.Error),
+			Name:          validUTF8(r.Name),
+			Description:   validUTF8(r.Description),
+			PluginName:    validUTF8(r.PluginName),
+			PluginVersion: validUTF8(r.PluginVersion),
 		})
 	}
 	return out
+}
+
+func validUTF8(s string) string {
+	return strings.ToValidUTF8(s, "\uFFFD")
 }
