@@ -19839,6 +19839,12 @@ func TestGetUnpricedAIModels(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		// Without a limit, count is the number of models returned. It is
+		// checked here so the cases compare the models alone.
+		for i := range got {
+			require.Equal(t, int64(len(got)), got[i].Count)
+			got[i].Count = 0
+		}
 		return got
 	}
 
@@ -20200,6 +20206,70 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					// Then only the expected models are listed.
 					require.Equal(t, scope.want, got, scope.name)
 				}
+			})
+		}
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		// Given three unpriced models with different token counts.
+		for _, u := range []usage{
+			{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 300, outputTokens: 300},
+			{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 200, outputTokens: 200},
+			{provider: f.anthropic, model: "model-c", createdAt: inPeriod, inputTokens: 100, outputTokens: 100},
+		} {
+			recordTokenUsage(t, f, u)
+		}
+		// withCount sets the count of every model, since each row carries it.
+		withCount := func(rows ...database.GetUnpricedAIModelsRow) []database.GetUnpricedAIModelsRow {
+			for i := range rows {
+				rows[i].Count = 3
+			}
+			return rows
+		}
+
+		tests := []struct {
+			name   string
+			limit  int32
+			offset int32
+			want   []database.GetUnpricedAIModelsRow
+		}{
+			{
+				name:  "FirstPage",
+				limit: 2,
+				want:  withCount(unpricedModel(f.anthropic, "model-a", 600), unpricedModel(f.anthropic, "model-b", 400)),
+			},
+			{
+				name:   "LastPage",
+				limit:  2,
+				offset: 2,
+				want:   withCount(unpricedModel(f.anthropic, "model-c", 200)),
+			},
+			{
+				name:   "PastLastModel",
+				limit:  2,
+				offset: 3,
+				want:   nil,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// When listing one page of the models.
+				got, err := f.db.GetUnpricedAIModels(testutil.Context(t, testutil.WaitLong), database.GetUnpricedAIModelsParams{
+					PeriodStart:        periodStart,
+					PeriodEnd:          periodEnd,
+					PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
+					LimitOpt:           tc.limit,
+					OffsetOpt:          tc.offset,
+				})
+
+				// Then only the models on that page are listed, each with the
+				// count of every model.
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
 			})
 		}
 	})

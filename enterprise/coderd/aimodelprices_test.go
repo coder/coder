@@ -658,46 +658,50 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 	group := dbgen.Group(t, db, database.Group{OrganizationID: owner.OrganizationID})
 	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
 
-	// Given unpriced usage of a model in the organization's group. The model is
-	// not in the price book the deployment seeds at startup.
+	// Given unpriced usage of two models in the organization's group. The models
+	// are not in the price book the deployment seeds at startup.
 	provider := dbgen.AIProvider(t, db, database.AIProvider{
 		Name:        "anthropic-prod",
 		DisplayName: sql.NullString{String: "Anthropic", Valid: true},
 		Icon:        "/icon/anthropic.svg",
 		Type:        database.AIProviderTypeAnthropic,
 	})
-	interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		InitiatorID: owner.UserID, Provider: string(provider.Type), ProviderName: provider.Name, Model: "model-without-price", StartedAt: inMonth,
-	}, nil)
-	dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-		InterceptionID:   interception.ID,
-		CreatedAt:        inMonth,
-		EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
-		InputTokens:      300,
-		OutputTokens:     200,
-	})
-	model := codersdk.UnpricedAIModel{
-		ProviderName:        "anthropic-prod",
-		ProviderDisplayName: "Anthropic",
-		ProviderIcon:        "/icon/anthropic.svg",
-		ProviderType:        codersdk.AIProviderType(database.AIProviderTypeAnthropic),
-		Model:               "model-without-price",
-		TokenCount:          500,
+	unpricedModel := func(name string, inputTokens, outputTokens int64) codersdk.UnpricedAIModel {
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: owner.UserID, Provider: string(provider.Type), ProviderName: provider.Name, Model: name, StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   interception.ID,
+			CreatedAt:        inMonth,
+			EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
+			InputTokens:      inputTokens,
+			OutputTokens:     outputTokens,
+		})
+		return codersdk.UnpricedAIModel{
+			ProviderName:        "anthropic-prod",
+			ProviderDisplayName: "Anthropic",
+			ProviderIcon:        "/icon/anthropic.svg",
+			ProviderType:        codersdk.AIProviderType(database.AIProviderTypeAnthropic),
+			Model:               name,
+			TokenCount:          inputTokens + outputTokens,
+		}
 	}
+	model := unpricedModel("model-without-price", 300, 200)
+	otherModel := unpricedModel("other-model-without-price", 100, 100)
 
 	t.Run("DefaultPeriod", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// When listing without a period.
-		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
 
-		// Then the current month is applied and the model is listed.
+		// Then the current month is applied and the models are listed.
 		require.NoError(t, err)
 		require.Equal(t, codersdk.UnpricedAIModels{
 			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
-			Count:               1,
-			Models:              []codersdk.UnpricedAIModel{model},
+			Count:               2,
+			Models:              []codersdk.UnpricedAIModel{model, otherModel},
 		}, got)
 	})
 
@@ -707,7 +711,7 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: inMonth.Add(-time.Hour)}
 
 		// When listing a period that ends before the usage.
-		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, window)
+		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, window, codersdk.OrganizationAISpendPage{})
 
 		// Then the applied period is echoed with no models.
 		require.NoError(t, err)
@@ -722,7 +726,7 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// When listing another organization, which has no usage.
-		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, otherOrg.ID, codersdk.AISpendPeriodWindow{})
+		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, otherOrg.ID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
 
 		// Then the usage of the first organization is not listed.
 		require.NoError(t, err)
@@ -730,6 +734,45 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
 			Models:              []codersdk.UnpricedAIModel{},
 		}, got)
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			page codersdk.OrganizationAISpendPage
+			want []codersdk.UnpricedAIModel
+		}{
+			{
+				name: "SecondPage",
+				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1},
+				want: []codersdk.UnpricedAIModel{otherModel},
+			},
+			{
+				// The count is still returned when the page has no models.
+				name: "PastLastModel",
+				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 2},
+				want: []codersdk.UnpricedAIModel{},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// When listing one page of the models.
+				got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{}, tc.page)
+
+				// Then only the models on that page are listed, with the count
+				// of every model.
+				require.NoError(t, err)
+				require.Equal(t, codersdk.UnpricedAIModels{
+					AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
+					Count:               2,
+					Models:              tc.want,
+				}, got)
+			})
+		}
 	})
 
 	t.Run("Validation", func(t *testing.T) {
@@ -741,7 +784,7 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 		}{
 			{
 				name:        "UnknownParameter",
-				params:      map[string]string{"limit": "10"},
+				params:      map[string]string{"model": "model-without-price"},
 				wantMessage: "Query parameters have invalid values.",
 			},
 			{
@@ -805,7 +848,7 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
-				got, err := codersdk.NewExperimentalClient(tc.client).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
+				got, err := codersdk.NewExperimentalClient(tc.client).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
 				if tc.wantStatus != 0 {
 					var sdkErr *codersdk.Error
 					require.ErrorAs(t, err, &sdkErr)
@@ -813,7 +856,7 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
-				require.Equal(t, []codersdk.UnpricedAIModel{model}, got.Models)
+				require.Equal(t, []codersdk.UnpricedAIModel{model, otherModel}, got.Models)
 			})
 		}
 	})

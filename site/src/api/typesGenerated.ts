@@ -11088,11 +11088,12 @@ export interface UnpricedAIModel {
  */
 export interface UnpricedAIModels extends AISpendPeriodWindow {
 	/**
-	 * Count is the number of models listed.
+	 * Count is the number of models over every page.
 	 */
 	readonly count: number;
 	/**
-	 * Models are ordered by unpriced token count, highest first.
+	 * Models are one page of the models, ordered by unpriced token count,
+	 * highest first.
 	 */
 	readonly models: readonly UnpricedAIModel[];
 }

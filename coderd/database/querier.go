@@ -1013,7 +1013,8 @@ type sqlcQuerier interface {
 	// reported by the provider, or whose cost could not be computed from a found
 	// price, is not reported as unpriced. openai-compat providers cannot be priced,
 	// so they are excluded. @organization_id limits the usage to one organization,
-	// and null includes all.
+	// and null includes all. count is the number of models before the limit, and a
+	// @limit_opt of zero returns every model.
 	GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error)
 	// Counts unpublished usage events in the last 60 days:
 	//   pending: created within the last 30 days (still eligible to publish)
