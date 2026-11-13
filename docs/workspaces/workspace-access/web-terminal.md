@@ -173,6 +173,16 @@ This prevents external links from silently executing arbitrary commands in a wor
 Template-configured apps that use the `command` attribute in [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) are trusted and bypass the confirmation dialog.
 These apps use the `?app=` parameter internally, which resolves the command from the agent's app list.
 
+When the command exits while the terminal is connected, the terminal stops accepting input, and the page shows `Session ended.` with a **Run again** button.
+To run the command again, select **Run again**.
+A template-configured app runs its command again without a confirmation dialog.
+When a `?command=` parameter is present, the confirmation dialog opens again before the command runs.
+When the dialog opens from **Run again**, **Cancel** closes only the dialog, and the terminal window stays open.
+
+If you refresh the page after the command exits, the command runs again.
+When a `?command=` parameter is present, the confirmation dialog opens first.
+If the command exits while the terminal is disconnected (for example, during a network interruption), the command runs again when the terminal reconnects.
+
 ### Container Selection
 
 For workspaces with multiple Docker containers, specify which container to connect to:
