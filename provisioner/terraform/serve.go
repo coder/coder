@@ -138,7 +138,6 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
-		execMut:       &sync.Mutex{},
 		binaryPath:    options.BinaryPath,
 		cachePath:     options.CachePath,
 		cliConfigPath: options.CliConfigPath,
@@ -149,24 +148,67 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	execMut                *sync.Mutex
-	planConfigsBySessionMu sync.Mutex
-	// An entry is created only when a plan returns configuration. It remains
-	// until its session ends so only one cleanup callback is registered. A nil
-	// value means a later plan returned no configuration to cache, which can
-	// occur when template import runs its start and stop plans in one session.
-	planConfigsBySession map[*provisionersdk.Session]*tfjson.Config
-	binaryPath           string
-	cachePath            string
-	cliConfigPath        string
-	logger               slog.Logger
-	tracer               trace.Tracer
-	exitTimeout          time.Duration
+	// execMut is held by one RPC at a time; see lockExecutor.
+	execMut       sync.Mutex
+	binaryPath    string
+	cachePath     string
+	cliConfigPath string
+	logger        slog.Logger
+	tracer        trace.Tracer
+	exitTimeout   time.Duration
 
 	// versionMu guards cachedVersion, so `terraform version` runs once per
 	// server instead of before every stage.
 	versionMu     sync.Mutex
 	cachedVersion *version.Version
+
+	// sessionsMu guards sessions, which carries Plan's results to the Graph
+	// of the same session.
+	sessionsMu sync.Mutex
+	sessions   map[*provisionersdk.Session]sessionState
+}
+
+// sessionState is what Plan leaves for the Graph of the same session.
+// Callers get a copy; the plan it points to is shared and must not be
+// modified.
+type sessionState struct {
+	// plan is the parsed plan file and graph the `terraform graph` output
+	// from the most recent successful Plan, so Graph doesn't have to run
+	// Terraform for them again. A plan-source Graph converts the whole plan,
+	// and a state-source Graph reads its configuration. Template import
+	// plans the start and stop transitions in one session, and each Plan
+	// replaces both. graph is empty when Plan didn't compute it.
+	plan  *tfjson.Plan
+	graph string
+}
+
+// loadSessionState returns a copy of the state stored for sess, which is
+// empty if none was stored.
+func (s *server) loadSessionState(sess *provisionersdk.Session) sessionState {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+	return s.sessions[sess]
+}
+
+// setSessionState replaces the state stored for sess. ctx must be the
+// session's context: the state is removed when ctx is done, so it never
+// outlives its session, including sessions that end before Graph because a
+// later stage failed or was canceled. It is a parameter because a test can't
+// give a Session a context.
+func (s *server) setSessionState(ctx context.Context, sess *provisionersdk.Session, state sessionState) {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+	if s.sessions == nil {
+		s.sessions = make(map[*provisionersdk.Session]sessionState)
+	}
+	if _, ok := s.sessions[sess]; !ok {
+		context.AfterFunc(ctx, func() {
+			s.sessionsMu.Lock()
+			defer s.sessionsMu.Unlock()
+			delete(s.sessions, sess)
+		})
+	}
+	s.sessions[sess] = state
 }
 
 // terraformVersion returns the Terraform binary's version. Failures aren't
@@ -191,15 +233,22 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) *executor {
+// lockExecutor waits until no other RPC is running Terraform, then returns
+// the executor for this RPC and the function that lets the next RPC run. The
+// caller must call that function when its RPC ends, and must not call
+// lockExecutor again before then, which would deadlock. Only one RPC runs
+// Terraform at a time: sessions share the plugin cache directory, and a job
+// can be abandoned while its Terraform command is still exiting. The
+// commands of one RPC may run side by side.
+func (s *server) lockExecutor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) (*executor, func()) {
+	s.execMut.Lock()
 	return &executor{
 		server:        s,
-		mut:           s.execMut,
 		binaryPath:    s.binaryPath,
 		cachePath:     s.cachePath,
 		cliConfigPath: s.cliConfigPath,
 		files:         files,
 		logger:        s.logger.Named("executor"),
 		timings:       newTimingAggregator(stage),
-	}
+	}, s.execMut.Unlock
 }

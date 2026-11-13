@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -140,7 +142,8 @@ func Test_terraformVersion(t *testing.T) {
 		}
 
 		// Executors use the same cache.
-		e := srv.executor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
+		e, unlock := srv.lockExecutor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
+		defer unlock()
 		for range 3 {
 			again, err := e.version(ctx)
 			require.NoError(t, err)
@@ -174,4 +177,30 @@ func Test_terraformVersion(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "1.9.0", v.String())
 	})
+}
+
+func Test_sessionState(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	s := &server{}
+	sess := &provisionersdk.Session{}
+	other := &provisionersdk.Session{}
+
+	require.Empty(t, s.loadSessionState(sess), "nothing is stored before the first Plan")
+	// Template import plans twice in one session, and the second replaces
+	// what the first stored.
+	s.setSessionState(ctx, sess, sessionState{graph: "start"})
+	s.setSessionState(ctx, sess, sessionState{graph: "stop"})
+	s.setSessionState(t.Context(), other, sessionState{graph: "other"})
+	require.Equal(t, "stop", s.loadSessionState(sess).graph)
+	require.Equal(t, "other", s.loadSessionState(other).graph)
+
+	// The state goes away when its session ends, even if Graph never ran.
+	cancel()
+	require.Eventually(t, func() bool {
+		return s.loadSessionState(sess) == sessionState{}
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.Equal(t, "other", s.loadSessionState(other).graph)
 }
