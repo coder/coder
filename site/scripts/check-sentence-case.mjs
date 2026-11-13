@@ -182,6 +182,11 @@ function capitalizedSegments(word, start = 0) {
 	return results;
 }
 
+// Brackets and quotes that open or close an aside. The phrase around an
+// aside resumes after it closes: "Create a (temporary) workspace".
+const OPENING_MARK = /[([{“"]/;
+const CLOSING_MARK = /[)\]}”"]/;
+
 // Punctuation that ends a sentence or label, so the next word starts a
 // new phrase and may be capitalized. A comma continues the phrase
 // ("Create a workspace, then open settings"); lists of names such as
@@ -199,6 +204,7 @@ export function findTitleCaseWords(text) {
 		const word = match[0]
 			.slice(leading.length)
 			.replace(TRAILING_PUNCTUATION, "");
+		const trailing = match[0].slice(leading.length + word.length);
 		tokens.push({
 			offset: match.index + leading.length,
 			raw: match[0],
@@ -206,6 +212,8 @@ export function findTitleCaseWords(text) {
 			// A leading bracket or quote starts a new phrase, e.g.
 			// "Use (Recommended)" is a label followed by a note.
 			startsPhrase: leading.length > 0,
+			opens: OPENING_MARK.test(leading),
+			closes: CLOSING_MARK.test(trailing),
 		});
 	}
 
@@ -249,8 +257,13 @@ export function findTitleCaseWords(text) {
 		}
 	};
 	let inPhrase = false;
+	// The phrase state around each open aside.
+	const outerPhrases = [];
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
+		if (token.opens) {
+			outerPhrases.push(inPhrase);
+		}
 		const capitalized = /^\p{Lu}/u.test(token.word);
 		if (token.raw.includes(SUBSTITUTION)) {
 			// Unknown text; keep the current phrase, if any, going.
@@ -280,6 +293,9 @@ export function findTitleCaseWords(text) {
 			results.push({ offset: token.offset, word: token.word });
 		} else {
 			reportSegments(token, 0);
+		}
+		if (token.closes && outerPhrases.length > 0) {
+			inPhrase = outerPhrases.pop();
 		}
 		if (PHRASE_END.test(token.raw)) {
 			inPhrase = false;
@@ -326,23 +342,20 @@ const ARIA_TEXT_ATTRIBUTES = new Set([
 ]);
 
 /**
- * Returns the JSX attribute whose value `node` renders into, looking
- * through wrappers, `{}`, conditionals, and fallbacks, or null.
+ * Returns the JSX attribute whose value contains `node`, through any
+ * expression such as `className={cn("a", { b: ok })}`, or null. Stops at
+ * JSX elements and functions, whose contents are not the value itself.
  */
 function enclosingJsxAttribute(node) {
 	let parent = node.parent;
 	while (
 		parent &&
-		(isTransparent(parent) ||
-			ts.isJsxExpression(parent) ||
-			ts.isConditionalExpression(parent) ||
-			(ts.isBinaryExpression(parent) &&
-				[
-					ts.SyntaxKind.AmpersandAmpersandToken,
-					ts.SyntaxKind.BarBarToken,
-					ts.SyntaxKind.QuestionQuestionToken,
-					ts.SyntaxKind.PlusToken,
-				].includes(parent.operatorToken.kind)))
+		!ts.isJsxAttribute(parent) &&
+		!ts.isJsxElement(parent) &&
+		!ts.isJsxSelfClosingElement(parent) &&
+		!ts.isJsxFragment(parent) &&
+		!ts.isFunctionLike(parent) &&
+		!ts.isSourceFile(parent)
 	) {
 		parent = parent.parent;
 	}
@@ -1141,8 +1154,10 @@ export function checkSource(fileName, sourceText) {
 		// replace the whole encoding with the lowercase letter.
 		const entity =
 			entityAt(sourceText, position) ?? escapeAt(sourceText, position);
-		const length = entity ? entity.length : 1;
-		const initial = entity ? entity.decoded : sourceText[position];
+		const initial = entity
+			? entity.decoded
+			: String.fromCodePoint(sourceText.codePointAt(position));
+		const length = entity ? entity.length : initial.length;
 		fixedText =
 			fixedText.slice(0, position) +
 			initial.toLowerCase() +

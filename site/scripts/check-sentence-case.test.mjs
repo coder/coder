@@ -57,6 +57,13 @@ describe("findTitleCaseWords", () => {
 		expect(words("Create a workspace, Then open settings")).toEqual(["Then"]);
 	});
 
+	it("resumes the surrounding phrase after a bracket or quote closes", () => {
+		expect(words("Create a (temporary) Workspace")).toEqual(["Workspace"]);
+		expect(words('Pick "admin" Access')).toEqual(["Access"]);
+		expect(words("Default (Recommended) Option")).toEqual(["Option"]);
+		expect(words("Saved (see logs.) Next steps")).toEqual([]);
+	});
+
 	it("starts a new phrase after an opening bracket or quote", () => {
 		expect(words('Pick "Admin" access')).toEqual([]);
 		expect(words("Default (Recommended)")).toEqual([]);
@@ -297,6 +304,11 @@ describe("checkSource", () => {
 		]);
 	});
 
+	it("lowercases capitals outside the Basic Multilingual Plane", () => {
+		const { fixedText } = checkSource("file.ts", 'const a = "Open 𐐀est";');
+		expect(fixedText).toBe('const a = "Open 𐐨est";');
+	});
+
 	it("fixes words that start with an HTML entity", () => {
 		const source = "const a = <p>Create &#87;orkspace</p>;";
 		const { issues, fixedText } = checkSource("file.tsx", source);
@@ -317,6 +329,7 @@ describe("checkSource", () => {
 			'const c = <div data-state={open ? "Is Open" : "Is Closed"} />;',
 			'const d = <input aria-label="Search Workspaces" title="Delete File" />;',
 			'const e = <option value="New Workspace">New Template</option>;',
+			'const f = <div className={cn("Foo Bar", { "Baz Qux": ok })} />;',
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
