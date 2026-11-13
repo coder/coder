@@ -1,13 +1,15 @@
-package chatprompt
+package chatprompt_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -133,10 +135,12 @@ func TestTitleText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, TitleText(tt.parts, tt.pasteText))
+			require.Equal(t, tt.want, chatprompt.TitleText(tt.parts, tt.pasteText))
 		})
 	}
 }
+
+const titleRuneBudget = chatprompt.TitlePasteBytePrefix / utf8.UTFMax
 
 func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 	t.Parallel()
@@ -146,11 +150,11 @@ func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
 	}
 	// Multi-byte runes ensure truncation cannot split a UTF-8 sequence.
-	content := strings.Repeat("é", syntheticPasteTitleBudget+10)
+	content := strings.Repeat("é", titleRuneBudget+10)
 
-	got := TitleText(parts, map[uuid.UUID]string{pasteFileID: content})
+	got := chatprompt.TitleText(parts, map[uuid.UUID]string{pasteFileID: content})
 
-	require.Len(t, []rune(got), syntheticPasteTitleBudget)
+	require.Len(t, []rune(got), titleRuneBudget)
 	require.True(t, strings.HasPrefix(content, got))
 }
 
@@ -160,14 +164,14 @@ func TestTitlePasteText(t *testing.T) {
 	t.Run("ShortDataCopiedWhole", func(t *testing.T) {
 		t.Parallel()
 
-		require.Equal(t, "hello paste", TitlePasteText([]byte("hello paste")))
+		require.Equal(t, "hello paste", chatprompt.TitlePasteText([]byte("hello paste")))
 	})
 
 	t.Run("LongDataBounded", func(t *testing.T) {
 		t.Parallel()
 
-		data := bytes.Repeat([]byte("a"), TitlePasteBytePrefix+4096)
-		require.Len(t, TitlePasteText(data), TitlePasteBytePrefix)
+		data := bytes.Repeat([]byte("a"), chatprompt.TitlePasteBytePrefix+4096)
+		require.Len(t, chatprompt.TitlePasteText(data), chatprompt.TitlePasteBytePrefix)
 	})
 
 	t.Run("MatchesFullContentDerivation", func(t *testing.T) {
@@ -180,16 +184,16 @@ func TestTitlePasteText(t *testing.T) {
 		// Three-byte runes make the byte-prefix cut land mid-rune
 		// (TitlePasteBytePrefix % 3 != 0); TitleText's rune truncation
 		// must still produce the same result as the full content.
-		content := strings.Repeat("€", TitlePasteBytePrefix/3+16)
-		bounded := TitleText(parts, map[uuid.UUID]string{
-			pasteFileID: TitlePasteText([]byte(content)),
+		content := strings.Repeat("€", chatprompt.TitlePasteBytePrefix/3+16)
+		bounded := chatprompt.TitleText(parts, map[uuid.UUID]string{
+			pasteFileID: chatprompt.TitlePasteText([]byte(content)),
 		})
-		full := TitleText(parts, map[uuid.UUID]string{
+		full := chatprompt.TitleText(parts, map[uuid.UUID]string{
 			pasteFileID: content,
 		})
 
 		require.Equal(t, full, bounded)
-		require.Len(t, []rune(bounded), syntheticPasteTitleBudget)
+		require.Len(t, []rune(bounded), titleRuneBudget)
 	})
 }
 
@@ -244,7 +248,7 @@ func TestSyntheticPasteFileIDs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, SyntheticPasteFileIDs(tt.parts))
+			require.Equal(t, tt.want, chatprompt.SyntheticPasteFileIDs(tt.parts))
 		})
 	}
 }
@@ -295,7 +299,7 @@ func TestFallbackTitle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := FallbackTitle(tt.message)
+			got := chatprompt.FallbackTitle(tt.message)
 			require.Equal(t, tt.want, got)
 			require.LessOrEqual(t, len([]rune(got)), 80)
 		})
