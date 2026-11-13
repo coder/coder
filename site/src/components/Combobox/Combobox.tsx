@@ -1,7 +1,14 @@
+import { useCommandState } from "cmdk";
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { createContext, useContext, useRef, useState } from "react";
+import {
+	createContext,
+	useContext,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -17,6 +24,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -80,20 +92,48 @@ export const ComboboxButton = ({
 	ref,
 	...props
 }: ComboboxButtonProps) => {
+	const labelRef = useRef<HTMLSpanElement>(null);
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+	const label = selectedOption?.label ?? placeholder;
+
 	return (
-		<Button
-			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
-			style={{ flexBasis: width }}
-			variant="outline"
-			ref={ref}
-			{...props}
+		<Tooltip
+			open={isTooltipOpen}
+			// Measured on open rather than on render, so a text spacing override
+			// applied after mount still reveals the full label. Stays closed while
+			// the popover is open so it never covers the list.
+			onOpenChange={(open) => {
+				const span = labelRef.current;
+				setIsTooltipOpen(
+					open &&
+						props["aria-expanded"] !== true &&
+						span !== null &&
+						span.scrollWidth > span.clientWidth,
+				);
+			}}
 		>
-			{selectedOption?.startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis grow">
-				{selectedOption?.label ?? placeholder}
-			</span>
-			<ChevronDownIcon className="size-icon-sm" />
-		</Button>
+			<TooltipTrigger asChild>
+				<Button
+					className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+					style={{ flexBasis: width }}
+					variant="outline"
+					ref={ref}
+					{...props}
+				>
+					{selectedOption?.startIcon}
+					<span
+						ref={labelRef}
+						className="text-left block overflow-hidden text-ellipsis grow"
+					>
+						{label}
+					</span>
+					<ChevronDownIcon className="size-icon-sm" />
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" align="start" className="max-w-65">
+				{label}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -167,6 +207,7 @@ export const ComboboxItem = ({
 }: React.ComponentProps<typeof CommandItem>) => {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
+	const isHighlighted = useCommandState((state) => state.value === value);
 
 	return (
 		<CommandItem
@@ -181,7 +222,9 @@ export const ComboboxItem = ({
 			}}
 			{...props}
 		>
-			{children}
+			<ComboboxItemHighlightContext.Provider value={isHighlighted}>
+				{children}
+			</ComboboxItemHighlightContext.Provider>
 			<CheckIcon
 				className={cn(
 					"ml-2 size-4 min-w-0 shrink-0",
@@ -189,6 +232,43 @@ export const ComboboxItem = ({
 				)}
 			/>
 		</CommandItem>
+	);
+};
+
+const ComboboxItemHighlightContext = createContext(false);
+
+/**
+ * Single-line option label that shows its full text in a tooltip while the
+ * option is highlighted, by pointer or arrow keys, and the text is truncated.
+ */
+export const ComboboxItemLabel: React.FC<{ children: string }> = ({
+	children,
+}) => {
+	const isHighlighted = useContext(ComboboxItemHighlightContext);
+	const labelRef = useRef<HTMLSpanElement>(null);
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
+	// Options never receive DOM focus, so the tooltip follows the cmdk
+	// highlight instead. Measured on each highlight so a text spacing override
+	// applied after mount is still caught.
+	useLayoutEffect(() => {
+		const span = labelRef.current;
+		setIsTooltipOpen(
+			isHighlighted && span !== null && span.scrollWidth > span.clientWidth,
+		);
+	}, [isHighlighted]);
+
+	return (
+		<Tooltip open={isTooltipOpen}>
+			<TooltipTrigger asChild>
+				<span ref={labelRef} className="min-w-0 flex-1 truncate">
+					{children}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="right" className="max-w-65">
+				{children}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 

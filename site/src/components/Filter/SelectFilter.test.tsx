@@ -1,13 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import { SelectFilter } from "./SelectFilter";
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 it("selects an option with the keyboard alone", async () => {
 	const user = userEvent.setup();
 	const onSelect = vi.fn();
-	render(
+	renderComponent(
 		<SelectFilter
 			label="Select a status"
 			placeholder="All statuses"
@@ -29,7 +34,7 @@ it("selects an option with the keyboard alone", async () => {
 it("names the search input with the search label", async () => {
 	const user = userEvent.setup();
 	const onValueChange = vi.fn();
-	render(
+	renderComponent(
 		<SelectFilter
 			label="Select a status"
 			placeholder="All statuses"
@@ -51,4 +56,52 @@ it("names the search input with the search label", async () => {
 		"a",
 	);
 	expect(onValueChange).toHaveBeenCalledWith("a");
+});
+
+const longOption = { label: "Meridian Systems Engineering", value: "meridian" };
+
+const renderLongLabelFilter = (scrollWidth: number) => {
+	vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(
+		scrollWidth,
+	);
+	vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+	renderComponent(
+		<SelectFilter
+			label="Select an organization"
+			placeholder="All organizations"
+			options={[longOption]}
+			selectedOption={longOption}
+			onSelect={vi.fn()}
+		/>,
+	);
+	return screen.getByRole("button", { name: "Select an organization" });
+};
+
+it("describes the focused trigger with its full label when truncated", async () => {
+	const user = userEvent.setup();
+	const trigger = renderLongLabelFilter(200);
+
+	await user.tab();
+	await screen.findByRole("tooltip");
+	expect(trigger).toHaveAccessibleDescription(longOption.label);
+});
+
+it("adds no description to the focused trigger when the label fits", async () => {
+	const user = userEvent.setup();
+	const trigger = renderLongLabelFilter(100);
+
+	await user.tab();
+	expect(trigger).toHaveAccessibleDescription("");
+});
+
+it("shows a truncated option's full label while it is highlighted", async () => {
+	const user = userEvent.setup();
+	renderLongLabelFilter(200);
+
+	await user.tab();
+	await user.keyboard("{Enter}");
+	await screen.findByRole("option", { name: longOption.label });
+	expect(await screen.findByRole("tooltip")).toHaveTextContent(
+		longOption.label,
+	);
 });

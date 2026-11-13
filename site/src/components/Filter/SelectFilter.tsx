@@ -5,6 +5,7 @@ import {
 	ComboboxContent,
 	ComboboxEmpty,
 	ComboboxItem,
+	ComboboxItemLabel,
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
@@ -88,7 +89,7 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 								keywords={[option.label]}
 							>
 								{option.startIcon}
-								<span className="flex-1 truncate">{option.label}</span>
+								<ComboboxItemLabel>{option.label}</ComboboxItemLabel>
 							</ComboboxItem>
 						))
 					) : (
