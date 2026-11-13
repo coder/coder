@@ -50,8 +50,11 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 	onCloseAutoFocus,
 	...formProps
 }) => {
+	// Lifted out of the form so the dialog also stays open while the form
+	// checks for newer templates before saving.
+	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
 	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen && !formProps.isSaving) {
+		if (!nextOpen && !formProps.isSaving && !isCheckingBeforeSave) {
 			onOpenChange(false);
 		}
 	};
@@ -65,6 +68,8 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 				<ProjectTemplatesForm
 					{...formProps}
 					open={open}
+					isCheckingBeforeSave={isCheckingBeforeSave}
+					onCheckingBeforeSaveChange={setIsCheckingBeforeSave}
 					onCancel={() => handleOpenChange(false)}
 				/>
 			</DialogContent>
@@ -76,6 +81,8 @@ type ProjectTemplatesFormProps = Omit<
 	ProjectTemplatesDialogProps,
 	"onOpenChange" | "onCloseAutoFocus"
 > & {
+	readonly isCheckingBeforeSave: boolean;
+	readonly onCheckingBeforeSaveChange: (checking: boolean) => void;
 	readonly onCancel: () => void;
 };
 
@@ -94,6 +101,8 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 	]);
 
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
+	isCheckingBeforeSave,
+	onCheckingBeforeSaveChange,
 	open,
 	project,
 	isSaving,
@@ -107,7 +116,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [baseTemplates, setBaseTemplates] = useState(project.templates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
-	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
 	const isBusy = isSaving || isCheckingBeforeSave;
 	// A rejected save no longer applies once the draft follows newer
 	// templates, so its error is hidden.
@@ -168,8 +176,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					(name) => !parameterNames.includes(name),
 				)
 			: [];
-	// Saving drops a default template that is no longer eligible, along
-	// with its default values.
 	const dropsDefaultTemplate =
 		eligibleTemplates !== undefined &&
 		value.defaultTemplateId !== "" &&
@@ -236,9 +242,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				// warning instead.
 				// The draft is frozen until the check ends, so the request
 				// still matches what the user sees.
-				setIsCheckingBeforeSave(true);
+				onCheckingBeforeSaveChange(true);
 				const refreshed = await projectsQuery.refetch();
-				setIsCheckingBeforeSave(false);
+				onCheckingBeforeSaveChange(false);
 				const latest = refreshed.data?.find(({ id }) => id === project.id);
 				const serializedLatest = latest && serializeTemplates(latest.templates);
 				if (
@@ -349,7 +355,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={!canSave}>
-					<Spinner loading={isBusy} />
+					<Spinner loading={isBusy || projectsQuery.isFetching} />
 					Save
 				</Button>
 			</DialogFooter>

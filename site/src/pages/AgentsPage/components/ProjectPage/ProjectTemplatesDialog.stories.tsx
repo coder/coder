@@ -6,6 +6,7 @@ import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	agentTemplates,
+	agentTemplatesKey,
 	richParameters,
 	richParametersKey,
 	templateVersionPresets,
@@ -101,7 +102,7 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [dockerTemplate, kubernetesTemplate],
 			},
 		],
@@ -128,7 +129,7 @@ export const DefaultPreset: Story = {
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [dockerTemplate, kubernetesTemplate],
 			},
 			{
@@ -145,7 +146,7 @@ export const DefaultParameters: Story = {
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [dockerTemplate, kubernetesTemplate],
 			},
 			{
@@ -310,7 +311,7 @@ export const ProjectRefreshError: Story = {
 	parameters: {
 		queries: [
 			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [dockerTemplate, kubernetesTemplate],
 			},
 		],
@@ -367,7 +368,7 @@ export const RemovedClassicParameter: Story = {
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [
 					{ ...dockerTemplate, use_classic_parameter_flow: true },
 					kubernetesTemplate,
