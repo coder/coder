@@ -80,7 +80,11 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { PinnedSection } from "./PinnedSection";
-import { type ProjectAction, projectLabelOf } from "./ProjectFolders";
+import {
+	type ArchiveProjectAction,
+	type ProjectAction,
+	projectLabelOf,
+} from "./ProjectFolders";
 import {
 	applyLocalPinOrder,
 	movedChatOf,
@@ -127,6 +131,7 @@ type ChatsPanelProps = {
 	readonly pinnedProjectsError: unknown;
 	readonly onRetryPinnedProjects: () => void;
 	readonly onEditProject: ProjectAction;
+	readonly onArchiveProject: ArchiveProjectAction;
 	readonly onDeleteProject: ProjectAction;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
@@ -165,6 +170,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	pinnedProjectsError,
 	onRetryPinnedProjects,
 	onEditProject,
+	onArchiveProject,
 	onDeleteProject,
 	chats,
 	chatErrorReasons,
@@ -719,6 +725,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																	),
 																	onToggle: toggleProject,
 																	onEdit: onEditProject,
+																	onArchive: onArchiveProject,
 																	onDelete: onDeleteProject,
 																	isLoading: isPinnedProjectsLoading,
 																	error: pinnedProjectsError,

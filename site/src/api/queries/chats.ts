@@ -2990,7 +2990,11 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatRetentionDaysKey = [...chatConfigKey, "retention-days"] as const;
+/** Caches the deployment's retention period for archived chats. */
+export const chatRetentionDaysKey = [
+	...chatConfigKey,
+	"retention-days",
+] as const;
 
 export const chatRetentionDays = () => ({
 	queryKey: chatRetentionDaysKey,

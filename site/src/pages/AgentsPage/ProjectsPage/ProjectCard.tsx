@@ -36,6 +36,7 @@ type ProjectCardProps = {
 	/** A pin request for the project is running, so Pin is held back. */
 	readonly pinPending: boolean;
 	readonly onEdit: (returnFocusTo: HTMLElement | null) => void;
+	readonly onArchive: (returnFocusTo: HTMLElement | null) => void;
 	readonly onDelete: (returnFocusTo: HTMLElement | null) => void;
 };
 
@@ -56,6 +57,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	onUnpin,
 	pinPending,
 	onEdit,
+	onArchive,
 	onDelete,
 }) => {
 	const { project, pinned, member_count, last_activity_at } = summary;
@@ -123,6 +125,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 				onPin={onPin}
 				onUnpin={onUnpin}
 				onEdit={onEdit}
+				onArchive={onArchive}
 				onDelete={onDelete}
 			/>
 		</div>
@@ -141,11 +144,12 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	onPin,
 	onUnpin,
 	onEdit,
+	onArchive,
 	onDelete,
 }) => {
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
-	// Edit and Delete open a dialog only once the menu has closed, so the
-	// closing menu cannot take focus back from the dialog.
+	// Edit, Archive, and Delete open a dialog only once the menu has closed,
+	// so the closing menu cannot take focus back from the dialog.
 	const openPickedDialogRef = useRef<typeof onEdit>(undefined);
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
@@ -177,9 +181,12 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 						Separator={DropdownMenuSeparator}
 						onPin={pinned || pinPending ? undefined : onPin}
 						onUnpin={pinned ? onUnpin : undefined}
-						permissions={project.permissions}
+						project={project}
 						onEdit={() => {
 							openPickedDialogRef.current = onEdit;
+						}}
+						onArchive={() => {
+							openPickedDialogRef.current = onArchive;
 						}}
 						onDelete={() => {
 							openPickedDialogRef.current = onDelete;

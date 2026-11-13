@@ -49,6 +49,15 @@ import { getOrganizationLabels } from "./projectGrouping";
 
 /** Acts on one project, such as editing or deleting it. */
 export type ProjectAction = (project: ChatProject) => void;
+/**
+ * `trigger` is the folder's actions button, to refocus if it remains.
+ * Archiving removes the folder, so focusAfterRemoval then moves focus on.
+ */
+export type ArchiveProjectAction = (
+	project: ChatProject,
+	trigger: HTMLButtonElement | null,
+	focusAfterRemoval: () => void,
+) => void;
 
 export type ProjectFoldersProps = {
 	/** The user's pinned projects, in pin order. */
@@ -63,17 +72,21 @@ export type ProjectFoldersProps = {
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
 	readonly onEdit: ProjectAction;
+	readonly onArchive: ArchiveProjectAction;
 	readonly onDelete: ProjectAction;
 	readonly isLoading: boolean;
 	readonly error: unknown;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
-	/** Moves focus out of the folders when the user unpins the last one. */
+	/**
+	 * Moves focus out of the folders when unpinning or archiving removes the
+	 * last one.
+	 */
 	readonly focusUnpinFallback?: () => void;
 };
 
-// Focuses the folder after the unpinned one, else the one before it, else
-// the fallback.
+// Focuses the folder after a removed one, else the one before it, else the
+// fallback.
 const focusNextFolder = (
 	pinnedProjects: readonly ChatProjectSummary[],
 	projectId: string,
@@ -102,6 +115,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	expandedProjectIds,
 	onToggle,
 	onEdit,
+	onArchive,
 	onDelete,
 	isLoading,
 	error,
@@ -191,6 +205,16 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					locationSearch={location.search}
 					onToggle={() => onToggle(project.id)}
 					onEdit={() => onEdit(project)}
+					onArchive={(trigger) =>
+						onArchive(project, trigger, () =>
+							focusNextFolder(
+								sortedPinnedProjects,
+								project.id,
+								toggleRefs.current,
+								focusUnpinFallback,
+							),
+						)
+					}
 					onDelete={() => onDelete(project)}
 					onUnpin={() => unpinMutation.mutate(project)}
 					focusAfterUnpin={() =>
@@ -229,6 +253,7 @@ type ProjectFolderProps = {
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
 	readonly onEdit: () => void;
+	readonly onArchive: (trigger: HTMLButtonElement | null) => void;
 	readonly onDelete: () => void;
 	readonly onUnpin: () => void;
 	readonly emptyMessage: string;
@@ -284,6 +309,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	locationSearch,
 	onToggle,
 	onEdit,
+	onArchive,
 	onDelete,
 	onUnpin,
 	emptyMessage,
@@ -295,6 +321,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const isOnProjectPage = useMatch(projectPathname) !== null;
 	const projectLabel = projectLabelOf(project, organizationLabel);
 	const toggleRef = useRef<HTMLButtonElement>(null);
+	const actionsButtonRef = useRef<HTMLButtonElement>(null);
 	// Keeps the closing menu from pulling focus back out of the composer.
 	const newChatPickedRef = useRef(false);
 	const handleNewChat = () => {
@@ -307,7 +334,15 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		unpinPickedRef.current = true;
 		onUnpin();
 	};
+	// The archive dialog opens only once the menu has closed, so the closing
+	// menu cannot take focus back from it.
+	const archivePickedRef = useRef(false);
 	const handleMenuCloseAutoFocus = (event: Event) => {
+		if (archivePickedRef.current) {
+			archivePickedRef.current = false;
+			event.preventDefault();
+			onArchive(actionsButtonRef.current);
+		}
 		if (newChatPickedRef.current) {
 			newChatPickedRef.current = false;
 			event.preventDefault();
@@ -322,8 +357,11 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		projectPath,
 		onNewChatInPlace: isOnProjectPage ? handleNewChat : undefined,
 		onUnpin: handleUnpin,
-		permissions: project.permissions,
+		project,
 		onEdit,
+		onArchive: () => {
+			archivePickedRef.current = true;
+		},
 		onDelete,
 	};
 	return (
@@ -400,6 +438,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
+									ref={actionsButtonRef}
 									variant="subtle"
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100"

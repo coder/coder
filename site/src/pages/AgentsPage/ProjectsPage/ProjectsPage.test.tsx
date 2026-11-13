@@ -123,6 +123,49 @@ describe("ProjectsPage", () => {
 		expect(unpin).toHaveBeenCalledOnce();
 	});
 
+	it("archives a project from its card and moves focus to New project", async () => {
+		const user = userEvent.setup();
+		// Summaries leave out archived projects.
+		vi.spyOn(API.experimental, "getChatProjectSummaries")
+			.mockResolvedValueOnce([summary("Kilo")])
+			.mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getChatProjectArchivePreview",
+		).mockResolvedValue({ chat_count: 0, active_chat_count: 0 });
+		const archive = vi
+			.spyOn(API.experimental, "archiveChatProject")
+			.mockImplementation(async (_organizationId, projectId) => ({
+				...MockChatProject,
+				id: projectId,
+				archived_at: "2026-11-10T12:00:00Z",
+			}));
+		renderWithAuth(<ProjectsPage />);
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open project actions for Kilo",
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Archive project" }),
+		);
+
+		await waitFor(() =>
+			expect(archive).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				"Kilo",
+				{ stop_active_chats: false },
+			),
+		);
+		await waitFor(() =>
+			// The header button, ahead of the empty state's.
+			expect(
+				screen.getAllByRole("button", { name: "New project" })[0],
+			).toHaveFocus(),
+		);
+	});
+
 	it("moves focus to New project when Retry loads the projects", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatProjectSummaries")

@@ -83,6 +83,24 @@ export const unlistedChatProject = (
 
 const archiveDialogKeySegment = "archive-dialog";
 
+/** Prefixes the queries the archive dialog reads for one project. */
+export const chatProjectArchiveDialogKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, archiveDialogKeySegment] as const;
+
+export const chatProjectArchivePreviewKey = (projectId: string) =>
+	[...chatProjectArchiveDialogKey(projectId), "preview"] as const;
+
+/** Counts the chats that archiving a project archives and stops. */
+export const chatProjectArchivePreview = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectArchivePreviewKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectArchivePreview(
+				project.organization_id,
+				project.id,
+			),
+	});
+
 /** Nested under chatProjectsKey, so project list invalidations reach it. */
 export const chatProjectSummariesKey = [
 	...chatProjectsKey,

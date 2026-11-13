@@ -20,9 +20,10 @@ import {
 import { toast } from "#/components/Toaster/toast";
 import { draftStorageKeys } from "../AgentCreateForm";
 import {
-	hasProjectUpdateOrDeleteAction,
+	hasProjectManageAction,
 	ProjectActionsMenuItems,
 } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
+import { ArchiveProjectDialog } from "../ChatsSidebar/dialogs/ArchiveProjectDialog";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { ProjectPageHeader } from "./ProjectPageHeader";
@@ -31,7 +32,7 @@ type ProjectHeaderSectionProps = {
 	readonly project: ChatProject;
 };
 
-/** The project page header with its edit and delete actions. */
+/** The project page header with its edit, archive, and delete actions. */
 export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	project,
 }) => {
@@ -65,6 +66,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	});
 
 	const [isEditOpen, setIsEditOpen] = useState(false);
+	const [isArchiveOpen, setIsArchiveOpen] = useState(false);
 	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 	// Menu items unmount on select, so the dialogs return focus to the menu
 	// trigger instead.
@@ -74,6 +76,10 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	};
 	const closeEditDialog = () => {
 		setIsEditOpen(false);
+		restoreFocus();
+	};
+	const closeArchiveDialog = () => {
+		setIsArchiveOpen(false);
 		restoreFocus();
 	};
 	const closeDeleteDialog = () => {
@@ -86,7 +92,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 			<ProjectPageHeader
 				project={project}
 				actions={
-					hasProjectUpdateOrDeleteAction(project.permissions) && (
+					hasProjectManageAction(project) && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
@@ -102,11 +108,12 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 								<ProjectActionsMenuItems
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
-									permissions={project.permissions}
+									project={project}
 									onEdit={() => {
 										updateMutation.reset();
 										setIsEditOpen(true);
 									}}
+									onArchive={() => setIsArchiveOpen(true)}
 									onDelete={() => setIsDeleteOpen(true)}
 								/>
 							</DropdownMenuContent>
@@ -126,6 +133,11 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 					await updateMutation.mutateAsync({ project, request });
 					closeEditDialog();
 				}}
+			/>
+			<ArchiveProjectDialog
+				project={project}
+				open={isArchiveOpen}
+				onClose={closeArchiveDialog}
 			/>
 			<DeleteDialog
 				isOpen={isDeleteOpen}
