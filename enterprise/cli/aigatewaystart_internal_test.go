@@ -319,13 +319,22 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	pool.started = shutdownStarted
 	pool.release = shutdownRelease
 
+	daemonShutdownTrap := mClock.Trap().AfterFunc("aigateway", "daemon_shutdown")
+	defer daemonShutdownTrap.Close()
+
 	runDone := make(chan error, 1)
 	go func() {
 		runDone <- gateway.run(testCtx)
 	}()
-	testutil.RequireReceive(testCtx, t, shutdownStarted)
+
+	// Daemon shutdown is about to start: HTTP serving has fully stopped.
+	daemonShutdownCall := daemonShutdownTrap.MustWait(testCtx)
 	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before daemon shutdown")
 	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must close before daemon shutdown")
+	require.Empty(t, shutdownStarted, "daemon shutdown must start only after its timeout is armed")
+	daemonShutdownCall.MustRelease(testCtx)
+
+	testutil.RequireReceive(testCtx, t, shutdownStarted)
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until daemon shutdown completes")
 	close(shutdownRelease)
 
