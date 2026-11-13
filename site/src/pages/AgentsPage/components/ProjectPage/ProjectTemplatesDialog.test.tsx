@@ -39,12 +39,21 @@ const renderDialog = (
 		onResetError: vi.fn(),
 		...props,
 	};
-	render(
+	const { rerender } = render(
 		<QueryClientProvider client={queryClient}>
 			<ProjectTemplatesDialog {...allProps} />
 		</QueryClientProvider>,
 	);
-	return { user: userEvent.setup(), props: allProps };
+	return {
+		user: userEvent.setup(),
+		props: allProps,
+		rerenderWithProject: (project: ChatProject) =>
+			rerender(
+				<QueryClientProvider client={queryClient}>
+					<ProjectTemplatesDialog {...allProps} project={project} />
+				</QueryClientProvider>,
+			),
+	};
 };
 
 describe("ProjectTemplatesDialog", () => {
@@ -194,5 +203,47 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSave).not.toHaveBeenCalled();
+	});
+
+	it("keeps a saved empty parameter value when the user keeps their draft", async () => {
+		const templates = {
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
+		};
+		const { user, props, rerenderWithProject } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: {
+					...templates,
+					default_parameters: {
+						[MockTemplateVersionParameter1.name]: "",
+						[MockTemplateVersionParameter2.name]: "old",
+					},
+				},
+			},
+		});
+
+		const second = await screen.findByRole("textbox", {
+			name: MockTemplateVersionParameter2.name,
+		});
+		await user.clear(second);
+		await user.type(second, "new");
+		rerenderWithProject({
+			...MockChatProject,
+			templates: {
+				...templates,
+				default_parameters: { [MockTemplateVersionParameter2.name]: "other" },
+			},
+		});
+		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSave).toHaveBeenCalledWith({
+			...templates,
+			default_parameters: {
+				[MockTemplateVersionParameter1.name]: "",
+				[MockTemplateVersionParameter2.name]: "new",
+			},
+		});
 	});
 });

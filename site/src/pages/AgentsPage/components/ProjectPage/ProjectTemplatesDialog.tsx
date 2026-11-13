@@ -139,6 +139,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
 	const [baseTemplates, setBaseTemplates] = useState(project.templates);
+	// The saved templates the draft's values came from. Unlike the base, it
+	// stays put when the user keeps their draft over a newer save.
+	const [draftSource, setDraftSource] = useState(project.templates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
 	// Templates are shared by every editor of the project, so refresh them
@@ -154,6 +157,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		serializeTemplates(project.templates) !== serializeTemplates(baseTemplates)
 	) {
 		setBaseTemplates(project.templates);
+		setDraftSource(project.templates);
 		setValue(chatProjectTemplatesValues(project.templates));
 	}
 	const templatesQuery = useQuery(agentTemplates(project.organization_id));
@@ -209,7 +213,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		keepSavedEmptyParameters(
 			chatProjectTemplatesRequest(formValue, eligibleTemplates),
 			formValue,
-			baseTemplates,
+			draftSource,
 		);
 	// Saving drops templates that are no longer eligible, so a draft that
 	// still holds any differs from the saved templates even when untouched.
@@ -324,6 +328,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					onKeepDraft={() => setBaseTemplates(project.templates)}
 					onLoadLatest={() => {
 						setBaseTemplates(project.templates);
+						setDraftSource(project.templates);
 						setValue(chatProjectTemplatesValues(project.templates));
 						onResetError();
 					}}
