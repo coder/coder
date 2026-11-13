@@ -54,7 +54,7 @@ type ProjectsPageViewProps = {
 	readonly archivedProjects: readonly ChatProject[] | undefined;
 	readonly archivedError: unknown;
 	readonly onRetryArchived: () => void;
-	/** Runs once an archived project is unarchived, after its card has left. */
+	/** Runs once a project is unarchived and has left the archived list. */
 	readonly onUnarchived: (project: ChatProject) => void;
 };
 
