@@ -18,32 +18,11 @@ import (
 // delete it.
 var ErrDeleteForbidden = xerrors.New("not allowed to delete the chat automation")
 
-// ErrQueuedMessages means that a queued message names the automation, so Delete
-// refuses. Nothing writes such a message yet. The change that adds the first
-// writer also decides how a delete takes the message out of the chat queue,
-// and replaces this refusal.
-var ErrQueuedMessages = xerrors.New("a queued message names the chat automation")
-
-// LockID returns the advisory lock that every path that runs or changes one
-// automation takes first: a run, an edit, a disable, a delete and a rotation.
-// Two kinds of change do not take it. The delete_deleted_user_resources
-// trigger deletes the automations of a user that is soft deleted. The ON DELETE
-// SET NULL actions of target_chat_id, created_by_chat_id and project_id clear
-// those columns when a chat or a project is deleted. The lock lasts to the end
-// of the transaction.
-func LockID(id uuid.UUID) int64 {
-	return database.GenLockID("chat-automation:" + id.String())
-}
-
 // Delete deletes an automation in one transaction. It returns the deleted row,
 // with its webhook secret, for the audit entry. An automation that does not
 // exist, that the actor cannot read, or that belongs to another organization
 // gives an error that httpapi.Is404Error reports. An actor that can read it and
-// cannot delete it gets ErrDeleteForbidden. An automation that a queued message
-// names gives ErrQueuedMessages and nothing changes.
-//
-// The delete takes the automation lock first, as every other path does, so no
-// run adds a queued message between the check and the delete.
+// cannot delete it gets ErrDeleteForbidden.
 //
 // actor needs delete on the automation.
 func Delete(
@@ -56,9 +35,6 @@ func Delete(
 
 	var deleted database.ChatAutomation
 	err := db.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(actorCtx, LockID(id)); err != nil {
-			return xerrors.Errorf("lock chat automation: %w", err)
-		}
 		automation, err := tx.GetChatAutomationByID(actorCtx, id)
 		if err != nil {
 			return err
@@ -66,17 +42,11 @@ func Delete(
 		if automation.OrganizationID != organizationID {
 			return sql.ErrNoRows
 		}
-		chatIDs, err := tx.GetChatIDsWithQueuedMessagesByAutomationID(actorCtx, id)
+		err = tx.DeleteChatAutomationByID(actorCtx, id)
 		if dbauthz.IsNotAuthorizedError(err) {
 			return ErrDeleteForbidden
 		}
 		if err != nil {
-			return xerrors.Errorf("get chats with queued messages: %w", err)
-		}
-		if len(chatIDs) > 0 {
-			return xerrors.Errorf("%w in %d chats", ErrQueuedMessages, len(chatIDs))
-		}
-		if err := tx.DeleteChatAutomationByID(actorCtx, id); err != nil {
 			return xerrors.Errorf("delete chat automation: %w", err)
 		}
 		deleted = automation

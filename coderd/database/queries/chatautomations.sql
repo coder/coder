@@ -105,14 +105,6 @@ WHERE owner_id = @owner_id::uuid;
 DELETE FROM chat_automations
 WHERE id = @id::uuid;
 
--- name: GetChatIDsWithQueuedMessagesByAutomationID :many
--- Returns the chats that hold messages that the automation queued, in chat ID
--- order, which is the order in which chat rows are locked.
-SELECT DISTINCT chat_id
-FROM chat_queued_messages
-WHERE automation_id = @automation_id::uuid
-ORDER BY chat_id;
-
 -- name: GetChatAutomationsWithWebhookSecretByOwnerID :many
 -- Returns the automations of one owner that hold a webhook secret, secret
 -- included. Used only by the dbcrypt key rotation utility.

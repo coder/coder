@@ -5985,38 +5985,6 @@ func (q *sqlQuerier) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Co
 	return items, nil
 }
 
-const getChatIDsWithQueuedMessagesByAutomationID = `-- name: GetChatIDsWithQueuedMessagesByAutomationID :many
-SELECT DISTINCT chat_id
-FROM chat_queued_messages
-WHERE automation_id = $1::uuid
-ORDER BY chat_id
-`
-
-// Returns the chats that hold messages that the automation queued, in chat ID
-// order, which is the order in which chat rows are locked.
-func (q *sqlQuerier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, getChatIDsWithQueuedMessagesByAutomationID, automationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var chat_id uuid.UUID
-		if err := rows.Scan(&chat_id); err != nil {
-			return nil, err
-		}
-		items = append(items, chat_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertChatAutomation = `-- name: InsertChatAutomation :one
 INSERT INTO chat_automations (
     id,

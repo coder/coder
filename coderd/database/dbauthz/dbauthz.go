@@ -3652,18 +3652,6 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 	return q.db.GetChatHeartbeat(ctx, arg)
 }
 
-func (q *querier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
-	// The read is part of deleting the automation.
-	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatIDsWithQueuedMessagesByAutomationID(ctx, automationID)
-}
-
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
