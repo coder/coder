@@ -2115,6 +2115,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	api.mu.Lock() // Re-lock to update the agent.
 	defer api.mu.Unlock()
 	if api.closed {
+		if dc.IsTerraformDefined() {
+			return nil
+		}
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), defaultOperationTimeout)
 		defer deleteCancel()
 		client := *api.subAgentClient.Load()
@@ -2192,7 +2195,8 @@ func (api *API) Close() error {
 			slog.F("workspace_folder", workspaceFolder),
 		)
 		proc.stop()
-		if proc.agent.ID != uuid.Nil {
+		dc := api.knownDevcontainers[workspaceFolder]
+		if proc.agent.ID != uuid.Nil && !dc.IsTerraformDefined() {
 			subAgentIDs = append(subAgentIDs, proc.agent.ID)
 		}
 	}
