@@ -15,6 +15,7 @@ const appearanceSettings = (
 	theme_light: "light-tritan",
 	theme_dark: "dark-tritan",
 	terminal_font: "geist-mono",
+	terminal_font_size: 14,
 	...overrides,
 });
 
@@ -26,6 +27,7 @@ const updateRequest = (
 	theme_light: "light-tritan",
 	theme_dark: "dark-tritan",
 	terminal_font: "fira-code",
+	terminal_font_size: 18,
 	...overrides,
 });
 

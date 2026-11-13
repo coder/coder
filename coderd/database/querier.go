@@ -1771,6 +1771,7 @@ type sqlcQuerier interface {
 	UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (Skill, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
+	UpdateUserTerminalFontSize(ctx context.Context, arg UpdateUserTerminalFontSizeParams) (UserConfig, error)
 	UpdateUserThemeDark(ctx context.Context, arg UpdateUserThemeDarkParams) (UserConfig, error)
 	UpdateUserThemeLight(ctx context.Context, arg UpdateUserThemeLightParams) (UserConfig, error)
 	UpdateUserThemeMode(ctx context.Context, arg UpdateUserThemeModeParams) (UserConfig, error)

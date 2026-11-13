@@ -172,6 +172,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 						initialCommand={initialCommand}
 						baseUrl={terminalConfig.baseUrl}
 						terminalFontFamily={terminalConfig.fontFamily}
+						terminalFontSize={terminalConfig.fontSize}
 						renderer={terminalConfig.renderer}
 						onOpenLink={handleOpenLink}
 						loading={config.isLoading || appearanceSettingsQuery.isLoading}

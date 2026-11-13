@@ -9072,6 +9072,17 @@ func (q *querier) UpdateUserTerminalFont(ctx context.Context, arg database.Updat
 	return q.db.UpdateUserTerminalFont(ctx, arg)
 }
 
+func (q *querier) UpdateUserTerminalFontSize(ctx context.Context, arg database.UpdateUserTerminalFontSizeParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpdateUserTerminalFontSize(ctx, arg)
+}
+
 func (q *querier) UpdateUserThemeDark(ctx context.Context, arg database.UpdateUserThemeDarkParams) (database.UserConfig, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {

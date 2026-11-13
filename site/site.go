@@ -366,11 +366,12 @@ func execTmpl(tmpl *template.Template, state htmlState) ([]byte, error) {
 
 func userAppearanceSettingsFromRow(settings database.GetUserAppearanceSettingsRow) codersdk.UserAppearanceSettings {
 	return codersdk.UserAppearanceSettings{
-		ThemePreference: settings.ThemePreference,
-		ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
-		ThemeLight:      settings.ThemeLight,
-		ThemeDark:       settings.ThemeDark,
-		TerminalFont:    codersdk.TerminalFontName(settings.TerminalFont),
+		ThemePreference:  settings.ThemePreference,
+		ThemeMode:        codersdk.ThemeMode(settings.ThemeMode),
+		ThemeLight:       settings.ThemeLight,
+		ThemeDark:        settings.ThemeDark,
+		TerminalFont:     codersdk.TerminalFontName(settings.TerminalFont),
+		TerminalFontSize: settings.TerminalFontSize,
 	}
 }
 

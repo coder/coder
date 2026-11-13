@@ -256,6 +256,9 @@ type UserAppearanceSettings struct {
 	// Ignored when ThemeMode is "single"
 	ThemeDark    string           `json:"theme_dark"`
 	TerminalFont TerminalFontName `json:"terminal_font"`
+	// TerminalFontSize is the web terminal font size in pixels. Zero means
+	// the user has not chosen a size, and the web terminal will use the default.
+	TerminalFontSize int32 `json:"terminal_font_size"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
@@ -277,6 +280,9 @@ type UpdateUserAppearanceSettingsRequest struct {
 	// one slot keep the other intact.
 	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
 	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
+	// TerminalFontSize is optional for backward compatibility. When zero,
+	// the server leaves the persisted terminal font size unchanged.
+	TerminalFontSize int32 `json:"terminal_font_size,omitempty" validate:"omitempty,min=8,max=32"`
 }
 
 type UserPreferenceSettings struct {

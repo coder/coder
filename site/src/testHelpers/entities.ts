@@ -633,6 +633,7 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_light: "light",
 	theme_dark: "dark",
 	terminal_font: "",
+	terminal_font_size: 0,
 };
 
 export const MockUserSecrets: TypesGen.UserSecret[] = [
