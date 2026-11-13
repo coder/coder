@@ -125,7 +125,7 @@ describe("ConnectionLogPage", () => {
 				screen.getByRole("button", { name: "Filter by connection method" }),
 			);
 			await user.click(
-				await screen.findByRole("option", { name: "Web terminal" }),
+				await screen.findByRole("option", { name: "Web Terminal" }),
 			);
 
 			await waitFor(() =>
