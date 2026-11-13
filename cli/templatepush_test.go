@@ -1265,6 +1265,7 @@ display_name: [broken
 			}{
 				{match: "Upload", write: "yes"},
 				{match: "template has been created"},
+				{match: `coder create --template="` + templateName + `"`},
 			}
 			for _, m := range matches {
 				stdout.ExpectMatch(ctx, m.match)
