@@ -79,6 +79,8 @@ const (
 	CheckSkillsActionProjectOnly                             CheckConstraint = "skills_action_project_only"                                // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
+	CheckSkillsDisplayNameLength                             CheckConstraint = "skills_display_name_length"                                // skills
+	CheckSkillsDisplayNameProjectOnly                        CheckConstraint = "skills_display_name_project_only"                          // skills
 	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills
 	CheckSkillsNameFormat                                    CheckConstraint = "skills_name_format"                                        // skills
 	CheckSkillsNameSize                                      CheckConstraint = "skills_name_size"                                          // skills

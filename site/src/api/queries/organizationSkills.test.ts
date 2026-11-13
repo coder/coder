@@ -42,6 +42,7 @@ const mockAlphaSkill: Skill = {
 	description: "alpha description",
 	enabled: true,
 	action: false,
+	display_name: "",
 	model_invocable: true,
 	content: "---\nname: alpha\n---\nBody\n",
 	created_at: "2026-05-21T00:00:00Z",

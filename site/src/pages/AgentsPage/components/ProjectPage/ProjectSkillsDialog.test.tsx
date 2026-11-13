@@ -77,12 +77,17 @@ describe("ProjectSkillsDialog", () => {
 			"Plan the work.",
 		);
 		await user.click(screen.getByRole("switch", { name: "Show as action" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Display name" }),
+			" Plan work ",
+		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(createSkill).toHaveBeenCalledWith(orgId, projectId, {
 				content: "---\nname: planner\n---\nPlan the work.\n",
 				action: true,
+				display_name: "Plan work",
 				model_invocable: true,
 			}),
 		);
@@ -227,6 +232,122 @@ describe("ProjectSkillsDialog", () => {
 				content: undefined,
 				action: false,
 				model_invocable: false,
+			}),
+		);
+	});
+
+	it("keeps a display name typed before the action was turned off and on", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		const actionSwitch = await screen.findByRole("switch", {
+			name: "Show as action",
+		});
+		await user.click(actionSwitch);
+		await user.type(
+			screen.getByRole("textbox", { name: "Display name" }),
+			"Code review",
+		);
+		await user.click(actionSwitch);
+		await user.click(actionSwitch);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content: undefined,
+				action: true,
+				display_name: "Code review",
+				model_invocable: true,
+			}),
+		);
+	});
+
+	it("limits display names to 64 characters, counting code points", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("switch", { name: "Show as action" }),
+		);
+		const displayName = screen.getByRole("textbox", { name: "Display name" });
+		// Each emoji is two UTF-16 units, so a UTF-16 count would reject 64.
+		await user.click(displayName);
+		await user.paste("🚀".repeat(65));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(updateSkill).not.toHaveBeenCalled();
+		await user.clear(displayName);
+		await user.paste("🚀".repeat(64));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(
+				orgId,
+				projectId,
+				"reviewer",
+				expect.objectContaining({ display_name: "🚀".repeat(64) }),
+			),
+		);
+	});
+
+	it("saves while a hidden display name is too long", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		const actionSwitch = await screen.findByRole("switch", {
+			name: "Show as action",
+		});
+		await user.click(actionSwitch);
+		await user.click(screen.getByRole("textbox", { name: "Display name" }));
+		await user.paste("a".repeat(65));
+		await user.click(actionSwitch);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content: undefined,
+				action: false,
+				display_name: undefined,
+				model_invocable: true,
+			}),
+		);
+	});
+
+	it("leaves the stored display name alone when the skill is not an action", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user, getSkill } = renderDialog();
+		getSkill.mockResolvedValue({
+			...mockReviewerSkill,
+			action: true,
+			display_name: "Code review",
+		});
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("switch", { name: "Show as action" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content: undefined,
+				action: false,
+				display_name: undefined,
+				model_invocable: true,
 			}),
 		);
 	});

@@ -18,6 +18,20 @@ import {
 
 const MAX_INLINE_ACTIONS = 3;
 
+const skillActionLabel = (skill: SkillMetadata): string =>
+	skill.display_name || skill.name;
+
+/**
+ * Shows the slash command behind a display name, so actions that share a
+ * display name stay distinguishable.
+ */
+const SkillActionCommand: React.FC<{ skill: SkillMetadata }> = ({ skill }) =>
+	skill.display_name ? (
+		<span className="block max-w-full break-all font-mono text-xs">
+			/{skill.name}
+		</span>
+	) : null;
+
 type ProjectSkillActionsProps = {
 	organizationId: string;
 	projectId: string;
@@ -43,7 +57,9 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 	});
 	const actions = (skillsQuery.data ?? [])
 		.filter((skill) => skill.enabled && skill.action)
-		.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
+		.toSorted((a, b) =>
+			skillActionLabel(a).localeCompare(skillActionLabel(b), "en-US"),
+		);
 	if (actions.length === 0) {
 		return null;
 	}
@@ -96,8 +112,9 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 								}}
 							>
 								<span className="max-w-full truncate text-content-primary">
-									{skill.name}
+									{skillActionLabel(skill)}
 								</span>
+								<SkillActionCommand skill={skill} />
 								{skill.description && (
 									<span className="line-clamp-2 text-xs font-normal">
 										{skill.description}
@@ -121,7 +138,7 @@ const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 	skill,
 	onInvoke,
 }) => (
-	// The tooltip shows the full name, which a narrow composer truncates.
+	// The tooltip shows the full label, which a narrow composer truncates.
 	<Tooltip>
 		<TooltipTrigger asChild>
 			<Button
@@ -130,11 +147,14 @@ const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 				className="max-w-full"
 				onClick={() => onInvoke(skill.name)}
 			>
-				<span className="truncate">{skill.name}</span>
+				<span className="truncate">{skillActionLabel(skill)}</span>
 			</Button>
 		</TooltipTrigger>
 		<TooltipContent className="max-w-64">
-			<span className="block wrap-break-word font-medium">{skill.name}</span>
+			<span className="block wrap-break-word font-medium">
+				{skillActionLabel(skill)}
+			</span>
+			<SkillActionCommand skill={skill} />
 			{skill.description && <span className="block">{skill.description}</span>}
 		</TooltipContent>
 	</Tooltip>
