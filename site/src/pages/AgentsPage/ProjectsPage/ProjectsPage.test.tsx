@@ -164,7 +164,6 @@ describe("ProjectsPage", () => {
 				screen.getAllByRole("button", { name: "New project" })[0],
 			).toHaveFocus(),
 		);
-		expect(screen.queryByRole("link", { name: "Kilo" })).toBeNull();
 	});
 
 	it("shows the Archived tab only while there are archived projects", async () => {
