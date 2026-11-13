@@ -891,13 +891,13 @@ func waitForMessage(ctx context.Context, t *testing.T, messages <-chan string, w
 	}
 }
 
-// TestTelemetry_ReporterOwnsConnectionPool covers a reporter whose HTTP client
-// shares http.DefaultTransport. Anything in the process can close that
-// transport's idle connections, httptest.Server.Close does for one. If that
-// happens while the response to a report is on its way to the caller, net/http
-// fails a request that already succeeded, the deployment report errors, and no
-// snapshot follows. The reporter must therefore keep its connection through a
-// close on the default transport and release it itself on Close.
+// TestTelemetry_ReporterOwnsConnectionPool covers a reporter that shares
+// http.DefaultTransport. Any code in the process can close that transport's
+// idle connections, and httptest.Server.Close does. If that happens while
+// net/http hands a response without a body, like the telemetry server's 202,
+// to its caller, the request fails although the server accepted it. The
+// deployment report then errors and no snapshot follows. The reporter must
+// keep its connection through such a close and release it on Close.
 func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

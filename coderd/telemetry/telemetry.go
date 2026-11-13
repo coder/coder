@@ -110,10 +110,10 @@ func New(options Options) (Reporter, error) {
 	return reporter, nil
 }
 
-// newHTTPClient returns a client with its own connection pool. On
-// http.DefaultTransport, any CloseIdleConnections call in the process, such as
-// the one in httptest.Server.Close, can fail a request that is just returning
-// its connection to the pool.
+// newHTTPClient returns a client with its own connection pool. A client on
+// http.DefaultTransport shares its pool with the whole process, and any call to
+// its CloseIdleConnections (httptest.Server.Close makes one) can fail a request
+// while net/http hands it a response that has no body.
 func newHTTPClient() *http.Client {
 	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
 	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
