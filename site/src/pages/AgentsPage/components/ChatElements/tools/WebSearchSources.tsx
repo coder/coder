@@ -81,7 +81,7 @@ export const SourcePill: React.FC<{ source: SourceLink }> = ({ source }) => {
 	const { label, href, hostname } = getSourcePillDisplay(source);
 	const className = cn(
 		"inline-flex items-center gap-1.5 rounded-full",
-		"border border-solid border-border bg-surface-secondary",
+		"border bg-surface-secondary",
 		"px-2.5 py-1 text-xs leading-none text-content-secondary",
 		"max-w-[200px]",
 	);

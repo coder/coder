@@ -20,7 +20,7 @@ const ReadFileContent: React.FC<{
 
 	return (
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel={`Contents of ${path}`}
 			orientation="both"

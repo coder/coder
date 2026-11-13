@@ -83,10 +83,7 @@ export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 					title="Info"
 					description="The name and description of the organization."
 				>
-					<fieldset
-						disabled={form.isSubmitting}
-						className="border-0 p-0 m-0 w-full"
-					>
+					<fieldset disabled={form.isSubmitting} className="p-0 m-0 w-full">
 						<FormFields>
 							<FormField
 								field={getFieldHelpers("name")}
