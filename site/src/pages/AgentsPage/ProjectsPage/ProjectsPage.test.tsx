@@ -135,6 +135,8 @@ describe("ProjectsPage", () => {
 			API.experimental,
 			"getChatProjectArchivePreview",
 		).mockResolvedValue({ chat_count: 0, active_chat_count: 0 });
+		// The project's chats use no workspaces.
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		const archive = vi
 			.spyOn(API.experimental, "archiveChatProject")
 			.mockImplementation(async (_organizationId, projectId) => ({

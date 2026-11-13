@@ -1390,7 +1390,11 @@ export const replaceChatMessagesHistory = (
 	);
 };
 
-const DEFAULT_CHAT_PAGE_LIMIT = 50;
+/**
+ * Page size for GET /chats. Callers that page through chats treat a shorter
+ * page as the last one, so they must request this same limit.
+ */
+export const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {

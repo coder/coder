@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
 	archiveChatProject,
@@ -11,10 +12,12 @@ import { chatRetentionDays } from "#/api/queries/chats";
 import type {
 	ChatProject,
 	ChatProjectArchivePreview,
+	Workspace,
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { useDeleteConfirmation } from "#/components/Dialog/DeleteDialog/DeleteConfirmationField";
 import {
 	Dialog,
 	DialogContent,
@@ -26,13 +29,22 @@ import {
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import {
+	type ProjectWorkspaceAction,
+	projectChatWorkspaces,
+	projectWorkspaceAction,
+} from "../../../utils/agentWorkspaceUtils";
 import { RetryButton } from "../../RetryButton";
-
-const plural = (count: number, singular: string, pluralForm: string) =>
-	`${count} ${count === 1 ? singular : pluralForm}`;
+import {
+	notifyWorkspaceActionResult,
+	ProjectWorkspacesSection,
+	plural,
+} from "./ArchiveProjectWorkspaces";
 
 type ArchiveRequest = {
 	readonly stopActiveChats: boolean;
+	readonly workspaceAction: ProjectWorkspaceAction;
+	readonly workspaces: readonly Workspace[];
 };
 
 type ArchiveProjectDialogProps = {
@@ -45,7 +57,8 @@ type ArchiveProjectDialogProps = {
 
 /**
  * Confirms archiving a project: how many chats it archives, which active
- * chats it stops, and how long archived chats are kept.
+ * chats it stops, how long archived chats are kept, and what happens to the
+ * workspaces behind the user's own chats.
  */
 export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	project,
@@ -54,18 +67,39 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	onCloseAutoFocus,
 }) => {
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const archiveMutation = useMutation(archiveChatProject(queryClient));
+	// The workspace outcome replaces its archive's "Project archived" toast,
+	// so one toast summarizes the whole archive.
+	const workspaceMutation = useMutation({
+		...projectWorkspaceAction(queryClient),
+		onSuccess: (result, { action, toastId }) =>
+			notifyWorkspaceActionResult(action, result, navigate, toastId),
+		onError: (error, { toastId }) => {
+			toast.error(
+				getErrorMessage(
+					error,
+					"Failed to check whether your workspaces are still in use.",
+				),
+				{
+					id: toastId,
+					description:
+						"The project was archived, and its workspaces were left as they were.",
+				},
+			);
+		},
+	});
 
 	// isPending reaches the form only after the mutation cache notifies, so
 	// a double click would send a second request. That mutate() call replaces
 	// the first call's callbacks, so the first request's success would neither
-	// close the dialog nor toast, and the second request fails because the
-	// project is already archived.
+	// close the dialog, toast, nor start the workspace action, and the second
+	// request fails because the project is already archived.
 	const isSubmittingRef = useRef(false);
 
 	const archive = (
 		projectToArchive: ChatProject,
-		{ stopActiveChats }: ArchiveRequest,
+		{ stopActiveChats, workspaceAction, workspaces }: ArchiveRequest,
 	) => {
 		if (isSubmittingRef.current) {
 			return;
@@ -79,11 +113,19 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 				},
 				onSuccess: () => {
 					onClose();
-					toast.success("Project archived");
+					const toastId = toast.success("Project archived");
+					if (workspaceAction !== "leave") {
+						workspaceMutation.mutate({
+							action: workspaceAction,
+							workspaces,
+							toastId,
+						});
+					}
 				},
 				onError: async (error) => {
 					// A chat can start after the preview loaded. The refreshed
-					// preview shows the warning and the button that stops it.
+					// preview shows the warning and the button that stops it,
+					// and the workspace list picks up the chat's workspace.
 					if (getErrorStatus(error) === 409) {
 						const previewKey = chatProjectArchivePreviewKey(
 							projectToArchive.id,
@@ -140,28 +182,47 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	onCancel,
 	onArchive,
 }) => {
+	const queryClient = useQueryClient();
 	const previewQuery = useQuery(chatProjectArchivePreview(project));
 	const retentionQuery = useQuery(chatRetentionDays());
+	const workspacesQuery = useQuery(projectChatWorkspaces(queryClient, project));
+	const [workspaceAction, setWorkspaceAction] =
+		useState<ProjectWorkspaceAction>("leave");
+	const confirmation = useDeleteConfirmation(project.name, true);
 
 	const preview = previewQuery.data;
 	const activeChatCount = preview?.active_chat_count ?? 0;
+	// A failed refetch keeps stale rows; show the error instead and never stop
+	// or delete from them.
+	const workspaces = workspacesQuery.isError
+		? []
+		: (workspacesQuery.data ?? []);
+	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
 	// Retention only describes what happens to archived chats.
 	const needsRetention = preview?.chat_count !== 0;
 	// A failed refetch leaves a preview that may miss newly active chats, and
-	// the refetch after a 409 may reveal some.
+	// the refetch after a 409 may reveal some. While the workspaces load or
+	// refetch, the stop and delete choices may be stale; if they fail to load,
+	// archiving leaves them alone.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
 		!previewQuery.isFetching &&
 		(!needsRetention || retentionQuery.data !== undefined) &&
-		!isArchiving;
+		!workspacesQuery.isFetching &&
+		!isArchiving &&
+		(!isDeleting || confirmation.confirmed);
 
 	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (!canArchive) {
 			return;
 		}
-		onArchive({ stopActiveChats: activeChatCount > 0 });
+		onArchive({
+			stopActiveChats: activeChatCount > 0,
+			workspaceAction: workspaces.length > 0 ? workspaceAction : "leave",
+			workspaces: workspaces.map(({ workspace }) => workspace),
+		});
 	};
 
 	return (
@@ -188,7 +249,7 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 				</DialogDescription>
 			</DialogHeader>
 
-			{/* Empty for a project with no chats. */}
+			{/* Empty for a project with no chats and no workspaces. */}
 			<div className="flex flex-col gap-4 empty:hidden">
 				<ArchiveSummary
 					preview={preview}
@@ -202,6 +263,18 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 						void retentionQuery.refetch();
 					}}
 				/>
+				<ProjectWorkspacesSection
+					project={project}
+					workspaces={
+						workspacesQuery.isError ? undefined : workspacesQuery.data
+					}
+					error={workspacesQuery.error}
+					isRetrying={workspacesQuery.isFetching}
+					onRetry={() => void workspacesQuery.refetch()}
+					action={workspaceAction}
+					onActionChange={setWorkspaceAction}
+					confirmation={confirmation}
+				/>
 			</div>
 
 			<DialogFooter>
@@ -213,7 +286,11 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 				>
 					Cancel
 				</Button>
-				<Button type="submit" disabled={!canArchive}>
+				<Button
+					type="submit"
+					variant={isDeleting ? "destructive" : "default"}
+					disabled={!canArchive}
+				>
 					<Spinner loading={isArchiving} />
 					{activeChatCount === 0
 						? "Archive project"
