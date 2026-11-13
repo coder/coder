@@ -83,6 +83,7 @@ See [STUN and NAT](./stun.md) for more information on how this process works.
 
 If a direct connection is not available (for example, client or server is behind NAT), Coder will use a relayed connection.
 By default, [Coder uses Google's public STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses), but this can be disabled or changed for [Air-gapped deployments](../../install/prepare/airgap.md).
+To run your own STUN server, refer to [Self-host a STUN server](./self-hosted-stun.md).
 
 ### Relayed connections
 
@@ -117,6 +118,20 @@ After you have custom DERP servers, you can launch Coder with them like so:
           "HostName": "your-hostname.com"
         }
       ]
+    },
+    "2": {
+      "RegionID": 2,
+      "RegionCode": "mystun",
+      "RegionName": "My STUN",
+      "Nodes": [
+        {
+          "Name": "2",
+          "RegionID": 2,
+          "HostName": "stun.example.com",
+          "STUNOnly": true,
+          "STUNPort": 3478
+        }
+      ]
     }
   }
 }
@@ -125,6 +140,8 @@ After you have custom DERP servers, you can launch Coder with them like so:
 ```sh
 coder server --derp-config-path derpmap.json
 ```
+
+A node with `"STUNOnly": true` serves STUN requests only and doesn't relay traffic.
 
 ### Dashboard connections
 

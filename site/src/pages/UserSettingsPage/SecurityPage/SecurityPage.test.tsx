@@ -47,6 +47,13 @@ test("sets a page title that identifies the page", async () => {
 	expect(document.title).toBe("Security - Settings - Coder");
 });
 
+test("nests section headings under the page heading", async () => {
+	await renderPage();
+	expect(
+		screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+	).toEqual(["Password", "Single Sign On"]);
+});
+
 test("update password successfully", async () => {
 	vi.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) =>
 		Promise.resolve(undefined),

@@ -1,6 +1,10 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import * as Diff from "diff";
 import * as Yup from "yup";
+import {
+	DIFFS_GIT_COLOR_CSS,
+	DIFFS_GIT_COLOR_STYLE,
+} from "#/components/SyntaxHighlighter/diffsGitColors";
 import { parseDiffString, stampCacheKey } from "../../DiffViewer/parseDiff";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
@@ -347,6 +351,7 @@ export const SEPARATOR_CSS = [
 export const diffViewerCSS = [
 	"pre, [data-line]:not([data-line-type='change-addition']):not([data-line-type='change-deletion']) { background-color: transparent !important; }",
 	SEPARATOR_CSS,
+	DIFFS_GIT_COLOR_CSS,
 ].join(" ");
 
 // Theme-aware option factories shared across tool renderers.
@@ -416,19 +421,6 @@ export function getFileViewerOptionsMinimal(isDark: boolean) {
  */
 export const stripSvnIndexHeaders = (patch: string): string =>
 	patch.replace(/^Index: .*\n={3,}\n/gm, "");
-
-/**
- * Diff addition and deletion colors from the dashboard theme, so diffs follow
- * the active theme variant, including the colorblind ones.
- */
-export const DIFFS_GIT_COLOR_STYLE = {
-	"--diffs-addition-color-override": "hsl(var(--git-added))",
-	"--diffs-deletion-color-override": "hsl(var(--git-deleted))",
-	"--diffs-bg-addition-override": "hsl(var(--surface-git-added))",
-	"--diffs-bg-deletion-override": "hsl(var(--surface-git-deleted))",
-	"--diffs-bg-addition-number-override": "hsl(var(--surface-git-added))",
-	"--diffs-bg-deletion-number-override": "hsl(var(--surface-git-deleted))",
-};
 
 export const DIFFS_FONT_STYLE = {
 	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
