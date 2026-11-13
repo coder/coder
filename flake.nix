@@ -154,11 +154,11 @@
         # so `make gen` remains deterministic in Nix shells.
         terraform_1_15_5 =
           if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-            pkgs.runCommand "terraform-1.17.1" {
+            pkgs.runCommand "terraform-1.17.2" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_linux_amd64.zip";
-                hash = "sha256-RjhigFjnGlUhKxxWNxLqwDuQISj0B0Dz3IF03xITUGE=";
+                url = "https://releases.hashicorp.com/terraform/1.17.2/terraform_1.17.2_linux_amd64.zip";
+                hash = "sha256-5vFrLwsTfuVynKqMTnmjuuTuJhrNGYofz6hYSmKWYFs=";
               };
             } ''
               mkdir -p "$out/bin"
