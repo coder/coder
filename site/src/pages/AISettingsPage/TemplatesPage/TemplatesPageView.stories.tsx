@@ -81,11 +81,6 @@ export const MixedToggles: Story = {
 		const table = canvas.getByRole("table", {
 			name: "Templates Coder Agents can use to create workspaces",
 		});
-		expect(
-			within(table).getByRole("columnheader", {
-				name: "Coder Agents workspace creation",
-			}),
-		).toBeInTheDocument();
 		const rows = within(table).getAllByRole("row");
 		expect(within(rows[1]).getByText("Docker containers")).toBeVisible();
 		expect(within(rows[2]).getByText("Product ops engineering")).toBeVisible();

@@ -161,9 +161,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 							<TableHead className="w-1/2">Template</TableHead>
 							<TableHead className="w-44">Last updated</TableHead>
 							<TableHead className="w-44">Used by</TableHead>
-							<TableHead className="w-36 text-right">
-								<span className="sr-only">Coder Agents workspace creation</span>
-							</TableHead>
+							<TableHead className="w-36 text-right">Agent access</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody size="lg">
