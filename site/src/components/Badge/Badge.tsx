@@ -21,7 +21,7 @@ const badgeVariants = cva(
 				dashed:
 					"border-dashed bg-surface-secondary text-content-secondary shadow-none",
 				warning:
-					"border-highlight-orange bg-surface-orange text-highlight-orange [&_svg]:text-border-warning",
+					"border-border-warning bg-surface-orange text-content-warning [&_svg]:text-border-warning",
 				destructive:
 					"border-border-destructive bg-surface-red text-highlight-red",
 				green: "border-border-green bg-surface-green text-highlight-green",

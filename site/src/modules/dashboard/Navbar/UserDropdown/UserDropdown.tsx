@@ -24,7 +24,7 @@ const severityIndicators: Partial<
 	>
 > = {
 	warning: {
-		badge: "bg-surface-orange text-highlight-orange",
+		badge: "bg-surface-orange text-border-warning",
 		icon: <TriangleAlertIcon aria-hidden className="size-3" />,
 		label: "AI spend is nearing its limit",
 	},
