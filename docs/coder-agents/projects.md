@@ -135,7 +135,7 @@ If the agent in a project chat says that no templates are available, add templat
 To change a project's templates, select the template count, such as **2 templates**, in the **Templates** row of the project's **Details** panel.
 This opens the **Edit templates** dialog.
 You need the `chat_project:update` permission on the project, which the project owner has.
-If the templates change elsewhere while the dialog is open, such as in another browser tab, the dialog shows a warning and you can't save.
+If the templates change elsewhere while you have unsaved edits in the dialog, such as in another browser tab, the dialog shows a warning and you can't save.
 Select **Load latest** to start over from the saved templates, or **Keep my draft** to replace them with yours when you save.
 
 You can add any template in the project's organization that you can access, that allows Coder Agents, and that isn't deprecated.
