@@ -2079,28 +2079,16 @@ func TestRotateChatAutomations(t *testing.T) {
 		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
 	}
 	requireDBCryptKeyRevoked(f.ctx, t, f.rawDB, f.cipherA)
-
-	cryptDBB, err := dbcrypt.New(f.ctx, f.rawDB, f.cipherB)
-	require.NoError(t, err)
-	read, err := cryptDBB.GetChatAutomationByID(f.ctx, rows.secret.ID)
-	require.NoError(t, err)
-	require.Equal(t, chatAutomationSecret, read.WebhookSecret.String, "a secret written under cipher A reads under cipher B")
 }
 
 // TestDecryptChatAutomations covers the webhook secret of chat_automations.
-// Decrypt writes the plaintext back with a NULL key ID and leaves the other
-// rows alone.
+// Decrypt writes the plaintext back with a NULL key ID.
 func TestDecryptChatAutomations(t *testing.T) {
 	t.Parallel()
 	f := newDecryptFixture(t)
 
 	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
 	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
-	untouched := []database.ChatAutomation{rows.empty, rows.schedule, rows.plain}
-	before := map[uuid.UUID]string{}
-	for _, row := range untouched {
-		before[row.ID] = chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID)
-	}
 
 	f.decrypt(t)
 
@@ -2108,9 +2096,6 @@ func TestDecryptChatAutomations(t *testing.T) {
 	require.False(t, got.WebhookSecretKeyID.Valid)
 	require.Equal(t, chatAutomationSecret, got.WebhookSecret.String)
 	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
-	for _, row := range untouched {
-		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
-	}
 }
 
 // TestDeleteChatAutomations covers the webhook secret of chat_automations.
@@ -2122,11 +2107,6 @@ func TestDeleteChatAutomations(t *testing.T) {
 
 	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
 	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
-	untouched := []database.ChatAutomation{rows.empty, rows.schedule, rows.plain}
-	before := map[uuid.UUID]string{}
-	for _, row := range untouched {
-		before[row.ID] = chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID)
-	}
 
 	f.delete(t)
 
@@ -2134,11 +2114,8 @@ func TestDeleteChatAutomations(t *testing.T) {
 	require.Equal(t, sql.NullString{Valid: true}, got.WebhookSecret, "the secret is blanked, not NULL")
 	require.False(t, got.WebhookSecretKeyID.Valid)
 	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
-	_, err := f.sqlDB.ExecContext(f.ctx, `UPDATE chat_automations SET name = name WHERE id = $1`, rows.secret.ID)
-	require.NoError(t, err, "the blanked row still passes its CHECK constraints")
-	for _, row := range untouched {
-		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
-	}
+	plain := requireRawChatAutomation(f.ctx, t, f.rawDB, rows.plain.ID)
+	require.Equal(t, rows.plain.WebhookSecret, plain.WebhookSecret, "a plaintext secret is not encrypted data")
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
 }
 

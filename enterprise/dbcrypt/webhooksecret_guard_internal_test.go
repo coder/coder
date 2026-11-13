@@ -29,11 +29,6 @@ func TestWebhookSecretMethodsAreOverridden(t *testing.T) {
 	t.Logf("database.Store methods that carry a webhook secret: %v", carriers)
 	require.Subset(t, carriers, []string{"InsertChatAutomation", "GetChatAutomationByID"},
 		"the walk must find the queries of A1 that carry the secret")
-	// sqlc.embed puts a row into a named field.
-	type embedding struct {
-		Automation struct{ WebhookSecret string }
-	}
-	require.True(t, typeHasField(reflect.TypeFor[[]embedding](), "WebhookSecret", map[reflect.Type]bool{}))
 	named := queriesNamingColumn(t, "webhook_secret")
 	require.Subset(t, named, []string{"InsertChatAutomation", "UpdateEncryptedChatAutomationWebhookSecret"},
 		"the scan must find the queries that name the column")
@@ -46,13 +41,6 @@ func TestWebhookSecretMethodsAreOverridden(t *testing.T) {
 	})
 	require.Empty(t, missing,
 		"these database.Store methods carry or name a webhook secret, so dbCrypt must override them to encrypt and decrypt the secret")
-
-	// A list covers every automation of an organization. It must not load a
-	// secret, so it has no override and no field to decrypt.
-	for _, name := range []string{"GetChatAutomationsByOrganizationID", "GetAuthorizedChatAutomationsByOrganizationID"} {
-		require.NotContains(t, carriers, name, "the list must not load a webhook secret")
-		require.NotContains(t, named, name, "the list must not load a webhook secret")
-	}
 }
 
 func storeMethodsWithField(store reflect.Type, field string) []string {

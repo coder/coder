@@ -312,14 +312,6 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	return r0
 }
 
-func (m queryMetricsStore) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.ClearChatMessagesPromptHooks(ctx, chatID)
-	m.queryLatencies.WithLabelValues("ClearChatMessagesPromptHooks").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatMessagesPromptHooks").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	start := time.Now()
 	r0 := m.s.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
@@ -5533,14 +5525,6 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToFront(ctx context.Context, 
 	r0, r1 := m.s.ReorderChatQueuedMessageToFront(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToFront").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToFront").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) ResolveChatMessagePromptHooks(ctx context.Context, arg database.ResolveChatMessagePromptHooksParams) (database.ChatMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.ResolveChatMessagePromptHooks(ctx, arg)
-	m.queryLatencies.WithLabelValues("ResolveChatMessagePromptHooks").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResolveChatMessagePromptHooks").Inc()
 	return r0, r1
 }
 

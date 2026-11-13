@@ -813,12 +813,9 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type: {policy.ActionRead},
-					rbac.ResourceChat.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					// chatd records the next run time and the last run. RBAC
-					// cannot limit update to those fields: chatd must call
-					// only the queries that write them.
-					rbac.ResourceChatAutomation.Type:    {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceAIProvider.Type:        {policy.ActionRead},
+					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceChatAutomation.Type:    {policy.ActionRead},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
@@ -2052,17 +2049,6 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 		return err
 	}
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
-}
-
-func (q *querier) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.ClearChatMessagesPromptHooks(ctx, chatID)
 }
 
 func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
@@ -7794,17 +7780,6 @@ func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg datab
 		return 0, err
 	}
 	return q.db.ReorderChatQueuedMessageToFront(ctx, arg)
-}
-
-func (q *querier) ResolveChatMessagePromptHooks(ctx context.Context, arg database.ResolveChatMessagePromptHooksParams) (database.ChatMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
-	}
-	return q.db.ResolveChatMessagePromptHooks(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

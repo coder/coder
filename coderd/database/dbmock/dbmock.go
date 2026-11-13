@@ -422,20 +422,6 @@ func (mr *MockStoreMockRecorder) ClearChatDiffStatusPR(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatDiffStatusPR", reflect.TypeOf((*MockStore)(nil).ClearChatDiffStatusPR), ctx, arg)
 }
 
-// ClearChatMessagesPromptHooks mocks base method.
-func (m *MockStore) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClearChatMessagesPromptHooks", ctx, chatID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ClearChatMessagesPromptHooks indicates an expected call of ClearChatMessagesPromptHooks.
-func (mr *MockStoreMockRecorder) ClearChatMessagesPromptHooks(ctx, chatID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatMessagesPromptHooks", reflect.TypeOf((*MockStore)(nil).ClearChatMessagesPromptHooks), ctx, chatID)
-}
-
 // ClearWorkspaceSecretsBeforeBuild mocks base method.
 func (m *MockStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	m.ctrl.T.Helper()
@@ -10527,21 +10513,6 @@ func (m *MockStore) ReorderChatQueuedMessageToFront(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToFront(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToFront", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToFront), ctx, arg)
-}
-
-// ResolveChatMessagePromptHooks mocks base method.
-func (m *MockStore) ResolveChatMessagePromptHooks(ctx context.Context, arg database.ResolveChatMessagePromptHooksParams) (database.ChatMessage, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ResolveChatMessagePromptHooks", ctx, arg)
-	ret0, _ := ret[0].(database.ChatMessage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ResolveChatMessagePromptHooks indicates an expected call of ResolveChatMessagePromptHooks.
-func (mr *MockStoreMockRecorder) ResolveChatMessagePromptHooks(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveChatMessagePromptHooks", reflect.TypeOf((*MockStore)(nil).ResolveChatMessagePromptHooks), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.
