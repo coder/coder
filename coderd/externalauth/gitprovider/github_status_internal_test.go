@@ -2,7 +2,6 @@ package gitprovider
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -639,12 +639,12 @@ func TestGitHubStatusIssueErrors(t *testing.T) {
 					if strings.Contains(req.URL.Path, "/issues/") {
 						transportRequests.Add(1)
 						if tc.transportError {
-							return nil, errors.New("issue transport error")
+							return nil, xerrors.New("issue transport error")
 						}
 						return &http.Response{
 							StatusCode: tc.status,
 							Header:     make(http.Header),
-							Body:       io.NopCloser(iotest.ErrReader(errors.New("issue body error"))),
+							Body:       io.NopCloser(iotest.ErrReader(xerrors.New("issue body error"))),
 						}, nil
 					}
 					return transport.RoundTrip(req)
@@ -655,12 +655,13 @@ func TestGitHubStatusIssueErrors(t *testing.T) {
 			for range 2 {
 				_, err := provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "repo", Number: 1})
 				require.Error(t, err)
-				if tc.rateLimited {
+				switch {
+				case tc.rateLimited:
 					var limit *RateLimitError
 					require.ErrorAs(t, err, &limit)
-				} else if tc.transportError {
+				case tc.transportError:
 					require.ErrorContains(t, err, "issue transport error")
-				} else {
+				default:
 					require.ErrorContains(t, err, fmt.Sprint(tc.status))
 				}
 			}
