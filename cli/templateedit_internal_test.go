@@ -85,14 +85,16 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 		assert.Empty(t, changes)
 	})
 
-	t.Run("NegativeWeeksMatchesNormalizedTemplate", func(t *testing.T) {
+	t.Run("NegativeWeeksLeftToServerValidation", func(t *testing.T) {
 		t.Parallel()
 
+		tmpl := template
+		tmpl.AutostopRequirement.Weeks = 2
 		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
 			r.AutostopRequirement.Weeks = -1
 		})
 
-		changes := templateEditWorkspaceImpactingChanges(template, req)
+		changes := templateEditWorkspaceImpactingChanges(tmpl, req)
 		assert.Empty(t, changes)
 	})
 
