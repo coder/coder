@@ -1,4 +1,4 @@
-import { PinIcon, PinOffIcon, SquarePenIcon } from "lucide-react";
+import { SquarePenIcon } from "lucide-react";
 import { Link, type To } from "react-router";
 import type { ChatProjectPermissions } from "#/api/typesGenerated";
 import type {
@@ -22,9 +22,9 @@ type ProjectActionsMenuItemsProps = {
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
 	readonly onNewChatInPlace?: () => void;
-	/** Adds a "Pin project" item. */
+	/** Adds a "Pin" item. */
 	readonly onPin?: () => void;
-	/** Adds an "Unpin project" item. */
+	/** Adds an "Unpin" item. */
 	readonly onUnpin?: () => void;
 	readonly permissions: ChatProjectPermissions;
 	readonly onEdit: () => void;
@@ -49,45 +49,41 @@ export const ProjectActionsMenuItems: React.FC<
 	permissions,
 	onEdit,
 	onDelete,
-}) => (
-	<>
-		{projectPath !== undefined && (
-			<>
-				<Item asChild>
-					<Link
-						to={projectPath}
-						state={onNewChatInPlace ? highlightComposerState : undefined}
-						onClick={onNewChatInPlace}
+}) => {
+	const hasItemsAboveDelete = onPin || onUnpin || permissions.update;
+	return (
+		<>
+			{projectPath !== undefined && (
+				<>
+					<Item asChild>
+						<Link
+							to={projectPath}
+							state={onNewChatInPlace ? highlightComposerState : undefined}
+							onClick={onNewChatInPlace}
+						>
+							<SquarePenIcon />
+							New chat
+						</Link>
+					</Item>
+					{(onPin ||
+						onUnpin ||
+						hasProjectUpdateOrDeleteAction(permissions)) && <Separator />}
+				</>
+			)}
+			{onPin && <Item onSelect={onPin}>Pin</Item>}
+			{onUnpin && <Item onSelect={onUnpin}>Unpin</Item>}
+			{permissions.update && <Item onSelect={onEdit}>Edit</Item>}
+			{permissions.delete && (
+				<>
+					{hasItemsAboveDelete && <Separator />}
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						onSelect={onDelete}
 					>
-						<SquarePenIcon />
-						New chat
-					</Link>
-				</Item>
-				{(onPin || onUnpin || hasProjectUpdateOrDeleteAction(permissions)) && (
-					<Separator />
-				)}
-			</>
-		)}
-		{onPin && (
-			<Item onSelect={onPin}>
-				<PinIcon />
-				Pin project
-			</Item>
-		)}
-		{onUnpin && (
-			<Item onSelect={onUnpin}>
-				<PinOffIcon />
-				Unpin project
-			</Item>
-		)}
-		{permissions.update && <Item onSelect={onEdit}>Edit project</Item>}
-		{permissions.delete && (
-			<Item
-				className="text-content-destructive focus:text-content-destructive"
-				onSelect={onDelete}
-			>
-				Delete project
-			</Item>
-		)}
-	</>
-);
+						Delete
+					</Item>
+				</>
+			)}
+		</>
+	);
+};
