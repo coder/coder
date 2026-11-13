@@ -248,6 +248,34 @@ type ChatProjectPermissions struct {
 	Share  bool `json:"share"`
 }
 
+// ChatProjectSummary is a project with the caller's pin and aggregates over
+// the caller's own top-level, non-archived chats in it.
+type ChatProjectSummary struct {
+	Project ChatProject `json:"project"`
+	Pinned  bool        `json:"pinned"`
+	// PinOrder is the 1-based position among pinned projects, or 0.
+	PinOrder       int32 `json:"pin_order"`
+	OwnChatCount   int64 `json:"own_chat_count"`
+	OwnUnreadCount int64 `json:"own_unread_count"`
+	OwnRunning     bool  `json:"own_running"`
+	// OwnNeedsAttention reports a chat that requires action, failed, or is paused.
+	OwnNeedsAttention bool `json:"own_needs_attention"`
+	// LastActivityAt is the latest update to one of the caller's chats.
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty" format:"date-time"`
+	// MemberCount counts users who can use the project, including the owner.
+	// Suspended users are not counted. It is 1 when chat sharing is
+	// unavailable.
+	MemberCount int64 `json:"member_count"`
+}
+
+// PinChatProjectRequest pins a chat project for the caller, or moves an
+// already pinned project.
+type PinChatProjectRequest struct {
+	// PinOrder is the 1-based position to pin at. When omitted, a new pin
+	// goes to the end and an existing pin keeps its position.
+	PinOrder *int32 `json:"pin_order,omitempty"`
+}
+
 // CreateChatProjectRequest creates a chat project in the organization named
 // by the route.
 type CreateChatProjectRequest struct {
@@ -2440,6 +2468,9 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
+	// PinnedProjectsOnly leaves out chats in projects the caller has not
+	// pinned, unless the chat itself is pinned.
+	PinnedProjectsOnly bool
 	Pagination
 }
 
@@ -2494,6 +2525,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
 				q.Set("project_id", opts.ProjectID.String())
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.PinnedProjectsOnly {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("pinned_projects_only", "true")
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2568,6 +2606,22 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListChatProjectSummaries lists the projects from ListChatProjects with the
+// caller's pins and chat aggregates.
+func (c *ExperimentalClient) ListChatProjectSummaries(ctx context.Context) ([]ChatProjectSummary, error) {
+	return requestJSON[[]ChatProjectSummary](ctx, c.Client, http.MethodGet, "/api/experimental/chats/projects/summaries", http.StatusOK, nil)
+}
+
+// PinChatProject pins a chat project for the caller or moves its pin.
+func (c *ExperimentalClient) PinChatProject(ctx context.Context, organizationID, projectID uuid.UUID, req PinChatProjectRequest) error {
+	return requestNoContent(ctx, c.Client, http.MethodPut, chatProjectPath(organizationID, projectID)+"/pin", req)
+}
+
+// UnpinChatProject unpins a chat project for the caller.
+func (c *ExperimentalClient) UnpinChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	return requestNoContent(ctx, c.Client, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/pin", nil)
 }
 
 // ChatProjectACL returns who a chat project is shared with.

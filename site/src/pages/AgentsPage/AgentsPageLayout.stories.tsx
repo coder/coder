@@ -269,6 +269,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
