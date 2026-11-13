@@ -327,6 +327,18 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 		onSettled: () => invalidateProjectsAndChats(queryClient),
 	});
 
+// The project lists' order: by lowercased name, then ID.
+const compareProjectNames = (
+	a: TypesGen.ChatProject,
+	b: TypesGen.ChatProject,
+) => {
+	const [nameA, nameB] = [a.name.toLowerCase(), b.name.toLowerCase()];
+	if (nameA !== nameB) {
+		return nameA < nameB ? -1 : 1;
+	}
+	return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+};
+
 /**
  * Moves a project between the cached active and archived lists, so pages
  * that look it up keep finding it while both lists refetch. A project in
@@ -347,10 +359,11 @@ const setCachedProjectArchiveState = (
 		queryClient.setQueryData<TypesGen.ChatProject[]>(fromKey, (projects) =>
 			projects?.filter(({ id }) => id !== project.id),
 		);
-		queryClient.setQueryData<TypesGen.ChatProject[]>(toKey, (projects = []) => [
-			project,
-			...projects.filter(({ id }) => id !== project.id),
-		]);
+		queryClient.setQueryData<TypesGen.ChatProject[]>(toKey, (projects = []) =>
+			[...projects.filter(({ id }) => id !== project.id), project].toSorted(
+				compareProjectNames,
+			),
+		);
 	}
 	queryClient.setQueriesData<TypesGen.ChatProject | null>(
 		{ queryKey: unlistedChatProjectKey(project.id) },
