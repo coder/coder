@@ -101,6 +101,39 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 		require.Equal(t, chattool.NextStepNoTemplates, result[chattool.NextStepField])
 	})
 
+	t.Run("ListTemplatesQueryOverDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		named := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           "query-" + uuid.NewString()[:8],
+			AgentsAllowed:  true,
+		})
+		// The default only mentions the name in its description, a
+		// weaker match than the other template's exact name.
+		weakDefault := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Description:    "Similar to " + named.Name,
+			AgentsAllowed:  true,
+		})
+		project := newProject(database.ChatProject{
+			TemplateIDs:       []uuid.UUID{named.ID, weakDefault.ID},
+			DefaultTemplateID: uuid.NullUUID{UUID: weakDefault.ID, Valid: true},
+		})
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{OwnerID: user.ID, ProjectID: project})
+
+		result := runListTemplates(ctx, t, tool, `{"query":"`+named.Name+`"}`)
+		require.Len(t, listTemplateItems(t, result), 2)
+		require.Equal(t, named.ID.String(), result["recommended_template_id"])
+
+		// Without a decisive match, the default is recommended.
+		result = runListTemplates(ctx, t, tool, "{}")
+		require.Equal(t, weakDefault.ID.String(), result["recommended_template_id"])
+		require.Equal(t, chattool.NextStepUseRecommended, result[chattool.NextStepField])
+	})
+
 	t.Run("ReadTemplate", func(t *testing.T) {
 		t.Parallel()
 		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{OwnerID: user.ID, ProjectID: withParameters})
@@ -117,6 +150,20 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		require.Equal(t, map[string]string{"region": "eu", "size": "m"}, result.ProjectDefaults.Parameters)
+
+		// A default preset outside the active version is not reported,
+		// because create_workspace skips it.
+		stale := newProject(database.ChatProject{
+			TemplateIDs:                    []uuid.UUID{inProject.ID},
+			DefaultTemplateID:              defaultTemplate,
+			DefaultTemplateVersionPresetID: uuid.NullUUID{UUID: otherPreset.ID, Valid: true},
+		})
+		tool = chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{OwnerID: user.ID, ProjectID: stale})
+		resp = runTool(t, tool, `{"template_id":"`+inProject.ID.String()+`"}`)
+		require.False(t, resp.IsError, resp.Content)
+		var staleResult map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &staleResult))
+		require.NotContains(t, staleResult, "project_defaults")
 	})
 
 	t.Run("CreateWorkspaceOutsideProject", func(t *testing.T) {

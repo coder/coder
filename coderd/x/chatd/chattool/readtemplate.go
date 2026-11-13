@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -169,16 +170,21 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				"parameters_note": paramNote,
 			}
 			if project.isDefault(template.ID) {
-				defaults := map[string]any{
-					"note": "create_workspace applies these project defaults unless you pass preset_id or the parameter yourself.",
-				}
-				if project.defaultPresetID.Valid {
+				defaults := map[string]any{}
+				// A default preset from a version that is no longer active
+				// is skipped by create_workspace, so it is not reported.
+				if project.defaultPresetID.Valid && slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool {
+					return p.ID == project.defaultPresetID.UUID
+				}) {
 					defaults["preset_id"] = project.defaultPresetID.UUID.String()
 				}
 				if len(project.defaultParameters) > 0 {
 					defaults["parameters"] = project.defaultParameters
 				}
-				result["project_defaults"] = defaults
+				if len(defaults) > 0 {
+					defaults["note"] = "create_workspace applies these project defaults unless you pass preset_id or the parameter yourself."
+					result["project_defaults"] = defaults
+				}
 			}
 
 			// Include presets only when the template has them

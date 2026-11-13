@@ -194,7 +194,11 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				visibleTemplateCount,
 				signalsErr,
 			)
-			if project != nil && slices.ContainsFunc(ranked, func(t rankedTemplate) bool { return project.isDefault(t.Template.ID) }) {
+			// The project default wins unless the query matches another
+			// template more strongly.
+			if project != nil && slices.ContainsFunc(ranked, func(t rankedTemplate) bool {
+				return project.isDefault(t.Template.ID) && t.QueryScore == ranked[0].QueryScore
+			}) {
 				recommendedID, nextStep = project.defaultTemplateID.UUID, NextStepUseRecommended
 			}
 
