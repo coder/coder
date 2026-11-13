@@ -913,9 +913,9 @@ func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 	// time the first report is logged as submitted.
 	waitSubmitted := func(n int) {
 		t.Helper()
-		testutil.Eventually(ctx, t, func(context.Context) bool {
+		require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
 			return len(sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "submitted snapshot" })) >= n
-		}, testutil.IntervalFast, "want %d submitted snapshots", n)
+		}, testutil.IntervalFast, "want %d submitted snapshots", n))
 	}
 	waitSubmitted(1)
 	http.DefaultClient.CloseIdleConnections()
