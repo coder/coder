@@ -316,7 +316,8 @@ jobs:
           }
 
           vc pull --yes --environment=preview
-          url=$(vc deploy --prebuilt --archive=tgz --yes \
+          # Explicit, since Vercel makes a project's first deployment production.
+          url=$(vc deploy --prebuilt --target=preview --archive=tgz --yes \
             --meta pr="$PR_NUMBER" \
             --meta sha="$SHA")
           deployment_id=$(vercel_api "https://api.vercel.com/v13/deployments/${url#https://}?teamId=${VERCEL_ORG_ID}" | jq -er '.id')
