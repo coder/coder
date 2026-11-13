@@ -28,12 +28,17 @@ const (
 	maxCachedBodyBytes = 1 << 20 // 1 MiB
 )
 
-// cachedResponse holds a validator, an immutable body, and optional expiry.
-// Expiry metadata does not prevent conditional validation of a stored response.
+// cachedResponse holds the data needed to satisfy a future
+// conditional request: the validator (ETag) to echo back via
+// If-None-Match and the body to reuse on a 304 Not Modified.
 type cachedResponse struct {
-	key       string
-	etag      string
-	body      []byte
+	key  string
+	etag string
+	body []byte
+	// expiresAt is optional metadata for the caller. An entry stored only
+	// for its expiry has no etag or body. loadEntry ignores expiresAt, so
+	// an expired response can still validate a conditional request; active
+	// deletes an expired entry.
 	expiresAt time.Time
 }
 
@@ -72,8 +77,9 @@ func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 	return entry.etag, entry.body, ok
 }
 
-// loadEntry returns a copy and marks it as most-recently-used. The body aliases
-// the cache's copy and must not be mutated.
+// loadEntry returns a copy of the entry for key, if present, and marks the
+// entry as most-recently-used. The body aliases the cache's copy and must not
+// be mutated.
 func (c *responseCache) loadEntry(key string) (cachedResponse, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -125,7 +131,9 @@ func (c *responseCache) storeEntry(entry cachedResponse) {
 	}
 }
 
-// active reports whether key is unexpired, deleting expired entries.
+// active reports whether key is present and now is before its expiresAt. It
+// deletes the entry once expiresAt has passed, so it suits only entries that
+// are not needed after they expire.
 func (c *responseCache) active(key string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()

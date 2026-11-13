@@ -29,7 +29,9 @@ type githubProvider struct {
 	clock          quartz.Clock
 	requestMetrics promoauth.InstrumentedOAuth2Config
 
-	// cache retains validators, projections, and expiry metadata.
+	// cache stores ETags and response bodies so JSON reads can be
+	// issued as conditional requests, letting unchanged pull
+	// requests return 304 Not Modified instead of a full body.
 	cache *responseCache
 
 	// Compiled per-instance to support GitHub Enterprise hosts.
@@ -379,6 +381,10 @@ func (g *githubProvider) decodeJSON(
 	dest any,
 	source promoauth.Oauth2Source,
 ) error {
+	// Issue a conditional request when we have a cached ETag for this
+	// URL + auth scope. GitHub replies 304 Not Modified when nothing
+	// changed, which is cheaper than a full body and does not count
+	// against the primary REST rate limit.
 	cacheKey := responseCacheKey(requestURL, token)
 	etag, cachedBody, haveCached := g.cache.load(cacheKey)
 	resp, err := g.requestJSON(ctx, githubJSONRequest{
@@ -502,7 +508,8 @@ func (g *githubProvider) do(ctx context.Context, req *http.Request, source promo
 	if g.requestMetrics == nil {
 		return g.httpClient.Do(req)
 	}
-	// promoauth.Config.Do reads oauth2.HTTPClient from ctx to preserve this client.
+	// promoauth.Config.Do instruments the client stored under
+	// oauth2.HTTPClient in ctx, and a default client when there is none.
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, g.httpClient)
 	return g.requestMetrics.Do(ctx, source, req)
 }
