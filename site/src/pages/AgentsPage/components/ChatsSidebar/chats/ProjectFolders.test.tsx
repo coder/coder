@@ -1,26 +1,28 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useRef } from "react";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
-import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { API } from "#/api/api";
 import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockOrganization2,
-	MockUserMember,
-	MockUserOwner,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { hasHighlightComposerState } from "../../../utils/composerHighlight";
 import { buildAgentProjectPath } from "../../../utils/navigation";
-import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
 type ProjectFoldersOptions = {
 	readonly error?: unknown;
-	readonly currentUserId?: string;
 	readonly route?: string;
 	readonly withComposer?: boolean;
+	readonly onToggle?: (projectId: string) => void;
+	readonly onRetry?: () => void;
 };
 
 // Stands in for the project page's composer, which takes focus when a New
@@ -39,79 +41,54 @@ const ComposerStandIn: React.FC = () => {
 	return <input ref={inputRef} aria-label="Composer" />;
 };
 
-const projectFoldersElement = (
+const renderProjectFolders = (
 	projects: readonly ChatProject[],
 	{
 		error,
-		currentUserId = MockUserOwner.id,
 		route = "/agents",
 		withComposer = false,
+		onToggle = vi.fn(),
+		onRetry = vi.fn(),
 	}: ProjectFoldersOptions = {},
-) => (
-	<MemoryRouter initialEntries={[route]}>
-		<ProjectFolders
-			currentUserId={currentUserId}
-			projects={projects}
-			organizations={[MockDefaultOrganization]}
-			chatsByProjectId={new Map()}
-			pinnedChatsByProjectId={new Map()}
-			chatListInput={{}}
-			expandedProjectIds={{}}
-			onToggle={vi.fn()}
-			onOpenProjectDialog={vi.fn()}
-			onArchive={vi.fn()}
-			onDelete={vi.fn()}
-			onOpenArchivedProjects={vi.fn()}
-			emptyMessage="No chats yet"
-			isLoading={false}
-			error={error}
-			isLoadError={false}
-			onRetry={vi.fn()}
-		/>
-		{withComposer && <ComposerStandIn />}
-	</MemoryRouter>
-);
-
-const renderProjectFolders = (
-	projects: readonly ChatProject[],
-	options?: ProjectFoldersOptions,
-) => render(projectFoldersElement(projects, options));
-
-const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
-
-describe("ProjectFolders", () => {
-	beforeEach(() => {
-		localStorage.clear();
-	});
-
-	it("keeps cached folders usable when a refetch fails", async () => {
-		const user = userEvent.setup();
-		const onToggle = vi.fn();
-		const onRetry = vi.fn();
-
-		render(
-			<MemoryRouter>
+) =>
+	render(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<MemoryRouter initialEntries={[route]}>
 				<ProjectFolders
-					currentUserId={MockUserOwner.id}
-					projects={[MockChatProject]}
-					organizations={[MockDefaultOrganization]}
+					pinnedProjects={projects.map((project) => ({
+						...MockChatProjectSummary,
+						project,
+					}))}
+					dragInstructionsId="drag-instructions"
+					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}
 					pinnedChatsByProjectId={new Map()}
 					chatListInput={{}}
 					expandedProjectIds={{}}
 					onToggle={onToggle}
-					onOpenProjectDialog={vi.fn()}
+					onEdit={vi.fn()}
 					onArchive={vi.fn()}
 					onDelete={vi.fn()}
-					onOpenArchivedProjects={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
-					error={new Error("Projects unavailable")}
-					isLoadError={false}
+					error={error}
 					onRetry={onRetry}
 				/>
-			</MemoryRouter>,
-		);
+				{withComposer && <ComposerStandIn />}
+			</MemoryRouter>
+		</QueryClientProvider>,
+	);
+
+describe("ProjectFolders", () => {
+	it("keeps cached folders usable when a refetch fails", async () => {
+		const user = userEvent.setup();
+		const onToggle = vi.fn();
+		const onRetry = vi.fn();
+		renderProjectFolders([MockChatProject], {
+			error: new Error("Projects unavailable"),
+			onToggle,
+			onRetry,
+		});
 
 		await user.click(
 			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
@@ -120,25 +97,6 @@ describe("ProjectFolders", () => {
 
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
-	});
-
-	it("keeps focus on the empty state's button when a refetch fails", async () => {
-		const user = userEvent.setup();
-		const { rerender } = renderProjectFolders([]);
-
-		// The section toggle, Archived projects, then the empty state's button.
-		await user.tab();
-		await user.tab();
-		await user.tab();
-		const newProjectButton = screen.getByRole("button", {
-			name: "New project",
-		});
-		expect(newProjectButton).toHaveFocus();
-
-		rerender(
-			projectFoldersElement([], { error: new Error("Projects unavailable") }),
-		);
-		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
 	});
 
 	it("leaves focus in the composer after New chat on the project's page", async () => {
@@ -171,51 +129,29 @@ describe("ProjectFolders", () => {
 		expect(composer).toHaveFocus();
 	});
 
-	it("collapses and expands the whole Projects section", async () => {
+	it("unpins a project from its actions menu, reached by keyboard", async () => {
 		const user = userEvent.setup();
+		const unpin = vi
+			.spyOn(API.experimental, "unpinChatProject")
+			.mockResolvedValue();
+		onTestFinished(() => unpin.mockRestore());
 		renderProjectFolders([MockChatProject]);
 
-		const sectionToggle = screen.getByRole("button", { name: "Projects" });
-		await user.click(sectionToggle);
-		expect(sectionToggle).toHaveAttribute("aria-expanded", "false");
+		act(() => {
+			screen.getByRole("link", { name: MockChatProject.name }).focus();
+		});
+		await user.tab();
 		expect(
-			screen.queryByRole("link", { name: MockChatProject.name }),
-		).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
-
-		await user.click(sectionToggle);
-		expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
-		expect(
-			screen.getByRole("link", { name: MockChatProject.name }),
-		).toBeVisible();
-	});
-
-	it("remembers the Projects section collapse state across mounts", async () => {
-		const user = userEvent.setup();
-		const firstMount = renderProjectFolders([]);
-
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(localStorage.getItem(collapsedKey)).toBe("true");
-		firstMount.unmount();
-
-		renderProjectFolders([]);
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(localStorage.getItem(collapsedKey)).toBeNull();
-	});
-
-	it("keeps the saved collapse state separate per user", async () => {
-		const user = userEvent.setup();
-		const firstMount = renderProjectFolders([]);
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		firstMount.unmount();
-
-		renderProjectFolders([], { currentUserId: MockUserMember.id });
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(
-			localStorage.getItem(
-				projectsSectionCollapsedStorageKey(MockUserMember.id),
-			),
-		).toBe("true");
+			screen.getByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		).toHaveFocus();
+		await user.keyboard("{Enter}");
+		await user.click(screen.getByRole("menuitem", { name: "Unpin project" }));
+		expect(unpin).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
 	});
 
 	it("names same-named projects by their organization", async () => {
@@ -227,29 +163,7 @@ describe("ProjectFolders", () => {
 			organization_id: MockOrganization2.id,
 		};
 
-		render(
-			<MemoryRouter>
-				<ProjectFolders
-					currentUserId={MockUserOwner.id}
-					projects={[MockChatProject, otherProject]}
-					organizations={[MockDefaultOrganization, MockOrganization2]}
-					chatsByProjectId={new Map()}
-					pinnedChatsByProjectId={new Map()}
-					chatListInput={{}}
-					expandedProjectIds={{}}
-					onToggle={onToggle}
-					onOpenProjectDialog={vi.fn()}
-					onArchive={vi.fn()}
-					onDelete={vi.fn()}
-					onOpenArchivedProjects={vi.fn()}
-					emptyMessage="No chats yet"
-					isLoading={false}
-					error={undefined}
-					isLoadError={false}
-					onRetry={vi.fn()}
-				/>
-			</MemoryRouter>,
-		);
+		renderProjectFolders([MockChatProject, otherProject], { onToggle });
 
 		const otherLabel = `${otherProject.name} (${MockOrganization2.display_name})`;
 		const defaultLabel = `${MockChatProject.name} (${MockDefaultOrganization.display_name})`;

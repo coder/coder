@@ -12,6 +12,7 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { openChatListFirst } from "./pages/AgentsPage/utils/notificationWindow";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -374,6 +375,9 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
+const ProjectsPage = lazy(
+	() => import("./pages/AgentsPage/ProjectsPage/ProjectsPage"),
+);
 const AgentSettingsLayout = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPage/AgentSettingsLayout"),
 );
@@ -569,6 +573,8 @@ const RedirectAIBridgeSession = () => {
 	const { sessionId } = useParams() as { sessionId: string };
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
+
+openChatListFirst();
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
@@ -925,6 +931,7 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
+					<Route path="projects" element={<ProjectsPage />} />
 					<Route path="projects/:projectId" element={<AgentCreatePage />} />
 					<Route
 						path=":agentId"

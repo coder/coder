@@ -118,6 +118,33 @@ func TestAIGatewayServeSuccess(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
+// TestAIGatewayServeEmbeddedDisabled verifies that disabling the embedded AI
+// Gateway leaves the entitlement and the standalone serve endpoint available.
+func TestAIGatewayServeEmbeddedDisabled(t *testing.T) {
+	t.Parallel()
+
+	opts := aibridgeOpts(t)
+	opts.DeploymentValues.AI.BridgeConfig.EmbeddedEnabled = serpent.Bool(false)
+	client, firstUser := coderdenttest.New(t, opts)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	entitlements, err := memberClient.Entitlements(ctx)
+	require.NoError(t, err)
+	require.True(t, entitlements.Features[codersdk.FeatureAIBridge].Enabled)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-embedded-disabled"})
+	require.NoError(t, err)
+
+	dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
+	require.NoError(t, err)
+
+	resp, err := dc.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{Key: client.SessionToken()})
+	require.NoError(t, err)
+	require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
+}
+
 func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {
 	t.Parallel()
 

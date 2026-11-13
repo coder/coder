@@ -14,7 +14,7 @@ BEGIN
 			EXIT;
 		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 			IF clock_timestamp() > deadline THEN
-				RAISE EXCEPTION 'migration 000642 down could not lock the chat tables within 2 minutes';
+				RAISE EXCEPTION 'migration 000643 could not lock the chat tables within 2 minutes';
 			END IF;
 		END;
 		PERFORM pg_sleep(0.1);
@@ -23,10 +23,17 @@ BEGIN
 END;
 $$;
 
-ALTER TABLE chats DROP COLUMN archived_with_project;
+ALTER TABLE chat_projects ADD COLUMN archived_at timestamptz NULL;
 
-ALTER TABLE chat_projects DROP COLUMN archived_at;
+COMMENT ON COLUMN chat_projects.archived_at IS 'When the project was archived. NULL for an active project. An archived project is read-only and every chat in it is archived.';
 
+ALTER TABLE chats ADD COLUMN archived_with_project boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN chats.archived_with_project IS 'True when the chat was archived by archiving its project; unarchiving the project restores only these chats.';
+
+-- Recreate chats_expanded, dropped at the top of this migration, to include
+-- the new chat column. The gentest TestViewSubsetChat requires every chats
+-- column to appear in the view.
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
@@ -77,7 +84,8 @@ CREATE VIEW chats_expanded AS
     c.context_error,
     c.compaction_requested_at,
     c.title_source,
-    c.title_updated_at
+    c.title_updated_at,
+    c.archived_with_project
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

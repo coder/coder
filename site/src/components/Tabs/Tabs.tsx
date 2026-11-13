@@ -23,7 +23,7 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 	variants: {
 		variant: {
 			insideBox: cn(
-				"border-solid border-x-0 border-y",
+				"border-x-0 border-y",
 				"[&_[data-slot=tabs-trigger][data-state=active]]:bg-surface-secondary",
 				"**:data-[slot=tabs-trigger]:border-x **:data-[slot=tabs-trigger]:border-y-0 **:data-[slot=tabs-trigger]:border-solid",
 				"**:data-[slot=tabs-trigger]:border-x-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-x-border",
@@ -32,9 +32,9 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 				"[&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
 			),
 			outsideBox: cn(
-				"border-solid border-0 border-b gap-6",
+				"border-b gap-6",
 				"**:data-[slot=tabs-trigger]:text-content-secondary [&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
-				"**:data-[slot=tabs-trigger]:border-0 **:data-[slot=tabs-trigger]:border-y **:data-[slot=tabs-trigger]:border-solid",
+				"**:data-[slot=tabs-trigger]:border-y **:data-[slot=tabs-trigger]:border-solid",
 				"**:data-[slot=tabs-trigger]:border-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-b-content-primary",
 				"[&_[data-slot=tabs-trigger]:hover]:text-content-primary",
 				"**:data-[slot=tabs-trigger]:px-1",
@@ -126,9 +126,7 @@ export const LinkTabs = ({
 		<LinkTabsContext.Provider value={{ active }}>
 			<div
 				data-slot="link-tabs"
-				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
-				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
-				className={cn("border-0 border-b border-solid", className)}
+				className={cn("border-b", className)}
 				{...htmlProps}
 			/>
 		</LinkTabsContext.Provider>
