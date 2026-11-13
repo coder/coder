@@ -334,7 +334,15 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		unpinPickedRef.current = true;
 		onUnpin();
 	};
+	// The archive dialog opens only once the menu has closed, so the closing
+	// menu cannot take focus back from it.
+	const archivePickedRef = useRef(false);
 	const handleMenuCloseAutoFocus = (event: Event) => {
+		if (archivePickedRef.current) {
+			archivePickedRef.current = false;
+			event.preventDefault();
+			onArchive(actionsButtonRef.current);
+		}
 		if (newChatPickedRef.current) {
 			newChatPickedRef.current = false;
 			event.preventDefault();
@@ -351,7 +359,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		onUnpin: handleUnpin,
 		project,
 		onEdit,
-		onArchive: () => onArchive(actionsButtonRef.current),
+		onArchive: () => {
+			archivePickedRef.current = true;
+		},
 		onDelete,
 	};
 	return (
