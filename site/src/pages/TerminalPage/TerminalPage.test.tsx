@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Terminal } from "@xterm/xterm";
 import { HttpResponse, http } from "msw";
@@ -231,6 +231,23 @@ describe("TerminalPage", () => {
 		expect(req.data).toBe("\x1b\r");
 	});
 
+	// xterm reads the legacy keyCode, which userEvent does not set.
+	it("sends Tab to a live session", async () => {
+		const ws = createWorkspaceTerminalWebSocket();
+		const initialResizeMessage = ws.nextMessage;
+		await renderTerminal();
+		await initialResizeMessage;
+
+		const msg = ws.nextMessage;
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "Terminal input" }), {
+			key: "Tab",
+			keyCode: 9,
+		});
+
+		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
+		expect(req.data).toBe("\t");
+	});
+
 	it("rebuilds the glyph cache when a font finishes loading", async () => {
 		createWorkspaceTerminalWebSocket();
 		const { unmount } = await renderTerminal();
@@ -392,6 +409,150 @@ describe("TerminalPage", () => {
 		const resizeReq = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
 		expect(resizeReq.height).toBeGreaterThan(0);
 		expect(resizeReq.width).toBeGreaterThan(0);
+	});
+
+	describe("when the connection closes", () => {
+		const appRoute = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`;
+		// The server closes normally once the agent ends the session.
+		const normalClosure = { code: 1000, reason: "", wasClean: true };
+		// websocket-ts retries and the mock server accepts on timers.
+		const setupUserWithFakeTimers = () => {
+			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+			return userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync });
+		};
+
+		beforeEach(() => {
+			mockAgentApp({ slug: "my-app", command: "echo trusted" });
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it.each([
+			{
+				name: "does not reconnect after a command exits",
+				route: appRoute,
+				closeEvent: normalClosure,
+				reconnections: 0,
+			},
+			{
+				name: "reconnects a command session after a dropped connection",
+				route: appRoute,
+				closeEvent: { code: 1006, reason: "", wasClean: false },
+				reconnections: 1,
+			},
+			{
+				name: "reconnects a shell session after the shell exits",
+				route: undefined,
+				closeEvent: normalClosure,
+				reconnections: 1,
+			},
+		])("$name", async ({ route, closeEvent, reconnections }) => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal(route);
+
+			setupUserWithFakeTimers();
+			ws.close(closeEvent);
+			const onReconnect = vi.fn();
+			createWorkspaceTerminalWebSocket().on("connection", onReconnect);
+			await vi.advanceTimersByTimeAsync(60_000);
+
+			expect(onReconnect).toHaveBeenCalledTimes(reconnections);
+		});
+
+		it("runs an app command again when asked", async () => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal(appRoute);
+			ws.close(normalClosure);
+			const nextWs = createWorkspaceTerminalWebSocket();
+
+			await userEvent.click(
+				await screen.findByRole("button", { name: "Run again" }),
+			);
+
+			await nextWs.nextMessage;
+			expect(nextWs.server.clients()[0].url).toContain("command=echo+trusted");
+			await waitFor(() =>
+				expect(
+					screen.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus(),
+			);
+		});
+
+		// xterm reads the legacy keyCode, which userEvent does not set.
+		it.each([
+			{
+				name: "lets Tab move focus out of an ended terminal",
+				route: appRoute,
+				leftToBrowser: true,
+			},
+			{
+				name: "keeps Tab in a shell that is about to reconnect",
+				route: undefined,
+				leftToBrowser: false,
+			},
+		])("$name", async ({ route, leftToBrowser }) => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal(route);
+			setupUserWithFakeTimers();
+			ws.close(normalClosure);
+
+			const notCancelled = fireEvent.keyDown(
+				screen.getByRole("textbox", { name: "Terminal input" }),
+				{ key: "Tab", keyCode: 9, shiftKey: true },
+			);
+
+			expect(notCancelled).toBe(leftToBrowser);
+		});
+
+		describe("for a raw command", () => {
+			const askToRunAgain = async () => {
+				const ws = createWorkspaceTerminalWebSocket();
+				renderTerminalRaw(
+					`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
+				);
+				await userEvent.click(
+					await screen.findByRole("button", { name: "Run command" }),
+				);
+				await ws.nextMessage;
+
+				const user = setupUserWithFakeTimers();
+				ws.close(normalClosure);
+				const nextWs = createWorkspaceTerminalWebSocket();
+				const onReconnect = vi.fn();
+				nextWs.on("connection", onReconnect);
+				await user.click(
+					await screen.findByRole("button", { name: "Run again" }),
+				);
+				await screen.findByRole("dialog");
+				return { user, nextWs, onReconnect };
+			};
+
+			it("runs it again only after confirmation", async () => {
+				const { user, nextWs, onReconnect } = await askToRunAgain();
+				await vi.advanceTimersByTimeAsync(60_000);
+				expect(onReconnect).not.toHaveBeenCalled();
+
+				await user.click(screen.getByRole("button", { name: "Run command" }));
+				await vi.advanceTimersByTimeAsync(60_000);
+
+				expect(onReconnect).toHaveBeenCalledOnce();
+				expect(nextWs.server.clients()[0].url).toContain("command=echo+hello");
+			});
+
+			it("keeps the page and returns focus when the rerun is declined", async () => {
+				const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+				const { user, onReconnect } = await askToRunAgain();
+
+				await user.click(screen.getByRole("button", { name: "Cancel" }));
+				await vi.advanceTimersByTimeAsync(60_000);
+
+				expect(screen.getByRole("button", { name: "Run again" })).toHaveFocus();
+				expect(closeSpy).not.toHaveBeenCalled();
+				expect(onReconnect).not.toHaveBeenCalled();
+			});
+		});
 	});
 
 	describe("with static favicons like index.html's", () => {

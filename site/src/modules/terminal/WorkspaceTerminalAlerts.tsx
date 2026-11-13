@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { RefreshCwIcon } from "lucide-react";
+import { RefreshCwIcon, RotateCcwIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
@@ -16,12 +16,14 @@ type WorkspaceTerminalAlertsProps = {
 	agent: WorkspaceAgent | undefined;
 	status: ConnectionStatus;
 	onAlertChange: () => void;
+	onRunAgain: React.MouseEventHandler<HTMLButtonElement>;
 };
 
 export const WorkspaceTerminalAlerts = ({
 	agent,
 	status,
 	onAlertChange,
+	onRunAgain,
 }: WorkspaceTerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
 	const [prevLifecycleState, setPrevLifecycleState] = useState(lifecycleState);
@@ -52,6 +54,8 @@ export const WorkspaceTerminalAlerts = ({
 		<div ref={wrapperRef}>
 			{status === "disconnected" ? (
 				<DisconnectedAlert />
+			) : status === "ended" ? (
+				<SessionEndedAlert onRunAgain={onRunAgain} />
 			) : lifecycleState === "start_error" ? (
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
@@ -175,8 +179,6 @@ const TerminalAlert: React.FC<AlertProps> = (props) => {
 	);
 };
 
-// Since the terminal connection is always trying to reconnect, we show this
-// alert to indicate that the terminal is trying to connect.
 const DisconnectedAlert: React.FC<AlertProps> = (props) => {
 	return (
 		<TerminalAlert
@@ -185,6 +187,26 @@ const DisconnectedAlert: React.FC<AlertProps> = (props) => {
 			actions={<RefreshSessionButton />}
 		>
 			Trying to connect...
+		</TerminalAlert>
+	);
+};
+
+type SessionEndedAlertProps = Pick<WorkspaceTerminalAlertsProps, "onRunAgain">;
+
+const SessionEndedAlert: React.FC<SessionEndedAlertProps> = ({
+	onRunAgain,
+}) => {
+	return (
+		<TerminalAlert
+			severity="info"
+			actions={
+				<Button size="sm" onClick={onRunAgain}>
+					<RotateCcwIcon />
+					Run again
+				</Button>
+			}
+		>
+			Session ended.
 		</TerminalAlert>
 	);
 };

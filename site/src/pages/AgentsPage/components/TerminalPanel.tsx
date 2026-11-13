@@ -71,18 +71,21 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		setConnectionStatus("initializing");
 	});
 
+	// An ended session holds no connection, and attaching it again later would
+	// run its command again.
+	const hasEnded = connectionStatus === "ended";
 	useEffect(() => {
 		if (isHot) {
 			setIsWarm(true);
 			return;
 		}
-		if (!isWarm) {
+		if (!isWarm || hasEnded) {
 			return;
 		}
 
 		const timer = setTimeout(detachTerminal, TERMINAL_IDLE_DETACH_MS);
 		return () => clearTimeout(timer);
-	}, [isHot, isWarm]);
+	}, [isHot, isWarm, hasEnded]);
 
 	const shouldMountTerminal = isHot || isWarm;
 	const hasSignaledReadyRef = useRef(false);
@@ -147,12 +150,17 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		terminalRef.current?.refit();
 	};
 
+	const handleRunAgain = () => {
+		terminalRef.current?.runAgain();
+	};
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<WorkspaceTerminalAlerts
 				agent={workspaceAgent}
 				status={connectionStatus}
 				onAlertChange={handleAlertChange}
+				onRunAgain={handleRunAgain}
 			/>
 			<div className="min-h-0 flex-1">
 				{shouldMountTerminal && (

@@ -35,6 +35,8 @@ import type { ConnectionStatus } from "./types";
 
 export type WorkspaceTerminalHandle = {
 	refit: () => void;
+	/** Connects to an ended session again, which runs its command again. */
+	runAgain: () => void;
 };
 
 type WorkspaceTerminalProps = {
@@ -197,12 +199,22 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		}
 	}, []);
 
+	// Connecting to an ended session runs its command again, so nothing but
+	// runAgain may connect it.
+	const [endedSessionToken, setEndedSessionToken] = useState<string>();
+	const hasEnded = endedSessionToken === reconnectionToken;
+	const getHasEnded = useEffectEvent(() => hasEnded);
+
 	useImperativeHandle(
 		ref,
 		() => ({
 			refit,
+			runAgain: () => {
+				onStatusChange?.("initializing");
+				setEndedSessionToken(undefined);
+			},
 		}),
-		[refit],
+		[refit, onStatusChange],
 	);
 
 	useEffect(() => {
@@ -282,6 +294,12 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		// There is no way to remove this handler, so we must attach it once and
 		// rely on a ref to send it to the current socket.
 		nextTerminal.attachCustomKeyEventHandler((event) => {
+			// xterm swallows Tab even when it cannot take input, which would
+			// keep keyboard users from reaching Run again after a session ends.
+			if (event.key === "Tab" && getHasEnded()) {
+				return false;
+			}
+
 			// Make shift+enter send ^[^M (escaped carriage return). Applications
 			// typically take this to mean to insert a literal newline.
 			if (event.shiftKey && event.key === "Enter") {
@@ -369,7 +387,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
-		if (!terminal || !isVisible || !autoFocus || loading) {
+		if (!terminal || !isVisible || !autoFocus || loading || hasEnded) {
 			return;
 		}
 
@@ -380,7 +398,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		return () => {
 			cancelAnimationFrame(frame);
 		};
-	}, [terminal, isVisible, autoFocus, loading]);
+	}, [terminal, isVisible, autoFocus, loading, hasEnded]);
 
 	// Notify after first output paints so consumers can hide connection latency.
 	useEffect(() => {
@@ -410,6 +428,11 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
 	useEffect(() => {
 		if (!terminal || !isVisible) {
+			return;
+		}
+		if (hasEnded) {
+			// A terminal created after the session ended starts with input on.
+			terminal.options.disableStdin = true;
 			return;
 		}
 
@@ -528,11 +551,20 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 					terminal.options.disableStdin = true;
 					handleStatusChange("disconnected");
 				});
-				websocket.addEventListener(WebsocketEvent.close, () => {
+				websocket.addEventListener(WebsocketEvent.close, (socket, event) => {
 					if (disposed) {
 						return;
 					}
 					terminal.options.disableStdin = true;
+					// A 1000 close is the browser's only sign that the command exited.
+					// Closing the socket here stops websocket-ts from retrying. Shell
+					// sessions keep reconnecting, so exiting a shell starts a new one.
+					if (initialCommand && event.code === 1000) {
+						socket.close();
+						setEndedSessionToken(reconnectionToken);
+						handleStatusChange("ended");
+						return;
+					}
 					handleStatusChange("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
@@ -602,6 +634,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		sessionId,
 		refit,
 		terminal,
+		hasEnded,
 	]);
 
 	const terminalScopeSelector = `[data-terminal-scope="${scopeId}"]`;
