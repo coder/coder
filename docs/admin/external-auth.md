@@ -341,7 +341,8 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    | Members       | Read-only            | Grants access to organization members and teams.       |
    | Issues        | Read-only (optional) | Grants access to issues.                               |
 
-   Coder Agents reduces primary rate-limit usage for unchanged pull requests with **Issues** read access and fetches each pull request on every status check when GitHub rejects issue access.
+   With **Issues** read access, Coder Agents uses fewer primary rate-limit requests for unchanged pull requests.
+   When GitHub rejects issue access, Coder Agents fetches the pull request each time it refreshes the pull request's status.
 
 1. Install the App for your organization.
    You can grant access to a subset of repositories.
