@@ -3,6 +3,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserMember,
@@ -16,7 +17,7 @@ import {
 } from "./projectGrouping";
 
 describe("groupChatsByProject", () => {
-	it("files chats under a loaded project and leaves the rest unfiled", () => {
+	it("files chats under a pinned project and leaves the rest unfiled", () => {
 		const mockLooseChat = { ...MockChat, id: "loose" };
 		const mockFiledChat = {
 			...MockChat,
@@ -32,7 +33,8 @@ describe("groupChatsByProject", () => {
 
 		const grouped = groupChatsByProject(
 			[mockLooseChat, mockFiledChat, mockUnloadedProjectChat],
-			[MockChatProject],
+			[MockChatProjectSummary],
+			MockUserOwner.id,
 		);
 
 		expect(grouped.chatsByProjectId.get(MockChatProject.id)).toEqual([
@@ -44,6 +46,64 @@ describe("groupChatsByProject", () => {
 		]);
 	});
 
+	// The summaries can drop a pin before the chat list refetches without the
+	// project's chats.
+	it("holds back the chats of a known unpinned project", () => {
+		const mockUnpinnedChat = {
+			...MockChat,
+			id: "unpinned",
+			project_id: MockChatProject.id,
+			pin_order: 0,
+		};
+
+		const grouped = groupChatsByProject(
+			[mockUnpinnedChat],
+			[{ ...MockChatProjectSummary, pinned: false, pin_order: 0 }],
+			MockUserOwner.id,
+		);
+
+		expect(grouped.chatsByProjectId.size).toBe(0);
+		expect(grouped.unfiledChats).toEqual([]);
+	});
+
+	it("files a shared chat under a pinned project and leaves it unfiled otherwise", () => {
+		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+		const mockSharedChat = {
+			...MockChat,
+			owner_id: MockUserMember.id,
+			pin_order: 0,
+		};
+		const mockFiledSharedChat = {
+			...mockSharedChat,
+			id: "filed-shared",
+			project_id: MockChatProject.id,
+		};
+		const mockUnpinnedProjectSharedChat = {
+			...mockSharedChat,
+			id: "unpinned-project-shared",
+			project_id: mockOtherProject.id,
+		};
+
+		const grouped = groupChatsByProject(
+			[mockFiledSharedChat, mockUnpinnedProjectSharedChat],
+			[
+				MockChatProjectSummary,
+				{
+					...MockChatProjectSummary,
+					project: mockOtherProject,
+					pinned: false,
+					pin_order: 0,
+				},
+			],
+			MockUserOwner.id,
+		);
+
+		expect(grouped.chatsByProjectId.get(MockChatProject.id)).toEqual([
+			mockFiledSharedChat,
+		]);
+		expect(grouped.unfiledChats).toEqual([mockUnpinnedProjectSharedChat]);
+	});
+
 	it("leaves every chat unfiled when no projects are loaded", () => {
 		const mockFiledChat = {
 			...MockChat,
@@ -52,7 +112,7 @@ describe("groupChatsByProject", () => {
 			project_id: MockChatProject.id,
 		};
 
-		const grouped = groupChatsByProject([mockFiledChat], []);
+		const grouped = groupChatsByProject([mockFiledChat], [], MockUserOwner.id);
 
 		expect(grouped.chatsByProjectId.size).toBe(0);
 		expect(grouped.unfiledChats).toEqual([mockFiledChat]);
@@ -122,14 +182,20 @@ describe("mergeProjectFolderChats", () => {
 		const mockPinnedChat = { ...mockFolderChat, pin_order: 1 };
 		const mockMovedChat = { ...mockFolderChat, project_id: "other-project" };
 		const mockArchivedChat = { ...mockFolderChat, archived: true };
-		const mockSharedChat = { ...mockFolderChat, owner_id: MockUserMember.id };
 
 		expect(
-			merge(
-				[],
-				[mockPinnedChat, mockMovedChat, mockArchivedChat, mockSharedChat],
-			),
+			merge([], [mockPinnedChat, mockMovedChat, mockArchivedChat]),
 		).toEqual([]);
+	});
+
+	it("adds a fetched shared chat even when its owner pinned it", () => {
+		const mockSharedChat = {
+			...mockFolderChat,
+			owner_id: MockUserMember.id,
+			pin_order: 1,
+		};
+
+		expect(merge([], [mockSharedChat])).toEqual(["Folder chat"]);
 	});
 });
 

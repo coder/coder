@@ -10,6 +10,7 @@ import {
 import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
+	FolderKanbanIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -23,7 +24,7 @@ import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
-	ChatProject,
+	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -46,7 +47,8 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 	getSidebarChatListInput,
 } from "../../../utils/agentSidebarFilters";
-import { getOwnPinnedChats } from "../../../utils/pinnedChats";
+import { focusFirstVisible } from "../../../utils/focus";
+import { getOwnPinnedChats, isOwnPinnedChat } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
@@ -116,13 +118,16 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
-	readonly projects: readonly ChatProject[];
+	/** The user's pinned projects, in pin order. */
+	readonly pinnedProjects: readonly ChatProjectSummary[];
+	/** Every project's summary, pinned or not. */
+	readonly projectSummaries: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
-	readonly isProjectsLoading: boolean;
-	readonly projectsError: unknown;
-	/** True when the first projects load failed and no data is cached. */
-	readonly isProjectsLoadError: boolean;
-	readonly onRetryProjects: () => void;
+	readonly isPinnedProjectsLoading: boolean;
+	readonly pinnedProjectsError: unknown;
+	/** True when the first pinned projects load failed and no data is cached. */
+	readonly isPinnedProjectsLoadError: boolean;
+	readonly onRetryPinnedProjects: () => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDeleteProject: DeleteProject;
 	readonly chats: readonly Chat[];
@@ -148,18 +153,20 @@ type ChatsPanelProps = {
 	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
+	readonly isProjectsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
 };
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
-	projects,
+	pinnedProjects,
+	projectSummaries,
 	organizations,
-	isProjectsLoading,
-	projectsError,
-	isProjectsLoadError,
-	onRetryProjects,
+	isPinnedProjectsLoading,
+	pinnedProjectsError,
+	isPinnedProjectsLoadError,
+	onRetryPinnedProjects,
 	onOpenProjectDialog,
 	onDeleteProject,
 	chats,
@@ -185,6 +192,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
+	isProjectsActive,
 	location,
 	currentUserId,
 }) => {
@@ -213,22 +221,29 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => chat !== undefined);
-	const ownedChats = visibleRootChats.filter((chat) =>
+	const pinnedChats = getOwnPinnedChats(visibleRootChats, currentUserId);
+	// Each chat outside Pinned shows once: in its pinned project's folder,
+	// or else in Chats or Shared with you.
+	const unpinnedChats = visibleRootChats.filter(
+		(chat) => !isOwnPinnedChat(chat, currentUserId),
+	);
+	const { chatsByProjectId, unfiledChats, folderProjectIds } =
+		groupChatsByProject(
+			unpinnedChats,
+			projectSummaries,
+			currentUserId,
+			isPinnedProjectsLoading,
+		);
+	const unfiledOwnedChats = unfiledChats.filter((chat) =>
 		canManageChat(chat, currentUserId),
 	);
-	const pinnedChats = getOwnPinnedChats(visibleRootChats, currentUserId);
-	const sharedWithYouChats = visibleRootChats.filter(
+	const sharedWithYouChats = unfiledChats.filter(
 		(chat) => !canManageChat(chat, currentUserId),
 	);
-	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
-	const {
-		chatsByProjectId,
-		unfiledChats: unfiledOwnedChats,
-		folderProjectIds,
-	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
-		projects,
+		projectSummaries,
+		currentUserId,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -270,6 +285,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: pinnedChats;
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
+	const projectsNavItemRef = useRef<HTMLElement | null>(null);
+	const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
@@ -432,7 +449,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// chats are all filed is empty. While projects load, chats with a project
 	// are held back, so the section is not known to be empty yet.
 	const isWithholdingProjectChats =
-		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+		isPinnedProjectsLoading && unpinnedChats.some((chat) => chat.project_id);
 	const isShowingEmptyState =
 		!isWithholdingProjectChats &&
 		pinnedChats.length === 0 &&
@@ -466,6 +483,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}
+						triggerRef={(element) => {
+							filterTriggerRef.current = element;
+						}}
 					/>
 				</>
 			}
@@ -481,6 +501,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
+
+	// The Projects nav item hides on a small screen, where the chat filters
+	// take focus instead.
+	const focusSidebarFallback = () =>
+		focusFirstVisible([projectsNavItemRef.current, filterTriggerRef.current]);
 
 	return (
 		<div
@@ -552,6 +577,17 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
+				{chatProjectsEnabled && (
+					<SettingsNavItem
+						icon={FolderKanbanIcon}
+						label="Projects"
+						active={isProjectsActive}
+						ref={(element) => {
+							projectsNavItemRef.current = element;
+						}}
+						to={{ pathname: "/agents/projects", search: locationSearch }}
+					/>
+				)}
 				{onOpenSearchDialog && (
 					<SettingsNavItem
 						icon={SearchIcon}
@@ -604,13 +640,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							<ChatTreeContext value={chatTreeCtx}>
 								<ProjectFolders
 									currentUserId={currentUserId}
-									projects={projects}
+									pinnedProjects={pinnedProjects}
 									organizations={organizations}
 									chatsByProjectId={chatsByProjectId}
 									pinnedChatsByProjectId={pinnedChatsByProjectId}
 									chatListInput={getSidebarChatListInput(sidebarFilters)}
 									expandedProjectIds={Object.fromEntries(
-										projects.map((project) => [
+										pinnedProjects.map(({ project }) => [
 											project.id,
 											projectFolderOverrides[project.id] ??
 												project.id === activeProjectId,
@@ -619,11 +655,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									onToggle={toggleProject}
 									onOpenProjectDialog={onOpenProjectDialog}
 									onDelete={onDeleteProject}
-									isLoading={isProjectsLoading}
-									error={projectsError}
-									isLoadError={isProjectsLoadError}
-									onRetry={onRetryProjects}
+									isLoading={isPinnedProjectsLoading}
+									error={pinnedProjectsError}
+									isLoadError={isPinnedProjectsLoadError}
+									onRetry={onRetryPinnedProjects}
 									emptyMessage={emptyStateMessage}
+									focusUnpinFallback={focusSidebarFallback}
 								/>
 							</ChatTreeContext>
 						)}

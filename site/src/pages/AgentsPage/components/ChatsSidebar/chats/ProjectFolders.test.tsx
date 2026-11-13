@@ -1,16 +1,20 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { API } from "#/api/api";
 import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { hasHighlightComposerState } from "../../../utils/composerHighlight";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
@@ -51,7 +55,10 @@ const projectFoldersElement = (
 	<MemoryRouter initialEntries={[route]}>
 		<ProjectFolders
 			currentUserId={currentUserId}
-			projects={projects}
+			pinnedProjects={projects.map((project) => ({
+				...MockChatProjectSummary,
+				project,
+			}))}
 			organizations={[MockDefaultOrganization]}
 			chatsByProjectId={new Map()}
 			pinnedChatsByProjectId={new Map()}
@@ -73,7 +80,15 @@ const projectFoldersElement = (
 const renderProjectFolders = (
 	projects: readonly ChatProject[],
 	options?: ProjectFoldersOptions,
-) => render(projectFoldersElement(projects, options));
+) =>
+	render(projectFoldersElement(projects, options), { wrapper: QueryWrapper });
+
+const QueryWrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
+	const [queryClient] = useState(createTestQueryClient);
+	return (
+		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+	);
+};
 
 const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
 
@@ -91,7 +106,7 @@ describe("ProjectFolders", () => {
 			<MemoryRouter>
 				<ProjectFolders
 					currentUserId={MockUserOwner.id}
-					projects={[MockChatProject]}
+					pinnedProjects={[MockChatProjectSummary]}
 					organizations={[MockDefaultOrganization]}
 					chatsByProjectId={new Map()}
 					pinnedChatsByProjectId={new Map()}
@@ -107,6 +122,7 @@ describe("ProjectFolders", () => {
 					onRetry={onRetry}
 				/>
 			</MemoryRouter>,
+			{ wrapper: QueryWrapper },
 		);
 
 		await user.click(
@@ -163,6 +179,31 @@ describe("ProjectFolders", () => {
 		});
 
 		expect(composer).toHaveFocus();
+	});
+
+	it("unpins a project from its actions menu, reached by keyboard", async () => {
+		const user = userEvent.setup();
+		const unpin = vi
+			.spyOn(API.experimental, "unpinChatProject")
+			.mockResolvedValue();
+		onTestFinished(() => unpin.mockRestore());
+		renderProjectFolders([MockChatProject]);
+
+		act(() => {
+			screen.getByRole("link", { name: MockChatProject.name }).focus();
+		});
+		await user.tab();
+		expect(
+			screen.getByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		).toHaveFocus();
+		await user.keyboard("{Enter}");
+		await user.click(screen.getByRole("menuitem", { name: "Unpin project" }));
+		expect(unpin).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
 	});
 
 	it("collapses and expands the whole Projects section", async () => {
@@ -225,7 +266,10 @@ describe("ProjectFolders", () => {
 			<MemoryRouter>
 				<ProjectFolders
 					currentUserId={MockUserOwner.id}
-					projects={[MockChatProject, otherProject]}
+					pinnedProjects={[
+						MockChatProjectSummary,
+						{ ...MockChatProjectSummary, project: otherProject },
+					]}
 					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}
 					pinnedChatsByProjectId={new Map()}
@@ -241,6 +285,7 @@ describe("ProjectFolders", () => {
 					onRetry={vi.fn()}
 				/>
 			</MemoryRouter>,
+			{ wrapper: QueryWrapper },
 		);
 
 		const otherLabel = `${otherProject.name} (${MockOrganization2.display_name})`;

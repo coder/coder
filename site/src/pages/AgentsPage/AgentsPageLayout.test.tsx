@@ -23,6 +23,7 @@ import type {
 	Chat,
 	ChatDiffStatus,
 	ChatWatchEvent,
+	ChatWatchEventKind,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -159,7 +160,7 @@ describe("AgentsPageLayout New chat", () => {
 });
 
 describe("AgentsPageLayout chat watch reconnect", () => {
-	it("refetches the open chat and its diff contents when the chat watch socket opens", async () => {
+	it("refetches the open chat, its diff contents and project summaries when the chat watch socket opens", async () => {
 		let chatWatchServer: MockWebSocketServer | undefined;
 		vi.spyOn(apiModule, "watchChats").mockImplementation(
 			() =>
@@ -179,6 +180,9 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 		const getChatDiffContents = vi
 			.spyOn(API.experimental, "getChatDiffContents")
 			.mockResolvedValue({ chat_id: MockChat.id });
+		const getSummaries = vi
+			.spyOn(API.experimental, "getChatProjectSummaries")
+			.mockResolvedValue([]);
 
 		const { queryClient } = renderLayout(`/agents/${MockChat.id}`);
 		// Stands in for an open diff panel, which this page does not
@@ -194,15 +198,20 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 			// cannot be deduplicated into it.
 			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(1));
 			await waitFor(() => expect(chatWatchServer).toBeDefined());
+			// Opening the chat refreshes the summaries once, after a debounce.
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2), {
+				timeout: 3000,
+			});
 
 			// Events missed while disconnected are only recovered by a
-			// refetch, so every (re)connect must refetch the open chat
-			// and its diff contents.
+			// refetch, so every (re)connect must refetch the open chat,
+			// its diff contents and the project summaries.
 			act(() => chatWatchServer?.publishOpen(new Event("open")));
 			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
 			expect(getChat.mock.lastCall?.[0]).toBe(MockChat.id);
 			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(2));
 			expect(getChatDiffContents.mock.lastCall?.[0]).toBe(MockChat.id);
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(3));
 		} finally {
 			unsubscribe();
 		}
@@ -232,6 +241,7 @@ describe("AgentsPageLayout diff status events", () => {
 	};
 	const unfiltered: ChatListInput = {
 		sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+		pinnedProjectsOnly: true,
 	};
 	const openPRsOnly: ChatListInput = { ...unfiltered, prStatuses: ["open"] };
 	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
@@ -324,6 +334,7 @@ describe("AgentsPageLayout manual read state", () => {
 			...infiniteChats({
 				chatStatus: "unread",
 				sources: ["created_by_me"],
+				pinnedProjectsOnly: true,
 			}),
 			enabled: false,
 		});
@@ -373,7 +384,10 @@ describe("AgentsPageLayout manual read state", () => {
 			expect(
 				queryClient
 					.getQueryData<InfiniteData<Chat[]>>(
-						infiniteChats({ sources: ["created_by_me"] }).queryKey,
+						infiniteChats({
+							sources: ["created_by_me"],
+							pinnedProjectsOnly: true,
+						}).queryKey,
 					)
 					?.pages.flat()
 					.find((chat) => chat.id === "read-beta")?.has_unread,
@@ -877,6 +891,7 @@ describe("AgentsPageLayout archive and delete", () => {
 									.getQueryData(
 										infiniteChats({
 											sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+											pinnedProjectsOnly: true,
 										}).queryKey,
 									)
 									?.pages.flat(),
@@ -1047,11 +1062,51 @@ describe("AgentsPageLayout project moves", () => {
 			expect(
 				queryClient
 					.getQueryData<InfiniteData<Chat[]>>(
-						infiniteChats({ sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources })
-							.queryKey,
+						infiniteChats({
+							sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+							pinnedProjectsOnly: true,
+						}).queryKey,
 					)
 					?.pages.flat(),
 			).toEqual([mockChatInProjectB]),
 		);
 	});
+});
+
+describe("AgentsPageLayout pinned projects", () => {
+	it("leaves chats in unpinned projects out of the sidebar's chat list", async () => {
+		const getChats = vi
+			.spyOn(API.experimental, "getChats")
+			.mockResolvedValue([]);
+		renderLayout();
+
+		await waitFor(() => expect(getChats).toHaveBeenCalled());
+		expect(getChats.mock.calls[0][0]).toMatchObject({
+			pinned_projects_only: true,
+		});
+	});
+
+	it.each<ChatWatchEventKind>(["status_change", "action_required"])(
+		"refreshes project summaries on a %s event for a chat in a project",
+		async (kind) => {
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+			const getSummaries = vi
+				.spyOn(API.experimental, "getChatProjectSummaries")
+				.mockResolvedValue([]);
+			const publishChatWatchEvent = mockChatWatchSocket();
+			renderLayout();
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
+			await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+
+			publishChatWatchEvent({
+				kind,
+				chat: { ...MockChat, project_id: "project-a" },
+			});
+
+			// The refresh is debounced, so it arrives after the event.
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2), {
+				timeout: 3000,
+			});
+		},
+	);
 });
