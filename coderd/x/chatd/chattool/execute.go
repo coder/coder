@@ -64,7 +64,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
 		workspacetools.ExecuteDescription(toolNames),
-		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -72,7 +72,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options), nil
+			return executeTool(workspacesdk.WithModelToolCallID(ctx, call.ID), conn, args, options), nil
 		},
 	)
 }
@@ -110,7 +110,7 @@ func marshalExecuteResult(result ExecuteResult) fantasy.ToolResponse {
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return fantasy.NewTextResponse(string(data))
+	return withWorkspaceHooks(fantasy.NewTextResponse(string(data)), result.Hooks)
 }
 
 // exitedResult converts the output of a finished process to a result.

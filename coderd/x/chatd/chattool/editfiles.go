@@ -28,7 +28,8 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		EditFilesToolName,
 		workspacetools.EditFilesDescription,
-		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args EditFilesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			ctx = workspacesdk.WithModelToolCallID(ctx, call.ID)
 			if err := workspacetools.ValidateFileEdits(args.Files); err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
@@ -95,16 +96,12 @@ func executeEditFilesTool(
 		}
 	}
 
-	result, err := workspacetools.EditFiles(ctx, conn, args.Files)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err)), nil
-	}
-	return marshalToolResponse(result), nil
+	return editFilesResponse(workspacetools.EditFiles(ctx, conn, args.Files)), nil
 }
 
-func editFilesResponse(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
+func editFilesResponse(result workspacetools.EditFilesResult, err error) fantasy.ToolResponse {
 	if err != nil {
-		return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err))
+		return workspaceToolErrorResponse(workspacetools.AgentAPIErrorMessage(err), err, result.Hooks)
 	}
-	return marshalToolResponse(workspacetools.EditFilesResult{OK: true, Files: resp.Files})
+	return withWorkspaceHooks(marshalToolResponse(result), result.Hooks)
 }
