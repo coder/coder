@@ -2088,6 +2088,17 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
+func (q *querier) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.ClearChatMessagesPromptHooks(ctx, chatID)
+}
+
 func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -3545,11 +3556,19 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 		return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	}
 
+	// Authorize read on each parent chat with a single fetch rather than
+	// one GetChatByID round trip per chat.
+	chats, err := q.GetChatsByIDs(ctx, chatIDs)
+	if err != nil {
+		return nil, err
+	}
+	found := make(map[uuid.UUID]struct{}, len(chats))
+	for _, chat := range chats {
+		found[chat.ID] = struct{}{}
+	}
 	for _, chatID := range chatIDs {
-		// Authorize read on each parent chat.
-		_, err := q.GetChatByID(ctx, chatID)
-		if err != nil {
-			return nil, err
+		if _, ok := found[chatID]; !ok {
+			return nil, sql.ErrNoRows
 		}
 	}
 
@@ -4094,7 +4113,16 @@ func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([
 }
 
 func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
+	chats, err := q.db.GetChatsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, chat := range chats {
+		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return nil, err
+		}
+	}
+	return chats, nil
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -5124,6 +5152,10 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, params database.G
 		return -1, err
 	}
 	return q.db.GetQuotaConsumedForUser(ctx, params)
+}
+
+func (q *querier) GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetReadableChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
@@ -7808,6 +7840,17 @@ func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg datab
 		return 0, err
 	}
 	return q.db.ReorderChatQueuedMessageToFront(ctx, arg)
+}
+
+func (q *querier) ResolveChatMessagePromptHooks(ctx context.Context, arg database.ResolveChatMessagePromptHooksParams) (database.ChatMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.ResolveChatMessagePromptHooks(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

@@ -2,6 +2,7 @@ package audit_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -53,6 +54,8 @@ func TestChatAutomationResource(t *testing.T) {
 		ID:             uuid.UUID{1},
 		OrganizationID: uuid.UUID{2},
 		Name:           "ci-failures",
+		Prompt:         "prompt-must-not-reach-the-target",
+		WebhookSecret:  sql.NullString{String: "secret-must-not-reach-the-target", Valid: true},
 	}
 	require.Equal(t, "ci-failures", audit.ResourceTarget(automation))
 	require.Equal(t, automation.ID, audit.ResourceID(automation))

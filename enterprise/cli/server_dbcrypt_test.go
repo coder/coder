@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -525,3 +527,22 @@ func (*nullCipher) HexDigest() string {
 }
 
 var _ dbcrypt.Cipher = (*nullCipher)(nil)
+
+// TestServerDBCryptDeletePrompt checks that the confirmation of dbcrypt delete
+// names the chat automation webhook secrets it blanks, and that answering no
+// stops the command before it connects to the database.
+func TestServerDBCryptDeletePrompt(t *testing.T) {
+	t.Parallel()
+
+	inv, _ := newCLI(t, "server", "dbcrypt", "delete", "--postgres-url", "postgres://unused")
+	pty := ptytest.New(t).Attach(inv)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	done := make(chan error, 1)
+	go func() {
+		done <- inv.WithContext(ctx).Run()
+	}()
+
+	pty.ExpectMatch(ctx, "chat automation webhook secrets")
+	pty.WriteLine("no")
+	require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), cliui.ErrCanceled)
+}
