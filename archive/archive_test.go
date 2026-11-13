@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"io/fs"
 	"os"
@@ -255,5 +256,46 @@ func assertExtractedFiles(t *testing.T, dir string, checkModePerm bool) {
 		}
 
 		return nil
+	})
+}
+
+func TestValidateTar(t *testing.T) {
+	t.Parallel()
+
+	gzipBytes := func(t *testing.T, data []byte) []byte {
+		t.Helper()
+
+		var buf bytes.Buffer
+		gw := gzip.NewWriter(&buf)
+		_, err := gw.Write(data)
+		require.NoError(t, err)
+		require.NoError(t, gw.Close())
+
+		return buf.Bytes()
+	}
+
+	t.Run("Tar", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, archive.ValidateTar(archivetest.TestTarFileBytes()))
+	})
+
+	t.Run("EmptyArchive", func(t *testing.T) {
+		t.Parallel()
+		// Two zeroed blocks are how a tar marks its end, and uploads
+		// of that shape are already accepted today.
+		require.NoError(t, archive.ValidateTar(make([]byte, 1024)))
+	})
+
+	t.Run("Gzipped", func(t *testing.T) {
+		t.Parallel()
+		err := archive.ValidateTar(gzipBytes(t, archivetest.TestTarFileBytes()))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "gzip")
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		t.Parallel()
+		err := archive.ValidateTar([]byte("this is not a tar archive"))
+		require.Error(t, err)
 	})
 }
