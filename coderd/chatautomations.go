@@ -208,8 +208,9 @@ func parseChatAutomationID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, 
 	return id, true
 }
 
-// loadChatAutomationRefs reads the owners and chats of the rows in one query
-// each.
+// loadChatAutomationRefs reads the owners and chats of the rows. It reads the
+// chats in one query. It reads the owners in one query too, and one by one when
+// the caller cannot read every owner at once.
 func (api *API) loadChatAutomationRefs(ctx context.Context, automations []database.ChatAutomation) (db2sdk.ChatAutomationRefs, error) {
 	refs := db2sdk.ChatAutomationRefs{
 		Owners: make(map[uuid.UUID]database.User),

@@ -26,9 +26,11 @@ var ErrQueuedMessages = xerrors.New("a queued message names the chat automation"
 
 // LockID returns the advisory lock that every path that runs or changes one
 // automation takes first: a run, an edit, a disable, a delete and a rotation.
-// The one path without it is the delete_deleted_user_resources trigger, which
-// deletes the automations of a user that is soft deleted. The lock lasts to the
-// end of the transaction.
+// Two kinds of change do not take it. The delete_deleted_user_resources
+// trigger deletes the automations of a user that is soft deleted. The ON DELETE
+// SET NULL actions of target_chat_id, created_by_chat_id and project_id clear
+// those columns when a chat or a project is deleted. The lock lasts to the end
+// of the transaction.
 func LockID(id uuid.UUID) int64 {
 	return database.GenLockID("chat-automation:" + id.String())
 }
