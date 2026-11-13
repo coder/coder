@@ -381,7 +381,12 @@ func (g *githubProvider) decodeJSON(
 ) error {
 	cacheKey := responseCacheKey(requestURL, token)
 	etag, cachedBody, haveCached := g.cache.load(cacheKey)
-	resp, err := g.requestJSON(ctx, requestURL, token, etag, source)
+	resp, err := g.requestJSON(ctx, githubJSONRequest{
+		requestURL: requestURL,
+		token:      token,
+		etag:       etag,
+		source:     source,
+	})
 	if err != nil {
 		return err
 	}
@@ -414,28 +419,39 @@ func (g *githubProvider) decodeJSON(
 	return nil
 }
 
-func (g *githubProvider) requestJSON(
-	ctx context.Context,
-	requestURL string,
-	token string,
-	etag string,
-	source promoauth.Oauth2Source,
-) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+// githubJSONRequest is a GET request for a JSON resource of the GitHub REST
+// API.
+type githubJSONRequest struct {
+	requestURL string
+	token      string
+	// etag, when set, makes the request conditional.
+	etag   string
+	source promoauth.Oauth2Source
+	// isRateLimited selects the failed responses that are checked for a
+	// retry time. When nil, every failed response is checked.
+	isRateLimited func(*http.Response) bool
+}
+
+// requestJSON returns the response for a 200 or a 304; the caller closes its
+// body. For any other response it returns a *RateLimitError when the response
+// is checked and has a usable retry time. Otherwise it returns a
+// *githubRequestError, or a plain error when the body cannot be read.
+func (g *githubProvider) requestJSON(ctx context.Context, request githubJSONRequest) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, request.requestURL, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("create github request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	req.Header.Set("User-Agent", "coder-chat-diff-status")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if request.token != "" {
+		req.Header.Set("Authorization", "Bearer "+request.token)
 	}
-	if etag != "" {
-		req.Header.Set("If-None-Match", etag)
+	if request.etag != "" {
+		req.Header.Set("If-None-Match", request.etag)
 	}
 
-	resp, err := g.do(ctx, req, source)
+	resp, err := g.do(ctx, req, request.source)
 	if err != nil {
 		return nil, xerrors.Errorf("execute github request: %w", err)
 	}
@@ -444,20 +460,23 @@ func (g *githubProvider) requestJSON(
 	}
 	defer resp.Body.Close()
 
-	rateLimited := false
-	if source == promoauth.SourceGitProviderIssue {
-		rateLimited = issueRateLimited(resp)
-	}
-	if source != promoauth.SourceGitProviderIssue || rateLimited {
+	rateLimited := request.isRateLimited != nil && request.isRateLimited(resp)
+	checkRetryTime := request.isRateLimited == nil || rateLimited
+	if checkRetryTime {
 		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
 			return nil, rlErr
 		}
 	}
+
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 	if readErr != nil {
 		return nil, xerrors.Errorf("github request failed with status %d", resp.StatusCode)
 	}
-	message := fmt.Sprintf("github request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	message := fmt.Sprintf(
+		"github request failed with status %d: %s",
+		resp.StatusCode,
+		strings.TrimSpace(string(body)),
+	)
 	return nil, &githubRequestError{
 		statusCode:  resp.StatusCode,
 		message:     message,
@@ -465,9 +484,13 @@ func (g *githubProvider) requestJSON(
 	}
 }
 
+// githubRequestError is a failed GitHub API response without a usable retry
+// time.
 type githubRequestError struct {
-	statusCode  int
-	message     string
+	statusCode int
+	message    string
+	// rateLimited is true when the request's isRateLimited predicate matched
+	// the response. It is false for requests without a predicate.
 	rateLimited bool
 }
 

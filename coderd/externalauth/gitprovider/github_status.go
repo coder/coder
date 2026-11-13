@@ -115,7 +115,13 @@ func (g *githubProvider) checkIssue(
 	etag string,
 	previous githubIssueState,
 ) (githubIssueResult, error) {
-	resp, err := g.requestJSON(ctx, endpoint, token, etag, promoauth.SourceGitProviderIssue)
+	resp, err := g.requestJSON(ctx, githubJSONRequest{
+		requestURL:    endpoint,
+		token:         token,
+		etag:          etag,
+		source:        promoauth.SourceGitProviderIssue,
+		isRateLimited: issueRateLimited,
+	})
 	if err != nil {
 		requestErr, ok := errors.AsType[*githubRequestError](err)
 		if !ok || requestErr.rateLimited {
@@ -165,7 +171,12 @@ func (g *githubProvider) fetchAndStorePull(
 	issue githubIssueResult,
 ) (githubPullRequest, error) {
 	checkedAt := g.clock.Now()
-	resp, err := g.requestJSON(ctx, endpoint, token, snapshot.PullETag, promoauth.SourceGitProviderPullRequest)
+	resp, err := g.requestJSON(ctx, githubJSONRequest{
+		requestURL: endpoint,
+		token:      token,
+		etag:       snapshot.PullETag,
+		source:     promoauth.SourceGitProviderPullRequest,
+	})
 	if err != nil {
 		return githubPullRequest{}, err
 	}
@@ -222,6 +233,10 @@ func pullMatchesIssue(pull githubPullRequest, issue githubIssueState) bool {
 		pull.User == issue.User
 }
 
+// issueRateLimited reports whether a failed issue response is a rate limit.
+// Every 429 is. A 403 is only with Retry-After or X-RateLimit-Remaining: 0,
+// because permission 403s also carry X-RateLimit-Reset and a positive
+// remaining count.
 func issueRateLimited(resp *http.Response) bool {
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return true
