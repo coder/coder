@@ -1182,7 +1182,7 @@ The generation goroutine supports:
   <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
-- workspace binding
+- workspace binding (each turn verifies the chat owner's SSH access to the bound workspace)
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use

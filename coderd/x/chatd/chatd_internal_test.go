@@ -1179,7 +1179,7 @@ func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
-		server:           &Server{db: db},
+		server:           withChatWorkspaceAccess(&Server{db: db}),
 		chatStateMu:      chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -1234,7 +1234,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
-		server:           &Server{db: db},
+		server:           withChatWorkspaceAccess(&Server{db: db}),
 		chatStateMu:      chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -1309,7 +1309,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
-		server:           &Server{db: db},
+		server:           withChatWorkspaceAccess(&Server{db: db}),
 		chatStateMu:      chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -1369,12 +1369,12 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 
 	var dialed []uuid.UUID
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
-	}
+	})
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		dialed = append(dialed, agentID)
 		if agentID == staleAgentID {
@@ -1442,12 +1442,12 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 		}, nil).
 		AnyTimes()
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
-	}
+	})
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		return nil, nil, xerrors.New("dial failed")
 	}
@@ -1639,7 +1639,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
 				AgentID:     uuid.NullUUID{UUID: agentID, Valid: tc.boundAgent},
 			}
 			workspaceCtx := turnWorkspaceContext{
-				server:           &Server{db: db},
+				server:           withChatWorkspaceAccess(&Server{db: db}),
 				chatStateMu:      &sync.Mutex{},
 				currentChat:      &chat,
 				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -1681,7 +1681,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
-		server:           &Server{db: db},
+		server:           withChatWorkspaceAccess(&Server{db: db}),
 		chatStateMu:      chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -1798,7 +1798,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
-		server:           &Server{db: db},
+		server:           withChatWorkspaceAccess(&Server{db: db}),
 		chatStateMu:      chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -2635,13 +2635,13 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	newConn := agentconnmock.NewMockAgentConn(ctrl)
 	newConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
-	}
+	})
 	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		switch id {
 		case oldAgentID:
@@ -2731,13 +2731,13 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 		Return([]database.WorkspaceAgent{agent}, nil).Times(1)
 
 	dialErr := xerrors.New("agent is not connected")
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
-	}
+	})
 	server.agentConnFn = func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		return nil, nil, dialErr
 	}
@@ -3044,13 +3044,13 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 				Return([]database.WorkspaceAgent{latestAgent}, nil).
 				Times(latestAgentLookups)
 
-			server := &Server{
+			server := withChatWorkspaceAccess(&Server{
 				db:                             db,
 				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    10 * time.Millisecond,
-			}
+			})
 			dialEntered := make(chan struct{})
 			var closeDialEntered sync.Once
 			server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -3155,13 +3155,13 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 		Return(disconnectedAgent, nil).
 		Times(1)
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
-	}
+	})
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 	var dialCalled bool
@@ -3225,13 +3225,13 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 		Return(disconnectedAgent, nil).
 		Times(2)
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
-	}
+	})
 	newConn := agentconnmock.NewMockAgentConn(ctrl)
 	newConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 	var dialCalled bool
@@ -3309,12 +3309,12 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 		Return([]database.WorkspaceAgent{connectedAgent}, nil).
 		Times(1)
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
-	}
+	})
 	// Dial blocks forever (simulates unreachable agent).
 	server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		<-ctx.Done()
@@ -3379,14 +3379,14 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	parentErr := xerrors.New("parent canceled")
 	ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitShort))
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		// Use a very long dial timeout so the parent cancel fires
 		// first.
 		dialTimeout: 10 * time.Minute,
-	}
+	})
 	// Signal when the dial goroutine has started so we can
 	// cancel the parent at the right time without time.Sleep.
 	dialStarted := make(chan struct{})
@@ -3466,13 +3466,13 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
-	}
+	})
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		t.Fatal("unexpected agent dial for external agent preflight")
 		return nil, nil, xerrors.New("unexpected agent dial")
@@ -3536,13 +3536,13 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 
 	dialed := false
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
-	}
+	})
 	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		dialed = true
 		require.Equal(t, agentID, id)
@@ -3623,14 +3623,14 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 		AnyTimes()
 
 	dialErr := xerrors.New("authentication failed")
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		// Generous timeout so the dial error fires well before
 		// the timeout.
 		dialTimeout: defaultDialTimeout,
-	}
+	})
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		// Return an error immediately (not a timeout).
 		return nil, nil, dialErr
@@ -3740,7 +3740,7 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
 
-	server := &Server{
+	server := withChatWorkspaceAccess(&Server{
 		db:                             db,
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
@@ -3751,7 +3751,7 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
 		},
-	}
+	})
 
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
@@ -4118,6 +4118,28 @@ func expectLiveWorkspace(db *dbmock.MockStore, workspaceID uuid.UUID) {
 	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).
 		Return(database.Workspace{ID: workspaceID}, nil).
 		AnyTimes()
+}
+
+// allowAllAuthorizer authorizes every request.
+type allowAllAuthorizer struct{}
+
+func (allowAllAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, rbac.Object) error {
+	return nil
+}
+
+func (allowAllAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, string) (rbac.PreparedAuthorized, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+// withChatWorkspaceAccess lets the chat owner use every workspace, for tests
+// that mock the database and so cannot load a real owner subject.
+func withChatWorkspaceAccess(server *Server) *Server {
+	server.authorizer = allowAllAuthorizer{}
+	server.modelConfigContext = func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
+		//nolint:gocritic // Tests stand in for the chat owner's subject.
+		return dbauthz.As(ctx, rbac.Subject{Type: rbac.SubjectTypeUser, ID: ownerID.String()}), nil
+	}
+	return server
 }
 
 func TestChatKind(t *testing.T) {
