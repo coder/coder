@@ -161,13 +161,18 @@ const StageBar: React.FC<StageBarProps> = ({
 }) => {
 	const value = calcDuration(range);
 	const offset = calcOffset(range, totalRange);
-	const validDuration = value > 0 && !Number.isNaN(value);
+	const duration =
+		value > 0 && !Number.isNaN(value) ? formatTime(value) : undefined;
 
 	return (
 		<>
 			{timing.visibleResources > 1 ? (
 				<ClickableBar
-					aria-label={`View ${timing.stage.label} details`}
+					aria-label={
+						duration
+							? `View ${timing.stage.label} details ${duration}`
+							: `View ${timing.stage.label} details`
+					}
 					scale={scale}
 					value={value}
 					offset={offset}
@@ -183,8 +188,8 @@ const StageBar: React.FC<StageBarProps> = ({
 			) : (
 				<Bar aria-hidden scale={scale} value={value} offset={offset} />
 			)}
-			{validDuration ? (
-				<span>{formatTime(value)}</span>
+			{duration ? (
+				<span>{duration}</span>
 			) : (
 				<span className="text-content-destructive">Invalid</span>
 			)}

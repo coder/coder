@@ -214,7 +214,7 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 	return (
 		<>
 			<form
-				className="flex flex-col rounded-lg border border-solid border-border p-6"
+				className="flex flex-col rounded-lg border p-6"
 				onSubmit={form.handleSubmit}
 			>
 				<div className="flex items-center gap-2 font-sans text-sm font-normal leading-6 text-content-primary">
@@ -247,7 +247,7 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 					Additional system instructions
 				</label>
 				<TextareaAutosize
-					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
+					className="w-full resize-none overflow-y-auto rounded-lg border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
 					id="system_prompt"
 					placeholder="Instructions appended to every agent session"
 					name="system_prompt"
@@ -269,7 +269,7 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 					Additional plan mode instructions
 				</label>
 				<TextareaAutosize
-					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
+					className="w-full resize-none overflow-y-auto rounded-lg border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
 					id="plan_mode_instructions"
 					placeholder="Instructions applied when the agent enters plan mode"
 					name="plan_mode_instructions"

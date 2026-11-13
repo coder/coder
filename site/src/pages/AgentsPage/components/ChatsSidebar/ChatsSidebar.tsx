@@ -261,7 +261,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	};
 
 	return (
-		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				pinnedProjects={pinnedProjects}

@@ -90,6 +90,7 @@ func TestExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), StaticDefault: true},
+			{Experiment: string(codersdk.ExperimentChatAutomations)},
 		}, entries)
 
 		w.put(ctx, codersdk.ExperimentExample, codersdk.ExperimentRuleModeCondition, fmt.Sprintf("user.username == %q", member.Username))
@@ -170,6 +171,7 @@ func TestExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), Rule: &stored},
+			{Experiment: string(codersdk.ExperimentChatAutomations)},
 		}, entries)
 	})
 
@@ -230,6 +232,7 @@ func TestExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), Rule: &codersdk.ExperimentRule{Revision: 2}},
+			{Experiment: string(codersdk.ExperimentChatAutomations)},
 			{Experiment: "not-an-experiment", Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOn), Revision: 1}, Ignored: true},
 			{Experiment: string(codersdk.ExperimentWorkspaceUsage), Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOff), Revision: 4}, Ignored: true},
 		}, entries)
