@@ -1061,8 +1061,8 @@ type CreateChatMessageResponse struct {
 	Warnings      []string           `json:"warnings,omitempty"`
 	// SnapshotVersion is the chat's snapshot version at which the server
 	// made the request's change to the chat's messages or queue. A client
-	// has that change once it has applied a stream WebSocket message that
-	// contains this snapshot_version or a higher one.
+	// has that change once it has applied a synced stream event with this
+	// snapshot_version or a higher one.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
@@ -2124,6 +2124,11 @@ const (
 	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
 	ChatStreamEventTypePreviewReset   ChatStreamEventType = "preview_reset"
 	ChatStreamEventTypeHistoryReset   ChatStreamEventType = "history_reset"
+	// ChatStreamEventTypeSynced is the last event of each read of the chat
+	// on a stream opened with a snapshot_version. After a client applies
+	// it, the client has every change to the messages and the queue with a
+	// snapshot version at or below the event's SnapshotVersion.
+	ChatStreamEventTypeSynced ChatStreamEventType = "synced"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -2395,15 +2400,13 @@ type ChatStreamEvent struct {
 	// HistoryReset is set on history_reset events of streams opened with a
 	// snapshot_version.
 	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
-	// SnapshotVersion is set on the message, queue_update and history_reset
-	// events of streams opened with a snapshot_version. It is the chat's
-	// snapshot version when the change that the event reports was made. To
-	// reconnect, open the stream with the highest one received from the
-	// messages page or from events. Such a stream sends the events of one
-	// read of the chat in one WebSocket message. After a client applies a
-	// WebSocket message that contains a snapshot version, the client has
-	// every change to the messages and the queue made at that version or a
-	// lower one.
+	// SnapshotVersion is set on the message, queue_update, history_reset
+	// and synced events of streams opened with a snapshot_version. On a
+	// synced event, it is the chat's snapshot version at the read that the
+	// event ends. On the other events, it is the chat's snapshot version
+	// when the change that the event reports was made. To reconnect, open
+	// the stream with the highest one received from the messages page or
+	// from events.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
@@ -3018,9 +3021,8 @@ type StreamChatOptions struct {
 // StreamChat streams chat updates in real time.
 //
 // The returned channel includes initial snapshot events first, followed by
-// live updates. It yields the events of a WebSocket message one at a time,
-// so a caller cannot tell which events arrived together. Callers must close
-// the returned io.Closer to release the websocket connection when done.
+// live updates. Callers must close the returned io.Closer to release the
+// websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
 	if opts != nil {

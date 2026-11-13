@@ -404,6 +404,13 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 			ChatID: l.chatID,
 		})
 	}
+	if l.state.openedWithSnapshotVersion {
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:            codersdk.ChatStreamEventTypeSynced,
+			ChatID:          l.chatID,
+			SnapshotVersion: chat.SnapshotVersion,
+		})
+	}
 
 	l.state.snapshotVersion = chat.SnapshotVersion
 	l.state.historyVersion = chat.HistoryVersion

@@ -3986,12 +3986,12 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description Each read sends these events in order of `snapshot_version`.
 // @Description Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
 // @Description The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+// @Description The last event of each read is a `synced` event with the chat's `snapshot_version` at that read.
+// @Description After you apply a `synced` event, you have every change to the messages and the queue with a `snapshot_version` at or below the event's `snapshot_version`.
 // @Description The server sends `message_part` events between reads.
 // @Description
-// @Description On such a stream, the server sends the events of one read in one WebSocket message.
-// @Description After you apply a WebSocket message that contains a `snapshot_version` of `N`, you have every change to the messages and the queue with a `snapshot_version` of `N` or lower.
 // @Description The responses to the requests that send or edit a message, and that delete, promote, or edit a queued message, include the `snapshot_version` of the request's change, unless the request changed nothing.
-// @Description You have that change after you apply a WebSocket message that contains that `snapshot_version` or a higher one.
+// @Description You have that change after you apply a `synced` event with that `snapshot_version` or a higher one.
 // @Description
 // @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
 // @Description The edit deleted that message and every message after it.
@@ -4105,8 +4105,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	// drainChatStreamBatch adds the values that are already waiting to
 	// first, so that a burst of message parts takes few WebSocket messages.
-	// It never splits a value: a client relies on receiving the events of
-	// one read of the chat in one WebSocket message.
+	// It never splits a value, so the events of one read stay together and
+	// a cut at chatStreamBatchSize does not separate synced from them.
 	drainChatStreamBatch := func(
 		first []codersdk.ChatStreamEvent,
 		maxBatchSize int,
@@ -4127,15 +4127,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return batch, false
 	}
 
-	// A stream opened with snapshot_version receives its first read in one
-	// WebSocket message, as it does every later read. Another stream's
-	// first read can be the whole history, so it is sent in several.
-	snapshotBatchSize := chatStreamBatchSize
-	if snapshotVersion > 0 {
-		snapshotBatchSize = len(snapshot)
-	}
-	for start := 0; start < len(snapshot); start += snapshotBatchSize {
-		end := start + snapshotBatchSize
+	for start := 0; start < len(snapshot); start += chatStreamBatchSize {
+		end := start + chatStreamBatchSize
 		if end > len(snapshot) {
 			end = len(snapshot)
 		}

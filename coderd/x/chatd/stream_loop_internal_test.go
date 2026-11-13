@@ -967,6 +967,7 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 	live := []int64{1, 2, 7, 8}
 	status := streamEvent{typ: codersdk.ChatStreamEventTypeStatus}
 	previewReset := streamEvent{typ: codersdk.ChatStreamEventTypePreviewReset}
+	synced := streamEvent{typ: codersdk.ChatStreamEventTypeSynced, snapshotVersion: 10}
 
 	for _, tt := range []struct {
 		name                     string
@@ -989,6 +990,7 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 				{codersdk.ChatStreamEventTypeMessage, 8, 9},
 				status,
 				previewReset,
+				synced,
 			},
 		},
 		{
@@ -1004,6 +1006,7 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 				{codersdk.ChatStreamEventTypeMessage, 8, 9},
 				status,
 				previewReset,
+				synced,
 			},
 		},
 		{
@@ -1014,13 +1017,14 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 				{codersdk.ChatStreamEventTypeMessage, 8, 9},
 				status,
 				previewReset,
+				synced,
 			},
 		},
 		{
 			name:            "resume at a commit without versioned changes",
 			snapshotVersion: 10,
 			held:            live,
-			want:            []streamEvent{status},
+			want:            []streamEvent{status, synced},
 		},
 		{
 			// A stream opened with after_id resets only when message after_id
@@ -1067,6 +1071,7 @@ func TestStreamLoopSnapshotVersionOrder(t *testing.T) {
 		{codersdk.ChatStreamEventTypeMessage, 1, 1},
 		{typ: codersdk.ChatStreamEventTypeStatus},
 		{typ: codersdk.ChatStreamEventTypePreviewReset},
+		{typ: codersdk.ChatStreamEventTypeSynced, snapshotVersion: 1},
 	}, summarizeStreamEvents(syncAgainst(t, loop, store)))
 
 	// Commit 2 queues a message and commit 3 writes a step, and one sync
@@ -1078,6 +1083,7 @@ func TestStreamLoopSnapshotVersionOrder(t *testing.T) {
 		{codersdk.ChatStreamEventTypeQueueUpdate, 0, 2},
 		{codersdk.ChatStreamEventTypeMessage, 2, 3},
 		{typ: codersdk.ChatStreamEventTypePreviewReset},
+		{typ: codersdk.ChatStreamEventTypeSynced, snapshotVersion: 3},
 	}, summarizeStreamEvents(syncAgainst(t, loop, store)))
 
 	// A stream without a snapshot version keeps the message first.
@@ -1092,7 +1098,8 @@ func TestStreamLoopSnapshotVersionOrder(t *testing.T) {
 }
 
 // TestStreamLoopSnapshotVersionTurnEvents checks that a stream opened with
-// a snapshot version sends the same turn events as one opened without.
+// a snapshot version sends the same turn events as one opened without,
+// followed by a synced event.
 func TestStreamLoopSnapshotVersionTurnEvents(t *testing.T) {
 	t.Parallel()
 
@@ -1148,6 +1155,7 @@ func TestStreamLoopSnapshotVersionTurnEvents(t *testing.T) {
 			requireEventTypes(t, want, tt.want...)
 
 			versioned := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 3)
+			want = append(want, codersdk.ChatStreamEvent{Type: codersdk.ChatStreamEventTypeSynced, ChatID: chatID, SnapshotVersion: 4})
 			require.Equal(t, want, versioned.applyDBSnapshot(tt.snapshot))
 		})
 	}

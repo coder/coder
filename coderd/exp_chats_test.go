@@ -11049,8 +11049,8 @@ func TestStreamChat(t *testing.T) {
 
 // TestChatActionSnapshotVersion covers what lets a client show an action's
 // result until the stream reports it: the action's response has the snapshot
-// version of its change, and the stream sends the events of one read of the
-// chat, which hold that change, in one WebSocket message.
+// version of its change, and the stream sends that change before a synced
+// event with that snapshot version or a higher one.
 func TestChatActionSnapshotVersion(t *testing.T) {
 	t.Parallel()
 
@@ -11112,6 +11112,7 @@ func TestChatActionSnapshotVersion(t *testing.T) {
 		historyReset = codersdk.ChatStreamEventTypeHistoryReset
 		message      = codersdk.ChatStreamEventTypeMessage
 		queueUpdate  = codersdk.ChatStreamEventTypeQueueUpdate
+		synced       = codersdk.ChatStreamEventTypeSynced
 	)
 	tests := []struct {
 		name   string
@@ -11207,13 +11208,21 @@ func TestChatActionSnapshotVersion(t *testing.T) {
 			snapshotVersion := tt.act(ctx, t, f)
 			require.Greater(t, snapshotVersion, page.SnapshotVersion)
 
-			// Read WebSocket messages up to the first one that has the
-			// response's snapshot version. It must hold the whole change.
+			// Read WebSocket messages up to a synced event with the
+			// response's snapshot version or a higher one. The whole change
+			// must arrive before it.
 			var got []codersdk.ChatStreamEventType
-			for len(got) == 0 {
+			for done := false; !done; {
 				var events []codersdk.ChatStreamEvent
 				require.NoError(t, wsjson.Read(ctx, conn, &events))
 				for _, event := range events {
+					if event.Type == synced {
+						if event.SnapshotVersion >= snapshotVersion {
+							done = true
+							break
+						}
+						continue
+					}
 					require.LessOrEqual(t, event.SnapshotVersion, snapshotVersion, "the stream sent a later change first")
 					if event.SnapshotVersion == snapshotVersion {
 						got = append(got, event.Type)
@@ -11236,13 +11245,12 @@ func TestChatActionSnapshotVersion(t *testing.T) {
 		require.Zero(t, queueRequest(ctx, t, http.MethodPost, promotePath, nil, http.StatusAccepted))
 	})
 
-	t.Run("FirstReadIsOneWebSocketMessage", func(t *testing.T) {
+	t.Run("FirstReadEndsWithSynced", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		f := newFixture(ctx, t, database.ChatStatusWaiting)
-		// More messages than a stream opened without snapshot_version
-		// receives in one WebSocket message.
+		// More messages than the 256 events of one WebSocket message.
 		const messages = 300
 		for range messages - 1 {
 			dbgen.ChatMessage(t, db, database.ChatMessage{
@@ -11252,6 +11260,12 @@ func TestChatActionSnapshotVersion(t *testing.T) {
 				Content:    f.prompt.Content,
 			})
 		}
+		page, err := client.GetChatMessages(ctx, f.chat.ID, nil)
+		require.NoError(t, err)
+		isType := func(typ codersdk.ChatStreamEventType) func(codersdk.ChatStreamEvent) bool {
+			return func(event codersdk.ChatStreamEvent) bool { return event.Type == typ }
+		}
+
 		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=1", f.chat.ID), nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "")
@@ -11259,13 +11273,36 @@ func TestChatActionSnapshotVersion(t *testing.T) {
 
 		var events []codersdk.ChatStreamEvent
 		require.NoError(t, wsjson.Read(ctx, conn, &events))
+		require.Len(t, events, 256)
+		for !slices.ContainsFunc(events, isType(synced)) {
+			var next []codersdk.ChatStreamEvent
+			require.NoError(t, wsjson.Read(ctx, conn, &next))
+			events = append(events, next...)
+		}
+		end := slices.IndexFunc(events, isType(synced))
 		got := 0
-		for _, event := range events {
+		for _, event := range events[:end] {
 			if event.Type == message {
 				got++
 			}
 		}
 		require.Equal(t, messages, got)
+		require.Equal(t, page.SnapshotVersion, events[end].SnapshotVersion)
+
+		// A stream opened without snapshot_version gets no synced event.
+		// Its first read ends with preview_reset.
+		plain, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", f.chat.ID), nil)
+		require.NoError(t, err)
+		defer plain.Close(websocket.StatusNormalClosure, "")
+		plain.SetReadLimit(1 << 22)
+
+		var plainEvents []codersdk.ChatStreamEvent
+		for !slices.ContainsFunc(plainEvents, isType(codersdk.ChatStreamEventTypePreviewReset)) {
+			var next []codersdk.ChatStreamEvent
+			require.NoError(t, wsjson.Read(ctx, plain, &next))
+			plainEvents = append(plainEvents, next...)
+		}
+		require.False(t, slices.ContainsFunc(plainEvents, isType(synced)))
 	})
 }
 
