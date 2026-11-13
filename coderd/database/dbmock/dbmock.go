@@ -3638,6 +3638,36 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
 }
 
+// GetChatProjectPinTelemetry mocks base method.
+func (m *MockStore) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (database.GetChatProjectPinTelemetryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectPinTelemetry", ctx, aclEnabled)
+	ret0, _ := ret[0].(database.GetChatProjectPinTelemetryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectPinTelemetry indicates an expected call of GetChatProjectPinTelemetry.
+func (mr *MockStoreMockRecorder) GetChatProjectPinTelemetry(ctx, aclEnabled any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectPinTelemetry", reflect.TypeOf((*MockStore)(nil).GetChatProjectPinTelemetry), ctx, aclEnabled)
+}
+
+// GetChatProjectSummariesByUserID mocks base method.
+func (m *MockStore) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectSummariesByUserID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatProjectSummariesByUserIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectSummariesByUserID indicates an expected call of GetChatProjectSummariesByUserID.
+func (mr *MockStoreMockRecorder) GetChatProjectSummariesByUserID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectSummariesByUserID", reflect.TypeOf((*MockStore)(nil).GetChatProjectSummariesByUserID), ctx, arg)
+}
+
 // GetChatProjectsOwnedOrSharedWithUserID mocks base method.
 func (m *MockStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()
@@ -8526,6 +8556,20 @@ func (mr *MockStoreMockRecorder) InsertChatProjectMemory(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProjectMemory", reflect.TypeOf((*MockStore)(nil).InsertChatProjectMemory), ctx, arg)
 }
 
+// InsertChatProjectPin mocks base method.
+func (m *MockStore) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatProjectPin", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertChatProjectPin indicates an expected call of InsertChatProjectPin.
+func (mr *MockStoreMockRecorder) InsertChatProjectPin(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProjectPin", reflect.TypeOf((*MockStore)(nil).InsertChatProjectPin), ctx, arg)
+}
+
 // InsertChatQueuedMessage mocks base method.
 func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	m.ctrl.T.Helper()
@@ -10233,6 +10277,20 @@ func (mr *MockStoreMockRecorder) PinChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PinChatByID", reflect.TypeOf((*MockStore)(nil).PinChatByID), ctx, id)
 }
 
+// PinChatProject mocks base method.
+func (m *MockStore) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PinChatProject", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PinChatProject indicates an expected call of PinChatProject.
+func (mr *MockStoreMockRecorder) PinChatProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PinChatProject", reflect.TypeOf((*MockStore)(nil).PinChatProject), ctx, arg)
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping(ctx context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()
@@ -10608,6 +10666,20 @@ func (m *MockStore) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 func (mr *MockStoreMockRecorder) UnpinChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpinChatByID", reflect.TypeOf((*MockStore)(nil).UnpinChatByID), ctx, id)
+}
+
+// UnpinChatProject mocks base method.
+func (m *MockStore) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnpinChatProject", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnpinChatProject indicates an expected call of UnpinChatProject.
+func (mr *MockStoreMockRecorder) UnpinChatProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpinChatProject", reflect.TypeOf((*MockStore)(nil).UnpinChatProject), ctx, arg)
 }
 
 // UnsetDefaultChatModelConfigs mocks base method.

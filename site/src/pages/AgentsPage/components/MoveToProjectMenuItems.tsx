@@ -2,7 +2,7 @@ import { CheckIcon, FolderInputIcon, FolderMinusIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { chatProjects } from "#/api/queries/chatProjects";
+import { chatProjectSummaries, chatProjects } from "#/api/queries/chatProjects";
 import { moveChatToProject } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import type {
@@ -21,16 +21,61 @@ import type {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { ChatProjectIcon } from "./ChatProjectIcon";
+import { useMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
+
+// The latest move started for each chat. Cache refetches can briefly show an
+// earlier destination, so the dialog decision tracks moves, not the cache.
+const latestMoveByChat = new Map<string, symbol>();
 
 /**
- * Moves a chat and reports a failure. The error handling is a mutation
- * option, so the rollback and the toast still run after the menu unmounts.
+ * Moves a chat and reports a failure. The callbacks are mutation options, so
+ * the rollback, the toast, and the dialog still run after the menu unmounts.
  */
 export const useMoveChatToProject = () => {
 	const queryClient = useQueryClient();
+	const moveToUnpinnedProjectDialog = useMoveToUnpinnedProjectDialog();
 	const options = moveChatToProject(queryClient);
 	return useMutation({
 		...options,
+		onMutate: async (variables: Parameters<typeof options.onMutate>[0]) => {
+			const move = Symbol();
+			latestMoveByChat.set(variables.chatId, move);
+			return { ...(await options.onMutate(variables)), move };
+		},
+		// A chat that is not pinned leaves the sidebar when it moves into a
+		// project the user has not pinned. A chat that was already in another
+		// unpinned project was not in the sidebar to begin with.
+		// Summaries that are not cached yet are fetched first, so the dialog can
+		// still open; only a failed fetch skips it.
+		onSuccess: (_data, { chatId, projectId }, context) => {
+			// A later move of the same chat owns the dialog decision, even one
+			// made while the summaries load.
+			const superseded = () => latestMoveByChat.get(chatId) !== context?.move;
+			if (superseded()) {
+				return;
+			}
+			void queryClient.ensureQueryData(chatProjectSummaries()).then(
+				(summaries) => {
+					if (superseded()) {
+						return;
+					}
+					const summary = summaries.find((s) => s.project.id === projectId);
+					const previous = context?.previousProjectId
+						? summaries.find((s) => s.project.id === context.previousProjectId)
+						: undefined;
+					const wasHidden = previous !== undefined && !previous.pinned;
+					if (
+						summary &&
+						!summary.pinned &&
+						!context?.wasChatPinned &&
+						!wasHidden
+					) {
+						moveToUnpinnedProjectDialog?.show(summary.project, chatId);
+					}
+				},
+				() => {},
+			);
+		},
 		onError: (error, variables, context) => {
 			options.onError(error, variables, context);
 			toast.error(getErrorMessage(error, "Failed to move chat."));

@@ -374,6 +374,9 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
+const ProjectsPage = lazy(
+	() => import("./pages/AgentsPage/ProjectsPage/ProjectsPage"),
+);
 const AgentSettingsLayout = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPage/AgentSettingsLayout"),
 );
@@ -925,6 +928,7 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
+					<Route path="projects" element={<ProjectsPage />} />
 					<Route path="projects/:projectId" element={<AgentCreatePage />} />
 					<Route
 						path=":agentId"

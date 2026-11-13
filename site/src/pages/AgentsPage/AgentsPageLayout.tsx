@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { useEffect, useEffectEvent, useState } from "react";
 import {
+	type QueryClient,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -16,6 +17,7 @@ import {
 } from "react-router";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
@@ -44,6 +46,7 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { useDebouncedFunction } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
@@ -65,6 +68,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { MoveToUnpinnedProjectDialogProvider } from "./components/MoveToUnpinnedProjectDialog";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -109,6 +113,40 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
+// Project summaries count the user's chats, unread chats, and running chats.
+// A chat that pauses for input publishes only action_required.
+const PROJECT_SUMMARY_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"action_required",
+	"chat_summary_change",
+	"created",
+	"deleted",
+	"project_change",
+	"status_change",
+]);
+
+const shouldInvalidateProjectSummaries = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	!chat.parent_chat_id &&
+	PROJECT_SUMMARY_EVENT_KINDS.has(eventKind) &&
+	// A move out of a project leaves no project_id, but changes its counts.
+	(Boolean(chat.project_id) || eventKind === "project_change");
+
+// Sidebar lists leave out chats in projects the user has not pinned, unless
+// the chat itself is pinned. Without cached summaries, the list refetch
+// decides.
+const isInUnpinnedProject = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+): boolean =>
+	Boolean(chat.project_id) &&
+	chat.pin_order === 0 &&
+	queryClient
+		.getQueryData<TypesGen.ChatProjectSummary[]>(chatProjectSummariesKey)
+		?.find((summary) => summary.project.id === chat.project_id)?.pinned ===
+		false;
+
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (
 	chat: TypesGen.Chat,
@@ -139,6 +177,11 @@ export const chatCostIdToInvalidate = (
 const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
+	// Coalesces bursts of watch events into one summaries request.
+	const { debounced: invalidateProjectSummariesSoon } = useDebouncedFunction(
+		() => queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		1000,
+	);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -308,7 +351,9 @@ const AgentsPageLayout: React.FC = () => {
 		});
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatSearches(queryClient);
-	}, [agentId, queryClient]);
+		// Opening the chat marks it read, which changes its project's unread count.
+		invalidateProjectSummariesSoon();
+	}, [agentId, queryClient, invalidateProjectSummariesSoon]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
 			connect() {
@@ -333,6 +378,9 @@ const AgentsPageLayout: React.FC = () => {
 							updatedChat.id,
 							activeChatIdForWatch(),
 						);
+					}
+					if (shouldInvalidateProjectSummaries(updatedChat, chatEvent.kind)) {
+						invalidateProjectSummariesSoon();
 					}
 
 					if (chatEvent.kind === "deleted") {
@@ -390,7 +438,12 @@ const AgentsPageLayout: React.FC = () => {
 						} else {
 							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							prependToInfiniteChatsCache(queryClient, updatedChat, {
+								inUnpinnedProject: isInUnpinnedProject(
+									queryClient,
+									updatedChat,
+								),
+							});
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -443,6 +496,9 @@ const AgentsPageLayout: React.FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSummariesKey,
+				});
 				// Events missed while disconnected, such as
 				// diff_status_change, only reach the open chat's cache
 				// through a refetch.
@@ -453,7 +509,7 @@ const AgentsPageLayout: React.FC = () => {
 				}
 			},
 		});
-	}, [queryClient]);
+	}, [queryClient, invalidateProjectSummariesSoon]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
@@ -496,68 +552,70 @@ const AgentsPageLayout: React.FC = () => {
 	};
 
 	return (
-		<div
-			data-testid="agents-page-layout"
-			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
-		>
-			<title>{pageTitle("Agents")}</title>
-			<ResizableChatsSidebarFrame
-				className={cn(
-					"sm:h-full sm:min-h-0 sm:border-b-0",
-					agentId
-						? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b"
-						: isSettingsDetail
-							? "hidden sm:block shrink-0"
-							: "order-2 sm:order-0 flex-1 min-h-0 border-b sm:flex-none sm:border-t-0 sm:border-b-0",
-					isSidebarCollapsed && "sm:hidden",
-				)}
-			>
-				<ChatsSidebar
-					chats={chatList}
-					currentUserId={user.id}
-					chatErrorReasons={sidebarChatErrorReasons}
-					modelConfigs={organizationModels.models}
-					isLoadingModelConfigs={organizationModels.isLoading}
-					onArchiveSuccess={clearChatErrorReason}
-					navigateAfterArchive={navigateAfterArchive}
-					onRenameTitle={requestRenameTitle}
-					onProposeTitle={requestProposeTitle}
-					chatPendingRename={chatPendingRename}
-					onChatPendingRenameChange={setChatPendingRename}
-					onBeforeNewAgent={handleNewAgent}
-					isSearchDialogOpen={isSearchDialogOpen}
-					onSearchDialogOpenChange={setIsSearchDialogOpen}
-					isCreating={false}
-					isLoading={chatsQuery.isLoading}
-					loadError={chatsQuery.error}
-					onRetryLoad={() => void chatsQuery.refetch()}
-					hasNextPage={chatsQuery.hasNextPage}
-					onLoadMore={() => void chatsQuery.fetchNextPage()}
-					isFetchingNextPage={chatsQuery.isFetchingNextPage}
-					sidebarFilters={sidebarFilters}
-					onSidebarFiltersChange={setSidebarFilters}
-					onCollapse={() => setIsSidebarCollapsed(true)}
-					isPersonalModelOverridesEnabled={
-						personalModelOverridesQuery.data?.enabled
-					}
-					isAdmin={isAgentsAdmin}
-					canManageAgentSettings={canManageAgentSettings}
-				/>
-			</ResizableChatsSidebarFrame>
+		<MoveToUnpinnedProjectDialogProvider>
 			<div
-				data-testid="agents-main-panel"
-				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
-					isSettingsIndex ? "hidden sm:flex" : "flex",
-					!agentId &&
-						!isSettingsDetail &&
-						sidebarView.panel === "chats" &&
-						"contents sm:flex sm:flex-1 sm:flex-col",
-				)}
+				data-testid="agents-page-layout"
+				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 			>
-				<Outlet context={outletContextValue} />
+				<title>{pageTitle("Agents")}</title>
+				<ResizableChatsSidebarFrame
+					className={cn(
+						"sm:h-full sm:min-h-0 sm:border-b-0",
+						agentId
+							? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b"
+							: isSettingsDetail
+								? "hidden sm:block shrink-0"
+								: "order-2 sm:order-0 flex-1 min-h-0 border-b sm:flex-none sm:border-t-0 sm:border-b-0",
+						isSidebarCollapsed && "sm:hidden",
+					)}
+				>
+					<ChatsSidebar
+						chats={chatList}
+						currentUserId={user.id}
+						chatErrorReasons={sidebarChatErrorReasons}
+						modelConfigs={organizationModels.models}
+						isLoadingModelConfigs={organizationModels.isLoading}
+						onArchiveSuccess={clearChatErrorReason}
+						navigateAfterArchive={navigateAfterArchive}
+						onRenameTitle={requestRenameTitle}
+						onProposeTitle={requestProposeTitle}
+						chatPendingRename={chatPendingRename}
+						onChatPendingRenameChange={setChatPendingRename}
+						onBeforeNewAgent={handleNewAgent}
+						isSearchDialogOpen={isSearchDialogOpen}
+						onSearchDialogOpenChange={setIsSearchDialogOpen}
+						isCreating={false}
+						isLoading={chatsQuery.isLoading}
+						loadError={chatsQuery.error}
+						onRetryLoad={() => void chatsQuery.refetch()}
+						hasNextPage={chatsQuery.hasNextPage}
+						onLoadMore={() => void chatsQuery.fetchNextPage()}
+						isFetchingNextPage={chatsQuery.isFetchingNextPage}
+						sidebarFilters={sidebarFilters}
+						onSidebarFiltersChange={setSidebarFilters}
+						onCollapse={() => setIsSidebarCollapsed(true)}
+						isPersonalModelOverridesEnabled={
+							personalModelOverridesQuery.data?.enabled
+						}
+						isAdmin={isAgentsAdmin}
+						canManageAgentSettings={canManageAgentSettings}
+					/>
+				</ResizableChatsSidebarFrame>
+				<div
+					data-testid="agents-main-panel"
+					className={cn(
+						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
+						isSettingsIndex ? "hidden sm:flex" : "flex",
+						!agentId &&
+							!isSettingsDetail &&
+							sidebarView.panel === "chats" &&
+							"contents sm:flex sm:flex-1 sm:flex-col",
+					)}
+				>
+					<Outlet context={outletContextValue} />
+				</div>
 			</div>
-		</div>
+		</MoveToUnpinnedProjectDialogProvider>
 	);
 };
 export default AgentsPageLayout;
