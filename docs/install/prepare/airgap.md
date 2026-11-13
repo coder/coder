@@ -199,6 +199,8 @@ coder:
 # ...
 ```
 
+For a tutorial that stages every artifact and installs Coder on a single-node K3s cluster, refer to [Install Coder on K3s in an air-gapped environment](../server/kubernetes/k3s-air-gapped.md).
+
 </div>
 
 ## Air-gapped docs
