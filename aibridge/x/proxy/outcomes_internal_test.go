@@ -376,7 +376,7 @@ func TestForwardingStreamsAndCancels(t *testing.T) {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gateway.URL+"/openai/v1/chat/completions", strings.NewReader("request"))
 	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer user-secret-key")
+	req.Header.Set("Authorization", "Bearer "+userSecretKey)
 	resp, err := gateway.Client().Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -460,7 +460,7 @@ func TestForwardingAbortDoesNotTripBreaker(t *testing.T) {
 	send := func(ctx context.Context) *http.Response {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, gateway.URL+"/openai/v1/chat/completions", strings.NewReader("{}"))
 		require.NoError(t, err)
-		req.Header.Set("Authorization", "Bearer user-secret-key")
+		req.Header.Set("Authorization", "Bearer "+userSecretKey)
 		resp, err := gateway.Client().Do(req)
 		require.NoError(t, err)
 		return resp

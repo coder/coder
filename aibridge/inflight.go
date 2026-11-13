@@ -50,7 +50,7 @@ func (g *InflightGate) Middleware(next http.Handler) http.Handler {
 }
 
 // Admit returns nil, false after shutdown begins. Otherwise, release must be
-// called exactly once when the handler returns.
+// called exactly once when the admitted work ends.
 func (g *InflightGate) Admit() (release func(), ok bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
