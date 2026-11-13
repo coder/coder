@@ -996,8 +996,8 @@ describe("pending actions", () => {
 		editedMessageID: 3,
 		content: [{ type: "text", text: "c2" }],
 	};
-	// The edit deletes messages 3 and 4, which cleared the queued send, and
-	// stores message 5.
+	// The edit deletes messages 3 and 4, clears the queue that held the send,
+	// and stores message 5.
 	const storeEditResult = (store: ChatStore, afterRead?: () => void) =>
 		store.batch(() => {
 			store.resetHistoryFrom(3, 7);

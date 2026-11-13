@@ -519,8 +519,9 @@ export const createChatStore = (): ChatStore => {
 				// A queued row has one pending action, the latest. A chat has one
 				// row under edit, so a begin also replaces an earlier begin on
 				// another row, whose result can no longer show. A message edit
-				// deletes the messages after the edited one and clears the queue,
-				// so it replaces the earlier sends, whose results cannot show.
+				// deletes the edited message and those after it and clears the
+				// queue, so it replaces the earlier sends, whose results cannot
+				// show.
 				pendingEntries: [
 					...current.pendingEntries.filter(
 						({ action: earlier }) =>

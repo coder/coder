@@ -436,8 +436,8 @@ export const useChatStore = (
 			connect() {
 				// The server reads the chat after it receives the connection
 				// request, so the connection's first read holds the result of
-				// every request that resolved before this call. That read ends
-				// with its status event.
+				// every request that resolved before this call. Its status event
+				// follows its messages and queue.
 				const endResolvedActions = store.captureResolvedActions();
 				// The server sends the changes made at or after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
