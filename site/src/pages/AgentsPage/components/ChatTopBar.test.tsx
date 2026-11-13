@@ -260,7 +260,7 @@ describe("ChatTopBar archive state", () => {
 		{
 			projectState: "is archived",
 			archivedProjects: () => Promise.resolve([MockArchivedChatProject]),
-			hint: "Unarchive the project to restore this chat.",
+			hint: "Unarchive the project before restoring this chat.",
 		},
 		{
 			projectState: "is still loading",
