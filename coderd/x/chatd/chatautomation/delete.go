@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -34,10 +35,13 @@ func LockID(id uuid.UUID) int64 {
 	return database.GenLockID("chat-automation:" + id.String())
 }
 
+// cleanupTimeout bounds DeleteQueuedMessagesByChat.
+const cleanupTimeout = 30 * time.Second
+
 // LockByOwner takes the lock of every automation of the owner, in ID order,
 // and returns their IDs. The delete of a user calls it before the soft
-// delete, whose trigger removes the automations, and then passes the IDs to
-// DeleteQueuedMessages.
+// delete, whose trigger removes the automations, and passes the IDs to
+// DeleteQueuedMessagesByChat after the commit.
 func LockByOwner(ctx context.Context, tx database.Store, ownerID uuid.UUID) ([]uuid.UUID, error) {
 	//nolint:gocritic // The actor deletes a user and need not be able to read that user's automations.
 	ids, err := tx.GetChatAutomationIDsByOwnerID(dbauthz.AsChatd(ctx), ownerID)
@@ -54,9 +58,8 @@ func LockByOwner(ctx context.Context, tx database.Store, ownerID uuid.UUID) ([]u
 
 // DeleteQueuedMessages removes the queued messages of the automations from
 // their chats, in the transaction of the caller. The caller holds the lock of
-// each automation, so no run queues a message meanwhile. The automation rows
-// can be gone already. The chats are locked in chat ID order, after the
-// automation locks, as on every other path.
+// each automation, so no run queues a message meanwhile. The chats are locked
+// in chat ID order, after the automation locks, as on every other path.
 //
 // A chat in an invalid state refuses the removal, as it refuses every
 // transition but the reconcile: the error wraps chatstate.ErrInvalidState and
@@ -83,20 +86,9 @@ func DeleteQueuedMessages(
 	updates := chatstate.NewPublishBuffer(ps)
 	var resumed []database.Chat
 	for _, chatID := range chatIDs {
-		var result chatstate.DeleteQueuedMessagesByAutomationResult
-		err := chatstate.NewChatMachine(tx, updates, chatID).Update(chatdCtx, func(chatTx *chatstate.Tx, _ database.Store) error {
-			var err error
-			result, err = chatTx.DeleteQueuedMessagesByAutomation(chatstate.DeleteQueuedMessagesByAutomationInput{
-				AutomationIDs: automationIDs,
-			})
-			return err
-		})
-		if errors.Is(err, chatstate.ErrChatNotFound) {
-			// The chat went away after the read, and its queue with it.
-			continue
-		}
+		result, err := removeFromChat(chatdCtx, tx, updates, chatID, automationIDs)
 		if err != nil {
-			return nil, xerrors.Errorf("remove queued messages from chat %s: %w", chatID, err)
+			return nil, err
 		}
 		if result.Chat != nil {
 			resumed = append(resumed, *result.Chat)
@@ -116,6 +108,86 @@ func DeleteQueuedMessages(
 			}
 		}
 	}, nil
+}
+
+// DeleteQueuedMessagesByChat removes the queued messages of the automations
+// from their chats, one transaction per chat, and publishes each change after
+// its commit. The delete of a user calls it after the soft delete has
+// committed, so the automation rows are gone and no run queues a message
+// meanwhile. That transaction must not hold a chat row: the purge of old
+// chats holds chat rows and then waits for rows that the soft delete removes.
+//
+// A chat whose removal fails keeps its queued messages. The failure is logged
+// with the chat, and the other chats are still cleaned. Automations queue
+// messages into chats of their owner, and a chat of a deleted user cannot
+// start a turn, so a message that stays never runs.
+//
+// The soft delete has committed, so a caller that goes away must not stop the
+// cleanup: it does not end when ctx is canceled, and it ends after
+// cleanupTimeout.
+func DeleteQueuedMessagesByChat(
+	ctx context.Context,
+	logger slog.Logger,
+	db database.Store,
+	ps chatstate.Publisher,
+	automationIDs []uuid.UUID,
+) {
+	if len(automationIDs) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+	//nolint:gocritic // As in DeleteQueuedMessages.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	chatIDs, err := db.GetChatIDsWithQueuedMessagesByAutomationIDs(chatdCtx, automationIDs)
+	if err != nil {
+		logger.Warn(ctx, "get chats with queued messages of deleted automations", slog.Error(err))
+		return
+	}
+	for _, chatID := range chatIDs {
+		result, err := removeFromChat(chatdCtx, db, ps, chatID, automationIDs)
+		if err != nil {
+			logger.Warn(ctx, "remove queued messages of deleted automations",
+				slog.F("chat_id", chatID), slog.Error(err))
+			continue
+		}
+		if result.Chat == nil {
+			continue
+		}
+		if err := publishStatusChange(ps, *result.Chat); err != nil {
+			logger.Warn(ctx, "publish chat status change after automation queue cleanup",
+				slog.F("chat_id", chatID), slog.Error(err))
+		}
+	}
+}
+
+// removeFromChat removes the queued messages of the automations from one
+// chat. With a store that is not in a transaction, the chat machine opens one
+// for this chat and publishes the chat update after its commit. A chat that
+// is gone has no queue left, so it gives an empty result.
+func removeFromChat(
+	chatdCtx context.Context,
+	store database.Store,
+	ps chatstate.Publisher,
+	chatID uuid.UUID,
+	automationIDs []uuid.UUID,
+) (chatstate.DeleteQueuedMessagesByAutomationResult, error) {
+	var result chatstate.DeleteQueuedMessagesByAutomationResult
+	err := chatstate.NewChatMachine(store, ps, chatID).Update(chatdCtx, func(chatTx *chatstate.Tx, _ database.Store) error {
+		var err error
+		result, err = chatTx.DeleteQueuedMessagesByAutomation(chatstate.DeleteQueuedMessagesByAutomationInput{
+			AutomationIDs: automationIDs,
+		})
+		return err
+	})
+	if errors.Is(err, chatstate.ErrChatNotFound) {
+		// The chat went away after the read, and its queue with it.
+		return chatstate.DeleteQueuedMessagesByAutomationResult{}, nil
+	}
+	if err != nil {
+		return chatstate.DeleteQueuedMessagesByAutomationResult{}, xerrors.Errorf("remove queued messages from chat %s: %w", chatID, err)
+	}
+	return result, nil
 }
 
 func publishStatusChange(ps chatstate.Publisher, chat database.Chat) error {

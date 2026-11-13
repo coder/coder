@@ -31,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -719,31 +718,20 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	// The soft delete removes the automations of the user in a trigger. A
 	// run that holds an automation lock can queue a message until then, so
-	// the locks come first and the queue cleanup last. The cleanup locks
-	// chat rows, and it comes after the soft delete because other
-	// transactions lock rows that the trigger deletes, or the user row,
-	// before a chat row.
-	var publish func()
+	// the transaction takes the locks first. It locks no chat row: the
+	// purge of old chats holds chat rows and then waits for rows that the
+	// trigger deletes.
+	var automationIDs []uuid.UUID
 	err = api.Database.InTx(func(tx database.Store) error {
-		automationIDs, err := chatautomation.LockByOwner(ctx, tx, user.ID)
+		var err error
+		automationIDs, err = chatautomation.LockByOwner(ctx, tx, user.ID)
 		if err != nil {
 			return err
 		}
-		if err := tx.UpdateUserDeletedByID(ctx, user.ID); err != nil {
-			return err
-		}
-		publish, err = chatautomation.DeleteQueuedMessages(ctx, api.Logger, tx, api.Pubsub, automationIDs)
-		return err
+		return tx.UpdateUserDeletedByID(ctx, user.ID)
 	}, nil)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
-		return
-	}
-	if errors.Is(err, chatstate.ErrInvalidState) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "A chat that holds queued automation messages of this user is in an invalid state. Reconcile the chat, then delete the user again.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 	if err != nil {
@@ -753,7 +741,10 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	publish()
+	// The user is deleted. The queued messages of the automations go next,
+	// one chat per transaction. A failure there is logged and does not fail
+	// the request.
+	chatautomation.DeleteQueuedMessagesByChat(ctx, api.Logger, api.Database, api.Pubsub, automationIDs)
 	user.Deleted = true
 	aReq.New = user
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -16,12 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -59,6 +62,25 @@ func (f fixture) chat(t *testing.T) database.Chat {
 		OrganizationID: f.org.ID, OwnerID: f.owner.ID, LastModelConfigID: f.model.ID,
 		Status: database.ChatStatusRunning,
 	})
+}
+
+// chatWith inserts a chat with a given ID and status.
+func (f fixture) chatWith(t *testing.T, id uuid.UUID, status database.ChatStatus) database.Chat {
+	t.Helper()
+	return dbgen.Chat(t, f.db, database.Chat{
+		ID: id, OrganizationID: f.org.ID, OwnerID: f.owner.ID, LastModelConfigID: f.model.ID, Status: status,
+	})
+}
+
+// sortedChatIDs returns n new chat IDs in the order in which a cleanup locks
+// the chats.
+func sortedChatIDs(n int) []uuid.UUID {
+	ids := make([]uuid.UUID, n)
+	for i := range ids {
+		ids[i] = uuid.New()
+	}
+	slices.SortFunc(ids, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+	return ids
 }
 
 func (f fixture) automation(t *testing.T, target database.Chat) database.ChatAutomation {
@@ -337,10 +359,11 @@ func TestDeleteInvalidChat(t *testing.T) {
 	require.Empty(t, ps.channels)
 }
 
-// TestDeleteQueuedMessagesAfterOwnerDelete runs the steps of a user delete:
-// the automation locks, the soft delete, whose trigger removes the
-// automations, and then the queue cleanup by the IDs that were read first.
-func TestDeleteQueuedMessagesAfterOwnerDelete(t *testing.T) {
+// TestDeleteQueuedMessagesByChat runs the steps of a user delete: one
+// transaction with the automation locks and the soft delete, whose trigger
+// removes the automations, and after its commit the queue cleanup by the IDs
+// that were read first.
+func TestDeleteQueuedMessagesByChat(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
@@ -358,27 +381,31 @@ func TestDeleteQueuedMessagesAfterOwnerDelete(t *testing.T) {
 	queueRow(ctx, t, sqlDB, paused.ID, second.ID, true)
 	ps := &published{}
 
-	var publish func()
+	var ids []uuid.UUID
 	err := db.InTx(func(tx database.Store) error {
-		ids, err := chatautomation.LockByOwner(ctx, tx, f.owner.ID)
+		var err error
+		ids, err = chatautomation.LockByOwner(ctx, tx, f.owner.ID)
 		if err != nil {
 			return err
 		}
-		require.Equal(t, want, ids, "the locks are taken in automation ID order")
-		if err := tx.UpdateUserDeletedByID(ctx, f.owner.ID); err != nil {
-			return err
-		}
-		left, err := tx.GetChatAutomationIDsByOwnerID(ctx, f.owner.ID)
-		require.NoError(t, err)
-		require.Empty(t, left, "the trigger removed the automations")
-		still, err := tx.GetChatQueuedMessages(ctx, running.ID)
-		require.NoError(t, err)
-		require.Len(t, still, 3, "their queued messages are still there")
-		publish, err = chatautomation.DeleteQueuedMessages(ctx, testutil.Logger(t), tx, ps, ids)
-		return err
+		return tx.UpdateUserDeletedByID(ctx, f.owner.ID)
 	}, nil)
 	require.NoError(t, err)
-	publish()
+	require.Equal(t, want, ids, "the locks are taken in automation ID order")
+	left, err := db.GetChatAutomationIDsByOwnerID(ctx, f.owner.ID)
+	require.NoError(t, err)
+	require.Empty(t, left, "the trigger removed the automations")
+	require.Len(t, f.queued(ctx, t, running.ID), 3, "their queued messages are still there")
+
+	// The caller has gone away. The cleanup runs all the same, with a
+	// deadline of its own.
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	var cleanupCtx context.Context
+	chatautomation.DeleteQueuedMessagesByChat(gone, testutil.Logger(t), contextStore{Store: db, got: &cleanupCtx}, ps, ids)
+
+	_, bounded := cleanupCtx.Deadline()
+	require.True(t, bounded, "the cleanup has a deadline")
 
 	require.Equal(t, []uuid.UUID{uuid.Nil}, f.queued(ctx, t, running.ID))
 	require.Empty(t, f.queued(ctx, t, paused.ID))
@@ -388,6 +415,17 @@ func TestDeleteQueuedMessagesAfterOwnerDelete(t *testing.T) {
 	require.Len(t, ps.on(coderdpubsub.ChatStateUpdateChannel(running.ID)), 1)
 	require.Len(t, ps.on(coderdpubsub.ChatStateUpdateChannel(paused.ID)), 1)
 	require.Len(t, ps.on(coderdpubsub.ChatWatchEventChannel(f.owner.ID)), 1)
+}
+
+// contextStore keeps the context of the first read of a cleanup.
+type contextStore struct {
+	database.Store
+	got *context.Context
+}
+
+func (s contextStore) GetChatIDsWithQueuedMessagesByAutomationIDs(ctx context.Context, automationIDs []uuid.UUID) ([]uuid.UUID, error) {
+	*s.got = ctx
+	return s.Store.GetChatIDsWithQueuedMessagesByAutomationIDs(ctx, automationIDs)
 }
 
 // goneStore removes the automation behind the back of the transaction right
@@ -660,4 +698,171 @@ func TestDeleteLocksChatsBeforeAutomationRow(t *testing.T) {
 	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 	require.False(t, f.automationExists(ctx, t, automation.ID))
 	require.Empty(t, f.queued(ctx, t, first.ID))
+}
+
+// TestDeleteQueuedMessagesByChatKeepsGoing puts a chat that refuses the
+// removal before two other chats in chat ID order. The cleanup logs the
+// refusal with the chat and still cleans the others. One of them is a paused
+// chat whose next message cannot be promoted, because no model is left: its
+// cleanup does not fail, and the chat rests in error.
+func TestDeleteQueuedMessagesByChatKeepsGoing(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	f := newFixture(t, db, sqlDB)
+	ids := sortedChatIDs(3)
+	// A waiting chat with a queue is in an invalid state.
+	invalid := f.chatWith(t, ids[0], database.ChatStatusWaiting)
+	paused := f.chatWith(t, ids[1], database.ChatStatusPaused)
+	running := f.chatWith(t, ids[2], database.ChatStatusRunning)
+	automation := f.automation(t, running)
+	queue(ctx, t, sqlDB, invalid.ID, automation.ID)
+	queueRow(ctx, t, sqlDB, paused.ID, automation.ID, true)
+	queue(ctx, t, sqlDB, paused.ID, uuid.Nil)
+	queue(ctx, t, sqlDB, running.ID, automation.ID)
+	_, err := db.DeleteChatModelConfigByID(ctx, f.model.ID)
+	require.NoError(t, err)
+	sink := testutil.NewFakeSink(t)
+	ps := &published{}
+
+	chatautomation.DeleteQueuedMessagesByChat(ctx, sink.Logger(), db, ps, []uuid.UUID{automation.ID})
+
+	require.Equal(t, []uuid.UUID{automation.ID}, f.queued(ctx, t, invalid.ID))
+	require.Equal(t, []uuid.UUID{uuid.Nil}, f.queued(ctx, t, paused.ID))
+	require.Empty(t, f.queued(ctx, t, running.ID))
+	chat, err := db.GetChatByID(ctx, paused.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, chat.Status)
+	warnings := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
+	require.Len(t, warnings, 1)
+	fields := map[string]any{}
+	for _, field := range warnings[0].Fields {
+		fields[field.Name] = field.Value
+	}
+	require.Equal(t, invalid.ID, fields["chat_id"])
+	cause, ok := fields["error"].(error)
+	require.True(t, ok, "the warning carries the cause")
+	require.ErrorIs(t, cause, chatstate.ErrInvalidState)
+	require.Empty(t, ps.on(coderdpubsub.ChatStateUpdateChannel(invalid.ID)))
+	require.Len(t, ps.on(coderdpubsub.ChatStateUpdateChannel(running.ID)), 1)
+	require.Len(t, ps.on(coderdpubsub.ChatWatchEventChannel(f.owner.ID)), 1, "the paused chat changed its status")
+}
+
+// TestDeleteQueuedMessagesByChatCommitsEachChat holds the second chat in
+// another transaction. The removal from the first chat is committed while the
+// cleanup waits, so the cleanup never holds two chat rows.
+func TestDeleteQueuedMessagesByChatCommitsEachChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	f := newFixture(t, db, sqlDB)
+	ids := sortedChatIDs(2)
+	first := f.chatWith(t, ids[0], database.ChatStatusRunning)
+	second := f.chatWith(t, ids[1], database.ChatStatusRunning)
+	automation := f.automation(t, first)
+	queue(ctx, t, sqlDB, first.ID, automation.ID)
+	queue(ctx, t, sqlDB, second.ID, automation.ID)
+
+	holder, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, second.ID)
+	require.NoError(t, err)
+	done, finished := make(chan struct{}, 1), make(chan struct{})
+	go func() {
+		defer close(finished)
+		chatautomation.DeleteQueuedMessagesByChat(ctx, testutil.Logger(t), db, &published{}, []uuid.UUID{automation.ID})
+		done <- struct{}{}
+	}()
+	// A failed assertion releases the second chat, so the cleanup returns.
+	t.Cleanup(func() {
+		_ = holder.Rollback()
+		<-finished
+	})
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var n int
+		err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM chat_queued_messages WHERE chat_id = $1`, first.ID).Scan(&n)
+		return err == nil && n == 0
+	}, testutil.IntervalFast, "the removal from the first chat was not committed while the second chat was held")
+	require.Len(t, f.queued(ctx, t, second.ID), 1)
+
+	require.NoError(t, holder.Commit())
+	testutil.RequireReceive(ctx, t, done)
+	require.Empty(t, f.queued(ctx, t, second.ID))
+}
+
+// TestDeleteAndPurgeLockChatsInIDOrder runs Delete next to the purge of old
+// chats. Two archived chats hold a message of the automation, and the purge
+// deletes both. Delete holds the lower one and waits for a third chat when
+// the purge starts. A purge that locked the higher chat first would hold it
+// and wait for the lower one, and Delete would then wait for the higher one:
+// a lock cycle.
+func TestDeleteAndPurgeLockChatsInIDOrder(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	f := newFixture(t, db, sqlDB)
+	ids := sortedChatIDs(3)
+	// An error chat is valid with a queue, archived or not.
+	low := f.chatWith(t, ids[0], database.ChatStatusError)
+	between := f.chatWith(t, ids[1], database.ChatStatusError)
+	high := f.chatWith(t, ids[2], database.ChatStatusError)
+	// The higher chat is written first and is the older one, so a purge
+	// that follows the table or the age of the chats meets it first.
+	for i, id := range []uuid.UUID{high.ID, low.ID} {
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chats SET archived = true, updated_at = now() - make_interval(days => $2)
+			WHERE id = $1`, id, 2-i)
+		require.NoError(t, err)
+	}
+	automation := f.automation(t, between)
+	for _, chat := range []database.Chat{low, between, high} {
+		queue(ctx, t, sqlDB, chat.ID, automation.ID)
+	}
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, f.owner.ID, rbac.ScopeAll)
+	require.NoError(t, err)
+	waiting := func(want int) func(context.Context) bool {
+		return func(ctx context.Context) bool {
+			var n int
+			err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&n)
+			return err == nil && n == want
+		}
+	}
+
+	// A third transaction holds the chat in between, so Delete stops there
+	// with the lower chat locked.
+	holder, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, between.ID)
+	require.NoError(t, err)
+	var running sync.WaitGroup
+	// A failed assertion releases the chat in between, so both return.
+	t.Cleanup(func() {
+		_ = holder.Rollback()
+		running.Wait()
+	})
+	deleted, purged := make(chan error, 1), make(chan error, 1)
+	running.Add(1)
+	go func() {
+		defer running.Done()
+		_, err := chatautomation.Delete(ctx, testutil.Logger(t), authorized(t, db), &published{}, actor, f.org.ID, automation.ID)
+		deleted <- err
+	}()
+	testutil.Eventually(ctx, t, waiting(1), testutil.IntervalFast, "Delete never waited for the chat in between")
+
+	var purgedChats int64
+	running.Add(1)
+	go func() {
+		defer running.Done()
+		var err error
+		purgedChats, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{BeforeTime: dbtime.Now().Add(-time.Hour), LimitCount: 10})
+		purged <- err
+	}()
+	testutil.Eventually(ctx, t, waiting(2), testutil.IntervalFast, "the purge never waited for a chat")
+
+	require.NoError(t, holder.Commit())
+	require.NoError(t, testutil.RequireReceive(ctx, t, deleted))
+	require.NoError(t, testutil.RequireReceive(ctx, t, purged))
+	require.EqualValues(t, 2, purgedChats)
+	require.False(t, f.automationExists(ctx, t, automation.ID))
+	require.Empty(t, f.queued(ctx, t, between.ID))
 }

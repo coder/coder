@@ -714,28 +714,75 @@ func TestDeleteUserChatAutomations(t *testing.T) {
 		require.True(t, env.exists(t, automation.ID))
 	})
 
+	// A chat that refuses the cleanup keeps its queued message. The delete
+	// succeeds as it does without automations, and the other chat is
+	// cleaned.
 	t.Run("InvalidChat", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		env := newChatAutomationEnv(t, nil)
 		_, user := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID)
 		automation := env.automation(t, database.ChatAutomation{OwnerID: user.ID})
-		chat := env.queuedChat(t, user.ID, database.ChatStatusWaiting, automation.ID)
+		// A waiting chat with a queue is in an invalid state.
+		invalid := env.queuedChat(t, user.ID, database.ChatStatusWaiting, automation.ID)
+		valid := env.queuedChat(t, user.ID, database.ChatStatusRunning, automation.ID)
 
-		err := env.owner.DeleteUser(ctx, user.ID)
+		require.NoError(t, env.owner.DeleteUser(ctx, user.ID))
 
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "invalid state")
-		require.Contains(t, apiErr.Detail, chat.ID.String())
-		kept, err := env.owner.User(ctx, user.ID.String())
-		require.NoError(t, err)
-		require.Equal(t, user.ID, kept.ID)
-		require.True(t, env.exists(t, automation.ID))
-		left, _ := env.queued(t, chat.ID)
+		require.False(t, env.exists(t, automation.ID))
+		left, _ := env.queued(t, invalid.ID)
 		require.Equal(t, 1, left)
+		left, _ = env.queued(t, valid.ID)
+		require.Zero(t, left)
 	})
+}
+
+// TestDeleteUserCommitsBeforeChatLock deletes a user while another
+// transaction holds a chat with a queued message of the user's automation, as
+// the purge of old chats does when it deletes that chat. The soft delete must
+// commit without the chat row: the purge goes on to update the automations
+// that name the chat, which the soft delete removes, so a soft delete that
+// waited for the chat would form a lock cycle with it.
+func TestDeleteUserCommitsBeforeChatLock(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newChatAutomationEnv(t, nil)
+	_, user := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID)
+	chat := env.queuedChat(t, user.ID, database.ChatStatusRunning)
+	automation := env.automation(t, database.ChatAutomation{
+		OwnerID: user.ID, TargetChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
+	})
+	env.exec(t, `INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id, input_id)
+		VALUES ($1, '[]', $2, $3, $4)`, chat.ID, user.ID, automation.ID, uuid.New())
+
+	holder, err := env.sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chat.ID)
+	require.NoError(t, err)
+	done, finished := make(chan error, 1), make(chan struct{})
+	go func() {
+		defer close(finished)
+		done <- env.owner.DeleteUser(ctx, user.ID)
+	}()
+	// A failed assertion releases the chat, so the delete returns.
+	t.Cleanup(func() {
+		_ = holder.Rollback()
+		<-finished
+	})
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var deleted bool
+		var automations int
+		err := env.sqlDB.QueryRowContext(ctx, `SELECT deleted, (SELECT count(*) FROM chat_automations WHERE owner_id = $1)
+			FROM users WHERE id = $1`, user.ID).Scan(&deleted, &automations)
+		return err == nil && deleted && automations == 0
+	}, testutil.IntervalFast, "the soft delete did not commit while another transaction held the chat")
+
+	// What DeleteOldChats does to one chat row. The statement also sets
+	// target_chat_id to NULL in the automations that name the chat.
+	_, err = holder.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, chat.ID)
+	require.NoError(t, err)
+	require.NoError(t, holder.Commit())
+	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 }
 
 // TestDeleteUserChatAutomationLocks deletes a user while another transaction
