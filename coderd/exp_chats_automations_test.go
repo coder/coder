@@ -34,8 +34,8 @@ func (s deleteBeforeSwitchWrite) UpdateChatManageAutomationsEnabledByID(ctx cont
 }
 
 // TestChatManageAutomationsSwitch covers the chat switch of the
-// manage_automations tool: its starting value, who can change it, and what the
-// experiment changes.
+// manage_automations tool: its starting value, who can change it, which chats a
+// change reaches, and what the experiment changes.
 func TestChatManageAutomationsSwitch(t *testing.T) {
 	t.Parallel()
 
@@ -71,11 +71,15 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _, first := newClient(t, true)
 		chat := create(t, client, first)
+		sibling := create(t, client, first)
 		require.True(t, chat.ManageAutomationsEnabled)
+		require.True(t, sibling.ManageAutomationsEnabled)
 
 		for _, enabled := range []bool{false, true} {
 			require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(enabled)}))
 			require.Equal(t, enabled, getChat(ctx, t, client, chat.ID).ManageAutomationsEnabled)
+			// The write reaches the chat of the request, not the owner's other chats.
+			require.True(t, getChat(ctx, t, client, sibling.ID).ManageAutomationsEnabled)
 		}
 	})
 

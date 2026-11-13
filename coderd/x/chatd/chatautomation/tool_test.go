@@ -68,12 +68,15 @@ func (e toolEnv) tool(t *testing.T, owner database.User) fantasy.AgentTool {
 	})
 }
 
-// call runs one tool call. Every result must be free of the webhook secret.
+// call runs one tool call. Every result must be free of the webhook secret,
+// in the text the model reads and in the metadata that the chat stores for the
+// user.
 func (e toolEnv) call(t *testing.T, tool fantasy.AgentTool, input string) fantasy.ToolResponse {
 	t.Helper()
 	resp, err := tool.Run(testutil.Context(t, testutil.WaitLong), fantasy.ToolCall{ID: "call", Name: chatautomation.ToolName, Input: input})
 	require.NoError(t, err)
 	require.Zero(t, strings.Count(resp.Content, e.canary), "the webhook secret is in a tool result")
+	require.Zero(t, strings.Count(resp.Metadata, e.canary), "the webhook secret is in the tool metadata")
 	return resp
 }
 
@@ -297,15 +300,16 @@ func TestToolSubjectLoadedPerCall(t *testing.T) {
 }
 
 // TestToolUnknownAction answers every action but list and get with an error
-// that names the actions.
+// that names the actions, also when the call carries the id of an automation.
 func TestToolUnknownAction(t *testing.T) {
 	t.Parallel()
 	e := newToolEnv(t)
+	own := e.automation(t, e.member, "own prompt")
 
 	for _, action := range []string{"create", "update", "enable", "disable", "delete", "run_now", "", "LIST"} {
 		t.Run("Action"+action, func(t *testing.T) {
 			t.Parallel()
-			input, err := json.Marshal(map[string]string{"action": action})
+			input, err := json.Marshal(map[string]string{"action": action, "id": own.ID.String()})
 			require.NoError(t, err)
 			resp := e.run(t, e.member, string(input))
 			require.True(t, resp.IsError)
