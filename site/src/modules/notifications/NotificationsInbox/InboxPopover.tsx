@@ -56,6 +56,8 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283
 				 */}
 				<ScrollArea
+					// Keep focused items clear of the sticky header.
+					viewportClassName="scroll-pt-15"
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
@@ -69,7 +71,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<span className="text-xl font-semibold">Inbox</span>
+							<h2 className="m-0 text-xl font-semibold">Inbox</h2>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 
