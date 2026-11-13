@@ -853,23 +853,25 @@ This endpoint uses no transition and writes nothing to the chat. Only the chat o
 
 ### Chat automation queue cleanup
 
-A queued message can name the automation that queued it (`chat_queued_messages.automation_id`). When an automation is deleted (`DELETE /api/experimental/organizations/{organization}/chats/automations/{automation}`), or when its owner is deleted (`DELETE /api/v2/users/{user}`), the same transaction removes those messages with `DeleteQueuedMessagesByAutomation`. A deleted automation leaves no queued message.
+A queued message can name the automation that queued it (`chat_queued_messages.automation_id`). When an automation is deleted (`DELETE /api/experimental/organizations/{organization}/chats/automations/{automation}`), the same transaction removes those messages with `DeleteQueuedMessagesByAutomation`, so a deleted automation leaves no queued message. When the owner of automations is deleted (`DELETE /api/v2/users/{user}`), the messages go in a second step after the soft delete, as described below.
 
-Every path that runs or changes an automation takes its locks in this order:
+Every transaction that runs or changes an automation takes its locks in this order:
 
 1. The advisory lock of each automation, in automation ID order.
 2. The row lock of each chat that holds such a message, in chat ID order, with the `snapshot_version` bump of every transition.
 3. The write of the automation row.
 
-The automation row comes last because the purge of old chats locks a chat row first: it deletes the chat, and the same statement clears `target_chat_id` and `created_by_chat_id` in the automations that name it. A transaction that held an automation row while it waited for a chat row would form a lock cycle with the purge. So the delete of an automation removes the queued messages first and its row last.
+The automation row comes last because the purge of old chats locks a chat row first: it deletes the chat, and the same statement clears `target_chat_id` and `created_by_chat_id` in the automations that name it. A transaction that held an automation row while it waited for a chat row would form a lock cycle with the purge. So the delete of an automation removes the queued messages first and its row last. The purge locks the chats of one batch in chat ID order too, so it forms no cycle with a transaction that holds one chat and waits for another.
 
 A run takes the automation lock before it queues a message. A run that holds the lock commits first, and the cleanup removes its message. A later run waits for the lock and then finds no automation.
 
-The delete of a user soft deletes the user between the two steps. The soft delete trigger removes the automation rows, and rows of other tables such as `api_keys`. Other transactions lock one of those rows, or the user row, before a chat row, so the chat rows come last. A queued message has no foreign key to its automation, so the messages are still there for the second step.
+The delete of a user cannot follow that order in one transaction. The soft delete trigger removes the automation rows, so it would have to come after the chat locks. It also deletes rows of other tables such as `api_keys`, which the purge locks before it locks chat rows. So the delete of a user takes two steps. The first transaction takes the automation locks and soft deletes the user, and it locks no chat row. After its commit, the cleanup removes the queued messages of those automations, one chat per transaction. A queued message has no foreign key to its automation, so the messages are still there for the second step. No run queues another one, because the automations are gone.
+
+The second step does not fail the delete of the user. A chat whose cleanup fails, for example a chat in an invalid state, keeps its queued messages, and the server logs a warning with the chat. The messages also stay when the server stops between the two steps. They never run: the chats belong to the deleted user, and a turn in such a chat stops when it cannot create an API key for the user.
 
 The transitions run as chatd: the cleanup must not depend on what the caller can do to a chat. They need chatstate and pubsub only, so the cleanup also works on a replica without a chat worker. The notifications go out after the transaction commits: `chat:update` for each changed chat, and the watch event of a status change for each chat that left `P`.
 
-A chat in an invalid state refuses the transition, as it refuses every transition but `ReconcileInvalidState`. The delete then answers `409`, names the chat, and changes nothing.
+A chat in an invalid state refuses the transition, as it refuses every transition but `ReconcileInvalidState`. The delete of an automation then answers `409`, names the chat, and changes nothing. The delete of a user skips that chat, as described above.
 
 ## Pubsub
 
