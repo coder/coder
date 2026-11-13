@@ -34,6 +34,46 @@ func TestBuilder(t *testing.T) {
 		require.ErrorContains(t, err, "no loggers provided, use /dev/null to disable logging")
 	})
 
+	t.Run("DisabledWithoutOtherSinks", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name    string
+			options []clilog.Option
+		}{
+			{name: "HumanDevNull", options: []clilog.Option{clilog.WithHuman("/dev/null")}},
+			{name: "HumanEmpty", options: []clilog.Option{clilog.WithHuman("")}},
+			{name: "JSONDevNull", options: []clilog.Option{clilog.WithJSON("/dev/null")}},
+			{name: "JSONEmpty", options: []clilog.Option{clilog.WithJSON("")}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var stderr bytes.Buffer
+				inv := (&serpent.Command{
+					Use:     "test",
+					Handler: testHandler(t, tc.options...),
+				}).Invoke()
+				inv.Stderr = &stderr
+				require.NoError(t, inv.Run())
+				require.Empty(t, stderr.String())
+			})
+		}
+	})
+
+	t.Run("DevNullHumanWithJSON", func(t *testing.T) {
+		t.Parallel()
+
+		tempJSON := filepath.Join(t.TempDir(), "test.json")
+		cmd := &serpent.Command{
+			Use:     "test",
+			Handler: testHandler(t, clilog.WithHuman("/dev/null"), clilog.WithJSON(tempJSON), clilog.WithVerbose()),
+		}
+		err := cmd.Invoke().Run()
+		require.NoError(t, err)
+		assertLogsJSON(t, tempJSON, debug, debugLog, info, infoLog, warn, warnLog, debug, filterLog)
+	})
+
 	t.Run("Verbose", func(t *testing.T) {
 		t.Parallel()
 
@@ -122,6 +162,22 @@ func TestBuilder(t *testing.T) {
 
 			assertLogs(t, stdoutPath, "")
 			assertLogs(t, stderrPath, infoLog, warnLog)
+		})
+
+		t.Run("DevNullHuman", func(t *testing.T) {
+			t.Parallel()
+
+			var stderr bytes.Buffer
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.Logging.Human = serpent.String("/dev/null")
+			})
+			inv := (&serpent.Command{
+				Use:     "test",
+				Handler: testHandler(t, clilog.FromDeploymentValues(dv)),
+			}).Invoke()
+			inv.Stderr = &stderr
+			require.NoError(t, inv.Run())
+			require.Empty(t, stderr.String())
 		})
 
 		t.Run("Override", func(t *testing.T) {
