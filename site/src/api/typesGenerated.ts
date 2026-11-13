@@ -11360,8 +11360,9 @@ export interface UpdateSkillRequest {
 	readonly action?: boolean;
 	/**
 	 * ModelInvocable is left unchanged when unset, unless the new content
-	 * frontmatter has `disable-model-invocation: true`, which turns it off.
-	 * The server removes that frontmatter key before storing the content.
+	 * frontmatter sets `disable-model-invocation` to a boolean: true turns it
+	 * off and false turns it on. The server removes that frontmatter key
+	 * before storing the content.
 	 */
 	readonly model_invocable?: boolean;
 }

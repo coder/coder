@@ -2,6 +2,7 @@ package skills
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -150,13 +151,17 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 const disableModelInvocationKey = "disable-model-invocation"
 
 // RemoveDisableModelInvocation removes the top-level disable-model-invocation
-// key from the frontmatter of raw skill Markdown, and reports whether the key
-// was the YAML boolean true. Stored skills keep that setting in their
-// model_invocable column, so removing the key keeps the stored file from
-// disagreeing with the column. raw should already have passed
-// ParsePersonalSkillMarkdown. When the key is absent, or cannot be removed
-// line by line (for example, a quoted key), content is raw unchanged.
-func RemoveDisableModelInvocation(raw string) (content string, disabled bool) {
+// key from the frontmatter of raw skill Markdown. disable is the key's value
+// when it is a YAML boolean, and nil when the key is absent or holds any
+// other value. Stored skills keep that setting in their model_invocable
+// column, so removing the key keeps the stored file from disagreeing with
+// the column. raw should already have passed ParsePersonalSkillMarkdown.
+//
+// The key is found through the parsed YAML, so quoted and spaced spellings
+// count. content is raw unchanged when the key is absent, or when removing
+// its lines would change any other frontmatter field, as in flow-style
+// frontmatter such as {name: x, disable-model-invocation: true}.
+func RemoveDisableModelInvocation(raw string) (content string, disable *bool) {
 	const bom = "\xef\xbb\xbf"
 	prefix := ""
 	rest := raw
@@ -167,7 +172,7 @@ func RemoveDisableModelInvocation(raw string) (content string, disabled bool) {
 	// the original bytes, including CRLF line endings.
 	lines := strings.SplitAfter(rest, "\n")
 	if strings.TrimSpace(lines[0]) != "---" {
-		return raw, false
+		return raw, nil
 	}
 	closingIdx := -1
 	for i := 1; i < len(lines); i++ {
@@ -177,49 +182,84 @@ func RemoveDisableModelInvocation(raw string) (content string, disabled bool) {
 		}
 	}
 	if closingIdx < 0 {
-		return raw, false
+		return raw, nil
 	}
 
 	frontmatter := lines[1:closingIdx]
-	value, ok, err := frontmatterValue(frontmatter, disableModelInvocationKey)
-	if err != nil || !ok {
-		return raw, false
+	start, end, disable, ok := disableModelInvocationLines(frontmatter)
+	if !ok {
+		return raw, nil
 	}
-	disabled, _ = value.(bool)
+	kept := append(slices.Clone(frontmatter[:start]), frontmatter[end:]...)
+	if !sameFrontmatterWithoutKey(frontmatter, kept, disableModelInvocationKey) {
+		return raw, disable
+	}
+	return prefix + lines[0] + strings.Join(kept, "") + strings.Join(lines[closingIdx:], ""), disable
+}
 
-	kept := make([]string, 0, len(frontmatter))
-	for i := 0; i < len(frontmatter); i++ {
-		if !strings.HasPrefix(frontmatter[i], disableModelInvocationKey+":") {
-			kept = append(kept, frontmatter[i])
+// disableModelInvocationLines finds the disable-model-invocation key in the
+// top-level mapping of frontmatter lines. It returns the half-open range of
+// lines that hold the key and its value, and the value when it is a YAML
+// boolean. ok is false when the frontmatter does not parse or lacks the key.
+func disableModelInvocationLines(frontmatter []string) (start, end int, disable *bool, ok bool) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(strings.Join(frontmatter, "")), &doc); err != nil {
+		return 0, 0, nil, false
+	}
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return 0, 0, nil, false
+	}
+	mapping := doc.Content[0].Content
+	for i := 0; i+1 < len(mapping); i += 2 {
+		key, value := mapping[i], mapping[i+1]
+		if key.Kind != yaml.ScalarNode || key.Value != disableModelInvocationKey {
 			continue
 		}
-		// Skip the indented continuation lines of a multi-line value.
-		for i+1 < len(frontmatter) && isYAMLContinuationLine(frontmatter[i+1]) {
-			i++
+		if value.Kind == yaml.ScalarNode && value.ShortTag() == "!!bool" {
+			var b bool
+			if err := value.Decode(&b); err == nil {
+				disable = &b
+			}
 		}
+		// yaml.Node lines are 1-based. The value ends where the next key
+		// starts; unindented comments and blank lines just before that key
+		// belong to it.
+		start, end = key.Line-1, len(frontmatter)
+		if i+2 < len(mapping) {
+			end = mapping[i+2].Line - 1
+		}
+		for end > start+1 && isTopLevelCommentOrBlank(frontmatter[end-1]) {
+			end--
+		}
+		if start < 0 || end > len(frontmatter) || start >= end {
+			return 0, 0, disable, false
+		}
+		return start, end, disable, true
 	}
-	if _, stillSet, err := frontmatterValue(kept, disableModelInvocationKey); err != nil || stillSet {
-		return raw, disabled
-	}
-
-	return prefix + lines[0] + strings.Join(kept, "") + strings.Join(lines[closingIdx:], ""), disabled
+	return 0, 0, nil, false
 }
 
-// frontmatterValue decodes frontmatter lines as a YAML mapping and returns
-// the value of key.
-func frontmatterValue(lines []string, key string) (value any, ok bool, err error) {
-	var frontmatter map[string]any
-	if err := yaml.Unmarshal([]byte(strings.Join(lines, "")), &frontmatter); err != nil {
-		return nil, false, xerrors.Errorf("parse frontmatter YAML: %w", err)
+// sameFrontmatterWithoutKey reports whether kept decodes to the same YAML
+// mapping as original with key removed, and no longer has key.
+func sameFrontmatterWithoutKey(original, kept []string, key string) bool {
+	var want, got map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(original, "")), &want); err != nil {
+		return false
 	}
-	value, ok = frontmatter[key]
-	return value, ok, nil
+	if err := yaml.Unmarshal([]byte(strings.Join(kept, "")), &got); err != nil {
+		return false
+	}
+	delete(want, key)
+	if len(want) == 0 && len(got) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(want, got)
 }
 
-// isYAMLContinuationLine reports whether line continues the value of the
-// previous top-level key: it is blank or indented.
-func isYAMLContinuationLine(line string) bool {
-	return strings.TrimSpace(line) == "" || strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+// isTopLevelCommentOrBlank reports whether line is blank or a comment that
+// starts in the first column.
+func isTopLevelCommentOrBlank(line string) bool {
+	return strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#")
 }
 
 // SourceSkills holds the skills found in one source.

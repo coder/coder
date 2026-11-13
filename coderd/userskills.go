@@ -427,17 +427,17 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 }
 
 // storedSkillContent removes disable-model-invocation from uploaded skill
-// content so the stored file cannot disagree with the model_invocable
-// column. When the request leaves model_invocable unset, a
-// disable-model-invocation: true line in the content turns it off, matching
-// how Claude Code, Cursor, and VS Code read the same file. An explicit
-// model_invocable always wins, and content without the line leaves the
+// content and keeps the setting in the model_invocable column instead. When
+// the request leaves model_invocable unset, a YAML boolean in the key sets
+// it, matching how Claude Code, Cursor, and VS Code read the same file:
+// true turns automatic use off and false turns it on. An explicit
+// model_invocable always wins, and content without a boolean key leaves the
 // setting unchanged.
 func storedSkillContent(content string, requested *bool) (string, sql.NullBool) {
-	stored, disabled := skills.RemoveDisableModelInvocation(content)
+	stored, disable := skills.RemoveDisableModelInvocation(content)
 	modelInvocable := nullBool(requested)
-	if !modelInvocable.Valid && disabled {
-		modelInvocable = sql.NullBool{Bool: false, Valid: true}
+	if !modelInvocable.Valid && disable != nil {
+		modelInvocable = sql.NullBool{Bool: !*disable, Valid: true}
 	}
 	return stored, modelInvocable
 }

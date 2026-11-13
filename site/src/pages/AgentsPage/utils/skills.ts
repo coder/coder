@@ -307,35 +307,36 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	return `${frontmatter.join("\n")}\n${body}\n`;
 };
 
+const isManualOnlyMarkdown = (content: string): boolean => {
+	const parsed = tryParseSkillMarkdown(content);
+	return parsed.ok && parsed.values.modelInvocable === false;
+};
+
 /**
  * Returns the SKILL.md file to download for a skill. A manual-only skill gets
  * `disable-model-invocation: true` in its frontmatter, so Claude Code, Cursor,
  * and VS Code treat the file as manual-only too, and re-importing it keeps the
- * setting. Content the marker would push past the size limit is returned
- * unchanged so it can still be re-imported.
+ * setting. The content is returned unchanged when it already marks the skill
+ * manual-only, or when the marker would make it unparseable (for example, a
+ * duplicate key spelled differently) or push it past the size limit.
  */
 export const skillFileContent = (skill: Skill): string => {
 	const { content } = skill;
-	if (skill.model_invocable) {
+	if (skill.model_invocable || isManualOnlyMarkdown(content)) {
 		return content;
 	}
 	const split = splitSkillMarkdown(content);
 	if (!split || split.closingIndex < 0) {
 		return content;
 	}
-	const { bom, lines, closingIndex } = split;
-	const frontmatter = lines.slice(1, closingIndex);
-	if (
-		frontmatter.some((line) => line.startsWith("disable-model-invocation:"))
-	) {
-		return content;
-	}
+	const { bom, lines } = split;
 	const lineEnding = lines[0].endsWith("\r") ? "\r" : "";
 	lines.splice(1, 0, `disable-model-invocation: true${lineEnding}`);
 	const marked = `${bom}${lines.join("\n")}`;
-	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
-		? content
-		: marked;
+	return getSkillContentSizeBytes(marked) <= SKILL_MAX_SIZE_BYTES &&
+		isManualOnlyMarkdown(marked)
+		? marked
+		: content;
 };
 
 /**
