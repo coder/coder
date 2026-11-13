@@ -143,10 +143,15 @@ var mediaByRoute = map[mediaRoute]routeMedia{
 	{provider: database.AIProviderTypeOpenai, transport: fantasyopenai.Name}: {
 		images: commonImageTypes, pdf: true, audio: true,
 	},
+	// Azure takes the Responses API only when a model config forces it, and
+	// its PDF support there is not verified.
+	{provider: database.AIProviderTypeAzure, transport: fantasyopenai.Name, responses: true}: {
+		images: commonImageTypes,
+	},
 	// Azure Chat Completions rejects file content parts with HTTP 400, and
 	// Gemini's OpenAI-compatible endpoint does not process them, so neither
 	// route takes PDFs.
-	{provider: database.AIProviderTypeAzure, transport: fantasyopenaicompat.Name}: {
+	{provider: database.AIProviderTypeAzure, transport: fantasyopenai.Name}: {
 		images: commonImageTypes, audio: true,
 	},
 	{provider: database.AIProviderTypeGoogle, transport: fantasyopenaicompat.Name}: {
@@ -558,7 +563,7 @@ func bedrockIsAnthropicModel(model string) bool {
 // ClientProvider returns the fantasy provider whose client chatd builds for a
 // model on an AI provider of the given type. Bedrock serves Claude models in
 // the Anthropic Messages format and other models through the OpenAI Responses
-// API.
+// API. Azure OpenAI serves the OpenAI API, so it shares the OpenAI client.
 func ClientProvider(providerType database.AIProviderType, model string) string {
 	switch providerType {
 	case database.AIProviderTypeAnthropic:
@@ -570,7 +575,7 @@ func ClientProvider(providerType database.AIProviderType, model string) string {
 			return fantasyanthropic.Name
 		}
 		return fantasyopenai.Name
-	case database.AIProviderTypeOpenai:
+	case database.AIProviderTypeOpenai, database.AIProviderTypeAzure:
 		return fantasyopenai.Name
 	default:
 		return fantasyopenaicompat.Name
@@ -771,6 +776,9 @@ func effectiveOpenAIConfig(callConfig *codersdk.ChatModelCallConfig) *codersdk.C
 // HTTP headers on every request. httpClient, when non-nil, is used for
 // all provider HTTP requests. callConfig carries the model's client-scoped
 // OpenAI settings applied here: the transport override and reasoning mode.
+// Callers must validate the reasoning mode against the configured AI provider
+// type with chatopenai.ValidateReasoningMode, because providerHint names the
+// client, and Azure and Bedrock share the OpenAI client.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -785,9 +793,6 @@ func ModelFromConfig(
 		return Model{}, err
 	}
 
-	if err := chatopenai.ValidateReasoningMode(provider, callConfig); err != nil {
-		return Model{}, err
-	}
 	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)

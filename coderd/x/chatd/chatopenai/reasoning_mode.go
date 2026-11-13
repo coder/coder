@@ -14,11 +14,13 @@ func ReasoningMode(config *codersdk.ChatModelCallConfig) *string {
 	return config.ProviderOptions.OpenAI.ReasoningMode
 }
 
-// ValidateReasoningMode checks an explicit mode against the provider and the
-// OpenAI overrides it cannot coexist with. Model support is not checked here:
+// ValidateReasoningMode checks an explicit mode against the configured AI
+// provider type and the OpenAI overrides it cannot coexist with. The provider
+// type is the vendor, not the client: Azure and Bedrock share the OpenAI
+// client but do not accept the mode. Model support is not checked here:
 // OpenAI rejects the request when the model lacks the mode, and a model
 // released after this code still works.
-func ValidateReasoningMode(provider string, config *codersdk.ChatModelCallConfig) error {
+func ValidateReasoningMode(providerType codersdk.AIProviderType, config *codersdk.ChatModelCallConfig) error {
 	mode := ReasoningMode(config)
 	if mode == nil {
 		return nil
@@ -26,7 +28,7 @@ func ValidateReasoningMode(provider string, config *codersdk.ChatModelCallConfig
 	if *mode != "pro" {
 		return xerrors.New("provider_options.openai.reasoning_mode must be pro")
 	}
-	if provider != "openai" {
+	if providerType != codersdk.AIProviderTypeOpenAI {
 		return xerrors.New("provider_options.openai.reasoning_mode requires an OpenAI provider")
 	}
 	if openAIConfig := config.OpenAIConfig; openAIConfig != nil {

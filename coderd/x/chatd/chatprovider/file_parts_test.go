@@ -72,9 +72,14 @@ func TestRouteMedia(t *testing.T) {
 			rejects: []string{"text/plain"},
 		},
 		{
-			name: "Azure", transport: "openai-compat", provider: "azure",
+			name: "AzureChatCompletions", transport: "openai", provider: "azure", modelID: "gpt-6-luna", override: &forceCompletions,
 			accepts: []string{"image/jpeg", "image/gif", "audio/mpeg"},
 			rejects: []string{"image/heic", "image/bmp", "image/svg+xml", "application/pdf", "text/plain", "application/json"},
+		},
+		{
+			name: "AzureForcedResponses", transport: "openai", provider: "azure", modelID: "gpt-6-luna", override: &forceResponses,
+			accepts: []string{"image/png", "image/webp"},
+			rejects: []string{"image/heic", "application/pdf", "text/plain", "audio/mpeg"},
 		},
 		{
 			name: "Google", transport: "openai-compat", provider: "google",

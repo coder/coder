@@ -103,7 +103,7 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 		{name: "OpenAICompat", providerType: database.AIProviderTypeOpenaiCompat, model: "qwen/qwen3", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-opus-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
 		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
-		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-4o", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-4o", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "Copilot", providerType: database.AIProviderTypeCopilot, model: "gpt-4o", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "BedrockAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-5", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
 		{name: "BedrockClaudeAlias", providerType: database.AIProviderTypeBedrock, model: "claude-sonnet-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
@@ -665,14 +665,17 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 	forceCompletions := false
 
 	tests := []struct {
-		name     string
-		model    string
-		override *bool
-		wantPath string
+		name         string
+		providerType database.AIProviderType
+		model        string
+		override     *bool
+		wantPath     string
 	}{
-		{name: "ForceResponsesOnUnknownModel", model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
-		{name: "ForceCompletionsOnKnownModel", model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
-		{name: "UnsetKeepsKnownModelList", model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+		{name: "ForceResponsesOnUnknownModel", providerType: database.AIProviderTypeOpenai, model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
+		{name: "ForceCompletionsOnKnownModel", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
+		{name: "UnsetKeepsKnownModelList", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+		{name: "AzureUnsetUsesChatCompletions", providerType: database.AIProviderTypeAzure, model: "gpt-6-luna", override: nil, wantPath: "/v1/chat/completions"},
+		{name: "AzureForceResponses", providerType: database.AIProviderTypeAzure, model: "gpt-6-luna", override: &forceResponses, wantPath: "/v1/responses"},
 	}
 
 	for _, tt := range tests {
@@ -681,7 +684,7 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 
 			paths := make(chan string, 1)
 			server := newServer(t, paths)
-			provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+			provider := aibridgeTestAIProvider(uuid.New(), "primary", tt.providerType)
 			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
 			req.CallConfig = callConfig(tt.override)
 
@@ -738,6 +741,25 @@ func TestAIGatewayModelChatCompletionsTokenLimitField(t *testing.T) {
 					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{MaxCompletionTokens: new(int64(16384))},
 				},
 			},
+			wantField:   "max_completion_tokens",
+			wantLimit:   16384,
+			absentField: "max_tokens",
+		},
+		{
+			name:         "AzureUnknownReasoningModel",
+			providerType: database.AIProviderTypeAzure,
+			model:        "gpt-6-luna",
+			wantField:    "max_completion_tokens",
+			wantLimit:    float64(callLimit),
+			absentField:  "max_tokens",
+		},
+		{
+			name:         "AzureConfiguredMaxCompletionTokens",
+			providerType: database.AIProviderTypeAzure,
+			model:        "my-prod-deployment",
+			callConfig: codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{MaxCompletionTokens: new(int64(16384))},
+			}},
 			wantField:   "max_completion_tokens",
 			wantLimit:   16384,
 			absentField: "max_tokens",
@@ -866,6 +888,35 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 		require.False(t, classified.Retryable)
 	})
+
+	// Azure and Bedrock OpenAI-format models share the OpenAI client, so the
+	// provider type, not the client, must reject the reasoning mode.
+	for providerType, modelName := range map[database.AIProviderType]string{
+		database.AIProviderTypeAzure:   "gpt-5.6-sol",
+		database.AIProviderTypeBedrock: "openai.gpt-oss-120b-1:0",
+	} {
+		t.Run("ReasoningModeProvider="+string(providerType), func(t *testing.T) {
+			t.Parallel()
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("transport must not be used for invalid reasoning mode")
+				return nil, xerrors.New("unreachable")
+			})}
+			server := &Server{
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+			}
+			req := aibridgeTestRequest(chat, modelName)
+			req.CallConfig = codersdk.ChatModelCallConfig{
+				OpenAIConfig:    &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true)},
+				ProviderOptions: &codersdk.ChatModelProviderOptions{OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningMode: new("pro")}},
+			}
+			provider := aibridgeTestAIProvider(providerID, "primary-"+string(providerType), providerType)
+			_, err := server.newModel(t.Context(), req, aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+			require.ErrorContains(t, err, "requires an OpenAI provider")
+			classified := chaterror.Classify(err)
+			require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+			require.False(t, classified.Retryable)
+		})
+	}
 
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()

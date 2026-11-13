@@ -1306,7 +1306,7 @@ describe("provider-scoped general fields", () => {
 		openaiConfig: { useResponsesApi: "true", reasoningModel: "true" },
 	});
 
-	it.each(["openai", "bedrock"])(
+	it.each(["openai", "azure", "bedrock"])(
 		"serializes reasoning overrides for %s",
 		(provider) => {
 			for (const value of ["true", "false"]) {
@@ -1317,7 +1317,7 @@ describe("provider-scoped general fields", () => {
 					}),
 				);
 				expect(result.modelConfig?.openai_config).toEqual({
-					...(provider === "openai" ? { use_responses_api: true } : {}),
+					...(provider === "bedrock" ? {} : { use_responses_api: true }),
 					reasoning_model: value === "true",
 				});
 			}
@@ -1344,13 +1344,6 @@ describe("provider-scoped general fields", () => {
 
 	it("omits a scoped general field for another provider", () => {
 		const result = buildModelConfigFromForm("anthropic", form);
-		expect(result.modelConfig).toBeUndefined();
-	});
-
-	// azure resolves to the openai option schema, so scoping must gate on the
-	// raw provider type.
-	it("omits a scoped general field for an aliased provider", () => {
-		const result = buildModelConfigFromForm("azure", form);
 		expect(result.modelConfig).toBeUndefined();
 	});
 });
