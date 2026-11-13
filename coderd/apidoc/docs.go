@@ -4263,6 +4263,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/watch": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -4272,8 +4273,8 @@ const docTemplate = `{
                 "summary": "Watch chat events for a user via WebSockets",
                 "operationId": "watch-chat-events-for-a-user-via-websockets",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatWatchEvent"
                         }
@@ -5075,7 +5076,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
-                "description": "Each WebSocket message is a JSON array of events.\n\nThe server increases a chat's ` + "`" + `snapshot_version` + "`" + ` by 1 each time it changes the chat's messages, queue, or status.\nA change's ` + "`" + `snapshot_version` + "`" + ` is the chat's ` + "`" + `snapshot_version` + "`" + ` when the server made the change.\nOnly the newest messages page, which ` + "`" + `GET /api/v2/chats/{chat}/messages` + "`" + ` returns when you set neither ` + "`" + `before_id` + "`" + ` nor ` + "`" + `after_id` + "`" + `, includes the chat's ` + "`" + `snapshot_version` + "`" + `.\nThe server reads ` + "`" + `snapshot_version` + "`" + ` before the messages and the queue, so the page can include changes with a higher ` + "`" + `snapshot_version` + "`" + `.\nThe stream can send changes that are already in the page.\n\nThe server reads the chat when the stream opens and each time the chat changes.\nEach read sends the changes since the previous read.\nWhen you set ` + "`" + `snapshot_version` + "`" + ` to a value ` + "`" + `S` + "`" + `, the first read sends what changed at a ` + "`" + `snapshot_version` + "`" + ` of ` + "`" + `S` + "`" + ` or greater:\n\n- A ` + "`" + `message` + "`" + ` event for each message that isn't deleted.\n- A ` + "`" + `history_reset` + "`" + ` event for each edit.\n- A ` + "`" + `queue_update` + "`" + ` event, if the queue changed.\n\nThe server ignores ` + "`" + `after_id` + "`" + ` when you set ` + "`" + `snapshot_version` + "`" + `.\nThe server returns ` + "`" + `400 Bad Request` + "`" + ` when ` + "`" + `snapshot_version` + "`" + ` isn't an integer, is less than 1, or is greater than the chat's ` + "`" + `snapshot_version` + "`" + `.\n\nOn a stream that you open with ` + "`" + `snapshot_version` + "`" + `, the ` + "`" + `message` + "`" + `, ` + "`" + `queue_update` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events include ` + "`" + `snapshot_version` + "`" + `.\nEach read sends these events in order of ` + "`" + `snapshot_version` + "`" + `.\nWithin one ` + "`" + `snapshot_version` + "`" + `, the read sends the ` + "`" + `history_reset` + "`" + ` event first, then the ` + "`" + `message` + "`" + ` events in order of message ID, then the ` + "`" + `queue_update` + "`" + ` event.\nThe ` + "`" + `status` + "`" + `, ` + "`" + `error` + "`" + `, ` + "`" + `action_required` + "`" + `, ` + "`" + `retry` + "`" + `, and ` + "`" + `preview_reset` + "`" + ` events of the read come after them.\nThe server sends ` + "`" + `message_part` + "`" + ` events between reads.\n\nA ` + "`" + `history_reset` + "`" + ` event on such a stream includes ` + "`" + `history_reset.from_message_id` + "`" + `, the ID of a message that was edited.\nThe edit deleted that message and every message after it.\nWhen managing history state, delete every message with that ID or higher.\nAfter the ` + "`" + `history_reset` + "`" + ` event, the stream sends each message with that ID or higher that isn't deleted.\n\nA messages page that you request with ` + "`" + `before_id` + "`" + ` includes no ` + "`" + `snapshot_version` + "`" + `.\nIf an edit occurs after the server reads the page, the page can contain messages that the edit deleted.\n\nOn each new connection, the server sends the chat's current status again.\nWhen the chat has an error, a pending retry, or pending tool calls, the server also sends the ` + "`" + `error` + "`" + `, ` + "`" + `retry` + "`" + `, or ` + "`" + `action_required` + "`" + ` event again.\nThe server then again sends the ` + "`" + `message_part` + "`" + ` events of the response that the agent is writing, from its first part.\n\nWhen you don't set ` + "`" + `snapshot_version` + "`" + `, the events don't include ` + "`" + `snapshot_version` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events don't include ` + "`" + `from_message_id` + "`" + `.\nAfter a ` + "`" + `history_reset` + "`" + ` event, the server sends every message in the chat as ` + "`" + `message` + "`" + ` events.\nOn a new connection, when ` + "`" + `after_id` + "`" + ` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.\nWhen ` + "`" + `after_id` + "`" + ` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a ` + "`" + `history_reset` + "`" + ` event if the chat has a deleted message.\n\nWhen the server can't subscribe to the chat or read it, the server returns ` + "`" + `500 Internal Server Error` + "`" + ` and doesn't open the WebSocket connection.",
+                "description": "Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.\n\nEach WebSocket message is a JSON array of events.\n\nThe server increases a chat's ` + "`" + `snapshot_version` + "`" + ` by 1 each time it changes the chat's messages, queue, or status.\nA change's ` + "`" + `snapshot_version` + "`" + ` is the chat's ` + "`" + `snapshot_version` + "`" + ` when the server made the change.\nOnly the newest messages page, which ` + "`" + `GET /api/v2/chats/{chat}/messages` + "`" + ` returns when you set neither ` + "`" + `before_id` + "`" + ` nor ` + "`" + `after_id` + "`" + `, includes the chat's ` + "`" + `snapshot_version` + "`" + `.\nThe server reads ` + "`" + `snapshot_version` + "`" + ` before the messages and the queue, so the page can include changes with a higher ` + "`" + `snapshot_version` + "`" + `.\nThe stream can send changes that are already in the page.\n\nThe server reads the chat when the stream opens and each time the chat changes.\nEach read sends the changes since the previous read.\nWhen you set ` + "`" + `snapshot_version` + "`" + ` to a value ` + "`" + `S` + "`" + `, the first read sends what changed at a ` + "`" + `snapshot_version` + "`" + ` of ` + "`" + `S` + "`" + ` or greater:\n\n- A ` + "`" + `message` + "`" + ` event for each message that isn't deleted.\n- A ` + "`" + `history_reset` + "`" + ` event for each edit.\n- A ` + "`" + `queue_update` + "`" + ` event, if the queue changed.\n\nThe server ignores ` + "`" + `after_id` + "`" + ` when you set ` + "`" + `snapshot_version` + "`" + `.\nThe server returns ` + "`" + `400 Bad Request` + "`" + ` when ` + "`" + `snapshot_version` + "`" + ` isn't an integer, is less than 1, or is greater than the chat's ` + "`" + `snapshot_version` + "`" + `.\n\nOn a stream that you open with ` + "`" + `snapshot_version` + "`" + `, the ` + "`" + `message` + "`" + `, ` + "`" + `queue_update` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events include ` + "`" + `snapshot_version` + "`" + `.\nEach read sends these events in order of ` + "`" + `snapshot_version` + "`" + `.\nWithin one ` + "`" + `snapshot_version` + "`" + `, the read sends the ` + "`" + `history_reset` + "`" + ` event first, then the ` + "`" + `message` + "`" + ` events in order of message ID, then the ` + "`" + `queue_update` + "`" + ` event.\nThe ` + "`" + `status` + "`" + `, ` + "`" + `error` + "`" + `, ` + "`" + `action_required` + "`" + `, ` + "`" + `retry` + "`" + `, and ` + "`" + `preview_reset` + "`" + ` events of the read come after them.\nThe server sends ` + "`" + `message_part` + "`" + ` events between reads.\n\nA ` + "`" + `history_reset` + "`" + ` event on such a stream includes ` + "`" + `history_reset.from_message_id` + "`" + `, the ID of a message that was edited.\nThe edit deleted that message and every message after it.\nWhen managing history state, delete every message with that ID or higher.\nAfter the ` + "`" + `history_reset` + "`" + ` event, the stream sends each message with that ID or higher that isn't deleted.\n\nA messages page that you request with ` + "`" + `before_id` + "`" + ` includes no ` + "`" + `snapshot_version` + "`" + `.\nIf an edit occurs after the server reads the page, the page can contain messages that the edit deleted.\n\nOn each new connection, the server sends the chat's current status again.\nWhen the chat has an error, a pending retry, or pending tool calls, the server also sends the ` + "`" + `error` + "`" + `, ` + "`" + `retry` + "`" + `, or ` + "`" + `action_required` + "`" + ` event again.\nThe server then again sends the ` + "`" + `message_part` + "`" + ` events of the response that the agent is writing, from its first part.\n\nWhen you don't set ` + "`" + `snapshot_version` + "`" + `, the events don't include ` + "`" + `snapshot_version` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events don't include ` + "`" + `from_message_id` + "`" + `.\nAfter a ` + "`" + `history_reset` + "`" + ` event, the server sends every message in the chat as ` + "`" + `message` + "`" + ` events.\nOn a new connection, when ` + "`" + `after_id` + "`" + ` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.\nWhen ` + "`" + `after_id` + "`" + ` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a ` + "`" + `history_reset` + "`" + ` event if the chat has a deleted message.\n\nWhen the server can't subscribe to the chat or read it, the server returns ` + "`" + `500 Internal Server Error` + "`" + ` and doesn't open the WebSocket connection.",
                 "produces": [
                     "application/json"
                 ],
@@ -5107,8 +5108,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -5126,6 +5127,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/git": {
             "get": {
+                "description": "Upgrades to a WebSocket. Each server message is either a ` + "`" + `changes` + "`" + ` message with a delta of repository changes since the previous message or an ` + "`" + `error` + "`" + ` message, and you can send ` + "`" + `{\"type\": \"refresh\"}` + "`" + ` to request an immediate re-scan.",
                 "produces": [
                     "application/json"
                 ],
@@ -5145,8 +5147,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
                         }
@@ -5161,6 +5163,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/parts": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends no events until you send a control message with ` + "`" + `history_version` + "`" + ` and ` + "`" + `generation_attempt` + "`" + `, and then each message is a JSON array holding a batch of one or more events.",
                 "produces": [
                     "application/json"
                 ],
@@ -5180,8 +5183,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -11396,6 +11399,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
+                "description": "Returns the template version that precedes the named version.",
                 "produces": [
                     "application/json"
                 ],
@@ -11436,7 +11440,7 @@ const docTemplate = `{
                         }
                     },
                     "204": {
-                        "description": "No Content"
+                        "description": "The template version has no previous version"
                     }
                 },
                 "security": [
@@ -16921,6 +16925,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a list of ` + "`" + `codersdk.WorkspaceAgentMetadata` + "`" + ` and ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -16940,8 +16945,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -18719,6 +18724,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a ` + "`" + `codersdk.Workspace` + "`" + `, ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `, and ` + "`" + `ping` + "`" + ` events have no data. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -18738,8 +18744,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }

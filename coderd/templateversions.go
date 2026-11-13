@@ -1104,6 +1104,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 }
 
 // @Summary Get previous template version by organization, template, and name
+// @Description Returns the template version that precedes the named version.
 // @ID get-previous-template-version-by-organization-template-and-name
 // @Security CoderSessionToken
 // @Produce json
@@ -1112,7 +1113,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 // @Param templatename path string true "Template name"
 // @Param templateversionname path string true "Template version name"
 // @Success 200 {object} codersdk.TemplateVersion
-// @Success 204
+// @Success 204 "The template version has no previous version"
 // @Router /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous [get]
 func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
