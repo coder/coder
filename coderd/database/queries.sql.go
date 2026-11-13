@@ -11402,7 +11402,18 @@ WITH cursor_chat AS (
         updated_at,
         id
     FROM chats
-    WHERE id = $8
+    WHERE id = $6
+),
+shared_root AS (
+    -- Root chats shared with the viewer. Served by idx_chats_shared_roots.
+    SELECT sr.id
+    FROM chats sr
+    WHERE sr.parent_chat_id IS NULL
+        AND (sr.user_acl <> '{}'::jsonb OR sr.group_acl <> '{}'::jsonb)
+        AND (
+            sr.user_acl ? ($19::uuid)::text
+            OR sr.group_acl ?| $20::text[]
+        )
 )
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at, chats_expanded.title_source, chats_expanded.title_updated_at,
@@ -11422,18 +11433,23 @@ WHERE
         OR (
             $2::boolean
             AND chats_expanded.owner_id != $3::uuid
+            -- Uncorrelated id lists let the planner fetch shared chats by
+            -- primary key instead of checking the ACL of every root chat. A
+            -- listed chat whose parent was purged keeps root_chat_id and
+            -- inherits that root's ACL through chats_expanded, so it is
+            -- matched through its root.
             AND (
-                chats_expanded.user_acl ? ($4::uuid)::text
-                OR chats_expanded.group_acl ?| $5::text[]
+                chats_expanded.id = ANY(ARRAY(SELECT shared_root.id FROM shared_root))
+                OR chats_expanded.root_chat_id = ANY(ARRAY(SELECT shared_root.id FROM shared_root))
             )
         )
     )
     AND CASE
-        WHEN $6 :: boolean IS NULL THEN true
-        ELSE chats_expanded.archived = $6 :: boolean
+        WHEN $4 :: boolean IS NULL THEN true
+        ELSE chats_expanded.archived = $4 :: boolean
     END
     AND CASE
-        WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
+        WHEN $5::uuid IS NOT NULL THEN chats_expanded.project_id = $5::uuid
         ELSE true
     END
     AND CASE
@@ -11441,7 +11457,7 @@ WHERE
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -11455,7 +11471,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
+        WHEN $7::jsonb IS NOT NULL THEN chats_expanded.labels @> $7::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -11463,25 +11479,28 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $10::text IS NOT NULL THEN EXISTS (
-            SELECT 1
+        -- Uncorrelated, so idx_chat_diff_statuses_url_lower is read once
+        -- instead of once per candidate chat.
+        WHEN $8::text IS NOT NULL THEN chats_expanded.id = ANY(ARRAY(
+            SELECT matched.id
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
+            CROSS JOIN LATERAL (VALUES (c2.id), (c2.root_chat_id)) AS matched(id)
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($10::text)
-              AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
-        )
+              AND LOWER(cds.url) = LOWER($8::text)
+              AND matched.id IS NOT NULL
+        ))
         ELSE true
     END
     -- Filter by title substring (case-insensitive). Applied when the
     -- caller provides a non-empty title_query.
     AND CASE
-        WHEN $11 :: text != '' THEN chats_expanded.title ILIKE '%' || $11 || '%'
+        WHEN $9 :: text != '' THEN chats_expanded.title ILIKE '%' || $9 || '%'
         ELSE true
     END
     AND CASE
-        WHEN $12::boolean IS NOT NULL THEN (
+        WHEN $10::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -11489,14 +11508,14 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $12::boolean
+        ) = $10::boolean
         ELSE true
     END
     -- Filter by the stored chat_status enum, the same value the sidebar
     -- row icon uses.
     AND CASE
-        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN
-            chats_expanded.status::text = ANY($13::text[])
+        WHEN COALESCE(array_length($11::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($11::text[])
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -11507,9 +11526,9 @@ WHERE
     -- "none" matches chats with no pull request: no diff-status row, or a
     -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN (
+        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN (
             (
-                'none' = ANY($14::text[])
+                'none' = ANY($12::text[])
                 AND NOT EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
@@ -11517,66 +11536,72 @@ WHERE
                         AND NULLIF(cds.pull_request_state, '') IS NOT NULL
                 )
             )
-            OR EXISTS (
-                SELECT 1
-                FROM chat_diff_statuses cds
-                WHERE cds.chat_id = chats_expanded.id
-                    AND (
-                        CASE
-                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                            WHEN cds.pull_request_state = 'open' THEN 'open'
-                            ELSE cds.pull_request_state
-                        END
-                    ) = ANY($14::text[])
+            OR (
+                -- Folds to false at plan time when only "none" is requested.
+                -- Otherwise the planner may hash every diff status for a
+                -- branch that cannot match.
+                COALESCE(array_length(array_remove($12::text[], 'none'), 1), 0) > 0
+                AND EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND (
+                            CASE
+                                WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                                WHEN cds.pull_request_state = 'open' THEN 'open'
+                                ELSE cds.pull_request_state
+                            END
+                        ) = ANY($12::text[])
+                )
             )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $15::int != 0 THEN EXISTS (
+        WHEN $13::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $15
+                AND cds.pr_number = $13
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $16::text != '' THEN EXISTS (
+        WHEN $14::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $16 || '%'
-                    OR cds.url ILIKE '%' || $16 || '%'
+                    cds.git_remote_origin ILIKE '%' || $14 || '%'
+                    OR cds.url ILIKE '%' || $14 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $17::text != '' THEN EXISTS (
+        WHEN $15::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $17 || '%'
+                AND cds.pull_request_title ILIKE '%' || $15 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $18::text != '' THEN (
+        WHEN $16::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $18)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $16)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $18)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $16)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -11590,18 +11615,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $18))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
                     )
             )
             -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN $18 ~ '^[0-9]+$' THEN EXISTS (
+                WHEN $16 ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number::text LIKE $18 || '%'
+                        AND cds.pr_number::text LIKE $16 || '%'
                 )
                 ELSE false
             END
@@ -11624,19 +11649,17 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $19
+OFFSET $17
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($20 :: int, 0), 50)
+    COALESCE(NULLIF($18 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
 	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
 	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
 	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
-	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
-	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
 	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
@@ -11652,6 +11675,8 @@ type GetChatsParams struct {
 	Search              string                `db:"search" json:"search"`
 	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
+	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
+	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 }
 
 type GetChatsRow struct {
@@ -11664,8 +11689,6 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.OwnedOnly,
 		arg.SharedOnly,
 		arg.ViewerID,
-		arg.SharedWithUserID,
-		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
 		arg.AfterID,
@@ -11681,6 +11704,8 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,
+		arg.SharedWithUserID,
+		pq.Array(arg.SharedWithGroupIds),
 	)
 	if err != nil {
 		return nil, err
