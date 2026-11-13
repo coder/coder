@@ -129,7 +129,7 @@ func TestTunnel_StopForwardsCloseLogs(t *testing.T) {
 	tun, mgr := setupTunnel(t, ctx, newFakeClient(ctx, t), quartz.NewMock(t))
 	const closeLogs = 10
 	conn := &loggingCloseConn{fakeConn: newFakeConn(tailnet.WorkspaceUpdate{}, time.Time{}), tun: tun, logs: closeLogs}
-	require.True(t, tun.updater.setConn(conn))
+	require.True(t, tun.setConn(conn))
 
 	type result struct {
 		resp *TunnelMessage
