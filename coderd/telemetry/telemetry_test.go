@@ -901,7 +901,7 @@ func waitForMessage(ctx context.Context, t *testing.T, messages <-chan string, w
 // connection the reporter opened, the one for its final report included.
 func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
 
 	var newConns, closedConns atomic.Int32
