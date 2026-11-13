@@ -178,10 +178,9 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
 
    ```sh
    helm repo add coder-v2 https://helm.coder.com/v2
-   helm install coder coder-v2/coder \
+   helm install coder coder-v2/coder --version 2.38.7 \
        --namespace coder \
-       --values values.yaml \
-       --version 2.38.7
+       --values values.yaml
    ```
 
    This installs the current [stable release](../../../reference/releases.md).
