@@ -51,7 +51,7 @@ test("nests section headings under the page heading", async () => {
 	await renderPage();
 	expect(
 		screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
-	).toEqual(["Password", "Single Sign On"]);
+	).toEqual(["Password", "Single sign-on"]);
 });
 
 test("update password successfully", async () => {
