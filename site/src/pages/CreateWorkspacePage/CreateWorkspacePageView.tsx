@@ -59,6 +59,11 @@ type CreateWorkspacePageViewProps = {
 	externalAuthPollingState: Record<string, ExternalAuthPollingState>;
 	hasAllRequiredExternalAuth: boolean;
 	hasIgnoredUrlParams?: boolean;
+	/**
+	 * True while the latest dynamic parameters request has not been answered,
+	 * so the form values may not reflect the latest evaluation yet.
+	 */
+	isEvaluatingParameters: boolean;
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
@@ -95,6 +100,7 @@ export const CreateWorkspacePageView: React.FC<
 	externalAuthPollingState,
 	hasAllRequiredExternalAuth,
 	hasIgnoredUrlParams,
+	isEvaluatingParameters,
 	mode,
 	parameters,
 	permissions,
@@ -133,6 +139,14 @@ export const CreateWorkspacePageView: React.FC<
 		initialTouched.name = true;
 	}
 
+	// True from the moment a parameter changes until its debounced request is
+	// sent. Together with isEvaluatingParameters, this keeps the form from being
+	// submitted before the latest values have been evaluated.
+	const [hasPendingParameterInput, setHasPendingParameterInput] =
+		useState(false);
+	const isParameterUpdatePending =
+		hasPendingParameterInput || isEvaluatingParameters;
+
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
 	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
@@ -160,7 +174,7 @@ export const CreateWorkspacePageView: React.FC<
 			validateOnChange: true,
 			validateOnBlur: true,
 			onSubmit: (request) => {
-				if (!hasAllRequiredExternalAuth) {
+				if (!hasAllRequiredExternalAuth || isParameterUpdatePending) {
 					return;
 				}
 
@@ -227,11 +241,12 @@ export const CreateWorkspacePageView: React.FC<
 	);
 
 	// include any modified parameters and all touched parameters to the websocket request
-	const { debounced: sendDynamicParamsRequest } = useDebouncedFunction(
+	const { debounced: debouncedSendDynamicParamsRequest } = useDebouncedFunction(
 		(
 			parameters: Array<{ parameter: PreviewParameter; value: string }>,
 			ownerId?: string,
 		) => {
+			setHasPendingParameterInput(false);
 			const formInputs: Record<string, string> = {};
 			const formParameters = form.values.rich_parameter_values ?? [];
 
@@ -266,6 +281,16 @@ export const CreateWorkspacePageView: React.FC<
 				? 500
 				: 0;
 		},
+	);
+	const sendDynamicParamsRequest = useCallback(
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			ownerId?: string,
+		) => {
+			setHasPendingParameterInput(true);
+			debouncedSendDynamicParamsRequest(parameters, ownerId);
+		},
+		[debouncedSendDynamicParamsRequest],
 	);
 
 	useEffect(() => {
@@ -356,6 +381,13 @@ export const CreateWorkspacePageView: React.FC<
 		const currentFormValue = form.values.rich_parameter_values?.find(
 			(p) => p.name === parameter.name,
 		)?.value;
+		const isChanged = currentFormValue !== value;
+
+		// Mark the field as touched before updating its value. Otherwise a
+		// response arriving in between is synced over the user's new value.
+		if (isChanged) {
+			form.setFieldTouched(parameter.name, true, false);
+		}
 
 		await form.setFieldValue(parameterField, {
 			name: parameter.name,
@@ -363,8 +395,7 @@ export const CreateWorkspacePageView: React.FC<
 		});
 
 		// Only send the request if the value has changed from the form value
-		if (currentFormValue !== value) {
-			form.setFieldTouched(parameter.name, true);
+		if (isChanged) {
 			sendDynamicParamsRequest([{ parameter, value }]);
 		}
 	};
@@ -378,6 +409,7 @@ export const CreateWorkspacePageView: React.FC<
 
 	const disabled =
 		creatingWorkspace ||
+		isParameterUpdatePending ||
 		!hasAllRequiredExternalAuth ||
 		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
 		parameters.some((parameter) =>
@@ -795,7 +827,9 @@ export const CreateWorkspacePageView: React.FC<
 
 					<div className="flex justify-end">
 						<Button type="submit" disabled={disabled}>
-							<Spinner loading={creatingWorkspace} />
+							<Spinner
+								loading={creatingWorkspace || isParameterUpdatePending}
+							/>
 							Create workspace
 						</Button>
 					</div>
