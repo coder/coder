@@ -162,6 +162,21 @@ func (mr *MockStoreMockRecorder) ArchiveChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveChatByID", reflect.TypeOf((*MockStore)(nil).ArchiveChatByID), ctx, id)
 }
 
+// ArchiveChatsOfChatProject mocks base method.
+func (m *MockStore) ArchiveChatsOfChatProject(ctx context.Context, arg database.ArchiveChatsOfChatProjectParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ArchiveChatsOfChatProject", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ArchiveChatsOfChatProject indicates an expected call of ArchiveChatsOfChatProject.
+func (mr *MockStoreMockRecorder) ArchiveChatsOfChatProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveChatsOfChatProject", reflect.TypeOf((*MockStore)(nil).ArchiveChatsOfChatProject), ctx, arg)
+}
+
 // ArchiveUnusedTemplateVersions mocks base method.
 func (m *MockStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -553,6 +568,21 @@ func (m *MockStore) CountChatCapacityQueuedByPool(ctx context.Context, staleSeco
 func (mr *MockStoreMockRecorder) CountChatCapacityQueuedByPool(ctx, staleSeconds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityQueuedByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityQueuedByPool), ctx, staleSeconds)
+}
+
+// CountChatProjectArchivePreview mocks base method.
+func (m *MockStore) CountChatProjectArchivePreview(ctx context.Context, projectID uuid.UUID) (database.CountChatProjectArchivePreviewRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountChatProjectArchivePreview", ctx, projectID)
+	ret0, _ := ret[0].(database.CountChatProjectArchivePreviewRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountChatProjectArchivePreview indicates an expected call of CountChatProjectArchivePreview.
+func (mr *MockStoreMockRecorder) CountChatProjectArchivePreview(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatProjectArchivePreview", reflect.TypeOf((*MockStore)(nil).CountChatProjectArchivePreview), ctx, projectID)
 }
 
 // CountChatProjectMemoriesByProjectID mocks base method.
@@ -3561,6 +3591,21 @@ func (m *MockStore) GetChatProjectByID(ctx context.Context, id uuid.UUID) (datab
 func (mr *MockStoreMockRecorder) GetChatProjectByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByID", reflect.TypeOf((*MockStore)(nil).GetChatProjectByID), ctx, id)
+}
+
+// GetChatProjectByIDForShare mocks base method.
+func (m *MockStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectByIDForShare", ctx, id)
+	ret0, _ := ret[0].(database.ChatProject)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectByIDForShare indicates an expected call of GetChatProjectByIDForShare.
+func (mr *MockStoreMockRecorder) GetChatProjectByIDForShare(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByIDForShare", reflect.TypeOf((*MockStore)(nil).GetChatProjectByIDForShare), ctx, id)
 }
 
 // GetChatProjectByIDForUpdate mocks base method.
@@ -10144,6 +10189,34 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
+// LockChatProjectUnarchivedChildChats mocks base method.
+func (m *MockStore) LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatProjectUnarchivedChildChats", ctx, projectID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockChatProjectUnarchivedChildChats indicates an expected call of LockChatProjectUnarchivedChildChats.
+func (mr *MockStoreMockRecorder) LockChatProjectUnarchivedChildChats(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectUnarchivedChildChats", reflect.TypeOf((*MockStore)(nil).LockChatProjectUnarchivedChildChats), ctx, projectID)
+}
+
+// LockChatProjectUnarchivedRootChats mocks base method.
+func (m *MockStore) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatProjectUnarchivedRootChats", ctx, projectID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockChatProjectUnarchivedRootChats indicates an expected call of LockChatProjectUnarchivedRootChats.
+func (mr *MockStoreMockRecorder) LockChatProjectUnarchivedRootChats(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectUnarchivedRootChats", reflect.TypeOf((*MockStore)(nil).LockChatProjectUnarchivedRootChats), ctx, projectID)
+}
+
 // LockOrganizationMembersByUserIDsForShare mocks base method.
 func (m *MockStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10641,6 +10714,21 @@ func (mr *MockStoreMockRecorder) UnarchiveChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveChatByID", reflect.TypeOf((*MockStore)(nil).UnarchiveChatByID), ctx, id)
 }
 
+// UnarchiveChatsOfChatProject mocks base method.
+func (m *MockStore) UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnarchiveChatsOfChatProject", ctx, projectID)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnarchiveChatsOfChatProject indicates an expected call of UnarchiveChatsOfChatProject.
+func (mr *MockStoreMockRecorder) UnarchiveChatsOfChatProject(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveChatsOfChatProject", reflect.TypeOf((*MockStore)(nil).UnarchiveChatsOfChatProject), ctx, projectID)
+}
+
 // UnarchiveTemplateVersion mocks base method.
 func (m *MockStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
 	m.ctrl.T.Helper()
@@ -11033,6 +11121,21 @@ func (m *MockStore) UpdateChatProjectACLByID(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UpdateChatProjectACLByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectACLByID), ctx, arg)
+}
+
+// UpdateChatProjectArchivedAt mocks base method.
+func (m *MockStore) UpdateChatProjectArchivedAt(ctx context.Context, arg database.UpdateChatProjectArchivedAtParams) (database.ChatProject, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatProjectArchivedAt", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProject)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatProjectArchivedAt indicates an expected call of UpdateChatProjectArchivedAt.
+func (mr *MockStoreMockRecorder) UpdateChatProjectArchivedAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectArchivedAt", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectArchivedAt), ctx, arg)
 }
 
 // UpdateChatProjectByID mocks base method.

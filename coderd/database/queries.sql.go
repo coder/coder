@@ -8441,6 +8441,128 @@ func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectP
 	return err
 }
 
+const archiveChatsOfChatProject = `-- name: ArchiveChatsOfChatProject :many
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.project_id = $2::uuid
+        AND chats.parent_chat_id IS NULL
+        AND NOT chats.archived
+),
+targets AS (
+    SELECT
+        chats.id,
+        EXISTS (
+            SELECT 1
+            FROM chat_queued_messages
+            WHERE chat_queued_messages.chat_id = chats.id
+        ) AS has_queue
+    FROM chats
+    WHERE (chats.id IN (SELECT id FROM roots) OR chats.root_chat_id IN (SELECT id FROM roots))
+        AND NOT chats.archived
+)
+UPDATE chats
+SET
+    archived = true,
+    archived_with_project = true,
+    pin_order = 0,
+    status = CASE
+        WHEN chats.status = 'error'::chat_status OR targets.has_queue THEN 'error'::chat_status
+        ELSE 'waiting'::chat_status
+    END,
+    last_error = CASE
+        WHEN chats.status <> 'error'::chat_status AND targets.has_queue THEN $1::jsonb
+        ELSE chats.last_error
+    END,
+    worker_id = NULL,
+    runner_id = NULL,
+    requires_action_deadline_at = NULL,
+    compaction_requested_at = NULL,
+    retry_state = NULL,
+    snapshot_version = chats.snapshot_version + 1,
+    updated_at = now()
+FROM targets
+WHERE chats.id = targets.id
+RETURNING chats.id
+`
+
+type ArchiveChatsOfChatProjectParams struct {
+	StoppedError json.RawMessage `db:"stopped_error" json:"stopped_error"`
+	ProjectID    uuid.UUID       `db:"project_id" json:"project_id"`
+}
+
+// Archives every unarchived chat of the project, root chats and their
+// subagent chats, and marks them archived_with_project. This is an
+// execution-state transition outside the chatstate machine: keep the SET
+// list in sync with UpdateChatExecutionState. Queued messages stay; a chat
+// with a queue moves to error with stopped_error unless it already is in
+// error, so it lands in XE1 or XE1P instead of an invalid state. Publishes
+// nothing, so callers publish chat:update per chat.
+func (q *sqlQuerier) ArchiveChatsOfChatProject(ctx context.Context, arg ArchiveChatsOfChatProjectParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, archiveChatsOfChatProject, arg.StoppedError, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countChatProjectArchivePreview = `-- name: CountChatProjectArchivePreview :one
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.project_id = $1::uuid
+        AND chats.parent_chat_id IS NULL
+        AND NOT chats.archived
+)
+SELECT
+    (SELECT COUNT(*) FROM roots)::bigint AS chat_count,
+    (
+        SELECT COUNT(*)
+        FROM roots
+        WHERE EXISTS (
+            SELECT 1
+            FROM chats member
+            WHERE (member.id = roots.id OR member.root_chat_id = roots.id)
+                AND member.status IN (
+                    'running'::chat_status,
+                    'interrupting'::chat_status,
+                    'requires_action'::chat_status,
+                    'paused'::chat_status
+                )
+        )
+    )::bigint AS active_chat_count
+`
+
+type CountChatProjectArchivePreviewRow struct {
+	ChatCount       int64 `db:"chat_count" json:"chat_count"`
+	ActiveChatCount int64 `db:"active_chat_count" json:"active_chat_count"`
+}
+
+// Counts the unarchived root chats of a project, of every owner, and the
+// ones whose family has a member that archiving the project would stop.
+// Subagent chats have no project_id and belong to their root's project.
+func (q *sqlQuerier) CountChatProjectArchivePreview(ctx context.Context, projectID uuid.UUID) (CountChatProjectArchivePreviewRow, error) {
+	row := q.db.QueryRowContext(ctx, countChatProjectArchivePreview, projectID)
+	var i CountChatProjectArchivePreviewRow
+	err := row.Scan(&i.ChatCount, &i.ActiveChatCount)
+	return i, err
+}
+
 const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_projects
@@ -8472,6 +8594,35 @@ WHERE id = $1::uuid
 
 func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByID, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.ArchivedAt,
+	)
+	return i, err
+}
+
+const getChatProjectByIDForShare = `-- name: GetChatProjectByIDForShare :one
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+FROM chat_projects
+WHERE id = $1::uuid
+FOR SHARE
+`
+
+// Root chat creation in a project, moves into a project, and chat
+// unarchives hold this until commit, so they serialize with a project
+// archive, which locks the project FOR UPDATE first.
+func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
 	var i ChatProject
 	err := row.Scan(
 		&i.ID,
@@ -8668,6 +8819,96 @@ func (q *sqlQuerier) IsChatProjectUsableByUserID(ctx context.Context, arg IsChat
 	return column_1, err
 }
 
+const lockChatProjectUnarchivedChildChats = `-- name: LockChatProjectUnarchivedChildChats :exec
+SELECT id
+FROM chats
+WHERE root_chat_id IN (
+        SELECT roots.id
+        FROM chats roots
+        WHERE roots.project_id = $1::uuid
+            AND roots.parent_chat_id IS NULL
+            AND NOT roots.archived
+    )
+    AND NOT archived
+ORDER BY id
+FOR UPDATE
+`
+
+// Locks the unarchived subagent chats of the project's unarchived root
+// chats in id order. Run it after LockChatProjectUnarchivedRootChats in the
+// same transaction, so it sees every child and keeps the root-then-child
+// order other family writers use. Later statements then read each child's
+// committed status and queue, and no child can change before the archive.
+func (q *sqlQuerier) LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChatProjectUnarchivedChildChats, projectID)
+	return err
+}
+
+const lockChatProjectUnarchivedRootChats = `-- name: LockChatProjectUnarchivedRootChats :exec
+SELECT id
+FROM chats
+WHERE project_id = $1::uuid AND parent_chat_id IS NULL AND NOT archived
+ORDER BY id
+FOR UPDATE
+`
+
+// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+// READ COMMITTED, the default isolation, a later statement then sees every
+// child committed during the wait.
+func (q *sqlQuerier) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChatProjectUnarchivedRootChats, projectID)
+	return err
+}
+
+const unarchiveChatsOfChatProject = `-- name: UnarchiveChatsOfChatProject :many
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.project_id = $1::uuid
+        AND chats.parent_chat_id IS NULL
+        AND chats.archived
+        AND chats.archived_with_project
+)
+UPDATE chats
+SET
+    archived = false,
+    archived_with_project = false,
+    snapshot_version = chats.snapshot_version + 1,
+    updated_at = now()
+WHERE (chats.id IN (SELECT id FROM roots) OR chats.root_chat_id IN (SELECT id FROM roots))
+    AND chats.archived
+    AND chats.archived_with_project
+RETURNING chats.id
+`
+
+// Unarchives the chats that archiving the project archived, root chats
+// and their subagent chats. Chats archived on their own stay archived.
+// Execution status is untouched: an archived chat is idle or in error.
+// Only families whose root was archived with the project come back, so no
+// family ends up partly archived.
+func (q *sqlQuerier) UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, unarchiveChatsOfChatProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
 UPDATE chat_projects
 SET
@@ -8685,6 +8926,42 @@ type UpdateChatProjectACLByIDParams struct {
 func (q *sqlQuerier) UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatProjectACLByID, arg.UserACL, arg.GroupACL, arg.ID)
 	return err
+}
+
+const updateChatProjectArchivedAt = `-- name: UpdateChatProjectArchivedAt :one
+UPDATE chat_projects
+SET
+    archived_at = $1::timestamptz,
+    updated_at = now()
+WHERE id = $2::uuid
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+`
+
+type UpdateChatProjectArchivedAtParams struct {
+	ArchivedAt sql.NullTime `db:"archived_at" json:"archived_at"`
+	ID         uuid.UUID    `db:"id" json:"id"`
+}
+
+// Call only through chatstate.ArchiveProjectChats and
+// chatstate.UnarchiveProjectChats, which archive and unarchive the
+// project's chats in the same transaction.
+func (q *sqlQuerier) UpdateChatProjectArchivedAt(ctx context.Context, arg UpdateChatProjectArchivedAtParams) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProjectArchivedAt, arg.ArchivedAt, arg.ID)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.ArchivedAt,
+	)
+	return i, err
 }
 
 const updateChatProjectByID = `-- name: UpdateChatProjectByID :one
