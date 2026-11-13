@@ -2562,15 +2562,12 @@ ORDER BY
 LIMIT @limit_count::int;
 
 -- name: GetChatsByIDs :many
-SELECT *
-FROM chats_expanded
-WHERE id = ANY(@ids::uuid[]);
-
--- name: GetChatsByIDsForRunnerSync :many
+-- sort_by_id orders the rows by id. Unsorted rows come back in whatever
+-- order the plan produces.
 SELECT *
 FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])
-ORDER BY id ASC;
+ORDER BY CASE WHEN @sort_by_id::boolean THEN id END ASC;
 
 -- name: RenewChatHeartbeats :many
 -- Renews (chat_id, runner_id) leases that are still fresh and still own

@@ -1661,6 +1661,58 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+func TestGetChatsByIDs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	ids := make([]uuid.UUID, 0, 5)
+	for range 5 {
+		ids = append(ids, dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+		}).ID)
+	}
+	// An unknown ID is skipped rather than failing the query.
+	requested := append(slices.Clone(ids), uuid.New())
+	slices.Reverse(requested)
+
+	chatIDs := func(chats []database.Chat) []uuid.UUID {
+		out := make([]uuid.UUID, 0, len(chats))
+		for _, c := range chats {
+			out = append(out, c.ID)
+		}
+		return out
+	}
+
+	sorted, err := db.GetChatsByIDs(ctx, database.GetChatsByIDsParams{IDs: requested, SortByID: true})
+	require.NoError(t, err)
+	want := slices.Clone(ids)
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	require.Equal(t, want, chatIDs(sorted))
+
+	unsorted, err := db.GetChatsByIDs(ctx, database.GetChatsByIDsParams{IDs: requested})
+	require.NoError(t, err)
+	require.ElementsMatch(t, ids, chatIDs(unsorted))
+}
+
 func TestChatContextHydration(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
