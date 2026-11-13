@@ -109,18 +109,25 @@ describe("IconField", () => {
 		renderComponent(<IconField onPickEmoji={vi.fn()} />);
 		const { user, search } = await openPicker();
 
-		await user.type(search, "docker");
-		const cell = await screen.findByRole("gridcell", { name: "docker" });
+		// One emoji row each in "Animals & nature" and "Food & drink".
+		await user.type(search, "cherr");
+		const cell = await screen.findByRole("gridcell", {
+			name: "cherry blossom",
+		});
 
-		const [headerRow, emojiRow] = screen.getAllByRole("row");
+		const [animalsRow, emojiRow, foodRow] = screen.getAllByRole("row");
 
 		expect(cell).toHaveAttribute("aria-colindex", "1");
-		expect(headerRow).toHaveAttribute("aria-rowindex", "1");
-		expect(headerRow).toContainElement(
-			screen.getByRole("heading", { level: 2, name: "Icons" }),
+		expect(animalsRow).toHaveAttribute("aria-rowindex", "1");
+		expect(animalsRow).toContainElement(
+			screen.getByRole("heading", { level: 2, name: "Animals & nature" }),
 		);
 		expect(emojiRow).toHaveAttribute("aria-rowindex", "2");
 		expect(emojiRow).toContainElement(cell);
-		expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "2");
+		expect(foodRow).toHaveAttribute("aria-rowindex", "3");
+		expect(foodRow).toContainElement(
+			screen.getByRole("heading", { level: 2, name: "Food & drink" }),
+		);
+		expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "4");
 	});
 });
