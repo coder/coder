@@ -64,6 +64,7 @@ describe("findTitleCaseWords", () => {
 		expect(words("Default (Recommended) Option")).toEqual(["Option"]);
 		expect(words("Saved (see logs.) Next steps")).toEqual([]);
 		expect(words("Create a ‘temporary’ Workspace")).toEqual(["Workspace"]);
+		expect(words("Create a 'temporary' Workspace")).toEqual(["Workspace"]);
 	});
 
 	it("starts a new phrase after an opening bracket or quote", () => {
@@ -327,9 +328,26 @@ describe("checkSource", () => {
 	});
 
 	it("joins elements across an encoded space", () => {
-		const source = "const a = <p>Create&nbsp;<b>New Workspace</b></p>;";
+		const source = [
+			"const a = <p>Create&nbsp;<b>New Workspace</b></p>;",
+			"const b = <p>Create&emsp;<b>New Template</b></p>;",
+		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
-		expect(issues.map(({ word }) => word)).toEqual(["New", "Workspace"]);
+		expect(issues.map(({ word }) => word)).toEqual([
+			"New",
+			"Workspace",
+			"New",
+			"Template",
+		]);
+	});
+
+	it("decodes every named entity JSX supports", () => {
+		const { issues, fixedText } = checkSource(
+			"file.tsx",
+			"const a = <p>Create &Eacute;dit Workspace</p>;",
+		);
+		expect(issues.map(({ word }) => word)).toEqual(["Édit", "Workspace"]);
+		expect(fixedText).toBe("const a = <p>Create édit workspace</p>;");
 	});
 
 	it("skips attributes that are not displayed text", () => {
