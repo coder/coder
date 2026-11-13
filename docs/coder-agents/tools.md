@@ -20,6 +20,11 @@ Each turn of a conversation follows the same loop:
 
 Tool calls and their results are visible in the chat timeline, so you can always inspect what the agent did and why.
 
+When an answer cites web pages, select **Sources** in the message action bar after the turn finishes.
+The list shows each cited page's title and host.
+Each web search row also shows the pages that search found, including pages the answer did not cite.
+Only HTTP and HTTPS sources open as links.
+
 Two properties hold for every built-in tool:
 
 - **Your permissions apply.**

@@ -11,6 +11,7 @@ import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import { ImageLightbox } from "../ImageLightbox";
 import { LightboxHost, useLightbox } from "../LightboxHost";
 import { TextPreviewDialog } from "../TextPreviewDialog";
@@ -46,15 +47,18 @@ import type {
 	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
+	SourceLink,
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getBlockSources,
 	getBlockTurnAttachments,
 	getExpansionKeys,
 	getSliceContent,
 	getTurnAttachmentsByRow,
+	getTurnSourcesByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
@@ -129,6 +133,7 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	turnAttachments?: readonly MessageAttachment[];
+	turnSources?: SourceLink[];
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 	isLastMessage?: boolean;
@@ -164,6 +169,7 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		turnAttachments,
+		turnSources,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
 		isLastMessage = false,
@@ -359,6 +365,7 @@ const ChatMessageItem = memo<{
 					<AssistantMessageActions
 						copyText={copyText}
 						turnAttachments={sliceTurnAttachments}
+						sources={hideSliceActions ? undefined : turnSources}
 						keepsSpacing={
 							Boolean(displayState?.needsAssistantBottomSpacer) &&
 							!isLastMessage
@@ -451,14 +458,19 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveTools = showsStreamOutput ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const turnAttachmentsByRow = getTurnAttachmentsByRow(renderRows, {
+		const turnPillOptions = {
 			hidesAttachmentRows: collapseSteps,
 			// requires_action counts, since the submitted tool result resumes the
 			// turn. The status can also settle before the streamed answer
 			// persists, so the live row keeps the turn open.
 			isChatActive: isActiveChatStatus(chatStatus) || hasLiveAssistant,
 			isCompacting: liveTools.some((tool) => tool.name === "chat_summarized"),
-		});
+		};
+		const turnAttachmentsByRow = getTurnAttachmentsByRow(
+			renderRows,
+			turnPillOptions,
+		);
+		const turnSourcesByRow = getTurnSourcesByRow(renderRows, turnPillOptions);
 
 		const layout = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
@@ -633,6 +645,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					turnAttachments={
 						inWorkingBlock ? undefined : turnAttachmentsByRow.get(row.key)
 					}
+					turnSources={
+						inWorkingBlock ? undefined : turnSourcesByRow.get(row.key)
+					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					isLastMessage={row.isLastMessage}
@@ -674,6 +689,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								turnAttachmentsByRow,
 							);
 
+							const blockSources = getBlockSources(
+								block,
+								renderRows,
+								turnSourcesByRow,
+							);
+
 							return (
 								<MessageScroller.Item
 									key={itemKey}
@@ -704,9 +725,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 												renderSlice(slice, { inWorkingBlock: true }),
 											)}
 									</WorkingBlockDisclosure>
-									{blockAttachments && (
+									{(blockAttachments || blockSources.length > 0) && (
 										<MessageActionBar>
-											<TurnAttachments attachments={blockAttachments} />
+											{blockAttachments && (
+												<TurnAttachments attachments={blockAttachments} />
+											)}
+											{blockSources.length > 0 && (
+												<WebSearchSources sources={blockSources} />
+											)}
 										</MessageActionBar>
 									)}
 								</MessageScroller.Item>

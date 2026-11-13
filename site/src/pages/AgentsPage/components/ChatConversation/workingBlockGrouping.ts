@@ -10,6 +10,7 @@ import type {
 	MergedTool,
 	ParsedMessageEntry,
 	RenderBlock,
+	SourceLink,
 	StreamState,
 } from "./types";
 
@@ -445,6 +446,54 @@ export const getBlockTurnAttachments = (
 	}
 	return undefined;
 };
+
+/** Answer citations, deduplicated within each completed turn. */
+export const getTurnSourcesByRow = (
+	rows: readonly TimelineRow[],
+	options: TurnAttachmentsOptions,
+): ReadonlyMap<string, SourceLink[]> => {
+	const turns = splitIntoTurns(rows);
+	const sourcesByRow = new Map<string, SourceLink[]>();
+	for (const [turnIndex, turnRows] of turns.entries()) {
+		const pillRowIndex = turnRows.findLastIndex((row) =>
+			canHostPill(row, options.hidesAttachmentRows),
+		);
+		if (
+			pillRowIndex === -1 ||
+			(turnIndex === turns.length - 1 &&
+				!hasNewestTurnEnded(turnRows, pillRowIndex, options))
+		) {
+			continue;
+		}
+		const sources = new Map<string, SourceLink>();
+		for (const row of turnRows) {
+			for (const source of row.entry.parsed.sources) {
+				const previous = sources.get(source.url);
+				if (
+					!previous ||
+					((!previous.title || previous.title === previous.url) && source.title)
+				) {
+					sources.set(source.url, source);
+				}
+			}
+		}
+		if (sources.size > 0) {
+			sourcesByRow.set(turnRows[pillRowIndex].key, [...sources.values()]);
+		}
+	}
+	return sourcesByRow;
+};
+
+/** A source pill whose host row ends inside a working block belongs below it. */
+export const getBlockSources = (
+	block: WorkingBlock,
+	rows: readonly TimelineRow[],
+	sourcesByRow: ReadonlyMap<string, SourceLink[]>,
+): SourceLink[] =>
+	block.slices.flatMap((slice) => {
+		const row = rows[slice.rowIndex];
+		return sliceEndsRow(row, slice) ? (sourcesByRow.get(row.key) ?? []) : [];
+	});
 
 /**
  * Pieces of a row that can fold, or undefined for a row that never folds and
