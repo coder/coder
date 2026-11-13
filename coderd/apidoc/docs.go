@@ -33988,7 +33988,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
                 "terminal_font_size": {
-                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size and clients should use their default.",
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size, and the web terminal will use the default.",
                     "type": "integer"
                 },
                 "theme_dark": {

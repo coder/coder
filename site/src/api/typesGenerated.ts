@@ -11952,7 +11952,7 @@ export interface UserAppearanceSettings {
 	readonly terminal_font: TerminalFontName;
 	/**
 	 * TerminalFontSize is the web terminal font size in pixels. Zero means
-	 * the user has not chosen a size and clients should use their default.
+	 * the user has not chosen a size, and the web terminal will use the default.
 	 */
 	readonly terminal_font_size: number;
 }
