@@ -59,6 +59,7 @@ const PROPER_NOUNS = [
 	"Premium",
 	"Template Admin",
 	"Terms of Service",
+	"Workspace Proxy",
 
 	// Keyboard keys, named in keyboard instructions.
 	"Enter",
@@ -327,6 +328,7 @@ const CODE_ATTRIBUTES = new Set([
 	"rel",
 	"role",
 	"src",
+	"style",
 	"target",
 	"to",
 	"type",

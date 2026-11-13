@@ -40,6 +40,7 @@ describe("findTitleCaseWords", () => {
 	it("allows proper nouns", () => {
 		expect(words("Use Coder Desktop")).toEqual([]);
 		expect(words("Configure AI Gateway keys")).toEqual([]);
+		expect(words("Check Workspace Proxy health")).toEqual([]);
 		expect(words("Newer Anthropic-compatible endpoint")).toEqual([]);
 		expect(words("Enhances Coder's parameters")).toEqual([]);
 	});
@@ -333,6 +334,7 @@ describe("checkSource", () => {
 			'const d = <input aria-label="Search Workspaces" title="Delete File" />;',
 			'const e = <option value="New Workspace">New Template</option>;',
 			'const f = <div className={cn("Foo Bar", { "Baz Qux": ok })} />;',
+			"const g = <div style={{ gridTemplateAreas: '\"Main Header\"' }} />;",
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
