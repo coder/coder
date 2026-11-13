@@ -22,10 +22,12 @@ func TestManageAutomationsSubagentSpawn(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "parent")
-	require.NoError(t, db.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
+	rows, err := db.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
 		ID: parent.ID, ManageAutomationsEnabled: true,
-	}))
-	parent, err := db.GetChatByID(ctx, parent.ID)
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
+	parent, err = db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 	require.True(t, parent.ManageAutomationsEnabled)
 

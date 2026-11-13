@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -13,10 +14,25 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// deleteBeforeSwitchWrite deletes the chat in front of the switch write, as a
+// purge of old chats could between the permission check and the write.
+type deleteBeforeSwitchWrite struct {
+	database.Store
+	sqlDB *sql.DB
+}
+
+func (s deleteBeforeSwitchWrite) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg database.UpdateChatManageAutomationsEnabledByIDParams) (int64, error) {
+	if _, err := s.sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, arg.ID); err != nil {
+		return 0, err
+	}
+	return s.Store.UpdateChatManageAutomationsEnabledByID(ctx, arg)
+}
 
 // TestChatManageAutomationsSwitch covers the chat switch of the
 // manage_automations tool: its starting value, who can change it, and what the
@@ -106,6 +122,52 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		require.Equal(t, "member chat", got.Title)
 	})
 
+	t.Run("OneChatOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, first := newClient(t, true)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, first.OrganizationID)
+		modelID := createChatModel(t, client).ID
+		seed := func(owner uuid.UUID) database.Chat {
+			return dbgen.Chat(t, db, database.Chat{
+				OrganizationID:           first.OrganizationID,
+				OwnerID:                  owner,
+				LastModelConfigID:        modelID,
+				ManageAutomationsEnabled: true,
+			})
+		}
+		mine, mineOther, theirs := seed(first.UserID), seed(first.UserID), seed(member.ID)
+
+		require.NoError(t, client.UpdateChat(ctx, mine.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(false)}))
+
+		// The write reaches the chat of the request and no other chat, neither
+		// the owner's other chat nor another user's.
+		require.False(t, getChat(ctx, t, client, mine.ID).ManageAutomationsEnabled)
+		require.True(t, getChat(ctx, t, client, mineOther.ID).ManageAutomationsEnabled)
+		require.True(t, getChat(ctx, t, client, theirs.ID).ManageAutomationsEnabled)
+	})
+
+	t.Run("ChatDeletedBeforeWrite", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := newChatClient(t, func(o *coderdtest.Options) {
+			o.Database = deleteBeforeSwitchWrite{Store: db, sqlDB: sqlDB}
+			o.Pubsub = ps
+		})
+		first := coderdtest.CreateFirstUser(t, client.Client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:           first.OrganizationID,
+			OwnerID:                  first.UserID,
+			LastModelConfigID:        createChatModel(t, client).ID,
+			ManageAutomationsEnabled: true,
+		})
+
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(false)})
+
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("OwnerExperimentOff", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -121,7 +183,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		require.False(t, getChat(ctx, t, client, chat.ID).ManageAutomationsEnabled)
 
 		//nolint:gocritic // Seed a switch that was on before the experiment went off.
-		err = db.UpdateChatManageAutomationsEnabledByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatManageAutomationsEnabledByIDParams{
+		_, err = db.UpdateChatManageAutomationsEnabledByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatManageAutomationsEnabledByIDParams{
 			ID: chat.ID, ManageAutomationsEnabled: true,
 		})
 		require.NoError(t, err)

@@ -224,7 +224,7 @@ func TestManageAutomationsTurn(t *testing.T) {
 			chat, err := server.CreateChat(ctx, chatd.CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "automations", ModelConfigID: model.ID})
 			require.NoError(t, err)
 			require.Equal(t, tc.experiment == "on", chat.ManageAutomationsEnabled)
-			err = db.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
+			_, err = db.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
 				ID: chat.ID, ManageAutomationsEnabled: true,
 			})
 			require.NoError(t, err)

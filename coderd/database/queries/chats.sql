@@ -1253,8 +1253,9 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
--- name: UpdateChatManageAutomationsEnabledByID :exec
--- Sets the manage_automations_enabled switch of one chat.
+-- name: UpdateChatManageAutomationsEnabledByID :execrows
+-- Sets the manage_automations_enabled switch of one chat. The row count is 0
+-- when the chat no longer exists.
 UPDATE
     chats
 SET

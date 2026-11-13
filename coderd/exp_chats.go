@@ -3056,12 +3056,16 @@ func (api *API) updateChat(
 	}
 
 	if req.ManageAutomationsEnabled != nil {
-		err := api.Database.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
+		rows, err := api.Database.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
 			ID:                       chat.ID,
 			ManageAutomationsEnabled: *req.ManageAutomationsEnabled,
 		})
 		if err != nil {
 			return database.Chat{}, chatUpdateError(err, "Failed to update chat automations switch.")
+		}
+		if rows == 0 {
+			// The chat was deleted after the permission check above.
+			return database.Chat{}, chatUpdateError(sql.ErrNoRows, "Failed to update chat automations switch.")
 		}
 		chat.ManageAutomationsEnabled = *req.ManageAutomationsEnabled
 	}

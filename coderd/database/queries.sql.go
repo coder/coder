@@ -15208,7 +15208,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 	return i, err
 }
 
-const updateChatManageAutomationsEnabledByID = `-- name: UpdateChatManageAutomationsEnabledByID :exec
+const updateChatManageAutomationsEnabledByID = `-- name: UpdateChatManageAutomationsEnabledByID :execrows
 UPDATE
     chats
 SET
@@ -15223,10 +15223,14 @@ type UpdateChatManageAutomationsEnabledByIDParams struct {
 	ID                       uuid.UUID `db:"id" json:"id"`
 }
 
-// Sets the manage_automations_enabled switch of one chat.
-func (q *sqlQuerier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg UpdateChatManageAutomationsEnabledByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateChatManageAutomationsEnabledByID, arg.ManageAutomationsEnabled, arg.ID)
-	return err
+// Sets the manage_automations_enabled switch of one chat. The row count is 0
+// when the chat no longer exists.
+func (q *sqlQuerier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg UpdateChatManageAutomationsEnabledByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatManageAutomationsEnabledByID, arg.ManageAutomationsEnabled, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatPinOrder = `-- name: UpdateChatPinOrder :exec
