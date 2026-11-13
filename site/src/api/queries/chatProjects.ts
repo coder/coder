@@ -55,6 +55,17 @@ export const archivedChatProjects = () =>
 		refetchOnWindowFocus: true,
 	});
 
+/**
+ * Reads one project from the archivedChatProjects() list. Data is null when
+ * the project is not archived or not visible to the user.
+ */
+export const archivedChatProject = (projectId: string | undefined) =>
+	queryOptions({
+		...archivedChatProjects(),
+		select: (projects) =>
+			projects.find((project) => project.id === projectId) ?? null,
+	});
+
 const unlistedChatProjectKey = (projectId: string | undefined) =>
 	[...chatProjectsKey, projectId, "unlisted"] as const;
 

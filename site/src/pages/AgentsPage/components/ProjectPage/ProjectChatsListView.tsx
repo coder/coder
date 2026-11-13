@@ -21,6 +21,7 @@ type ProjectChatsListViewProps = {
 	readonly actions?: ProjectChatRowActions;
 	/** Fetches and shows each chat's AI Gateway cost. */
 	readonly showCost: boolean;
+	readonly isArchived?: boolean;
 };
 
 type ProjectChatRowsProps = Pick<
@@ -88,6 +89,7 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 	currentUser,
 	actions,
 	showCost,
+	isArchived = false,
 }) => {
 	const pinnedChats = getOwnPinnedChats(chats ?? [], currentUser.id);
 	const pinnedChatIds = new Set(pinnedChats.map((chat) => chat.id));
@@ -139,8 +141,9 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 							{/* Fills the grid row so the box matches the details panel
 							    beside it. */}
 							<div className="flex flex-1 items-center justify-center rounded-lg border border-dashed px-4 py-8 text-center text-sm text-content-secondary">
-								No chats yet. Every chat will leverage the same settings and
-								history.
+								{isArchived
+									? "No archived chats."
+									: "No chats yet. Every chat will leverage the same settings and history."}
 							</div>
 							{errorAlert}
 						</>

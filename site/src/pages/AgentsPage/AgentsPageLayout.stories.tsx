@@ -1110,6 +1110,10 @@ export const ProjectNotFound: Story = {
 	parameters: projectPageParameters,
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatProject").mockRejectedValue({
+			...mockApiError({ message: "Resource not found." }),
+			status: 404,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

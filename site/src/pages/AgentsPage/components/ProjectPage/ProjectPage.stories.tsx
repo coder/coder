@@ -5,10 +5,15 @@ import {
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
 } from "#/api/queries/chatProjects";
-import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
+import {
+	chatCostTreeKey,
+	projectChats,
+	projectChatsKey,
+} from "#/api/queries/chats";
 import type { Chat, ChatProjectACL } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockChatProjectACL,
 	MockChatProjectInstructions,
@@ -54,6 +59,7 @@ const meta: Meta<typeof ProjectPage> = {
 	],
 	args: {
 		project: MockChatProject,
+		isOwnedOrSharedWithUser: true,
 		children: (
 			<div className="flex h-32 items-center justify-center rounded-lg border border-dashed text-sm text-content-secondary">
 				Composer
@@ -113,6 +119,34 @@ export const Mobile: Story = {
 				data: MockSkills,
 			},
 			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
+};
+
+/** An admin can manage the project but can't start chats in it. */
+export const NotSharedWithUser: Story = {
+	args: {
+		project: { ...MockChatProject, owner_id: MockUserMember.id },
+		isOwnedOrSharedWithUser: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: projectChatsKey(MockChatProject.id),
+				data: { pages: [[]], pageParams: [0] },
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{
+				key: chatProjectACLKey(MockChatProject.id),
+				data: { owner: MockUserMember, users: [], groups: [] },
+			},
 		],
 	},
 };
@@ -214,6 +248,109 @@ export const ChatMovedToAnotherProject: Story = {
 			{
 				key: chatCostTreeKey("chat-1"),
 				data: mockChatCost("chat-1", 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
+};
+
+const mockArchivedChat: Chat = {
+	...MockChat,
+	id: "chat-1",
+	title: "Plan the launch",
+	archived: true,
+	project_id: MockChatProject.id,
+};
+
+/** The composer gives way to a banner, and the list shows archived chats. */
+export const Archived: Story = {
+	args: { project: MockArchivedChatProject },
+	parameters: {
+		queries: [
+			{
+				key: projectChats(MockChatProject.id, true).queryKey,
+				data: { pages: [[mockArchivedChat]], pageParams: [0] },
+			},
+			{
+				key: chatCostTreeKey(mockArchivedChat.id),
+				data: mockChatCost(mockArchivedChat.id, 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
+};
+
+/** Only Unarchive project and Delete project remain in the menu. */
+export const ArchivedProjectActions: Story = {
+	args: { project: MockArchivedChatProject },
+	parameters: {
+		queries: [
+			{
+				key: projectChats(MockChatProject.id, true).queryKey,
+				data: { pages: [[mockArchivedChat]], pageParams: [0] },
+			},
+			{
+				key: chatCostTreeKey(mockArchivedChat.id),
+				data: mockChatCost(mockArchivedChat.id, 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Project actions",
+			}),
+		);
+	},
+};
+
+/** A user who can't unarchive the project gets no Unarchive button. */
+export const ArchivedWithoutArchivePermission: Story = {
+	args: {
+		project: {
+			...MockArchivedChatProject,
+			permissions: {
+				update: false,
+				delete: false,
+				share: false,
+				archive: false,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: projectChats(MockChatProject.id, true).queryKey,
+				data: { pages: [[mockArchivedChat]], pageParams: [0] },
+			},
+			{
+				key: chatCostTreeKey(mockArchivedChat.id),
+				data: mockChatCost(mockArchivedChat.id, 1_234_000),
 			},
 			{
 				key: chatProjectInstructionsKey(MockChatProject.id),

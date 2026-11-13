@@ -54,6 +54,7 @@ type ProjectDetailsPanelViewProps = {
 	readonly disabledSkillCount: number | undefined;
 	readonly skillsError: unknown;
 	readonly onOpenSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;
+	readonly canEditSkills: boolean;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
@@ -77,6 +78,7 @@ export const ProjectDetailsPanelView: React.FC<
 	disabledSkillCount,
 	skillsError,
 	onOpenSkills,
+	canEditSkills,
 	instructions,
 	error,
 	onRetry,
@@ -167,7 +169,9 @@ export const ProjectDetailsPanelView: React.FC<
 								onClick={onOpenSkills}
 							>
 								{skillsLabel}
-								<PenIcon className="size-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
+								{canEditSkills && (
+									<PenIcon className="size-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
+								)}
 							</button>
 						)}
 					</DetailRow>

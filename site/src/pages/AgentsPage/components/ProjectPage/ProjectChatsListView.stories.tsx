@@ -223,3 +223,7 @@ export const LoadError: Story = {
 export const Empty: Story = {
 	args: { chats: [] },
 };
+
+export const ArchivedEmpty: Story = {
+	args: { chats: [], isArchived: true },
+};
