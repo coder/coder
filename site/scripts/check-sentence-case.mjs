@@ -589,6 +589,46 @@ function isInCodeProperty(node) {
 	return false;
 }
 
+// Functions and constructors whose string arguments are code: patterns,
+// selectors, storage keys, URLs, event names, and attribute names.
+const CODE_ARGUMENT_CALLS = new Set([
+	"CustomEvent",
+	"Event",
+	"RegExp",
+	"URL",
+	"URLSearchParams",
+	"addEventListener",
+	"closest",
+	"dispatchEvent",
+	"fetch",
+	"getAttribute",
+	"getElementById",
+	"getElementsByClassName",
+	"getElementsByTagName",
+	"getItem",
+	"hasAttribute",
+	"matches",
+	"querySelector",
+	"querySelectorAll",
+	"removeAttribute",
+	"removeEventListener",
+	"removeItem",
+	"setAttribute",
+	"setItem",
+]);
+
+/** Returns the name a call invokes: `f` in `f()` and `a.f()`, or "". */
+function calleeName(expression) {
+	const callee = skipTransparent(expression);
+	if (ts.isIdentifier(callee)) {
+		return callee.text;
+	}
+	if (ts.isPropertyAccessExpression(callee)) {
+		return callee.name.text;
+	}
+	return "";
+}
+
 /** Returns true when the literal is code rather than displayed text. */
 function isNonDisplayLiteral(literal) {
 	const attribute = enclosingJsxAttribute(literal);
@@ -619,6 +659,13 @@ function isNonDisplayLiteral(literal) {
 	if (
 		ts.isCallExpression(parent) &&
 		parent.expression.kind === ts.SyntaxKind.ImportKeyword
+	) {
+		return true;
+	}
+	if (
+		(ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
+		parent.arguments?.includes(node) &&
+		CODE_ARGUMENT_CALLS.has(calleeName(parent.expression))
 	) {
 		return true;
 	}

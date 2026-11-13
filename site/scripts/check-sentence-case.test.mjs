@@ -151,6 +151,11 @@ describe("checkSource", () => {
 			'switch (group) { case "User Events"!: break; }',
 			'enum Event { Task = "Task Events" }',
 			'const handlers = { ["Task Events"]: handle, [`Ops ${x} Log`]: h };',
+			'const re = new RegExp("Task Events");',
+			"const el = document.querySelector(\"[data-x='Main Panel']\");",
+			'localStorage.setItem("Recent Items", value);',
+			'window.addEventListener("Custom Event", handler);',
+			'node.setAttribute("Some Name", value);',
 		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
