@@ -1033,7 +1033,7 @@ type CreateChatMessageRequest struct {
 	// BusyBehavior controls when the message reaches the agent if the
 	// chat is busy. "steer", the default, delivers it before the next
 	// model call. "queue" delivers it after the active turn ends.
-	BusyBehavior ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"steer,queue"`
+	BusyBehavior ChatBusyBehavior `json:"busy_behavior,omitempty"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`

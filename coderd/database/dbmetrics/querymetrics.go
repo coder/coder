@@ -2080,6 +2080,14 @@ func (m queryMetricsStore) GetChatsByChatFileID(ctx context.Context, fileID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatsByIDsForRunnerSync(ctx, ids)
@@ -4149,6 +4157,14 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	r0, r1 := m.s.GetWorkspaceByWorkspaceAppID(ctx, workspaceAppID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceByWorkspaceAppID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceByWorkspaceAppID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]database.GetWorkspaceLastUsedForMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceLastUsedForMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetWorkspaceLastUsedForMetrics").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceLastUsedForMetrics").Inc()
 	return r0, r1
 }
 
