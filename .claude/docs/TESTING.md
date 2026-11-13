@@ -21,23 +21,6 @@
 - Test both positive and negative cases
 - Use `testutil.WaitLong` for timeouts in tests
 
-### Proportionate Tests
-
-Reviewers read every test line, so a test must catch a bug that no other
-test catches.
-
-- Test each behavior at one layer: the narrowest one that can observe it.
-  Add a second layer only for a failure the first cannot reach, such as
-  HTTP status mapping or audit wiring. Do not repeat a dbauthz or RBAC
-  matrix in handler tests.
-- Extend an existing table or test before you add a new test function.
-  A regression test for a review fix is usually one new row.
-- Check that each new test can fail: break the code it protects and run
-  it. If another test also fails and the new test adds no other case,
-  keep the test at the narrowest layer and delete or trim the other one.
-- Do not add tests that only restate constants, log output, or the
-  expected value that the code under test computed.
-
 ### Timing Issues
 
 NEVER use `time.Sleep` to mitigate timing issues. If an issue seems like
