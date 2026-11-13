@@ -122,8 +122,14 @@ import {
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-const AgentChatPage: React.FC = () => {
-	const { agentId } = useParams() as { agentId: string };
+type AgentChatPageProps = {
+	/** Overrides the route param so several chat panes can render at once. */
+	readonly chatId?: string;
+};
+
+const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
+	chatId: agentId,
+}) => {
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -978,8 +984,9 @@ const AgentChatPage: React.FC = () => {
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: React.FC = () => {
-	const { agentId } = useParams<{ agentId: string }>();
+const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
+	const params = useParams<{ agentId: string }>();
+	const agentId = chatId ?? params.agentId;
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;
 	}
@@ -989,7 +996,7 @@ const KeyedAgentChatPage: React.FC = () => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage />
+			<AgentChatPage chatId={agentId} />
 		</MessageScroller.Provider>
 	);
 };
