@@ -681,7 +681,18 @@ describe("ProjectDetailsPanel templates", () => {
 		const getProjects = vi
 			.spyOn(API.experimental, "getChatProjects")
 			.mockResolvedValue([MockChatProject]);
-		return { updateProject, getProjects, ...renderPanel() };
+		const panel = renderPanel();
+		return {
+			updateProject,
+			getProjects,
+			...panel,
+			// The dialog checks the project list before saving, so it serves
+			// the rerendered project too.
+			rerenderWithProject: (project: ChatProject) => {
+				getProjects.mockResolvedValue([project]);
+				panel.rerenderWithProject(project);
+			},
+		};
 	};
 
 	it("saves the templates picked in the editor", async () => {

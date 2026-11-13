@@ -93,40 +93,6 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
-/**
- * An empty parameter input means "use the template default", so the request
- * omits it. An empty value that is already saved (set through the API) is
- * kept while its input stays empty, so editing other settings does not drop
- * it.
- */
-const keepSavedEmptyParameters = (
-	request: ChatProjectTemplates,
-	value: ChatProjectTemplatesValues,
-	saved: ChatProjectTemplates,
-): ChatProjectTemplates => {
-	if (
-		value.defaultsKind !== "parameters" ||
-		request.default_template_id === undefined ||
-		request.default_template_id !== saved.default_template_id
-	) {
-		return request;
-	}
-	const savedEmpty = Object.entries(saved.default_parameters ?? {}).filter(
-		([name, savedValue]) =>
-			savedValue === "" && value.defaultParameters[name] === "",
-	);
-	if (savedEmpty.length === 0) {
-		return request;
-	}
-	return {
-		...request,
-		default_parameters: {
-			...request.default_parameters,
-			...Object.fromEntries(savedEmpty),
-		},
-	};
-};
-
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	open,
 	project,
@@ -139,9 +105,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
 	const [baseTemplates, setBaseTemplates] = useState(project.templates);
-	// The saved templates the draft's values came from. Unlike the base, it
-	// stays put when the user keeps their draft over a newer save.
-	const [draftSource, setDraftSource] = useState(project.templates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
 	// Templates are shared by every editor of the project, so refresh them
@@ -157,7 +120,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		serializeTemplates(project.templates) !== serializeTemplates(baseTemplates)
 	) {
 		setBaseTemplates(project.templates);
-		setDraftSource(project.templates);
 		setValue(chatProjectTemplatesValues(project.templates));
 	}
 	const templatesQuery = useQuery(agentTemplates(project.organization_id));
@@ -199,22 +161,31 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					(name) => !parameterNames.includes(name),
 				)
 			: [];
-	const formValue: ChatProjectTemplatesValues = {
-		...value,
-		defaultPresetId: hasStalePreset ? "" : value.defaultPresetId,
-		defaultParameters: Object.fromEntries(
-			Object.entries(value.defaultParameters).filter(
-				([name]) => !staleParameterNames.includes(name),
-			),
-		),
-	};
+	// Saving drops a default template that is no longer eligible, along
+	// with its default values.
+	const dropsDefaultTemplate =
+		eligibleTemplates !== undefined &&
+		value.defaultTemplateId !== "" &&
+		defaultTemplate === undefined;
+	const formValue: ChatProjectTemplatesValues = dropsDefaultTemplate
+		? {
+				...value,
+				defaultTemplateId: "",
+				defaultPresetId: "",
+				defaultParameters: {},
+			}
+		: {
+				...value,
+				defaultPresetId: hasStalePreset ? "" : value.defaultPresetId,
+				defaultParameters: Object.fromEntries(
+					Object.entries(value.defaultParameters).filter(
+						([name]) => !staleParameterNames.includes(name),
+					),
+				),
+			};
 	const request =
 		eligibleTemplates &&
-		keepSavedEmptyParameters(
-			chatProjectTemplatesRequest(formValue, eligibleTemplates),
-			formValue,
-			draftSource,
-		);
+		chatProjectTemplatesRequest(formValue, eligibleTemplates);
 	// Saving drops templates that are no longer eligible, so a draft that
 	// still holds any differs from the saved templates even when untouched.
 	const droppedTemplateCount =
@@ -248,11 +219,26 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	return (
 		<form
 			className="flex flex-col gap-4"
-			onSubmit={(event) => {
+			onSubmit={async (event) => {
 				event.preventDefault();
-				if (request && canSave) {
-					onSave(request);
+				if (!request || !canSave) {
+					return;
 				}
+				// A change saved elsewhere since the last refresh would otherwise
+				// be overwritten, so check first. A newer save shows the conflict
+				// warning instead.
+				const refreshed = await projectsQuery.refetch();
+				const latest = refreshed.data?.find(({ id }) => id === project.id);
+				const serializedLatest = latest && serializeTemplates(latest.templates);
+				if (
+					refreshed.isError ||
+					serializedLatest === undefined ||
+					(serializedLatest !== serializeTemplates(baseTemplates) &&
+						serializedLatest !== serializeTemplates(request))
+				) {
+					return;
+				}
+				onSave(request);
 			}}
 		>
 			<DialogHeader>
@@ -282,7 +268,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 								: `${droppedTemplateCount} templates are`}{" "}
 							no longer available to agents (deleted, deprecated, or no longer
 							allowed for agents). Saving removes{" "}
-							{droppedTemplateCount === 1 ? "it" : "them"} from the project.
+							{droppedTemplateCount === 1 ? "it" : "them"} from the project
+							{dropsDefaultTemplate &&
+								", along with the default template and its default values"}
+							.
 						</AlertDescription>
 					)}
 					{staleParameterNames.length > 0 && (
@@ -328,7 +317,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					onKeepDraft={() => setBaseTemplates(project.templates)}
 					onLoadLatest={() => {
 						setBaseTemplates(project.templates);
-						setDraftSource(project.templates);
 						setValue(chatProjectTemplatesValues(project.templates));
 						onResetError();
 					}}

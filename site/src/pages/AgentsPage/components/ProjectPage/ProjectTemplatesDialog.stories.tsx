@@ -327,3 +327,30 @@ export const ProjectRefreshError: Story = {
 		await screen.findByRole("button", { name: "Retry" });
 	},
 };
+
+/** The default template is no longer available to agents. */
+export const IneligibleDefaultTemplate: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			templates: {
+				template_ids: [dockerTemplate.id, "template-deprecated"],
+				default_template_id: "template-deprecated",
+			},
+		},
+	},
+};
+
+/** A parameter's default was saved as an empty value through the API. */
+export const SavedEmptyParameter: Story = {
+	args: {
+		project: {
+			...projectWithDefaultParameters,
+			templates: {
+				...projectWithDefaultParameters.templates,
+				default_parameters: { [MockTemplateVersionParameter1.name]: "" },
+			},
+		},
+	},
+	parameters: DefaultParameters.parameters,
+};

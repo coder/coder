@@ -21,9 +21,9 @@ const renderDialog = (
 	template: Template = MockTemplate,
 ) => {
 	vi.spyOn(API, "getTemplates").mockResolvedValue([template]);
-	vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
-		MockChatProject,
-	]);
+	const getProjects = vi
+		.spyOn(API.experimental, "getChatProjects")
+		.mockResolvedValue([props.project ?? MockChatProject]);
 	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
 		MockTemplateVersionParameter1,
 		MockTemplateVersionParameter2,
@@ -47,12 +47,14 @@ const renderDialog = (
 	return {
 		user: userEvent.setup(),
 		props: allProps,
-		rerenderWithProject: (project: ChatProject) =>
+		rerenderWithProject: (project: ChatProject) => {
+			getProjects.mockResolvedValue([project]);
 			rerender(
 				<QueryClientProvider client={queryClient}>
 					<ProjectTemplatesDialog {...allProps} project={project} />
 				</QueryClientProvider>,
-			),
+			);
+		},
 	};
 };
 
@@ -92,14 +94,16 @@ describe("ProjectTemplatesDialog", () => {
 		await user.type(second, "new");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(props.onSave).toHaveBeenCalledWith({
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-			default_parameters: {
-				[MockTemplateVersionParameter1.name]: "",
-				[MockTemplateVersionParameter2.name]: "new",
-			},
-		});
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+				default_parameters: {
+					[MockTemplateVersionParameter1.name]: "",
+					[MockTemplateVersionParameter2.name]: "new",
+				},
+			}),
+		);
 	});
 
 	it("clears a default preset that is no longer in the active version", async () => {
@@ -119,10 +123,12 @@ describe("ProjectTemplatesDialog", () => {
 		await waitFor(() => expect(save).toBeEnabled());
 		await user.click(save);
 
-		expect(props.onSave).toHaveBeenCalledWith({
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-		});
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+			}),
+		);
 	});
 
 	const projectWithRemovedParameter: ChatProject = {
@@ -147,11 +153,13 @@ describe("ProjectTemplatesDialog", () => {
 		await waitFor(() => expect(save).toBeEnabled());
 		await user.click(save);
 
-		expect(props.onSave).toHaveBeenCalledWith({
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-			default_parameters: { [MockTemplateVersionParameter1.name]: "kept" },
-		});
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+				default_parameters: { [MockTemplateVersionParameter1.name]: "kept" },
+			}),
+		);
 	});
 
 	it("keeps default values a dynamic template may still evaluate", async () => {
@@ -165,14 +173,16 @@ describe("ProjectTemplatesDialog", () => {
 		await user.type(kept, "!");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(props.onSave).toHaveBeenCalledWith({
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-			default_parameters: {
-				[MockTemplateVersionParameter1.name]: "kept!",
-				removed_parameter: "gone",
-			},
-		});
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+				default_parameters: {
+					[MockTemplateVersionParameter1.name]: "kept!",
+					removed_parameter: "gone",
+				},
+			}),
+		);
 	});
 
 	it("pauses saving until the project refresh succeeds", async () => {
@@ -190,7 +200,7 @@ describe("ProjectTemplatesDialog", () => {
 		const save = screen.getByRole("button", { name: "Save" });
 		await waitFor(() => expect(save).toBeEnabled());
 		await user.click(save);
-		expect(props.onSave).toHaveBeenCalled();
+		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
 	});
 
 	it("pauses saving while the project refresh is in flight", async () => {
@@ -238,12 +248,62 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(props.onSave).toHaveBeenCalledWith({
-			...templates,
-			default_parameters: {
-				[MockTemplateVersionParameter1.name]: "",
-				[MockTemplateVersionParameter2.name]: "new",
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				...templates,
+				default_parameters: {
+					[MockTemplateVersionParameter1.name]: "",
+					[MockTemplateVersionParameter2.name]: "new",
+				},
+			}),
+		);
+	});
+
+	it("does not save over templates changed since the last refresh", async () => {
+		const { user, props } = renderDialog();
+		const getProjects = vi.mocked(API.experimental.getChatProjects);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		const callsBeforeSave = getProjects.mock.calls.length;
+		getProjects.mockResolvedValue([
+			{
+				...MockChatProject,
+				templates: {
+					template_ids: [MockTemplate.id],
+					default_template_id: MockTemplate.id,
+				},
+			},
+		]);
+
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(getProjects).toHaveBeenCalledTimes(callsBeforeSave + 1),
+		);
+		expect(props.onSave).not.toHaveBeenCalled();
+	});
+
+	it("replaces a saved empty value with the template default", async () => {
+		const templates = {
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
+		};
+		const { user, props } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: {
+					...templates,
+					default_parameters: { [MockTemplateVersionParameter1.name]: "" },
+				},
 			},
 		});
+
+		await user.click(
+			await screen.findByRole("button", { name: "Use template default" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(props.onSave).toHaveBeenCalledWith(templates));
 	});
 });
