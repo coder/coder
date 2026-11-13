@@ -305,34 +305,84 @@ export function findTitleCaseWords(text) {
 	return results;
 }
 
-// Attributes whose values are code rather than displayed text. All
+// Attributes whose values are code rather than displayed text: IDs and
+// ID references, URLs, enumerated values, CSS, and form values. All
 // data-* attributes and the aria-* attributes not listed in
 // ARIA_TEXT_ATTRIBUTES are code too.
 const CODE_ATTRIBUTES = new Set([
 	"accept",
+	"acceptCharset",
+	"accessKey",
 	"action",
+	"allow",
+	"as",
+	"autoCapitalize",
 	"autoComplete",
+	"charSet",
 	"className",
+	"crossOrigin",
+	"d",
+	"decoding",
 	"defaultValue",
 	"dir",
+	"download",
+	"encType",
+	"enterKeyHint",
+	"fill",
 	"form",
+	"formAction",
+	"formEncType",
+	"formMethod",
+	"formTarget",
+	"headers",
 	"href",
+	"hrefLang",
 	"htmlFor",
 	"id",
 	"inputMode",
+	"integrity",
+	"is",
+	"itemID",
+	"itemProp",
+	"itemRef",
+	"itemScope",
+	"itemType",
 	"key",
+	"kind",
 	"lang",
+	"list",
+	"loading",
+	"media",
 	"method",
 	"name",
+	"nonce",
+	"part",
 	"pattern",
+	"ping",
+	"points",
+	"referrerPolicy",
 	"rel",
 	"role",
+	"sandbox",
+	"scope",
+	"shape",
+	"sizes",
+	"slot",
 	"src",
+	"srcDoc",
+	"srcLang",
+	"srcSet",
+	"stroke",
 	"style",
 	"target",
 	"to",
+	"transform",
 	"type",
+	"useMap",
 	"value",
+	"viewBox",
+	"wrap",
+	"xmlns",
 ]);
 
 const ARIA_TEXT_ATTRIBUTES = new Set([
@@ -345,8 +395,9 @@ const ARIA_TEXT_ATTRIBUTES = new Set([
 
 /**
  * Returns the JSX attribute whose value contains `node`, through any
- * expression such as `className={cn("a", { b: ok })}`, or null. Stops at
- * JSX elements and functions, whose contents are not the value itself.
+ * expression such as `className={cn("a", { b: ok })}` or a callback, or
+ * null. Stops at JSX elements, whose own attributes and children are
+ * checked on their own.
  */
 function enclosingJsxAttribute(node) {
 	let parent = node.parent;
@@ -356,7 +407,6 @@ function enclosingJsxAttribute(node) {
 		!ts.isJsxElement(parent) &&
 		!ts.isJsxSelfClosingElement(parent) &&
 		!ts.isJsxFragment(parent) &&
-		!ts.isFunctionLike(parent) &&
 		!ts.isSourceFile(parent)
 	) {
 		parent = parent.parent;

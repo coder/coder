@@ -341,6 +341,8 @@ describe("checkSource", () => {
 			'const e = <option value="New Workspace">New Template</option>;',
 			'const f = <div className={cn("Foo Bar", { "Baz Qux": ok })} />;',
 			"const g = <div style={{ gridTemplateAreas: '\"Main Header\"' }} />;",
+			'const h = <div data-values={items.map(() => "New Workspace")} />;',
+			'const i = <td headers="Plan Name" />;',
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
