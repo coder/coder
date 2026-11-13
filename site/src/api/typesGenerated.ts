@@ -838,6 +838,12 @@ export type APIKeyScope =
 	| "crypto_key:update"
 	| "debug_info:*"
 	| "debug_info:read"
+	| "delegated_identity:*"
+	| "delegated_identity:create"
+	| "delegated_identity:delete"
+	| "delegated_identity:read"
+	| "delegated_identity:update"
+	| "delegated_identity:use"
 	| "deployment_config:*"
 	| "deployment_config:read"
 	| "deployment_config:update"
@@ -1106,6 +1112,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"crypto_key:update",
 	"debug_info:*",
 	"debug_info:read",
+	"delegated_identity:*",
+	"delegated_identity:create",
+	"delegated_identity:delete",
+	"delegated_identity:read",
+	"delegated_identity:update",
+	"delegated_identity:use",
 	"deployment_config:*",
 	"deployment_config:read",
 	"deployment_config:update",
@@ -1663,74 +1675,6 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"envbuilder",
 	"exectrace",
 ];
-
-// From codersdk/workloads.go
-/**
- * AgentWorkloadExit is what a workspace daemon reports when a workload is
- * over.
- */
-export interface AgentWorkloadExit {
-	/**
-	 * ExitCode is nil when the daemon does not know it.
-	 */
-	readonly exit_code?: number;
-	readonly reason: WorkloadEndReason;
-	/**
-	 * OutputTail is the end of the workload's output.
-	 */
-	readonly output_tail?: string;
-}
-
-// From codersdk/workloads.go
-/**
- * AgentWorkloadSpec is what coderd asks a workspace daemon to run.
- */
-export interface AgentWorkloadSpec {
-	/**
-	 * ID is the workload identity.
-	 */
-	readonly id: string;
-	readonly name: string;
-	readonly command: string;
-	/**
-	 * Interactive gives the command a terminal.
-	 */
-	readonly interactive?: boolean;
-	/**
-	 * SessionToken is the workload's own credential for Coder. It is
-	 * handed out once: it is empty when the daemon asks again.
-	 */
-	readonly session_token?: string;
-}
-
-// From codersdk/workloads.go
-/**
- * AgentWorkloadStart is what a workspace daemon reports once it has tried
- * to start a workload that coderd gave it.
- */
-export interface AgentWorkloadStart {
-	/**
-	 * State is set when the workload runs.
-	 */
-	readonly state?: AgentWorkloadState;
-	/**
-	 * Error says why it does not.
-	 */
-	readonly error?: string;
-}
-
-// From codersdk/workloads.go
-/**
- * AgentWorkloadState is a workload as its workspace daemon sees it.
- */
-export interface AgentWorkloadState {
-	readonly id: string;
-	readonly name: string;
-	readonly sandbox: WorkloadSandbox;
-	readonly running: boolean;
-	readonly exit_code?: number;
-	readonly started_at: string;
-}
 
 // From codersdk/aiproviders.go
 export type AgentsUnsupportedProviderType = "copilot";
@@ -4600,6 +4544,38 @@ export interface CreateChatRequest {
 	readonly client_type?: ChatClientType;
 }
 
+// From codersdk/delegatedidentities.go
+/**
+ * CreateDelegatedIdentityRequest creates a delegated identity. It returns a
+ * record and no credential: an identity gets its credentials where it is
+ * used, for example in a workspace that is built on its behalf.
+ */
+export interface CreateDelegatedIdentityRequest {
+	/**
+	 * Name becomes the username of the identity's account. One is made up
+	 * when it is empty.
+	 */
+	readonly name?: string;
+	/**
+	 * ParentID is the user or delegated identity to create the identity
+	 * under. It defaults to the caller. Naming anyone who is not the
+	 * caller or below the caller needs permission to create delegated
+	 * identities across the organization.
+	 */
+	readonly parent_id?: string;
+	/**
+	 * OrganizationID is required when the parent is a user in more than
+	 * one organization. An identity under an identity is in its parent's
+	 * organization.
+	 */
+	readonly organization_id?: string;
+	/**
+	 * Scopes is what the identity may do with the API. It can hold no
+	 * more than its parent does.
+	 */
+	readonly scopes?: readonly APIKeyScope[];
+}
+
 // From codersdk/users.go
 /**
  * CreateFirstUserOnboardingInfo contains optional newsletter preference
@@ -5452,6 +5428,59 @@ export const DefaultChatMaxStepsPerTurn = 1200;
  */
 export const DefaultChatWorkspaceTTL = 0;
 
+// From codersdk/delegatedidentities.go
+/**
+ * DelegatedIdentity is the identity of something that acts under a user,
+ * such as a coding agent. It is an account of its own: it owns the workspaces
+ * created on its behalf and is named in audit logs. It can never do more than
+ * its parent.
+ */
+export interface DelegatedIdentity {
+	/**
+	 * ID is also the ID of the account that is this identity.
+	 */
+	readonly id: string;
+	readonly organization_id: string;
+	/**
+	 * Name is the username of the identity's account. Workspaces of the
+	 * identity are addressed as name/workspace.
+	 */
+	readonly name: string;
+	/**
+	 * ParentID is the user or delegated identity this identity acts under.
+	 */
+	readonly parent_id: string;
+	readonly parent_name: string;
+	/**
+	 * RootUserID is the user at the top of the chain of parents. The
+	 * identity is judged with this user's roles and groups.
+	 */
+	readonly root_user_id: string;
+	readonly root_username: string;
+	/**
+	 * CreatedBy differs from the parent when a trusted service created
+	 * the identity under a member.
+	 */
+	readonly created_by: string;
+	/**
+	 * Scopes is what the identity was given. An empty list grants nothing.
+	 */
+	readonly scopes: readonly APIKeyScope[];
+	/**
+	 * EffectiveScopes is what the identity may do now: its scopes, less
+	 * whatever a delegated identity above it lacks.
+	 */
+	readonly effective_scopes: readonly APIKeyScope[];
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/delegatedidentities.go
+/**
+ * DelegatedIdentityMe names the delegated identity that makes the request.
+ */
+export const DelegatedIdentityMe = "me";
+
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**
@@ -5857,12 +5886,12 @@ export type Experiment =
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
 	| "chat-virtual-desktop"
+	| "delegated-identities"
 	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
 	| "no_nats_pubsub"
 	| "notifications"
-	| "runtime-workloads"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5937,12 +5966,12 @@ export const Experiments: Experiment[] = [
 	"chat-project-sharing",
 	"chat-stage-metrics",
 	"chat-virtual-desktop",
+	"delegated-identities",
 	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
 	"no_nats_pubsub",
 	"notifications",
-	"runtime-workloads",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
@@ -6739,52 +6768,6 @@ export const JobErrorCodes: JobErrorCode[] = [
 	"MISSING_TEMPLATE_PARAMETER",
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
-
-// From codersdk/workloads.go
-/**
- * LaunchWorkloadRequest asks for a workload. The workload gets a workspace
- * to itself, which its identity owns, and the caller sponsors it.
- */
-export interface LaunchWorkloadRequest {
-	/**
-	 * Name is optional. It must be a valid agent name.
-	 */
-	readonly name?: string;
-	/**
-	 * Command is run by a shell.
-	 */
-	readonly command: string;
-	/**
-	 * Interactive gives the command a terminal that the sponsor can attach
-	 * to.
-	 */
-	readonly interactive?: boolean;
-	/**
-	 * Scopes are the API key scopes the workload may use. Without any,
-	 * the workload can do nothing in Coder.
-	 */
-	readonly scopes?: readonly APIKeyScope[];
-	/**
-	 * TemplateID is the template the workspace is made from. The caller
-	 * must be allowed to use it.
-	 */
-	readonly template_id: string;
-	/**
-	 * TemplateVersionPresetID selects a preset of the template's active
-	 * version. A workspace that was built ahead of time for the preset is
-	 * claimed when there is one.
-	 */
-	readonly template_version_preset_id?: string;
-	/**
-	 * WorkspaceName is optional. The workspace is named like the workload
-	 * otherwise.
-	 */
-	readonly workspace_name?: string;
-	/**
-	 * Keep leaves the workspace in place when the workload is over.
-	 */
-	readonly keep?: boolean;
-}
 
 // From codersdk/licenses.go
 export interface License {
@@ -9307,6 +9290,7 @@ export type RBACResource =
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
+	| "delegated_identity"
 	| "deployment_config"
 	| "deployment_stats"
 	| "file"
@@ -9365,6 +9349,7 @@ export const RBACResources: RBACResource[] = [
 	"connection_log",
 	"crypto_key",
 	"debug_info",
+	"delegated_identity",
 	"deployment_config",
 	"deployment_stats",
 	"file",
@@ -9548,6 +9533,7 @@ export type ResourceType =
 	| "chat_project_skill"
 	| "convert_login"
 	| "custom_role"
+	| "delegated_identity"
 	| "experiment_rule"
 	| "git_ssh_key"
 	| "group"
@@ -9574,7 +9560,6 @@ export type ResourceType =
 	| "user_ai_budget_override"
 	| "user_secret"
 	| "user_skill"
-	| "workload_identity"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -9599,6 +9584,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_project_skill",
 	"convert_login",
 	"custom_role",
+	"delegated_identity",
 	"experiment_rule",
 	"git_ssh_key",
 	"group",
@@ -9625,7 +9611,6 @@ export const ResourceTypes: ResourceType[] = [
 	"user_ai_budget_override",
 	"user_secret",
 	"user_skill",
-	"workload_identity",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -11336,6 +11321,14 @@ export interface UpdateCheckResponse {
 	readonly url: string;
 }
 
+// From codersdk/delegatedidentities.go
+/**
+ * UpdateDelegatedIdentityRequest replaces what a delegated identity may do.
+ */
+export interface UpdateDelegatedIdentityRequest {
+	readonly scopes: readonly APIKeyScope[];
+}
+
 // From healthsdk/healthsdk.go
 export interface UpdateHealthSettings {
 	readonly dismissed_healthchecks: readonly HealthSection[];
@@ -12429,202 +12422,6 @@ export interface WebsocketReport extends BaseReport {
 	readonly code: number;
 }
 
-// From codersdk/workloads.go
-/**
- * Workload is a command that runs in a workspace that was made for it,
- * with an identity of its own.
- */
-export interface Workload {
-	/**
-	 * ID is the workload's identity ID.
-	 */
-	readonly id: string;
-	readonly name: string;
-	readonly workspace_id: string;
-	/**
-	 * WorkspaceName is set when workloads of several workspaces are
-	 * listed.
-	 */
-	readonly workspace_name?: string;
-	/**
-	 * OwnWorkspace means the workspace was made for this workload and is
-	 * deleted when the workload is over.
-	 */
-	readonly own_workspace?: boolean;
-	readonly agent_id: string;
-	readonly agent_name: string;
-	readonly status: WorkloadStatus;
-	readonly command: string;
-	readonly created_at: string;
-	/**
-	 * FinishedAt is set once the workload is over.
-	 */
-	readonly finished_at?: string;
-	/**
-	 * ExitCode is the command's exit code, when it is known.
-	 */
-	readonly exit_code?: number;
-	/**
-	 * Identity is the workload's identity as it is displayed.
-	 */
-	readonly identity: string;
-	/**
-	 * SponsorID is the user account that asked for the workload and
-	 * answers for it.
-	 */
-	readonly sponsor_id: string;
-	readonly sponsor_username: string;
-	/**
-	 * UserID is the service account that is this identity. The workload
-	 * acts as it, and it owns the workspace.
-	 */
-	readonly user_id?: string;
-	/**
-	 * Scopes are what the identity may do. An empty list grants nothing.
-	 */
-	readonly scopes: readonly APIKeyScope[];
-	readonly sandbox?: WorkloadSandbox;
-}
-
-// From codersdk/workloads.go
-export type WorkloadAttestation =
-	| "agent-token"
-	| "kubernetes-pod"
-	| "workspace-daemon";
-
-export const WorkloadAttestations: WorkloadAttestation[] = [
-	"agent-token",
-	"kubernetes-pod",
-	"workspace-daemon",
-];
-
-// From codersdk/workloads.go
-export type WorkloadEndReason =
-	| "exited"
-	| "failed"
-	| "lost"
-	| "removed"
-	| "stopped";
-
-export const WorkloadEndReasons: WorkloadEndReason[] = [
-	"exited",
-	"failed",
-	"lost",
-	"removed",
-	"stopped",
-];
-
-// From codersdk/workloads.go
-/**
- * WorkloadIdentity describes who a process in a workspace is to Coder.
- */
-export interface WorkloadIdentity {
-	/**
-	 * ID is unique per principal: the workspace ID and the workload
-	 * identity ID, or for a daemon the workspace ID and the agent ID.
-	 */
-	readonly id: string;
-	readonly kind: WorkloadIdentityKind;
-	readonly attestation: WorkloadAttestation;
-	/**
-	 * AttestationSubject is what was attested, when that is not Coder's
-	 * own credential: for a pod, the UID the cluster gave it.
-	 */
-	readonly attestation_subject?: string;
-	/**
-	 * AgentID is the workspace daemon: the process itself, or the daemon
-	 * that runs and vouches for the workload.
-	 */
-	readonly agent_id: string;
-	readonly agent_name: string;
-	readonly workspace_id: string;
-	readonly workspace_name: string;
-	readonly owner_id: string;
-	readonly owner_username: string;
-	/**
-	 * IdentityID is the workload identity that permissions attach to. A
-	 * daemon has none: it acts with its agent token.
-	 */
-	readonly identity_id?: string;
-	/**
-	 * Name is the workload's name.
-	 */
-	readonly name?: string;
-	/**
-	 * SponsorID is the user account whose permissions bound what the
-	 * workload may do.
-	 */
-	readonly sponsor_id?: string;
-	readonly sponsor_username?: string;
-	/**
-	 * Scopes narrow the sponsor's permissions. An empty list grants nothing.
-	 */
-	readonly scopes?: readonly APIKeyScope[];
-	readonly sandbox?: WorkloadSandbox;
-}
-
-// From codersdk/workloads.go
-export type WorkloadIdentityKind = "daemon" | "workload";
-
-export const WorkloadIdentityKinds: WorkloadIdentityKind[] = [
-	"daemon",
-	"workload",
-];
-
-// From codersdk/workloads.go
-/**
- * WorkloadLogEvent is one item of a workload's output stream. The last
- * event carries the exit code and no output.
- */
-export interface WorkloadLogEvent {
-	readonly output?: string;
-	readonly exit_code?: number;
-}
-
-// From codersdk/workloads.go
-/**
- * WorkloadSandbox is where a workload runs.
- */
-export interface WorkloadSandbox {
-	/**
-	 * Runtime is what runs it, for example "pod".
-	 */
-	readonly runtime: string;
-	/**
-	 * ID identifies the sandbox to that runtime.
-	 */
-	readonly id: string;
-}
-
-// From codersdk/workloads.go
-export type WorkloadStatus =
-	| "exited"
-	| "failed"
-	| "lost"
-	| "removed"
-	| "running"
-	| "starting"
-	| "stopped"
-	| "unknown";
-
-export const WorkloadStatuses: WorkloadStatus[] = [
-	"exited",
-	"failed",
-	"lost",
-	"removed",
-	"running",
-	"starting",
-	"stopped",
-	"unknown",
-];
-
-// From codersdk/workloads.go
-/**
- * WorkloadTokenNamePrefix starts the name of the API token that is a
- * workload's credential. The workload identity's ID follows.
- */
-export const WorkloadTokenNamePrefix = "workload-";
-
 // From codersdk/workspaces.go
 /**
  * Workspace is a deployment of a template. It references a specific
@@ -13676,17 +13473,6 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 // From codersdk/workspaces.go
 export interface WorkspaceUser extends MinimalUser {
 	readonly role: WorkspaceRole;
-}
-
-// From codersdk/workloads.go
-/**
- * WorkspaceWorkloadsOptions selects which workloads to list.
- */
-export interface WorkspaceWorkloadsOptions {
-	/**
-	 * Finished also lists the most recent workloads that are over.
-	 */
-	readonly Finished: boolean;
 }
 
 // From codersdk/workspaces.go

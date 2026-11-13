@@ -49,9 +49,6 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 		r.Mount("/api/v0/context", a.contextAPI.Routes())
 	}
 
-	if a.workloads != nil {
-		r.Mount("/api/v0/workloads", a.workloads.Routes())
-	}
 	if a.devcontainers {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())
 	} else if manifest := a.manifest.Load(); manifest != nil && manifest.ParentID != uuid.Nil {

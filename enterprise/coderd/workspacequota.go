@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -84,6 +85,19 @@ func (c *committer) CommitQuota(
 		return nil, err
 	}
 
+	// A workspace of a delegated identity counts against the quota of the
+	// identity's root user: the identity is in none of the groups quotas
+	// hang on, and its root user answers for what it consumes.
+	quotaOwnerID := workspace.OwnerID
+	//nolint:gocritic // Whom an identity answers to is read to charge the right account.
+	identity, err := c.Database.GetDelegatedIdentityByID(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+	switch {
+	case err == nil:
+		quotaOwnerID = identity.RootUserID
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, err
+	}
+
 	var (
 		consumed int64
 		budget   int64
@@ -92,6 +106,7 @@ func (c *committer) CommitQuota(
 	logger := c.Log.With(
 		slog.F("job_id", jobID),
 		slog.F("owner_id", workspace.OwnerID),
+		slog.F("quota_owner_id", quotaOwnerID),
 		slog.F("organization_id", workspace.OrganizationID),
 	)
 	err = c.Database.InTx(func(s database.Store) error {
@@ -100,7 +115,7 @@ func (c *committer) CommitQuota(
 
 		var err error
 		consumed, err = s.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
-			OwnerID:        workspace.OwnerID,
+			OwnerID:        quotaOwnerID,
 			OrganizationID: workspace.OrganizationID,
 		})
 		if err != nil {
@@ -108,7 +123,7 @@ func (c *committer) CommitQuota(
 		}
 
 		budget, err = s.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
-			UserID:         workspace.OwnerID,
+			UserID:         quotaOwnerID,
 			OrganizationID: workspace.OrganizationID,
 		})
 		if err != nil {

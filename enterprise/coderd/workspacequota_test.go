@@ -193,6 +193,67 @@ func TestWorkspaceQuota(t *testing.T) {
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 	})
 
+	// A workspace of a delegated identity counts against the quota of the
+	// identity's root user.
+	t.Run("DelegatedIdentity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentDelegatedIdentities)}
+		client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			UserWorkspaceQuota: 1,
+			Options:            &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+		_, err := client.PatchGroup(ctx, owner.OrganizationID, codersdk.PatchGroupRequest{
+			QuotaAllowance: new(1),
+		})
+		require.NoError(t, err)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  planWithCost(1),
+			ProvisionGraph: graphWithCost(1),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		identity, err := memberClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{Name: "quota-agent"})
+		require.NoError(t, err)
+		workspace, err := memberClient.CreateUserWorkspace(ctx, identity.Name, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID, Name: "agent-task",
+		})
+		require.NoError(t, err)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		// The member's quota is spent, by a workspace the member does
+		// not own.
+		verifyQuotaUser(ctx, t, client, owner.OrganizationID.String(), member.ID.String(), 1, 1)
+		own := coderdtest.CreateWorkspace(t, memberClient, template.ID)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, own.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Contains(t, build.Job.Error, "quota")
+
+		// A second identity has no quota of its own to spend either.
+		second, err := memberClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{Name: "quota-agent-2"})
+		require.NoError(t, err)
+		workspace, err = memberClient.CreateUserWorkspace(ctx, second.Name, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID, Name: "agent-task-2",
+		})
+		require.NoError(t, err)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Contains(t, build.Job.Error, "quota")
+	})
+
 	t.Run("StartStop", func(t *testing.T) {
 		t.Parallel()
 

@@ -31,6 +31,10 @@ const (
 	auditLogsBatchSize = 10000
 	// Batch size for boundary log deletion.
 	boundaryLogsBatchSize = 10000
+	// A delegated identity that owns no workspace and has no identity below
+	// it is deleted once it is this old. An identity is created before the
+	// workspace it is for, so it has to outlive the time that takes.
+	orphanedDelegatedIdentityAge = 24 * time.Hour
 	// Batch size for boundary session deletion.
 	boundarySessionsBatchSize = 10000
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
@@ -221,6 +225,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 		}
 
+		// The records of the identities stay, so that audit entries can
+		// still be traced to a root user.
+		purgedDelegatedIdentities, err := tx.DeleteOrphanedDelegatedIdentities(ctx, dbtime.Time(start.Add(-orphanedDelegatedIdentityAge)))
+		if err != nil {
+			return xerrors.Errorf("failed to delete orphaned delegated identities: %w", err)
+		}
+
 		var expiredAPIKeys int64
 		apiKeysRetention := i.vals.Retention.APIKeys.Value()
 		if apiKeysRetention > 0 {
@@ -392,6 +403,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
+			slog.F("delegated_identities", len(purgedDelegatedIdentities)),
 			slog.F("chat_search_rows_backfilled", backfilledChatSearchRows),
 			slog.F("duration", i.clk.Since(start)),
 		)

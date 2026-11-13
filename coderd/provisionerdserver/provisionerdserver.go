@@ -743,25 +743,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		// A workload identity that owns its workspace gets no session token
-		// from the build. Such a token would have every permission of the
-		// identity's account, whatever scopes the workload was given, and
-		// a template could hand it to the workload.
-		ownerIsWorkloadIdentity := false
-		if owner.IsServiceAccount {
-			_, err := s.Database.GetWorkloadIdentityByUserID(ctx, uuid.NullUUID{UUID: owner.ID, Valid: true})
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-				return nil, failJob(fmt.Sprintf("get workload identity of owner: %s", err))
-			}
-			ownerIsWorkloadIdentity = err == nil
-		}
-
 		var sessionToken string
 		switch workspaceBuild.Transition {
 		case database.WorkspaceTransitionStart:
-			if ownerIsWorkloadIdentity {
-				break
-			}
 			sessionToken, err = s.regenerateSessionToken(ctx, owner, workspace)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
@@ -2519,19 +2503,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
 		if err := db.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(ctx), workspaceBuild.WorkspaceID); err != nil {
 			return xerrors.Errorf("clear workspace secrets: %w", err)
-		}
-
-		// A workload identity that owned the workspace owns nothing else.
-		// It is retired with the workspace, whoever deleted it.
-		identity, err := db.GetWorkloadIdentityByUserID(ctx, uuid.NullUUID{UUID: workspace.OwnerID, Valid: true})
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get workload identity of owner: %w", err)
-		}
-		if err == nil && identity.WorkspaceID == workspace.ID {
-			//nolint:gocritic // Retiring an identity is bookkeeping, not a user write.
-			if err := db.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID); err != nil {
-				return xerrors.Errorf("retire workload identity: %w", err)
-			}
 		}
 
 		// Soft-delete any agents tied to this workspace so the

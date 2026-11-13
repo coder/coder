@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder identities delete <name|id>
+
+  Delete a delegated identity that owns no workspaces
+
+  Aliases: rm
+
+———
+Run `coder --help` for a list of global options.

@@ -561,9 +561,39 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 
 	defer commitAudit()
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, &createWorkspaceOptions{
-		remoteAddr: r.RemoteAddr,
-	})
+	opts := &createWorkspaceOptions{remoteAddr: r.RemoteAddr}
+	createCtx := ctx
+	// A workspace of a delegated identity is created on its behalf, by an
+	// account that may use the identity. The caller is the initiator and
+	// the identity is the owner.
+	identities, identityCtx, err := api.onBehalfOfDelegatedIdentity(ctx, owner.ID)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+	if len(identities) > 0 {
+		if identityCtx == nil {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("You can't create workspaces on behalf of the delegated identity %q.", owner.Username),
+				Detail: "Workspaces of a delegated identity are created by an account above it that may use delegated identities, " +
+					"or by an account that may use delegated identities across the organization.",
+			})
+			return
+		}
+		// Nothing is created on behalf of an identity that the caller
+		// could not create for itself.
+		if _, err := api.preflightWorkspaceCreate(ctx, apiKey.UserID, workspaceOwner{ID: apiKey.UserID}, req); err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
+			return
+		}
+		createCtx = identityCtx
+		ancestors := delegatedIdentityAncestors(identities)
+		opts.postBuildInTX = func(ctx context.Context, tx database.Store, workspace database.Workspace, _ database.WorkspaceBuild) error {
+			return shareWithDelegatedIdentityAncestors(ctx, tx, workspace.ID, ancestors)
+		}
+	}
+
+	w, err := createWorkspace(createCtx, aReq, apiKey.UserID, api, owner, req, opts)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return

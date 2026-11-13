@@ -1,0 +1,18 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder identities show [flags] <name|id|me>
+
+  Show a delegated identity
+
+  With "me", show the delegated identity the command itself runs as.
+
+OPTIONS:
+  -c, --column [name|parent|root user|scopes|effective scopes|created at|id] (default: name,parent,root user,scopes,effective scopes)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

@@ -1373,7 +1373,25 @@ func (api *API) createChat(
 	// Authorization needs the parsed organization ID. postChats bounds HTTP
 	// request parsing with ReadLimit before this check.
 	chatObject := rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate, chatObject) {
+	// A chat of a delegated identity is created on its behalf, by an
+	// account that may use the identity. Nothing is created on behalf of an
+	// identity that the caller could not create for itself.
+	onBehalfOfIdentity := false
+	if ownerID != callerID {
+		identities, identityCtx, err := api.onBehalfOfDelegatedIdentity(ctx, ownerID)
+		if err != nil {
+			return database.Chat{}, codersdk.Chat{}, err
+		}
+		if len(identities) > 0 {
+			callerObject := rbac.ResourceChat.WithOwner(callerID.String()).InOrg(req.OrganizationID)
+			if identityCtx == nil || identities[0].OrganizationID != req.OrganizationID ||
+				!api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate, callerObject) {
+				return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse)
+			}
+			onBehalfOfIdentity = true
+		}
+	}
+	if !onBehalfOfIdentity && !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate, chatObject) {
 		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse)
 	}
 	// Chat processing runs with the owner's credentials (workspace access,
@@ -1383,7 +1401,7 @@ func (api *API) createChat(
 	// session for that user.
 	ownerCtx := ctx
 	if ownerID != callerID {
-		if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
+		if !onBehalfOfIdentity && !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
 			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse)
 		}
 		//nolint:gocritic // The caller may hold this authority without being able to read the owner's membership.
@@ -3188,7 +3206,7 @@ func (api *API) checkSendChatMessage(ctx context.Context, callerID uuid.UUID, ch
 	// provider API keys) to external services. Allowing a
 	// non-owner to trigger processing would leak the owner's
 	// tokens to MCP servers the caller controls.
-	if callerID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, callerID, chat) {
 		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may send messages.",
 		})
@@ -3432,7 +3450,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may edit messages. See postChatMessages
 	// for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may edit messages.",
 		})
@@ -3589,7 +3607,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 
 	// Only the chat owner may delete queued messages. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may delete queued messages.",
 		})
@@ -3668,7 +3686,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	// Only the chat owner may promote messages. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may promote queued messages.",
 		})
@@ -3760,7 +3778,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 
 	// Only the chat owner may edit queued messages. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may edit queued messages.",
 		})
@@ -4156,7 +4174,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	// Only the chat owner may trigger compaction. Org admins pass the
 	// RBAC check above (org-level ActionUpdate), but compaction runs
 	// inference with the owner's delegated credentials.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may compact the chat.",
 		})
@@ -4225,7 +4243,7 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 	// Only the chat owner may clear the context, matching the
 	// compaction endpoint so the two context operations share
 	// authorization semantics.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may clear the chat context.",
 		})
@@ -4336,7 +4354,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may propose titles. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may propose a title.",
 		})
@@ -4461,7 +4479,15 @@ func (api *API) chatCreateWorkspace(
 	if err != nil {
 		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load user authorization: %w", err)
 	}
+	// The workspace is created within what the owner's tools may do, which
+	// is less than the owner's own when the owner is a delegated identity.
+	// The chat's own bookkeeping stays the owner's.
+	toolActor, identities, err := api.chatToolSubject(ctx, ownerID)
+	if err != nil {
+		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load tool authorization: %w", err)
+	}
 	ctx = dbauthz.As(ctx, actor)
+	createCtx := dbauthz.As(ctx, toolActor)
 
 	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
@@ -4511,9 +4537,16 @@ func (api *API) chatCreateWorkspace(
 	defer commitAudit()
 
 	var chat database.Chat
-	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, &createWorkspaceOptions{
+	workspace, err := createWorkspace(createCtx, aReq, ownerID, api, owner, req, &createWorkspaceOptions{
 		postBuildInTX: func(ctx context.Context, tx database.Store, workspace database.Workspace, build database.WorkspaceBuild) error {
-			bound, err := tx.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			if len(identities) > 0 {
+				// Those who answer for the identity can enter the
+				// workspace its chat made.
+				if err := shareWithDelegatedIdentityAncestors(ctx, tx, workspace.ID, delegatedIdentityAncestors(identities)); err != nil {
+					return err
+				}
+			}
+			bound, err := tx.UpdateChatWorkspaceBinding(dbauthz.As(ctx, actor), database.UpdateChatWorkspaceBindingParams{
 				ID:          chatID,
 				WorkspaceID: uuid.NullUUID{UUID: workspace.ID, Valid: true},
 				BuildID:     uuid.NullUUID{UUID: build.ID, Valid: true},
@@ -4549,7 +4582,7 @@ func (api *API) chatStartWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	actor, _, err := api.chatToolSubject(ctx, ownerID)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
 	}
@@ -4625,7 +4658,7 @@ func (api *API) chatStopWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	actor, _, err := api.chatToolSubject(ctx, ownerID)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
 	}
@@ -7402,7 +7435,7 @@ func (api *API) chatWorkspaceUploadMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if apiKey.UserID != chat.OwnerID {
+		if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: chatWorkspaceUploadOwnerOnlyMessage,
 			})
@@ -9537,7 +9570,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may submit tool results. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if !actsAsChatOwner(ctx, apiKey.UserID, chat) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may submit tool results.",
 		})

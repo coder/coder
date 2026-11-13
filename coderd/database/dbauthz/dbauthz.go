@@ -2694,6 +2694,17 @@ func (q *querier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Con
 	return fetchAndQuery(q.log, q.auth, policy.ActionDelete, fetch, q.db.DeleteOrganizationSkillByOrganizationIDAndName)(ctx, arg)
 }
 
+// Delegated identities are authorized by the API handlers, which know who
+// the ancestors of an identity are. The store only serves callers that act
+// for the system.
+
+func (q *querier) DeleteOrphanedDelegatedIdentities(ctx context.Context, createdBefore time.Time) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.DeleteOrphanedDelegatedIdentities(ctx, createdBefore)
+}
+
 func (q *querier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
 	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
 		return database.Skill{}, err
@@ -3000,13 +3011,6 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 		return uuid.Nil, err
 	}
 	return q.db.FindMatchingPresetID(ctx, arg)
-}
-
-func (q *querier) FinishWorkloadIdentity(ctx context.Context, arg database.FinishWorkloadIdentityParams) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.FinishWorkloadIdentity(ctx, arg)
 }
 
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
@@ -4129,6 +4133,34 @@ func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaul
 	return q.db.GetDefaultProxyConfig(ctx)
 }
 
+func (q *querier) GetDelegatedIdentitiesByAncestorID(ctx context.Context, ancestorID uuid.UUID) ([]database.DelegatedIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetDelegatedIdentitiesByAncestorID(ctx, ancestorID)
+}
+
+func (q *querier) GetDelegatedIdentityByID(ctx context.Context, id uuid.UUID) (database.DelegatedIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.DelegatedIdentity{}, err
+	}
+	return q.db.GetDelegatedIdentityByID(ctx, id)
+}
+
+func (q *querier) GetDelegatedIdentityChain(ctx context.Context, id uuid.UUID) ([]database.DelegatedIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetDelegatedIdentityChain(ctx, id)
+}
+
+func (q *querier) GetDelegatedIdentityUsage(ctx context.Context, id uuid.UUID) (database.GetDelegatedIdentityUsageRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetDelegatedIdentityUsageRow{}, err
+	}
+	return q.db.GetDelegatedIdentityUsage(ctx, id)
+}
+
 func (q *querier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg database.GetDeletedChatMessagesFromLastAssistantParams) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, arg.ChatID)
@@ -4297,20 +4329,6 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 
 func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
-}
-
-func (q *querier) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetFinishedWorkloadIdentitiesBySponsorID(ctx, arg)
-}
-
-func (q *querier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetFinishedWorkloadIdentitiesByWorkspaceID(ctx, arg)
 }
 
 func (q *querier) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
@@ -4814,13 +4832,6 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 		return nil, err
 	}
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
-}
-
-func (q *querier) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx, arg)
 }
 
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
@@ -5830,34 +5841,6 @@ func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushV
 	return q.db.GetWebpushVAPIDKeys(ctx)
 }
 
-func (q *querier) GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkloadIdentitiesBySponsorID(ctx, sponsorID)
-}
-
-func (q *querier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkloadIdentitiesByWorkspaceID(ctx, workspaceID)
-}
-
-func (q *querier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.GetWorkloadIdentityByID(ctx, id)
-}
-
-func (q *querier) GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.GetWorkloadIdentityByUserID(ctx, userID)
-}
-
 func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	workspace, err := q.db.GetWorkspaceByID(ctx, id)
 	if err != nil {
@@ -6706,6 +6689,13 @@ func (q *querier) InsertDERPMeshKey(ctx context.Context, value string) error {
 	return q.db.InsertDERPMeshKey(ctx, value)
 }
 
+func (q *querier) InsertDelegatedIdentity(ctx context.Context, arg database.InsertDelegatedIdentityParams) (database.DelegatedIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.DelegatedIdentity{}, err
+	}
+	return q.db.InsertDelegatedIdentity(ctx, arg)
+}
+
 func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -7040,13 +7030,6 @@ func (q *querier) InsertWebpushSubscription(ctx context.Context, arg database.In
 		return database.WebpushSubscription{}, err
 	}
 	return q.db.InsertWebpushSubscription(ctx, arg)
-}
-
-func (q *querier) InsertWorkloadIdentity(ctx context.Context, arg database.InsertWorkloadIdentityParams) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.InsertWorkloadIdentity(ctx, arg)
 }
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
@@ -8298,6 +8281,13 @@ func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCusto
 	return q.db.UpdateCustomRole(ctx, arg)
 }
 
+func (q *querier) UpdateDelegatedIdentityScopes(ctx context.Context, arg database.UpdateDelegatedIdentityScopesParams) (database.DelegatedIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.DelegatedIdentity{}, err
+	}
+	return q.db.UpdateDelegatedIdentityScopes(ctx, arg)
+}
+
 func (q *querier) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AIProviderKey, error) {
 	// Encrypted columns can be rewritten on any row, including those
 	// whose provider has been soft-deleted, so the dbcrypt rotation can
@@ -9217,27 +9207,6 @@ func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.UpdateVolumeResourceMonitor(ctx, arg)
-}
-
-func (q *querier) UpdateWorkloadIdentityOutcome(ctx context.Context, arg database.UpdateWorkloadIdentityOutcomeParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpdateWorkloadIdentityOutcome(ctx, arg)
-}
-
-func (q *querier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg database.UpdateWorkloadIdentitySandboxParams) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.UpdateWorkloadIdentitySandbox(ctx, arg)
-}
-
-func (q *querier) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg database.UpdateWorkloadIdentityWorkspaceAgentParams) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.UpdateWorkloadIdentityWorkspaceAgent(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

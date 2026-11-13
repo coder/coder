@@ -709,6 +709,24 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A delegated identity acts with the roles of its root user, so it
+	// cannot outlive the user.
+	// nolint:gocritic // Counted whether or not the caller can see them.
+	identities, err := api.Database.GetDelegatedIdentitiesByAncestorID(dbauthz.AsSystemRestricted(ctx), user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching delegated identities.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(identities) > 0 {
+		httpapi.Write(ctx, rw, http.StatusExpectationFailed, codersdk.Response{
+			Message: "You cannot delete a user that has delegated identities. Delete their delegated identities and try again!",
+		})
+		return
+	}
+
 	err = api.Database.UpdateUserDeletedByID(ctx, user.ID)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)

@@ -105,6 +105,13 @@ export const RBACResourceActions: Partial<
 	debug_info: {
 		read: "access to debug routes",
 	},
+	delegated_identity: {
+		create: "create a delegated identity",
+		delete: "delete a delegated identity",
+		read: "read a delegated identity",
+		update: "change what a delegated identity may do",
+		use: "create and build workspaces on behalf of a delegated identity",
+	},
 	deployment_config: {
 		read: "read deployment config",
 		update: "updating health information",

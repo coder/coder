@@ -23,6 +23,7 @@ const (
 	ResourceConnectionLog                 RBACResource = "connection_log"
 	ResourceCryptoKey                     RBACResource = "crypto_key"
 	ResourceDebugInfo                     RBACResource = "debug_info"
+	ResourceDelegatedIdentity             RBACResource = "delegated_identity"
 	ResourceDeploymentConfig              RBACResource = "deployment_config"
 	ResourceDeploymentStats               RBACResource = "deployment_stats"
 	ResourceFile                          RBACResource = "file"
@@ -108,6 +109,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},
+	ResourceDelegatedIdentity:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse},
 	ResourceDeploymentConfig:              {ActionRead, ActionUpdate},
 	ResourceDeploymentStats:               {ActionRead},
 	ResourceFile:                          {ActionCreate, ActionRead},

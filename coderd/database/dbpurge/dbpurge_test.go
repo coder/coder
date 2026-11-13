@@ -252,6 +252,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOrphanedDelegatedIdentities(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -305,6 +306,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOrphanedDelegatedIdentities(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -3400,4 +3402,74 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 	})
+}
+
+// TestDeleteOrphanedDelegatedIdentities checks that a delegated identity is
+// deleted once nothing depends on it, and that its record stays.
+func TestDeleteOrphanedDelegatedIdentities(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	org := dbgen.Organization(t, db, database.Organization{})
+	root := dbgen.User(t, db, database.User{})
+
+	identity := func(parent uuid.UUID, createdAt time.Time) database.DelegatedIdentity {
+		account := dbgen.User(t, db, database.User{IsServiceAccount: true})
+		row, err := db.InsertDelegatedIdentity(ctx, database.InsertDelegatedIdentityParams{
+			ID:             account.ID,
+			OrganizationID: org.ID,
+			ParentID:       parent,
+			RootUserID:     root.ID,
+			CreatedBy:      root.ID,
+			Name:           account.Username,
+			Scopes:         []string{},
+			CreatedAt:      createdAt,
+		})
+		require.NoError(t, err)
+		return row
+	}
+	old := now.Add(-48 * time.Hour)
+
+	// Old and owns nothing: deleted. Its key goes with it.
+	orphan := identity(root.ID, old)
+	orphanKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: orphan.ID})
+	// Created a moment ago, for a workspace that is yet to be built: kept.
+	fresh := identity(root.ID, now.Add(-time.Minute))
+	// Old, but owns a workspace: kept.
+	owner := identity(root.ID, old)
+	template := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: root.ID})
+	dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: owner.ID, OrganizationID: org.ID, TemplateID: template.ID})
+	// Old and owns nothing, but an identity below it does: both kept.
+	parent := identity(root.ID, old)
+	child := identity(parent.ID, old)
+	dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: child.ID, OrganizationID: org.ID, TemplateID: template.ID})
+
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+	defer closer.Close()
+	testutil.TryReceive(ctx, t, done)
+
+	deleted := func(id uuid.UUID) bool {
+		user, err := db.GetUserByID(ctx, id)
+		require.NoError(t, err)
+		return user.Deleted
+	}
+	require.True(t, deleted(orphan.ID), "an identity that owns nothing is deleted")
+	require.False(t, deleted(fresh.ID), "an identity is kept until it had time to get a workspace")
+	require.False(t, deleted(owner.ID), "an identity that owns a workspace is kept")
+	require.False(t, deleted(parent.ID), "an identity with an identity below it is kept")
+	require.False(t, deleted(child.ID))
+	require.False(t, deleted(root.ID), "the root user is not an identity")
+
+	_, err := db.GetAPIKeyByID(ctx, orphanKey.ID)
+	require.Error(t, err, "the credentials of a deleted identity are gone")
+	record, err := db.GetDelegatedIdentityByID(ctx, orphan.ID)
+	require.NoError(t, err, "the record stays for the audit trail")
+	require.Equal(t, root.ID, record.RootUserID)
 }

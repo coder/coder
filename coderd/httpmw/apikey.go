@@ -65,22 +65,6 @@ type ValidateAPIKeyConfig struct {
 	// from the request. Nil uses the default (cookie/header).
 	SessionTokenFunc func(*http.Request) string
 	Logger           slog.Logger
-	// WorkloadIdentityScope returns what the token of a workload identity
-	// may do. The token is worth what the identity's record says, and
-	// nothing once the workload is over or when the token is not the
-	// identity's own account's. Without it such tokens are refused.
-	WorkloadIdentityScope func(ctx context.Context, identityID, userID uuid.UUID) (rbac.ExpandableScope, bool)
-}
-
-// WorkloadIdentityID returns the workload identity a request was made as,
-// when it was made with a workload's token. The token says so by its name.
-func WorkloadIdentityID(key database.APIKey) (uuid.UUID, bool) {
-	raw, ok := strings.CutPrefix(key.TokenName, codersdk.WorkloadTokenNamePrefix)
-	if !ok {
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(raw)
-	return id, err == nil
 }
 
 // ValidateAPIKeyResult is the outcome of successful validation.
@@ -532,30 +516,9 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
-	var scope rbac.ExpandableScope = key.ScopeSet()
-	if identityID, ok := WorkloadIdentityID(*key); ok {
-		allowed := false
-		if cfg.WorkloadIdentityScope != nil {
-			scope, allowed = cfg.WorkloadIdentityScope(ctx, identityID, key.UserID)
-		}
-		if !allowed {
-			return nil, &ValidateAPIKeyError{
-				Code: http.StatusUnauthorized,
-				Response: codersdk.Response{
-					Message: SignedOutErrorMessage,
-					Detail:  "The workload this token belongs to is over.",
-				},
-			}
-		}
-		// The request log names the workload on every request it makes,
-		// reads included.
-		if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
-			rl.WithFields(slog.F("workload_identity_id", identityID))
-		}
-	}
-
-	// Fetch user roles.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, scope)
+	// Fetch user roles. A delegated identity's key is narrowed to what
+	// the identity may do.
+	actor, userStatus, chain, err := apiKeyRBACSubject(ctx, cfg.DB, *key)
 	if err != nil {
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusInternalServerError,
@@ -564,6 +527,13 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
 			},
 			Hard: true,
+		}
+	}
+	if len(chain) > 0 {
+		// The request log names who answers for the identity on every
+		// request it makes, reads included.
+		if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+			rl.WithFields(slog.F("delegated_identity_root_user_id", chain[0].RootUserID))
 		}
 	}
 
@@ -1021,21 +991,68 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
 func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+	actor, status, _, err := subjectWithDelegation(ctx, db, userID, func([]database.DelegatedIdentity) (rbac.ExpandableScope, error) {
+		return scope, nil
+	})
+	return actor, status, err
+}
+
+// subjectWithDelegation builds the subject of a user. scopeFor is given the chain of
+// delegated identities the user is at the bottom of, which is empty for
+// anyone who is not a delegated identity, and returns the subject's scope.
+//
+// A delegated identity is judged with its own ID and the roles and groups of
+// its root user, read now. It therefore owns what it creates, cannot reach
+// what its root user owns, and can never reach further than its root user.
+// While its root user is suspended, so is the identity.
+func subjectWithDelegation(
+	ctx context.Context,
+	db database.Store,
+	userID uuid.UUID,
+	scopeFor func(chain []database.DelegatedIdentity) (rbac.ExpandableScope, error),
+) (rbac.Subject, database.UserStatus, []database.DelegatedIdentity, error) {
 	//nolint:gocritic // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {
-		return rbac.Subject{}, "", xerrors.Errorf("get authorization user roles: %w", err)
+		return rbac.Subject{}, "", nil, xerrors.Errorf("get authorization user roles: %w", err)
 	}
 
-	roleNames, err := roles.RoleNames()
+	var chain []database.DelegatedIdentity
+	authority := roles
+	status := roles.Status
+	if mayBeDelegatedIdentity(roles.Roles) {
+		//nolint:gocritic // Authentication happens before there is an actor.
+		chain, err = db.GetDelegatedIdentityChain(dbauthz.AsSystemRestricted(ctx), userID)
+		if err != nil {
+			return rbac.Subject{}, "", nil, xerrors.Errorf("get delegated identity chain: %w", err)
+		}
+		if len(chain) > 0 {
+			//nolint:gocritic // system needs to read the root user's roles
+			authority, err = db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), chain[0].RootUserID)
+			if err != nil {
+				return rbac.Subject{}, "", nil, xerrors.Errorf("get authorization roles of the root user: %w", err)
+			}
+			// An identity cannot act for a root user who may not act.
+			if authority.Status == database.UserStatusSuspended {
+				status = authority.Status
+			}
+		}
+	}
+
+	roleNames, err := authority.RoleNames()
 	if err != nil {
-		return rbac.Subject{}, "", xerrors.Errorf("expand role names: %w", err)
+		return rbac.Subject{}, "", nil, xerrors.Errorf("expand role names: %w", err)
 	}
 
 	//nolint:gocritic // Permission to lookup custom roles the user has assigned.
 	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, roleNames)
 	if err != nil {
-		return rbac.Subject{}, "", xerrors.Errorf("expand role names: %w", err)
+		return rbac.Subject{}, "", nil, xerrors.Errorf("expand role names: %w", err)
+	}
+
+	scope, err := scopeFor(chain)
+	if err != nil {
+		return rbac.Subject{}, "", nil, xerrors.Errorf("scope: %w", err)
 	}
 
 	actor := rbac.Subject{
@@ -1044,10 +1061,10 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 		Email:        roles.Email,
 		ID:           userID.String(),
 		Roles:        rbacRoles,
-		Groups:       roles.Groups,
+		Groups:       authority.Groups,
 		Scope:        scope,
 	}.WithCachedASTValue()
-	return actor, roles.Status, nil
+	return actor, status, chain, nil
 }
 
 // APITokenFromRequest returns the api token from the request.

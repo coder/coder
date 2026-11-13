@@ -251,6 +251,11 @@ type sqlcQuerier interface {
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg DeleteOrganizationMemberDisabledSkillParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
+	// DeleteOrphanedDelegatedIdentities deletes the accounts of delegated
+	// identities that own no workspace and no chat, have no live identity below
+	// them, and were created before the given time. The rows in delegated_identities
+	// stay, so that audit entries can still be traced to a root user.
+	DeleteOrphanedDelegatedIdentities(ctx context.Context, createdBefore time.Time) ([]uuid.UUID, error)
 	DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg DeleteProjectSkillByProjectIDAndNameParams) (Skill, error)
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
@@ -312,10 +317,6 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
-	// FinishWorkloadIdentity ends a workload. From then on the identity
-	// authorizes nothing. It returns no row when the workload was already over,
-	// so that an ending is recorded once.
-	FinishWorkloadIdentity(ctx context.Context, arg FinishWorkloadIdentityParams) (WorkloadIdentity, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -650,6 +651,20 @@ type sqlcQuerier interface {
 	GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error)
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error)
+	// GetDelegatedIdentitiesByAncestorID returns the live delegated identities
+	// below a user or delegated identity, at any depth, oldest first.
+	GetDelegatedIdentitiesByAncestorID(ctx context.Context, ancestorID uuid.UUID) ([]DelegatedIdentity, error)
+	// GetDelegatedIdentityByID also returns identities whose account was
+	// deleted, so that audit entries can still be traced to a root user.
+	GetDelegatedIdentityByID(ctx context.Context, id uuid.UUID) (DelegatedIdentity, error)
+	// GetDelegatedIdentityChain returns a delegated identity and every delegated
+	// identity above it, nearest first. The parent of the last row is the root
+	// user. It returns no rows for an account that is not a delegated identity.
+	GetDelegatedIdentityChain(ctx context.Context, id uuid.UUID) ([]DelegatedIdentity, error)
+	// GetDelegatedIdentityUsage counts what keeps a delegated identity from
+	// being deleted: the workspaces and chats it owns and the live identities
+	// below it.
+	GetDelegatedIdentityUsage(ctx context.Context, id uuid.UUID) (GetDelegatedIdentityUsageRow, error)
 	// Returns the last deleted assistant message and the deleted rows after it.
 	// Every visibility is included: a model-only row can hold a tool call's result.
 	GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg GetDeletedChatMessagesFromLastAssistantParams) ([]ChatMessage, error)
@@ -697,13 +712,6 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
-	// GetFinishedWorkloadIdentitiesBySponsorID returns a sponsor's most recently
-	// finished workloads in every workspace, newest first. The workspaces may
-	// be gone.
-	GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]WorkloadIdentity, error)
-	// GetFinishedWorkloadIdentitiesByWorkspaceID returns the most recently
-	// finished workloads of a workspace, newest first.
-	GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]WorkloadIdentity, error)
 	GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
@@ -837,10 +845,6 @@ type sqlcQuerier interface {
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
-	// GetPendingWorkloadIdentitiesByWorkspaceAgentID returns the workloads a
-	// daemon has been given and has not started yet. A workload that was not
-	// started in time is no longer offered.
-	GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]WorkloadIdentity, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
@@ -1115,18 +1119,6 @@ type sqlcQuerier interface {
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
-	// GetWorkloadIdentitiesBySponsorID returns a sponsor's live workloads in
-	// every workspace.
-	GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]WorkloadIdentity, error)
-	// GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
-	// workspace.
-	GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error)
-	// GetWorkloadIdentityByID also returns finished identities. Callers that
-	// authorize with the identity must check finished_at.
-	GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (WorkloadIdentity, error)
-	// GetWorkloadIdentityByUserID returns the identity a service account
-	// is, whether or not its workload is over.
-	GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (WorkloadIdentity, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
@@ -1300,6 +1292,7 @@ type sqlcQuerier interface {
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
 	InsertDERPMeshKey(ctx context.Context, value string) error
+	InsertDelegatedIdentity(ctx context.Context, arg InsertDelegatedIdentityParams) (DelegatedIdentity, error)
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
@@ -1361,7 +1354,6 @@ type sqlcQuerier interface {
 	// inserting a duplicate row. This is the recovery path after a PWA reinstall
 	// on iOS, where the browser may keep the same endpoint with rotated keys.
 	InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error)
-	InsertWorkloadIdentity(ctx context.Context, arg InsertWorkloadIdentityParams) (WorkloadIdentity, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (WorkspaceTable, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error)
@@ -1690,6 +1682,7 @@ type sqlcQuerier interface {
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
+	UpdateDelegatedIdentityScopes(ctx context.Context, arg UpdateDelegatedIdentityScopesParams) (DelegatedIdentity, error)
 	// Updates only the encrypted columns (api_key, api_key_key_id) and
 	// the updated_at timestamp on a row. Used by the dbcrypt key
 	// rotation utility to re-encrypt or decrypt rows in place.
@@ -1790,16 +1783,6 @@ type sqlcQuerier interface {
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
 	UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
-	// UpdateWorkloadIdentityOutcome adds what the daemon knows about how a
-	// workload ended to one that was finished before the daemon reported in,
-	// for example a workload a user removed.
-	UpdateWorkloadIdentityOutcome(ctx context.Context, arg UpdateWorkloadIdentityOutcomeParams) error
-	// UpdateWorkloadIdentitySandbox records where the daemon started the
-	// workload.
-	UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error)
-	// UpdateWorkloadIdentityWorkspaceAgent gives a workload to the daemon of
-	// the workspace that was built for it.
-	UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg UpdateWorkloadIdentityWorkspaceAgentParams) (WorkloadIdentity, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error

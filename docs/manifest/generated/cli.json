@@ -146,9 +146,36 @@
 		]
 	},
 	{
-		"title": "`identity`",
-		"description": "Show who this process is to Coder inside a workspace.",
-		"path": "reference/cli/identity.md"
+		"title": "`identities`",
+		"description": "Manage delegated identities (experimental).",
+		"path": "reference/cli/identities/index.md",
+		"children": [
+			{
+				"title": "`create`",
+				"description": "Create a delegated identity under you.",
+				"path": "reference/cli/identities/create.md"
+			},
+			{
+				"title": "`delete`",
+				"description": "Delete a delegated identity that owns no workspaces.",
+				"path": "reference/cli/identities/delete.md"
+			},
+			{
+				"title": "`list`",
+				"description": "List the delegated identities below you.",
+				"path": "reference/cli/identities/list.md"
+			},
+			{
+				"title": "`show`",
+				"description": "Show a delegated identity.",
+				"path": "reference/cli/identities/show.md"
+			},
+			{
+				"title": "`update`",
+				"description": "Replace what a delegated identity may do.",
+				"path": "reference/cli/identities/update.md"
+			}
+		]
 	},
 	{
 		"title": "`licenses`",
@@ -516,11 +543,6 @@
 		"title": "`restart`",
 		"description": "Restart a workspace.",
 		"path": "reference/cli/restart.md"
-	},
-	{
-		"title": "`run`",
-		"description": "Run a command in a workspace of its own, with an identity of its own.",
-		"path": "reference/cli/run.md"
 	},
 	{
 		"title": "`schedule`",

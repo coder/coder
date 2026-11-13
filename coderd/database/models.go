@@ -612,6 +612,12 @@ const (
 	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
 	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
 	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
+	ApiKeyScopeDelegatedIdentity                   APIKeyScope = "delegated_identity:*"
+	ApiKeyScopeDelegatedIdentityCreate             APIKeyScope = "delegated_identity:create"
+	ApiKeyScopeDelegatedIdentityRead               APIKeyScope = "delegated_identity:read"
+	ApiKeyScopeDelegatedIdentityUpdate             APIKeyScope = "delegated_identity:update"
+	ApiKeyScopeDelegatedIdentityDelete             APIKeyScope = "delegated_identity:delete"
+	ApiKeyScopeDelegatedIdentityUse                APIKeyScope = "delegated_identity:use"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -914,7 +920,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceSecretCreate,
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
-		ApiKeyScopeWorkspaceSecretUpdate:
+		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeDelegatedIdentity,
+		ApiKeyScopeDelegatedIdentityCreate,
+		ApiKeyScopeDelegatedIdentityRead,
+		ApiKeyScopeDelegatedIdentityUpdate,
+		ApiKeyScopeDelegatedIdentityDelete,
+		ApiKeyScopeDelegatedIdentityUse:
 		return true
 	}
 	return false
@@ -1186,6 +1198,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
 		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeDelegatedIdentity,
+		ApiKeyScopeDelegatedIdentityCreate,
+		ApiKeyScopeDelegatedIdentityRead,
+		ApiKeyScopeDelegatedIdentityUpdate,
+		ApiKeyScopeDelegatedIdentityDelete,
+		ApiKeyScopeDelegatedIdentityUse,
 	}
 }
 
@@ -3916,7 +3934,7 @@ const (
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
-	ResourceTypeWorkloadIdentity             ResourceType = "workload_identity"
+	ResourceTypeDelegatedIdentity            ResourceType = "delegated_identity"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4004,7 +4022,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
-		ResourceTypeWorkloadIdentity:
+		ResourceTypeDelegatedIdentity:
 		return true
 	}
 	return false
@@ -4060,7 +4078,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
-		ResourceTypeWorkloadIdentity,
+		ResourceTypeDelegatedIdentity,
 	}
 }
 
@@ -5847,6 +5865,25 @@ type DBCryptKey struct {
 	Test string `db:"test" json:"test"`
 }
 
+// A delegated identity is the identity of something that acts under a user, such as a coding agent. It is an account of its own: it owns what it creates and is named in audit logs. It can never do more than its parent.
+type DelegatedIdentity struct {
+	// The account that is this identity. The row in users is a service account with no way to sign in.
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	// The user or delegated identity this identity was created under. It never changes.
+	ParentID uuid.UUID `db:"parent_id" json:"parent_id"`
+	// The user at the top of the chain of parents. The identity is judged with this user's roles and groups, and its spend counts against this user.
+	RootUserID uuid.UUID `db:"root_user_id" json:"root_user_id"`
+	// Who created the identity. It differs from the parent when a trusted service creates an identity under a member.
+	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
+	// The username the account was created with.
+	Name string `db:"name" json:"name"`
+	// API key scope names. An empty list grants nothing. What the identity may do is these scopes, less whatever a parent identity lacks.
+	Scopes    []string  `db:"scopes" json:"scopes"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ExternalAuthLink struct {
 	ProviderID        string    `db:"provider_id" json:"provider_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
@@ -6826,41 +6863,6 @@ type WebpushSubscription struct {
 	Endpoint          string    `db:"endpoint" json:"endpoint"`
 	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
-}
-
-// A workload identity is a principal for a workload. It is sponsored by a user account and can do nothing beyond its scopes. The row outlives the workload as the record of what ran.
-type WorkloadIdentity struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	// The user account that asked for the workload and answers for it.
-	SponsorID   uuid.UUID `db:"sponsor_id" json:"sponsor_id"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	// The workspace daemon that runs the workload. Only this daemon can vouch for the identity. NULL while the workspace that was made for the workload is being built.
-	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	// The service account that is this identity. It owns the workspace that was made for the workload, and the workload acts as it, narrowed to its scopes. NULL once the account is gone.
-	UserID  uuid.NullUUID `db:"user_id" json:"user_id"`
-	Name    string        `db:"name" json:"name"`
-	Command string        `db:"command" json:"command"`
-	// API key scope names. An empty list grants nothing.
-	Scopes  []string `db:"scopes" json:"scopes"`
-	Runtime string   `db:"runtime" json:"runtime"`
-	// Where the daemon reported that the workload runs, as its runtime names it.
-	SandboxID string `db:"sandbox_id" json:"sandbox_id"`
-	// When the daemon reported that the workload runs. NULL while the workload waits for its daemon to start it.
-	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
-	// When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.
-	FinishedAt sql.NullTime `db:"finished_at" json:"finished_at"`
-	// Why the workload is over: exited, removed, stopped, lost or failed.
-	EndReason string `db:"end_reason" json:"end_reason"`
-	// The exit code of the command, when it is known.
-	ExitCode sql.NullInt32 `db:"exit_code" json:"exit_code"`
-	// The end of the workload's output, kept for the record.
-	OutputTail string `db:"output_tail" json:"output_tail"`
-	// The command runs in a terminal that its sponsor attaches to.
-	Interactive bool `db:"interactive" json:"interactive"`
-	// The workspace was made for this workload and is deleted when the workload is over.
-	RemoveWorkspace bool `db:"remove_workspace" json:"remove_workspace"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.

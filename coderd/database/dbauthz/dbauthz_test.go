@@ -7255,73 +7255,45 @@ func (s *MethodTestSuite) TestProjectSkills() {
 	}))
 }
 
-func (s *MethodTestSuite) TestWorkloadIdentities() {
-	s.Run("InsertWorkloadIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.InsertWorkloadIdentityParams{ID: identity.ID, SponsorID: identity.SponsorID, WorkspaceID: identity.WorkspaceID}
-		dbm.EXPECT().InsertWorkloadIdentity(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+func (s *MethodTestSuite) TestDelegatedIdentities() {
+	s.Run("InsertDelegatedIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.DelegatedIdentity{})
+		arg := database.InsertDelegatedIdentityParams{ID: identity.ID, ParentID: identity.ParentID, RootUserID: identity.RootUserID}
+		dbm.EXPECT().InsertDelegatedIdentity(gomock.Any(), arg).Return(identity, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate).Returns(identity)
 	}))
-	s.Run("GetWorkloadIdentityByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		dbm.EXPECT().GetWorkloadIdentityByID(gomock.Any(), identity.ID).Return(identity, nil).AnyTimes()
+	s.Run("GetDelegatedIdentityByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.DelegatedIdentity{})
+		dbm.EXPECT().GetDelegatedIdentityByID(gomock.Any(), identity.ID).Return(identity, nil).AnyTimes()
 		check.Args(identity.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(identity)
 	}))
-	s.Run("GetWorkloadIdentityByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		dbm.EXPECT().GetWorkloadIdentityByUserID(gomock.Any(), identity.UserID).Return(identity, nil).AnyTimes()
-		check.Args(identity.UserID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(identity)
+	s.Run("GetDelegatedIdentityChain", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.DelegatedIdentity{})
+		dbm.EXPECT().GetDelegatedIdentityChain(gomock.Any(), identity.ID).Return([]database.DelegatedIdentity{identity}, nil).AnyTimes()
+		check.Args(identity.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.DelegatedIdentity{identity})
 	}))
-	s.Run("UpdateWorkloadIdentityWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.UpdateWorkloadIdentityWorkspaceAgentParams{ID: identity.ID, WorkspaceAgentID: identity.WorkspaceAgentID}
-		dbm.EXPECT().UpdateWorkloadIdentityWorkspaceAgent(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+	s.Run("GetDelegatedIdentitiesByAncestorID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.DelegatedIdentity{})
+		dbm.EXPECT().GetDelegatedIdentitiesByAncestorID(gomock.Any(), identity.ParentID).Return([]database.DelegatedIdentity{identity}, nil).AnyTimes()
+		check.Args(identity.ParentID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.DelegatedIdentity{identity})
+	}))
+	s.Run("GetDelegatedIdentityUsage", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		usage := database.GetDelegatedIdentityUsageRow{Workspaces: 1, Chats: 1, Children: 2}
+		dbm.EXPECT().GetDelegatedIdentityUsage(gomock.Any(), id).Return(usage, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(usage)
+	}))
+	s.Run("UpdateDelegatedIdentityScopes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.DelegatedIdentity{})
+		arg := database.UpdateDelegatedIdentityScopesParams{ID: identity.ID, Scopes: []string{"workspace:read"}}
+		dbm.EXPECT().UpdateDelegatedIdentityScopes(gomock.Any(), arg).Return(identity, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
 	}))
-	s.Run("GetWorkloadIdentitiesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		dbm.EXPECT().GetWorkloadIdentitiesByWorkspaceID(gomock.Any(), identity.WorkspaceID).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
-		check.Args(identity.WorkspaceID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
-	}))
-	s.Run("UpdateWorkloadIdentitySandbox", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.UpdateWorkloadIdentitySandboxParams{ID: identity.ID, Runtime: "pod", SandboxID: "abc"}
-		dbm.EXPECT().UpdateWorkloadIdentitySandbox(gomock.Any(), arg).Return(identity, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
-	}))
-	s.Run("GetWorkloadIdentitiesBySponsorID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		dbm.EXPECT().GetWorkloadIdentitiesBySponsorID(gomock.Any(), identity.SponsorID).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
-		check.Args(identity.SponsorID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
-	}))
-	s.Run("GetFinishedWorkloadIdentitiesBySponsorID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.GetFinishedWorkloadIdentitiesBySponsorIDParams{SponsorID: identity.SponsorID, LimitOpt: 10}
-		dbm.EXPECT().GetFinishedWorkloadIdentitiesBySponsorID(gomock.Any(), arg).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
-	}))
-	s.Run("GetPendingWorkloadIdentitiesByWorkspaceAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams{WorkspaceAgentID: identity.WorkspaceAgentID}
-		dbm.EXPECT().GetPendingWorkloadIdentitiesByWorkspaceAgentID(gomock.Any(), arg).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
-	}))
-	s.Run("GetFinishedWorkloadIdentitiesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams{WorkspaceID: identity.WorkspaceID, LimitOpt: 10}
-		dbm.EXPECT().GetFinishedWorkloadIdentitiesByWorkspaceID(gomock.Any(), arg).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
-	}))
-	s.Run("FinishWorkloadIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.FinishWorkloadIdentityParams{ID: identity.ID, EndReason: "exited"}
-		dbm.EXPECT().FinishWorkloadIdentity(gomock.Any(), arg).Return(identity, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
-	}))
-	s.Run("UpdateWorkloadIdentityOutcome", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpdateWorkloadIdentityOutcomeParams{ID: uuid.New(), OutputTail: "done"}
-		dbm.EXPECT().UpdateWorkloadIdentityOutcome(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("DeleteOrphanedDelegatedIdentities", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		before := dbtime.Now()
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().DeleteOrphanedDelegatedIdentities(gomock.Any(), before).Return(ids, nil).AnyTimes()
+		check.Args(before).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(ids)
 	}))
 }
 

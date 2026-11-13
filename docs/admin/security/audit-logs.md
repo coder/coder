@@ -447,6 +447,25 @@ Actions: `create`, `delete`
 </tbody>
 </table>
 
+### DelegatedIdentity
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>parent_id</code></td><td>Yes</td></tr>
+<tr><td><code>root_user_id</code></td><td>Yes</td></tr>
+<tr><td><code>scopes</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### ExperimentRule
 
 Actions: `write`
@@ -852,35 +871,6 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
 <tr><td><code>value</code></td><td>Yes</td></tr>
 <tr><td><code>value_key_id</code></td><td>No</td></tr>
-</tbody>
-</table>
-
-### WorkloadIdentity
-
-Actions: `start`, `stop`, `connect`
-
-<table width="100%">
-<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
-<tbody>
-<tr><td><code>command</code></td><td>Yes</td></tr>
-<tr><td><code>created_at</code></td><td>No</td></tr>
-<tr><td><code>end_reason</code></td><td>Yes</td></tr>
-<tr><td><code>exit_code</code></td><td>Yes</td></tr>
-<tr><td><code>finished_at</code></td><td>No</td></tr>
-<tr><td><code>id</code></td><td>Yes</td></tr>
-<tr><td><code>interactive</code></td><td>Yes</td></tr>
-<tr><td><code>name</code></td><td>Yes</td></tr>
-<tr><td><code>organization_id</code></td><td>Yes</td></tr>
-<tr><td><code>output_tail</code></td><td>Yes</td></tr>
-<tr><td><code>remove_workspace</code></td><td>Yes</td></tr>
-<tr><td><code>runtime</code></td><td>Yes</td></tr>
-<tr><td><code>sandbox_id</code></td><td>Yes</td></tr>
-<tr><td><code>scopes</code></td><td>Yes</td></tr>
-<tr><td><code>sponsor_id</code></td><td>Yes</td></tr>
-<tr><td><code>started_at</code></td><td>No</td></tr>
-<tr><td><code>user_id</code></td><td>Yes</td></tr>
-<tr><td><code>workspace_agent_id</code></td><td>Yes</td></tr>
-<tr><td><code>workspace_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 

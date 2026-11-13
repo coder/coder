@@ -1,9 +1,0 @@
-# The service account of workload pods. It may do nothing in the cluster.
-# It exists so that the kubelet can obtain a token that says which pod a
-# daemon runs in.
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: coder-workload
-  namespace: coder-sandbox-workloads
-automountServiceAccountToken: false

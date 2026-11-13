@@ -1,0 +1,34 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder identities
+
+  Manage delegated identities (experimental)
+
+  Aliases: identity
+
+  A delegated identity is an identity for something that acts under you, for
+  example a coding agent. It owns the workspaces created on its behalf, is named
+  in audit logs, and can never do more than you.
+    - Create an identity that may only read its own workspaces:
+  
+       $ coder identities create my-agent --scope workspace:read
+  
+    - Create a workspace on its behalf:
+  
+       $ coder create my-agent/task-1 --template docker
+  
+    - Change what it may do:
+  
+       $ coder identities update my-agent --scope workspace:read --scope
+  template:read
+
+SUBCOMMANDS:
+    create    Create a delegated identity under you
+    delete    Delete a delegated identity that owns no workspaces
+    list      List the delegated identities below you
+    show      Show a delegated identity
+    update    Replace what a delegated identity may do
+
+———
+Run `coder --help` for a list of global options.

@@ -1211,7 +1211,6 @@ func New(options *Options) *API {
 			OAuth2Configs:               oauthConfigs,
 			DisableSessionExpiryRefresh: options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
 			Logger:                      options.Logger,
-			WorkloadIdentityScope:       api.workloadIdentityScope,
 		}),
 		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,
@@ -1887,9 +1886,6 @@ func New(options *Options) *API {
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
-				r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads)).
-					Get("/identity", api.workspaceAgentIdentity)
-				api.registerAgentWorkloadRoutes(r)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
@@ -1923,9 +1919,18 @@ func New(options *Options) *API {
 				// PTY is part of workspaceAppServer.
 			})
 		})
-		r.Group(func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			api.registerWorkloadRoutes(r)
+		r.Route("/identities", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDelegatedIdentities),
+			)
+			r.Post("/", api.postDelegatedIdentity)
+			r.Get("/", api.delegatedIdentities)
+			r.Route("/{identity}", func(r chi.Router) {
+				r.Get("/", api.delegatedIdentity)
+				r.Patch("/", api.patchDelegatedIdentity)
+				r.Delete("/", api.deleteDelegatedIdentity)
+			})
 		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
@@ -1938,7 +1943,6 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspace)
 				r.Patch("/", api.patchWorkspace)
-				api.registerWorkspaceWorkloadRoutes(r)
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)

@@ -312,7 +312,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_secret:create',
     'workspace_secret:read',
     'workspace_secret:read_secret',
-    'workspace_secret:update'
+    'workspace_secret:update',
+    'delegated_identity:*',
+    'delegated_identity:create',
+    'delegated_identity:read',
+    'delegated_identity:update',
+    'delegated_identity:delete',
+    'delegated_identity:use'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -664,7 +670,7 @@ CREATE TYPE resource_type AS ENUM (
     'chat_project_instructions',
     'organization_skill',
     'chat_project_skill',
-    'workload_identity'
+    'delegated_identity'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2737,6 +2743,33 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
+CREATE TABLE delegated_identities (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    parent_id uuid NOT NULL,
+    root_user_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    name text NOT NULL,
+    scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT delegated_identities_not_own_parent CHECK ((parent_id <> id))
+);
+
+COMMENT ON TABLE delegated_identities IS 'A delegated identity is the identity of something that acts under a user, such as a coding agent. It is an account of its own: it owns what it creates and is named in audit logs. It can never do more than its parent.';
+
+COMMENT ON COLUMN delegated_identities.id IS 'The account that is this identity. The row in users is a service account with no way to sign in.';
+
+COMMENT ON COLUMN delegated_identities.parent_id IS 'The user or delegated identity this identity was created under. It never changes.';
+
+COMMENT ON COLUMN delegated_identities.root_user_id IS 'The user at the top of the chain of parents. The identity is judged with this user''s roles and groups, and its spend counts against this user.';
+
+COMMENT ON COLUMN delegated_identities.created_by IS 'Who created the identity. It differs from the parent when a trusted service creates an identity under a member.';
+
+COMMENT ON COLUMN delegated_identities.name IS 'The username the account was created with.';
+
+COMMENT ON COLUMN delegated_identities.scopes IS 'API key scope names. An empty list grants nothing. What the identity may do is these scopes, less whatever a parent identity lacks.';
+
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -3878,54 +3911,6 @@ CREATE TABLE webpush_subscriptions (
     endpoint_auth_key text NOT NULL
 );
 
-CREATE TABLE workload_identities (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    organization_id uuid NOT NULL,
-    sponsor_id uuid NOT NULL,
-    workspace_id uuid NOT NULL,
-    workspace_agent_id uuid,
-    user_id uuid,
-    name text NOT NULL,
-    command text DEFAULT ''::text NOT NULL,
-    scopes text[] DEFAULT '{}'::text[] NOT NULL,
-    runtime text DEFAULT ''::text NOT NULL,
-    sandbox_id text DEFAULT ''::text NOT NULL,
-    started_at timestamp with time zone,
-    finished_at timestamp with time zone,
-    end_reason text DEFAULT ''::text NOT NULL,
-    exit_code integer,
-    output_tail text DEFAULT ''::text NOT NULL,
-    interactive boolean DEFAULT false NOT NULL,
-    remove_workspace boolean DEFAULT false NOT NULL
-);
-
-COMMENT ON TABLE workload_identities IS 'A workload identity is a principal for a workload. It is sponsored by a user account and can do nothing beyond its scopes. The row outlives the workload as the record of what ran.';
-
-COMMENT ON COLUMN workload_identities.sponsor_id IS 'The user account that asked for the workload and answers for it.';
-
-COMMENT ON COLUMN workload_identities.workspace_agent_id IS 'The workspace daemon that runs the workload. Only this daemon can vouch for the identity. NULL while the workspace that was made for the workload is being built.';
-
-COMMENT ON COLUMN workload_identities.user_id IS 'The service account that is this identity. It owns the workspace that was made for the workload, and the workload acts as it, narrowed to its scopes. NULL once the account is gone.';
-
-COMMENT ON COLUMN workload_identities.scopes IS 'API key scope names. An empty list grants nothing.';
-
-COMMENT ON COLUMN workload_identities.sandbox_id IS 'Where the daemon reported that the workload runs, as its runtime names it.';
-
-COMMENT ON COLUMN workload_identities.started_at IS 'When the daemon reported that the workload runs. NULL while the workload waits for its daemon to start it.';
-
-COMMENT ON COLUMN workload_identities.finished_at IS 'When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.';
-
-COMMENT ON COLUMN workload_identities.end_reason IS 'Why the workload is over: exited, removed, stopped, lost or failed.';
-
-COMMENT ON COLUMN workload_identities.exit_code IS 'The exit code of the command, when it is known.';
-
-COMMENT ON COLUMN workload_identities.output_tail IS 'The end of the workload''s output, kept for the record.';
-
-COMMENT ON COLUMN workload_identities.interactive IS 'The command runs in a terminal that its sponsor attaches to.';
-
-COMMENT ON COLUMN workload_identities.remove_workspace IS 'The workspace was made for this workload and is deleted when the workload is over.';
-
 CREATE TABLE workspace_agent_context_resources (
     workspace_agent_id uuid NOT NULL,
     source text NOT NULL,
@@ -4799,6 +4784,9 @@ ALTER TABLE ONLY dbcrypt_keys
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 
+ALTER TABLE ONLY delegated_identities
+    ADD CONSTRAINT delegated_identities_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 
@@ -5015,9 +5003,6 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY workload_identities
-    ADD CONSTRAINT workload_identities_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY workspace_agent_context_resources
     ADD CONSTRAINT workspace_agent_context_resources_pkey PRIMARY KEY (workspace_agent_id, source);
 
@@ -5137,6 +5122,10 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
 CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (editing_since IS NOT NULL);
+
+CREATE INDEX delegated_identities_parent_id_idx ON delegated_identities USING btree (parent_id);
+
+CREATE INDEX delegated_identities_root_user_id_idx ON delegated_identities USING btree (root_user_id);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5425,14 +5414,6 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX webpush_subscriptions_user_id_endpoint_idx ON webpush_subscriptions USING btree (user_id, endpoint);
-
-CREATE INDEX workload_identities_sponsor_id_idx ON workload_identities USING btree (sponsor_id, finished_at);
-
-CREATE UNIQUE INDEX workload_identities_user_id_idx ON workload_identities USING btree (user_id) WHERE (user_id IS NOT NULL);
-
-CREATE INDEX workload_identities_workspace_agent_id_idx ON workload_identities USING btree (workspace_agent_id) WHERE (finished_at IS NULL);
-
-CREATE INDEX workload_identities_workspace_id_idx ON workload_identities USING btree (workspace_id, created_at);
 
 CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
 
@@ -5783,6 +5764,21 @@ ALTER TABLE ONLY connection_logs
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
+ALTER TABLE ONLY delegated_identities
+    ADD CONSTRAINT delegated_identities_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY delegated_identities
+    ADD CONSTRAINT delegated_identities_id_fkey FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY delegated_identities
+    ADD CONSTRAINT delegated_identities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY delegated_identities
+    ADD CONSTRAINT delegated_identities_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY delegated_identities
+    ADD CONSTRAINT delegated_identities_root_user_id_fkey FOREIGN KEY (root_user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;
 
@@ -6022,21 +6018,6 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workload_identities
-    ADD CONSTRAINT workload_identities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workload_identities
-    ADD CONSTRAINT workload_identities_sponsor_id_fkey FOREIGN KEY (sponsor_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workload_identities
-    ADD CONSTRAINT workload_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY workload_identities
-    ADD CONSTRAINT workload_identities_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workload_identities
-    ADD CONSTRAINT workload_identities_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_context_resources
     ADD CONSTRAINT workspace_agent_context_resources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

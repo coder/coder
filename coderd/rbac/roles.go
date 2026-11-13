@@ -1236,6 +1236,12 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
+
+		// A member's delegated identities are theirs to create, change,
+		// delete and use. A delegated identity is addressed by
+		// WithOwner(parent_id), or by WithOwner of an ancestor further up
+		// when that ancestor is the one asking.
+		ResourceDelegatedIdentity.Type: ResourceDelegatedIdentity.AvailableActions(),
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {

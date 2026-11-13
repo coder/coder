@@ -1506,9 +1506,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `chat_project:*`, `chat_project:create`, `chat_project:delete`, `chat_project:read`, `chat_project:share`, `chat_project:update`, `chat_project_memory:*`, `chat_project_memory:create`, `chat_project_memory:delete`, `chat_project_memory:read`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `organization_skill:*`, `organization_skill:create`, `organization_skill:delete`, `organization_skill:read`, `organization_skill:share`, `organization_skill:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update`, `workspace_secret:*`, `workspace_secret:create`, `workspace_secret:read`, `workspace_secret:read_secret`, `workspace_secret:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `chat_project:*`, `chat_project:create`, `chat_project:delete`, `chat_project:read`, `chat_project:share`, `chat_project:update`, `chat_project_memory:*`, `chat_project_memory:create`, `chat_project_memory:delete`, `chat_project_memory:read`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `delegated_identity:*`, `delegated_identity:create`, `delegated_identity:delete`, `delegated_identity:read`, `delegated_identity:update`, `delegated_identity:use`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `organization_skill:*`, `organization_skill:create`, `organization_skill:delete`, `organization_skill:read`, `organization_skill:share`, `organization_skill:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update`, `workspace_secret:*`, `workspace_secret:create`, `workspace_secret:read`, `workspace_secret:read_secret`, `workspace_secret:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -1714,99 +1714,6 @@ None
 | Value(s)                            |
 |-------------------------------------|
 | `envbox`, `envbuilder`, `exectrace` |
-
-## codersdk.AgentWorkloadExit
-
-```json
-{
-  "exit_code": 0,
-  "output_tail": "string",
-  "reason": "exited"
-}
-```
-
-### Properties
-
-| Name          | Type                                                     | Required | Restrictions | Description                                        |
-|---------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------|
-| `exit_code`   | integer                                                  | false    |              | Exit code is nil when the daemon does not know it. |
-| `output_tail` | string                                                   | false    |              | Output tail is the end of the workload's output.   |
-| `reason`      | [codersdk.WorkloadEndReason](#codersdkworkloadendreason) | false    |              |                                                    |
-
-## codersdk.AgentWorkloadSpec
-
-```json
-{
-  "command": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "interactive": true,
-  "name": "string",
-  "session_token": "string"
-}
-```
-
-### Properties
-
-| Name            | Type    | Required | Restrictions | Description                                                                                                              |
-|-----------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------|
-| `command`       | string  | false    |              |                                                                                                                          |
-| `id`            | string  | false    |              | ID is the workload identity.                                                                                             |
-| `interactive`   | boolean | false    |              | Interactive gives the command a terminal.                                                                                |
-| `name`          | string  | false    |              |                                                                                                                          |
-| `session_token` | string  | false    |              | Session token is the workload's own credential for Coder. It is handed out once: it is empty when the daemon asks again. |
-
-## codersdk.AgentWorkloadStart
-
-```json
-{
-  "error": "string",
-  "state": {
-    "exit_code": 0,
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string",
-    "running": true,
-    "sandbox": {
-      "id": "string",
-      "runtime": "string"
-    },
-    "started_at": "2019-08-24T14:15:22Z"
-  }
-}
-```
-
-### Properties
-
-| Name    | Type                                                       | Required | Restrictions | Description                          |
-|---------|------------------------------------------------------------|----------|--------------|--------------------------------------|
-| `error` | string                                                     | false    |              | Error says why it does not.          |
-| `state` | [codersdk.AgentWorkloadState](#codersdkagentworkloadstate) | false    |              | State is set when the workload runs. |
-
-## codersdk.AgentWorkloadState
-
-```json
-{
-  "exit_code": 0,
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "running": true,
-  "sandbox": {
-    "id": "string",
-    "runtime": "string"
-  },
-  "started_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name         | Type                                                 | Required | Restrictions | Description |
-|--------------|------------------------------------------------------|----------|--------------|-------------|
-| `exit_code`  | integer                                              | false    |              |             |
-| `id`         | string                                               | false    |              |             |
-| `name`       | string                                               | false    |              |             |
-| `running`    | boolean                                              | false    |              |             |
-| `sandbox`    | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox) | false    |              |             |
-| `started_at` | string                                               | false    |              |             |
 
 ## codersdk.AppFamilyName
 
@@ -7252,6 +7159,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                                                            |
 | `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 
+## codersdk.CreateDelegatedIdentityRequest
+
+```json
+{
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
+  "scopes": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                  | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|-------------------|-------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`            | string                                                | false    |              | Name becomes the username of the identity's account. One is made up when it is empty.                                                                                                                                                 |
+| `organization_id` | string                                                | false    |              | Organization ID is required when the parent is a user in more than one organization. An identity under an identity is in its parent's organization.                                                                                   |
+| `parent_id`       | string                                                | false    |              | Parent ID is the user or delegated identity to create the identity under. It defaults to the caller. Naming anyone who is not the caller or below the caller needs permission to create delegated identities across the organization. |
+| `scopes`          | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes is what the identity may do with the API. It can hold no more than its parent does.                                                                                                                                            |
+
 ## codersdk.CreateFirstUserOnboardingInfo
 
 ```json
@@ -8263,6 +8192,46 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_all_cors`                   | boolean | false    |              |             |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
+
+## codersdk.DelegatedIdentity
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "effective_scopes": [
+    "all"
+  ],
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
+  "parent_name": "string",
+  "root_user_id": "c3370619-c783-41f0-b266-98ea8d7ac113",
+  "root_username": "string",
+  "scopes": [
+    "all"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name               | Type                                                  | Required | Restrictions | Description                                                                                                            |
+|--------------------|-------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                | false    |              |                                                                                                                        |
+| `created_by`       | string                                                | false    |              | Created by differs from the parent when a trusted service created the identity under a member.                         |
+| `effective_scopes` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Effective scopes is what the identity may do now: its scopes, less whatever a delegated identity above it lacks.       |
+| `id`               | string                                                | false    |              | ID is also the ID of the account that is this identity.                                                                |
+| `name`             | string                                                | false    |              | Name is the username of the identity's account. Workspaces of the identity are addressed as name/workspace.            |
+| `organization_id`  | string                                                | false    |              |                                                                                                                        |
+| `parent_id`        | string                                                | false    |              | Parent ID is the user or delegated identity this identity acts under.                                                  |
+| `parent_name`      | string                                                | false    |              |                                                                                                                        |
+| `root_user_id`     | string                                                | false    |              | Root user ID is the user at the top of the chain of parents. The identity is judged with this user's roles and groups. |
+| `root_username`    | string                                                | false    |              |                                                                                                                        |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes is what the identity was given. An empty list grants nothing.                                                   |
+| `updated_at`       | string                                                | false    |              |                                                                                                                        |
 
 ## codersdk.DeleteExternalAuthByIDResponse
 
@@ -10087,9 +10056,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `runtime-workloads`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                   |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `delegated-identities`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -11114,36 +11083,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)                                                                          |
 |-----------------------------------------------------------------------------------|
 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
-
-## codersdk.LaunchWorkloadRequest
-
-```json
-{
-  "command": "string",
-  "interactive": true,
-  "keep": true,
-  "name": "string",
-  "scopes": [
-    "all"
-  ],
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
-  "workspace_name": "string"
-}
-```
-
-### Properties
-
-| Name                         | Type                                                  | Required | Restrictions | Description                                                                                                                                                         |
-|------------------------------|-------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `command`                    | string                                                | false    |              | Command is run by a shell.                                                                                                                                          |
-| `interactive`                | boolean                                               | false    |              | Interactive gives the command a terminal that the sponsor can attach to.                                                                                            |
-| `keep`                       | boolean                                               | false    |              | Keep leaves the workspace in place when the workload is over.                                                                                                       |
-| `name`                       | string                                                | false    |              | Name is optional. It must be a valid agent name.                                                                                                                    |
-| `scopes`                     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes are the API key scopes the workload may use. Without any, the workload can do nothing in Coder.                                                              |
-| `template_id`                | string                                                | false    |              | Template ID is the template the workspace is made from. The caller must be allowed to use it.                                                                       |
-| `template_version_preset_id` | string                                                | false    |              | Template version preset ID selects a preset of the template's active version. A workspace that was built ahead of time for the preset is claimed when there is one. |
-| `workspace_name`             | string                                                | false    |              | Workspace name is optional. The workspace is named like the workload otherwise.                                                                                     |
 
 ## codersdk.License
 
@@ -14677,9 +14616,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `chat_project`, `chat_project_memory`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `organization_skill`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy`, `workspace_secret` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `chat_project`, `chat_project_memory`, `connection_log`, `crypto_key`, `debug_info`, `delegated_identity`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `organization_skill`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy`, `workspace_secret` |
 
 ## codersdk.RateLimitConfig
 
@@ -14909,9 +14848,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workload_identity`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `delegated_identity`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -15582,9 +15521,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Property      | Value(s)               |
-|---------------|------------------------|
-| `provisioner` | `sandbox`, `terraform` |
+| Property      | Value(s)    |
+|---------------|-------------|
+| `provisioner` | `terraform` |
 
 ## codersdk.TemplateACL
 
@@ -17502,6 +17441,22 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
 
+## codersdk.UpdateDelegatedIdentityRequest
+
+```json
+{
+  "scopes": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                  | Required | Restrictions | Description |
+|----------|-------------------------------------------------------|----------|--------------|-------------|
+| `scopes` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+
 ## codersdk.UpdateMCPServerConfigACLRequest
 
 ```json
@@ -19010,196 +18965,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `auth_key`   | string | false    |              |             |
 | `endpoint`   | string | false    |              |             |
 | `p256dh_key` | string | false    |              |             |
-
-## codersdk.Workload
-
-```json
-{
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "agent_name": "string",
-  "command": "string",
-  "created_at": "2019-08-24T14:15:22Z",
-  "exit_code": 0,
-  "finished_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "identity": "string",
-  "name": "string",
-  "own_workspace": true,
-  "sandbox": {
-    "id": "string",
-    "runtime": "string"
-  },
-  "scopes": [
-    "all"
-  ],
-  "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
-  "sponsor_username": "string",
-  "status": "starting",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_name": "string"
-}
-```
-
-### Properties
-
-| Name               | Type                                                  | Required | Restrictions | Description                                                                                               |
-|--------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
-| `agent_id`         | string                                                | false    |              |                                                                                                           |
-| `agent_name`       | string                                                | false    |              |                                                                                                           |
-| `command`          | string                                                | false    |              |                                                                                                           |
-| `created_at`       | string                                                | false    |              |                                                                                                           |
-| `exit_code`        | integer                                               | false    |              | Exit code is the command's exit code, when it is known.                                                   |
-| `finished_at`      | string                                                | false    |              | Finished at is set once the workload is over.                                                             |
-| `id`               | string                                                | false    |              | ID is the workload's identity ID.                                                                         |
-| `identity`         | string                                                | false    |              | Identity is the workload's identity as it is displayed.                                                   |
-| `name`             | string                                                | false    |              |                                                                                                           |
-| `own_workspace`    | boolean                                               | false    |              | Own workspace means the workspace was made for this workload and is deleted when the workload is over.    |
-| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)  | false    |              |                                                                                                           |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes are what the identity may do. An empty list grants nothing.                                        |
-| `sponsor_id`       | string                                                | false    |              | Sponsor ID is the user account that asked for the workload and answers for it.                            |
-| `sponsor_username` | string                                                | false    |              |                                                                                                           |
-| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)    | false    |              |                                                                                                           |
-| `user_id`          | string                                                | false    |              | User ID is the service account that is this identity. The workload acts as it, and it owns the workspace. |
-| `workspace_id`     | string                                                | false    |              |                                                                                                           |
-| `workspace_name`   | string                                                | false    |              | Workspace name is set when workloads of several workspaces are listed.                                    |
-
-## codersdk.WorkloadAttestation
-
-```json
-"agent-token"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                            |
-|-----------------------------------------------------|
-| `agent-token`, `kubernetes-pod`, `workspace-daemon` |
-
-## codersdk.WorkloadEndReason
-
-```json
-"exited"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                         |
-|--------------------------------------------------|
-| `exited`, `failed`, `lost`, `removed`, `stopped` |
-
-## codersdk.WorkloadIdentity
-
-```json
-{
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "agent_name": "string",
-  "attestation": "agent-token",
-  "attestation_subject": "string",
-  "id": "string",
-  "identity_id": "011a42b9-62d7-49eb-8328-c2e454af88a1",
-  "kind": "daemon",
-  "name": "string",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-  "owner_username": "string",
-  "sandbox": {
-    "id": "string",
-    "runtime": "string"
-  },
-  "scopes": [
-    "all"
-  ],
-  "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
-  "sponsor_username": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_name": "string"
-}
-```
-
-### Properties
-
-| Name                  | Type                                                           | Required | Restrictions | Description                                                                                                                   |
-|-----------------------|----------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`            | string                                                         | false    |              | Agent ID is the workspace daemon: the process itself, or the daemon that runs and vouches for the workload.                   |
-| `agent_name`          | string                                                         | false    |              |                                                                                                                               |
-| `attestation`         | [codersdk.WorkloadAttestation](#codersdkworkloadattestation)   | false    |              |                                                                                                                               |
-| `attestation_subject` | string                                                         | false    |              | Attestation subject is what was attested, when that is not Coder's own credential: for a pod, the UID the cluster gave it.    |
-| `id`                  | string                                                         | false    |              | ID is unique per principal: the workspace ID and the workload identity ID, or for a daemon the workspace ID and the agent ID. |
-| `identity_id`         | string                                                         | false    |              | Identity ID is the workload identity that permissions attach to. A daemon has none: it acts with its agent token.             |
-| `kind`                | [codersdk.WorkloadIdentityKind](#codersdkworkloadidentitykind) | false    |              |                                                                                                                               |
-| `name`                | string                                                         | false    |              | Name is the workload's name.                                                                                                  |
-| `owner_id`            | string                                                         | false    |              |                                                                                                                               |
-| `owner_username`      | string                                                         | false    |              |                                                                                                                               |
-| `sandbox`             | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)           | false    |              |                                                                                                                               |
-| `scopes`              | array of [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                        |
-| `sponsor_id`          | string                                                         | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                              |
-| `sponsor_username`    | string                                                         | false    |              |                                                                                                                               |
-| `workspace_id`        | string                                                         | false    |              |                                                                                                                               |
-| `workspace_name`      | string                                                         | false    |              |                                                                                                                               |
-
-## codersdk.WorkloadIdentityKind
-
-```json
-"daemon"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)             |
-|----------------------|
-| `daemon`, `workload` |
-
-## codersdk.WorkloadLogEvent
-
-```json
-{
-  "exit_code": 0,
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name        | Type    | Required | Restrictions | Description |
-|-------------|---------|----------|--------------|-------------|
-| `exit_code` | integer | false    |              |             |
-| `output`    | string  | false    |              |             |
-
-## codersdk.WorkloadSandbox
-
-```json
-{
-  "id": "string",
-  "runtime": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description                                 |
-|-----------|--------|----------|--------------|---------------------------------------------|
-| `id`      | string | false    |              | ID identifies the sandbox to that runtime.  |
-| `runtime` | string | false    |              | Runtime is what runs it, for example "pod". |
-
-## codersdk.WorkloadStatus
-
-```json
-"starting"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                                                           |
-|------------------------------------------------------------------------------------|
-| `exited`, `failed`, `lost`, `removed`, `running`, `starting`, `stopped`, `unknown` |
 
 ## codersdk.Workspace
 

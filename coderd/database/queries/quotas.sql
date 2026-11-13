@@ -31,7 +31,19 @@ WHERE
 	-- Only return workspaces that match the user + organization.
 	-- Quotas are calculated per user per organization.
 	NOT workspaces.deleted AND
-	workspaces.owner_id = @owner_id AND
+	(
+		workspaces.owner_id = @owner_id
+		-- What the delegated identities below a user consume counts
+		-- against that user.
+		OR workspaces.owner_id IN (
+			SELECT
+				delegated_identities.id
+			FROM
+				delegated_identities
+			WHERE
+				delegated_identities.root_user_id = @owner_id
+		)
+	) AND
 	workspaces.organization_id = @organization_id
 ORDER BY
 	wb.workspace_id,

@@ -1,0 +1,23 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder identities update [flags] <name|id>
+
+  Replace what a delegated identity may do
+
+  The change applies from the identity's next request, to the credentials it
+  already has.
+
+OPTIONS:
+  -c, --column [name|parent|root user|scopes|effective scopes|created at|id] (default: name,parent,root user,scopes,effective scopes)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --scope string-array
+          A scope the identity may use with the Coder API, as API tokens name
+          them. Repeat for more. Without any, the identity can do nothing.
+
+———
+Run `coder --help` for a list of global options.

@@ -912,6 +912,14 @@ func (m queryMetricsStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOrphanedDelegatedIdentities(ctx context.Context, createdBefore time.Time) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrphanedDelegatedIdentities(ctx, createdBefore)
+	m.queryLatencies.WithLabelValues("DeleteOrphanedDelegatedIdentities").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrphanedDelegatedIdentities").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteProjectSkillByProjectIDAndName(ctx, arg)
@@ -1173,14 +1181,6 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	r0, r1 := m.s.FindMatchingPresetID(ctx, arg)
 	m.queryLatencies.WithLabelValues("FindMatchingPresetID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FindMatchingPresetID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) FinishWorkloadIdentity(ctx context.Context, arg database.FinishWorkloadIdentityParams) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.FinishWorkloadIdentity(ctx, arg)
-	m.queryLatencies.WithLabelValues("FinishWorkloadIdentity").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FinishWorkloadIdentity").Inc()
 	return r0, r1
 }
 
@@ -2208,6 +2208,38 @@ func (m queryMetricsStore) GetDefaultProxyConfig(ctx context.Context) (database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetDelegatedIdentitiesByAncestorID(ctx context.Context, ancestorID uuid.UUID) ([]database.DelegatedIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDelegatedIdentitiesByAncestorID(ctx, ancestorID)
+	m.queryLatencies.WithLabelValues("GetDelegatedIdentitiesByAncestorID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDelegatedIdentitiesByAncestorID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDelegatedIdentityByID(ctx context.Context, id uuid.UUID) (database.DelegatedIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDelegatedIdentityByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetDelegatedIdentityByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDelegatedIdentityByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDelegatedIdentityChain(ctx context.Context, id uuid.UUID) ([]database.DelegatedIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDelegatedIdentityChain(ctx, id)
+	m.queryLatencies.WithLabelValues("GetDelegatedIdentityChain").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDelegatedIdentityChain").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDelegatedIdentityUsage(ctx context.Context, id uuid.UUID) (database.GetDelegatedIdentityUsageRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDelegatedIdentityUsage(ctx, id)
+	m.queryLatencies.WithLabelValues("GetDelegatedIdentityUsage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDelegatedIdentityUsage").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg database.GetDeletedChatMessagesFromLastAssistantParams) ([]database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDeletedChatMessagesFromLastAssistant(ctx, arg)
@@ -2365,22 +2397,6 @@ func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Con
 	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetFilteredInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFilteredInboxNotificationsByUserID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetFinishedWorkloadIdentitiesBySponsorID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetFinishedWorkloadIdentitiesBySponsorID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFinishedWorkloadIdentitiesBySponsorID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetFinishedWorkloadIdentitiesByWorkspaceID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetFinishedWorkloadIdentitiesByWorkspaceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFinishedWorkloadIdentitiesByWorkspaceID").Inc()
 	return r0, r1
 }
 
@@ -2949,14 +2965,6 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	r0, r1 := m.s.GetParameterSchemasByJobID(ctx, jobID)
 	m.queryLatencies.WithLabelValues("GetParameterSchemasByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetParameterSchemasByJobID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetPendingWorkloadIdentitiesByWorkspaceAgentID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPendingWorkloadIdentitiesByWorkspaceAgentID").Inc()
 	return r0, r1
 }
 
@@ -3832,38 +3840,6 @@ func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.Ge
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkloadIdentitiesBySponsorID(ctx, sponsorID)
-	m.queryLatencies.WithLabelValues("GetWorkloadIdentitiesBySponsorID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentitiesBySponsorID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkloadIdentitiesByWorkspaceID(ctx, workspaceID)
-	m.queryLatencies.WithLabelValues("GetWorkloadIdentitiesByWorkspaceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentitiesByWorkspaceID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkloadIdentityByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetWorkloadIdentityByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentityByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkloadIdentityByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetWorkloadIdentityByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentityByUserID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
@@ -4632,6 +4608,14 @@ func (m queryMetricsStore) InsertDERPMeshKey(ctx context.Context, value string) 
 	return r0
 }
 
+func (m queryMetricsStore) InsertDelegatedIdentity(ctx context.Context, arg database.InsertDelegatedIdentityParams) (database.DelegatedIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertDelegatedIdentity(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertDelegatedIdentity").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertDelegatedIdentity").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertDeploymentID(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.InsertDeploymentID(ctx, value)
@@ -4973,14 +4957,6 @@ func (m queryMetricsStore) InsertWebpushSubscription(ctx context.Context, arg da
 	r0, r1 := m.s.InsertWebpushSubscription(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWebpushSubscription").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWebpushSubscription").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertWorkloadIdentity(ctx context.Context, arg database.InsertWorkloadIdentityParams) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertWorkloadIdentity(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkloadIdentity").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkloadIdentity").Inc()
 	return r0, r1
 }
 
@@ -5929,6 +5905,14 @@ func (m queryMetricsStore) UpdateCustomRole(ctx context.Context, arg database.Up
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateDelegatedIdentityScopes(ctx context.Context, arg database.UpdateDelegatedIdentityScopesParams) (database.DelegatedIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateDelegatedIdentityScopes(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateDelegatedIdentityScopes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateDelegatedIdentityScopes").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateEncryptedAIProviderKey(ctx, arg)
@@ -6567,30 +6551,6 @@ func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg 
 	m.queryLatencies.WithLabelValues("UpdateVolumeResourceMonitor").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateVolumeResourceMonitor").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpdateWorkloadIdentityOutcome(ctx context.Context, arg database.UpdateWorkloadIdentityOutcomeParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateWorkloadIdentityOutcome(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkloadIdentityOutcome").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkloadIdentityOutcome").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpdateWorkloadIdentitySandbox(ctx context.Context, arg database.UpdateWorkloadIdentitySandboxParams) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateWorkloadIdentitySandbox(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkloadIdentitySandbox").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkloadIdentitySandbox").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg database.UpdateWorkloadIdentityWorkspaceAgentParams) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateWorkloadIdentityWorkspaceAgent(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkloadIdentityWorkspaceAgent").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkloadIdentityWorkspaceAgent").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

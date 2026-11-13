@@ -6,7 +6,6 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import { WorkspaceWorkloads } from "#/modules/workspaces/WorkspaceWorkloads/WorkspaceWorkloads";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -30,10 +29,6 @@ type WorkspaceProps = {
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	timings?: TypesGen.WorkspaceBuildTimings;
-	workloads?: readonly TypesGen.Workload[];
-	workloadsError?: unknown;
-	showFinishedWorkloads?: boolean;
-	onShowFinishedWorkloadsChange?: (show: boolean) => void;
 	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -58,10 +53,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	timings,
-	workloads,
-	workloadsError,
-	showFinishedWorkloads = false,
-	onShowFinishedWorkloadsChange,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -244,16 +235,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 										</div>
 									)}
 								</section>
-							)}
-
-							{(Boolean(workloadsError) || workloads !== undefined) && (
-								<WorkspaceWorkloads
-									workspaceName={workspace.name}
-									workloads={workloads}
-									error={workloadsError}
-									showFinished={showFinishedWorkloads}
-									onShowFinishedChange={onShowFinishedWorkloadsChange}
-								/>
 							)}
 
 							<WorkspaceTimings

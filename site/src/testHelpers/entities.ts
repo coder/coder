@@ -1486,50 +1486,6 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
 	},
 };
 
-export const MockWorkload: TypesGen.Workload = {
-	id: "7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
-	name: "fix-flaky-test",
-	workspace_id: "test-workspace",
-	agent_id: MockWorkspaceAgent.id,
-	agent_name: MockWorkspaceAgent.name,
-	status: "running",
-	command: "claude -p 'fix the flaky test in coderd/workspaces_test.go'",
-	created_at: "2024-03-26T15:00:00Z",
-	identity: "test-workspace/workload/7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
-	sponsor_id: "test-user",
-	sponsor_username: "testuser",
-	scopes: ["workspace:read", "template:read"],
-	sandbox: { runtime: "pod", id: "coder-3f1c0a52-7c9e-4d0b-8a57-0d6f1c2b3a4e" },
-};
-
-export const MockFinishedWorkload: TypesGen.Workload = {
-	...MockWorkload,
-	id: "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
-	name: "run-tests",
-	status: "exited",
-	command: "go test ./coderd/...",
-	created_at: "2024-03-26T14:20:00Z",
-	finished_at: "2024-03-26T14:31:00Z",
-	exit_code: 1,
-	identity: "test-workspace/workload/5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
-	scopes: [],
-};
-
-export const MockStartingWorkload: TypesGen.Workload = {
-	id: "0f9e8d7c-6b5a-4c3d-2e1f-0a9b8c7d6e5f",
-	name: "review-pr",
-	workspace_id: MockWorkload.workspace_id,
-	agent_id: MockWorkload.agent_id,
-	agent_name: MockWorkload.agent_name,
-	status: "starting",
-	command: "gh pr review 1234",
-	created_at: "2024-03-26T15:04:00Z",
-	identity: "test-workspace/workload/0f9e8d7c-6b5a-4c3d-2e1f-0a9b8c7d6e5f",
-	sponsor_id: MockWorkload.sponsor_id,
-	sponsor_username: MockWorkload.sponsor_username,
-	scopes: [],
-};
-
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
 	id: "test-workspace-resource",
 	name: "a-workspace-resource",

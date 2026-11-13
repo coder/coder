@@ -351,6 +351,19 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A workspace of a delegated identity is built on its behalf by an
+	// account that may use the identity. Anyone else is judged as usual,
+	// for example someone the workspace is shared with.
+	_, identityCtx, err := api.onBehalfOfDelegatedIdentity(ctx, workspace.OwnerID)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+	if identityCtx != nil {
+		ctx = identityCtx
+		r = r.WithContext(ctx)
+	}
+
 	apiBuild, err := api.postWorkspaceBuildsInternal(
 		ctx,
 		apiKey,

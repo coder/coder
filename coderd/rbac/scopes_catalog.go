@@ -57,6 +57,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user:update_personal": {},
 	"user:*":               {},
 
+	// Delegated identities
+	"delegated_identity:read":   {},
+	"delegated_identity:create": {},
+	"delegated_identity:update": {},
+	"delegated_identity:delete": {},
+	"delegated_identity:use":    {},
+	"delegated_identity:*":      {},
+
 	// User secrets
 	"user_secret:read":   {},
 	"user_secret:create": {},

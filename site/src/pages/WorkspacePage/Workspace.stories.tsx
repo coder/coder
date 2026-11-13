@@ -110,13 +110,6 @@ export const RunningWithChildAgent: Story = {
 	},
 };
 
-export const RunningWithWorkloads: Story = {
-	args: {
-		...Running.args,
-		workloads: [Mocks.MockWorkload, Mocks.MockStartingWorkload],
-	},
-};
-
 export const RunningWithAppStatuses: Story = {
 	args: {
 		workspace: {

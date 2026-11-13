@@ -6682,6 +6682,190 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/identities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List delegated identities (experimental)",
+                "operationId": "list-delegated-identities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.DelegatedIdentity"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create a delegated identity (experimental)",
+                "operationId": "create-delegated-identity",
+                "parameters": [
+                    {
+                        "description": "Create delegated identity request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateDelegatedIdentityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DelegatedIdentity"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/identities/{identity}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get a delegated identity (experimental)",
+                "operationId": "get-delegated-identity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Identity ID, name, or me",
+                        "name": "identity",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DelegatedIdentity"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete a delegated identity (experimental)",
+                "operationId": "delete-delegated-identity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Identity ID or name",
+                        "name": "identity",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update a delegated identity (experimental)",
+                "operationId": "update-delegated-identity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Identity ID or name",
+                        "name": "identity",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update delegated identity request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateDelegatedIdentityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DelegatedIdentity"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/init-script/{os}/{arch}": {
             "get": {
                 "produces": [
@@ -15952,113 +16136,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/workloads": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "List the workloads you sponsor (experimental)",
-                "operationId": "list-sponsored-workloads",
-                "parameters": [
-                    {
-                        "type": "boolean",
-                        "description": "Also list the most recent finished workloads",
-                        "name": "finished",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Workload"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Run a workload in a workspace of its own (experimental)",
-                "operationId": "launch-workload",
-                "parameters": [
-                    {
-                        "description": "Launch workload request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.LaunchWorkloadRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Workload"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workloads/identity": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Get the identity of the calling workload (experimental)",
-                "operationId": "get-workload-identity",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkloadIdentity"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/v2/workspace-quota/{user}": {
             "get": {
                 "produces": [
@@ -16437,34 +16514,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/workspaceagents/me/identity": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get the identity of a workspace daemon (experimental)",
-                "operationId": "get-workspace-agent-identity",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkloadIdentity"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/v2/workspaceagents/me/log-source": {
             "post": {
                 "consumes": [
@@ -16598,133 +16647,6 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workspaceagents/me/workloads/pending": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get the workloads a daemon has been given (experimental)",
-                "operationId": "get-workspace-agent-pending-workloads",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "How long to hold the request when there is none",
-                        "name": "wait_seconds",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.AgentWorkloadSpec"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workspaceagents/me/workloads/{workload}/exit": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Report that a workload is over (experimental)",
-                "operationId": "post-workspace-agent-workload-exit",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workload ID",
-                        "name": "workload",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "How the workload ended",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AgentWorkloadExit"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workspaceagents/me/workloads/{workload}/started": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Report whether a workload was started (experimental)",
-                "operationId": "post-workspace-agent-workload-started",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workload ID",
-                        "name": "workload",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "How starting the workload went",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AgentWorkloadStart"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -19056,191 +18978,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/workspaces/{workspace}/workloads": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "List workloads (experimental)",
-                "operationId": "list-workspace-workloads",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Also list the most recent finished workloads",
-                        "name": "finished",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Workload"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workspaces/{workspace}/workloads/{workload}": {
-            "delete": {
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Remove a workload (experimental)",
-                "operationId": "delete-workspace-workload",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workload ID",
-                        "name": "workload",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workspaces/{workspace}/workloads/{workload}/attach": {
-            "get": {
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Attach to a workload's terminal (experimental)",
-                "operationId": "workspace-workload-attach",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workload ID",
-                        "name": "workload",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Terminal height",
-                        "name": "height",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Terminal width",
-                        "name": "width",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/workspaces/{workspace}/workloads/{workload}/logs": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Follow a workload's output (experimental)",
-                "operationId": "workspace-workload-logs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workload ID",
-                        "name": "workload",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkloadLogEvent"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/oauth2/authorize": {
             "get": {
                 "tags": [
@@ -21172,6 +20909,12 @@ const docTemplate = `{
                 "crypto_key:update",
                 "debug_info:*",
                 "debug_info:read",
+                "delegated_identity:*",
+                "delegated_identity:create",
+                "delegated_identity:delete",
+                "delegated_identity:read",
+                "delegated_identity:update",
+                "delegated_identity:use",
                 "deployment_config:*",
                 "deployment_config:read",
                 "deployment_config:update",
@@ -21440,6 +21183,12 @@ const docTemplate = `{
                 "APIKeyScopeCryptoKeyUpdate",
                 "APIKeyScopeDebugInfoAll",
                 "APIKeyScopeDebugInfoRead",
+                "APIKeyScopeDelegatedIdentityAll",
+                "APIKeyScopeDelegatedIdentityCreate",
+                "APIKeyScopeDelegatedIdentityDelete",
+                "APIKeyScopeDelegatedIdentityRead",
+                "APIKeyScopeDelegatedIdentityUpdate",
+                "APIKeyScopeDelegatedIdentityUse",
                 "APIKeyScopeDeploymentConfigAll",
                 "APIKeyScopeDeploymentConfigRead",
                 "APIKeyScopeDeploymentConfigUpdate",
@@ -21809,88 +21558,6 @@ const docTemplate = `{
                 "AgentSubsystemEnvbuilder",
                 "AgentSubsystemExectrace"
             ]
-        },
-        "codersdk.AgentWorkloadExit": {
-            "type": "object",
-            "properties": {
-                "exit_code": {
-                    "description": "ExitCode is nil when the daemon does not know it.",
-                    "type": "integer"
-                },
-                "output_tail": {
-                    "description": "OutputTail is the end of the workload's output.",
-                    "type": "string"
-                },
-                "reason": {
-                    "$ref": "#/definitions/codersdk.WorkloadEndReason"
-                }
-            }
-        },
-        "codersdk.AgentWorkloadSpec": {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string"
-                },
-                "id": {
-                    "description": "ID is the workload identity.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "interactive": {
-                    "description": "Interactive gives the command a terminal.",
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "session_token": {
-                    "description": "SessionToken is the workload's own credential for Coder. It is\nhanded out once: it is empty when the daemon asks again.",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AgentWorkloadStart": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "description": "Error says why it does not.",
-                    "type": "string"
-                },
-                "state": {
-                    "description": "State is set when the workload runs.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AgentWorkloadState"
-                        }
-                    ]
-                }
-            }
-        },
-        "codersdk.AgentWorkloadState": {
-            "type": "object",
-            "properties": {
-                "exit_code": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "running": {
-                    "type": "boolean"
-                },
-                "sandbox": {
-                    "$ref": "#/definitions/codersdk.WorkloadSandbox"
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
         },
         "codersdk.AppFamilyName": {
             "type": "string",
@@ -25357,6 +25024,32 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateDelegatedIdentityRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "Name becomes the username of the identity's account. One is made up\nwhen it is empty.",
+                    "type": "string"
+                },
+                "organization_id": {
+                    "description": "OrganizationID is required when the parent is a user in more than\none organization. An identity under an identity is in its parent's\norganization.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "parent_id": {
+                    "description": "ParentID is the user or delegated identity to create the identity\nunder. It defaults to the caller. Naming anyone who is not the\ncaller or below the caller needs permission to create delegated\nidentities across the organization.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "scopes": {
+                    "description": "Scopes is what the identity may do with the API. It can hold no\nmore than its parent does.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                }
+            }
+        },
         "codersdk.CreateFirstUserOnboardingInfo": {
             "type": "object",
             "properties": {
@@ -26460,6 +26153,67 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DelegatedIdentity": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "description": "CreatedBy differs from the parent when a trusted service created\nthe identity under a member.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "effective_scopes": {
+                    "description": "EffectiveScopes is what the identity may do now: its scopes, less\nwhatever a delegated identity above it lacks.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                },
+                "id": {
+                    "description": "ID is also the ID of the account that is this identity.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "description": "Name is the username of the identity's account. Workspaces of the\nidentity are addressed as name/workspace.",
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "parent_id": {
+                    "description": "ParentID is the user or delegated identity this identity acts under.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "parent_name": {
+                    "type": "string"
+                },
+                "root_user_id": {
+                    "description": "RootUserID is the user at the top of the chain of parents. The\nidentity is judged with this user's roles and groups.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "root_username": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "description": "Scopes is what the identity was given. An empty list grants nothing.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.DeleteExternalAuthByIDResponse": {
             "type": "object",
             "properties": {
@@ -27050,7 +26804,7 @@ const docTemplate = `{
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
                 "chat-acp-subagents",
-                "runtime-workloads"
+                "delegated-identities"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -27061,12 +26815,12 @@ const docTemplate = `{
                 "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use for agents.",
+                "ExperimentDelegatedIdentities": "Enables delegated identities: identities for agents that act under a user and can own workspaces.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
-                "ExperimentRuntimeWorkloads": "Enables runtime-provisioned workspace daemons with pod-attested identities.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -27088,7 +26842,7 @@ const docTemplate = `{
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "Enables workspace-local ACP subagent tools in root chats.",
-                "Enables runtime-provisioned workspace daemons with pod-attested identities."
+                "Enables delegated identities: identities for agents that act under a user and can own workspaces."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -27107,7 +26861,7 @@ const docTemplate = `{
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
                 "ExperimentChatACPSubagents",
-                "ExperimentRuntimeWorkloads"
+                "ExperimentDelegatedIdentities"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -28024,48 +27778,6 @@ const docTemplate = `{
                 "InsufficientQuota",
                 "MissingTemplateParameter"
             ]
-        },
-        "codersdk.LaunchWorkloadRequest": {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "description": "Command is run by a shell.",
-                    "type": "string"
-                },
-                "interactive": {
-                    "description": "Interactive gives the command a terminal that the sponsor can attach\nto.",
-                    "type": "boolean"
-                },
-                "keep": {
-                    "description": "Keep leaves the workspace in place when the workload is over.",
-                    "type": "boolean"
-                },
-                "name": {
-                    "description": "Name is optional. It must be a valid agent name.",
-                    "type": "string"
-                },
-                "scopes": {
-                    "description": "Scopes are the API key scopes the workload may use. Without any,\nthe workload can do nothing in Coder.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.APIKeyScope"
-                    }
-                },
-                "template_id": {
-                    "description": "TemplateID is the template the workspace is made from. The caller\nmust be allowed to use it.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "template_version_preset_id": {
-                    "description": "TemplateVersionPresetID selects a preset of the template's active\nversion. A workspace that was built ahead of time for the preset is\nclaimed when there is one.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "workspace_name": {
-                    "description": "WorkspaceName is optional. The workspace is named like the workload\notherwise.",
-                    "type": "string"
-                }
-            }
         },
         "codersdk.License": {
             "type": "object",
@@ -31329,6 +31041,7 @@ const docTemplate = `{
                 "connection_log",
                 "crypto_key",
                 "debug_info",
+                "delegated_identity",
                 "deployment_config",
                 "deployment_stats",
                 "file",
@@ -31387,6 +31100,7 @@ const docTemplate = `{
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
+                "ResourceDelegatedIdentity",
                 "ResourceDeploymentConfig",
                 "ResourceDeploymentStats",
                 "ResourceFile",
@@ -31660,7 +31374,7 @@ const docTemplate = `{
                 "chat_model_config",
                 "chat_automation",
                 "user_secret",
-                "workload_identity",
+                "delegated_identity",
                 "user_skill",
                 "organization_skill",
                 "chat_instruction_settings",
@@ -31711,7 +31425,7 @@ const docTemplate = `{
                 "ResourceTypeChatModelConfig",
                 "ResourceTypeChatAutomation",
                 "ResourceTypeUserSecret",
-                "ResourceTypeWorkloadIdentity",
+                "ResourceTypeDelegatedIdentity",
                 "ResourceTypeUserSkill",
                 "ResourceTypeOrganizationSkill",
                 "ResourceTypeChatInstructionSettings",
@@ -32327,8 +32041,7 @@ const docTemplate = `{
                 "provisioner": {
                     "type": "string",
                     "enum": [
-                        "terraform",
-                        "sandbox"
+                        "terraform"
                     ]
                 },
                 "require_active_version": {
@@ -33751,6 +33464,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateDelegatedIdentityRequest": {
+            "type": "object",
+            "properties": {
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                }
+            }
+        },
         "codersdk.UpdateMCPServerConfigACLRequest": {
             "type": "object",
             "properties": {
@@ -35090,240 +34814,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.Workload": {
-            "type": "object",
-            "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "agent_name": {
-                    "type": "string"
-                },
-                "command": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "exit_code": {
-                    "description": "ExitCode is the command's exit code, when it is known.",
-                    "type": "integer"
-                },
-                "finished_at": {
-                    "description": "FinishedAt is set once the workload is over.",
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "description": "ID is the workload's identity ID.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "identity": {
-                    "description": "Identity is the workload's identity as it is displayed.",
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "own_workspace": {
-                    "description": "OwnWorkspace means the workspace was made for this workload and is\ndeleted when the workload is over.",
-                    "type": "boolean"
-                },
-                "sandbox": {
-                    "$ref": "#/definitions/codersdk.WorkloadSandbox"
-                },
-                "scopes": {
-                    "description": "Scopes are what the identity may do. An empty list grants nothing.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.APIKeyScope"
-                    }
-                },
-                "sponsor_id": {
-                    "description": "SponsorID is the user account that asked for the workload and\nanswers for it.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "sponsor_username": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/codersdk.WorkloadStatus"
-                },
-                "user_id": {
-                    "description": "UserID is the service account that is this identity. The workload\nacts as it, and it owns the workspace.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "workspace_name": {
-                    "description": "WorkspaceName is set when workloads of several workspaces are\nlisted.",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.WorkloadAttestation": {
-            "type": "string",
-            "enum": [
-                "agent-token",
-                "workspace-daemon",
-                "kubernetes-pod"
-            ],
-            "x-enum-varnames": [
-                "WorkloadAttestationAgentToken",
-                "WorkloadAttestationWorkspaceDaemon",
-                "WorkloadAttestationKubernetesPod"
-            ]
-        },
-        "codersdk.WorkloadEndReason": {
-            "type": "string",
-            "enum": [
-                "exited",
-                "removed",
-                "stopped",
-                "lost",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "WorkloadEndReasonExited",
-                "WorkloadEndReasonRemoved",
-                "WorkloadEndReasonStopped",
-                "WorkloadEndReasonLost",
-                "WorkloadEndReasonFailed"
-            ]
-        },
-        "codersdk.WorkloadIdentity": {
-            "type": "object",
-            "properties": {
-                "agent_id": {
-                    "description": "AgentID is the workspace daemon: the process itself, or the daemon\nthat runs and vouches for the workload.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "agent_name": {
-                    "type": "string"
-                },
-                "attestation": {
-                    "$ref": "#/definitions/codersdk.WorkloadAttestation"
-                },
-                "attestation_subject": {
-                    "description": "AttestationSubject is what was attested, when that is not Coder's\nown credential: for a pod, the UID the cluster gave it.",
-                    "type": "string"
-                },
-                "id": {
-                    "description": "ID is unique per principal: the workspace ID and the workload\nidentity ID, or for a daemon the workspace ID and the agent ID.",
-                    "type": "string"
-                },
-                "identity_id": {
-                    "description": "IdentityID is the workload identity that permissions attach to. A\ndaemon has none: it acts with its agent token.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "kind": {
-                    "$ref": "#/definitions/codersdk.WorkloadIdentityKind"
-                },
-                "name": {
-                    "description": "Name is the workload's name.",
-                    "type": "string"
-                },
-                "owner_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "owner_username": {
-                    "type": "string"
-                },
-                "sandbox": {
-                    "$ref": "#/definitions/codersdk.WorkloadSandbox"
-                },
-                "scopes": {
-                    "description": "Scopes narrow the sponsor's permissions. An empty list grants nothing.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.APIKeyScope"
-                    }
-                },
-                "sponsor_id": {
-                    "description": "SponsorID is the user account whose permissions bound what the\nworkload may do.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "sponsor_username": {
-                    "type": "string"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "workspace_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.WorkloadIdentityKind": {
-            "type": "string",
-            "enum": [
-                "daemon",
-                "workload"
-            ],
-            "x-enum-varnames": [
-                "WorkloadIdentityKindDaemon",
-                "WorkloadIdentityKindWorkload"
-            ]
-        },
-        "codersdk.WorkloadLogEvent": {
-            "type": "object",
-            "properties": {
-                "exit_code": {
-                    "type": "integer"
-                },
-                "output": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.WorkloadSandbox": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "ID identifies the sandbox to that runtime.",
-                    "type": "string"
-                },
-                "runtime": {
-                    "description": "Runtime is what runs it, for example \"pod\".",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.WorkloadStatus": {
-            "type": "string",
-            "enum": [
-                "starting",
-                "running",
-                "unknown",
-                "exited",
-                "removed",
-                "stopped",
-                "lost",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "WorkloadStatusStarting",
-                "WorkloadStatusRunning",
-                "WorkloadStatusUnknown",
-                "WorkloadStatusExited",
-                "WorkloadStatusRemoved",
-                "WorkloadStatusStopped",
-                "WorkloadStatusLost",
-                "WorkloadStatusFailed"
-            ]
         },
         "codersdk.Workspace": {
             "type": "object",

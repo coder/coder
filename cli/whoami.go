@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -19,25 +18,17 @@ type whoamiRow struct {
 	OrganizationIDsJSON []string            `json:"organization_ids" table:"-"`
 	Roles               string              `json:"-" table:"Roles"`
 	RolesJSON           map[string][]string `json:"roles" table:"-"`
-	// WorkloadIdentity is set when the command runs under a workspace
-	// daemon. It is who Coder considers that daemon to be.
-	WorkloadIdentity *codersdk.WorkloadIdentity `json:"workload_identity,omitempty" table:"-"`
 }
 
 func (r whoamiRow) String() string {
-	out := fmt.Sprintf(
+	return fmt.Sprintf(
 		Caret+"Coder is running at %s, You're authenticated as %s !\n",
 		pretty.Sprint(cliui.DefaultStyles.Keyword, r.URL),
 		pretty.Sprint(cliui.DefaultStyles.Keyword, r.Username),
 	)
-	if r.WorkloadIdentity != nil {
-		out += formatWorkloadIdentity(*r.WorkloadIdentity)
-	}
-	return out
 }
 
 func (r *RootCmd) whoami() *serpent.Command {
-	agentAuth := &AgentAuth{}
 	formatter := cliui.NewOutputFormatter(
 		cliui.TextFormat(),
 		cliui.JSONFormat(),
@@ -51,38 +42,18 @@ func (r *RootCmd) whoami() *serpent.Command {
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			// Under a workspace daemon, the process also has a workload
-			// identity. It exists whether or not a user is logged in.
-			var identity *codersdk.WorkloadIdentity
-			if got, inWorkspace, err := r.workspaceIdentity(inv, agentAuth); inWorkspace && err == nil {
-				identity = &got
-			}
-			noUser := func(err error) error {
-				if identity == nil {
-					return err
-				}
-				_, err = fmt.Fprintf(inv.Stdout, "No user is logged in here. This process acts as a workload.\n%s",
-					formatWorkloadIdentity(*identity))
+			client, err := r.InitClient(inv)
+			if err != nil {
 				return err
 			}
 
-			client, err := r.InitClient(inv)
-			if err != nil {
-				return noUser(err)
-			}
-			// A workload reaches the user API with its own token, within
-			// its scopes, but nobody is logged in.
-			if os.Getenv(workloadNameEnv) != "" && identity != nil {
-				return noUser(nil)
-			}
-
+			ctx := inv.Context()
 			// Fetch the user info
 			resp, err := client.User(ctx, codersdk.Me)
 			// Get Coder instance url
 			clientURL := client.URL
 			if err != nil {
-				return noUser(err)
+				return err
 			}
 
 			orgIDs := make([]string, 0, len(resp.OrganizationIDs))
@@ -108,7 +79,6 @@ func (r *RootCmd) whoami() *serpent.Command {
 					OrganizationIDsJSON: orgIDs,
 					Roles:               strings.Join(roles, ","),
 					RolesJSON:           jsonRoles,
-					WorkloadIdentity:    identity,
 				},
 			})
 			if err != nil {
@@ -118,7 +88,6 @@ func (r *RootCmd) whoami() *serpent.Command {
 			return err
 		},
 	}
-	agentAuth.AttachOptions(cmd, true)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

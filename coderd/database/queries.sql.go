@@ -16699,6 +16699,385 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const deleteOrphanedDelegatedIdentities = `-- name: DeleteOrphanedDelegatedIdentities :many
+UPDATE
+	users
+SET
+	deleted = true
+WHERE
+	NOT users.deleted
+	AND users.id IN (
+		SELECT
+			delegated_identities.id
+		FROM
+			delegated_identities
+		WHERE
+			delegated_identities.created_at < $1
+			AND NOT EXISTS (
+				SELECT
+					1
+				FROM
+					workspaces
+				WHERE
+					workspaces.owner_id = delegated_identities.id
+					AND NOT workspaces.deleted
+			)
+			AND NOT EXISTS (
+				SELECT
+					1
+				FROM
+					chats
+				WHERE
+					chats.owner_id = delegated_identities.id
+			)
+			AND NOT EXISTS (
+				SELECT
+					1
+				FROM
+					delegated_identities child
+					JOIN users child_users ON child_users.id = child.id
+				WHERE
+					child.parent_id = delegated_identities.id
+					AND NOT child_users.deleted
+			)
+	)
+RETURNING users.id
+`
+
+// DeleteOrphanedDelegatedIdentities deletes the accounts of delegated
+// identities that own no workspace and no chat, have no live identity below
+// them, and were created before the given time. The rows in delegated_identities
+// stay, so that audit entries can still be traced to a root user.
+func (q *sqlQuerier) DeleteOrphanedDelegatedIdentities(ctx context.Context, createdBefore time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, deleteOrphanedDelegatedIdentities, createdBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDelegatedIdentitiesByAncestorID = `-- name: GetDelegatedIdentitiesByAncestorID :many
+WITH RECURSIVE descendants AS (
+	SELECT
+		delegated_identities.id,
+		1 AS depth
+	FROM
+		delegated_identities
+	WHERE
+		delegated_identities.parent_id = $1
+	UNION ALL
+	SELECT
+		child.id,
+		descendants.depth + 1
+	FROM
+		delegated_identities child
+		JOIN descendants ON child.parent_id = descendants.id
+	WHERE
+		descendants.depth < 32
+)
+SELECT
+	delegated_identities.id, delegated_identities.organization_id, delegated_identities.parent_id, delegated_identities.root_user_id, delegated_identities.created_by, delegated_identities.name, delegated_identities.scopes, delegated_identities.created_at, delegated_identities.updated_at
+FROM
+	delegated_identities
+	JOIN descendants ON descendants.id = delegated_identities.id
+	JOIN users ON users.id = delegated_identities.id
+WHERE
+	NOT users.deleted
+ORDER BY
+	delegated_identities.created_at ASC,
+	delegated_identities.id ASC
+`
+
+// GetDelegatedIdentitiesByAncestorID returns the live delegated identities
+// below a user or delegated identity, at any depth, oldest first.
+func (q *sqlQuerier) GetDelegatedIdentitiesByAncestorID(ctx context.Context, ancestorID uuid.UUID) ([]DelegatedIdentity, error) {
+	rows, err := q.db.QueryContext(ctx, getDelegatedIdentitiesByAncestorID, ancestorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DelegatedIdentity
+	for rows.Next() {
+		var i DelegatedIdentity
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ParentID,
+			&i.RootUserID,
+			&i.CreatedBy,
+			&i.Name,
+			pq.Array(&i.Scopes),
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDelegatedIdentityByID = `-- name: GetDelegatedIdentityByID :one
+SELECT
+	id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at
+FROM
+	delegated_identities
+WHERE
+	id = $1
+`
+
+// GetDelegatedIdentityByID also returns identities whose account was
+// deleted, so that audit entries can still be traced to a root user.
+func (q *sqlQuerier) GetDelegatedIdentityByID(ctx context.Context, id uuid.UUID) (DelegatedIdentity, error) {
+	row := q.db.QueryRowContext(ctx, getDelegatedIdentityByID, id)
+	var i DelegatedIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ParentID,
+		&i.RootUserID,
+		&i.CreatedBy,
+		&i.Name,
+		pq.Array(&i.Scopes),
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getDelegatedIdentityChain = `-- name: GetDelegatedIdentityChain :many
+WITH RECURSIVE chain AS (
+	SELECT
+		delegated_identities.id,
+		delegated_identities.parent_id,
+		1 AS depth
+	FROM
+		delegated_identities
+	WHERE
+		delegated_identities.id = $1
+	UNION ALL
+	SELECT
+		parent.id,
+		parent.parent_id,
+		chain.depth + 1
+	FROM
+		delegated_identities parent
+		JOIN chain ON chain.parent_id = parent.id
+	-- A chain cannot loop, since a parent exists before its child. The
+	-- limit only bounds the damage of a corrupt row.
+	WHERE
+		chain.depth < 32
+)
+SELECT
+	delegated_identities.id, delegated_identities.organization_id, delegated_identities.parent_id, delegated_identities.root_user_id, delegated_identities.created_by, delegated_identities.name, delegated_identities.scopes, delegated_identities.created_at, delegated_identities.updated_at
+FROM
+	delegated_identities
+	JOIN chain ON chain.id = delegated_identities.id
+ORDER BY
+	chain.depth ASC
+`
+
+// GetDelegatedIdentityChain returns a delegated identity and every delegated
+// identity above it, nearest first. The parent of the last row is the root
+// user. It returns no rows for an account that is not a delegated identity.
+func (q *sqlQuerier) GetDelegatedIdentityChain(ctx context.Context, id uuid.UUID) ([]DelegatedIdentity, error) {
+	rows, err := q.db.QueryContext(ctx, getDelegatedIdentityChain, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DelegatedIdentity
+	for rows.Next() {
+		var i DelegatedIdentity
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ParentID,
+			&i.RootUserID,
+			&i.CreatedBy,
+			&i.Name,
+			pq.Array(&i.Scopes),
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDelegatedIdentityUsage = `-- name: GetDelegatedIdentityUsage :one
+SELECT
+	(
+		SELECT
+			COUNT(*)
+		FROM
+			workspaces
+		WHERE
+			workspaces.owner_id = $1
+			AND NOT workspaces.deleted
+	) AS workspaces,
+	(
+		SELECT
+			COUNT(*)
+		FROM
+			chats
+		WHERE
+			chats.owner_id = $1
+	) AS chats,
+	(
+		SELECT
+			COUNT(*)
+		FROM
+			delegated_identities child
+			JOIN users ON users.id = child.id
+		WHERE
+			child.parent_id = $1
+			AND NOT users.deleted
+	) AS children
+`
+
+type GetDelegatedIdentityUsageRow struct {
+	Workspaces int64 `db:"workspaces" json:"workspaces"`
+	Chats      int64 `db:"chats" json:"chats"`
+	Children   int64 `db:"children" json:"children"`
+}
+
+// GetDelegatedIdentityUsage counts what keeps a delegated identity from
+// being deleted: the workspaces and chats it owns and the live identities
+// below it.
+func (q *sqlQuerier) GetDelegatedIdentityUsage(ctx context.Context, id uuid.UUID) (GetDelegatedIdentityUsageRow, error) {
+	row := q.db.QueryRowContext(ctx, getDelegatedIdentityUsage, id)
+	var i GetDelegatedIdentityUsageRow
+	err := row.Scan(&i.Workspaces, &i.Chats, &i.Children)
+	return i, err
+}
+
+const insertDelegatedIdentity = `-- name: InsertDelegatedIdentity :one
+INSERT INTO delegated_identities (
+	id,
+	organization_id,
+	parent_id,
+	root_user_id,
+	created_by,
+	name,
+	scopes,
+	created_at,
+	updated_at
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$8
+)
+RETURNING id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at
+`
+
+type InsertDelegatedIdentityParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ParentID       uuid.UUID `db:"parent_id" json:"parent_id"`
+	RootUserID     uuid.UUID `db:"root_user_id" json:"root_user_id"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	Name           string    `db:"name" json:"name"`
+	Scopes         []string  `db:"scopes" json:"scopes"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertDelegatedIdentity(ctx context.Context, arg InsertDelegatedIdentityParams) (DelegatedIdentity, error) {
+	row := q.db.QueryRowContext(ctx, insertDelegatedIdentity,
+		arg.ID,
+		arg.OrganizationID,
+		arg.ParentID,
+		arg.RootUserID,
+		arg.CreatedBy,
+		arg.Name,
+		pq.Array(arg.Scopes),
+		arg.CreatedAt,
+	)
+	var i DelegatedIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ParentID,
+		&i.RootUserID,
+		&i.CreatedBy,
+		&i.Name,
+		pq.Array(&i.Scopes),
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateDelegatedIdentityScopes = `-- name: UpdateDelegatedIdentityScopes :one
+UPDATE
+	delegated_identities
+SET
+	scopes = $1,
+	updated_at = $2
+WHERE
+	id = $3
+RETURNING id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at
+`
+
+type UpdateDelegatedIdentityScopesParams struct {
+	Scopes    []string  `db:"scopes" json:"scopes"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateDelegatedIdentityScopes(ctx context.Context, arg UpdateDelegatedIdentityScopesParams) (DelegatedIdentity, error) {
+	row := q.db.QueryRowContext(ctx, updateDelegatedIdentityScopes, pq.Array(arg.Scopes), arg.UpdatedAt, arg.ID)
+	var i DelegatedIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ParentID,
+		&i.RootUserID,
+		&i.CreatedBy,
+		&i.Name,
+		pq.Array(&i.Scopes),
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const acquireExternalAuthLinkRefreshLease = `-- name: AcquireExternalAuthLinkRefreshLease :one
 SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at from acquire_external_auth_link_refresh_lease($1, $2, $3)
 `
@@ -27808,7 +28187,19 @@ WHERE
 	-- Only return workspaces that match the user + organization.
 	-- Quotas are calculated per user per organization.
 	NOT workspaces.deleted AND
-	workspaces.owner_id = $1 AND
+	(
+		workspaces.owner_id = $1
+		-- What the delegated identities below a user consume counts
+		-- against that user.
+		OR workspaces.owner_id IN (
+			SELECT
+				delegated_identities.id
+			FROM
+				delegated_identities
+			WHERE
+				delegated_identities.root_user_id = $1
+		)
+	) AND
 	workspaces.organization_id = $2
 ORDER BY
 	wb.workspace_id,
@@ -35698,659 +36089,6 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
 	var i ValidateUserIDsRow
 	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
-	return i, err
-}
-
-const finishWorkloadIdentity = `-- name: FinishWorkloadIdentity :one
-UPDATE
-	workload_identities
-SET
-	finished_at = $1,
-	end_reason = $2,
-	exit_code = $3,
-	output_tail = $4
-WHERE
-	id = $5
-	AND finished_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-`
-
-type FinishWorkloadIdentityParams struct {
-	FinishedAt sql.NullTime  `db:"finished_at" json:"finished_at"`
-	EndReason  string        `db:"end_reason" json:"end_reason"`
-	ExitCode   sql.NullInt32 `db:"exit_code" json:"exit_code"`
-	OutputTail string        `db:"output_tail" json:"output_tail"`
-	ID         uuid.UUID     `db:"id" json:"id"`
-}
-
-// FinishWorkloadIdentity ends a workload. From then on the identity
-// authorizes nothing. It returns no row when the workload was already over,
-// so that an ending is recorded once.
-func (q *sqlQuerier) FinishWorkloadIdentity(ctx context.Context, arg FinishWorkloadIdentityParams) (WorkloadIdentity, error) {
-	row := q.db.QueryRowContext(ctx, finishWorkloadIdentity,
-		arg.FinishedAt,
-		arg.EndReason,
-		arg.ExitCode,
-		arg.OutputTail,
-		arg.ID,
-	)
-	var i WorkloadIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.SponsorID,
-		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
-		&i.UserID,
-		&i.Name,
-		&i.Command,
-		pq.Array(&i.Scopes),
-		&i.Runtime,
-		&i.SandboxID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.EndReason,
-		&i.ExitCode,
-		&i.OutputTail,
-		&i.Interactive,
-		&i.RemoveWorkspace,
-	)
-	return i, err
-}
-
-const getFinishedWorkloadIdentitiesBySponsorID = `-- name: GetFinishedWorkloadIdentitiesBySponsorID :many
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	sponsor_id = $1
-	AND finished_at IS NOT NULL
-ORDER BY
-	finished_at DESC
-LIMIT
-	$2 :: integer
-`
-
-type GetFinishedWorkloadIdentitiesBySponsorIDParams struct {
-	SponsorID uuid.UUID `db:"sponsor_id" json:"sponsor_id"`
-	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
-}
-
-// GetFinishedWorkloadIdentitiesBySponsorID returns a sponsor's most recently
-// finished workloads in every workspace, newest first. The workspaces may
-// be gone.
-func (q *sqlQuerier) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]WorkloadIdentity, error) {
-	rows, err := q.db.QueryContext(ctx, getFinishedWorkloadIdentitiesBySponsorID, arg.SponsorID, arg.LimitOpt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkloadIdentity
-	for rows.Next() {
-		var i WorkloadIdentity
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.OrganizationID,
-			&i.SponsorID,
-			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
-			&i.UserID,
-			&i.Name,
-			&i.Command,
-			pq.Array(&i.Scopes),
-			&i.Runtime,
-			&i.SandboxID,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.EndReason,
-			&i.ExitCode,
-			&i.OutputTail,
-			&i.Interactive,
-			&i.RemoveWorkspace,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getFinishedWorkloadIdentitiesByWorkspaceID = `-- name: GetFinishedWorkloadIdentitiesByWorkspaceID :many
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	workspace_id = $1
-	AND finished_at IS NOT NULL
-ORDER BY
-	finished_at DESC
-LIMIT
-	$2 :: integer
-`
-
-type GetFinishedWorkloadIdentitiesByWorkspaceIDParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
-}
-
-// GetFinishedWorkloadIdentitiesByWorkspaceID returns the most recently
-// finished workloads of a workspace, newest first.
-func (q *sqlQuerier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]WorkloadIdentity, error) {
-	rows, err := q.db.QueryContext(ctx, getFinishedWorkloadIdentitiesByWorkspaceID, arg.WorkspaceID, arg.LimitOpt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkloadIdentity
-	for rows.Next() {
-		var i WorkloadIdentity
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.OrganizationID,
-			&i.SponsorID,
-			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
-			&i.UserID,
-			&i.Name,
-			&i.Command,
-			pq.Array(&i.Scopes),
-			&i.Runtime,
-			&i.SandboxID,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.EndReason,
-			&i.ExitCode,
-			&i.OutputTail,
-			&i.Interactive,
-			&i.RemoveWorkspace,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPendingWorkloadIdentitiesByWorkspaceAgentID = `-- name: GetPendingWorkloadIdentitiesByWorkspaceAgentID :many
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	workspace_agent_id = $1
-	AND started_at IS NULL
-	AND finished_at IS NULL
-	AND created_at > $2
-ORDER BY
-	created_at ASC
-`
-
-type GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams struct {
-	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	CreatedAfter     time.Time     `db:"created_after" json:"created_after"`
-}
-
-// GetPendingWorkloadIdentitiesByWorkspaceAgentID returns the workloads a
-// daemon has been given and has not started yet. A workload that was not
-// started in time is no longer offered.
-func (q *sqlQuerier) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]WorkloadIdentity, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingWorkloadIdentitiesByWorkspaceAgentID, arg.WorkspaceAgentID, arg.CreatedAfter)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkloadIdentity
-	for rows.Next() {
-		var i WorkloadIdentity
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.OrganizationID,
-			&i.SponsorID,
-			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
-			&i.UserID,
-			&i.Name,
-			&i.Command,
-			pq.Array(&i.Scopes),
-			&i.Runtime,
-			&i.SandboxID,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.EndReason,
-			&i.ExitCode,
-			&i.OutputTail,
-			&i.Interactive,
-			&i.RemoveWorkspace,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkloadIdentitiesBySponsorID = `-- name: GetWorkloadIdentitiesBySponsorID :many
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	sponsor_id = $1
-	AND finished_at IS NULL
-ORDER BY
-	created_at ASC
-`
-
-// GetWorkloadIdentitiesBySponsorID returns a sponsor's live workloads in
-// every workspace.
-func (q *sqlQuerier) GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]WorkloadIdentity, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkloadIdentitiesBySponsorID, sponsorID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkloadIdentity
-	for rows.Next() {
-		var i WorkloadIdentity
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.OrganizationID,
-			&i.SponsorID,
-			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
-			&i.UserID,
-			&i.Name,
-			&i.Command,
-			pq.Array(&i.Scopes),
-			&i.Runtime,
-			&i.SandboxID,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.EndReason,
-			&i.ExitCode,
-			&i.OutputTail,
-			&i.Interactive,
-			&i.RemoveWorkspace,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkloadIdentitiesByWorkspaceID = `-- name: GetWorkloadIdentitiesByWorkspaceID :many
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	workspace_id = $1
-	AND finished_at IS NULL
-ORDER BY
-	created_at ASC
-`
-
-// GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
-// workspace.
-func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkloadIdentitiesByWorkspaceID, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkloadIdentity
-	for rows.Next() {
-		var i WorkloadIdentity
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.OrganizationID,
-			&i.SponsorID,
-			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
-			&i.UserID,
-			&i.Name,
-			&i.Command,
-			pq.Array(&i.Scopes),
-			&i.Runtime,
-			&i.SandboxID,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.EndReason,
-			&i.ExitCode,
-			&i.OutputTail,
-			&i.Interactive,
-			&i.RemoveWorkspace,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkloadIdentityByID = `-- name: GetWorkloadIdentityByID :one
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	id = $1
-`
-
-// GetWorkloadIdentityByID also returns finished identities. Callers that
-// authorize with the identity must check finished_at.
-func (q *sqlQuerier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (WorkloadIdentity, error) {
-	row := q.db.QueryRowContext(ctx, getWorkloadIdentityByID, id)
-	var i WorkloadIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.SponsorID,
-		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
-		&i.UserID,
-		&i.Name,
-		&i.Command,
-		pq.Array(&i.Scopes),
-		&i.Runtime,
-		&i.SandboxID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.EndReason,
-		&i.ExitCode,
-		&i.OutputTail,
-		&i.Interactive,
-		&i.RemoveWorkspace,
-	)
-	return i, err
-}
-
-const getWorkloadIdentityByUserID = `-- name: GetWorkloadIdentityByUserID :one
-SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-FROM
-	workload_identities
-WHERE
-	user_id = $1
-`
-
-// GetWorkloadIdentityByUserID returns the identity a service account
-// is, whether or not its workload is over.
-func (q *sqlQuerier) GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (WorkloadIdentity, error) {
-	row := q.db.QueryRowContext(ctx, getWorkloadIdentityByUserID, userID)
-	var i WorkloadIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.SponsorID,
-		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
-		&i.UserID,
-		&i.Name,
-		&i.Command,
-		pq.Array(&i.Scopes),
-		&i.Runtime,
-		&i.SandboxID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.EndReason,
-		&i.ExitCode,
-		&i.OutputTail,
-		&i.Interactive,
-		&i.RemoveWorkspace,
-	)
-	return i, err
-}
-
-const insertWorkloadIdentity = `-- name: InsertWorkloadIdentity :one
-INSERT INTO workload_identities (
-	id,
-	created_at,
-	organization_id,
-	sponsor_id,
-	workspace_id,
-	workspace_agent_id,
-	user_id,
-	name,
-	command,
-	scopes,
-	interactive,
-	remove_workspace
-)
-VALUES (
-	$1,
-	$2,
-	$3,
-	$4,
-	$5,
-	$6,
-	$7,
-	$8,
-	$9,
-	$10,
-	$11,
-	$12
-)
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-`
-
-type InsertWorkloadIdentityParams struct {
-	ID               uuid.UUID     `db:"id" json:"id"`
-	CreatedAt        time.Time     `db:"created_at" json:"created_at"`
-	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
-	SponsorID        uuid.UUID     `db:"sponsor_id" json:"sponsor_id"`
-	WorkspaceID      uuid.UUID     `db:"workspace_id" json:"workspace_id"`
-	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	UserID           uuid.NullUUID `db:"user_id" json:"user_id"`
-	Name             string        `db:"name" json:"name"`
-	Command          string        `db:"command" json:"command"`
-	Scopes           []string      `db:"scopes" json:"scopes"`
-	Interactive      bool          `db:"interactive" json:"interactive"`
-	RemoveWorkspace  bool          `db:"remove_workspace" json:"remove_workspace"`
-}
-
-func (q *sqlQuerier) InsertWorkloadIdentity(ctx context.Context, arg InsertWorkloadIdentityParams) (WorkloadIdentity, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkloadIdentity,
-		arg.ID,
-		arg.CreatedAt,
-		arg.OrganizationID,
-		arg.SponsorID,
-		arg.WorkspaceID,
-		arg.WorkspaceAgentID,
-		arg.UserID,
-		arg.Name,
-		arg.Command,
-		pq.Array(arg.Scopes),
-		arg.Interactive,
-		arg.RemoveWorkspace,
-	)
-	var i WorkloadIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.SponsorID,
-		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
-		&i.UserID,
-		&i.Name,
-		&i.Command,
-		pq.Array(&i.Scopes),
-		&i.Runtime,
-		&i.SandboxID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.EndReason,
-		&i.ExitCode,
-		&i.OutputTail,
-		&i.Interactive,
-		&i.RemoveWorkspace,
-	)
-	return i, err
-}
-
-const updateWorkloadIdentityOutcome = `-- name: UpdateWorkloadIdentityOutcome :exec
-UPDATE
-	workload_identities
-SET
-	exit_code = COALESCE(exit_code, $1),
-	output_tail = CASE WHEN output_tail = '' THEN $2 ELSE output_tail END
-WHERE
-	id = $3
-	AND finished_at IS NOT NULL
-`
-
-type UpdateWorkloadIdentityOutcomeParams struct {
-	ExitCode   sql.NullInt32 `db:"exit_code" json:"exit_code"`
-	OutputTail string        `db:"output_tail" json:"output_tail"`
-	ID         uuid.UUID     `db:"id" json:"id"`
-}
-
-// UpdateWorkloadIdentityOutcome adds what the daemon knows about how a
-// workload ended to one that was finished before the daemon reported in,
-// for example a workload a user removed.
-func (q *sqlQuerier) UpdateWorkloadIdentityOutcome(ctx context.Context, arg UpdateWorkloadIdentityOutcomeParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkloadIdentityOutcome, arg.ExitCode, arg.OutputTail, arg.ID)
-	return err
-}
-
-const updateWorkloadIdentitySandbox = `-- name: UpdateWorkloadIdentitySandbox :one
-UPDATE
-	workload_identities
-SET
-	runtime = $1,
-	sandbox_id = $2,
-	started_at = $3
-WHERE
-	id = $4
-	AND finished_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-`
-
-type UpdateWorkloadIdentitySandboxParams struct {
-	Runtime   string       `db:"runtime" json:"runtime"`
-	SandboxID string       `db:"sandbox_id" json:"sandbox_id"`
-	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
-	ID        uuid.UUID    `db:"id" json:"id"`
-}
-
-// UpdateWorkloadIdentitySandbox records where the daemon started the
-// workload.
-func (q *sqlQuerier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkloadIdentitySandbox,
-		arg.Runtime,
-		arg.SandboxID,
-		arg.StartedAt,
-		arg.ID,
-	)
-	var i WorkloadIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.SponsorID,
-		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
-		&i.UserID,
-		&i.Name,
-		&i.Command,
-		pq.Array(&i.Scopes),
-		&i.Runtime,
-		&i.SandboxID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.EndReason,
-		&i.ExitCode,
-		&i.OutputTail,
-		&i.Interactive,
-		&i.RemoveWorkspace,
-	)
-	return i, err
-}
-
-const updateWorkloadIdentityWorkspaceAgent = `-- name: UpdateWorkloadIdentityWorkspaceAgent :one
-UPDATE
-	workload_identities
-SET
-	workspace_agent_id = $1
-WHERE
-	id = $2
-	AND finished_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
-`
-
-type UpdateWorkloadIdentityWorkspaceAgentParams struct {
-	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	ID               uuid.UUID     `db:"id" json:"id"`
-}
-
-// UpdateWorkloadIdentityWorkspaceAgent gives a workload to the daemon of
-// the workspace that was built for it.
-func (q *sqlQuerier) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg UpdateWorkloadIdentityWorkspaceAgentParams) (WorkloadIdentity, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkloadIdentityWorkspaceAgent, arg.WorkspaceAgentID, arg.ID)
-	var i WorkloadIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.SponsorID,
-		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
-		&i.UserID,
-		&i.Name,
-		&i.Command,
-		pq.Array(&i.Scopes),
-		&i.Runtime,
-		&i.SandboxID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.EndReason,
-		&i.ExitCode,
-		&i.OutputTail,
-		&i.Interactive,
-		&i.RemoveWorkspace,
-	)
 	return i, err
 }
 

@@ -1,0 +1,30 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder identities create [flags] [name]
+
+  Create a delegated identity under you
+
+  Creating an identity returns a record and no credential. The identity gets its
+  credentials where it is used: in a workspace created on its behalf.
+
+OPTIONS:
+  -c, --column [name|parent|root user|scopes|effective scopes|created at|id] (default: name,parent,root user,scopes,effective scopes)
+          Columns to display in table output.
+
+      --org string
+          The organization of the identity, when its parent is in more than one.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --parent string
+          The delegated identity or user to create the identity under. It
+          defaults to you.
+
+      --scope string-array
+          A scope the identity may use with the Coder API, as API tokens name
+          them. Repeat for more. Without any, the identity can do nothing.
+
+———
+Run `coder --help` for a list of global options.

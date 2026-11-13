@@ -62,6 +62,7 @@ const (
 	CheckUsersUsernameMinLength                              CheckConstraint = "users_username_min_length"                                 // users
 	CheckConnectionLogsClientSessionIDCheck                  CheckConstraint = "connection_logs_client_session_id_check"                   // connection_logs
 	CheckOrganizationIDNotZero                               CheckConstraint = "organization_id_not_zero"                                  // custom_roles
+	CheckDelegatedIdentitiesNotOwnParent                     CheckConstraint = "delegated_identities_not_own_parent"                       // delegated_identities
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                 CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                 // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs

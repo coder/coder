@@ -96,6 +96,7 @@ type store interface {
 	GetHighestGroupAIBudgetByUser(ctx context.Context, arg database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error)
 	GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
+	GetDelegatedIdentityByID(ctx context.Context, id uuid.UUID) (database.DelegatedIdentity, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error)
 	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
@@ -431,6 +432,14 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		return nil, xerrors.Errorf("get interception %q: %w", intcID, err)
 	}
 
+	// The stored interception stays attributed to its initiator. What it
+	// costs counts against whoever answers for the initiator: a delegated
+	// identity spends the budget of its root user.
+	intc.InitiatorID, err = s.spendOwner(ctx, intc.InitiatorID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Snapshot the effective group, per-token prices and compute cost. A
 	// missing price row or no effective group yields NULL columns.
 	cost, err := s.resolveTokenUsageCost(ctx, intc, in)
@@ -443,6 +452,24 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	return &proto.RecordTokenUsageResponse{}, nil
+}
+
+// spendOwner returns whose budget a user's spend counts against. That is the
+// user, unless the user is a delegated identity: an identity is in none of
+// the groups budgets hang on, and its root user answers for what it spends.
+func (s *Server) spendOwner(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	if !s.experiments.Enabled(codersdk.ExperimentDelegatedIdentities) {
+		return userID, nil
+	}
+	//nolint:gocritic // Whom an identity answers to is not the gateway's to be denied.
+	identity, err := s.store.GetDelegatedIdentityByID(dbauthz.AsSystemRestricted(ctx), userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return userID, nil
+	}
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get delegated identity of user %q: %w", userID, err)
+	}
+	return identity.RootUserID, nil
 }
 
 // recordTokenUsageAndSpend atomically records the token usage (including the
@@ -1018,6 +1045,10 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 	userID, err := uuid.Parse(in.GetUserId())
 	if err != nil {
 		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
+	}
+	userID, err = s.spendOwner(ctx, userID)
+	if err != nil {
+		return nil, err
 	}
 	// The organization is the one IsAuthorized resolved for this request, and
 	// the gateway sends it back unchanged. It is trusted to be valid and to

@@ -167,7 +167,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return cmp.Or(typed.DisplayName, typed.Slug, typed.ID.String())
 	case database.UserSecret:
 		return typed.Name
-	case database.WorkloadIdentity:
+	case database.DelegatedIdentity:
 		return typed.Name
 	case database.Skill:
 		return typed.Name
@@ -291,7 +291,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSecret:
 		return typed.ID
-	case database.WorkloadIdentity:
+	case database.DelegatedIdentity:
 		return typed.ID
 	case database.Skill:
 		return typed.ID
@@ -390,8 +390,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeMCPServerConfig
 	case database.UserSecret:
 		return database.ResourceTypeUserSecret
-	case database.WorkloadIdentity:
-		return database.ResourceTypeWorkloadIdentity
+	case database.DelegatedIdentity:
+		return database.ResourceTypeDelegatedIdentity
 	case database.Skill:
 		return database.ResourceTypeUserSkill
 	case database.AuditableOrganizationSkill:
@@ -502,7 +502,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.
 		return false
-	case database.WorkloadIdentity:
+	case database.DelegatedIdentity:
 		return true
 	case database.Skill:
 		// User skills are global to the user across organizations.
@@ -618,13 +618,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		var userID uuid.UUID
 		key, ok := httpmw.APIKeyOptional(p.Request)
-		if ok {
-			// A workload acts as its sponsor. The entry must still say
-			// that the workload did this, and not the sponsor in person.
-			if workloadID, isWorkload := httpmw.WorkloadIdentityID(key); isWorkload {
-				additionalFieldsRaw = withWorkloadIdentity(additionalFieldsRaw, workloadID)
-			}
-		}
 		switch {
 		case ok:
 			userID = key.UserID
@@ -669,26 +662,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 	}
-}
-
-// WorkloadIdentityField is the additional field that names the workload
-// identity an audited request was made as.
-const WorkloadIdentityField = "workload_identity_id"
-
-// withWorkloadIdentity adds the workload identity to an entry's additional
-// fields, whatever they hold.
-func withWorkloadIdentity(fields json.RawMessage, workloadID uuid.UUID) json.RawMessage {
-	merged := map[string]any{}
-	if err := json.Unmarshal(fields, &merged); err != nil {
-		// Not an object: keep it, next to the identity.
-		merged = map[string]any{"fields": fields}
-	}
-	merged[WorkloadIdentityField] = workloadID.String()
-	raw, err := json.Marshal(merged)
-	if err != nil {
-		return fields
-	}
-	return raw
 }
 
 // BackgroundAudit creates an audit log for a background event.

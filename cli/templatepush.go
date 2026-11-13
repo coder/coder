@@ -427,6 +427,7 @@ func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
 		// Just assume there's a lockfile if reading from stdin.
 		return nil
 	}
+
 	hasLockfile, err := provisionersdk.DirHasLockfile(pf.directory)
 	if err != nil {
 		return xerrors.Errorf("dir has lockfile: %w", err)

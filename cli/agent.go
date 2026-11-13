@@ -31,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/agent/agentworkload"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
@@ -66,7 +65,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		agentHeaderCommand              string
 		agentHeader                     []string
 		devcontainers                   bool
-		workloadRuntime                 string
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
 		socketServerEnabled             bool
@@ -294,10 +292,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			reinitCtx, reinitCancel := context.WithCancel(ctx)
 			defer reinitCancel()
-			// A daemon in a workspace that was built ahead of time is told
-			// when the workspace gets its owner. That holds for a daemon
-			// that is whichever pod it runs in as well: the pod stays, and
-			// whom it works for changes.
 			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
 
 			// Read and strip env vars before the reinit
@@ -335,38 +329,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					}
 				}
 
-				var workloads *agentworkload.Supervisor
-				switch workloadRuntime {
-				case "":
-				case "pod":
-					// The daemon has a sandbox to itself, such as a pod made
-					// for one workload. The workload runs next to it.
-					cliPath, _ := os.Executable()
-					sandboxID, _ := os.Hostname()
-					workloads, err = agentworkload.New(ctx, agentworkload.Options{
-						Logger: logger.Named("workloads"),
-						Runtime: &agentworkload.PodRuntime{
-							CoderURL:  agentAuth.agentURL.String(),
-							SandboxID: sandboxID,
-							StateDir:  filepath.Join(os.TempDir(), "coder-workloads"),
-							CLIPath:   cliPath,
-							Execer:    execer,
-							Logger:    logger.Named("workloads"),
-						},
-						Pending:     client.PendingWorkloads,
-						ReportStart: client.ReportWorkloadStart,
-						ReportExit:  client.ReportWorkloadExit,
-					})
-					if err != nil {
-						logger.Error(ctx, "workloads are disabled: the runtime is not usable", slog.Error(err))
-						workloads = nil
-					}
-				default:
-					return xerrors.Errorf("unknown workload runtime %q", workloadRuntime)
-				}
-
 				agnt := agent.New(agent.Options{
-					Workloads:     workloads,
 					Client:        client,
 					Logger:        logger,
 					LogDir:        logDir,
@@ -576,13 +539,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
-		},
-		{
-			Flag:        "workload-runtime",
-			Env:         "CODER_AGENT_WORKLOAD_RUNTIME",
-			Description: "Run the workload that \"coder run\" starts in this workspace. With \"pod\" the agent's own pod is the sandbox of one workload, which runs next to the agent. Empty disables workloads.",
-			Value:       serpent.StringOf(&workloadRuntime),
-			Hidden:      true,
 		},
 		{
 			Flag:        "devcontainers-enable",

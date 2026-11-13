@@ -71,7 +71,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Put("/advisor", api.putChatAdvisorConfig)
 		})
 		r.Route("/{chat}", func(r chi.Router) {
-			r.Use(httpmw.ExtractChatParam(api.Database))
+			r.Use(api.chatOnBehalfOfDelegatedIdentity, httpmw.ExtractChatParam(api.Database))
 			r.Route("/acl", func(r chi.Router) {
 				r.Get("/", api.getChatACL)
 				r.Patch("/", api.patchChatACL)
@@ -125,7 +125,7 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 			})
 		})
 		r.Route("/{chat}", func(r chi.Router) {
-			r.Use(httpmw.ExtractChatParam(api.Database))
+			r.Use(api.chatOnBehalfOfDelegatedIdentity, httpmw.ExtractChatParam(api.Database))
 			r.Get("/stream/desktop", api.watchChatDesktop)
 			r.Route("/debug", func(r chi.Router) {
 				r.Get("/runs", api.getChatDebugRuns)

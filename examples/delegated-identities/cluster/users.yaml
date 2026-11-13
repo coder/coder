@@ -1,0 +1,17 @@
+# The user the workspace pods run as, by name. The pods run as user 1000,
+# which most images do not know. The workspace daemon needs a name, a home
+# and a shell for that user to open a terminal.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coder-workload-users
+  namespace: coder-sandbox-workloads
+data:
+  passwd: |
+    root:x:0:0:root:/root:/bin/sh
+    coder:x:1000:1000:Coder:/home/coder:/bin/sh
+    nobody:x:65534:65534:nobody:/:/sbin/nologin
+  group: |
+    root:x:0:
+    coder:x:1000:
+    nobody:x:65534:

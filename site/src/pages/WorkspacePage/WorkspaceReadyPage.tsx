@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-	keepPreviousData,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { API } from "#/api/api";
 import {
 	type ApiError,
@@ -21,7 +16,6 @@ import {
 	startWorkspace,
 	stopWorkspace,
 	toggleFavorite,
-	workspaceWorkloads,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -30,7 +24,6 @@ import {
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
@@ -239,18 +232,6 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
-	// Workloads start and stop without a workspace build, so nothing pushes
-	// their changes to this page.
-	const { experiments } = useDashboard();
-	const [showFinishedWorkloads, setShowFinishedWorkloads] = useState(false);
-	const workloadsQuery = useQuery({
-		...workspaceWorkloads(workspace.id, showFinishedWorkloads),
-		// What ran stays on record after the workspace stops.
-		enabled: experiments.includes("runtime-workloads"),
-		refetchInterval: 5_000,
-		placeholderData: keepPreviousData,
-	});
-
 	const checkEphemeralParameters = async (
 		buildParameters?: TypesGen.WorkspaceBuildParameter[],
 	) => {
@@ -342,10 +323,6 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
-				workloads={workloadsQuery.data}
-				workloadsError={workloadsQuery.error}
-				showFinishedWorkloads={showFinishedWorkloads}
-				onShowFinishedWorkloadsChange={setShowFinishedWorkloads}
 				handleStart={async (buildParameters) => {
 					const { hasEphemeral, ephemeralParameters } =
 						await checkEphemeralParameters(buildParameters);

@@ -68,6 +68,11 @@ const (
 	ScopeCryptoKeyRead                       ScopeName = "crypto_key:read"
 	ScopeCryptoKeyUpdate                     ScopeName = "crypto_key:update"
 	ScopeDebugInfoRead                       ScopeName = "debug_info:read"
+	ScopeDelegatedIdentityCreate             ScopeName = "delegated_identity:create"
+	ScopeDelegatedIdentityDelete             ScopeName = "delegated_identity:delete"
+	ScopeDelegatedIdentityRead               ScopeName = "delegated_identity:read"
+	ScopeDelegatedIdentityUpdate             ScopeName = "delegated_identity:update"
+	ScopeDelegatedIdentityUse                ScopeName = "delegated_identity:use"
 	ScopeDeploymentConfigRead                ScopeName = "deployment_config:read"
 	ScopeDeploymentConfigUpdate              ScopeName = "deployment_config:update"
 	ScopeDeploymentStatsRead                 ScopeName = "deployment_stats:read"
@@ -279,6 +284,11 @@ func (e ScopeName) Valid() bool {
 		ScopeCryptoKeyRead,
 		ScopeCryptoKeyUpdate,
 		ScopeDebugInfoRead,
+		ScopeDelegatedIdentityCreate,
+		ScopeDelegatedIdentityDelete,
+		ScopeDelegatedIdentityRead,
+		ScopeDelegatedIdentityUpdate,
+		ScopeDelegatedIdentityUse,
 		ScopeDeploymentConfigRead,
 		ScopeDeploymentConfigUpdate,
 		ScopeDeploymentStatsRead,
@@ -491,6 +501,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeCryptoKeyRead,
 		ScopeCryptoKeyUpdate,
 		ScopeDebugInfoRead,
+		ScopeDelegatedIdentityCreate,
+		ScopeDelegatedIdentityDelete,
+		ScopeDelegatedIdentityRead,
+		ScopeDelegatedIdentityUpdate,
+		ScopeDelegatedIdentityUse,
 		ScopeDeploymentConfigRead,
 		ScopeDeploymentConfigUpdate,
 		ScopeDeploymentStatsRead,

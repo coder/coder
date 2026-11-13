@@ -1,0 +1,9 @@
+# The namespace of the workspace pods. Everything in it meets the Restricted
+# Pod Security Standard: nothing is privileged, and nothing has added
+# capabilities.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coder-sandbox-workloads
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

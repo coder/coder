@@ -116,6 +116,17 @@ The `resource:*` form grants every action on that resource, including actions no
 | `chat_model_config:read`  | Read chat model configs.                              |
 | `chat_model_config:share` | Share a chat model config with other users or groups. |
 
+### `delegated_identity`
+
+| Scope                       | Description                                                                      |
+|-----------------------------|----------------------------------------------------------------------------------|
+| `delegated_identity:*`      | Every action on `delegated_identity`, including actions not listed on this page. |
+| `delegated_identity:create` | Create a delegated identity.                                                     |
+| `delegated_identity:delete` | Delete a delegated identity.                                                     |
+| `delegated_identity:read`   | Read a delegated identity.                                                       |
+| `delegated_identity:update` | Change what a delegated identity may do.                                         |
+| `delegated_identity:use`    | Create and build workspaces on behalf of a delegated identity.                   |
+
 ### `file`
 
 | Scope         | Description                                                        |

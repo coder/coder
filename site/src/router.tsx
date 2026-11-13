@@ -26,7 +26,6 @@ import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSet
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import UsersPage from "./pages/UsersPage/UsersPage";
-import WorkloadsPage from "./pages/WorkloadsPage/WorkloadsPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 
@@ -593,7 +592,6 @@ export const router = createBrowserRouter(
 					/>
 
 					<Route path="/workspaces" element={<WorkspacesPage />} />
-					<Route path="/workloads" element={<WorkloadsPage />} />
 
 					<Route path="/starter-templates">
 						<Route index element={<CreateTemplateGalleryPage />} />

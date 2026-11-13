@@ -94,6 +94,12 @@ const (
 	APIKeyScopeCryptoKeyUpdate                     APIKeyScope = "crypto_key:update"
 	APIKeyScopeDebugInfoAll                        APIKeyScope = "debug_info:*"
 	APIKeyScopeDebugInfoRead                       APIKeyScope = "debug_info:read"
+	APIKeyScopeDelegatedIdentityAll                APIKeyScope = "delegated_identity:*"
+	APIKeyScopeDelegatedIdentityCreate             APIKeyScope = "delegated_identity:create"
+	APIKeyScopeDelegatedIdentityDelete             APIKeyScope = "delegated_identity:delete"
+	APIKeyScopeDelegatedIdentityRead               APIKeyScope = "delegated_identity:read"
+	APIKeyScopeDelegatedIdentityUpdate             APIKeyScope = "delegated_identity:update"
+	APIKeyScopeDelegatedIdentityUse                APIKeyScope = "delegated_identity:use"
 	APIKeyScopeDeploymentConfigAll                 APIKeyScope = "deployment_config:*"
 	APIKeyScopeDeploymentConfigRead                APIKeyScope = "deployment_config:read"
 	APIKeyScopeDeploymentConfigUpdate              APIKeyScope = "deployment_config:update"
@@ -290,6 +296,12 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeCoderWorkspacesCreate,
 	APIKeyScopeCoderWorkspacesDelete,
 	APIKeyScopeCoderWorkspacesOperate,
+	APIKeyScopeDelegatedIdentityAll,
+	APIKeyScopeDelegatedIdentityCreate,
+	APIKeyScopeDelegatedIdentityDelete,
+	APIKeyScopeDelegatedIdentityRead,
+	APIKeyScopeDelegatedIdentityUpdate,
+	APIKeyScopeDelegatedIdentityUse,
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,

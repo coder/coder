@@ -64,20 +64,6 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	};
 };
 
-export const sponsoredWorkloads = (finished: boolean) => {
-	return {
-		queryKey: ["workloads", { finished }],
-		queryFn: () => API.getWorkloads(finished),
-	};
-};
-
-export const workspaceWorkloads = (workspaceId: string, finished: boolean) => {
-	return {
-		queryKey: [...workspaceByIdKey(workspaceId), "workloads", { finished }],
-		queryFn: () => API.getWorkspaceWorkloads(workspaceId, finished),
-	};
-};
-
 export const workspaceACLKey = (workspaceId: string) => [
 	"workspaceAcl",
 	workspaceId,

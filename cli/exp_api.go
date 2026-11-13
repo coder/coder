@@ -123,8 +123,6 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			// Inside a workload's sandbox there is no token, and requests
-			// go to a local socket.
 			if apiURLIsInsecure(client.URL) {
 				cliui.Warn(inv.Stderr, "The session token is sent over unencrypted HTTP to "+client.URL.Host+".",
 					"Use an https:// URL for the deployment to protect the token.")

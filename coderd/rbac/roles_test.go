@@ -1236,6 +1236,20 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin, orgWorkspaceAccessUser},
 			},
 		},
+		// A delegated identity is its parent's to manage, and that of
+		// whoever manages the organization.
+		{
+			Name:     "DelegatedIdentities",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionUse},
+			Resource: rbac.ResourceDelegatedIdentity.WithOwner(currentUser.String()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, orgMemberMe},
+				false: {
+					memberMe, orgWorkspaceAccessUser, otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 		// Only the user themselves can access their own secrets — no one else.
 		{
 			Name:     "UserSecrets",

@@ -184,6 +184,20 @@ var (
 		Type: "debug_info",
 	}
 
+	// ResourceDelegatedIdentity
+	// Valid Actions
+	//  - "ActionCreate" :: create a delegated identity
+	//  - "ActionDelete" :: delete a delegated identity
+	//  - "ActionRead" :: read a delegated identity
+	//  - "ActionUpdate" :: change what a delegated identity may do
+	//  - "ActionUse" :: create and build workspaces on behalf of a delegated identity
+	// A delegated identity is owned by its parent. An ancestor further up is
+	// judged as the owner as well. Anyone else needs the permission across
+	// the organization.
+	ResourceDelegatedIdentity = Object{
+		Type: "delegated_identity",
+	}
+
 	// ResourceDeploymentConfig
 	// Valid Actions
 	//  - "ActionRead" :: read deployment config
@@ -571,6 +585,7 @@ func AllResources() []Objecter {
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
+		ResourceDelegatedIdentity,
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
 		ResourceFile,

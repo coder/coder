@@ -421,6 +421,19 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create workspace agent devcontainers",
 		},
 	},
+	"delegated_identity": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a delegated identity",
+			ActionRead:   "read a delegated identity",
+			ActionUpdate: "change what a delegated identity may do",
+			ActionDelete: "delete a delegated identity",
+			ActionUse:    "create and build workspaces on behalf of a delegated identity",
+		},
+		Comment: `
+	// A delegated identity is owned by its parent. An ancestor further up is
+	// judged as the owner as well. Anyone else needs the permission across
+	// the organization.`,
+	},
 	"user_secret": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a user secret",
