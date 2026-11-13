@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { buildOptimisticEditedContent } from "./chatMessageEdits";
+import { buildPendingContent } from "./pendingContent";
 
-describe("buildOptimisticEditedContent", () => {
+describe("buildPendingContent", () => {
 	it("preserves image MIME types for newly attached files", () => {
-		const content = buildOptimisticEditedContent({
+		const content = buildPendingContent({
 			requestContent: [{ type: "file", file_id: "image-1" }],
 			attachmentMediaTypes: new Map([["image-1", "image/png"]]),
 		});
@@ -20,7 +20,7 @@ describe("buildOptimisticEditedContent", () => {
 			file_id: "existing-1",
 			media_type: "image/jpeg",
 		};
-		const content = buildOptimisticEditedContent({
+		const content = buildPendingContent({
 			requestContent: [{ type: "file", file_id: "existing-1" }],
 			originalContent: [existingFilePart],
 			attachmentMediaTypes: new Map([["existing-1", "text/plain"]]),
@@ -35,7 +35,7 @@ describe("buildOptimisticEditedContent", () => {
 			skill_source: "project",
 			skill_name: "triage",
 		};
-		const content = buildOptimisticEditedContent({
+		const content = buildPendingContent({
 			requestContent: [skillPart],
 		});
 
