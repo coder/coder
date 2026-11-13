@@ -22,6 +22,8 @@ import {
 } from "#/testHelpers/chatModels";
 import {
 	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -33,6 +35,7 @@ import {
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parseStoredDraft } from "../utils/draftStorage";
+import { NIL_UUID } from "../utils/modelOptions";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -223,6 +226,69 @@ describe("AgentChatPage", () => {
 				listRequestsBeforeSend + 1,
 			),
 		);
+	});
+
+	describe("detaching the workspace", () => {
+		const renderChatWithWorkspace = () => {
+			vi.spyOn(API, "getWorkspace").mockResolvedValue(MockWorkspace);
+			vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
+				() =>
+					new OneWayWebSocket({
+						apiRoute: `/api/v2/workspaces/${MockWorkspace.id}/watch-ws`,
+						websocketInit: (url, protocol) =>
+							createMockWebSocket(url, protocol)[0],
+					}),
+			);
+			const updateChat = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			const { user, composer } = renderQueuedChat({
+				queuedMessages: [],
+				chat: {
+					...MockChat,
+					workspace_id: MockWorkspace.id,
+					agent_id: MockWorkspaceAgent.id,
+				},
+			});
+			const openDetachDialog = async () => {
+				await user.click(
+					await screen.findByRole("button", {
+						name: `${MockWorkspace.name} workspace menu`,
+					}),
+				);
+				await user.click(
+					await screen.findByRole("menuitem", { name: "Detach workspace" }),
+				);
+				return within(await screen.findByRole("dialog"));
+			};
+			return { user, composer, updateChat, openDetachDialog };
+		};
+
+		it("Cancel keeps the workspace and focuses the chat input", async () => {
+			const { user, composer, updateChat, openDetachDialog } =
+				renderChatWithWorkspace();
+
+			const dialog = await openDetachDialog();
+			await user.click(dialog.getByRole("button", { name: "Cancel" }));
+
+			await waitFor(() => expect(composer()).toHaveFocus());
+			expect(updateChat).not.toHaveBeenCalled();
+		});
+
+		it("Detach clears the workspace and focuses the chat input", async () => {
+			const { user, composer, updateChat, openDetachDialog } =
+				renderChatWithWorkspace();
+
+			const dialog = await openDetachDialog();
+			await user.click(dialog.getByRole("button", { name: "Detach" }));
+
+			await waitFor(() =>
+				expect(updateChat).toHaveBeenCalledWith(MockChat.id, {
+					workspace_id: NIL_UUID,
+				}),
+			);
+			await waitFor(() => expect(composer()).toHaveFocus());
+		});
 	});
 
 	describe("queued message editing", () => {

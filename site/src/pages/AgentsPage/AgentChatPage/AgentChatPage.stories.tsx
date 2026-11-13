@@ -1734,6 +1734,29 @@ export const PlanModeFromChatState: Story = {
 	},
 };
 
+export const DetachWorkspaceConfirmation: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Detach workspace",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: `Remove workspace ${mockWorkspace.name}`,
+			}),
+		);
+	},
+};
+
 /**
  * A right panel left open from a wide viewport must not hide chat on
  * narrow viewports; the panel is suppressed until explicitly opened.

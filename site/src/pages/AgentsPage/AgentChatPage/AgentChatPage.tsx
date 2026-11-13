@@ -46,6 +46,7 @@ import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { toast } from "#/components/Toaster/toast";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -593,8 +594,13 @@ const AgentChatPage: React.FC = () => {
 		void interrupt();
 	};
 
+	const [isDetachConfirmOpen, setIsDetachConfirmOpen] = useState(false);
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
 		if (nextWorkspaceId === selectedWorkspaceId) {
+			return;
+		}
+		if (nextWorkspaceId === null) {
+			setIsDetachConfirmOpen(true);
 			return;
 		}
 		updateChatWorkspaceMutate({
@@ -971,6 +977,31 @@ const AgentChatPage: React.FC = () => {
 					onMCPSelectionChange={handleMCPSelectionChange}
 				/>
 			)}
+			<ConfirmDialog
+				open={isDetachConfirmOpen}
+				title="Detach workspace?"
+				description={
+					<p>
+						The agent will no longer have access to{" "}
+						<strong>{workspace?.name ?? "this workspace"}</strong>. The
+						workspace is not stopped or deleted, and you can attach it again
+						later.
+					</p>
+				}
+				type="delete"
+				confirmText="Detach"
+				onConfirm={() => {
+					setIsDetachConfirmOpen(false);
+					updateChatWorkspaceMutate({ chatId: agentId, workspaceId: null });
+				}}
+				onClose={() => setIsDetachConfirmOpen(false)}
+				// The control that opened the dialog may have unmounted with its
+				// menu, so focus goes to the chat input.
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					chatInputRef.current?.focus();
+				}}
+			/>
 		</>
 	);
 };
