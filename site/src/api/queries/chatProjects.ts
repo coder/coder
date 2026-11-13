@@ -1,11 +1,13 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
 	chatListFamilyKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
+	invalidateChatsByWorkspace,
 } from "./chats";
 
 export const chatProjectsKey = ["chat-projects"] as const;
@@ -32,6 +34,54 @@ export const chatProject = (projectId: string | undefined) =>
 		select: (projects) =>
 			projects.find((project) => project.id === projectId) ?? null,
 	});
+
+/**
+ * Caches the archived-project list. It nests under chatProjectsKey, so
+ * invalidating the active list also refetches it.
+ */
+export const archivedChatProjectsKey = [
+	...chatProjectsKey,
+	"archived",
+] as const;
+
+const unlistedChatProjectKey = (projectId: string | undefined) =>
+	[...chatProjectsKey, projectId, "unlisted"] as const;
+
+/**
+ * Finds a project in any of the given organizations. Organization admins and
+ * site Owners can manage projects that are neither theirs nor shared with
+ * them, which the lists leave out. Data is null when no organization returns
+ * the project.
+ */
+export const unlistedChatProject = (
+	projectId: string | undefined,
+	organizationIds: readonly string[],
+) =>
+	queryOptions({
+		queryKey: [...unlistedChatProjectKey(projectId), organizationIds],
+		queryFn: async () => {
+			if (projectId === undefined) {
+				return null;
+			}
+			// The server answers 404 for an organization that doesn't hold
+			// the project or a project the user can't read.
+			const projects = await Promise.all(
+				organizationIds.map((organizationId) =>
+					API.experimental
+						.getChatProject(organizationId, projectId)
+						.catch((error: unknown) => {
+							if (getErrorStatus(error) === 404) {
+								return null;
+							}
+							throw error;
+						}),
+				),
+			);
+			return projects.find((project) => project !== null) ?? null;
+		},
+	});
+
+const archiveDialogKeySegment = "archive-dialog";
 
 /** Nested under chatProjectsKey, so project list invalidations reach it. */
 export const chatProjectSummariesKey = [
@@ -214,25 +264,134 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
+const isArchiveDialogKey = (queryKey: readonly unknown[]) =>
+	queryKey[chatProjectsKey.length + 1] === archiveDialogKeySegment;
+
+/** Refreshes the projects and every cached chat a project change can touch. */
+const invalidateProjectsAndChats = (queryClient: QueryClient) =>
+	Promise.all([
+		queryClient.invalidateQueries({
+			queryKey: chatProjectsKey,
+			predicate: ({ queryKey }) => !isArchiveDialogKey(queryKey),
+		}),
+		// The archive dialog stays mounted while it closes after archiving, so
+		// refetching its queries would flash the emptied project. The next
+		// dialog fetches them fresh when it mounts.
+		queryClient.invalidateQueries({
+			queryKey: chatProjectsKey,
+			predicate: ({ queryKey }) => isArchiveDialogKey(queryKey),
+			refetchType: "none",
+		}),
+		invalidateChatListQueries(queryClient),
+		invalidateChatSearches(queryClient),
+		// Only the chats themselves carry project_id and archived. Their
+		// nested queries (messages, ACL, diffs, ...) would refetch every
+		// loaded page for nothing.
+		queryClient.invalidateQueries({
+			queryKey: chatEntitiesFamilyKey,
+			predicate: ({ queryKey }) =>
+				queryKey.length === chatEntitiesFamilyKey.length + 1,
+		}),
+	]);
+
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.deleteChatProject(project.organization_id, project.id),
-		onSettled: () =>
-			// Deleting a project clears project_id on its chats.
-			Promise.all([
-				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
-				invalidateChatListQueries(queryClient),
-				invalidateChatSearches(queryClient),
-				// Only the chats themselves carry project_id. Their nested
-				// queries (messages, ACL, diffs, ...) would refetch every loaded
-				// page for nothing.
-				queryClient.invalidateQueries({
-					queryKey: chatEntitiesFamilyKey,
-					predicate: ({ queryKey }) =>
-						queryKey.length === chatEntitiesFamilyKey.length + 1,
-				}),
-			]),
+		// Deleting a project clears project_id on its chats.
+		onSettled: () => invalidateProjectsAndChats(queryClient),
+	});
+
+// The project lists' order: by lowercased name, then ID.
+const compareProjectNames = (
+	a: TypesGen.ChatProject,
+	b: TypesGen.ChatProject,
+) => {
+	const [nameA, nameB] = [a.name.toLowerCase(), b.name.toLowerCase()];
+	if (nameA !== nameB) {
+		return nameA < nameB ? -1 : 1;
+	}
+	return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+};
+
+/**
+ * Moves a project between the cached active and archived lists, so pages
+ * that look it up keep finding it while both lists refetch. A project in
+ * neither list stays out of them and is updated where unlistedChatProject
+ * cached it.
+ */
+const setCachedProjectArchiveState = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) => {
+	const [fromKey, toKey] = project.archived_at
+		? [chatProjectsKey, archivedChatProjectsKey]
+		: [archivedChatProjectsKey, chatProjectsKey];
+	const isListed = queryClient
+		.getQueryData<TypesGen.ChatProject[]>(fromKey)
+		?.some(({ id }) => id === project.id);
+	if (isListed) {
+		queryClient.setQueryData<TypesGen.ChatProject[]>(fromKey, (projects) =>
+			projects?.filter(({ id }) => id !== project.id),
+		);
+		queryClient.setQueryData<TypesGen.ChatProject[]>(toKey, (projects = []) =>
+			[...projects.filter(({ id }) => id !== project.id), project].toSorted(
+				compareProjectNames,
+			),
+		);
+	}
+	queryClient.setQueriesData<TypesGen.ChatProject | null>(
+		{ queryKey: unlistedChatProjectKey(project.id) },
+		(cached) => (cached ? project : cached),
+	);
+
+	// Summaries list only active projects. An unarchived project returns
+	// when they refetch.
+	if (project.archived_at) {
+		queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+			chatProjectSummariesKey,
+			(summaries) => summaries?.filter((s) => s.project.id !== project.id),
+		);
+	}
+};
+
+/** Refreshes what archiving or unarchiving a project changes. */
+const invalidateProjectArchiveState = (queryClient: QueryClient) => {
+	void invalidateProjectsAndChats(queryClient);
+	// Archived chats no longer count as using their workspaces.
+	void invalidateChatsByWorkspace(queryClient);
+};
+
+/**
+ * Archives a project and every chat in it. Without stopActiveChats the
+ * server refuses with 409 while any chat in the project is active.
+ */
+export const archiveChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({
+			project,
+			stopActiveChats,
+		}: {
+			project: TypesGen.ChatProject;
+			stopActiveChats: boolean;
+		}) =>
+			API.experimental.archiveChatProject(project.organization_id, project.id, {
+				stop_active_chats: stopActiveChats,
+			}),
+		onSuccess: (project) => setCachedProjectArchiveState(queryClient, project),
+		onSettled: () => invalidateProjectArchiveState(queryClient),
+	});
+
+/** Unarchives a project and the chats archived with it. */
+export const unarchiveChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.unarchiveChatProject(
+				project.organization_id,
+				project.id,
+			),
+		onSuccess: (project) => setCachedProjectArchiveState(queryClient, project),
+		onSettled: () => invalidateProjectArchiveState(queryClient),
 	});
 
 export const chatProjectInstructionsKey = (projectId: string) =>

@@ -558,6 +558,15 @@ export const MockChatProject: TypesGen.ChatProject = {
 	permissions: { update: true, delete: true, share: true, archive: true },
 };
 
+/**
+ * MockChatProject after archiving. It keeps the same ID, so queries keyed by
+ * MockChatProject.id resolve it.
+ */
+export const MockArchivedChatProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	archived_at: "2026-11-10T12:00:00Z",
+};
+
 export const MockChatProjectSummary: TypesGen.ChatProjectSummary = {
 	project: MockChatProject,
 	pinned: true,
