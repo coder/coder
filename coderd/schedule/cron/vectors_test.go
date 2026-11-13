@@ -14,13 +14,14 @@ import (
 )
 
 // standardVectors is the shape of testdata/standard_vectors.json. Times are RFC
-// 3339 with an offset (Z for UTC). next lists the first runs after the time in
-// after, each written with the offset of the zone at that instant. reason tells a
-// person why Standard rejects a spec and is not checked, so that rewording an
-// error does not change the contract. The DayFields run pins that a step in the
-// day of month, as in */2, counts as restricted: a spec that also names a day
-// of week runs when either field matches. A library that reads */2 as
-// unrestricted runs it only on that day of week.
+// 3339 with an offset (Z for a zero offset, in any zone). next lists the first
+// runs after the time in after, each written with the offset of the zone at
+// that instant. reason tells a person why Standard rejects a spec and is not
+// checked, so that rewording an error does not change the contract. The
+// DayFields run pins that a step in the day of month, as in */2, counts as
+// restricted: a spec that also names a day of week runs when either field
+// matches. A library that reads */2 as unrestricted runs it only on that day of
+// week.
 type standardVectors struct {
 	Specs []struct {
 		Spec     string `json:"spec"`
