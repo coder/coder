@@ -394,32 +394,79 @@ const ARIA_TEXT_ATTRIBUTES = new Set([
 	"aria-valuetext",
 ]);
 
+// Attributes whose values are code on components as well as on
+// intrinsic elements, by React convention. Other names in
+// CODE_ATTRIBUTES, such as `name`, are often displayed text on components.
+const COMPONENT_CODE_ATTRIBUTES = new Set([
+	"className",
+	"defaultValue",
+	"href",
+	"htmlFor",
+	"id",
+	"key",
+	"rel",
+	"role",
+	"src",
+	"srcSet",
+	"style",
+	"target",
+	"to",
+	"type",
+	"value",
+]);
+
 /**
- * Returns the JSX attribute whose value contains `node`, through any
- * expression such as `className={cn("a", { b: ok })}` or a callback, or
- * null. Stops at JSX elements, whose own attributes and children are
- * checked on their own.
+ * Returns the JSX attribute that `node` is part of, as its name and
+ * whether its element is intrinsic, such as "div", or null. Looks through
+ * any expression in the value, such as `className={cn("a", { b: ok })}`
+ * or a callback, and through properties of spread objects, such as
+ * `{...{ className: "a" }}`. Stops at JSX elements, whose own attributes
+ * and children are checked on their own.
  */
 function enclosingJsxAttribute(node) {
+	let property = null;
 	let parent = node.parent;
 	while (
 		parent &&
 		!ts.isJsxAttribute(parent) &&
+		!ts.isJsxSpreadAttribute(parent) &&
 		!ts.isJsxElement(parent) &&
 		!ts.isJsxSelfClosingElement(parent) &&
 		!ts.isJsxFragment(parent) &&
 		!ts.isSourceFile(parent)
 	) {
+		if (ts.isPropertyAssignment(parent)) {
+			property = parent;
+		}
 		parent = parent.parent;
 	}
-	return parent && ts.isJsxAttribute(parent) ? parent : null;
+	let name;
+	if (parent && ts.isJsxAttribute(parent)) {
+		name = parent.name.getText();
+	} else if (
+		parent &&
+		ts.isJsxSpreadAttribute(parent) &&
+		property?.parent === skipTransparent(parent.expression)
+	) {
+		// The outermost property of the spread object names the attribute.
+		name = ts.isStringLiteral(property.name)
+			? property.name.text
+			: property.name.getText();
+	} else {
+		return null;
+	}
+	const tagName = parent.parent.parent.tagName;
+	const intrinsic = ts.isIdentifier(tagName) && /^[a-z]/.test(tagName.text);
+	return { name, intrinsic };
 }
 
-/** Returns true when a JSX attribute's value is code, like data-state. */
-function isCodeAttribute(attribute) {
-	const name = attribute.name.getText();
+/**
+ * Returns true when a JSX attribute's value is code, like data-state.
+ * DOM attributes such as `name` are code only on intrinsic elements.
+ */
+function isCodeAttribute({ name, intrinsic }) {
 	return (
-		CODE_ATTRIBUTES.has(name) ||
+		(intrinsic ? CODE_ATTRIBUTES : COMPONENT_CODE_ATTRIBUTES).has(name) ||
 		name.startsWith("data-") ||
 		(name.startsWith("aria-") && !ARIA_TEXT_ATTRIBUTES.has(name))
 	);

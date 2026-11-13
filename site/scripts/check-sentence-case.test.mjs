@@ -366,12 +366,17 @@ describe("checkSource", () => {
 			"const g = <div style={{ gridTemplateAreas: '\"Main Header\"' }} />;",
 			'const h = <div data-values={items.map(() => "New Workspace")} />;',
 			'const i = <td headers="Plan Name" />;',
+			'const j = <div {...{ className: "Foo Bar", "data-x": "Is On" }} />;',
+			'const k = <Card className="Foo Bar" value="Some Value" />;',
+			'const l = <input name="Plan Name" />;',
+			'const m = <ModuleCard name="New Workspace" />;',
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
 			[4, "Workspaces"],
 			[4, "File"],
 			[5, "Template"],
+			[13, "Workspace"],
 		]);
 	});
 
