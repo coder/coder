@@ -205,6 +205,23 @@ func TestChatCompletionRequestBodyWithoutCacheControlIsUnchanged(t *testing.T) {
 	require.Equal(t, typed, body)
 }
 
+// chatd sends a PDF, from a user attachment or from a tool result, as a
+// user file part, so the typed round trip must keep it.
+func TestChatCompletionRequestBodyKeepsUserFilePart(t *testing.T) {
+	t.Parallel()
+
+	const filePart = `{"type":"file","file":{"file_data":"data:application/pdf;base64,JVBERi0xLjc=","filename":"report.pdf"}}`
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":[`+filePart+`]}]}`), &req))
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://api.openai.com/v1"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+	require.JSONEq(t, `[`+filePart+`]`, gjson.GetBytes(body, "messages.0.content").Raw)
+}
+
 func TestPreservedCacheControlFieldsAreCapped(t *testing.T) {
 	t.Parallel()
 

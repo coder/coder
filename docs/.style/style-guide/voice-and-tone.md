@@ -1,3 +1,7 @@
+---
+review-personas: [language]
+---
+
 # Voice and tone
 
 Coder documentation addresses the reader directly, uses active voice, and describes the product in the present tense.
@@ -115,6 +119,30 @@ Reserve future tense for:
 
 The second **Don't** uses future tense to describe normal behavior of the install script.
 Use plain present tense for behavior the product already exhibits.
+
+*Documentation-only.
+No Vale rule.*
+
+## Describe conditions, not moments in time
+
+Words that place the reader in time, such as `now`, `new`, `currently`, `recently`, `soon`, and `no longer`, go stale when the next release ships.
+They also give the reader nothing to act on.
+State the condition that makes the behavior true instead: a version, a setting, a role, or a step the reader completes first.
+
+**Do**:
+
+> After you turn on the experiment, you can turn off automatic use for a skill.
+>
+> Starting in Coder v2.24, the agent reconnects automatically.
+
+**Don't**:
+
+> You can now turn off automatic use for a skill.
+>
+> The agent currently reconnects automatically.
+
+In a sequenced tutorial, `now` can mark a point in the reader's own progress ("Now that you added a language, install your tools"), because it refers to the steps, not to a release.
+For version history, refer to [Describe the current version, for the end user](../content-guidelines.md#describe-the-current-version-for-the-end-user).
 
 *Documentation-only.
 No Vale rule.*
@@ -312,7 +340,8 @@ A statement about what the product does or doesn't do keeps the contraction defa
 >
 > Run `make gen`, and don't edit the generated file.
 
-*Enforced by `Coder.ImperativeNegation` (planned).*
+*Enforced by `Coder.ImperativeNegation` (`warning`).
+The rule flags `don't` only where it opens an imperative, so declaratives such as "You don't need" stay clean.*
 
 ## Leave out "please"
 
@@ -334,7 +363,8 @@ When you quote product text that contains "please", such as an error message, pu
 >
 > For more information, please contact your administrator.
 
-*Enforced by `Coder.Please` (planned).*
+*Enforced by `Coder.Please` (`warning`).
+The rule skips code spans and fenced code blocks, so quoted product text in code font isn't flagged.*
 
 ## Trailing prepositions are a judgment call
 

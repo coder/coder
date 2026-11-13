@@ -50,6 +50,26 @@ export const appendTextBlock = (
 	return [...blocks, textBlock(type, text, narration)];
 };
 
+/**
+ * Appends answer text before a trailing block of citations, so citations
+ * follow the text they cite. They arrive while that text streams: persisted
+ * messages store them before it, and a live stream splits it around them.
+ * Returns `blocks` unchanged when nothing is appended.
+ */
+export const appendResponseText = (
+	blocks: RenderBlock[],
+	text: string,
+	narration = false,
+): RenderBlock[] => {
+	const last = blocks[blocks.length - 1];
+	if (last?.type !== "sources") {
+		return appendTextBlock(blocks, "response", text, narration);
+	}
+	const head = blocks.slice(0, -1);
+	const appended = appendTextBlock(head, "response", text, narration);
+	return appended === head ? blocks : [...appended, last];
+};
+
 type ToolGroupRenderBlock = {
 	type: "tool-group";
 	ids: string[];

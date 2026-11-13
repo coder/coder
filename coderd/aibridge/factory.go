@@ -9,9 +9,13 @@ import (
 
 // Attribution carries contextual per-request attribution data for a request.
 type Attribution struct {
-	// WorkspaceID is the workspace bound to the chat, or uuid.Nil when no
-	// workspace is bound.
+	// WorkspaceID is the workspace the request comes from, or uuid.Nil when
+	// unknown.
 	WorkspaceID uuid.UUID
+	// DelegatedOrganizationID is the organization a delegated in-process caller
+	// acts in. Currently only chatd sets it, to the chat's organization. It is
+	// uuid.Nil for every other request.
+	DelegatedOrganizationID uuid.UUID
 }
 
 type attributionCtxKey struct{}
@@ -28,6 +32,32 @@ func WithAttribution(ctx context.Context, attr Attribution) context.Context {
 func AttributionFromContext(ctx context.Context) (Attribution, bool) {
 	attr, ok := ctx.Value(attributionCtxKey{}).(Attribution)
 	return attr, ok && attr.WorkspaceID != uuid.Nil
+}
+
+// RequestOrganization is the organization coderd resolved for a request in
+// IsAuthorized. It is kept apart from [Attribution] because coderd computes it,
+// while delegated callers supply Attribution.
+type RequestOrganization struct {
+	ID uuid.UUID
+	// Source records how ID was chosen. It holds a
+	// database.AIBridgeInterceptionOrganizationSource value.
+	Source string
+}
+
+type requestOrganizationCtxKey struct{}
+
+// WithRequestOrganization returns a copy of ctx carrying the organization
+// coderd resolved for the request. It MUST ONLY be set from the IsAuthorized
+// response, and NEVER from client-provided HTTP headers.
+func WithRequestOrganization(ctx context.Context, org RequestOrganization) context.Context {
+	return context.WithValue(ctx, requestOrganizationCtxKey{}, org)
+}
+
+// RequestOrganizationFromContext returns the organization attached by
+// [WithRequestOrganization] and whether a non-zero ID was present.
+func RequestOrganizationFromContext(ctx context.Context) (RequestOrganization, bool) {
+	org, ok := ctx.Value(requestOrganizationCtxKey{}).(RequestOrganization)
+	return org, ok && org.ID != uuid.Nil
 }
 
 // Source identifies the call site that asked aibridge for a transport. It is

@@ -1337,6 +1337,188 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/members/{user}/skill-preferences": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization skill preferences for a member",
+                "operationId": "get-organization-skill-preferences-for-a-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillPreferences"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization skill preferences for a member",
+                "operationId": "update-organization-skill-preferences-for-a-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill preferences request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationSkillPreferencesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillPreferences"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/skill-settings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization skill settings",
+                "operationId": "get-organization-skill-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization skill settings",
+                "operationId": "update-organization-skill-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationSkillSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/skills": {
             "get": {
                 "produces": [
@@ -2927,7 +3109,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\\|paused\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -2963,7 +3145,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "description": "Only chats in this project.",
                         "name": "project_id",
                         "in": "query"
                     }
@@ -3058,6 +3240,74 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/coderd.chatsByWorkspaceResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/advisor": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat advisor config",
+                "operationId": "get-chat-advisor-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AdvisorConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat advisor config",
+                "operationId": "update-chat-advisor-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAdvisorConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -3781,8 +4031,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "x-example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the filename as a quoted string.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -4131,6 +4381,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/chats/{chat}/attachments": {
+            "get": {
+                "description": "Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat attachments",
+                "operationId": "list-chat-attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return attachments from messages with id \u003c before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAttachmentsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/chats/{chat}/clear": {
             "post": {
                 "description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
@@ -4329,6 +4621,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Interrupts the active turn of a chat.\nIf the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.",
                 "produces": [
                     "application/json"
                 ],
@@ -4578,6 +4871,52 @@ const docTemplate = `{
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat queued message",
+                "operationId": "edit-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat queued message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -7985,7 +8324,8 @@ const docTemplate = `{
                             "explore",
                             "title_generation",
                             "compaction",
-                            "advisor"
+                            "advisor",
+                            "computer_use"
                         ],
                         "type": "string",
                         "description": "Override context",
@@ -9910,32 +10250,25 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by provisioner daemon IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown",
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed"
-                        ],
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "offline",
+                                "idle",
+                                "busy"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter results by status",
                         "name": "status",
                         "in": "query"
@@ -10021,32 +10354,29 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by job IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown",
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed"
-                        ],
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "pending",
+                                "running",
+                                "succeeded",
+                                "canceling",
+                                "canceled",
+                                "failed",
+                                "unknown"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter results by status",
                         "name": "status",
                         "in": "query"
@@ -11253,16 +11583,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get the available idp sync claim fields",
                 "operationId": "get-the-available-idp-sync-claim-fields",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -11292,14 +11612,6 @@ const docTemplate = `{
                 "summary": "Get the idp sync claim field values",
                 "operationId": "get-the-idp-sync-claim-field-values",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "format": "string",
@@ -18700,7 +19012,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
+                        "x-example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
                         "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
                         "name": "Authorization",
                         "in": "header"
@@ -19187,6 +19499,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppStatusState"
                 },
                 "uri": {
+                    "description": "Only http, https, and file URIs are kept; others are dropped.",
                     "type": "string"
                 }
             }
@@ -19295,6 +19608,14 @@ const docTemplate = `{
                 "model": {
                     "type": "string"
                 },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for this interception. Nil\nwhen it was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
+                },
                 "thinking": {
                     "type": "array",
                     "items": {
@@ -19364,6 +19685,10 @@ const docTemplate = `{
                     "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
                     "type": "boolean"
                 },
+                "embedded_enabled": {
+                    "description": "EmbeddedEnabled controls whether coderd starts the in-memory AI\nGateway. It only takes effect when Enabled is true.",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -19411,6 +19736,27 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgePricedModel": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "description": "Model is the priced model, either the requested model or the model\nreported by the provider.",
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
                 }
             }
         },
@@ -19648,6 +19994,14 @@ const docTemplate = `{
                 "cache_write_input_tokens": {
                     "type": "integer"
                 },
+                "cost_micros": {
+                    "description": "CostMicros is the summed cost of the priced usage, in micro-units\n(1000000 is $1.00).",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports that some usage has no cost, so CostMicros\nis a lower bound.",
+                    "type": "boolean"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -19727,6 +20081,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for the root interception\n(the prompt). Other requests in the thread may use different models\nand prices, see agentic_actions[].priced_model. Nil when the root\ninterception was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
                 },
                 "prompt": {
                     "type": "string"
@@ -20102,17 +20464,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "login_type": {
-                    "enum": [
-                        "password",
-                        "github",
-                        "oidc",
-                        "token"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
-                    ]
+                    ],
+                    "example": "password"
                 },
                 "scope": {
                     "description": "Deprecated: use Scopes instead.",
@@ -20695,6 +21052,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AdvisorConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled is always true and cannot be changed.",
+                    "type": "boolean"
+                },
+                "max_output_tokens": {
+                    "description": "MaxOutputTokens caps the advisor model response tokens. 0 means\nuse the runtime default.",
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat turn. 0 means unlimited.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AgentChatSendShortcut": {
             "type": "string",
             "enum": [
@@ -21148,17 +21522,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "enum": [
-                        "create",
-                        "read",
-                        "update",
-                        "delete"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.RBACAction"
                         }
-                    ]
+                    ],
+                    "example": "read"
                 },
                 "object": {
                     "description": "Object can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
@@ -21302,7 +21671,8 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "autodelete"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -21313,7 +21683,8 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection"
+                "BuildReasonJetbrainsConnection",
+                "BuildReasonAutodelete"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -21552,6 +21923,79 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAttachment": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFile"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "part_index": {
+                    "description": "PartIndex is the file part's position in the message content the\nmessages endpoint returns.",
+                    "type": "integer"
+                },
+                "role": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentRole"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFile": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
+                },
+                "file_id": {
+                    "description": "Omitted, not null, for an inline file.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFileType"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFileType": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentFileTypeFile"
+            ]
+        },
+        "codersdk.ChatAttachmentRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "assistant"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentRoleUser",
+                "ChatAttachmentRoleAssistant"
+            ]
+        },
+        "codersdk.ChatAttachmentsResponse": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatAttachment"
+                    }
+                }
+            }
+        },
         "codersdk.ChatAutoArchiveDaysResponse": {
             "type": "object",
             "properties": {
@@ -21563,12 +22007,12 @@ const docTemplate = `{
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
-                "queue",
-                "interrupt"
+                "steer",
+                "queue"
             ],
             "x-enum-varnames": [
-                "ChatBusyBehaviorQueue",
-                "ChatBusyBehaviorInterrupt"
+                "ChatBusyBehaviorSteer",
+                "ChatBusyBehaviorQueue"
             ]
         },
         "codersdk.ChatClientType": {
@@ -21580,6 +22024,19 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatClientTypeUI",
                 "ChatClientTypeAPI"
+            ]
+        },
+        "codersdk.ChatComputerUseProvider": {
+            "type": "string",
+            "enum": [
+                "anthropic",
+                "openai",
+                "openai-compat"
+            ],
+            "x-enum-varnames": [
+                "ChatComputerUseProviderAnthropic",
+                "ChatComputerUseProviderOpenAI",
+                "ChatComputerUseProviderOpenAICompat"
             ]
         },
         "codersdk.ChatConfig": {
@@ -22180,10 +22637,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "args_delta": {
                     "type": "string"
@@ -22232,10 +22686,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "end_line": {
                     "type": "integer"
@@ -22285,21 +22738,12 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
-                "provider_metadata": {
-                    "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
                 "reasoning_delta": {
                     "type": "string"
                 },
                 "result": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Result is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "result_delta": {
                     "type": "string"
@@ -22312,7 +22756,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_dir": {
-                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files.",
+                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files, and\nshown to the model for an invoked workspace skill so it can\nrun the skill's scripts.",
                     "type": "string"
                 },
                 "skill_name": {
@@ -22462,6 +22906,7 @@ const docTemplate = `{
                     }
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -22482,6 +22927,14 @@ const docTemplate = `{
                 },
                 "compression_threshold": {
                     "type": "integer"
+                },
+                "computer_use_provider": {
+                    "description": "ComputerUseProvider names the computer use tool that Coder sends for\nthis model. It is omitted when computer use can't run on the model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatComputerUseProvider"
+                        }
+                    ]
                 },
                 "context_limit": {
                     "type": "integer"
@@ -22853,14 +23306,16 @@ const docTemplate = `{
                 "explore",
                 "title_generation",
                 "compaction",
-                "advisor"
+                "advisor",
+                "computer_use"
             ],
             "x-enum-varnames": [
                 "ChatModelOverrideContextGeneral",
                 "ChatModelOverrideContextExplore",
                 "ChatModelOverrideContextTitleGeneration",
                 "ChatModelOverrideContextCompaction",
-                "ChatModelOverrideContextAdvisor"
+                "ChatModelOverrideContextAdvisor",
+                "ChatModelOverrideContextComputerUse"
             ]
         },
         "codersdk.ChatModelOverrideResponse": {
@@ -23172,6 +23627,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatProjectGroup"
                     }
                 },
+                "owner": {
+                    "description": "Owner is the project owner, who is never listed in Users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
                 "users": {
                     "type": "array",
                     "items": {
@@ -23412,6 +23875,18 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "busy_behavior": {
+                    "description": "BusyBehavior is the lane of the message. Steer messages go in\nbefore the next model call, and queue messages go in after the\nturn ends.",
+                    "enum": [
+                        "steer",
+                        "queue"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatBusyBehavior"
+                        }
+                    ]
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -23426,12 +23901,20 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "editing_since": {
+                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends. A\nsteer message under edit also holds the steer messages ahead of\nit. A turn that ends at a message under edit pauses the chat.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "integer"
                 },
                 "model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -23476,14 +23959,16 @@ const docTemplate = `{
                 "running",
                 "error",
                 "requires_action",
-                "interrupting"
+                "interrupting",
+                "paused"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
                 "ChatStatusRunning",
                 "ChatStatusError",
                 "ChatStatusRequiresAction",
-                "ChatStatusInterrupting"
+                "ChatStatusInterrupting",
+                "ChatStatusPaused"
             ]
         },
         "codersdk.ChatStreamActionRequired": {
@@ -23517,6 +24002,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -23896,6 +24382,10 @@ const docTemplate = `{
         "codersdk.ConnectionLogSSHInfo": {
             "type": "object",
             "properties": {
+                "client_session_id": {
+                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
+                    "type": "string"
+                },
                 "connection_id": {
                     "type": "string",
                     "format": "uuid"
@@ -24027,10 +24517,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "busy_behavior": {
-                    "enum": [
-                        "queue",
-                        "interrupt"
-                    ],
+                    "description": "BusyBehavior controls when the message reaches the agent if the\nchat is busy. \"steer\", the default, delivers it before the next\nmodel call. \"queue\" delivers it after the active turn ends.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatBusyBehavior"
@@ -24081,7 +24568,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
                 "messages": {
-                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A queued send on an errored chat may promote the\nprevious queue head, so clients must upsert the full batch.",
+                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A send to an errored or paused chat can also insert\nqueued messages: a steer send inserts the queued steer messages\nbefore the new message, and a queue send to an errored chat inserts\nthe steer lane, or the first queue message when that lane is empty.\nClients must upsert the full batch.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
@@ -24421,6 +24908,18 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "type": "string"
                 },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
+                },
                 "oauth2_client_secret": {
                     "type": "string"
                 },
@@ -24501,9 +25000,17 @@ const docTemplate = `{
         "codersdk.CreateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills and defaults to false.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
+                    "type": "boolean"
                 }
             }
         },
@@ -24706,36 +25213,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "enum": [
-                        "create",
-                        "write",
-                        "delete",
-                        "start",
-                        "stop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AuditAction"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.AuditAction"
                 },
                 "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "build_reason": {
-                    "enum": [
-                        "autostart",
-                        "autostop",
-                        "initiator"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.BuildReason"
                 },
                 "organization_id": {
                     "type": "string",
@@ -24750,20 +25234,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "resource_type": {
-                    "enum": [
-                        "template",
-                        "template_version",
-                        "user",
-                        "workspace",
-                        "workspace_build",
-                        "git_ssh_key",
-                        "auditable_group"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ResourceType"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ResourceType"
                 },
                 "time": {
                     "type": "string",
@@ -24925,7 +25396,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "user_status": {
-                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "description": "UserStatus defaults to UserStatusDormant. Service accounts default to\nUserStatusActive and can't be dormant.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UserStatus"
@@ -25075,10 +25546,9 @@ const docTemplate = `{
                     }
                 },
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "ProvisionerState overrides the provisioner state for this build. JSON\ncarries it as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -25807,10 +26277,7 @@ const docTemplate = `{
                 },
                 "input_schema": {
                     "description": "InputSchema's JSON key \"input_schema\" uses snake_case for\nSDK consistency, deviating from the camelCase \"inputSchema\"\nconvention used by MCP.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "name": {
                     "type": "string"
@@ -25872,6 +26339,30 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.EditChatQueuedMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content replaces the queued content. An empty array is rejected.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "editing": {
+                    "description": "Editing begins (true) or ends (false) an edit of the message. A\nchat has at most one message under edit; beginning another ends the\nfirst. While the chat is paused, beginning an edit on another\nmessage returns 409. Ending the edit of a paused chat's head sends\nit.",
+                    "type": "boolean"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID and ReasoningEffort require Content; sending either\nwithout it returns 400. Omitted values keep the stored ones.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -25928,35 +26419,33 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "mcp-server-http",
-                "mcp-tool-search",
                 "workspace-build-updates",
                 "no_nats_pubsub",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
-                "chat-projects",
-                "chat-advisor",
+                "chat-project-sharing",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "chat-automations"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
-                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
-                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
+                "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
-                "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -25968,40 +26457,38 @@ const docTemplate = `{
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
-                "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
-                "Enables organization-scoped projects that group agent chats.",
-                "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents.",
+                "Enables sharing agent chat projects with other users and groups.",
+                "Enables virtual desktop and computer use for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Enables webhook and scheduled automations that deliver prompts to agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
-                "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNoNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
-                "ExperimentChatProjects",
-                "ExperimentChatAdvisor",
+                "ExperimentChatProjectSharing",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentChatAutomations"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -26910,11 +27397,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "REQUIRED_TEMPLATE_VARIABLES",
-                "INSUFFICIENT_QUOTA"
+                "INSUFFICIENT_QUOTA",
+                "MISSING_TEMPLATE_PARAMETER"
             ],
             "x-enum-varnames": [
                 "RequiredTemplateVariables",
-                "InsufficientQuota"
+                "InsufficientQuota",
+                "MissingTemplateParameter"
             ]
         },
         "codersdk.License": {
@@ -27035,6 +27524,7 @@ const docTemplate = `{
                 "github",
                 "oidc",
                 "token",
+                "oauth2_provider_app",
                 "none"
             ],
             "x-enum-varnames": [
@@ -27043,6 +27533,7 @@ const docTemplate = `{
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
                 "LoginTypeToken",
+                "LoginTypeOAuth2ProviderApp",
                 "LoginTypeNone"
             ]
         },
@@ -27140,6 +27631,9 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "description": "OAuth2 fields (only populated for admins).",
                     "type": "string"
+                },
+                "oauth2_client_registration": {
+                    "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
                 },
                 "oauth2_resource": {
                     "type": "string"
@@ -27301,6 +27795,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.MCPServerOAuth2ClientRegistration": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "dynamic"
+            ],
+            "x-enum-varnames": [
+                "MCPServerOAuth2ClientRegistrationManual",
+                "MCPServerOAuth2ClientRegistrationDynamic"
+            ]
         },
         "codersdk.MCPServerOAuth2DisconnectResponse": {
             "type": "object",
@@ -28542,7 +29047,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "providers": {
-                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -28708,15 +29213,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "updated_at": {
                     "type": "string",
@@ -28811,6 +29308,27 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationSkillPreferences": {
+            "type": "object",
+            "properties": {
+                "all_skills_disabled": {
+                    "description": "AllSkillsDisabled turns off every organization skill, including\nskills added later. DisabledSkillIDs is kept and applies again when it\nis false.",
+                    "type": "boolean"
+                },
+                "disabled_skill_ids": {
+                    "description": "DisabledSkillIDs lists the organization skills the member turned off.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "members_can_disable_skills": {
+                    "description": "MembersCanDisableSkills is the organization's setting.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OrganizationSkillRole": {
             "type": "string",
             "enum": [
@@ -28821,6 +29339,15 @@ const docTemplate = `{
                 "OrganizationSkillRoleRead",
                 "OrganizationSkillRoleDeleted"
             ]
+        },
+        "codersdk.OrganizationSkillSettings": {
+            "type": "object",
+            "properties": {
+                "members_can_disable_skills": {
+                    "description": "MembersCanDisableSkills lets each organization member turn off\norganization skills for their own chats.",
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.OrganizationSkillUser": {
             "type": "object",
@@ -29539,6 +30066,9 @@ const docTemplate = `{
                 "collect_db_metrics": {
                     "type": "boolean"
                 },
+                "collect_workspace_stats": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -29629,16 +30159,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "offline",
-                        "idle",
-                        "busy"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
                 },
                 "tags": {
                     "type": "object",
@@ -29659,19 +30180,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "running",
-                        "succeeded",
-                        "canceling",
-                        "canceled",
-                        "failed"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                 },
                 "template_display_name": {
                     "type": "string"
@@ -29723,15 +30232,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "error_code": {
-                    "enum": [
-                        "REQUIRED_TEMPLATE_VARIABLES",
-                        "INSUFFICIENT_QUOTA"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.JobErrorCode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.JobErrorCode"
                 },
                 "file_id": {
                     "type": "string",
@@ -29769,19 +30270,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "running",
-                        "succeeded",
-                        "canceling",
-                        "canceled",
-                        "failed"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                 },
                 "tags": {
                     "type": "object",
@@ -29828,18 +30317,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "log_level": {
-                    "enum": [
-                        "trace",
-                        "debug",
-                        "info",
-                        "warn",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.LogLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "log_source": {
                     "$ref": "#/definitions/codersdk.LogSource"
@@ -30053,17 +30531,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "mode": {
-                    "enum": [
-                        "inherit",
-                        "on",
-                        "off",
-                        "condition"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ExperimentRuleMode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ExperimentRuleMode"
                 }
             }
         },
@@ -30323,15 +30791,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -30825,15 +31285,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actor_type": {
-                    "enum": [
-                        "group",
-                        "user"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
                 },
                 "avatar_url": {
                     "type": "string",
@@ -30868,6 +31320,10 @@ const docTemplate = `{
         "codersdk.Skill": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -30885,6 +31341,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -30897,6 +31357,10 @@ const docTemplate = `{
         "codersdk.SkillMetadata": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -30910,6 +31374,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -31507,10 +31975,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Default is the variable's default as a JSON string, number, or boolean,\nmatching the variable's type.",
+                    "type": "object"
                 },
                 "description": {
                     "type": "string"
@@ -31903,15 +32369,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -31976,9 +32434,6 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "enum": [
-                            "DEPRECATED_PARAMETERS"
-                        ],
                         "$ref": "#/definitions/codersdk.TemplateVersionWarning"
                     }
                 }
@@ -32082,15 +32537,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "validation_monotonic": {
-                    "enum": [
-                        "increasing",
-                        "decreasing"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
                 },
                 "validation_regex": {
                     "type": "string"
@@ -32239,10 +32686,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "output": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Output is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "tool_call_id": {
                     "type": "string"
@@ -32314,6 +32759,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAdvisorConfigRequest": {
+            "type": "object",
+            "properties": {
+                "max_output_tokens": {
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "type": "integer"
                 }
             }
         },
@@ -32673,6 +33129,18 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "type": "string"
                 },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config ignores empty and unchanged values for\nthe client ID, client secret, auth URL, and token URL. Other values\nfail unless the request also sets \"manual\".",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
+                },
                 "oauth2_client_secret": {
                     "type": "string"
                 },
@@ -32770,6 +33238,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateOrganizationSkillPreferencesRequest": {
+            "type": "object",
+            "properties": {
+                "all_skills_disabled": {
+                    "type": "boolean"
+                },
+                "skills": {
+                    "description": "Skills maps an organization skill ID to whether the skill is enabled\nfor the member's chats.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "codersdk.UpdateOrganizationSkillSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "members_can_disable_skills": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateRoles": {
             "type": "object",
             "properties": {
@@ -32784,11 +33275,18 @@ const docTemplate = `{
         "codersdk.UpdateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "model_invocable": {
                     "type": "boolean"
                 }
             }
@@ -33155,10 +33653,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "State is the provisioner state, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 }
             }
         },
@@ -33183,11 +33680,6 @@ const docTemplate = `{
             "properties": {
                 "shareable_workspace_owners": {
                     "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
@@ -33301,28 +33793,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "enum": [
-                        "http",
-                        "https"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
                 },
                 "share_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 }
             }
         },
@@ -33407,15 +33881,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -33933,15 +34399,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "automatic_updates": {
-                    "enum": [
-                        "always",
-                        "never"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AutomaticUpdates"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.AutomaticUpdates"
                 },
                 "autostart_schedule": {
                     "type": "string"
@@ -34111,6 +34569,7 @@ const docTemplate = `{
                     }
                 },
                 "environment_variables": {
+                    "description": "EnvironmentVariables lists the variables set on the agent. Non-empty\nvalues are redacted as \"***REDACTED***\" because they often hold credentials.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -34607,28 +35066,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "enum": [
-                        "http",
-                        "https"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
                 },
                 "share_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
                 "workspace_id": {
                     "type": "string",
@@ -34857,17 +35298,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
                 },
                 "sharing_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
                 },
                 "slug": {
                     "description": "Slug is a unique identifier within the agent.",
@@ -35039,16 +35470,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "reason": {
-                    "enum": [
-                        "initiator",
-                        "autostart",
-                        "autostop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.BuildReason"
                 },
                 "resources": {
                     "type": "array",
@@ -35057,23 +35479,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "starting",
-                        "running",
-                        "stopping",
-                        "stopped",
-                        "failed",
-                        "canceling",
-                        "canceled",
-                        "deleting",
-                        "deleted"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceStatus"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -35087,16 +35493,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "transition": {
-                    "enum": [
-                        "start",
-                        "stop",
-                        "delete"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
                 },
                 "updated_at": {
                     "type": "string",
@@ -35417,16 +35814,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_transition": {
-                    "enum": [
-                        "start",
-                        "stop",
-                        "delete"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
                 }
             }
         },
@@ -35542,11 +35930,6 @@ const docTemplate = `{
             "properties": {
                 "shareable_workspace_owners": {
                     "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
@@ -35777,16 +36160,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "status_code": {
                     "type": "integer"
@@ -35831,16 +36205,7 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -35894,16 +36259,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "stun": {
                     "$ref": "#/definitions/healthsdk.STUNReport"
@@ -35939,16 +36295,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/tailcfg.DERPRegion"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -35981,16 +36328,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "threshold_ms": {
                     "type": "integer"
@@ -36058,11 +36396,6 @@ const docTemplate = `{
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/health.Severity"
@@ -36098,16 +36431,7 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36176,16 +36500,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36209,16 +36524,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36893,7 +37199,6 @@ const docTemplate = `{
         "workspacesdk.WatchErrorCode": {
             "type": "integer",
             "enum": [
-                0,
                 1,
                 2,
                 3,
@@ -36901,20 +37206,7 @@ const docTemplate = `{
                 5,
                 6
             ],
-            "x-enum-comments": {
-                "_": "Ensure that zero value is not a valid code"
-            },
-            "x-enum-descriptions": [
-                "Ensure that zero value is not a valid code",
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
-            ],
             "x-enum-varnames": [
-                "_",
                 "WatchErrorTooManyAgents",
                 "WatchErrorNameNotFound",
                 "WatchErrorNoAgents",

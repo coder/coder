@@ -308,6 +308,26 @@ export const ShowProviderType: Story = {
 	},
 };
 
+const mockConfiguredIconProviderState = {
+	...MockOpenAICompatProviderState,
+	providerDescriptor: {
+		...MockOpenAICompatProviderState.providerDescriptor,
+		icon: "/icon/widgets.svg",
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, mockConfiguredIconProviderState],
+		selectedProviderState: mockConfiguredIconProviderState,
+		editingModel: mockOpenAICompatModel,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+	},
+};
+
 export const ShareOnlyAccess: Story = {
 	args: {
 		editingModel: mockGPT5,
@@ -655,7 +675,7 @@ export const CostEstimateFieldsAreImmutable: Story = {
 		).toHaveAttribute(
 			"href",
 			expect.stringContaining(
-				"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+				"/ai-governance/ai-gateway/cost-controls#configure-model-prices",
 			),
 		);
 
@@ -711,6 +731,29 @@ export const CostEstimateFromLivePriceBook: Story = {
 		await expect(canvas.getByLabelText(/^output$/i)).toHaveValue("10");
 		await expect(canvas.getByLabelText(/cache read/i)).toHaveValue("0.125");
 		await expect(canvas.getByLabelText(/cache write/i)).toHaveValue("");
+	},
+};
+
+export const CostEstimateTwoColumns: Story = {
+	args: {
+		editingModel: mockGPT5,
+		onDeleteModel: fn(async () => undefined),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+		queries: [
+			{
+				key: aiModelPrices("openai", "gpt-5").queryKey,
+				data: [MockGPT5ModelPrice],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
 	},
 };
 

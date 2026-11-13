@@ -2,7 +2,7 @@
 title: Configure OIDC refresh tokens
 ---
 
-OIDC refresh tokens allow your Coder deployment to maintain user sessions beyond the initial access token expiration.
+OpenID Connect (OIDC) refresh tokens allow your Coder deployment to maintain user sessions beyond the initial access token expiration.
 Without properly configured refresh tokens, users will be automatically logged out when their access token expires.
 This is typically after one hour, but varies by provider, and can disrupt the user's workflow.
 
@@ -22,7 +22,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
 1. In the **Authentication** tab:
 
    - **Platform configuration** > Web
-   - Ensure **Allow public client flows** is `No` (Coder is confidential)
+   - Make sure **Allow public client flows** is `No` (Coder is confidential)
    - **Implicit grant / hybrid flows** can stay unchecked
 
 1. In the **API permissions** tab:
@@ -55,7 +55,7 @@ Learn more in the [Microsoft Entra documentation](https://learn.microsoft.com/en
 
 ### Google
 
-To ensure Coder receives a refresh token when users authenticate with Google directly, set the `prompt` to `consent` in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
+To make sure Coder receives a refresh token when users authenticate with Google directly, set the `prompt` to `consent` in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
 Without this, users will be logged out when their access token expires.
 
 In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params):
@@ -96,7 +96,7 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
      set a value that matches your security policy.
      Ping's default is 30&nbsp;days.
    - **Idle Timeout**:
-     ensure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
+     make sure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
 
 1. Save your changes in PingFederate.
 
@@ -130,7 +130,7 @@ To verify refresh tokens are working correctly:
 
    ### Azure AD
 
-   Use [jwt.ms](https://jwt.ms) to inspect the `id_token` and ensure the `rt_hash` claim is present.
+   Use [jwt.ms](https://jwt.ms) to inspect the `id_token` and make sure the `rt_hash` claim is present.
    This shows that a refresh token was issued.
 
    ### Google
@@ -190,7 +190,7 @@ If all verification steps pass successfully, your refresh token configuration is
 **Cause**:
 
 - Existing user sessions don't have refresh tokens stored.
-- Configuration may be incomplete.
+- Configuration might be incomplete.
 
 **Solution**:
 

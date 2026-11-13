@@ -39,7 +39,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid border-border bg-surface-primary px-3 py-2",
+				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border bg-surface-primary px-3 py-2",
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>
@@ -50,7 +50,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 				{completedFilters.map((f) => (
 					<span
 						key={f.key}
-						className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-solid border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
+						className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
 					>
 						<span
 							className="block min-w-0 truncate"
@@ -72,7 +72,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 					</span>
 				))}
 				{incompleteFilter && (
-					<span className="inline-flex shrink-0 items-center rounded-md border border-dashed border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
+					<span className="inline-flex shrink-0 items-center rounded-md border border-dashed bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
 						{incompleteFilter.key}:
 					</span>
 				)}
@@ -82,7 +82,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 					onChange={onChange}
 					onKeyDown={onKeyDown}
 					placeholder={filters.length > 0 ? "" : "Search chats..."}
-					className="min-w-[60px] flex-1 basis-[60px] border-none bg-transparent py-0.5 text-sm text-content-primary outline-hidden placeholder:text-content-disabled"
+					className="min-w-15 flex-1 basis-15 border-none bg-transparent py-0.5 text-sm text-content-primary outline-hidden placeholder:text-content-disabled"
 					aria-label="Search chats"
 					role="combobox"
 					aria-controls={hasResults ? listboxId : undefined}

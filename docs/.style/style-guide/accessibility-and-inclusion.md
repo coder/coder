@@ -1,3 +1,7 @@
+---
+review-personas: [language, structure, audience]
+---
+
 # Accessibility and inclusion
 
 The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA conformance wherever it doesn't sacrifice clarity.
@@ -99,11 +103,16 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
 | legacy, pre-existing, exempt                          | grandfathered, grandfather clause             |
+| on-path attacker, machine-in-the-middle (MITM)        | man-in-the-middle                             |
+
+Use "on-path attacker" for the attack.
+When a feature intercepts traffic on purpose, such as the AI Gateway Proxy's MITM mode, expand MITM as "machine-in-the-middle."
 
 For information on why "grandfathered" is on the list, visit [the Wikipedia page on the history of the grandfather clause](https://en.wikipedia.org/wiki/Grandfather_clause).
 
-*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).
-The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.*
+*Enforced by `Coder.InclusiveLanguage` (`warning`), with additional coverage from the curated `alex.*` lexicon (planned; `.vale.ini` loads no third-party style).
+The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.
+It flags `master branch` and `master controller` only, and it skips the Agent Firewall CLI reference, whose flag text comes from an upstream dependency.*
 
 ## Inclusive LGBTQ terms
 
@@ -127,7 +136,8 @@ The Coder docs rarely need these terms, but sample data, persona examples, and f
 
 > The form has an optional field for the user's preferred gender pronouns.
 
-*Enforced by `Coder.LGBTQ` (planned), adapted from the curated alex lexicon.*
+*Enforced by `Coder.LGBTQ` (`warning`), adapted from the curated alex lexicon.
+The rule flags `a transgender` only when a verb or conjunction follows it, so `a transgender person` stays clean.*
 
 ## Descriptive link text
 
@@ -289,29 +299,35 @@ Planned Vale rule `Coder.Idioms`.*
 
 ### Latin abbreviations
 
-Prefer the English forms of `e.g.`, `i.e.`, and `etc.` in prose: `for example`, `that is`, and `and so on`.
-The English forms read more easily for non-native readers, and screen readers announce them as words instead of letters.
+Put an example or a clarification in parentheses.
+Inside the parentheses, write `for example` or `e.g.`, and `that is` or `i.e.`.
+The English forms are preferred, because they are easier to read and to translate, and screen readers announce them as words instead of letters.
 The abbreviations fit best in tables and other places where space is limited.
 
-Either form is accepted wherever it appears.
-The preference is a suggestion, not a requirement.
+Both the English form and the abbreviation are accepted, so reviewers don't request changes for `e.g.` or `i.e.` alone.
+When a line changes for another reason, reviewers suggest the English form and the parentheses.
 
 The following Latin abbreviations are the only ones allowed in Coder docs:
 
 | Abbreviation | Meaning                                        | Notes                                                                      |
 |--------------|------------------------------------------------|----------------------------------------------------------------------------|
-| `e.g.`       | for example                                    | Followed by a comma. Prefer parentheses around the clause.                 |
-| `i.e.`       | that is                                        | Followed by a comma. Prefer parentheses around the clause.                 |
+| `e.g.`       | for example                                    | Followed by a comma, inside parentheses.                                   |
+| `i.e.`       | that is                                        | Followed by a comma, inside parentheses.                                   |
 | `etc.`       | and so on                                      | Closes a list. The Oxford comma applies before it: `apples, oranges, etc.` |
 | `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                         |
 | `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.     |
 
-**Prefer parentheses around `e.g.` and `i.e.` clauses.**
-The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
+**Put `e.g.`, `i.e.`, and their English forms in parentheses.**
+The parentheses make the sentence structure obvious and avoid a cascade of commas around the example.
+The same applies to the English forms: `for example` and `that is` introducing a fragment go inside parentheses too.
 
 **Do**:
 
+> Many compute platforms work (for example, AWS, GCP, or a self-managed Kubernetes cluster).
+>
 > Many compute platforms work (e.g., AWS, GCP, or a self-managed Kubernetes cluster).
+>
+> The agent exits when the workspace stops (that is, when the build deletes its resources).
 >
 > The agent exits when the workspace stops (i.e., when the build deletes its resources).
 
@@ -319,9 +335,15 @@ The parentheses make the sentence structure obvious and avoid a cascade of comma
 
 > Many compute platforms work, e.g., AWS, GCP, or a self-managed Kubernetes cluster.
 >
+> Many compute platforms work, for example AWS, GCP, or a self-managed Kubernetes cluster.
+>
 > The agent exits when the workspace stops, i.e., when the build deletes its resources.
 
-The **Don't** versions are grammatical, but the comma cascade makes the sentence structure harder to follow.
+The **Don't** versions are grammatical, but the comma cascade makes them read like run-on sentences.
+A complete sentence that starts with `For example,` needs no parentheses:
+
+> Some templates need a persistent volume.
+> For example, a template that stores a database on the workspace disk needs one.
 
 **One period when `etc.` ends a sentence.**
 The period in `etc.` doubles as the sentence-ending period.
@@ -374,8 +396,51 @@ Banning them burdens writers without a matching gain for readers familiar with t
 
 </details>
 
-*Enforced by `Coder.LatinAbbreviations` (planned) at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
-The rule suggests the English form and never blocks either form.*
+*Enforced by `Coder.LatinAbbreviations` at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
+The rule suggests the English form and never blocks either form.
+It checks paragraphs, list items, headings, and blockquotes, and skips table cells and code.*
+
+## Expand abbreviations on first use
+
+Spell out an abbreviation the first time it appears on a page, followed by the abbreviation in parentheses: "Model Context Protocol (MCP)."
+After that, use the abbreviation on its own.
+Each page needs its own expansion, because readers arrive on a page from search or a link and don't read the docs in order.
+
+The rule supports [WCAG 2.2 Level AAA](https://www.w3.org/TR/WCAG22/#abbreviations) Success Criterion 3.1.4 (Abbreviations), which asks for a way to find the expanded form of an abbreviation.
+It also helps readers whose first language isn't English, and readers who know the concept but not its abbreviation.
+
+**Do**:
+
+> Register a Model Context Protocol (MCP) server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+**Don't**:
+
+> Register an MCP server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+Write the expansion in lowercase unless it's a proper noun, such as a product, protocol, or standard name: "large language model (LLM)" but "OpenID Connect (OIDC)."
+For a plural, add `s` to both forms: "large language models (LLMs)."
+
+When the first use is a UI label in bold, keep the label exactly as the UI shows it and put the expansion elsewhere in the same paragraph or list item.
+
+**Do**:
+
+> Paste the path to the certificate authority (CA) certificate in **CA Path**.
+
+**Don't**:
+
+> Paste the path to the certificate in **certificate authority (CA) Path**.
+
+A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, JSON, and UUID.
+The `Coder.AbbreviationFirstUse` rule keeps that list, with the reason for each entry.
+Extend the list only for an abbreviation that every reader of the docs already knows, not for one that a page's expected audience knows.
+A Coder networking or identity term that the [glossary](../../reference/glossary.md) defines, such as DERP or OIDC, can also join the list, because the glossary gives readers one place to look it up.
+
+The rule skips headings, code, link URLs, and pages generated from source code.
+An abbreviation in a page title still needs its expansion in the body of the page.
+
+*Enforced by `Coder.AbbreviationFirstUse` (`warning`).*
 
 ## Page title and sidebar title
 

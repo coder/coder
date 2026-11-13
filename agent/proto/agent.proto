@@ -125,6 +125,8 @@ message Manifest {
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
 	bytes workspace_build_id = 20;
+	bytes template_id = 21;
+	string template_name = 22;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest

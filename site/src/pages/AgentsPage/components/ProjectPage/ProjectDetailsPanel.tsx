@@ -1,25 +1,33 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorStatus } from "#/api/errors";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import {
+	chatProjectACL,
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
+	setChatProjectRole,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
-import { user } from "#/api/queries/users";
-import type { ChatProject } from "#/api/typesGenerated";
+import type { ChatProject, ChatProjectRole } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
+import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
+import {
+	type AccessChangeCallbacks,
+	buildAccessEntries,
+	type ProjectAccessPrincipal,
+} from "./projectAccess";
 
 type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and edits its instructions and skills. */
+/** Loads a project's details and members, and edits its instructions, skills, and access. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -36,14 +44,23 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 	const isOwner = project.owner_id === me.id;
-	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
+	const aclQuery = useQuery(chatProjectACL(project));
+	const owner = aclQuery.data?.owner;
 	const ownerLabel = isOwner
 		? "You"
-		: ownerQuery.data
-			? ownerQuery.data.name || ownerQuery.data.username
-			: ownerQuery.isError
+		: owner
+			? owner.name || owner.username
+			: aclQuery.isError
 				? "Unknown"
 				: undefined;
+	const ownerAvatar = isOwner
+		? { src: me.avatar_url ?? "", fallback: me.name || me.username }
+		: owner
+			? {
+					src: owner.avatar_url ?? "",
+					fallback: owner.name || owner.username,
+				}
+			: undefined;
 	const organization = organizations.find(
 		(org) => org.id === project.organization_id,
 	);
@@ -58,6 +75,15 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	);
 	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
 	const skillsFocusReturn = useDialogFocusReturn();
+	// The ACL endpoints return 403 when chat sharing is disabled.
+	const isSharingDisabled = getErrorStatus(aclQuery.error) === 403;
+	const accessEntries = aclQuery.data
+		? buildAccessEntries(aclQuery.data)
+		: undefined;
+	const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
+	const accessFocusReturn = useDialogFocusReturn();
+	const retryACL = () => void aclQuery.refetch();
+	const roleMutation = useMutation(setChatProjectRole(queryClient));
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
 	);
@@ -65,9 +91,6 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		deleteChatProjectInstructions(queryClient, project),
 	);
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
-	// isPending reaches the dialog only after a render, so a fast double
-	// click could otherwise submit the same change twice.
-	const isMutationInFlight = useRef(false);
 
 	const resetErrors = () => {
 		updateMutation.reset();
@@ -79,24 +102,20 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		setIsEditorOpen(true);
 	};
 
-	const runMutation = (mutate: (onSettled: () => void) => void) => {
-		if (isMutationInFlight.current) {
-			return;
-		}
-		isMutationInFlight.current = true;
-		// Clear the previous action's error so only the latest one shows.
-		resetErrors();
-		mutate(() => {
-			isMutationInFlight.current = false;
-		});
-	};
+	const setAccessRole = (
+		principal: ProjectAccessPrincipal,
+		role: ChatProjectRole,
+		callbacks: AccessChangeCallbacks,
+	) => roleMutation.mutate({ project, principal, role }, callbacks);
 
 	return (
 		<>
 			<ProjectDetailsPanelView
 				ownerLabel={ownerLabel}
+				ownerAvatar={ownerAvatar}
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
+				organizationIconUrl={showOrganizations ? organization?.icon : undefined}
 				skillCount={skillsQuery.data?.length}
 				disabledSkillCount={
 					skillsQuery.data?.filter((skill) => !skill.enabled).length
@@ -110,6 +129,26 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
 				onEditInstructions={project.permissions.update ? openEditor : undefined}
+				members={
+					isSharingDisabled
+						? undefined
+						: {
+								entries: accessEntries,
+								error: aclQuery.error,
+								isRetrying: aclQuery.isFetching,
+								onRetry: retryACL,
+								canManage: project.permissions.share,
+								onOpenAccess: (event) => {
+									accessFocusReturn.rememberTrigger(event);
+									if (roleMutation.error) {
+										roleMutation.reset();
+									}
+									setIsAccessDialogOpen(true);
+									// Show access changes made since the page loaded.
+									void aclQuery.refetch();
+								},
+							}
+				}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}
@@ -120,30 +159,20 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				saveError={updateMutation.error}
 				deleteError={deleteMutation.error}
 				onResetErrors={() => {
-					// The error fields lag a render, so also check the ref: resetting
-					// a pending mutation drops its per-call onSuccess and onSettled.
-					if (
-						!isMutationInFlight.current &&
-						(updateMutation.error || deleteMutation.error)
-					) {
+					if (updateMutation.error || deleteMutation.error) {
 						resetErrors();
 					}
 				}}
 				onSave={(instructions) =>
-					runMutation((onSettled) =>
-						updateMutation.mutate(
-							{ instructions },
-							{ onSuccess: () => setIsEditorOpen(false), onSettled },
-						),
+					updateMutation.mutate(
+						{ instructions },
+						{ onSuccess: () => setIsEditorOpen(false) },
 					)
 				}
 				onDelete={() =>
-					runMutation((onSettled) =>
-						deleteMutation.mutate(undefined, {
-							onSuccess: () => setIsEditorOpen(false),
-							onSettled,
-						}),
-					)
+					deleteMutation.mutate(undefined, {
+						onSuccess: () => setIsEditorOpen(false),
+					})
 				}
 			/>
 			<ProjectSkillsDialog
@@ -152,6 +181,29 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				onOpenChange={setIsSkillsDialogOpen}
 				canEdit={project.permissions.update}
 				onCloseAutoFocus={skillsFocusReturn.restoreFocus}
+			/>
+			<ProjectAccessDialog
+				open={isAccessDialogOpen}
+				onOpenChange={setIsAccessDialogOpen}
+				entries={accessEntries}
+				error={aclQuery.error}
+				isRetrying={aclQuery.isFetching}
+				onRetry={retryACL}
+				onCloseAutoFocus={accessFocusReturn.restoreFocus}
+				canManage={project.permissions.share}
+				organizationId={project.organization_id}
+				currentUserId={me.id}
+				onAdd={setAccessRole}
+				onChangeRole={setAccessRole}
+				onRemove={(principal, callbacks) =>
+					setAccessRole(principal, "", callbacks)
+				}
+				pendingPrincipalId={
+					roleMutation.isPending
+						? roleMutation.variables.principal.id
+						: undefined
+				}
+				mutationError={roleMutation.error}
 			/>
 		</>
 	);

@@ -9,6 +9,7 @@ import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkills } from "#/testHelpers/skills";
+import { parseSkillMarkdown } from "../../utils/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 
 vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
@@ -75,11 +76,14 @@ describe("ProjectSkillsDialog", () => {
 			screen.getByRole("textbox", { name: "Body" }),
 			"Plan the work.",
 		);
+		await user.click(screen.getByRole("switch", { name: "Show as action" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(createSkill).toHaveBeenCalledWith(orgId, projectId, {
 				content: "---\nname: planner\n---\nPlan the work.\n",
+				action: true,
+				model_invocable: true,
 			}),
 		);
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
@@ -128,7 +132,7 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() => expect(createSkill).toHaveBeenCalledTimes(2));
 	});
 
-	it("fills a new skill from pasted SKILL.md content", async () => {
+	it("fills a new skill and its automatic use from pasted SKILL.md content", async () => {
 		const createSkill = vi
 			.spyOn(API.experimental, "createChatProjectSkill")
 			.mockResolvedValue({ ...mockReviewerSkill, name: "planner" });
@@ -139,7 +143,7 @@ describe("ProjectSkillsDialog", () => {
 			screen.getByRole("textbox", { name: "Import from SKILL.md" }),
 		);
 		await user.paste(
-			"---\nname: planner\ndescription: Plans work.\n---\nPlan the work.",
+			"---\nname: planner\ndescription: Plans work.\ndisable-model-invocation: true\n---\nPlan the work.",
 		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -147,7 +151,36 @@ describe("ProjectSkillsDialog", () => {
 			expect(createSkill).toHaveBeenCalledWith(orgId, projectId, {
 				content:
 					'---\nname: planner\ndescription: "Plans work."\n---\nPlan the work.\n',
+				action: false,
+				model_invocable: false,
 			}),
+		);
+	});
+
+	it("resets automatic use when a later SKILL.md import omits it", async () => {
+		const createSkill = vi
+			.spyOn(API.experimental, "createChatProjectSkill")
+			.mockResolvedValue({ ...mockReviewerSkill, name: "planner" });
+		const { user } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "New" }));
+		const importField = screen.getByRole("textbox", {
+			name: "Import from SKILL.md",
+		});
+		await user.click(importField);
+		await user.paste(
+			"---\nname: drafter\ndisable-model-invocation: true\n---\nDraft it.",
+		);
+		await user.click(importField);
+		await user.paste("---\nname: planner\n---\nPlan the work.");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(createSkill).toHaveBeenCalledWith(
+				orgId,
+				projectId,
+				expect.objectContaining({ model_invocable: true }),
+			),
 		);
 	});
 
@@ -168,6 +201,32 @@ describe("ProjectSkillsDialog", () => {
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
 				content:
 					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
+				action: false,
+				model_invocable: true,
+			}),
+		);
+	});
+
+	it("saves a change to only a skill's automatic use without rewriting SKILL.md", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Agents can use it automatically",
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content: undefined,
+				action: false,
+				model_invocable: false,
 			}),
 		);
 	});
@@ -209,6 +268,8 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() =>
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
 				content: expect.stringContaining("Review carefully."),
+				action: false,
+				model_invocable: true,
 			}),
 		);
 	});
@@ -261,6 +322,8 @@ describe("ProjectSkillsDialog", () => {
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
 				content:
 					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
+				action: false,
+				model_invocable: true,
 			}),
 		);
 	});
@@ -407,6 +470,24 @@ describe("ProjectSkillsDialog", () => {
 		}
 		expect(fileName).toBe("reviewer.md");
 		expect(await file.text()).toBe(mockReviewerSkill.content);
+	});
+
+	it("marks a downloaded manual-only skill so re-importing keeps it manual", async () => {
+		const { user, getSkill } = renderDialog();
+		getSkill.mockResolvedValue({
+			...mockReviewerSkill,
+			model_invocable: false,
+		});
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+
+		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
+		const [file] = vi.mocked(saveAs).mock.calls[0];
+		if (!(file instanceof Blob)) {
+			throw new Error("Expected the download to be a Blob.");
+		}
+		expect(parseSkillMarkdown(await file.text()).modelInvocable).toBe(false);
 	});
 
 	it("opens skills for viewing without update access", async () => {

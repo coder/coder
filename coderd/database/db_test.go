@@ -47,6 +47,81 @@ func TestSerializedRetry(t *testing.T) {
 	require.Equal(t, called, 3, "should retry 3 times")
 }
 
+func TestSerializedRetryOverride(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB)
+	serialErr := &pq.Error{Code: "40001", Message: "serialization_failure"}
+
+	t.Run("MaxAttempts", func(t *testing.T) {
+		t.Parallel()
+
+		called := 0
+		var retries []int
+		err := db.InTx(func(database.Store) error {
+			called++
+			return serialErr
+		}, &database.TxOptions{
+			Isolation:         sql.LevelSerializable,
+			SerialMaxAttempts: 5,
+			BeforeSerialRetry: func(attempt int) error {
+				retries = append(retries, attempt)
+				return nil
+			},
+		})
+		require.True(t, database.IsSerializedError(err))
+		require.Equal(t, 5, called)
+		require.Equal(t, []int{1, 2, 3, 4}, retries)
+	})
+
+	t.Run("HookStopsRetry", func(t *testing.T) {
+		t.Parallel()
+
+		called := 0
+		stop := xerrors.New("stop")
+		err := db.InTx(func(database.Store) error {
+			called++
+			return serialErr
+		}, &database.TxOptions{
+			Isolation:         sql.LevelSerializable,
+			SerialMaxAttempts: 5,
+			BeforeSerialRetry: func(attempt int) error {
+				if attempt == 2 {
+					return stop
+				}
+				return nil
+			},
+		})
+		require.ErrorIs(t, err, stop)
+		require.ErrorContains(t, err, serialErr.Error())
+		require.Equal(t, 2, called)
+	})
+
+	t.Run("HookNotCalledForOtherErrors", func(t *testing.T) {
+		t.Parallel()
+
+		called := 0
+		boom := xerrors.New("boom")
+		err := db.InTx(func(database.Store) error {
+			called++
+			return boom
+		}, &database.TxOptions{
+			Isolation:         sql.LevelSerializable,
+			SerialMaxAttempts: 5,
+			BeforeSerialRetry: func(int) error {
+				t.Error("hook called for non-serialization error")
+				return nil
+			},
+		})
+		require.ErrorIs(t, err, boom)
+		require.Equal(t, 1, called)
+	})
+}
+
 func TestNestedInTx(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

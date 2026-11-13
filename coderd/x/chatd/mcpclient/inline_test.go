@@ -289,6 +289,11 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken + " and " + pathToken + " and " + cookieToken + " and " + signatureToken)
 			result.StructuredContent = map[string]any{"token": secret, "url": serverURL}
+			// The resource filename is the last URI path segment, here the
+			// path token.
+			result.Content = append(result.Content, &mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+				URI: serverURL, MIMEType: "application/pdf", Blob: []byte("pdf-data"),
+			}})
 			return result, nil
 		},
 	}
@@ -369,6 +374,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.NotContains(t, resp.Content, cookieToken)
 	require.NotContains(t, resp.Content, signatureToken)
 	require.Contains(t, resp.Content, `"token":"[REDACTED]"`)
+	require.Equal(t, "[REDACTED].pdf", resp.Filename)
 
 	resp, err = failingTool.Run(ctx, fantasy.ToolCall{ID: "call-2", Input: "{}"})
 	require.NoError(t, err)
@@ -550,7 +556,7 @@ func (*stubTool) ProviderOptions() fantasy.ProviderOptions   { return nil }
 func (*stubTool) SetProviderOptions(fantasy.ProviderOptions) {}
 func (s *stubTool) MCPServerConfigID() uuid.UUID             { return s.configID }
 
-func TestAppendInline_ExistingToolsWin(t *testing.T) {
+func TestAppendTools_ExistingToolsWin(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -560,7 +566,7 @@ func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	bPrime := &stubTool{name: "b", configID: uuid.New()}
 	c := &stubTool{name: "c", configID: uuid.New()}
 
-	got := mcpclient.AppendInline(ctx, logger,
+	got := mcpclient.AppendTools(ctx, logger,
 		[]fantasy.AgentTool{a, b},
 		[]fantasy.AgentTool{bPrime, c},
 	)
@@ -570,7 +576,7 @@ func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	require.Same(t, c, got[2])
 
 	orig := []fantasy.AgentTool{a}
-	require.Equal(t, orig, mcpclient.AppendInline(ctx, logger, orig, nil))
+	require.Equal(t, orig, mcpclient.AppendTools(ctx, logger, orig, nil))
 }
 
 func TestOrgConnectHasNoCaps(t *testing.T) {
