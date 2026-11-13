@@ -290,8 +290,81 @@ export function findTitleCaseWords(text) {
 	return results;
 }
 
+// Attributes whose values are code rather than displayed text. All
+// data-* attributes and the aria-* attributes not listed in
+// ARIA_TEXT_ATTRIBUTES are code too.
+const CODE_ATTRIBUTES = new Set([
+	"accept",
+	"action",
+	"autoComplete",
+	"className",
+	"dir",
+	"form",
+	"href",
+	"htmlFor",
+	"id",
+	"inputMode",
+	"key",
+	"lang",
+	"method",
+	"name",
+	"pattern",
+	"rel",
+	"role",
+	"src",
+	"target",
+	"to",
+	"type",
+]);
+
+const ARIA_TEXT_ATTRIBUTES = new Set([
+	"aria-description",
+	"aria-label",
+	"aria-placeholder",
+	"aria-roledescription",
+	"aria-valuetext",
+]);
+
+/**
+ * Returns the JSX attribute whose value `node` renders into, looking
+ * through wrappers, `{}`, conditionals, and fallbacks, or null.
+ */
+function enclosingJsxAttribute(node) {
+	let parent = node.parent;
+	while (
+		parent &&
+		(isTransparent(parent) ||
+			ts.isJsxExpression(parent) ||
+			ts.isConditionalExpression(parent) ||
+			(ts.isBinaryExpression(parent) &&
+				[
+					ts.SyntaxKind.AmpersandAmpersandToken,
+					ts.SyntaxKind.BarBarToken,
+					ts.SyntaxKind.QuestionQuestionToken,
+					ts.SyntaxKind.PlusToken,
+				].includes(parent.operatorToken.kind)))
+	) {
+		parent = parent.parent;
+	}
+	return parent && ts.isJsxAttribute(parent) ? parent : null;
+}
+
+/** Returns true when a JSX attribute's value is code, like data-state. */
+function isCodeAttribute(attribute) {
+	const name = attribute.name.getText();
+	return (
+		CODE_ATTRIBUTES.has(name) ||
+		name.startsWith("data-") ||
+		(name.startsWith("aria-") && !ARIA_TEXT_ATTRIBUTES.has(name))
+	);
+}
+
 /** Returns true when the literal is code rather than displayed text. */
 function isNonDisplayLiteral(literal) {
+	const attribute = enclosingJsxAttribute(literal);
+	if (attribute && isCodeAttribute(attribute)) {
+		return true;
+	}
 	// Look through wrappers such as `("Task Events" as const)` to the node
 	// that uses the value.
 	let node = literal;
@@ -892,7 +965,20 @@ function joinJsxPieces(pieces, sourceText) {
 		}
 		const text = sourceText.slice(piece.start, piece.end);
 		const whitespace = text.match(edge === "end" ? /\s*$/ : /^\s*/)[0];
-		return rendersSpace(whitespace);
+		if (rendersSpace(whitespace)) {
+			return true;
+		}
+		// Past any dropped whitespace, an encoded space such as &nbsp;
+		// still renders.
+		const decoded = { text: "", positions: [] };
+		appendSource(
+			decoded,
+			sourceText,
+			edge === "end" ? piece.start : piece.start + whitespace.length,
+			edge === "end" ? piece.end - whitespace.length : piece.end,
+			piece.encoding,
+		);
+		return (edge === "end" ? /\s$/ : /^\s/).test(decoded.text);
 	};
 
 	const texts = [];

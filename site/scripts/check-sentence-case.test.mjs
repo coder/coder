@@ -304,6 +304,26 @@ describe("checkSource", () => {
 		expect(fixedText).toBe("const a = <p>Create workspace</p>;");
 	});
 
+	it("joins elements across an encoded space", () => {
+		const source = "const a = <p>Create&nbsp;<b>New Workspace</b></p>;";
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ word }) => word)).toEqual(["New", "Workspace"]);
+	});
+
+	it("skips attributes that are not displayed text", () => {
+		const source = [
+			'const a = <div data-state="New Workspace" className="Foo Bar" />;',
+			'const b = <div aria-controls="Some Id" id="Main Panel" />;',
+			'const c = <div data-state={open ? "Is Open" : "Is Closed"} />;',
+			'const d = <input aria-label="Search Workspaces" title="Delete File" />;',
+		].join("\n");
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[4, "Workspaces"],
+			[4, "File"],
+		]);
+	});
+
 	it("joins inline sibling elements by the space between them", () => {
 		const source = [
 			"const a = <p><span>Create </span><strong>Workspace</strong></p>;",
