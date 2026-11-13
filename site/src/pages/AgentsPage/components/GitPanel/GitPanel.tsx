@@ -419,7 +419,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
 		stateClasses: "text-content-secondary",
-		icon: <CircleDotIcon className="size-3.5! shrink-0 text-content-warning" />,
+		icon: <CircleDotIcon className="size-3.5! shrink-0 text-border-warning" />,
 	}));
 
 	const items: ViewItem[] = [...remoteItems, ...localItems];

@@ -31,8 +31,8 @@ const statusColors: Record<ProvisionerJobStatus, string> = {
 	running: "text-content-primary",
 	succeeded: "text-content-success",
 
-	canceling: "text-content-warning",
-	canceled: "text-content-warning",
+	canceling: "text-border-warning",
+	canceled: "text-border-warning",
 	failed: "text-content-destructive",
 	unknown: "text-content-disabled",
 };

@@ -37,7 +37,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 				),
 				warning: (
 					<SeverityIcon
-						icon={<TriangleAlertIcon className="text-content-warning" />}
+						icon={<TriangleAlertIcon className="text-border-warning" />}
 						label="Warning"
 					/>
 				),

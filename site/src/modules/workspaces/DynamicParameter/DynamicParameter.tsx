@@ -926,7 +926,7 @@ export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 						)}
 						{diagnostic.severity === "warning" && (
 							<TriangleAlertIcon
-								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
+								className="me-2 inline-flex shrink-0 text-border-warning size-icon-sm"
 								aria-hidden="true"
 							/>
 						)}

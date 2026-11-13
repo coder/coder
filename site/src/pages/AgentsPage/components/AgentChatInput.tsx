@@ -1486,7 +1486,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							}
 							onClick={onCancelEdit}
 							disabled={isLoading}
-							className="size-6 rounded text-content-warning hover:text-content-primary"
+							className="size-6 rounded text-border-warning hover:text-content-primary"
 						>
 							<XIcon className="size-3.5" />
 						</Button>

@@ -59,7 +59,7 @@ const dotVariants = cva("rounded-full inline-block border-4", {
 			success: "bg-content-success border-surface-green",
 			failed: "bg-content-destructive border-surface-destructive",
 			inactive: "bg-content-secondary border-surface-grey",
-			warning: "bg-content-warning border-surface-orange",
+			warning: "bg-border-warning border-surface-orange",
 			pending: "bg-highlight-sky border-surface-sky",
 		},
 		size: {

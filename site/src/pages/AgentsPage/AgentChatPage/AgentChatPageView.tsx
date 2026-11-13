@@ -592,7 +592,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									aria-live="polite"
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
-									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									<TriangleAlertIcon className="size-4 shrink-0 text-border-warning" />
 									{unavailableModelNotice}
 								</div>
 							)}

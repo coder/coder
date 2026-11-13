@@ -57,7 +57,7 @@ const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 					className={cn(
 						"relative size-3.5",
 						variant === "warning"
-							? "text-content-warning"
+							? "text-border-warning"
 							: "text-content-destructive",
 					)}
 				/>

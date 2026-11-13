@@ -271,22 +271,29 @@ describe("theme CSS variables", () => {
 
 	// Warning text renders as small status labels, such as the navbar proxy
 	// latency, so it needs WCAG 1.4.3 contrast (4.5:1) on page surfaces.
-	describe("warning text contrast", () => {
+	// Warning icons, dots, and bars use --border-warning, which needs WCAG
+	// 1.4.11 contrast (3:1).
+	describe("warning contrast", () => {
 		it.each(
 			CONCRETE_THEMES.flatMap((themeName) =>
-				["--surface-primary", "--surface-secondary", "--surface-orange"].map(
-					(surface) => [themeName, surface] as const,
-				),
+				[
+					"--surface-primary",
+					"--surface-secondary",
+					"--surface-orange",
+				].flatMap((surface) => [
+					[themeName, "--content-warning", surface, 4.5] as const,
+					[themeName, "--border-warning", surface, 3] as const,
+				]),
 			),
-		)("%s keeps --content-warning at 4.5:1 on %s", (themeName, surface) => {
+		)("%s keeps %s on %s at %d:1", (themeName, token, surface, minimum) => {
 			const block = extractEffectiveBlock(css, `.${themeName}`) ?? "";
-			const warning = extractVariable(block, "--content-warning");
+			const warning = extractVariable(block, token);
 			const background = extractVariable(block, surface);
 			expect(warning).not.toBeNull();
 			expect(background).not.toBeNull();
 			expect(
 				contrastRatio(warning ?? "", background ?? ""),
-			).toBeGreaterThanOrEqual(4.5);
+			).toBeGreaterThanOrEqual(minimum);
 		});
 	});
 

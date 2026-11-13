@@ -191,7 +191,7 @@ const severityTextClasses = {
 
 const severityRingClasses = {
 	normal: "stroke-content-secondary",
-	warning: "stroke-content-warning",
+	warning: "stroke-border-warning",
 	exceeded: "stroke-content-destructive",
 } as const satisfies Record<UsageSeverity, string>;
 

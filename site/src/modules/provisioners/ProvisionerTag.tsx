@@ -82,7 +82,7 @@ const BooleanPill: React.FC<BooleanPillProps> = ({
 			{value ? (
 				<CircleCheckIcon className="size-icon-sm text-content-link" />
 			) : (
-				<CircleMinusIcon className="size-icon-sm text-content-warning" />
+				<CircleMinusIcon className="size-icon-sm text-border-warning" />
 			)}
 			{children}
 		</Badge>

@@ -120,7 +120,7 @@ const severityColor = (severity: HealthSeverity): string => {
 		case "ok":
 			return "text-content-success";
 		case "warning":
-			return "text-content-warning";
+			return "text-border-warning";
 		case "error":
 			return "text-content-destructive";
 		default:

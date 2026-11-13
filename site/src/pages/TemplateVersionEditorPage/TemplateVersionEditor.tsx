@@ -424,7 +424,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 										className="size-full flex items-center justify-center p-10"
 									>
 										<div className="flex flex-col items-center max-w-105 text-center">
-											<TriangleAlertIcon className="text-content-warning size-icon-lg" />
+											<TriangleAlertIcon className="text-border-warning size-icon-lg" />
 											<p className="m-0 p-0 mt-6">
 												The file is not displayed in the text editor because it
 												is either binary or uses an unsupported text encoding.
