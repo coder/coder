@@ -9,11 +9,11 @@ import { useLocation } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archivedChatProjects,
+	archivedChatProjectsKey,
 	chatProjectSummaries,
 	createChatProject,
 	deleteChatProject,
 	pinChatProject,
-	unarchiveChatProject,
 	unpinChatProject,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
@@ -94,18 +94,31 @@ const ProjectsPage: React.FC = () => {
 	const tabState = useSearchParamsKey({ key: tabSearchParam, replace: false });
 	const summariesQuery = useQuery(chatProjectSummaries());
 	const archivedQuery = useQuery(archivedChatProjects());
-	// The Archived tab shows only while there are archived projects. It stays
-	// selected while they load, so a link to it does not flash another tab.
+	// The Archived tab shows only while there are archived projects. A link
+	// to it keeps it selected until the list loads, and shows a load error.
 	const hasArchivedProjects = (archivedQuery.data?.length ?? 0) > 0;
 	let tab: ProjectsTab = "yours";
 	if (tabState.value === "shared") {
 		tab = "shared";
 	} else if (
 		tabState.value === "archived" &&
-		(hasArchivedProjects || archivedQuery.isLoading)
+		(hasArchivedProjects || archivedQuery.data === undefined)
 	) {
 		tab = "archived";
 	}
+	// Leaves the Archived tab once its last project is gone, so archiving
+	// another project later does not switch to it.
+	const leaveEmptiedArchivedTab = (removedProjectId: string) => {
+		const archived = queryClient.getQueryData<ChatProject[]>(
+			archivedChatProjectsKey,
+		);
+		if (
+			tabState.value === "archived" &&
+			archived?.every(({ id }) => id === removedProjectId)
+		) {
+			tabState.deleteValue();
+		}
+	};
 
 	const createMutation = useMutation(createChatProject(queryClient));
 	const updateMutation = useMutation(updateChatProject(queryClient));
@@ -128,6 +141,7 @@ const ProjectsPage: React.FC = () => {
 	const deleteMutation = useMutation({
 		...deleteChatProject(queryClient),
 		onSuccess: (_data, project) => {
+			leaveEmptiedArchivedTab(project.id);
 			// Nothing can open the deleted project's composer again.
 			const draftKeys = draftStorageKeys(project.id);
 			localStorage.removeItem(draftKeys.text);
@@ -170,23 +184,6 @@ const ProjectsPage: React.FC = () => {
 				isPinVariables(variables) ? variables.project.id : undefined,
 		}).filter((id) => id !== undefined),
 	);
-	// The card stays until the unarchive succeeds, so its menu could send a
-	// second request that fails because the first one already unarchived it.
-	const unarchivingIdsRef = useRef(new Set<string>());
-	const unarchiveOptions = unarchiveChatProject(queryClient);
-	const unarchiveMutation = useMutation({
-		...unarchiveOptions,
-		onSuccess: (...args) => {
-			unarchiveOptions.onSuccess?.(...args);
-			toast.success("Project unarchived");
-			// The project's card is gone, so focus moves to New project.
-			requestAnimationFrame(() => newProjectButtonRef.current?.focus());
-		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to unarchive project."));
-		},
-	});
-
 	// isPending reaches a render a task late, so a fast double-click on Unpin
 	// would read it as false and unpin twice.
 	const unpinningIdRef = useRef<string | undefined>(undefined);
@@ -291,13 +288,10 @@ const ProjectsPage: React.FC = () => {
 						requestAnimationFrame(() => newProjectButtonRef.current?.focus());
 					}
 				}}
-				onUnarchive={(project) => {
-					const unarchivingIds = unarchivingIdsRef.current;
-					if (unarchivingIds.has(project.id)) return;
-					unarchivingIds.add(project.id);
-					unarchiveMutation.mutate(project, {
-						onSettled: () => unarchivingIds.delete(project.id),
-					});
+				onUnarchived={(project) => {
+					leaveEmptiedArchivedTab(project.id);
+					// The project's card is gone, so focus moves to New project.
+					requestAnimationFrame(() => newProjectButtonRef.current?.focus());
 				}}
 			/>
 			<ChatProjectDialog

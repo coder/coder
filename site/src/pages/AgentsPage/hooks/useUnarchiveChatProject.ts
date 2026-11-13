@@ -10,11 +10,12 @@ import { toast } from "#/components/Toaster/toast";
 /**
  * Unarchives one project and toasts the outcome. Every caller for the same
  * project shares the pending state, so a project page's menu and banner
- * can't send the request twice. onError runs after the error toast.
+ * can't send the request twice. onSuccess runs after the success toast,
+ * even when the caller has unmounted.
  */
 export const useUnarchiveChatProject = (
 	project: ChatProject,
-	onError?: () => void,
+	onSuccess?: () => void,
 ) => {
 	const queryClient = useQueryClient();
 	const mutationKey = [...chatProjectsKey, "unarchive", project.id];
@@ -25,10 +26,10 @@ export const useUnarchiveChatProject = (
 		onSuccess: (...args) => {
 			options.onSuccess?.(...args);
 			toast.success("Project unarchived");
+			onSuccess?.();
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to unarchive project."));
-			onError?.();
 		},
 	});
 	const isPending = useIsMutating({ mutationKey }) > 0;
