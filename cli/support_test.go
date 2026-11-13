@@ -50,7 +50,7 @@ func TestSupportBundle(t *testing.T) {
 
 	// Support bundle tests can share a single coderdtest instance.
 	var dc codersdk.DeploymentConfig
-	dc.Values = coderdtest.DeploymentValues(t)
+	dc.Values = *coderdtest.DeploymentValues(t)
 	dc.Values.Prometheus.Enable = true
 	secretValue := uuid.NewString()
 	seedSecretDeploymentOptions(t, &dc, secretValue)
@@ -61,7 +61,7 @@ func TestSupportBundle(t *testing.T) {
 	// generation, not healthcheck correctness, a canned report is
 	// sufficient.
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues: dc.Values,
+		DeploymentValues: &dc.Values,
 		HealthcheckFunc: func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 			return &healthsdk.HealthcheckReport{
 				Time:     time.Now(),
@@ -314,12 +314,12 @@ func TestSupportBundleCollectsWorkspaceFiles(t *testing.T) {
 	}
 
 	var dc codersdk.DeploymentConfig
-	dc.Values = coderdtest.DeploymentValues(t)
+	dc.Values = *coderdtest.DeploymentValues(t)
 	dc.Values.Prometheus.Enable = true
 	secretValue := uuid.NewString()
 	seedSecretDeploymentOptions(t, &dc, secretValue)
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues: dc.Values,
+		DeploymentValues: &dc.Values,
 		HealthcheckFunc: func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 			return &healthsdk.HealthcheckReport{
 				Time:     time.Now(),

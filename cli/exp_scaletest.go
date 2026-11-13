@@ -2234,7 +2234,7 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 	if err != nil {
 		return nil, 0, xerrors.Errorf("fetch deployment config: %w", err)
 	}
-	noOwnerAccess := dv.Values != nil && dv.Values.DisableOwnerWorkspaceExec.Value()
+	noOwnerAccess := dv.Values.DisableOwnerWorkspaceExec.Value()
 
 	for {
 		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{

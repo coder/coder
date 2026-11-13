@@ -13,7 +13,7 @@ import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type AIGovernanceSettingsPageViewProps = {
-	options: SerpentOption[];
+	options: readonly SerpentOption[];
 	featureAIBridgeEntitled: boolean;
 	featureAIBridgeEnabled: boolean;
 };

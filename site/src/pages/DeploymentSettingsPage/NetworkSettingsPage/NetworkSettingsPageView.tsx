@@ -22,7 +22,7 @@ import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type NetworkSettingsPageViewProps = {
-	options: SerpentOption[];
+	options: readonly SerpentOption[];
 	/** When false, options that need a license move to their own Premium section. */
 	hasLicense: boolean;
 	/** Whether the user can open the Premium page linked from the Premium section. */

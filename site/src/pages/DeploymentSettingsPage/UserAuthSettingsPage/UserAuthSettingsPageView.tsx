@@ -15,7 +15,7 @@ import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type UserAuthSettingsPageViewProps = {
-	options: SerpentOption[];
+	options: readonly SerpentOption[];
 };
 
 export const UserAuthSettingsPageView = ({
