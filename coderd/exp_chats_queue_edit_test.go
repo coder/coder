@@ -108,7 +108,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		res, err := client.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, next.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusNoContent, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 		refreshed, err = db.GetChatByID(sysCtx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)

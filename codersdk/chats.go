@@ -1059,6 +1059,11 @@ type CreateChatMessageResponse struct {
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
 	Warnings      []string           `json:"warnings,omitempty"`
+	// SnapshotVersion is the chat's snapshot version at which the server
+	// made the request's change to the chat's messages or queue. A client
+	// has that change once it has applied a stream WebSocket message that
+	// contains this snapshot_version or a higher one.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
@@ -1073,6 +1078,19 @@ type EditChatMessageResponse struct {
 	// Clients should drop them from local caches.
 	DeletedMessageIDs []int64  `json:"deleted_message_ids,omitempty"`
 	Warnings          []string `json:"warnings,omitempty"`
+	// SnapshotVersion is the chat's snapshot version at which the server
+	// made the edit. See CreateChatMessageResponse.SnapshotVersion.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
+}
+
+// ChatQueueChangeResponse is the response from deleting, promoting or
+// editing a queued message.
+type ChatQueueChangeResponse struct {
+	// SnapshotVersion is the chat's snapshot version at which the server
+	// changed the queue. See CreateChatMessageResponse.SnapshotVersion. It
+	// is omitted when the request changed nothing, as a promote of a
+	// message that is already in the steer lane can.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.
@@ -2379,7 +2397,11 @@ type ChatStreamEvent struct {
 	// events of streams opened with a snapshot_version. It is the chat's
 	// snapshot version when the change that the event reports was made. To
 	// reconnect, open the stream with the highest one received from the
-	// messages page or from events.
+	// messages page or from events. Such a stream sends the events of one
+	// read of the chat in one WebSocket message, so a client that has
+	// applied a WebSocket message that contains a snapshot version has every
+	// change to the messages and the queue made at that version or a lower
+	// one.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
@@ -2994,8 +3016,9 @@ type StreamChatOptions struct {
 // StreamChat streams chat updates in real time.
 //
 // The returned channel includes initial snapshot events first, followed by
-// live updates. Callers must close the returned io.Closer to release the
-// websocket connection when done.
+// live updates. It yields the events of a WebSocket message one at a time,
+// so a caller cannot tell which events arrived together. Callers must close
+// the returned io.Closer to release the websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
 	if opts != nil {
@@ -3329,7 +3352,7 @@ func (c *Client) EditChatQueuedMessage(
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusOK {
 		return ReadBodyAsError(res)
 	}
 	return nil

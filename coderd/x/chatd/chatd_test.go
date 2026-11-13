@@ -564,7 +564,7 @@ func TestMessageFileLinking(t *testing.T) {
 	require.Contains(t, linkedFileIDs(chat.ID), fileQueued)
 
 	require.NotNil(t, queuedResult.QueuedMessage)
-	err = replica.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+	_, err = replica.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedResult.QueuedMessage.ID,
 		Content: []codersdk.ChatMessagePart{
@@ -1024,7 +1024,8 @@ func TestArchivedChatRejectsMutations(t *testing.T) {
 			return err
 		},
 		"PromoteQueued": func(ctx context.Context) error {
-			return server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
+			_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
+			return err
 		},
 		"SubmitToolResults": func(ctx context.Context) error {
 			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
@@ -13724,7 +13725,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		})
 		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
-		err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 		})
@@ -13780,7 +13781,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		})
 		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 
-		err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 		})
@@ -13881,7 +13882,7 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	require.True(t, queued.ReasoningEffort.Valid)
 	require.Equal(t, database.ChatReasoningEffortHigh, queued.ReasoningEffort.ChatReasoningEffort)
 
-	err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	_, err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queued.ID,
 	})
@@ -15091,7 +15092,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, sent.Queued)
-		err = h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		_, err = h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: sent.QueuedMessage.ID,
 		})
@@ -15174,7 +15175,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		h, chat, queued := failWithQueuedMessage(ctx, t)
 
-		err := h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		_, err := h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 		})

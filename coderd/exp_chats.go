@@ -3340,7 +3340,10 @@ func (api *API) sendChatMessage(
 		)
 	}
 
-	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
+	response := codersdk.CreateChatMessageResponse{
+		Queued:          sendResult.Queued,
+		SnapshotVersion: sendResult.Chat.SnapshotVersion,
+	}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
 			response.QueuedMessage = new(db2sdk.ChatQueuedMessage(*sendResult.QueuedMessage))
@@ -3556,7 +3559,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := codersdk.EditChatMessageResponse{Message: db2sdk.ChatMessage(editResult.Message)}
+	response := codersdk.EditChatMessageResponse{
+		Message:         db2sdk.ChatMessage(editResult.Message),
+		SnapshotVersion: editResult.Chat.SnapshotVersion,
+	}
 	// Synthetic cancellations precede the replacement with lower IDs;
 	// clients that seed their transcript cache from this response need
 	// all user-visible inserted rows, or a stream reconnect with
@@ -3577,7 +3583,8 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
-// @Success 204
+// @Produce json
+// @Success 200 {object} codersdk.ChatQueueChangeResponse
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3613,7 +3620,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
+	snapshotVersion, err := api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
 		case xerrors.Is(err, chatd.ErrChatArchived):
@@ -3644,7 +3651,9 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatQueueChangeResponse{
+		SnapshotVersion: snapshotVersion,
+	})
 }
 
 // @Summary Promote chat queued message
@@ -3654,7 +3663,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
 // @Produce json
-// @Success 202 {object} codersdk.Response
+// @Success 202 {object} codersdk.ChatQueueChangeResponse
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage}/promote [post]
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3699,7 +3708,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	snapshotVersion, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
 		QueuedMessageID: queuedMessageID,
 	})
@@ -3734,8 +3743,8 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.Response{
-		Message: "Queued message promotion accepted.",
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ChatQueueChangeResponse{
+		SnapshotVersion: snapshotVersion,
 	})
 }
 
@@ -3744,10 +3753,11 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
+// @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
 // @Param request body codersdk.EditChatQueuedMessageRequest true "Edit chat queued message request"
-// @Success 204
+// @Success 200 {object} codersdk.ChatQueueChangeResponse
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [patch]
 func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3840,7 +3850,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		opts.ReasoningEffort = req.ReasoningEffort
 	}
 
-	err = api.chatDaemon.EditQueuedMessage(ctx, opts)
+	snapshotVersion, err := api.chatDaemon.EditQueuedMessage(ctx, opts)
 	if err != nil {
 		if writeChatSkillInvocationError(ctx, rw, err) {
 			return
@@ -3888,7 +3898,9 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatQueueChangeResponse{
+		SnapshotVersion: snapshotVersion,
+	})
 }
 
 // markChatAsRead updates the last read message ID for a chat to the
@@ -3975,6 +3987,11 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
 // @Description The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
 // @Description The server sends `message_part` events between reads.
+// @Description
+// @Description On such a stream, the server sends the events of one read in one WebSocket message.
+// @Description After you apply a WebSocket message that contains a `snapshot_version` of `N`, you have every change to the messages and the queue with a `snapshot_version` of `N` or lower.
+// @Description The responses to the requests that send or edit a message, and that delete, promote, or edit a queued message, include the `snapshot_version` of the request's change.
+// @Description You have that change after you apply a WebSocket message that contains that `snapshot_version` or a higher one.
 // @Description
 // @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
 // @Description The edit deleted that message and every message after it.

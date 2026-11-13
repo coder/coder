@@ -11047,6 +11047,228 @@ func TestStreamChat(t *testing.T) {
 	})
 }
 
+// TestChatActionSnapshotVersion covers what lets a client show an action's
+// result until the stream reports it: the action's response has the snapshot
+// version of its change, and the stream sends the events of one read of the
+// chat, which hold that change, in one WebSocket message.
+func TestChatActionSnapshotVersion(t *testing.T) {
+	t.Parallel()
+
+	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModel(t, client)
+
+	text := func(s string) []codersdk.ChatInputPart {
+		return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: s}}
+	}
+	// queueRequest returns the snapshot version in the response of a request
+	// to a queued message's route.
+	queueRequest := func(ctx context.Context, t *testing.T, method, path string, body any, wantStatus int) int64 {
+		t.Helper()
+		res, err := client.Request(ctx, method, path, body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, wantStatus, res.StatusCode)
+		var resp codersdk.ChatQueueChangeResponse
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		return resp.SnapshotVersion
+	}
+	queuePath := func(chatID uuid.UUID, queuedMessageID int64) string {
+		return fmt.Sprintf("/api/v2/chats/%s/queue/%d", chatID, queuedMessageID)
+	}
+
+	// A chat has one prompt and, unless it is waiting, one queued message.
+	type fixture struct {
+		chat   database.Chat
+		prompt database.ChatMessage
+		queued database.ChatQueuedMessage
+	}
+	newFixture := func(ctx context.Context, t *testing.T, status database.ChatStatus) fixture {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             t.Name(),
+			Status:            status,
+		})
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("prompt")})
+		require.NoError(t, err)
+		f := fixture{chat: chat, prompt: dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Visibility:    database.ChatMessageVisibilityBoth,
+			Content:       content,
+		})}
+		if status != database.ChatStatusWaiting {
+			f.queued = insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "queued"), modelConfig.ID)
+		}
+		return f
+	}
+
+	const (
+		historyReset = codersdk.ChatStreamEventTypeHistoryReset
+		message      = codersdk.ChatStreamEventTypeMessage
+		queueUpdate  = codersdk.ChatStreamEventTypeQueueUpdate
+	)
+	tests := []struct {
+		name   string
+		status database.ChatStatus
+		// act sends the request and returns its response's snapshot version.
+		act func(ctx context.Context, t *testing.T, f fixture) int64
+		// want lists the change's events that have a snapshot version.
+		want []codersdk.ChatStreamEventType
+	}{
+		{
+			name:   "SendToWaitingChat",
+			status: database.ChatStatusWaiting,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				resp, err := client.CreateChatMessage(ctx, f.chat.ID, codersdk.CreateChatMessageRequest{Content: text("sent")})
+				require.NoError(t, err)
+				require.False(t, resp.Queued)
+				return resp.SnapshotVersion
+			},
+			want: []codersdk.ChatStreamEventType{message},
+		},
+		{
+			name:   "SendToRunningChat",
+			status: database.ChatStatusRunning,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				resp, err := client.CreateChatMessage(ctx, f.chat.ID, codersdk.CreateChatMessageRequest{
+					Content:      text("sent"),
+					BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+				})
+				require.NoError(t, err)
+				require.True(t, resp.Queued)
+				return resp.SnapshotVersion
+			},
+			want: []codersdk.ChatStreamEventType{queueUpdate},
+		},
+		{
+			name:   "EditMessage",
+			status: database.ChatStatusWaiting,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				resp, err := client.EditChatMessage(ctx, f.chat.ID, f.prompt.ID, codersdk.EditChatMessageRequest{Content: text("edited")})
+				require.NoError(t, err)
+				return resp.SnapshotVersion
+			},
+			want: []codersdk.ChatStreamEventType{historyReset, message},
+		},
+		{
+			name:   "DeleteQueuedMessage",
+			status: database.ChatStatusError,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				return queueRequest(ctx, t, http.MethodDelete, queuePath(f.chat.ID, f.queued.ID), nil, http.StatusOK)
+			},
+			want: []codersdk.ChatStreamEventType{queueUpdate},
+		},
+		{
+			name:   "EditQueuedMessage",
+			status: database.ChatStatusError,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				return queueRequest(ctx, t, http.MethodPatch, queuePath(f.chat.ID, f.queued.ID),
+					codersdk.EditChatQueuedMessageRequest{Editing: new(true)}, http.StatusOK)
+			},
+			want: []codersdk.ChatStreamEventType{queueUpdate},
+		},
+		{
+			name:   "PromoteQueuedMessageInRunningChat",
+			status: database.ChatStatusRunning,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				return queueRequest(ctx, t, http.MethodPost, queuePath(f.chat.ID, f.queued.ID)+"/promote", nil, http.StatusAccepted)
+			},
+			want: []codersdk.ChatStreamEventType{queueUpdate},
+		},
+		{
+			// The server sends the promoted message at once, so one change
+			// writes a message and the queue.
+			name:   "PromoteQueuedMessageInErroredChat",
+			status: database.ChatStatusError,
+			act: func(ctx context.Context, t *testing.T, f fixture) int64 {
+				return queueRequest(ctx, t, http.MethodPost, queuePath(f.chat.ID, f.queued.ID)+"/promote", nil, http.StatusAccepted)
+			},
+			want: []codersdk.ChatStreamEventType{message, queueUpdate},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newFixture(ctx, t, tt.status)
+			page, err := client.GetChatMessages(ctx, f.chat.ID, nil)
+			require.NoError(t, err)
+			conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=%d", f.chat.ID, page.SnapshotVersion), nil)
+			require.NoError(t, err)
+			defer conn.Close(websocket.StatusNormalClosure, "")
+
+			snapshotVersion := tt.act(ctx, t, f)
+			require.Greater(t, snapshotVersion, page.SnapshotVersion)
+
+			// Read WebSocket messages up to the first one that has the
+			// response's snapshot version. It must hold the whole change.
+			var got []codersdk.ChatStreamEventType
+			for len(got) == 0 {
+				var events []codersdk.ChatStreamEvent
+				require.NoError(t, wsjson.Read(ctx, conn, &events))
+				for _, event := range events {
+					require.LessOrEqual(t, event.SnapshotVersion, snapshotVersion, "the stream sent a later change first")
+					if event.SnapshotVersion == snapshotVersion {
+						got = append(got, event.Type)
+					}
+				}
+			}
+			require.Equal(t, tt.want, got)
+		})
+	}
+
+	t.Run("PromoteSteerMessageInRunningChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := newFixture(ctx, t, database.ChatStatusRunning)
+		promotePath := queuePath(f.chat.ID, f.queued.ID) + "/promote"
+		require.Positive(t, queueRequest(ctx, t, http.MethodPost, promotePath, nil, http.StatusAccepted))
+		// The message is now in the steer lane, so a second promote changes
+		// nothing and the stream sends no event for it.
+		require.Zero(t, queueRequest(ctx, t, http.MethodPost, promotePath, nil, http.StatusAccepted))
+	})
+
+	t.Run("FirstReadIsOneWebSocketMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := newFixture(ctx, t, database.ChatStatusWaiting)
+		// More messages than a stream opened without snapshot_version
+		// receives in one WebSocket message.
+		const messages = 300
+		for range messages - 1 {
+			dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:     f.chat.ID,
+				Role:       database.ChatMessageRoleAssistant,
+				Visibility: database.ChatMessageVisibilityBoth,
+				Content:    f.prompt.Content,
+			})
+		}
+		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=1", f.chat.ID), nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+		conn.SetReadLimit(1 << 22)
+
+		var events []codersdk.ChatStreamEvent
+		require.NoError(t, wsjson.Read(ctx, conn, &events))
+		got := 0
+		for _, event := range events {
+			if event.Type == message {
+				got++
+			}
+		}
+		require.Equal(t, messages, got)
+	})
+}
+
 // TestChatOpenAIResponsesWebSearch runs provider-executed OpenAI web
 // searches through the chat API and the AI Gateway daemon, then checks the
 // streamed parts and the reloaded messages the chat UI renders, and what
@@ -13076,7 +13298,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		res.Body.Close()
-		require.Equal(t, http.StatusNoContent, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -13201,9 +13423,9 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		defer promoteRes.Body.Close()
 		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var resp codersdk.Response
+		var resp codersdk.ChatQueueChangeResponse
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
+		require.Positive(t, resp.SnapshotVersion)
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -13536,9 +13758,9 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		defer promoteRes.Body.Close()
 		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var resp codersdk.Response
+		var resp codersdk.ChatQueueChangeResponse
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
+		require.Positive(t, resp.SnapshotVersion)
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -13638,9 +13860,9 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		defer promoteRes.Body.Close()
 		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var resp codersdk.Response
+		var resp codersdk.ChatQueueChangeResponse
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
+		require.Positive(t, resp.SnapshotVersion)
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)

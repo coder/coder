@@ -557,17 +557,21 @@ func (p *Server) MoveChatToProject(ctx context.Context, chat database.Chat, proj
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
-// consumers; a status change publishes the sidebar watch event.
+// consumers; a status change publishes the sidebar watch event. It returns
+// the snapshot version at which the queue changed.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
 	queuedMessageID int64,
-) error {
+) (int64, error) {
 	if chatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
+		return 0, xerrors.New("chat_id is required")
 	}
 
-	var deleted chatstate.DeleteQueuedMessageResult
+	var (
+		deleted         chatstate.DeleteQueuedMessageResult
+		snapshotVersion int64
+	)
 	err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, chatID)
 		if err != nil {
@@ -576,19 +580,20 @@ func (p *Server) DeleteQueued(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
+		snapshotVersion = lockedChat.SnapshotVersion
 		deleted, err = tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
 		return err
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if deleted.Chat != nil {
 		p.publishChatPubsubEvent(*deleted.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 		p.recordQueueWait(ctx, *deleted.Chat, deleted.PromotedQueuedAt)
 	}
-	return nil
+	return snapshotVersion, nil
 }
 
 // EditQueuedMessageOptions configures [Server.EditQueuedMessage]. Zero
@@ -605,24 +610,24 @@ type EditQueuedMessageOptions struct {
 // EditQueuedMessage changes a queued row's content, edit marker, or both
 // through the chatstate state machine. Stream side effects are handled
 // by chat:update consumers; a status change publishes the sidebar watch
-// event.
+// event. It returns the snapshot version at which the queue changed.
 func (p *Server) EditQueuedMessage(
 	ctx context.Context,
 	opts EditQueuedMessageOptions,
-) error {
+) (int64, error) {
 	if opts.ChatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
+		return 0, xerrors.New("chat_id is required")
 	}
 	if opts.QueuedMessageID <= 0 {
-		return xerrors.New("queued_message_id is required")
+		return 0, xerrors.New("queued_message_id is required")
 	}
 	if len(opts.Content) == 0 && opts.Editing == nil {
-		return xerrors.New("content or editing is required")
+		return 0, xerrors.New("content or editing is required")
 	}
 
 	contentParts, err := p.resolveChatSkillInvocations(ctx, opts.ChatID, opts.Content)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	var chat database.Chat
 	input := chatstate.EditQueuedMessageInput{
@@ -633,7 +638,7 @@ func (p *Server) EditQueuedMessage(
 	if len(contentParts) > 0 && (p.hooks.Enabled() || opts.ModelConfigID != uuid.Nil) {
 		chat, err = p.loadChatForAdmission(ctx, opts.ChatID)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		// The transition rechecks the queued row under the lock.
 		if _, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
@@ -641,37 +646,37 @@ func (p *Server) EditQueuedMessage(
 			ChatID: opts.ChatID,
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return chatstate.ErrQueuedMessageNotFound
+				return 0, chatstate.ErrQueuedMessageNotFound
 			}
-			return xerrors.Errorf("load queued message: %w", err)
+			return 0, xerrors.Errorf("load queued message: %w", err)
 		}
 		input.ModelConfigIDOverride, err = validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 	if len(contentParts) > 0 && p.hooks.Enabled() {
 		turnID := uuid.New()
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			// A chat with a queued row is never idle, so a failed
 			// dispatch does not park it in error: only the edit fails.
-			return chathooks.UserPromptDenial(err)
+			return 0, chathooks.UserPromptDenial(err)
 		}
 		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
 	if len(contentParts) > 0 {
 		content, err := chatprompt.MarshalParts(contentParts)
 		if err != nil {
-			return xerrors.Errorf("marshal message content: %w", err)
+			return 0, xerrors.Errorf("marshal message content: %w", err)
 		}
 		input.Content = content.RawMessage
 		input.FileIDs = chatprompt.FileIDs(contentParts)
@@ -683,7 +688,10 @@ func (p *Server) EditQueuedMessage(
 		}
 	}
 
-	var edited chatstate.EditQueuedMessageResult
+	var (
+		edited          chatstate.EditQueuedMessageResult
+		snapshotVersion int64
+	)
 	machine := p.newChatMachine(opts.ChatID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -693,29 +701,32 @@ func (p *Server) EditQueuedMessage(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
+		snapshotVersion = lockedChat.SnapshotVersion
 		edited, err = tx.EditQueuedMessage(input)
 		return err
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if edited.Chat != nil {
 		p.publishChatPubsubEvent(*edited.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 		p.recordQueueWait(ctx, *edited.Chat, edited.PromotedQueuedAt)
 	}
-	return nil
+	return snapshotVersion, nil
 }
 
 // PromoteQueued moves a queued message to the steer lane. From E1, E1P,
 // and P it delivers the steer lane in the same transaction. From other
 // states the steer lane waits for the next delivery point. It never
-// interrupts.
+// interrupts. It returns the snapshot version at which the queue changed,
+// or 0 if the promote changed nothing, as it can for a message that is
+// already in the steer lane.
 func (p *Server) PromoteQueued(
 	ctx context.Context,
 	opts PromoteQueuedOptions,
-) error {
+) (int64, error) {
 	if opts.ChatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
+		return 0, xerrors.New("chat_id is required")
 	}
 
 	var promotedQueuedAt time.Time
@@ -738,11 +749,14 @@ func (p *Server) PromoteQueued(
 		return nil
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	p.recordQueueWait(ctx, refreshed, promotedQueuedAt)
-	return nil
+	if refreshed.QueueVersion != refreshed.SnapshotVersion {
+		return 0, nil
+	}
+	return refreshed.SnapshotVersion, nil
 }
 
 // SubmitToolResults dispatches hooks before completing the

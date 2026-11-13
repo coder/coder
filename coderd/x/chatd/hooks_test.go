@@ -609,11 +609,12 @@ func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
 		t.Cleanup(consumer.Close)
 		server := newHookTestServer(t, db, ps, consumer)
 
-		require.NoError(t, server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+		_, err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
-		}))
+		})
+		require.NoError(t, err)
 		require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
 		require.Equal(t, "edited", decodeHookData[agenthooks.UserPromptSubmitData](t, received).Prompt)
 		stored, err := db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: chat.ID})
@@ -637,7 +638,7 @@ func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
 		t.Cleanup(consumer.Close)
 		server := newHookTestServer(t, db, ps, consumer)
 
-		err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+		_, err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
 			ChatID:          chat.ID,
 			QueuedMessageID: queued.ID,
 			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("blocked edit")},
@@ -676,7 +677,7 @@ func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	t.Cleanup(consumer.Close)
 	server := newHookTestServer(t, db, ps, consumer)
 
-	err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+	_, err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queued.ID,
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},

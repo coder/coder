@@ -3738,6 +3738,21 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatQueueChangeResponse is the response from deleting, promoting or
+ * editing a queued message.
+ */
+export interface ChatQueueChangeResponse {
+	/**
+	 * SnapshotVersion is the chat's snapshot version at which the server
+	 * changed the queue. See CreateChatMessageResponse.SnapshotVersion. It
+	 * is omitted when the request changed nothing, as a promote of a
+	 * message that is already in the steer lane can.
+	 */
+	readonly snapshot_version?: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatQueuedMessage represents a queued message waiting to be processed.
  */
 export interface ChatQueuedMessage {
@@ -3900,7 +3915,11 @@ export interface ChatStreamEvent {
 	 * events of streams opened with a snapshot_version. It is the chat's
 	 * snapshot version when the change that the event reports was made. To
 	 * reconnect, open the stream with the highest one received from the
-	 * messages page or from events.
+	 * messages page or from events. Such a stream sends the events of one
+	 * read of the chat in one WebSocket message, so a client that has
+	 * applied a WebSocket message that contains a snapshot version has every
+	 * change to the messages and the queue made at that version or a lower
+	 * one.
 	 */
 	readonly snapshot_version?: number;
 }
@@ -4485,6 +4504,13 @@ export interface CreateChatMessageResponse {
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
+	/**
+	 * SnapshotVersion is the chat's snapshot version at which the server
+	 * made the request's change to the chat's messages or queue. A client
+	 * has that change once it has applied a stream WebSocket message that
+	 * contains this snapshot_version or a higher one.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -5750,6 +5776,11 @@ export interface EditChatMessageResponse {
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
+	/**
+	 * SnapshotVersion is the chat's snapshot version at which the server
+	 * made the edit. See CreateChatMessageResponse.SnapshotVersion.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
