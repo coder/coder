@@ -53,7 +53,7 @@ export type ProjectAction = (project: ChatProject) => void;
  * `trigger` is the folder's actions button, to refocus if it remains.
  * Archiving removes the folder, so focusAfterRemoval then moves focus on.
  */
-export type ArchiveProject = (
+export type ArchiveProjectAction = (
 	project: ChatProject,
 	trigger: HTMLButtonElement | null,
 	focusAfterRemoval: () => void,
@@ -72,7 +72,7 @@ export type ProjectFoldersProps = {
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
 	readonly onEdit: ProjectAction;
-	readonly onArchive: ArchiveProject;
+	readonly onArchive: ArchiveProjectAction;
 	readonly onDelete: ProjectAction;
 	readonly isLoading: boolean;
 	readonly error: unknown;
