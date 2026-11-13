@@ -4759,9 +4759,9 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
-	if gp == nil {
-		return result, nil
+	gp, err := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+	if err != nil || gp == nil {
+		return result, nil //nolint:nilerr // An unimplemented provider means there is no diff to fetch.
 	}
 
 	token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
@@ -4823,8 +4823,8 @@ func (api *API) resolveChatDiffReference(
 	// current open PR. This picks up new PRs after the previous
 	// one was closed.
 	if reference.RepositoryRef != nil && reference.RepositoryRef.Owner != "" {
-		gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
-		if gp != nil {
+		gp, err := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+		if err == nil && gp != nil {
 			token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
 			if token == nil || errors.Is(err, gitsync.ErrNoTokenAvailable) {
 				// No token available yet.
@@ -4961,10 +4961,34 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 
 // resolveGitProvider finds the external auth config matching the
 // given remote origin URL and returns its git provider. Returns
-// nil if no matching git provider is configured.
-func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovider.Provider {
+// (nil, nil) if no matching git provider is configured, and an error
+// wrapping gitsync.ErrProviderUnimplemented if the origin only
+// matches git types that have no provider implementation.
+func (api *API) resolveGitProvider(ctx context.Context, origin string) (gitprovider.Provider, error) {
 	_, gp := api.resolveExternalAuth(ctx, origin)
-	return gp
+	if gp != nil {
+		return gp, nil
+	}
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return nil, nil //nolint:nilnil // No origin means no provider, not an error.
+	}
+	for _, extAuth := range api.ExternalAuthConfigs {
+		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
+			continue
+		}
+		if !codersdk.EnhancedExternalAuthProvider(strings.ToLower(extAuth.Type)).Git() {
+			continue
+		}
+		// Git returns (nil, nil) for git types without an
+		// implementation. A construction error is a different
+		// failure and was already logged by resolveExternalAuth.
+		if p, err := extAuth.Git(); err == nil && p == nil {
+			return nil, xerrors.Errorf("external auth %q of type %q: %w",
+				extAuth.ID, extAuth.Type, gitsync.ErrProviderUnimplemented)
+		}
+	}
+	return nil, nil //nolint:nilnil // No matching config means no provider, not an error.
 }
 
 // resolveChatGitAccessToken returns userID's external-auth access token,

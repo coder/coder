@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -220,6 +221,81 @@ func newChatGitAuthFixture(
 		Logger:              testutil.Logger(t),
 	}}
 	return fixture
+}
+
+func TestResolveGitProvider(t *testing.T) {
+	t.Parallel()
+
+	config := func(id, typ, pattern string) *externalauth.Config {
+		return &externalauth.Config{
+			ID:    id,
+			Type:  typ,
+			Regex: regexp.MustCompile(pattern),
+		}
+	}
+
+	tests := []struct {
+		name            string
+		configs         []*externalauth.Config
+		origin          string
+		wantProvider    bool
+		wantUnsupported bool
+	}{
+		{
+			name:         "Implemented",
+			configs:      []*externalauth.Config{config("github", "github", `^https://github\.com/`)},
+			origin:       "https://github.com/coder/coder",
+			wantProvider: true,
+		},
+		{
+			name:            "Unimplemented",
+			configs:         []*externalauth.Config{config("bb", "bitbucket-cloud", `^https://bitbucket\.org/`)},
+			origin:          "https://bitbucket.org/coder/coder",
+			wantUnsupported: true,
+		},
+		{
+			name:    "NoMatch",
+			configs: []*externalauth.Config{config("bb", "bitbucket-cloud", `^https://bitbucket\.org/`)},
+			origin:  "https://example.com/coder/coder",
+		},
+		{
+			name:    "NonGitType",
+			configs: []*externalauth.Config{config("slack", "slack", `.*`)},
+			origin:  "https://example.com/coder/coder",
+		},
+		{
+			name: "ImplementedWinsOverUnimplemented",
+			configs: []*externalauth.Config{
+				config("gitea", "gitea", `.*`),
+				config("gitlab", "gitlab", `^https://gitlab\.com/`),
+			},
+			origin:       "https://gitlab.com/coder/coder",
+			wantProvider: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			api := &API{Options: &Options{
+				ExternalAuthConfigs: tt.configs,
+				Logger:              testutil.Logger(t),
+			}}
+
+			gp, err := api.resolveGitProvider(ctx, tt.origin)
+			if tt.wantUnsupported {
+				require.ErrorIs(t, err, gitsync.ErrProviderUnimplemented)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.wantProvider {
+				require.NotNil(t, gp)
+			} else {
+				require.Nil(t, gp)
+			}
+		})
+	}
 }
 
 func TestAuditedChatOperationalSettingWriteNoOpTransactionFailure(t *testing.T) {
