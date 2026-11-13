@@ -1,8 +1,8 @@
 import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import {
-	chatProjectsKey,
 	unarchiveChatProject,
+	unarchiveChatProjectMutationKey,
 } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -17,7 +17,7 @@ export const useUnarchiveChatProject = (
 	onSuccess?: () => void,
 ) => {
 	const queryClient = useQueryClient();
-	const mutationKey = [...chatProjectsKey, "unarchive", project.id];
+	const mutationKey = unarchiveChatProjectMutationKey(project.id);
 	const options = unarchiveChatProject(queryClient);
 	const mutation = useMutation({
 		...options,

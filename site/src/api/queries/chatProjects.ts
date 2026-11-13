@@ -405,6 +405,10 @@ export const archiveChatProject = (queryClient: QueryClient) =>
 		onSettled: () => invalidateProjectArchiveState(queryClient),
 	});
 
+/** Keys the unarchive requests for one project, so callers share them. */
+export const unarchiveChatProjectMutationKey = (projectId: string) =>
+	[...chatProjectsKey, "unarchive", projectId] as const;
+
 /** Unarchives a project and the chats archived with it. */
 export const unarchiveChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
