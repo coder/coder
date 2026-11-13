@@ -200,6 +200,12 @@ describe("checkSource", () => {
 		]);
 	});
 
+	it("checks arrays rendered in JSX in place", () => {
+		const source = 'const a = <p>Create {["New ", "Workspace"]}</p>;';
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ word }) => word)).toEqual(["New", "Workspace"]);
+	});
+
 	it("checks fallback values rendered in JSX in place", () => {
 		const source = [
 			'const a = <p>Create {label || "New Workspace"}</p>;',

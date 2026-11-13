@@ -647,9 +647,9 @@ function skipTransparent(node) {
 }
 
 /**
- * Returns what an inline JSX expression may render: a JSX node, string
- * literal, or template literal to read as text, null for nothing, or "substitution" for an
- * unknown value. `cond && <b>Text</b>` renders the element or nothing,
+ * Returns what an inline JSX expression may render: a JSX node, string,
+ * template literal, string concatenation, or array to read as text, null
+ * for nothing, or "substitution" for an unknown value. `cond && <b>Text</b>` renders the element or nothing,
  * `value || "Text"` and `value ?? "Text"` render the value or the
  * fallback, and a conditional renders either branch.
  */
@@ -662,7 +662,8 @@ function renderedOptions(expression) {
 		ts.isStringLiteral(node) ||
 		ts.isNoSubstitutionTemplateLiteral(node) ||
 		ts.isTemplateExpression(node) ||
-		isStringConcatenation(node)
+		isStringConcatenation(node) ||
+		ts.isArrayLiteralExpression(node)
 	) {
 		return [node];
 	}
@@ -843,6 +844,11 @@ function createPieceBuilder(sourceFile, consumed) {
 				} else {
 					pieces.push({ kind: "text", start, end, encoding: "js" });
 				}
+			}
+		} else if (ts.isArrayLiteralExpression(node)) {
+			// React renders an array's items one after another.
+			for (const element of node.elements) {
+				addExpression(element, pieces, inline);
 			}
 		} else if (ts.isJsxExpression(node)) {
 			// An empty expression, such as {/* note */}, renders nothing.
