@@ -34687,8 +34687,9 @@ func (q *sqlQuerier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid
 }
 
 const getUsers = `-- name: GetUsers :many
+WITH filtered_users AS NOT MATERIALIZED (
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM
 	users
 WHERE
@@ -34697,7 +34698,7 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the username field, so select all
 			-- rows after the cursor.
@@ -34707,7 +34708,7 @@ WHERE
 				FROM
 					users
 				WHERE
-					id = $1
+					id = $6
 			)
 		)
 		ELSE true
@@ -34715,112 +34716,131 @@ WHERE
 	-- Start filters
 	-- Filter by email, username, or name (display name)
 	AND CASE
-		WHEN $2 :: text != '' THEN (
-			email ILIKE concat('%', $2, '%')
-			OR username ILIKE concat('%', $2, '%')
-			OR name ILIKE concat('%', $2, '%')
+		WHEN $1 :: text != '' THEN (
+			email ILIKE concat('%', $1, '%')
+			OR username ILIKE concat('%', $1, '%')
+			OR name ILIKE concat('%', $1, '%')
 		)
 		ELSE true
 	END
 	-- Filter by name (display name)
 	AND CASE
-		WHEN $3 :: text != '' THEN
-			name ILIKE concat('%', $3, '%')
+		WHEN $2 :: text != '' THEN
+			name ILIKE concat('%', $2, '%')
 		ELSE true
 	END
 	-- Filter by exact username
 	AND CASE
-	  WHEN $4 :: text != '' THEN
-		  lower(username) = lower($4)
+	  WHEN $7 :: text != '' THEN
+		  lower(username) = lower($7)
 	  ELSE true
 	END
   	-- Filter by exact email
   	AND CASE
-	  WHEN $5 :: text != '' THEN
-		  lower(email) = lower($5)
+	  WHEN $8 :: text != '' THEN
+		  lower(email) = lower($8)
 	  ELSE true
 	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($6 :: user_status[]) > 0 THEN
-			status = ANY($6 :: user_status[])
+		WHEN cardinality($9 :: user_status[]) > 0 THEN
+			status = ANY($9 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($7 :: text[]) > 0 AND 'member' != ANY($7 :: text[]) THEN
-			rbac_roles && $7 :: text[]
+		WHEN cardinality($3 :: text[]) > 0 AND 'member' != ANY($3 :: text[]) THEN
+			rbac_roles && $3 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at <= $8
-		ELSE true
-	END
-	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at >= $9
-		ELSE true
-	END
-	-- Filter by created_at
-	AND CASE
 		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at <= $10
+			last_seen_at <= $10
 		ELSE true
 	END
 	AND CASE
 		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at >= $11
+			last_seen_at >= $11
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= $12
+		ELSE true
+	END
+	AND CASE
+		WHEN $13 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= $13
 		ELSE true
 	END
 	-- Filter by system type
 	AND CASE
-		WHEN $12::bool THEN TRUE
+		WHEN $14::bool THEN TRUE
 		ELSE is_system = false
 	END
 	-- Filter by github.com user ID
 	AND CASE
-		WHEN $13 :: bigint != 0 THEN
-			github_com_user_id = $13
+		WHEN $15 :: bigint != 0 THEN
+			github_com_user_id = $15
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($14 :: login_type[]) > 0 THEN
-			login_type = ANY($14 :: login_type[])
+		WHEN cardinality($16 :: login_type[]) > 0 THEN
+			login_type = ANY($16 :: login_type[])
 		ELSE true
 	END
 	-- Filter by service account.
 	AND CASE
-		WHEN $15 :: boolean IS NOT NULL THEN
-			is_service_account = $15 :: boolean
+		WHEN $17 :: boolean IS NOT NULL THEN
+			is_service_account = $17 :: boolean
 		ELSE true
 	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
+)
+SELECT
+	filtered_users.id, filtered_users.email, filtered_users.username, filtered_users.hashed_password, filtered_users.created_at, filtered_users.updated_at, filtered_users.status, filtered_users.rbac_roles, filtered_users.login_type, filtered_users.avatar_url, filtered_users.deleted, filtered_users.last_seen_at, filtered_users.quiet_hours_schedule, filtered_users.name, filtered_users.github_com_user_id, filtered_users.hashed_one_time_passcode, filtered_users.one_time_passcode_expires_at, filtered_users.is_system, filtered_users.is_service_account, filtered_users.chat_spend_limit_micros,
+	-- COUNT(*) OVER () pushes every matching row through a window before
+	-- the LIMIT applies. A separate count lets the page walk
+	-- users_username_lower_idx and stop after LIMIT rows. Unindexed filters
+	-- that are expensive or usually match few rows (ILIKE searches, roles)
+	-- keep the single pass window count instead of scanning twice.
+	-- Parameters are known at plan time, so Postgres removes the unused
+	-- branch.
+	CASE
+		WHEN $1 :: text = '' AND $2 :: text = '' AND cardinality($3 :: text[]) = 0
+			THEN (SELECT COUNT(*) FROM filtered_users)
+		ELSE COUNT(*) OVER ()
+	END :: bigint AS count
+FROM
+	filtered_users
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $16
+	LOWER(filtered_users.username) ASC OFFSET $4
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($17 :: int, 0)
+	NULLIF($5 :: int, 0)
 `
 
 type GetUsersParams struct {
-	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
 	Search           string       `db:"search" json:"search"`
 	Name             string       `db:"name" json:"name"`
+	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
+	OffsetOpt        int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt         int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
 	ExactUsername    string       `db:"exact_username" json:"exact_username"`
 	ExactEmail       string       `db:"exact_email" json:"exact_email"`
 	Status           []UserStatus `db:"status" json:"status"`
-	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
 	LastSeenAfter    time.Time    `db:"last_seen_after" json:"last_seen_after"`
 	CreatedBefore    time.Time    `db:"created_before" json:"created_before"`
@@ -34829,8 +34849,6 @@ type GetUsersParams struct {
 	GithubComUserID  int64        `db:"github_com_user_id" json:"github_com_user_id"`
 	LoginType        []LoginType  `db:"login_type" json:"login_type"`
 	IsServiceAccount sql.NullBool `db:"is_service_account" json:"is_service_account"`
-	OffsetOpt        int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt         int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetUsersRow struct {
@@ -34860,13 +34878,15 @@ type GetUsersRow struct {
 // This will never return deleted users.
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
-		arg.AfterID,
 		arg.Search,
 		arg.Name,
+		pq.Array(arg.RbacRole),
+		arg.OffsetOpt,
+		arg.LimitOpt,
+		arg.AfterID,
 		arg.ExactUsername,
 		arg.ExactEmail,
 		pq.Array(arg.Status),
-		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
 		arg.CreatedBefore,
@@ -34875,8 +34895,6 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
 		arg.IsServiceAccount,
-		arg.OffsetOpt,
-		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err

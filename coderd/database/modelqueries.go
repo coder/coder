@@ -477,13 +477,15 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 
 	query := fmt.Sprintf("-- name: GetAuthorizedUsers :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
-		arg.AfterID,
 		arg.Search,
 		arg.Name,
+		pq.Array(arg.RbacRole),
+		arg.OffsetOpt,
+		arg.LimitOpt,
+		arg.AfterID,
 		arg.ExactUsername,
 		arg.ExactEmail,
 		pq.Array(arg.Status),
-		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
 		arg.CreatedBefore,
@@ -492,8 +494,6 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
 		arg.IsServiceAccount,
-		arg.OffsetOpt,
-		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
