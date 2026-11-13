@@ -558,10 +558,11 @@ func (u *updater) setConn(conn Conn) bool {
 }
 
 func (u *updater) stop() error {
-	// Release senders holding mu, including when Start has not succeeded.
-	u.cancel()
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	// Cancel even if Start has not succeeded, so later senders return. Cancel
+	// after closing conn so logs it emits while closing reach the manager.
+	defer u.cancel()
 
 	if u.conn == nil {
 		return nil

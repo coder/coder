@@ -7,14 +7,15 @@ import (
 	"net"
 	"testing"
 	"testing/synctest"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestTunnel_StopConcurrentSenders(t *testing.T) {
@@ -121,54 +122,57 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 	})
 }
 
-func TestTunnel_StopBlockedUpdater(t *testing.T) {
+func TestTunnel_StopForwardsCloseLogs(t *testing.T) {
 	t.Parallel()
 
-	for _, sender := range []struct {
-		name string
-		send func(*Tunnel)
-	}{
-		{name: "WorkspaceUpdate", send: func(tun *Tunnel) { _ = tun.Update(tailnet.WorkspaceUpdate{}) }},
-		{name: "AgentUpdate", send: func(tun *Tunnel) { tun.sendAgentUpdate() }},
-		{name: "Log", send: func(tun *Tunnel) { tun.LogEntry(context.Background(), slog.SinkEntry{}) }},
-	} {
-		t.Run(sender.name, func(t *testing.T) {
-			t.Parallel()
-			synctest.Test(t, func(t *testing.T) {
-				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-				defer cancel()
-				updateCtx, updateCancel := context.WithCancel(ctx)
-				defer updateCancel()
-				sendCh := make(chan *TunnelMessage)
-				tun := &Tunnel{
-					ctx:     ctx,
-					speaker: speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]{sendCh: sendCh},
-					updater: updater{
-						ctx: updateCtx, cancel: updateCancel, uSendCh: sendCh,
-						agents: map[uuid.UUID]agentWithPing{uuid.New(): {}},
-						logger: testutil.Logger(t),
-					},
-				}
-				done := make(chan struct{})
-				go func() {
-					sender.send(tun)
-					close(done)
-				}()
-				synctest.Wait()
-				select {
-				case <-done:
-					t.Fatal("sender returned before Stop")
-				default:
-				}
-				require.NoError(t, tun.stop(&StopRequest{}))
-				synctest.Wait()
-				select {
-				case <-done:
-				default:
-					t.Fatal("Stop did not release the blocked sender")
-				}
-				require.NoError(t, ctx.Err(), "Stop must release senders before the parent context ends")
-			})
-		})
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tun, mgr := setupTunnel(t, ctx, newFakeClient(ctx, t), quartz.NewMock(t))
+	const closeLogs = 10
+	conn := &loggingCloseConn{fakeConn: newFakeConn(tailnet.WorkspaceUpdate{}, time.Time{}), tun: tun, logs: closeLogs}
+	require.True(t, tun.updater.setConn(conn))
+
+	type result struct {
+		resp *TunnelMessage
+		err  error
 	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := mgr.unaryRPC(ctx, &ManagerMessage{Msg: &ManagerMessage_Stop{}})
+		done <- result{resp: resp, err: err}
+	}()
+	// Logs sent before the Stop response are dispatched before it is.
+	var received int
+	var got result
+	requests := mgr.requests
+recv:
+	for {
+		select {
+		case req, ok := <-requests:
+			if !ok {
+				requests = nil
+			} else if req.msg.GetLog().GetMessage() == "closing conn" {
+				received++
+			}
+		case got = <-done:
+			break recv
+		}
+	}
+	require.NoError(t, got.err)
+	require.True(t, got.resp.GetStop().GetSuccess())
+	require.Equal(t, closeLogs, received, "logs emitted while closing the conn must reach the manager")
+}
+
+// loggingCloseConn logs through the tunnel while closing, as a tailnet conn
+// does when the tunnel is its log sink.
+type loggingCloseConn struct {
+	*fakeConn
+	tun  *Tunnel
+	logs int
+}
+
+func (c *loggingCloseConn) Close() error {
+	for range c.logs {
+		c.tun.LogEntry(context.Background(), slog.SinkEntry{Message: "closing conn"})
+	}
+	return c.fakeConn.Close()
 }
