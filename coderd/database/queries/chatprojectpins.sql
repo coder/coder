@@ -9,13 +9,13 @@ WHERE user_id = @user_id::uuid AND unpinned_at IS NULL;
 -- Pins a project, or moves an already pinned project, to pin_order. Without
 -- pin_order a new pin goes to the end and an existing pin keeps its place.
 -- Positions count only pins the user can still see, as the summaries do, and
--- are clamped to [1, count]. Pins on projects the user can no longer see move
--- after the visible ones. Callers must hold the per-user pin lock so
+-- are clamped to [1, count]. Pins on projects the user can no longer see, or
+-- on archived projects, move after the visible ones. Callers must hold the per-user pin lock so
 -- concurrent writes cannot interleave.
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
+        SELECT p.project_id, p.pin_order, cp.archived_at IS NOT NULL OR NOT (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = @user_id::uuid
             OR (
@@ -68,15 +68,15 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 -- Turns a pin into a tombstone and compacts the remaining pins to 1..N.
 -- The source is kept so telemetry can tell which pins users removed.
 -- Unpinning a project that is not pinned changes nothing. Like
--- PinChatProject, pins the user can still see come first, and callers must
--- hold the per-user pin lock.
+-- PinChatProject, pins the user can still see on unarchived projects come
+-- first, and callers must hold the per-user pin lock.
 WITH target AS (
     SELECT project_id
     FROM chat_project_pins
     WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid AND unpinned_at IS NULL
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY cp.archived_at IS NOT NULL OR NOT (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = @user_id::uuid
         OR (
@@ -106,15 +106,15 @@ WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id AND p.unp
     AND EXISTS (SELECT 1 FROM target);
 
 -- name: GetChatProjectSummariesByUserID :many
--- Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
--- user's active pin and aggregates over the user's own top-level,
+-- Returns the unarchived projects from GetChatProjectsOwnedOrSharedWithUserID
+-- with the user's active pin and aggregates over the user's own top-level,
 -- non-archived chats. Entries match regardless of the actions they grant,
 -- so callers must authorize each row; pins on projects the user can no
--- longer see are never returned.
+-- longer see, or on archived projects, are never returned.
 WITH accessible AS (
     SELECT id, organization_id, owner_id, user_acl, group_acl
     FROM chat_projects
-    WHERE owner_id = @user_id::uuid
+    WHERE archived_at IS NULL AND (owner_id = @user_id::uuid
         OR (
             -- Grants count only while RBAC honors them, as in
             -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
@@ -129,7 +129,7 @@ WITH accessible AS (
                 WHERE organization_members.user_id = @user_id::uuid
                     AND organization_members.organization_id = chat_projects.organization_id
             )
-        )
+        ))
 ),
 -- Users who can use each project: the owner, granted users who are
 -- organization members, and members of granted groups (including the

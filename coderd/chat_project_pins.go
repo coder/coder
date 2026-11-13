@@ -94,6 +94,11 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
+		// Archived projects are not listed, so a pin on one could not be
+		// seen or moved.
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return err
+		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
 			UserID:     apiKey.UserID,
 			ProjectID:  project.ID,
@@ -101,6 +106,9 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			PinOrder:   pinOrder,
 		})
 	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to pin chat project.",
