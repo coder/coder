@@ -338,7 +338,7 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 		return (
 			errorAlert || (
 				<div role="status" className="flex flex-col gap-2">
-					<span className="sr-only">Loading project chats</span>
+					<span className="sr-only">Loading archive details</span>
 					<Skeleton variant="text" className="w-1/3" />
 					<Skeleton variant="text" className="w-full" />
 				</div>
