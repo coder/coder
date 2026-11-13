@@ -214,12 +214,12 @@ export const updateInfiniteChatsCache = (
  * a prepend updater were passed to updateInfiniteChatsCache, which
  * runs independently on each page. Lists whose archive or status
  * filters exclude the chat are skipped, and so are pinned-projects-only lists
- * when the caller knows the chat's project is not pinned.
+ * when the caller knows the user's project pins hide the chat.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
-	{ inUnpinnedProject = false }: { inUnpinnedProject?: boolean } = {},
+	{ hiddenByProjectPins = false }: { hiddenByProjectPins?: boolean } = {},
 ) => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
@@ -248,7 +248,7 @@ export const prependToInfiniteChatsCache = (
 			continue;
 		}
 		if (
-			inUnpinnedProject &&
+			hiddenByProjectPins &&
 			params !== null &&
 			typeof params === "object" &&
 			"pinnedProjectsOnly" in params &&
