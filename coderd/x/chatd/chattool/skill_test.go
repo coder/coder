@@ -22,6 +22,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 )
 
+// skillFileReadLimit is the byte limit the skill tools pass to ReadFile:
+// maxSkillFileBytes plus one, so an oversize file is detected.
+const skillFileReadLimit = int64(512*1024 + 1)
+
 // validSkillMD returns a valid SKILL.md with the given name and
 // description.
 func validSkillMD(name, description string) string {
@@ -48,19 +52,6 @@ func responseDir(t *testing.T, resp fantasy.ToolResponse) string {
 	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &payload))
 	return payload.Dir
-}
-
-// lookupSkills resolves aliases the way chatd does: it merges the sources and
-// looks the alias up in the merged list.
-func lookupSkills(sources ...skillspkg.SourceSkills) func(string) (skillspkg.ResolvedSkill, error) {
-	resolved := skillspkg.MergeSkills(sources...)
-	return func(alias string) (skillspkg.ResolvedSkill, error) {
-		return skillspkg.Lookup(resolved, alias)
-	}
-}
-
-func skillSource(source skillspkg.Source, name string) skillspkg.SourceSkills {
-	return skillspkg.SourceSkills{Source: source, Skills: []skillspkg.Skill{{Name: name}}}
 }
 
 func TestFormatResolvedSkillIndex(t *testing.T) {
@@ -101,7 +92,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		assert.Equal(t,
 			"<available-skills>\n"+
 				"Use read_skill to load a skill's full instructions before following them.\n"+
-				"Use read_skill_file to read supporting files referenced by a workspace skill.\n"+
+				"Use read_skill_file to read supporting files referenced by a workspace or plugin skill.\n"+
 				"\n"+
 				"- deep-review: Review\n"+
 				"</available-skills>",
@@ -168,6 +159,46 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		assert.Contains(t, idx, "- short: Short description\n")
 		assert.NotContains(t, idx, "tail")
 	})
+
+	t.Run("PluginSkillLabelAndHint", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := []skillspkg.ResolvedSkill{{
+			Skill: skillspkg.Skill{
+				Name:        "deploy",
+				Description: "Deploy via acme",
+				Source:      skillspkg.SourcePlugin,
+				PluginName:  "acme",
+			},
+			Alias: "deploy",
+		}}
+		assert.Equal(t,
+			"<available-skills>\n"+
+				"Use read_skill to load a skill's full instructions before following them.\n"+
+				"Use read_skill_file to read supporting files referenced by a workspace or plugin skill.\n"+
+				"\n"+
+				"- deploy (plugin: acme): Deploy via acme\n"+
+				"</available-skills>",
+			chattool.FormatResolvedSkillIndex(resolved),
+		)
+	})
+
+	t.Run("CollidingPluginNames", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skillspkg.MergeSkills(
+			skillspkg.SourceSkills{Source: skillspkg.SourceWorkspace, Skills: []skillspkg.Skill{{Name: "deploy", Description: "Workspace"}}},
+			skillspkg.SourceSkills{Source: skillspkg.SourcePlugin, Skills: []skillspkg.Skill{
+				{Name: "deploy", Description: "Acme", PluginName: "acme"},
+				{Name: "deploy", Description: "Beta", PluginName: "beta"},
+			}},
+		)
+		idx := chattool.FormatResolvedSkillIndex(resolved)
+		assert.Contains(t, idx, "- workspace/deploy: Workspace")
+		assert.Contains(t, idx, "- plugin/acme/deploy (plugin: acme): Acme")
+		assert.Contains(t, idx, "- plugin/beta/deploy (plugin: beta): Beta")
+		assert.Contains(t, idx, "When a skill is listed with a source prefix, such as personal/name or plugin/pluginname/name, pass that qualified alias to read_skill.")
+	})
 }
 
 func TestLoadSkillFile(t *testing.T) {
@@ -189,7 +220,7 @@ func TestLoadSkillFile(t *testing.T) {
 			"/work/.agents/skills/my-skill",
 			"roles/reviewer.md",
 			int64(0),
-			int64(512*1024+1),
+			skillFileReadLimit,
 		).Return(
 			io.NopCloser(strings.NewReader("review instructions")),
 			"text/markdown",
@@ -294,7 +325,7 @@ func TestLoadSkillFile(t *testing.T) {
 			"/work/.agents/skills/my-skill",
 			"large.txt",
 			int64(0),
-			int64(512*1024+1),
+			skillFileReadLimit,
 		).Return(
 			io.NopCloser(strings.NewReader(bigContent)),
 			"text/plain",
@@ -342,8 +373,7 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -375,8 +405,7 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return nil, xerrors.New("workspace is stopped")
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -398,7 +427,7 @@ func TestReadSkillTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
+			PersonalSkills: personalSkillsForTest("my-skill"),
 			LoadStoredSkillBody: func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				return skillspkg.ParsedSkill{
 					Skill: skillspkg.Skill{
@@ -430,7 +459,7 @@ func TestReadSkillTool(t *testing.T) {
 
 		var loadedName string
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
+			PersonalSkills: personalSkillsForTest("my-skill"),
 			LoadStoredSkillBody: func(_ context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				loadedName = skill.Name
 				return skillspkg.ParsedSkill{
@@ -477,8 +506,7 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -514,11 +542,8 @@ func TestReadSkillTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return workspaceSkills },
-			ResolveAlias: lookupSkills(
-				skillSource(skillspkg.SourcePersonal, "deploy"),
-				skillSource(skillspkg.SourceWorkspace, "deploy"),
-			),
+			GetSkills:      func() []chattool.SkillMeta { return workspaceSkills },
+			PersonalSkills: personalSkillsForTest("deploy"),
 			LoadStoredSkillBody: func(_ context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				require.Equal(t, "deploy", skill.Name)
 				return skillspkg.ParsedSkill{
@@ -550,15 +575,25 @@ func TestReadSkillTool(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, personalResp.IsError)
-		assert.Equal(t, "personal/deploy", responseName(t, personalResp))
+		personalName := responseName(t, personalResp)
+		assert.Equal(t, "personal/deploy", personalName)
 		assert.Contains(t, personalResp.Content, "Personal deploy instructions.")
+
+		bareResp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-3",
+			Name:  "read_skill",
+			Input: `{"name":"deploy"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, bareResp.IsError)
+		assert.Contains(t, bareResp.Content, "skill lookup is ambiguous")
 	})
 
 	t.Run("MissingPersonalSkill", func(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "missing-skill")),
+			PersonalSkills: personalSkillsForTest("missing-skill"),
 			LoadStoredSkillBody: func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 			},
@@ -578,7 +613,7 @@ func TestReadSkillTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
+			PersonalSkills: personalSkillsForTest("my-skill"),
 			LoadStoredSkillBody: func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 				return skillspkg.ParsedSkill{}, xerrors.New("synthetic private storage failure")
 			},
@@ -596,36 +631,10 @@ func TestReadSkillTool(t *testing.T) {
 		assert.NotContains(t, resp.Content, "synthetic private storage failure")
 	})
 
-	t.Run("ResolveAliasErrorIsSanitized", func(t *testing.T) {
-		t.Parallel()
-
-		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: func(string) (skillspkg.ResolvedSkill, error) {
-				return skillspkg.ResolvedSkill{}, xerrors.New("synthetic private resolver failure")
-			},
-		})
-
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "read_skill",
-			Input: `{"name":"my-skill"}`,
-		})
-
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, `failed to resolve skill "my-skill"`)
-		assert.NotContains(t, resp.Content, "synthetic private resolver failure")
-	})
-
 	t.Run("AmbiguousLookupSurfacesAliases", func(t *testing.T) {
 		t.Parallel()
 
-		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(
-				skillSource(skillspkg.SourcePersonal, "deploy"),
-				skillSource(skillspkg.SourceWorkspace, "deploy"),
-			),
-		})
+		tool := chattool.ReadSkill(ambiguousSkillOptionsForTest())
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
@@ -648,7 +657,6 @@ func TestReadSkillTool(t *testing.T) {
 				t.Fatal("unexpected call to GetWorkspaceConn")
 				return nil, xerrors.New("unreachable")
 			},
-			ResolveAlias: lookupSkills(),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -681,6 +689,171 @@ func TestReadSkillTool(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "required")
 	})
+
+	t.Run("NoSkillsConfigured", func(t *testing.T) {
+		t.Parallel()
+
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"my-skill"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, `skill "my-skill" not found`)
+	})
+}
+
+func personalSkillsForTest(names ...string) []skillspkg.Skill {
+	skills := make([]skillspkg.Skill, 0, len(names))
+	for _, name := range names {
+		skills = append(skills, skillspkg.Skill{Name: name, Description: "test", Source: skillspkg.SourcePersonal})
+	}
+	return skills
+}
+
+// ambiguousSkillOptionsForTest pins a workspace "deploy" alongside a
+// personal "deploy", so the bare name is ambiguous.
+func ambiguousSkillOptionsForTest() chattool.ReadSkillOptions {
+	pinned := []chattool.SkillMeta{{
+		Name: "deploy",
+		Dir:  "/work/.agents/skills/deploy",
+		Meta: []byte(validSkillMD("deploy", "test")),
+	}}
+	return chattool.ReadSkillOptions{
+		GetSkills:      func() []chattool.SkillMeta { return pinned },
+		PersonalSkills: personalSkillsForTest("deploy"),
+	}
+}
+
+// TestReadSkillToolPluginSource covers read_skill and read_skill_file for
+// skills shipped inside Agent Plugins, pinned alongside a same-named
+// workspace skill.
+func TestReadSkillToolPluginSource(t *testing.T) {
+	t.Parallel()
+
+	// Rows are in pinned order (source ASC), so plugin rows come first.
+	acmeDeploy := chattool.SkillMeta{
+		Name:        "deploy",
+		Description: "acme deploy",
+		PluginName:  "acme",
+		Dir:         "/work/.agents/plugins/acme/skills/deploy",
+		Meta:        []byte("---\nname: deploy\ndescription: acme deploy\n---\n\nAcme body.\n"),
+	}
+	betaDeploy := chattool.SkillMeta{
+		Name:        "deploy",
+		Description: "beta deploy",
+		PluginName:  "beta",
+		Dir:         "/work/.agents/plugins/beta/skills/deploy",
+		Meta:        []byte("---\nname: deploy\ndescription: beta deploy\n---\n\nBeta body.\n"),
+	}
+	workspaceDeploy := chattool.SkillMeta{
+		Name:        "deploy",
+		Description: "workspace deploy",
+		Dir:         "/work/.agents/skills/deploy",
+		Meta:        []byte("---\nname: deploy\ndescription: workspace deploy\n---\n\nWorkspace body.\n"),
+	}
+	pinned := []chattool.SkillMeta{acmeDeploy, betaDeploy, workspaceDeploy}
+
+	t.Run("SameNameAcrossPluginsServesDistinctBodies", func(t *testing.T) {
+		t.Parallel()
+
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return nil, xerrors.New("workspace is stopped")
+			},
+			GetSkills: func() []chattool.SkillMeta { return pinned },
+		})
+
+		read := func(alias string) fantasy.ToolResponse {
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-" + alias,
+				Name:  "read_skill",
+				Input: `{"name":"` + alias + `"}`,
+			})
+			require.NoError(t, err)
+			require.False(t, resp.IsError, resp.Content)
+			return resp
+		}
+
+		acme := read("plugin/acme/deploy")
+		assert.Equal(t, "plugin/acme/deploy", responseName(t, acme))
+		assert.Contains(t, acme.Content, "Acme body.")
+		assert.NotContains(t, acme.Content, "Workspace body.")
+		assert.Equal(t, "/work/.agents/plugins/acme/skills/deploy", responseDir(t, acme))
+
+		beta := read("plugin/beta/deploy")
+		assert.Contains(t, beta.Content, "Beta body.")
+		assert.Equal(t, "/work/.agents/plugins/beta/skills/deploy", responseDir(t, beta))
+
+		workspace := read("workspace/deploy")
+		assert.Contains(t, workspace.Content, "Workspace body.")
+		assert.Equal(t, "/work/.agents/skills/deploy", responseDir(t, workspace))
+
+		ambiguous, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-bare",
+			Name:  "read_skill",
+			Input: `{"name":"deploy"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, ambiguous.IsError)
+		assert.Contains(t, ambiguous.Content, "plugin/acme/deploy")
+		assert.Contains(t, ambiguous.Content, "plugin/beta/deploy")
+	})
+
+	t.Run("BareAliasForUniquePluginSkill", func(t *testing.T) {
+		t.Parallel()
+
+		onlyPlugin := []chattool.SkillMeta{acmeDeploy}
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			GetSkills: func() []chattool.SkillMeta { return onlyPlugin },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"deploy"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Contains(t, resp.Content, "Acme body.")
+	})
+
+	t.Run("ReadSkillFileUsesPluginSkillDir", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFileInRoot(
+			gomock.Any(),
+			"/work/.agents/plugins/beta/skills/deploy",
+			"roles/reviewer.md",
+			int64(0),
+			skillFileReadLimit,
+		).Return(
+			io.NopCloser(strings.NewReader("beta reviewer guide")),
+			"text/markdown",
+			nil,
+		)
+
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return pinned },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill_file",
+			Input: `{"name":"plugin/beta/deploy","path":"roles/reviewer.md"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError, resp.Content)
+		assert.Contains(t, resp.Content, "beta reviewer guide")
+	})
 }
 
 func TestReadSkillFileTool(t *testing.T) {
@@ -702,7 +875,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			"/work/.agents/skills/my-skill",
 			"roles/reviewer.md",
 			int64(0),
-			int64(512*1024+1),
+			skillFileReadLimit,
 		).Return(
 			io.NopCloser(strings.NewReader("reviewer guide")),
 			"text/markdown",
@@ -713,8 +886,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -731,7 +903,7 @@ func TestReadSkillFileTool(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourcePersonal, "my-skill")),
+			PersonalSkills: personalSkillsForTest("my-skill"),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -747,12 +919,7 @@ func TestReadSkillFileTool(t *testing.T) {
 	t.Run("AmbiguousLookupSurfacesAliases", func(t *testing.T) {
 		t.Parallel()
 
-		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
-			ResolveAlias: lookupSkills(
-				skillSource(skillspkg.SourcePersonal, "deploy"),
-				skillSource(skillspkg.SourceWorkspace, "deploy"),
-			),
-		})
+		tool := chattool.ReadSkillFile(ambiguousSkillOptionsForTest())
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
@@ -774,9 +941,6 @@ func TestReadSkillFileTool(t *testing.T) {
 		Dir:  "/work/.agents/skills/manual",
 		Meta: []byte("---\nname: manual\ndescription: Manual only\ndisable-model-invocation: true\n---\nRun scripts/run.sh.\n"),
 	}}
-	resolveNoModelSkills := func(alias string) (skillspkg.ResolvedSkill, error) {
-		return skillspkg.ResolvedSkill{}, xerrors.Errorf("%q: %w", alias, skillspkg.ErrSkillNotFound)
-	}
 
 	t.Run("ModelHiddenSkillServesSupportingFiles", func(t *testing.T) {
 		t.Parallel()
@@ -797,8 +961,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return modelHiddenSkills },
-			ResolveAlias: resolveNoModelSkills,
+			GetSkills: func() []chattool.SkillMeta { return modelHiddenSkills },
 		})
 
 		for _, name := range []string{"manual", "workspace/manual"} {
@@ -813,6 +976,56 @@ func TestReadSkillFileTool(t *testing.T) {
 		}
 	})
 
+	t.Run("ModelHiddenPluginSkill", func(t *testing.T) {
+		t.Parallel()
+
+		hidden := []chattool.SkillMeta{{
+			Name:       "manual",
+			PluginName: "acme",
+			Dir:        "/work/.agents/plugins/acme/skills/manual",
+			Meta:       []byte("---\nname: manual\ndescription: Manual only\ndisable-model-invocation: true\n---\nRun scripts/run.sh.\n"),
+		}}
+		require.Empty(t, chattool.MergePinnedSkills(nil, nil, nil, hidden))
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFileInRoot(
+			gomock.Any(),
+			"/work/.agents/plugins/acme/skills/manual",
+			"scripts/run.sh",
+			int64(0),
+			int64(512*1024+1),
+		).Return(io.NopCloser(strings.NewReader("echo manual")), "text/plain", nil)
+		opts := chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return hidden },
+		}
+		run := func(tool fantasy.AgentTool, input string) fantasy.ToolResponse {
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{ID: "call", Name: tool.Info().Name, Input: input})
+			require.NoError(t, err)
+			return resp
+		}
+
+		resp := run(chattool.ReadSkill(opts), `{"name":"plugin/acme/manual"}`)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "not found")
+
+		readFile := chattool.ReadSkillFile(opts)
+		resp = run(readFile, `{"name":"plugin/acme/manual","path":"scripts/run.sh"}`)
+		assert.False(t, resp.IsError, resp.Content)
+		assert.Contains(t, resp.Content, "echo manual")
+
+		// The bare name of a hidden plugin skill does not reach it.
+		resp = run(readFile, `{"name":"manual","path":"scripts/run.sh"}`)
+		assert.True(t, resp.IsError)
+
+		resp = run(readFile, `{"name":"plugin/acme/manual","path":"SKILL.md"}`)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "cannot be read with read_skill_file")
+	})
+
 	t.Run("ModelHiddenSkillRefusesMetaFile", func(t *testing.T) {
 		t.Parallel()
 
@@ -821,8 +1034,7 @@ func TestReadSkillFileTool(t *testing.T) {
 				t.Fatal("unexpected call to GetWorkspaceConn")
 				return nil, xerrors.New("unreachable")
 			},
-			GetSkills:    func() []chattool.SkillMeta { return modelHiddenSkills },
-			ResolveAlias: resolveNoModelSkills,
+			GetSkills: func() []chattool.SkillMeta { return modelHiddenSkills },
 		})
 
 		for _, path := range []string{"SKILL.md", "skill.md", "SKILL.md/"} {
@@ -860,8 +1072,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "auto-helper")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -891,21 +1102,13 @@ func TestReadSkillFileTool(t *testing.T) {
 
 		// The model sees only the stored skills, so the bare name is
 		// ambiguous among them.
-		listed := skillspkg.MergeSkills(skillspkg.SourceSkills{
-			Source: skillspkg.SourcePersonal,
-			Skills: []skillspkg.Skill{{Name: "manual", Source: skillspkg.SourcePersonal}},
-		}, skillspkg.SourceSkills{
-			Source: skillspkg.SourceOrganization,
-			Skills: []skillspkg.Skill{{Name: "manual", Source: skillspkg.SourceOrganization}},
-		})
 		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return modelHiddenSkills },
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				return skillspkg.Lookup(listed, alias)
-			},
+			GetSkills:          func() []chattool.SkillMeta { return modelHiddenSkills },
+			PersonalSkills:     []skillspkg.Skill{{Name: "manual", Source: skillspkg.SourcePersonal}},
+			OrganizationSkills: []skillspkg.Skill{{Name: "manual", Source: skillspkg.SourceOrganization}},
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -948,8 +1151,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -990,7 +1192,6 @@ func TestReadSkillFileTool(t *testing.T) {
 				tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
 					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil },
 					GetSkills:        func() []chattool.SkillMeta { return skills },
-					ResolveAlias:     lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 				})
 
 				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -1018,8 +1219,7 @@ func TestReadSkillFileTool(t *testing.T) {
 				t.Fatal("unexpected call to GetWorkspaceConn")
 				return nil, xerrors.New("unreachable")
 			},
-			GetSkills:    func() []chattool.SkillMeta { return skills },
-			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
+			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -1031,33 +1231,4 @@ func TestReadSkillFileTool(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "traversal")
 	})
-}
-
-func TestReadSkillToolsRequireAliasResolver(t *testing.T) {
-	t.Parallel()
-
-	// GetSkills lists a readable workspace skill, but without a resolver the
-	// tools must not guess that the name refers to it.
-	options := chattool.ReadSkillOptions{
-		GetSkills: func() []chattool.SkillMeta {
-			return []chattool.SkillMeta{{
-				Name: "my-skill",
-				Meta: []byte(validSkillMD("my-skill", "test")),
-			}}
-		},
-	}
-	for _, tool := range []fantasy.AgentTool{
-		chattool.ReadSkill(options),
-		chattool.ReadSkillFile(options),
-	} {
-		name := tool.Info().Name
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  name,
-			Input: `{"name":"my-skill","path":"helper.md"}`,
-		})
-		require.NoError(t, err, name)
-		assert.True(t, resp.IsError, name)
-		assert.Contains(t, resp.Content, "skill alias resolver is not configured", name)
-	}
 }

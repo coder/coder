@@ -2008,7 +2008,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 		nil,
 		"",
 		"",
-		mergeTurnSkills(
+		chattool.MergePinnedSkills(
 			[]skillspkg.Skill{{
 				Name:        "personal-review",
 				Description: "Personal review process",
@@ -2033,7 +2033,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	t.Parallel()
 
-	resolved := mergeTurnSkills(
+	resolved := chattool.MergePinnedSkills(
 		[]skillspkg.Skill{{
 			Name:        "deploy",
 			Description: "Personal deployment process",
@@ -2093,16 +2093,12 @@ func TestModelHiddenWorkspaceSkillsLeftOutOfModelSkills(t *testing.T) {
 		}
 	}
 	workspaceSkills := []chattool.SkillMeta{hiddenSkill("deploy"), hiddenSkill("release")}
-	resolved := mergeTurnSkills(
-		[]skillspkg.Skill{{
-			Name:        "deploy",
-			Description: "Personal deployment process",
-			Source:      skillspkg.SourcePersonal,
-		}},
-		nil,
-		nil,
-		workspaceSkills,
-	)
+	personalSkills := []skillspkg.Skill{{
+		Name:        "deploy",
+		Description: "Personal deployment process",
+		Source:      skillspkg.SourcePersonal,
+	}}
+	resolved := chattool.MergePinnedSkills(personalSkills, nil, nil, workspaceSkills)
 
 	text := systemPromptText(t, buildSystemPrompt(nil, "", "", resolved, "", "", "", systemPromptBehaviorContext{}))
 	// The hidden workspace deploy skill must not force a qualified alias on
@@ -2113,10 +2109,8 @@ func TestModelHiddenWorkspaceSkillsLeftOutOfModelSkills(t *testing.T) {
 	require.NotContains(t, text, "source prefix")
 
 	readSkill := chattool.ReadSkill(chattool.ReadSkillOptions{
-		GetSkills: func() []chattool.SkillMeta { return workspaceSkills },
-		ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-			return skillspkg.Lookup(resolved, alias)
-		},
+		GetSkills:      func() []chattool.SkillMeta { return workspaceSkills },
+		PersonalSkills: personalSkills,
 	})
 	for _, name := range []string{"release", "workspace/release", "workspace/deploy"} {
 		resp, err := readSkill.Run(context.Background(), fantasy.ToolCall{
