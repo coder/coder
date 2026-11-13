@@ -66,6 +66,9 @@ To point users to a consent or acceptable-use notice before they sign in, set [`
 The web sign-in page then shows a link to the URL and an **I agree** button that users select before they can sign in.
 The setting is empty by default, so the sign-in page shows no notice.
 
+The notice is shown by the web sign-in page only.
+Coder doesn't enforce it on the server, so API, CLI, and token-based access don't show it.
+
 To show a persistent notice, such as the classification of the network the deployment runs on, add an [announcement banner](../setup/appearance.md#announcement-banners).
 Announcement banners are a Premium feature that owners configure in the dashboard.
 They appear at the top of dashboard pages after a user signs in, not on the sign-in page.
@@ -147,6 +150,31 @@ To encrypt them, set [`--external-token-encryption-keys`](../../reference/cli/se
 This is a Premium setting.
 Refer to [Database encryption](database-encryption.md#turn-on-encryption) to generate keys and turn encryption on.
 
+## Cookies and sign-up limits
+
+| Setting                                                                                                                                | Environment variable                                 | Default | Effect of changing it                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`--host-prefix-cookie`](../../reference/cli/server/index.md#--host-prefix-cookie)                                                     | `CODER_HOST_PREFIX_COOKIE`                           | `false` | `true` adds the `__Host-` prefix to cookies so only the right domain can set them. Coder recommends enabling it. Workspaces built before release 2.31 need a restart. |
+| [`--oidc-allow-signups`](../../reference/cli/server/index.md#--oidc-allow-signups)                                                     | `CODER_OIDC_ALLOW_SIGNUPS`                           | `true`  | `false` stops new users from signing up with OIDC.                                                                                                                    |
+| [`--oidc-email-domain`](../../reference/cli/server/index.md#--oidc-email-domain)                                                       | `CODER_OIDC_EMAIL_DOMAIN`                            | Empty   | Limits OIDC sign-in to the listed email domains.                                                                                                                      |
+| [`--oidc-allowed-groups`](../../reference/cli/server/index.md#--oidc-allowed-groups)                                                   | `CODER_OIDC_ALLOWED_GROUPS`                          | Empty   | Limits OIDC sign-in to members of the listed groups.                                                                                                                  |
+| [`--oauth2-github-allowed-orgs`](../../reference/cli/server/index.md#--oauth2-github-allowed-orgs)                                     | `CODER_OAUTH2_GITHUB_ALLOWED_ORGS`                   | Empty   | Limits GitHub sign-in to members of the listed organizations.                                                                                                         |
+| [`--oauth2-github-allowed-teams`](../../reference/cli/server/index.md#--oauth2-github-allowed-teams)                                   | `CODER_OAUTH2_GITHUB_ALLOWED_TEAMS`                  | Empty   | Limits GitHub sign-in to members of the listed teams, in `<organization-name>/<team-slug>` form.                                                                      |
+| [`--oauth2-github-default-provider-enable`](../../reference/cli/server/index.md#--oauth2-github-default-provider-enable)               | `CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE`        | `true`  | `false` turns off the GitHub sign-in provider that Coder manages.                                                                                                     |
+| [`--external-auth-github-default-provider-enable`](../../reference/cli/server/index.md#--external-auth-github-default-provider-enable) | `CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE` | `true`  | `false` turns off the GitHub external authentication provider that Coder manages.                                                                                     |
+
+## Workspace access
+
+| Setting                                                                                                    | Environment variable                   | Default | Effect of changing it                                                                                                                    |
+|------------------------------------------------------------------------------------------------------------|----------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------|
+| [`--disable-owner-workspace-access`](../../reference/cli/server/index.md#--disable-owner-workspace-access) | `CODER_DISABLE_OWNER_WORKSPACE_ACCESS` | `false` | `true` removes the owner role's permission to use SSH, apps, and the terminal in workspaces. Owners keep access to their own workspaces. |
+| [`--disable-workspace-sharing`](../../reference/cli/server/index.md#--disable-workspace-sharing)           | `CODER_DISABLE_WORKSPACE_SHARING`      | `false` | `true` lets only workspace owners use SSH, apps, and the terminal in their workspaces.                                                   |
+
+## Diagnostic endpoints
+
+Keep the [`--pprof-address`](../../reference/cli/server/index.md#--pprof-address) (default `127.0.0.1:6060`) and [`--prometheus-address`](../../reference/cli/server/index.md#--prometheus-address) (default `127.0.0.1:2112`) bound to localhost when you enable [`--pprof-enable`](../../reference/cli/server/index.md#--pprof-enable) or [`--prometheus-enable`](../../reference/cli/server/index.md#--prometheus-enable).
+In production, leave [`--swagger-enable`](../../reference/cli/server/index.md#--swagger-enable) and [`--experiments`](../../reference/cli/server/index.md#--experiments) off, because experiments aren't ready for production.
+
 ## Settings that weaken defaults
 
 The settings in the following table are off by default.
@@ -161,6 +189,9 @@ The settings in the following table are off by default.
 | [`--dangerous-allow-path-app-sharing`](../../reference/cli/server/index.md#--dangerous-allow-path-app-sharing)                     | `CODER_DANGEROUS_ALLOW_PATH_APP_SHARING`           | Lets users share path-based apps with other users.                                                                |
 | [`--dangerous-allow-path-app-site-owner-access`](../../reference/cli/server/index.md#--dangerous-allow-path-app-site-owner-access) | `CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS` | Lets owners open path-based apps in workspaces they don't own.                                                    |
 | [`--dangerous-oidc-skip-issuer-checks`](../../reference/cli/server/index.md#--dangerous-oidc-skip-issuer-checks)                   | `CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS`          | Stops Coder from requiring the OpenID Connect (OIDC) issuer URL to match the ID token and provider configuration. |
+| [`--oidc-ignore-email-verified`](../../reference/cli/server/index.md#--oidc-ignore-email-verified)                                 | `CODER_OIDC_IGNORE_EMAIL_VERIFIED`                 | Coder accepts email addresses that the identity provider hasn't verified.                                         |
+| [`--oauth2-github-allow-everyone`](../../reference/cli/server/index.md#--oauth2-github-allow-everyone)                             | `CODER_OAUTH2_GITHUB_ALLOW_EVERYONE`               | Any GitHub account can sign in.                                                                                   |
+| [`--notifications-email-tls-skip-verify`](../../reference/cli/server/index.md#--notifications-email-tls-skip-verify)               | `CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY`         | Coder doesn't check the mail server's certificate.                                                                |
 
 `--tls-min-version` values below `tls12` also weaken the default.
 Refer to [TLS](#tls).
