@@ -1,14 +1,36 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import {
+	agentTemplatesKey,
+	richParametersKey,
+	templateVersionPresetsKey,
+} from "#/api/queries/templates";
+import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockTemplate,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
+const mockDockerTemplate: Template = {
+	...MockTemplate,
+	id: "template-docker",
+	name: "docker",
+	display_name: "Docker",
+	active_version_id: "version-docker",
+};
+const mockKubernetesTemplate: Template = {
+	...MockTemplate,
+	id: "template-kubernetes",
+	name: "kubernetes",
+	display_name: "Kubernetes",
+	active_version_id: "version-kubernetes",
+};
 const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
 	component: ChatProjectDialog,
@@ -20,6 +42,14 @@ const meta = {
 		isSubmitting: false,
 		error: undefined,
 		onSubmit: fn(),
+	},
+	parameters: {
+		queries: [MockDefaultOrganization, MockOrganization2].map(
+			(organization) => ({
+				key: agentTemplatesKey(organization.id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			}),
+		),
 	},
 } satisfies Meta<typeof ChatProjectDialog>;
 
@@ -145,4 +175,120 @@ export const Narrow: Story = {
 export const NarrowOpenOrganizationDropdown: Story = {
 	...OpenOrganizationDropdown,
 	globals: Narrow.globals,
+};
+
+/** The server rejected the templates, for example one deprecated meanwhile. */
+export const CreateTemplatesSaveError: Story = {
+	args: {
+		error: mockApiError({
+			message: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
+			validations: [
+				{
+					field: "templates.template_ids",
+					detail: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
+				},
+			],
+		}),
+	},
+};
+
+export const NoEligibleTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: agentTemplatesKey(MockDefaultOrganization.id),
+				data: [],
+			},
+		],
+	},
+	// Opens the templates list so the screenshot shows its empty message.
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("combobox", { name: "Templates" }),
+		);
+	},
+};
+
+export const TemplatesLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
+};
+
+const pickDefaultTemplate: Story["play"] = async () => {
+	await userEvent.click(
+		await screen.findByRole("button", { name: "Select all" }),
+	);
+	await userEvent.click(
+		screen.getByRole("combobox", { name: "Default template" }),
+	);
+	await userEvent.click(await screen.findByRole("option", { name: "Docker" }));
+};
+
+const pickDefaultParameters: Story["play"] = async (context) => {
+	await pickDefaultTemplate(context);
+	await userEvent.click(
+		await screen.findByRole("radio", { name: "Parameter values" }),
+	);
+};
+
+export const DefaultTemplateWithoutPresets: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplatePresetsLoadError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Failed to load presets." }),
+		);
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplateWithoutParameters: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+			{
+				key: richParametersKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
+	},
+	play: pickDefaultParameters,
+};
+
+export const DefaultTemplateParametersLoadError: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionRichParameters").mockRejectedValue(
+			mockApiError({ message: "Failed to load parameters." }),
+		);
+	},
+	play: pickDefaultParameters,
 };

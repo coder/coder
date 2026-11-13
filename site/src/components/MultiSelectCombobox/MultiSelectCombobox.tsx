@@ -200,6 +200,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	ref,
 }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
+	// Removing an option from a button moves focus back to the input. Opening
+	// the list there would let a repeated Enter select an option.
+	const keepListClosedOnFocusRef = useRef(false);
 	const [open, setOpen] = useState(false);
 	const [onScrollbar, setOnScrollbar] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
@@ -239,6 +242,13 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		[onChange, selected],
 	);
 
+	const focusInputWithListClosed = () => {
+		setOpen(false);
+		keepListClosedOnFocusRef.current = true;
+		inputRef.current?.focus();
+		keepListClosedOnFocusRef.current = false;
+	};
+
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
 		const input = inputRef.current;
 		if (input) {
@@ -254,6 +264,11 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			// This is not a default behavior of the <input /> field
 			if (e.key === "Escape") {
 				input.blur();
+			}
+			// Only from the input: cmdk would otherwise select the highlighted
+			// option on a following Enter pressed on a remove button.
+			if (e.key === "ArrowDown" && e.target === input) {
+				setOpen(true);
 			}
 		}
 	};
@@ -275,14 +290,29 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			}
 		};
 
+		// Escape closes only the list. An enclosing dialog listens for Escape
+		// on the document in the capture phase, so this listens on the window,
+		// which the event reaches first.
+		const handleEscape = (event: KeyboardEvent) => {
+			if (
+				event.key === "Escape" &&
+				dropdownRef.current?.contains(event.target as Node)
+			) {
+				event.stopPropagation();
+				setOpen(false);
+			}
+		};
+
 		if (open) {
 			document.addEventListener("mousedown", handleClickOutside);
 			document.addEventListener("touchend", handleClickOutside);
+			window.addEventListener("keydown", handleEscape, { capture: true });
 		}
 
 		return () => {
 			document.removeEventListener("mousedown", handleClickOutside);
 			document.removeEventListener("touchend", handleClickOutside);
+			window.removeEventListener("keydown", handleEscape, { capture: true });
 		};
 	}, [open]);
 
@@ -501,6 +531,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									</div>
 									<button
 										type="button"
+										aria-label={`Remove ${option.label}`}
 										data-testid="clear-option-button"
 										className={cn(
 											"ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden",
@@ -509,14 +540,26 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										)}
 										onKeyDown={(e) => {
 											if (e.key === "Enter") {
+												// The button unmounts with its option, so keep focus
+												// in the field. cmdk would treat Enter as selecting an
+												// option, so it must not reach the list.
+												e.preventDefault();
+												e.stopPropagation();
 												handleUnselect(option);
+												focusInputWithListClosed();
 											}
 										}}
 										onMouseDown={(e) => {
 											e.preventDefault();
 											e.stopPropagation();
 										}}
-										onClick={() => handleUnselect(option)}
+										onClick={(e) => {
+											handleUnselect(option);
+											// detail is 0 for a click from the keyboard (Space).
+											if (e.detail === 0) {
+												focusInputWithListClosed();
+											}
+										}}
 									>
 										<XIcon className="size-4 text-content-secondary hover:text-content-primary align-text-bottom" />
 									</button>
@@ -531,16 +574,26 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							disabled={disabled}
 							onValueChange={(value) => {
 								setInputValue(value);
+								setOpen(true);
 								inputProps?.onValueChange?.(value);
 							}}
 							onBlur={(event) => {
 								if (!onScrollbar) {
-									setOpen(false);
+									// Closing removes the list. A dialog's focus trap moves
+									// focus to the dialog when nodes are removed while focus
+									// is between elements, so close once the focus move ends.
+									setTimeout(() => {
+										if (document.activeElement !== inputRef.current) {
+											setOpen(false);
+										}
+									});
 								}
 								inputProps?.onBlur?.(event);
 							}}
 							onFocus={(event) => {
-								setOpen(true);
+								if (!keepListClosedOnFocusRef.current) {
+									setOpen(true);
+								}
 								if (triggerSearchOnFocus) {
 									onSearch?.(debouncedSearchTerm);
 								}
@@ -565,15 +618,25 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 					<div className="flex items-center justify-between">
 						<button
 							type="button"
+							aria-label="Clear all"
 							data-testid="clear-all-button"
-							onClick={() => {
+							onClick={(e) => {
 								setSelected(fixedOptions);
 								onChange?.(fixedOptions);
+								// detail is 0 for a click from the keyboard (Space).
+								if (e.detail === 0) {
+									focusInputWithListClosed();
+								}
 							}}
 							onKeyDown={(e) => {
 								if (e.key === "Enter") {
+									// The button hides once nothing is selected, so keep
+									// focus in the field, and keep Enter away from cmdk.
+									e.preventDefault();
+									e.stopPropagation();
 									setSelected(fixedOptions);
 									onChange?.(fixedOptions);
+									focusInputWithListClosed();
 								}
 							}}
 							className={cn(
