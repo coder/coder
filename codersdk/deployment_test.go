@@ -2220,14 +2220,13 @@ func TestPackagedCoderEnvKeepsDefaults(t *testing.T) {
 	defaultOpts := defaults.Options()
 	require.NoError(t, defaultOpts.SetDefaults())
 
-	matched := 0
 	for i, opt := range packagedOpts {
 		if _, ok := env[opt.Env]; !ok {
 			continue
 		}
-		matched++
+		delete(env, opt.Env)
 		assert.Equal(t, defaultOpts[i].Value.String(), opt.Value.String(),
 			"%s in coder.env replaces the default", opt.Env)
 	}
-	assert.Equal(t, len(env), matched, "every variable in coder.env must name a server option")
+	assert.Empty(t, env, "coder.env sets variables that are not server options")
 }

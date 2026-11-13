@@ -100,7 +100,7 @@ For every server option, refer to the [configuration reference](../../admin/setu
 
 > [!NOTE]
 > If the file has a `CODER_HTTP_ADDRESS=` line with no value, add a `#` at the start of the line.
-> Otherwise the service does not start. For the cause, refer to the note in [Reinstall Coder to upgrade](../operate/upgrade.md#reinstall-coder-to-upgrade).
+> Otherwise the service does not start, unless TLS is enabled. For the cause, refer to the note in [Reinstall Coder to upgrade](../operate/upgrade.md#reinstall-coder-to-upgrade).
 > With the line commented out, Coder listens on `127.0.0.1:3000`.
 > To accept direct connections from other hosts, set `CODER_HTTP_ADDRESS` to an address such as `0.0.0.0:3000`, or put a reverse proxy in front of Coder.
 
