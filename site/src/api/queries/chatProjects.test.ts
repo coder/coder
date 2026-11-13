@@ -91,7 +91,7 @@ describe("chat project mutations", () => {
 
 	it("moves a project between the active and archived lists and refreshes its chats", async () => {
 		const mockOtherProject = { ...MockChatProject, id: "other-project" };
-		const otherSummary = {
+		const mockOtherSummary = {
 			...MockChatProjectSummary,
 			project: mockOtherProject,
 		};
@@ -111,12 +111,12 @@ describe("chat project mutations", () => {
 				before: {
 					active: [MockChatProject, mockOtherProject],
 					archived: [],
-					summaries: [MockChatProjectSummary, otherSummary],
+					summaries: [MockChatProjectSummary, mockOtherSummary],
 				},
 				after: {
 					active: [mockOtherProject],
 					archived: [MockArchivedChatProject],
-					summaries: [otherSummary],
+					summaries: [mockOtherSummary],
 				},
 			},
 			{
@@ -128,13 +128,13 @@ describe("chat project mutations", () => {
 				before: {
 					active: [mockOtherProject],
 					archived: [MockArchivedChatProject],
-					summaries: [otherSummary],
+					summaries: [mockOtherSummary],
 				},
 				// Summaries pick the project up when they refetch.
 				after: {
 					active: [MockChatProject, mockOtherProject],
 					archived: [],
-					summaries: [otherSummary],
+					summaries: [mockOtherSummary],
 				},
 			},
 		];
