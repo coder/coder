@@ -82,7 +82,7 @@ To stage the RPM on a host with no internet access, refer to [Air-gapped deploym
 
 ## Configure the server
 
-`coder.service` doesn't start while `/etc/coder.d/coder.env` is empty.
+The packaged `/etc/coder.d/coder.env` leaves every option at its default.
 Set your configuration before you start the service.
 
 1. Open the configuration file.
@@ -99,7 +99,8 @@ The file ships with the TLS and HTTP address variables commented in place.
 For every server option, refer to the [configuration reference](../../admin/setup/configuration-reference.md).
 
 > [!NOTE]
-> In Coder v2.34.0 and later, a `CODER_HTTP_ADDRESS=` line with no value turns off the HTTP listener, and the server exits at startup unless TLS is configured.
+> In Coder v2.34.0 and later, a `CODER_HTTP_ADDRESS=` line with no value turns off the HTTP listener.
+> Unless TLS is configured, the server then exits at startup with `TLS is disabled. Enable with --tls-enable or specify a HTTP address`.
 > Older packages shipped that line, and a package upgrade keeps your existing `/etc/coder.d/coder.env`.
 > If your file has the line with no value, add a `#` at the start of it, and then run `sudo systemctl restart coder`.
 > With the line commented out, Coder listens on `127.0.0.1:3000`, which accepts connections only from the server host.

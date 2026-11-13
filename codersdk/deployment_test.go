@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -2196,55 +2197,38 @@ func TestExperimentsSafeAreKnown(t *testing.T) {
 	}
 }
 
-// TestPackagedCoderEnvKeepsDefaultHTTPAddress loads the coder.env shipped in
-// the Linux packages and checks that the server keeps its default HTTP
-// listener. An empty CODER_HTTP_ADDRESS is set as an empty value, which
-// disables the listener and stops the server before it starts.
-func TestPackagedCoderEnvKeepsDefaultHTTPAddress(t *testing.T) {
+// TestPackagedCoderEnvKeepsDefaults checks that the coder.env shipped in the
+// Linux packages leaves every server option at its default. An empty
+// variable counts as set, so a line such as CODER_HTTP_ADDRESS= replaces the
+// 127.0.0.1:3000 default, and with TLS off the server then exits at startup.
+func TestPackagedCoderEnvKeepsDefaults(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile(filepath.Join("..", "coder.env"))
+	env, err := godotenv.Read(filepath.Join("..", "coder.env"))
 	require.NoError(t, err)
-	lf := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	require.NotEmpty(t, env)
 
-	for _, tc := range []struct {
-		name    string
-		content string
-	}{
-		{name: "LF", content: lf},
-		{name: "CRLF", content: strings.ReplaceAll(lf, "\n", "\r\n")},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			dv := codersdk.DeploymentValues{}
-			opts := dv.Options()
-			// Same order as a real invocation: the environment is parsed
-			// first, and defaults fill only the options that it left unset.
-			require.NoError(t, opts.ParseEnv(envVarsFromFile(t, tc.content)))
-			require.NoError(t, opts.SetDefaults())
-
-			assert.Equal(t, "127.0.0.1:3000", dv.HTTPAddress.String(), "HTTP address must keep its default")
-			assert.False(t, dv.TLS.Enable.Value(), "TLS must stay disabled")
-		})
+	envVars := make([]serpent.EnvVar, 0, len(env))
+	for name, value := range env {
+		envVars = append(envVars, serpent.EnvVar{Name: name, Value: value})
 	}
-}
 
-// envVarsFromFile returns the variables set in an EnvironmentFile-style
-// file. Blank lines and lines starting with "#" are skipped, and a trailing
-// "\r" is removed so CRLF files parse the same as LF files.
-func envVarsFromFile(t *testing.T, content string) []serpent.EnvVar {
-	t.Helper()
+	var packaged, defaults codersdk.DeploymentValues
+	packagedOpts := packaged.Options()
+	// SetDefaults skips the options that ParseEnv set, as in a real invocation.
+	require.NoError(t, packagedOpts.ParseEnv(envVars))
+	require.NoError(t, packagedOpts.SetDefaults())
+	defaultOpts := defaults.Options()
+	require.NoError(t, defaultOpts.SetDefaults())
 
-	var envs []serpent.EnvVar
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimRight(line, "\r")
-		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
+	matched := 0
+	for i, opt := range packagedOpts {
+		if _, ok := env[opt.Env]; !ok || opt.Value == nil {
 			continue
 		}
-		name, value, ok := strings.Cut(line, "=")
-		require.True(t, ok, "malformed line %q", line)
-		envs = append(envs, serpent.EnvVar{Name: name, Value: value})
+		matched++
+		assert.Equal(t, defaultOpts[i].Value.String(), opt.Value.String(),
+			"%s in coder.env replaces the default", opt.Env)
 	}
-	return envs
+	assert.Equal(t, len(env), matched, "every variable in coder.env must name a server option")
 }
