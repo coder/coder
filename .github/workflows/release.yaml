@@ -296,9 +296,12 @@ jobs:
             echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create empty base-build-context directory
+      # Dockerfile.base only needs the Terraform checksum file from the repo.
+      - name: Create base-build-context directory
         if: steps.image-base-tag.outputs.tag != ''
-        run: mkdir base-build-context
+        run: |
+          mkdir base-build-context
+          cp provisioner/terraform/terraform_SHA256SUMS base-build-context/
 
       - name: Install depot.dev CLI
         if: steps.image-base-tag.outputs.tag != ''
