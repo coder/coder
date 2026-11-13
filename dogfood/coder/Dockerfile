@@ -159,8 +159,8 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	gettext-base \
 	git \
 	gnupg \
-	google-cloud-sdk \
-	google-cloud-sdk-datastore-emulator \
+	google-cloud-cli \
+	google-cloud-cli-datastore-emulator \
 	graphviz \
 	helix \
 	htop \
@@ -212,9 +212,9 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.17.1.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.17.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.17.2/terraform_1.17.2_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \

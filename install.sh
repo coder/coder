@@ -273,7 +273,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.17.1"
+	TERRAFORM_VERSION="1.17.2"
 
 	if [ "${TRACE-}" ]; then
 		set -x
