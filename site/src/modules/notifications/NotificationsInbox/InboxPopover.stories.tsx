@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { MockNotifications } from "#/testHelpers/entities";
 import { InboxPopover } from "./InboxPopover";
 
@@ -35,6 +35,28 @@ export const WithLoadMore: Story = {
 		unreadCount: 2,
 		notifications: MockNotifications.slice(0, 3),
 		hasMoreNotifications: true,
+	},
+};
+
+const manyNotifications = Array.from({ length: 4 }, (_, i) =>
+	MockNotifications.map((n) => ({ ...n, id: `${n.id}-${i}` })),
+).flat();
+
+export const FocusClearOfHeader: Story = {
+	args: {
+		unreadCount: 2,
+		notifications: manyNotifications,
+	},
+	play: async () => {
+		const list = await screen.findByRole("list", { name: "Notifications" });
+		const links = within(list).getAllByRole("link");
+		const viewport = links[4].closest("[data-radix-scroll-area-viewport]");
+		viewport?.scrollBy(
+			0,
+			links[4].getBoundingClientRect().top -
+				viewport.getBoundingClientRect().top,
+		);
+		links[4].focus();
 	},
 };
 
