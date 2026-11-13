@@ -42,6 +42,17 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    # The gateway must reach Coder.
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8443
+          protocol: TCP
+      to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
     - ports:
       - port: 443
         protocol: TCP

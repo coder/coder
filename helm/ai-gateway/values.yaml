@@ -233,8 +233,7 @@ networkPolicy:
   annotations: {}
   ingress:
     # Peers (NetworkPolicyPeer objects) allowed to reach the data-plane port.
-    # Empty allows any source. Other gateway replicas are always allowed in
-    # addition when this is set.
+    # Empty allows any source.
     from: []
     # - namespaceSelector:
     #     matchLabels:
@@ -247,9 +246,21 @@ networkPolicy:
   # NetworkPolicyIngressRule objects appended to spec.ingress.
   extraIngress: []
   egress:
-    # When true, only DNS (port 53) and extraEgress rules are allowed, so you
-    # must allow Coder, the AI providers, and the Kubernetes API.
+    # When true, only DNS (port 53), the Coder server, and extraEgress rules
+    # are allowed, so you must also allow the AI providers.
     enable: false
+    coderServer:
+      # Peers (NetworkPolicyPeer objects) for the Coder server. The default
+      # matches the Coder chart's pods in any namespace. Change this if
+      # CODER_URL points to an external address (e.g. an ipBlock). Empty allows
+      # any destination on the ports below.
+      to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
+      # TCP ports of the Coder server.
+      ports: [8080, 8443]
   # NetworkPolicyEgressRule objects appended to spec.egress. Only used if
   # egress.enable is true.
   extraEgress: []

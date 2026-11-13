@@ -127,7 +127,7 @@
         "ingress": {"type": "object", "additionalProperties": false, "required": ["from"], "properties": {"from": {"type": "array", "items": {"type": "object"}}}},
         "prometheus": {"type": "object", "additionalProperties": false, "required": ["from"], "properties": {"from": {"type": "array", "items": {"type": "object"}}}},
         "extraIngress": {"type": "array", "items": {"type": "object"}},
-        "egress": {"type": "object", "additionalProperties": false, "required": ["enable"], "properties": {"enable": {"type": "boolean"}}},
+        "egress": {"type": "object", "additionalProperties": false, "required": ["enable", "coderServer"], "properties": {"enable": {"type": "boolean"}, "coderServer": {"type": "object", "additionalProperties": false, "required": ["to", "ports"], "properties": {"to": {"type": "array", "items": {"type": "object"}}, "ports": {"type": "array", "items": {"type": "integer"}}}}}},
         "extraEgress": {"type": "array", "items": {"type": "object"}}
       }
     },

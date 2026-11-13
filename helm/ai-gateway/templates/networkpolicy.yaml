@@ -47,6 +47,16 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    # The gateway must reach Coder.
+    - ports:
+        {{- range .Values.networkPolicy.egress.coderServer.ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.networkPolicy.egress.coderServer.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     {{- with .Values.networkPolicy.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

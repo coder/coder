@@ -138,8 +138,10 @@ to the data-plane port (4001), from the peers in `networkPolicy.ingress.from`
 `networkPolicy.extraIngress`.
 
 Egress is unrestricted unless you set `networkPolicy.egress.enable`. In that
-case only DNS and your `networkPolicy.extraEgress` rules are allowed, so you
-must also allow Coder, your AI providers, and the Kubernetes API.
+case only DNS, the Coder server, and your `networkPolicy.extraEgress` rules are
+allowed, so you must also allow your AI providers. The Coder server defaults to
+the Coder chart's pods in any namespace; set `egress.coderServer.to` and
+`ports` if `CODER_URL` points elsewhere.
 
 ```yaml
 networkPolicy:
