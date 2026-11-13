@@ -16968,12 +16968,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type                                                          | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `count`        | integer                                                       | false    |              | Count is the number of models listed.                                   |
-| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are ordered by unpriced token count, highest first.              |
-| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                          | Required | Restrictions | Description                                                                        |
+|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------|
+| `count`        | integer                                                       | false    |              | Count is the number of models over every page.                                     |
+| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are one page of the models, ordered by unpriced token count, highest first. |
+| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.              |
+| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.            |
 
 ## codersdk.UpdateAIProviderRequest
 

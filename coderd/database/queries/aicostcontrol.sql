@@ -775,7 +775,8 @@ ORDER BY
 -- reported by the provider, or whose cost could not be computed from a found
 -- price, is not reported as unpriced. openai-compat providers cannot be priced,
 -- so they are excluded. @organization_id limits the usage to one organization,
--- and null includes all.
+-- and null includes all. count is the number of models before the limit, and a
+-- @limit_opt of zero returns every model.
 WITH unpriced_usage AS (
 	SELECT
 		groups.organization_id,
@@ -808,7 +809,8 @@ SELECT
 	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
 	unpriced_usage.model,
-	SUM(unpriced_usage.token_count)::bigint AS token_count
+	SUM(unpriced_usage.token_count)::bigint AS token_count,
+	COUNT(*) OVER ()::BIGINT AS count
 FROM unpriced_usage
 JOIN ai_providers AS providers
 	ON providers.name = unpriced_usage.provider_name
@@ -839,4 +841,6 @@ ORDER BY
 	token_count DESC,
 	provider_name ASC,
 	LOWER(unpriced_usage.model) ASC,
-	unpriced_usage.model ASC;
+	unpriced_usage.model ASC
+LIMIT NULLIF(@limit_opt::int, 0)
+OFFSET @offset_opt::int;

@@ -135,9 +135,10 @@ func (c *ExperimentalClient) UpsertAIModelPrices(ctx context.Context, req Upsert
 // are listed.
 type UnpricedAIModels struct {
 	AISpendPeriodWindow
-	// Count is the number of models listed.
+	// Count is the number of models over every page.
 	Count int64 `json:"count"`
-	// Models are ordered by unpriced token count, highest first.
+	// Models are one page of the models, ordered by unpriced token count,
+	// highest first.
 	Models []UnpricedAIModel `json:"models"`
 }
 
@@ -155,11 +156,12 @@ type UnpricedAIModel struct {
 	TokenCount int64 `json:"token_count"`
 }
 
-// OrganizationUnpricedAIModels returns the models with token usage recorded
-// without a price in the organization over the period. Only models without a
-// price now are returned. The period bounds must be set together. When both
-// are zero, they are omitted and the server uses the current budget period.
-func (c *ExperimentalClient) OrganizationUnpricedAIModels(ctx context.Context, organization uuid.UUID, period AISpendPeriodWindow) (UnpricedAIModels, error) {
+// OrganizationUnpricedAIModels returns one page of the models with token usage
+// recorded without a price in the organization over the period. Only models
+// without a price now are returned. The period bounds must be set together.
+// When both are zero, they are omitted and the server uses the current budget
+// period.
+func (c *ExperimentalClient) OrganizationUnpricedAIModels(ctx context.Context, organization uuid.UUID, period AISpendPeriodWindow, page OrganizationAISpendPage) (UnpricedAIModels, error) {
 	filter := OrganizationAISpendDetailsFilter{
 		PeriodStart: period.PeriodStart,
 		PeriodEnd:   period.PeriodEnd,
@@ -168,6 +170,7 @@ func (c *ExperimentalClient) OrganizationUnpricedAIModels(ctx context.Context, o
 		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices/unpriced", organization.String()),
 		nil,
 		filter.asRequestOption(),
+		page.asRequestOption(),
 	)
 	if err != nil {
 		return UnpricedAIModels{}, xerrors.Errorf("make request: %w", err)

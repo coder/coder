@@ -3791,13 +3791,13 @@ WITH unpriced_usage AS (
 		ON interceptions.id = token_usages.interception_id
 	LEFT JOIN groups
 		ON groups.id = token_usages.effective_group_id
-	WHERE token_usages.created_at >= $2::timestamptz
-		AND token_usages.created_at < $3::timestamptz
+	WHERE token_usages.created_at >= $4::timestamptz
+		AND token_usages.created_at < $5::timestamptz
 		AND token_usages.cost_micros IS NULL
 		AND token_usages.priced_model IS NULL
 		AND (
-			$4::uuid IS NULL
-			OR groups.organization_id = $4::uuid
+			$6::uuid IS NULL
+			OR groups.organization_id = $6::uuid
 		)
 	GROUP BY groups.organization_id, interceptions.provider_name, interceptions.model
 )
@@ -3807,7 +3807,8 @@ SELECT
 	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
 	unpriced_usage.model,
-	SUM(unpriced_usage.token_count)::bigint AS token_count
+	SUM(unpriced_usage.token_count)::bigint AS token_count,
+	COUNT(*) OVER ()::BIGINT AS count
 FROM unpriced_usage
 JOIN ai_providers AS providers
 	ON providers.name = unpriced_usage.provider_name
@@ -3839,10 +3840,14 @@ ORDER BY
 	provider_name ASC,
 	LOWER(unpriced_usage.model) ASC,
 	unpriced_usage.model ASC
+LIMIT NULLIF($3::int, 0)
+OFFSET $2::int
 `
 
 type GetUnpricedAIModelsParams struct {
 	PriceableProviders []string      `db:"priceable_providers" json:"priceable_providers"`
+	OffsetOpt          int32         `db:"offset_opt" json:"offset_opt"`
+	LimitOpt           int32         `db:"limit_opt" json:"limit_opt"`
 	PeriodStart        time.Time     `db:"period_start" json:"period_start"`
 	PeriodEnd          time.Time     `db:"period_end" json:"period_end"`
 	OrganizationID     uuid.NullUUID `db:"organization_id" json:"organization_id"`
@@ -3855,6 +3860,7 @@ type GetUnpricedAIModelsRow struct {
 	ProviderType        string         `db:"provider_type" json:"provider_type"`
 	Model               string         `db:"model" json:"model"`
 	TokenCount          int64          `db:"token_count" json:"token_count"`
+	Count               int64          `db:"count" json:"count"`
 }
 
 // Returns, for each live provider, the requested models with unpriced token
@@ -3865,10 +3871,13 @@ type GetUnpricedAIModelsRow struct {
 // reported by the provider, or whose cost could not be computed from a found
 // price, is not reported as unpriced. openai-compat providers cannot be priced,
 // so they are excluded. @organization_id limits the usage to one organization,
-// and null includes all.
+// and null includes all. count is the number of models before the limit, and a
+// @limit_opt of zero returns every model.
 func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUnpricedAIModels,
 		pq.Array(arg.PriceableProviders),
+		arg.OffsetOpt,
+		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
 		arg.OrganizationID,
@@ -3887,6 +3896,7 @@ func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIM
 			&i.ProviderType,
 			&i.Model,
 			&i.TokenCount,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

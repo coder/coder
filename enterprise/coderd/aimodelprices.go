@@ -350,8 +350,9 @@ func validateAIModelPriceValues(field string, keys aiModelPriceKeys, prices aiMo
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary List organization unpriced AI models
-// @Description Returns, for each provider, the requested models with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.
+// @Description Returns one page of the requested models, for each provider, with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.
+// @Description The response carries the number of models over every page.
 // @Description Unknown query parameters are rejected.
 // @ID list-organization-unpriced-ai-models
 // @Security CoderSessionToken
@@ -360,6 +361,8 @@ func validateAIModelPriceValues(field string, keys aiModelPriceKeys, prices aiMo
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param limit query int false "Page size (default 10, maximum 100)"
+// @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.UnpricedAIModels
 // @Router /api/experimental/organizations/{organization}/ai/model-prices/unpriced [get]
 // @x-apidocgen {"skip": true}
@@ -375,30 +378,52 @@ func (api *API) organizationUnpricedAIModels(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	period, ok := api.aiSpendRetainedPeriod(ctx, rw, r, httpapi.NewQueryParamParser())
+	parser := httpapi.NewQueryParamParser()
+	page := parseOrganizationAISpendPage(parser, r.URL.Query())
+	period, ok := api.aiSpendRetainedPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
 	}
+	logger = logger.With(
+		slog.F("period_start", period.start),
+		slog.F("period_end", period.end),
+	)
 
-	rows, err := api.Database.GetUnpricedAIModels(ctx, database.GetUnpricedAIModelsParams{
+	params := database.GetUnpricedAIModelsParams{
 		OrganizationID:     uuid.NullUUID{UUID: org.ID, Valid: true},
 		PeriodStart:        period.start,
 		PeriodEnd:          period.end,
 		PriceableProviders: providers.SupportedStrings(),
-	})
+		// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+		LimitOpt: int32(page.Limit),
+		// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+		OffsetOpt: int32(page.Offset),
+	}
+	rows, err := api.Database.GetUnpricedAIModels(ctx, params)
 	if err != nil {
-		logger.Error(ctx, "failed to list unpriced AI models",
-			slog.F("period_start", period.start),
-			slog.F("period_end", period.end),
-			slog.Error(err))
+		logger.Error(ctx, "failed to list unpriced AI models", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+	// Every row carries the count, so a page past the last model has no row to
+	// carry it. Read it from the first page instead.
+	counted := rows
+	if len(rows) == 0 && page.Offset > 0 {
+		params.LimitOpt, params.OffsetOpt = 1, 0
+		counted, err = api.Database.GetUnpricedAIModels(ctx, params)
+		if err != nil {
+			logger.Error(ctx, "failed to count unpriced AI models", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	resp := codersdk.UnpricedAIModels{
 		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
-		Count:               int64(len(rows)),
 		Models:              slice.List(rows, db2sdk.UnpricedAIModel),
+	}
+	if len(counted) > 0 {
+		resp.Count = counted[0].Count
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
