@@ -297,13 +297,16 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						{!expanded && unreadCount > 0 && (
 							// Covers the actions button, which takes its place on hover
 							// or keyboard focus without moving anything.
-							<span className="pointer-events-none absolute inset-y-0 right-2 flex w-6 items-center justify-center group-hover:invisible group-has-focus-visible:invisible group-has-data-[state=open]:invisible">
-								<span
-									aria-hidden="true"
-									className="flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-quaternary px-1 text-2xs font-medium text-content-secondary tabular-nums"
-								>
-									{unreadCount}
-								</span>
+							<span
+								aria-hidden="true"
+								className={cn(
+									"pointer-events-none absolute inset-y-0 right-2 flex min-w-6 items-center justify-end gap-1.5",
+									"text-[13px] text-content-secondary tabular-nums",
+									"group-hover:invisible group-has-focus-visible:invisible group-has-data-[state=open]:invisible",
+								)}
+							>
+								<span className="size-1.5 rounded-full bg-content-link" />
+								{unreadCount}
 							</span>
 						)}
 						<DropdownMenu>

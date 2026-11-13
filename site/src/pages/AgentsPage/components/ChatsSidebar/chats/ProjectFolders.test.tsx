@@ -167,7 +167,7 @@ describe("ProjectFolders", () => {
 			}),
 		).toHaveFocus();
 		await user.keyboard("{Enter}");
-		await user.click(screen.getByRole("menuitem", { name: "Unpin project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Unpin" }));
 		expect(unpin).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
 			MockChatProject.id,
