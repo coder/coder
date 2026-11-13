@@ -2210,6 +2210,7 @@ type createWorkspacePresetTestSetup struct {
 	OwnerID     uuid.UUID
 	OrgID       uuid.UUID
 	TemplateID  uuid.UUID
+	VersionID   uuid.UUID
 	ChatID      uuid.UUID
 	WorkspaceID uuid.UUID
 	BuildID     uuid.UUID
@@ -2230,6 +2231,7 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 		OwnerID:     uuid.New(),
 		OrgID:       uuid.New(),
 		TemplateID:  uuid.New(),
+		VersionID:   uuid.New(),
 		ChatID:      uuid.New(),
 		WorkspaceID: uuid.New(),
 		BuildID:     uuid.New(),
@@ -2253,7 +2255,7 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 			OrganizationID:  s.OrgID,
 			AgentsAllowed:   true,
 			Name:            "test-template",
-			ActiveVersionID: uuid.New(),
+			ActiveVersionID: s.VersionID,
 		}, nil)
 
 	// Chat workspace TTL.
@@ -2267,6 +2269,14 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 		Return(database.Chat{ID: s.ChatID}, nil)
 
 	return s
+}
+
+// expectPreset adds a mock expectation for looking up a preset that
+// belongs to the given template version.
+func (s createWorkspacePresetTestSetup) expectPreset(presetID, versionID uuid.UUID) {
+	s.DB.EXPECT().
+		GetPresetByID(gomock.Any(), presetID).
+		Return(database.GetPresetByIDRow{ID: presetID, TemplateVersionID: versionID}, nil)
 }
 
 // expectSuccessfulBuild adds mock expectations for a successful
@@ -2305,6 +2315,7 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 	s.expectSuccessfulBuild()
 
 	presetID := uuid.New()
+	s.expectPreset(presetID, s.VersionID)
 
 	var capturedReq codersdk.CreateWorkspaceRequest
 	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
@@ -2379,6 +2390,80 @@ func TestCreateWorkspace_InvalidPresetID(t *testing.T) {
 	require.Contains(t, resp.Content, "invalid preset_id")
 }
 
+func TestCreateWorkspace_PresetFromOtherTemplate(t *testing.T) {
+	t.Parallel()
+
+	// Prebuilds are claimed by preset ID alone, so a preset outside the
+	// template's active version must be rejected before CreateFn.
+	s := setupCreateWorkspacePresetTest(t)
+	presetID := uuid.New()
+	s.expectPreset(presetID, uuid.New())
+
+	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
+		OwnerID: s.OwnerID,
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+			t.Fatal("CreateFn should not be called with a preset from another template")
+			return codersdk.Workspace{}, database.Chat{}, nil
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(
+		`{"template_id":%q,"preset_id":%q,"name":"test-ws"}`,
+		s.TemplateID.String(), presetID.String(),
+	)
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-foreign-preset",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Equal(t, presetNotInTemplateMessage, resp.Content)
+}
+
+func TestCreateWorkspace_ProjectDefaultPresetLookupFails(t *testing.T) {
+	t.Parallel()
+
+	// The tool returns the bound workspace on later calls, so building
+	// without the project's default preset could not be retried.
+	s := setupCreateWorkspacePresetTest(t)
+	projectID := uuid.New()
+	s.DB.EXPECT().
+		GetChatProjectByID(gomock.Any(), projectID).
+		Return(database.ChatProject{
+			ID:                             projectID,
+			TemplateIDs:                    []uuid.UUID{s.TemplateID},
+			DefaultTemplateID:              uuid.NullUUID{UUID: s.TemplateID, Valid: true},
+			DefaultTemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}, nil)
+	s.DB.EXPECT().
+		GetPresetsByTemplateVersionID(gomock.Any(), s.VersionID).
+		Return(nil, xerrors.New("connection reset"))
+
+	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
+		OwnerID:   s.OwnerID,
+		ProjectID: uuid.NullUUID{UUID: projectID, Valid: true},
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+			t.Fatal("CreateFn should not be called when the default preset lookup fails")
+			return codersdk.Workspace{}, database.Chat{}, nil
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-default-preset-lookup",
+		Name:  "create_workspace",
+		Input: fmt.Sprintf(`{"template_id":%q,"name":"test-ws"}`, s.TemplateID.String()),
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "connection reset")
+}
+
 func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 	t.Parallel()
 
@@ -2386,6 +2471,7 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 	s.expectSuccessfulBuild()
 
 	presetID := uuid.New()
+	s.expectPreset(presetID, s.VersionID)
 
 	var capturedReq codersdk.CreateWorkspaceRequest
 	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
