@@ -18248,6 +18248,82 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	require.Equal(t, newRun.ID, remaining.ID)
 }
 
+func TestAcquireStaleChatDiffStatusesRootChatsOnly(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	store, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, store, database.User{})
+	org := dbgen.Organization(t, store, database.Organization{})
+	model := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{OrganizationID: org.ID})
+
+	newChat := func(parentID, rootID uuid.UUID) database.Chat {
+		t.Helper()
+		return dbgen.Chat(t, store, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+		})
+	}
+
+	root := newChat(uuid.Nil, uuid.Nil)
+	child := newChat(root.ID, root.ID)
+	grandchild := newChat(child.ID, root.ID)
+	withoutRootID := newChat(root.ID, uuid.Nil)
+	withoutParentID := newChat(uuid.Nil, root.ID)
+
+	// Archived root chats remain excluded from diff-status refresh.
+	archived := newChat(uuid.Nil, uuid.Nil)
+	_, err := store.ArchiveChatByID(ctx, archived.ID)
+	require.NoError(t, err)
+
+	seedRef := func(chat database.Chat, staleAt time.Time) database.ChatDiffStatus {
+		t.Helper()
+		status, err := store.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chat.ID,
+			GitRemoteOrigin: "https://github.com/coder/coder",
+			GitBranch:       "feature",
+			StaleAt:         staleAt,
+		})
+		require.NoError(t, err)
+		return status
+	}
+
+	// Rows on subagent chats and the archived root chat are due before the
+	// active root row. They must not prevent its acquisition with a limit of one.
+	olderStaleAt := dbtime.Now().Add(-2 * time.Minute)
+	rootStaleAt := olderStaleAt.Add(time.Minute)
+	excluded := []database.ChatDiffStatus{
+		seedRef(child, olderStaleAt),
+		seedRef(grandchild, olderStaleAt),
+		seedRef(withoutRootID, olderStaleAt),
+		seedRef(withoutParentID, olderStaleAt),
+		seedRef(archived, olderStaleAt),
+	}
+	seedRef(root, rootStaleAt)
+
+	rows, err := store.AcquireStaleChatDiffStatuses(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, root.ID, rows[0].ChatID)
+	require.Equal(t, user.ID, rows[0].OwnerID)
+	require.True(t, rows[0].StaleAt.After(dbtime.Now()))
+
+	// The root row is claimed, and the excluded rows cannot be acquired.
+	rows, err = store.AcquireStaleChatDiffStatuses(ctx, 50)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+
+	// Excluded rows keep their original stale_at.
+	for _, want := range excluded {
+		statuses, err := store.GetChatDiffStatusesByChatID(ctx, want.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, []database.ChatDiffStatus{want}, statuses)
+	}
+}
+
 func TestGetChatsFilter(t *testing.T) {
 	t.Parallel()
 

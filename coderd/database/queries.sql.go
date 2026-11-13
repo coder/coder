@@ -8583,6 +8583,10 @@ WITH acquired AS (
                 AND cds.git_remote_origin != ''
                 AND cds.git_branch != ''
                 AND c.archived = FALSE
+                -- Match Chat.IsSubChat when a deleted parent leaves
+                -- only root_chat_id set.
+                AND c.parent_chat_id IS NULL
+                AND c.root_chat_id IS NULL
             ORDER BY
                 cds.stale_at ASC
             FOR UPDATE OF cds
@@ -11458,10 +11462,9 @@ WHERE
         WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
         ELSE true
     END
-    -- Match chats whose linked diff URL (e.g. a pull request URL)
-    -- equals the given value, case-insensitively. The URL may live on
-    -- a delegated sub-agent's diff status, so we surface the root chat
-    -- when any descendant matches.
+    -- Match linked diff URLs (e.g. pull request URLs) case-insensitively.
+    -- Include rows on a chat's subagent chats because the schema does not
+    -- enforce root-only diff-status ownership.
     AND CASE
         WHEN $10::text IS NOT NULL THEN EXISTS (
             SELECT 1
@@ -11499,11 +11502,7 @@ WHERE
             chats_expanded.status::text = ANY($13::text[])
         ELSE true
     END
-    -- Filter by pull request status. Unlike the diff_url filter above,
-    -- this intentionally checks only the root chat's own diff status.
-    -- Child chats share the same workspace and git branch as their
-    -- parent, so gitsync populates identical PR state on both; traversing
-    -- descendants would be redundant.
+    -- Filter by pull request status stored on the root chat.
     -- "none" matches chats with no pull request: no diff-status row, or a
     -- row whose pull_request_state is null or empty.
     AND CASE
