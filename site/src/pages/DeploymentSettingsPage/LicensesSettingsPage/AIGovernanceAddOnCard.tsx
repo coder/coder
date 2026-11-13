@@ -24,7 +24,7 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 
 	return (
 		<div
-			className={`min-w-[320px] flex-1 rounded-sm border border-solid py-3 ${
+			className={`min-w-[320px] flex-1 rounded-sm border py-3 ${
 				isExceeded && "border-border-destructive"
 			}`}
 		>
@@ -39,7 +39,7 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 								<button
 									type="button"
 									aria-label="AI Governance seat information"
-									className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+									className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 								>
 									<InfoIcon className="size-3" />
 								</button>

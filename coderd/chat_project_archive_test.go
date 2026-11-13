@@ -288,3 +288,32 @@ func TestChatProjectWriteRacingArchive(t *testing.T) {
 		})
 	}
 }
+
+func TestChatProjectArchivePins(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _ := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+
+	a := createChatProject(t, client, orgID, "Archive pin A")
+	b := createChatProject(t, client, orgID, "Archive pin B")
+	c := createChatProject(t, client, orgID, "Archive pin C")
+	_, err := client.ArchiveChatProject(ctx, orgID, b.ID, codersdk.ArchiveChatProjectRequest{})
+	require.NoError(t, err)
+
+	// An archived project leaves the summaries, and its pin takes no
+	// position, either in summaries or in requested positions.
+	require.NotContains(t, chatProjectSummariesByID(ctx, t, client), b.ID)
+	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{a.ID: 1, c.ID: 2})
+	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
+	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, a.ID: 2})
+	sdkErr := requireSDKError(t, client.PinChatProject(ctx, orgID, b.ID, codersdk.PinChatProjectRequest{}), http.StatusConflict)
+	require.Equal(t, "Chat project is archived.", sdkErr.Message)
+
+	// Unarchiving brings the pin back after the visible ones.
+	_, err = client.UnarchiveChatProject(ctx, orgID, b.ID)
+	require.NoError(t, err)
+	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, a.ID: 2, b.ID: 3})
+}
