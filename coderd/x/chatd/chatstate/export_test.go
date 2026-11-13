@@ -100,6 +100,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionRecordRetryState,
 	TransitionDeliverSteerMessages,
 	TransitionCommitStep,
+	TransitionResolvePromptHooks,
 	TransitionEnterRequiresAction,
 	TransitionFinishInterruption,
 	TransitionFinishTurn,
