@@ -378,7 +378,8 @@ On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
 
 1. Put the Podman graph root on a real filesystem such as ext4 or xfs.
    If your template mounts a persistent volume at `/home/coder`, like the `kubernetes` starter, the default graph root already qualifies and keeps images across workspace restarts.
-   For ephemeral workspaces, mount an `emptyDir` volume at `/home/coder/.local/share/containers` instead; pulled images and build cache are lost when the workspace stops.
+   For ephemeral workspaces, mount an `emptyDir` volume at `/home/coder/.local/share/containers` instead.
+   Pulled images and build cache are lost when the workspace stops.
 1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`.
    Write the override from the agent `startup_script`, which can also start the Docker-compatible API socket:
 
@@ -401,7 +402,8 @@ On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
    `docker buildx` commands still require BuildKit and aren't supported.
 
 With both settings, Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
-When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec; without the device plugin, that limit keeps pods in `Pending`.
+When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec.
+Without the device plugin, that limit keeps pods in `Pending`.
 
 For a complete reference template, run `coder templates init --id kubernetes-podman-rootless` or refer to [`examples/templates/kubernetes-podman-rootless`](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-podman-rootless).
 
