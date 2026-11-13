@@ -459,6 +459,9 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 		provReloadStopErr = xerrors.Errorf("provider reload did not stop within %s, continuing gateway shutdown", providerReloadShutdownTimeout)
 	}
 
+	// Stop the provider reload timer now rather than when serve returns.
+	provReloadShutdownCancel()
+
 	// Provider reload normally stops before HTTP draining so it cannot clear the
 	// bridge cache while requests are draining. If it does not stop within its
 	// timeout, continue with best-effort graceful HTTP shutdown.
@@ -581,12 +584,28 @@ func resolveAIGatewayKey(key string, keyFile string) (string, error) {
 }
 
 // clockTimeout returns a context that is canceled when d elapses on clock.
+// Like context.WithTimeout, its Err reports context.DeadlineExceeded once the
+// timeout fires. Contexts derived from it report context.Canceled instead.
 // The tags identify the timer so tests can trap it on a mock clock.
 func clockTimeout(ctx context.Context, clock quartz.Clock, d time.Duration, tags ...string) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	timer := clock.AfterFunc(d, func() { cancel(context.DeadlineExceeded) }, tags...)
-	return ctx, func() {
+	return timeoutContext{ctx}, func() {
 		timer.Stop()
 		cancel(context.Canceled)
 	}
+}
+
+// timeoutContext reports the context.DeadlineExceeded cause set by
+// clockTimeout from Err.
+type timeoutContext struct {
+	context.Context
+}
+
+func (c timeoutContext) Err() error {
+	err := c.Context.Err()
+	if err != nil && errors.Is(context.Cause(c.Context), context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return err
 }

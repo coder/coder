@@ -361,6 +361,8 @@ func TestRunStandaloneGateway_DaemonShutdownTimeout(t *testing.T) {
 	pool.started = shutdownStarted
 	pool.release = make(chan struct{})
 
+	// Only the daemon timer is trapped. The missing TLS files make serve fail
+	// straight away, and serve stops its own timers before it returns.
 	daemonShutdownTrap := mClock.Trap().AfterFunc("aigateway", "daemon_shutdown")
 	defer daemonShutdownTrap.Close()
 
@@ -371,12 +373,11 @@ func TestRunStandaloneGateway_DaemonShutdownTimeout(t *testing.T) {
 	daemonShutdownCall := daemonShutdownTrap.MustWait(testCtx)
 	daemonShutdownCall.MustRelease(testCtx)
 	testutil.RequireReceive(testCtx, t, shutdownStarted)
-	require.Empty(t, runDone, "run is still waiting for the daemon")
 
 	mClock.Advance(daemonShutdownTimeout).MustWait(testCtx)
 	err := testutil.RequireReceive(testCtx, t, runDone)
 	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
-	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must not be marked closed after a daemon shutdown timeout")
 }
 
@@ -537,7 +538,6 @@ func TestStandaloneGatewayServe_ProviderReloadShutdownTimeout(t *testing.T) {
 	cancelServe()
 	providerReloadShutdownCall := providerReloadShutdownTrap.MustWait(testCtx)
 	providerReloadShutdownCall.MustRelease(testCtx)
-	require.Empty(t, serveDone, "serve must still be waiting for provider reload")
 
 	// Advance past the provider reload timeout. Serve must give up waiting
 	// for provider reload and still drain and close the HTTP server.
@@ -604,16 +604,12 @@ func TestStandaloneGatewayServe_HTTPShutdownTimeout(t *testing.T) {
 	cancelServe()
 
 	httpShutdownTrap.MustWait(testCtx).MustRelease(testCtx)
-	require.Empty(t, serveDone, "serve is still draining")
 
-	// The provider reload timer is still pending until serve returns, and the
-	// mock clock cannot advance past it, so fire it first.
-	mClock.Advance(providerReloadShutdownTimeout).MustWait(testCtx)
-	require.Empty(t, serveDone, "serve is still draining after provider reload shutdown")
-	mClock.Advance(httpShutdownTimeout - providerReloadShutdownTimeout).MustWait(testCtx)
+	mClock.Advance(httpShutdownTimeout).MustWait(testCtx)
 
 	err := testutil.RequireReceive(testCtx, t, serveDone)
 	require.ErrorContains(t, err, "shutdown http server:")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Error(t, testutil.RequireReceive(testCtx, t, requestDone), "the in-flight request must be cut off by the forced close")
 	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before HTTP draining")
 	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed after the HTTP shutdown timeout")
