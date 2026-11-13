@@ -334,18 +334,67 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
-	it("stays open while it checks for newer templates before saving", async () => {
+	it("cancels the save when the dialog closes during the check", async () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toBeEnabled());
-		getProjects.mockReturnValueOnce(new Promise(() => {}));
+		let finishCheck: (projects: ChatProject[]) => void = () => {};
+		getProjects.mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishCheck = resolve;
+			}),
+		);
 
 		await user.click(save);
 		await user.keyboard("{Escape}");
+		expect(props.onOpenChange).toHaveBeenCalledWith(false);
+		finishCheck([MockChatProject]);
 
-		expect(props.onOpenChange).not.toHaveBeenCalled();
+		await waitFor(() => expect(getProjects).toHaveBeenCalled());
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(props.onSave).not.toHaveBeenCalled();
+	});
+
+	it("moves focus to Load latest when the check finds a newer save", async () => {
+		const { user, rerenderWithProject } = renderDialog();
+		const getProjects = vi.mocked(API.experimental.getChatProjects);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toBeEnabled());
+		const newer = {
+			...MockChatProject,
+			templates: {
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+			},
+		};
+		getProjects.mockResolvedValue([newer]);
+
+		await user.click(save);
+		rerenderWithProject(newer);
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Load latest" })).toHaveFocus(),
+		);
+	});
+
+	it("moves focus to Retry when the check fails", async () => {
+		const { user } = renderDialog();
+		const getProjects = vi.mocked(API.experimental.getChatProjects);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toBeEnabled());
+		getProjects.mockRejectedValueOnce(
+			mockApiError({ message: "Network error." }),
+		);
+
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus(),
+		);
 	});
 
 	it("treats an edited and restored parameter as untouched", async () => {

@@ -143,6 +143,7 @@ If you haven't edited anything, the dialog switches to the newer templates.
 If you have unsaved edits, it shows a warning and you can't save until you choose.
 Select **Load latest** to start over from the newer templates, or **Keep my draft** to replace them with yours when you save.
 If the check fails, saving is paused until you select **Retry**.
+You can close the dialog while it checks; the save is then canceled.
 
 You can add any template in the project's organization that you can access, that allows Coder Agents, and that isn't deprecated.
 **Select all** adds every such template.
@@ -178,7 +179,7 @@ For a template in [parameter compatibility mode](../templates/extending-template
 When you edit the templates, the dialog warns about values for parameters that the active version no longer has, and saving removes them.
 For other templates, Coder keeps every value and checks it when the agent creates a workspace.
 A value for a parameter that the active version no longer has isn't shown in the dialog, and the workspace build ignores it.
-To remove it, update `default_parameters` through the API, or switch the default values to **Preset** and save.
+To remove it, update `default_parameters` through the API, or switch the default values to **Preset** and save, which clears every default parameter value.
 
 The API keeps returning a default preset after it leaves the active version.
 Sending those `templates` back unchanged fails with a `400` error until you set `default_preset_id` to a preset from the active version or remove it.
