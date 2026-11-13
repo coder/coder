@@ -88,6 +88,10 @@
 	--color-surface-magenta: hsl(var(--surface-magenta));
 	--color-surface-git-added: hsl(var(--surface-git-added));
 	--color-surface-git-deleted: hsl(var(--surface-git-deleted));
+	--color-surface-git-added-emphasis: hsl(var(--surface-git-added-emphasis));
+	--color-surface-git-deleted-emphasis: hsl(
+		var(--surface-git-deleted-emphasis)
+	);
 	--color-surface-git-merged: hsl(var(--surface-git-merged));
 
 	--color-border: hsl(var(--border-default));
@@ -547,8 +551,11 @@
 		--git-added-bright: 142 72% 29%;
 		--git-deleted-bright: 0 74% 42%;
 		--git-merged-bright: 272 72% 47%;
-		--surface-git-added: 141 84% 93%;
-		--surface-git-deleted: 0 93% 94%;
+		--surface-git-added: 120 56.8% 92.7%;
+		--surface-git-deleted: 5.5 100% 95.7%;
+		/* Highlight the changed words within a diff line. */
+		--surface-git-added-emphasis: 118.6 48.9% 82.4%;
+		--surface-git-deleted-emphasis: 3.4 100% 89.6%;
 		--surface-git-merged: 269 100% 95%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
@@ -647,8 +654,10 @@
 		--git-added-bright: 142 71% 45%;
 		--git-deleted-bright: 0 91% 71%;
 		--git-merged-bright: 270 95% 75%;
-		--surface-git-added: 145 80% 10%;
-		--surface-git-deleted: 0 75% 15%;
+		--surface-git-added: 120 20.5% 15.3%;
+		--surface-git-deleted: 3 23% 18%;
+		--surface-git-added-emphasis: 131.3 43.6% 21.6%;
+		--surface-git-deleted-emphasis: 1.2 34.8% 27.6%;
 		--surface-git-merged: 274 87% 21%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
@@ -710,8 +719,10 @@
 		--git-modified: 271 91% 45%;
 		--git-added-bright: 199 89% 48%;
 		--git-deleted-bright: 24 95% 53%;
-		--surface-git-added: 204 94% 94%;
-		--surface-git-deleted: 33 100% 93%;
+		--surface-git-added: 204.8 100% 94.3%;
+		--surface-git-deleted: 19.3 100% 94.5%;
+		--surface-git-added-emphasis: 204.7 100% 85.7%;
+		--surface-git-deleted-emphasis: 18.9 100% 86.3%;
 	}
 	.dark-protan-deuter {
 		--chart-success: var(--color-sky-950);
@@ -739,8 +750,10 @@
 		--git-modified: 271 91% 65%;
 		--git-added-bright: 199 89% 48%;
 		--git-deleted-bright: 24 95% 53%;
-		--surface-git-added: 201 80% 14%;
-		--surface-git-deleted: 17 75% 15%;
+		--surface-git-added: 203 41% 16%;
+		--surface-git-deleted: 20.8 31% 16.5%;
+		--surface-git-added-emphasis: 199.2 94.5% 21.4%;
+		--surface-git-deleted-emphasis: 19.7 52.5% 23.9%;
 	}
 	.light-tritan {
 		--chart-success: var(--color-sky-100);
@@ -764,7 +777,8 @@
 		--git-added: 199 89% 48%;
 		--git-modified: 322 81% 43%;
 		--git-added-bright: 199 89% 48%;
-		--surface-git-added: 204 94% 94%;
+		--surface-git-added: 204.8 100% 94.3%;
+		--surface-git-added-emphasis: 204.7 100% 85.7%;
 	}
 	.dark-tritan {
 		--chart-success: var(--color-sky-950);
@@ -789,7 +803,8 @@
 		--git-added: 199 82% 67%;
 		--git-modified: 322 81% 72%;
 		--git-added-bright: 199 89% 48%;
-		--surface-git-added: 201 80% 14%;
+		--surface-git-added: 203 41% 16%;
+		--surface-git-added-emphasis: 199.2 94.5% 21.4%;
 	}
 }
 

@@ -734,6 +734,29 @@ export const CostEstimateFromLivePriceBook: Story = {
 	},
 };
 
+export const CostEstimateTwoColumns: Story = {
+	args: {
+		editingModel: mockGPT5,
+		onDeleteModel: fn(async () => undefined),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+		queries: [
+			{
+				key: aiModelPrices("openai", "gpt-5").queryKey,
+				data: [MockGPT5ModelPrice],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
+	},
+};
+
 // A live price below $0.0001 per million tokens would render as $0.00 and
 // read as free, so the field shows a threshold instead.
 export const CostEstimateBelowThresholdPrice: Story = {

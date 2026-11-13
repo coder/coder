@@ -242,6 +242,9 @@ introspection:
     # set to false, a reduced set of database metrics are still collected.
     # (default: false, type: bool)
     collect_db_metrics: false
+    # Collect per-workspace stats (may increase charges for metrics storage).
+    # (default: false, type: bool)
+    collect_workspace_stats: false
   pprof:
     # Serve pprof metrics on the address defined by pprof address.
     # (default: <unset>, type: bool)

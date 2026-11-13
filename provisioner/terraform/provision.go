@@ -132,6 +132,7 @@ func (s *server) Init(
 			stacktrace := tryGettingCoderProviderStacktrace(sess)
 			s.logger.Critical(ctx, "init: text file busy",
 				slog.Error(errTFB),
+				slog.F("stdout", errTFB.stdout),
 				slog.F("stderr", errTFB.stderr),
 				slog.F("provider_coder_stacktrace", stacktrace),
 			)

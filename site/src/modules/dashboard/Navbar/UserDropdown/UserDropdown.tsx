@@ -84,10 +84,12 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					aria-label={indicator ? `User menu. ${indicator.label}` : "User menu"}
 					className="relative bg-transparent cursor-pointer p-0"
 				>
 					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
+					<span className="sr-only">
+						{indicator ? `User menu. ${indicator.label}` : "User menu"}
+					</span>
 					{indicator && (
 						<span
 							className={cn(
