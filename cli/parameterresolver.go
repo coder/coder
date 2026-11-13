@@ -100,7 +100,7 @@ func (pr *ParameterResolver) WithUseParameterDefaults(useParameterDefaults bool)
 // 3. parameter file
 // 4. CLI/ENV
 // 5. source build
-// 6. last build
+// 6. last build (mutable parameters not set by the parameter file or CLI/ENV)
 // 7. preset
 // 8. user input (unless auto-accepting defaults)
 func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
@@ -200,6 +200,9 @@ func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.
 
 next:
 	for _, buildParameter := range pr.lastBuildParameters {
+		if pr.isExplicitParameter(buildParameter.Name) {
+			continue // explicit values take precedence over the last build
+		}
 		for i, r := range resolved {
 			if r.Name == buildParameter.Name {
 				resolved[i].Value = buildParameter.Value
@@ -219,6 +222,9 @@ func (pr *ParameterResolver) resolveWithLastBuildParametersInParameters(resolved
 
 next:
 	for _, buildParameter := range pr.lastBuildParameters {
+		if pr.isExplicitParameter(buildParameter.Name) {
+			continue // explicit values take precedence over the last build
+		}
 		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
 		if tvp == nil {
 			continue // it looks like this parameter is not present anymore
@@ -372,6 +378,15 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		}
 	}
 	return resolved, nil
+}
+
+// isExplicitParameter reports whether a value for the parameter was given
+// with --parameter or --rich-parameter-file.
+func (pr *ParameterResolver) isExplicitParameter(name string) bool {
+	if _, ok := pr.richParametersFile[name]; ok {
+		return true
+	}
+	return findWorkspaceBuildParameter(name, pr.richParameters) != nil
 }
 
 func (pr *ParameterResolver) isFirstTimeUse(parameterName string) bool {

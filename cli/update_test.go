@@ -96,6 +96,19 @@ func TestUpdate(t *testing.T) {
 		require.Equal(t, version1.ID.String(), prevBuild.TemplateVersionID.String(), "previous build must have the old template version")
 	})
 
+	t.Run("ParameterFlagOnUpToDateWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		client, member, workspace := newMutableParameterWorkspace(t)
+		require.False(t, workspace.Outdated)
+
+		inv, root := clitest.New(t, "update", workspace.Name, "-y", "--parameter", mutableParameterName+"=xyz")
+		clitest.SetupConfig(t, member, root)
+		require.NoError(t, inv.Run())
+
+		requireLatestBuildParameter(t, client, workspace, "xyz")
+	})
+
 	t.Run("Stopped", func(t *testing.T) {
 		t.Parallel()
 

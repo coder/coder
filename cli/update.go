@@ -22,7 +22,7 @@ func (r *RootCmd) update() *serpent.Command {
 		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "update <workspace>",
 		Short:       "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
-		Long:        "Use --always-prompt to change the parameter values of the workspace.",
+		Long:        "Use --parameter or --rich-parameter-file to set mutable parameter values; the workspace is rebuilt even when it is on the active version. Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -50,7 +50,7 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			hasStartWork := templateVersion != "" || workspace.Outdated || parameterFlags.promptRichParameters || parameterFlags.promptEphemeralParameters || len(parameterFlags.ephemeralParameters) > 0
+			hasStartWork := templateVersion != "" || workspace.Outdated || parameterFlags.promptRichParameters || parameterFlags.promptEphemeralParameters || len(parameterFlags.ephemeralParameters) > 0 || parameterFlags.hasRichParameterValues()
 			// The stop version only applies when update stops the workspace first.
 			willStop := workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
 			if stopTemplateVersion != "" && !willStop {

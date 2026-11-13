@@ -17,7 +17,7 @@ coder update [flags] <workspace>
 ## Description
 
 ```console
-Use --always-prompt to change the parameter values of the workspace.
+Use --parameter or --rich-parameter-file to set mutable parameter values; the workspace is rebuilt even when it is on the active version. Use --always-prompt to change the parameter values of the workspace.
 ```
 
 ## Options
