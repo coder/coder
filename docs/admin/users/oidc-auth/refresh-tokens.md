@@ -150,8 +150,9 @@ To verify refresh tokens are working correctly:
 
 1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1&nbsp;hour).
 
-1. Monitor Coder logs for `failed to renew OIDC token: token has expired` messages.
-   There should not be any.
+1. Confirm that users do not receive either of these errors from the API or dashboard:
+   `You are signed out or your session has expired. Please sign in again to continue.` or `Could not refresh expired OpenID Connect token. Try re-authenticating to resolve this issue.`
+   These messages appear in the response, not in the Coder logs.
 
 If all verification steps pass successfully, your refresh token configuration is working properly.
 
@@ -178,7 +179,8 @@ If all verification steps pass successfully, your refresh token configuration is
   - `"access_type": "offline"` for Google
 - Configure your identity provider according to the provider-specific instructions above.
 - Have users log out and log in again to obtain refresh tokens.
-  Look for entries containing `failed to renew OIDC token` which might indicate specific provider issues.
+  If users still receive `Could not refresh expired OpenID Connect token. Try re-authenticating to resolve this issue.` after they log in again, check the provider's refresh token configuration.
+  The `detail` field of that response includes the error that the provider returned.
 
 ### Refresh tokens don't work after configuration change
 

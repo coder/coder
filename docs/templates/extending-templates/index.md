@@ -142,7 +142,7 @@ See [Environment variables](./environment-variables.md) for details.
 ## Run scripts on workspace lifecycle events
 
 The [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script) resource runs scripts during workspace lifecycle events like startup, stop, or on a scheduled basis.
-It provides more control than the deprecated `startup_script` field in `coder_agent`.
+It provides more control than the `startup_script` field in `coder_agent`.
 
 ### When to use coder_script
 
@@ -161,7 +161,7 @@ It provides more control than the deprecated `startup_script` field in `coder_ag
 resource "coder_script" "install_dependencies" {
   agent_id           = coder_agent.main.id
   display_name       = "Install Dependencies"
-  icon               = "/icon/package.svg"
+  icon               = "/icon/terminal.svg"
   script             = <<-EOF
     #!/bin/sh
     set -e

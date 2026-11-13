@@ -16,10 +16,22 @@ In particular, look at the struct types such as `Template` or `Workspace`.
 As a rule, we **do not collect** the following types of information:
 
 - Any data that could make your installation less secure
-- Any data that could identify individual users, except the administrator.
 
-For example, we do not collect environment variables, user email addresses, or parameter values, except the Agent Relay fields described below.
-We do collect the administrator email.
+For example, we do not collect environment variables or parameter values, except the Agent Relay fields described below.
+
+For each user account, we collect the following fields:
+
+- A user ID.
+- A SHA-256 hash of the email address local part, which is the text before the `@`.
+  The domain is sent in plain text.
+  The hash is not salted.
+- The roles assigned to the user.
+- When the account was created.
+- The account status.
+- The numeric GitHub.com user ID, for users who link a GitHub.com account.
+- The login type.
+
+For the first user, meaning the account created earliest on the installation, we also send the full email address in plain text.
 
 Workspace agent statistics include session counts keyed by normalized application names, which can include custom IDE names that workspace agents report.
 

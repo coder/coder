@@ -92,7 +92,8 @@ Refer to the [Prometheus reference](../../admin/integrations/prometheus.md) for 
 
 > [!IMPORTANT]
 > The embedded gateway metric prefix changed from `coder_aibridged_*` to `coder_ai_gateway_*`, and the proxy prefix changed from `coder_aibridgeproxyd_*` to `coder_ai_gateway_proxy_*`.
-> The embedded gateway and AI Gateway Proxy emit the legacy names with identical values during the v2.35 and v2.36 deprecation window, and the legacy names are planned for removal in v2.37.
+> The embedded gateway and AI Gateway Proxy still emit the legacy names with identical values.
+> The legacy names are deprecated and will be removed in a future release.
 > The cost control metrics were added after the rename and have no legacy alias.
 > The standalone gateway emits only the current `coder_ai_gateway_*` names.
 > Migrate dashboards and alerts to the new names.

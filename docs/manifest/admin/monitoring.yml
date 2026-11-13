@@ -4,7 +4,7 @@ path: ./admin/monitoring/index.md
 icon_path: ./images/icons/speed.svg
 children:
   - title: Logs
-    description: Learn how Coder services write logs to standard output and how to collect them.
+    description: Learn how Coder services write logs to standard error and how to collect them.
     path: ./admin/monitoring/logs.md
   - title: Metrics
     description: Learn about the deployment metrics Coder exposes and how to use them to monitor health.

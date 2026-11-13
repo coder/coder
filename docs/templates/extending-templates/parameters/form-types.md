@@ -13,20 +13,19 @@ Refer to [Coder provider version](./index.md#coder-provider-version) for more in
 
 Different parameter types support different form types.
 You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
-You can specify the form type with the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 The **Options** column in the table below indicates whether the form type supports options (**Yes**) or doesn't support them (**No**).
 When supported, you can specify options using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
-| Form Type      | Parameter Types                            | Options | Notes                                                                                                                   |
-|----------------|--------------------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------|
-| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once. <br />The classic parameter option.       |
-| `dropdown`     | `string`, `number`                         | Yes     | Choose a single option from a searchable dropdown list. <br />Default for `string` or `number` parameters with options. |
-| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a searchable dropdown list. <br />Selected items are shown as removable chips.               |
-| `tag-select`   | `list(string)`                             | No      | Default for `list(string)` parameters without options.                                                                  |
-| `input`        | `string`, `number`                         | No      | Standard single-line text input field. <br />Default for `string/number` parameters without options.                    |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                         |
-| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                            |
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. <br />Default for boolean parameters.                                         |
+| Form Type      | Parameter Types                            | Options | Notes                                                                                                                                                        |
+|----------------|--------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once. <br />Default for parameters with options. <br />The classic parameter option. |
+| `dropdown`     | `string`, `number`, `bool`                 | Yes     | Choose a single option from a searchable dropdown list.                                                                                                      |
+| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a searchable dropdown list. <br />Selected items are shown as removable chips.                                                    |
+| `tag-select`   | `list(string)`                             | No      | Default for `list(string)` parameters without options.                                                                                                       |
+| `input`        | `string`, `number`                         | No      | Standard single-line text input field. <br />Default for `string/number` parameters without options.                                                         |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                                                              |
+| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                                                 |
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. <br />Default for `bool` parameters without options.                                                               |
 
 ## Styling options
 

@@ -263,7 +263,10 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_EXTERNAL_AUTH_0_REGEX=github\.example\.com
 ```
+
+The default regex matches only `github.com`, so set `CODER_EXTERNAL_AUTH_0_REGEX` to match your GitHub Enterprise host.
 
 When configuring your GitHub Enterprise OAuth application, set the [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url) as `https://example.com/external-auth/primary-github/callback`, where `primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 

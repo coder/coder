@@ -66,10 +66,13 @@ Visit the [CLI documentation](../reference/cli/server/index.md#--provisioner-dae
 We recommend that you deploy Coder to its own respective Kubernetes cluster, separate from production applications.
 Keep in mind that Coder runs development workloads, so the cluster should be deployed as such, without production-level configurations.
 
-Adjust the CPU and memory values as shown in [Helm provisioner values.yaml](../../helm/provisioner/values.yaml#L134-L141):
+If you don't set `coder.resources`, the chart uses 2000m CPU and 4096Mi memory for requests and limits.
+The [Helm provisioner values.yaml](../../helm/provisioner/values.yaml#L136-L145) shows these values as a commented example.
+
+To lower these values for a development cluster, set `coder.resources` in your values file, for example:
 
 ```yaml
-…
+coder:
   resources:
     limits:
       cpu: "0.25"

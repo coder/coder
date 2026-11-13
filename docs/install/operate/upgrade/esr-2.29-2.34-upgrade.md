@@ -118,7 +118,7 @@ Coder added the following:
 - Support bundle improvements.
 - `chatd` metrics.
 - Agent first-connection duration metrics.
-- A `coder_build_info` metric.
+- A `coderd_build_info` metric.
 
 Coder also removed several deprecated Prometheus metrics, so dashboards and alerts should be reviewed before the upgrade.
 

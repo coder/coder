@@ -98,6 +98,13 @@ Set your configuration before you start the service.
 The file ships with the TLS and HTTP address variables commented in place.
 For every server option, refer to the [configuration reference](../../admin/setup/configuration-reference.md).
 
+> [!NOTE]
+> In Coder v2.34.0 and later, a `CODER_HTTP_ADDRESS=` line with no value turns off the HTTP listener, and the server exits at startup unless TLS is configured.
+> Older packages shipped that line, and a package upgrade keeps your existing `/etc/coder.d/coder.env`.
+> If your file has the line with no value, add a `#` at the start of it, and then run `sudo systemctl restart coder`.
+> With the line commented out, Coder listens on `127.0.0.1:3000`, which accepts connections only from the server host.
+> To accept connections from other hosts, set `CODER_HTTP_ADDRESS` to an address such as `0.0.0.0:3000`, or put a reverse proxy in front of Coder.
+
 ## Start the service
 
 1. Start Coder now and on every boot.

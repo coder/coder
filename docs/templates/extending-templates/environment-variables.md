@@ -27,12 +27,12 @@ You can define multiple `coder_env` resources targeting the same agent.
 
 When multiple `coder_env` resources define the same variable name, use the `merge_strategy` attribute to control how values are combined:
 
-| Strategy              | Behavior                                            |
-|-----------------------|-----------------------------------------------------|
-| `replace` _(default)_ | Last value wins. Backward compatible.               |
-| `append`              | Appends to the existing value with `:` separator.   |
-| `prepend`             | Prepends to the existing value with `:` separator.  |
-| `error`               | Fails the build if the variable is already defined. |
+| Strategy              | Behavior                                                   |
+|-----------------------|------------------------------------------------------------|
+| `replace` _(default)_ | Last value wins. Backward compatible.                      |
+| `append`              | Appends to the existing value with `:` separator.          |
+| `prepend`             | Prepends to the existing value with `:` separator.         |
+| `error`               | Fails the build if the variable is defined more than once. |
 
 The `append` and `prepend` strategies use `:` as a separator, which matches the convention for `PATH`-style variables on Unix systems.
 

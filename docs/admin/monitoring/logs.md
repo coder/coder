@@ -2,12 +2,12 @@
 title: Logs
 ---
 
-All Coder services log to standard output, which can be critical for identifying errors and monitoring Coder's deployment health.
+All Coder services log to standard error, which can be critical for identifying errors and monitoring Coder's deployment health.
 Like any service, logs can be captured via Splunk, Datadog, Grafana Loki, or other ingestion tools.
 
 ## `coderd` Logs
 
-By default, `coderd`, the process that runs the control plane, exports human-readable logs to standard output.
+By default, `coderd`, the process that runs the control plane, exports human-readable logs to standard error.
 You can access these logs via `kubectl logs deployment/coder -n <coder-namespace>` on Kubernetes or `journalctl -u coder` if you deployed Coder on a host machine/VM.
 
 - To change the log format/location, you can set [`CODER_LOGGING_HUMAN`](../../reference/cli/server/index.md#--log-human) and [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json) server config. options.
@@ -16,7 +16,8 @@ You can access these logs via `kubectl logs deployment/coder -n <coder-namespace
 
 > [!NOTE]
 > To disable human-readable logging, set `--log-human` (or `CODER_LOGGING_HUMAN`) to `/dev/null`.
-> An empty string does not disable logging.
+> An empty value also disables human-readable logging, the same as `/dev/null`.
+> If you disable human-readable logging and set no JSON or Stackdriver log location, Coder writes no logs.
 
 Events such as server errors, audit logs, user activities, and single sign-on (SSO) & OpenID Connect logs are all captured in the `coderd` logs.
 
@@ -36,7 +37,8 @@ Agent logs are also stored in the workspace filesystem by default:
 - Windows: Refer to the template code (for example, [azure-windows](https://github.com/coder/coder/blob/2cfadad023cb7f4f85710cff0b21ac46bdb5a845/examples/templates/azure-windows/Initialize.ps1.tftpl#L64)) to see where logs are stored.
 
 > [!NOTE]
-> Logs are truncated once they reach 5&nbsp;MB in size.
+> The agent rotates its log file once it reaches 5&nbsp;MB and keeps up to 19 rotated files.
+> For details, see [Trace connections](trace-connections.md#agent-logs).
 
 Startup script logs are also stored in the temporary directory of macOS and Linux workspaces.
 

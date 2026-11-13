@@ -9,10 +9,15 @@ title: Version requirements
 
 It's recommended to use **Coder v2.30.0 or newer** and **Claude Code module v4.7.0 or newer**.
 
-### Coder v2.30.0+
+### Coder v2.30.0 to v2.34
 
 Since Coder v2.30.0, Agent Firewall is embedded inside the Coder binary, and you don't need to install it separately.
+In these versions, the subcommand is `coder boundary`.
+
+### Coder v2.35.0+
+
 The `coder agent-firewall` subcommand is available directly from the Coder CLI.
+The `coder boundary` name still works as a deprecated alias.
 
 ### Claude Code Module v4.7.0+
 

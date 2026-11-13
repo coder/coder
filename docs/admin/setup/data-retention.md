@@ -19,7 +19,7 @@ Retention policies help you:
 
 > [!NOTE]
 > Retention policies are disabled by default (set to `0`) to preserve existing behavior.
-> The exceptions are API keys and workspace agent logs, which default to 7&nbsp;days.
+> The exceptions are API keys and workspace agent logs, which default to 7&nbsp;days, and AI Gateway records, which default to 60&nbsp;days.
 
 ## Configuration
 

@@ -76,6 +76,9 @@ Workspace agents have a special token that can send logs, metrics, and workspace
 
 - [Manually send workspace activity](../reference/api/workspaces.md#extend-workspace-deadline-by-id): Keep a workspace "active," even if there is not an open connection (for example, for a long-running machine learning job).
 
+  This script uses a user token, not the agent token.
+  Create one with `coder tokens create`, and set it as `CODER_SESSION_TOKEN`.
+
   ```sh
   #!/bin/bash
   # Send workspace activity as long as the job is still running
@@ -84,11 +87,13 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   do
   if pgrep -f "my_training_script.py" > /dev/null
   then
-    curl -X PUT "https://coder.example.com/api/v2/workspaces/$WORKSPACE_ID/extend" \
-    -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
-    -d '{
-      "deadline": "2019-08-24T14:15:22Z"
-    }'
+    # Set the deadline one hour from now. The first date form is GNU, the second is BSD.
+    deadline=$(date -u -d '+1 hour' +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v+1H +'%Y-%m-%dT%H:%M:%SZ')
+    curl -X PUT "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID/extend" \
+    -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+    -d "{
+      \"deadline\": \"$deadline\"
+    }"
 
     # Sleep for 30 minutes (1800 seconds) if the job is running
     sleep 1800
@@ -98,3 +103,5 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   fi
   done
   ```
+
+  A user token used in a script is long-lived, so store it in a secret store, not in the script itself.
