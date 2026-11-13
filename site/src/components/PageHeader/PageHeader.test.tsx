@@ -2,10 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "./PageHeader";
 
 describe(PageHeader.name, () => {
-	it("exposes only the title as a heading", () => {
+	it("exposes only the title text as a heading", () => {
 		render(
 			<PageHeader>
-				<PageHeaderTitle>Templates</PageHeaderTitle>
+				<PageHeaderTitle tooltip={<button type="button">More info</button>}>
+					Templates
+				</PageHeaderTitle>
 				<PageHeaderSubtitle>Select a template.</PageHeaderSubtitle>
 			</PageHeader>,
 		);

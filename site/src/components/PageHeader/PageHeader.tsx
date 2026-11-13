@@ -31,14 +31,18 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 	);
 };
 
-type PageHeaderTitleProps = React.ComponentProps<"h1">;
+type PageHeaderTitleProps = React.ComponentProps<"h1"> & {
+	/** Rendered beside the heading so it stays out of the heading's name. */
+	tooltip?: React.ReactNode;
+};
 
 export const PageHeaderTitle: React.FC<PageHeaderTitleProps> = ({
 	children,
 	className,
+	tooltip,
 	...props
 }) => {
-	return (
+	const title = (
 		<h1
 			className={cn(
 				"text-3xl font-semibold m-0 flex items-center leading-snug",
@@ -48,6 +52,15 @@ export const PageHeaderTitle: React.FC<PageHeaderTitleProps> = ({
 		>
 			{children}
 		</h1>
+	);
+	if (!tooltip) {
+		return title;
+	}
+	return (
+		<div className="flex items-center gap-2">
+			{title}
+			{tooltip}
+		</div>
 	);
 };
 

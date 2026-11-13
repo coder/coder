@@ -98,11 +98,8 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 					)
 				}
 			>
-				<PageHeaderTitle>
-					<div className="flex gap-2 items-center">
-						<span>Workspaces</span>
-						<WorkspaceHelpPopover />
-					</div>
+				<PageHeaderTitle tooltip={<WorkspaceHelpPopover />}>
+					Workspaces
 				</PageHeaderTitle>
 			</PageHeader>
 
