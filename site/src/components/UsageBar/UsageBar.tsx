@@ -3,7 +3,7 @@ import { clampPercentage, type UsageSeverity } from "#/utils/budget";
 
 const severityProgressClasses = {
 	normal: "bg-content-secondary",
-	warning: "bg-border-warning",
+	warning: "bg-content-warning",
 	exceeded: "bg-content-destructive",
 } as const satisfies Record<UsageSeverity, string>;
 

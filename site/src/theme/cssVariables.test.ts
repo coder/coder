@@ -269,10 +269,8 @@ describe("theme CSS variables", () => {
 		},
 	);
 
-	// Warning text renders as small status labels, such as the navbar proxy
-	// latency, so it needs WCAG 1.4.3 contrast (4.5:1) on page surfaces.
-	// Warning icons, dots, and bars use --border-warning, which needs WCAG
-	// 1.4.11 contrast (3:1).
+	// --content-warning is text (WCAG 1.4.3, 4.5:1); --border-warning is icons
+	// and graphics (WCAG 1.4.11, 3:1).
 	describe("warning contrast", () => {
 		it.each(
 			CONCRETE_THEMES.flatMap((themeName) =>

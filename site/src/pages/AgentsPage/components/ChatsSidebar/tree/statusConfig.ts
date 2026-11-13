@@ -30,12 +30,12 @@ const statusConfig = {
 	},
 	interrupting: {
 		icon: PauseIcon,
-		className: "text-border-warning",
+		className: "text-content-warning",
 		label: "Interrupting",
 	},
 	requires_action: {
 		icon: PauseIcon,
-		className: "text-border-warning",
+		className: "text-content-warning",
 		label: "Requires action",
 	},
 	error: {
@@ -45,7 +45,7 @@ const statusConfig = {
 	},
 	paused: {
 		icon: PauseIcon,
-		className: "text-border-warning",
+		className: "text-content-warning",
 		label: "Paused",
 	},
 } as const satisfies Record<ChatStatus, ChatIconConfig>;

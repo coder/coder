@@ -62,7 +62,10 @@ export const NetworkCallsTable: React.FC<NetworkCallsTableProps> = ({
 					</button>
 				</CollapsibleTrigger>
 				{blocked > 0 && (
-					<Badge svgSize="xs" className="gap-1 text-content-warning">
+					<Badge
+						svgSize="xs"
+						className="gap-1 text-content-warning [&_svg]:text-border-warning"
+					>
 						<BanIcon className="shrink-0" />
 						<span className="sr-only">
 							{search ? "Blocked matches: " : "Blocked network calls: "}
@@ -234,7 +237,7 @@ const NetworkCallStatusBadge: React.FC<{ allowed: boolean }> = ({ allowed }) =>
 		<Badge
 			size="sm"
 			svgSize="xs"
-			className="shrink-0 gap-1 text-content-warning"
+			className="shrink-0 gap-1 text-content-warning [&_svg]:text-border-warning"
 		>
 			<BanIcon className="shrink-0" />
 			Blocked

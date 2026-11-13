@@ -1443,7 +1443,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingMessage || warning) &&
-						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+						"shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-border-warning)_60%,transparent)]",
 					isReadOnlyView && "border",
 				)}
 				onKeyDown={handleComposerKeyDown}
