@@ -201,6 +201,7 @@ func (*RootCmd) dbcryptDeleteCmd() *serpent.Command {
 			msg := `All encrypted data will be deleted from the database:
 - Encrypted user OAuth access and refresh tokens
 - Encrypted user Git authentication access and refresh tokens
+- Encrypted chat automation webhook secrets (the automations stay, with an empty secret)
 
 Are you sure you want to continue?`
 			if _, err := cliui.Prompt(inv, cliui.PromptOptions{
