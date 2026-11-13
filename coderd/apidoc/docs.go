@@ -33239,7 +33239,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "model_invocable": {
-                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets ` + "`" + `disable-model-invocation` + "`" + ` to a boolean: true turns it\noff and false turns it on.\nThe server removes that frontmatter key before storing the content.",
+                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets ` + "`" + `disable-model-invocation` + "`" + ` to a boolean: true turns it\noff and false turns it on. The server removes that frontmatter key\nbefore storing the content.",
                     "type": "boolean"
                 }
             }

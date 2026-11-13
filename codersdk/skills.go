@@ -62,8 +62,8 @@ type UpdateSkillRequest struct {
 	Action *bool `json:"action,omitempty"`
 	// ModelInvocable is left unchanged when unset, unless the new content
 	// frontmatter sets `disable-model-invocation` to a boolean: true turns it
-	// off and false turns it on.
-	// The server removes that frontmatter key before storing the content.
+	// off and false turns it on. The server removes that frontmatter key
+	// before storing the content.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
