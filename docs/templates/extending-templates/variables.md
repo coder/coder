@@ -32,7 +32,7 @@ At this stage, the template administrator faces two choices:
    If the administrator doesn't input a value via CLI, Coder automatically uses this default during the push.
 
 After the initial push, variables are stored in the database table, associated with the specific template version.
-They can be conveniently managed via _Template Settings_ without requiring an extra push.
+They can be conveniently managed via **Template settings** without requiring an extra push.
 
 ### Resolved values vs. default values
 

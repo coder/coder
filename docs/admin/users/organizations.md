@@ -51,11 +51,11 @@ To create a new organization:
 
 1. Select the current organization to expand the organizations dropdown, then select **Create organization**:
 
-   <img height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
+   <img height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create organization" align="center" />
 
 1. Enter the details and select **Save** to continue:
 
-   <img height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New Organization" align="center" />
+   <img height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New organization" align="center" />
 
 In this example, we'll create the `data-platform` org.
 
@@ -89,7 +89,7 @@ Before creating templates, we must deploy at least one provisioner as the built-
 ### 3. Create a template
 
 Once you've started a provisioner, you can create a template.
-You'll notice the **Create Template** screen now has an organization dropdown:
+You'll notice the **Create template** screen now has an organization dropdown:
 
 ![Template Org Picker](../../images/admin/users/organizations/template-org-picker.png)
 
@@ -124,7 +124,7 @@ Refer to [Control who can use Coder Agents](../../coder-agents/getting-started.m
 Service accounts don't inherit `agents-access` from this list.
 Assign the role to a service account directly to let it use Coder Agents.
 
-To edit the default roles in the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
+To edit the default roles in the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default roles**.
 
 From the CLI, use `coder organizations edit`:
 

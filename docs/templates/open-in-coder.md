@@ -95,7 +95,7 @@ resource "coder_agent" "dev" {
 
 Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (for example, <https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
 
-### 4. Optional: pre-fill parameter values in the "Create Workspace" page
+### 4. Optional: pre-fill parameter values in the "Create workspace" page
 
 This can be used to pre-fill the git repo URL, disk size, image, and so on.
 

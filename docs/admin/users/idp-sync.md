@@ -51,7 +51,7 @@ For deployments with multiple [organizations](./organizations.md), configure gro
 
 1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP sync**:
 
-   ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
+   ![IdP sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
 1. Enter the **Group sync field** and an optional **Regex filter**, then select **Save**.
 
@@ -123,7 +123,7 @@ coder organizations settings set group-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IdP Sync](../../images/admin/users/organizations/group-sync.png)
+![IdP sync](../../images/admin/users/organizations/group-sync.png)
 
 ### Server Flags
 
@@ -198,7 +198,7 @@ For deployments with multiple [organizations](./organizations.md), configure rol
 
 1. Select the **Role sync settings** tab:
 
-   ![IdP Sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
+   ![IdP sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
 
 1. Enter the **Role sync field**, then select **Save**.
 
@@ -255,7 +255,7 @@ coder organizations settings set role-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IdP Sync](../../images/admin/users/organizations/role-sync.png)
+![IdP sync](../../images/admin/users/organizations/role-sync.png)
 
 ### Server Flags
 
@@ -309,7 +309,7 @@ You can initiate an organization sync through the Coder dashboard or CLI:
 
    Users are automatically added to the default organization.
 
-   Do not disable **Assign Default Organization**.
+   Do not disable **Assign default organization**.
    If you disable the default organization, the system will remove users who are already assigned to it.
 
 1. Enter an IdP organization name and Coder organization(s), then select **Add IdP organization**:

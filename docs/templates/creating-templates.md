@@ -47,11 +47,11 @@ The builder guides you through up to five steps:
    ![Configure module settings](../images/templatebuilder_03_module_customization.png)
 
 1. **Template customizations**:
-   Set the template's display name, description, icon, and organization, then select **Create Template**.
+   Set the template's display name, description, icon, and organization, then select **Create template**.
 
    ![Set template display name, description, and other metadata](../images/templatebuilder_04_customizations.png)
 
-After you select **Create Template**, Coder composes the Terraform configuration server-side, validates it with `terraform init` and `terraform validate`, and creates the template.
+After you select **Create template**, Coder composes the Terraform configuration server-side, validates it with `terraform init` and `terraform validate`, and creates the template.
 The generated template is standard Terraform HashiCorp Configuration Language (HCL) that you can edit later through the dashboard or CLI.
 
 > [!NOTE]

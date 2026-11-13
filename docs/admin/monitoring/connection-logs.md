@@ -131,7 +131,7 @@ The `type` field keeps the same values, but the API schema describes it as a str
 
 For SSH and reconnecting PTY connections, the duration is `ssh_info.disconnect_time` minus `connect_time`.
 
-| Timestamps                              | Meaning                                 | Connection Log page shows              |
+| Timestamps                              | Meaning                                 | Connection log page shows              |
 |-----------------------------------------|-----------------------------------------|----------------------------------------|
 | No `disconnect_time`                    | No disconnect recorded yet              | **Ongoing**                            |
 | `connect_time` equals `disconnect_time` | Disconnect recorded without its connect | **Unknown** start                      |
