@@ -49,6 +49,10 @@ type githubIssueState struct {
 	PullRequest struct {
 		MergedAt *time.Time `json:"merged_at"`
 	} `json:"pull_request"`
+	User struct {
+		Login     string `json:"login"`
+		AvatarURL string `json:"avatar_url"`
+	} `json:"user"`
 }
 
 // githubPullRequestSnapshot shares one response-cache entry with the issue's
@@ -120,7 +124,7 @@ func (g *githubProvider) fetchPullRequest(ctx context.Context, token string, ref
 	issue := snapshot.Issue
 	matchesIssue := !issue.UpdatedAt.IsZero() && !pull.UpdatedAt.Before(issue.UpdatedAt) &&
 		pull.Title == issue.Title && pull.State == issue.State && pull.Draft == issue.Draft &&
-		pull.Merged == (issue.PullRequest.MergedAt != nil)
+		pull.Merged == (issue.PullRequest.MergedAt != nil) && pull.User == issue.User
 	if matchesIssue {
 		snapshot.CheckedAt = checkedAt
 		projection, err := json.Marshal(snapshot)

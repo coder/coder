@@ -42,6 +42,7 @@ func newGitHubStatusServer(t *testing.T) (*githubStatusServer, *httptest.Server)
 		issue: map[string]any{
 			"updated_at": updatedAt, "title": "Original title", "state": "open", "draft": false,
 			"pull_request": map[string]any{"merged_at": nil},
+			"user":         map[string]any{"login": "author", "avatar_url": "https://example.com/author.png"},
 		},
 		pull: map[string]any{
 			"updated_at": updatedAt, "title": "Original title", "state": "open", "draft": false, "merged": false,
@@ -211,8 +212,9 @@ func TestGitHubStatusIssueGate(t *testing.T) {
 			},
 		},
 		{
-			name: "Author",
-			pull: map[string]any{"user": map[string]any{"login": "new-author", "avatar_url": "https://example.com/new.png"}},
+			name:  "Author",
+			issue: map[string]any{"user": map[string]any{"login": "new-author", "avatar_url": "https://example.com/new.png"}},
+			pull:  map[string]any{"user": map[string]any{"login": "new-author", "avatar_url": "https://example.com/new.png"}},
 			check: func(s *PRStatus) {
 				assert.Equal(t, "new-author", s.AuthorLogin)
 				assert.Equal(t, "https://example.com/new.png", s.AuthorAvatarURL)
@@ -309,7 +311,7 @@ func TestGitHubStatusPullOnlyChange(t *testing.T) {
 func TestGitHubStatusEndpointLag(t *testing.T) {
 	t.Parallel()
 
-	for _, change := range []string{"Timestamp", "TimestampNotModified", "Title", "State", "Draft", "Merged"} {
+	for _, change := range []string{"Timestamp", "TimestampNotModified", "Title", "State", "Draft", "Merged", "AuthorLogin", "AuthorAvatarURL"} {
 		t.Run(change, func(t *testing.T) {
 			t.Parallel()
 			state, srv := newGitHubStatusServer(t)
@@ -335,6 +337,10 @@ func TestGitHubStatusEndpointLag(t *testing.T) {
 					state.issue["draft"] = true
 				case "Merged":
 					state.issue["pull_request"] = map[string]any{"merged_at": "2026-11-13T12:01:00Z"}
+				case "AuthorLogin":
+					state.issue["user"] = map[string]any{"login": "new-author", "avatar_url": "https://example.com/author.png"}
+				case "AuthorAvatarURL":
+					state.issue["user"] = map[string]any{"login": "author", "avatar_url": "https://example.com/new.png"}
 				}
 			})
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
@@ -351,12 +357,19 @@ func TestGitHubStatusEndpointLag(t *testing.T) {
 				state.pull["title"] = state.issue["title"]
 				state.pull["state"] = state.issue["state"]
 				state.pull["draft"] = state.issue["draft"]
+				state.pull["user"] = state.issue["user"]
 				state.pull["merged"] = change == "Merged"
 				state.pull["additions"] = 200
 			})
 			after, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
 			assert.Equal(t, int32(200), after.DiffStats.Additions)
+			if change == "AuthorLogin" {
+				assert.Equal(t, "new-author", after.AuthorLogin)
+			}
+			if change == "AuthorAvatarURL" {
+				assert.Equal(t, "https://example.com/new.png", after.AuthorAvatarURL)
+			}
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1})
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
