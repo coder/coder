@@ -1746,6 +1746,21 @@ export const EditFilesSingleSuccess: Story = {
 	},
 };
 
+export const EditFilesSingleSuccessLight: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "light" },
+};
+
+export const EditFilesSingleSuccessProtanDeuter: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "dark-protan-deuter" },
+};
+
+export const EditFilesSingleSuccessTritan: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "dark-tritan" },
+};
+
 export const EditFilesLongPath: Story = {
 	decorators: [
 		(Story) => (

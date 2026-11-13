@@ -251,7 +251,7 @@ func (api *API) loadChatAutomationRefs(ctx context.Context, automations []databa
 		}
 	}
 	if len(chatIDs) > 0 {
-		chats, err := api.Database.GetChatsByIDs(ctx, mapKeys(chatIDs))
+		chats, err := api.Database.GetReadableChatsByIDs(ctx, mapKeys(chatIDs))
 		if err != nil {
 			return refs, xerrors.Errorf("get chats: %w", err)
 		}

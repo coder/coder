@@ -283,6 +283,16 @@ func applyCommitStep(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededCha
 	return err
 }
 
+func applyResolvePromptHooks(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.resolvePromptHooks, err = tx.ResolvePromptHooks(chatstate.ResolvePromptHooksInput{
+		MessageID: seeded.promptHooksMessageID,
+		Content:   mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")}),
+	})
+	return err
+}
+
 func applyEnterRequiresAction(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
@@ -415,6 +425,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyDeliverSteerMessages
 	case chatstate.TransitionCommitStep:
 		return applyCommitStep
+	case chatstate.TransitionResolvePromptHooks:
+		return applyResolvePromptHooks
 	case chatstate.TransitionEnterRequiresAction:
 		return applyEnterRequiresAction
 	case chatstate.TransitionFinishInterruption:
@@ -464,6 +476,7 @@ type transitionCaseResult struct {
 	recordRetryState        chatstate.RecordRetryStateResult
 	deliverSteerMessages    chatstate.DeliverSteerMessagesResult
 	commitStep              chatstate.CommitStepResult
+	resolvePromptHooks      chatstate.ResolvePromptHooksResult
 	enterRequiresAction     chatstate.EnterRequiresActionResult
 	finishInterruption      chatstate.FinishInterruptionResult
 	finishTurn              chatstate.FinishTurnResult
@@ -1109,6 +1122,12 @@ func matrixCases() []transitionCaseSpec {
 		commitStepCase(chatstate.StateR0),
 		commitStepCase(chatstate.StateR1),
 		commitStepCase(chatstate.StateR1P),
+
+		// ResolvePromptHooks cases: the state is preserved and one
+		// message is rewritten in place.
+		resolvePromptHooksCase(chatstate.StateR0),
+		resolvePromptHooksCase(chatstate.StateR1),
+		resolvePromptHooksCase(chatstate.StateR1P),
 
 		// EnterRequiresAction cases. R* need a pending tool call
 		// seeded; use seedForEnterRequiresAction so the precondition
@@ -2018,6 +2037,45 @@ func commitStepCase(from chatstate.ExecutionState) transitionCaseSpec {
 			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.queueVersion, after.QueueVersion,
 				"CommitStep does not change queue_version")
+		},
+	}
+}
+
+func seedForResolvePromptHooks(t *testing.T, f *testFixture, state chatstate.ExecutionState) seededChat {
+	t.Helper()
+	seeded := seedState(t, f, state)
+	seeded.promptHooksMessageID = dbgen.ChatMessage(t, f.DB, database.ChatMessage{
+		ChatID:             seeded.chatID,
+		Content:            userTextMessage("flagged", f.User.ID, f.Model.ID).Content,
+		PromptHooksPending: true,
+	}).ID
+	return seeded
+}
+
+func resolvePromptHooksCase(from chatstate.ExecutionState) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionResolvePromptHooks,
+		from:       from,
+		want:       from,
+		seed:       seedForResolvePromptHooks,
+		apply:      applyResolvePromptHooks,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Greater(t, after.HistoryVersion, base.historyVersion,
+				"ResolvePromptHooks advances history_version")
+
+			resolved := result.resolvePromptHooks.Message
+			require.Equal(t, seeded.promptHooksMessageID, resolved.ID)
+			require.False(t, resolved.PromptHooksPending, "ResolvePromptHooks clears the flag")
+			assertChatMessageText(t, requireChatMessageByID(ctx, t, f, resolved.ID), "rewritten")
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
+				"ResolvePromptHooks neither inserts nor deletes a message")
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"ResolvePromptHooks does not change queue order")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
+			require.Equal(t, base.queueVersion, after.QueueVersion,
+				"ResolvePromptHooks does not change queue_version")
 		},
 	}
 }

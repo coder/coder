@@ -187,6 +187,34 @@ func TestNew(t *testing.T) {
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
 }
 
+// The method suite can only allow or deny every chat, so it cannot catch a
+// check that stops after the first readable chat.
+func TestGetChatDiffStatusesByChatIDsMixedAccess(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+	faker := gofakeit.New(0)
+	readable := testutil.Fake(t, faker, database.Chat{})
+	unreadable := testutil.Fake(t, faker, database.Chat{})
+	ids := []uuid.UUID{readable.ID, unreadable.ID}
+
+	authz := &coderdtest.FakeAuthorizer{
+		ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, object rbac.Object) error {
+			if object.ID == unreadable.ID.String() {
+				return xerrors.New("denied")
+			}
+			return nil
+		},
+	}
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	db.EXPECT().GetChatsByIDs(gomock.Any(), ids).Times(1).Return([]database.Chat{readable, unreadable}, nil)
+	q := dbauthz.New(db, authz, slog.Make(), coderdtest.AccessControlStorePointer())
+
+	_, err := q.GetChatDiffStatusesByChatIDs(ctx, ids)
+	require.True(t, dbauthz.IsNotAuthorizedError(err), "expected not authorized, got %v", err)
+}
+
 func TestChatFilesAllowLinkedChatReads(t *testing.T) {
 	t.Parallel()
 
@@ -924,6 +952,20 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), msg.ID).Return(nil).AnyTimes()
 		check.Args(msg.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("ResolveChatMessagePromptHooks", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		msg := database.ChatMessage{ID: 456, ChatID: chat.ID}
+		arg := database.ResolveChatMessagePromptHooksParams{ID: msg.ID, ChatID: chat.ID, Deleted: true}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ResolveChatMessagePromptHooks(gomock.Any(), arg).Return(msg, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msg)
+	}))
+	s.Run("ClearChatMessagesPromptHooks", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ClearChatMessagesPromptHooks(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
@@ -1127,12 +1169,27 @@ func (s *MethodTestSuite) TestChats() {
 		ids := []uuid.UUID{chatA.ID, chatB.ID}
 		diffStatusA := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatA.ID})
 		diffStatusB := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatB.ID})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chatA.ID).Return(chatA, nil).AnyTimes()
-		dbm.EXPECT().GetChatByID(gomock.Any(), chatB.ID).Return(chatB, nil).AnyTimes()
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
 		dbm.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), ids).Return([]database.ChatDiffStatus{diffStatusA, diffStatusB}, nil).AnyTimes()
 		check.Args(ids).
 			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
 			Returns([]database.ChatDiffStatus{diffStatusA, diffStatusB})
+	}))
+	// A requested chat that does not exist must fail, not be silently skipped.
+	s.Run("GetChatDiffStatusesByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chat.ID, uuid.New()}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(ids).Asserts(chat, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).
+			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
+			Returns([]database.Chat{chatA, chatB})
 	}))
 	s.Run("GetChatFileByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		file := testutil.Fake(s.T(), faker, database.ChatFile{})
@@ -1426,6 +1483,17 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because it re-routes through GetChatAutomationsByOrganizationID which uses SQLFilter.
 		check.Args(arg, emptyPreparedAuthorized{}).Asserts().Returns(rows)
 	}))
+	s.Run("GetChatAutomationsWithWebhookSecretByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		rows := []database.ChatAutomation{testutil.Fake(s.T(), faker, database.ChatAutomation{OwnerID: ownerID})}
+		dbm.EXPECT().GetChatAutomationsWithWebhookSecretByOwnerID(gomock.Any(), ownerID).Return(rows, nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("UpdateEncryptedChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpdateEncryptedChatAutomationWebhookSecretParams{ID: uuid.New()}
+		dbm.EXPECT().UpdateEncryptedChatAutomationWebhookSecret(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	}))
 	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
@@ -1444,11 +1512,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatIDsWithQueuedMessagesByAutomationID(gomock.Any(), automation.ID).Return(chatIDs, nil).AnyTimes()
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns(chatIDs)
 	}))
-	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetReadableChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
 		chatB := testutil.Fake(s.T(), faker, database.Chat{})
 		ids := []uuid.UUID{chatA.ID, chatB.ID}
-		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		dbm.EXPECT().GetReadableChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
 		check.Args(ids).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
 	}))
 	s.Run("CountChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

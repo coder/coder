@@ -19,7 +19,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 						<div className="w-8 shrink-0 text-center text-base">-</div>
 						<div>
 							{attrName}:{" "}
-							<span className="rounded p-px bg-git-deleted/20">
+							<span className="rounded p-px bg-surface-git-deleted-emphasis">
 								{valueDiff.secret
 									? "••••••••"
 									: formatAuditDiffValue(valueDiff.old)}
@@ -37,7 +37,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 						<div className="w-8 shrink-0 text-center text-base">+</div>
 						<div>
 							{attrName}:{" "}
-							<span className="rounded p-px bg-git-added/20">
+							<span className="rounded p-px bg-surface-git-added-emphasis">
 								{valueDiff.secret
 									? "••••••••"
 									: formatAuditDiffValue(valueDiff.new)}
