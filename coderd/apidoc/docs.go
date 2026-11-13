@@ -3271,7 +3271,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Leave out chats in projects the caller has not pinned, unless the chat is pinned. Chats in projects the caller can no longer use are still returned.",
+                        "description": "Leave out the caller's own chats in projects the caller has not pinned, unless the chat is pinned. Chats shared with the caller and chats in projects the caller can no longer use are still returned.",
                         "name": "pinned_projects_only",
                         "in": "query"
                     }

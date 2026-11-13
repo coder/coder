@@ -6799,8 +6799,9 @@ export interface ListChatsOptions extends Pagination {
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
 	/**
-	 * PinnedProjectsOnly leaves out chats in projects the caller has not
-	 * pinned, unless the chat itself is pinned.
+	 * PinnedProjectsOnly leaves out the caller's own chats in projects the
+	 * caller has not pinned, unless the chat itself is pinned. Chats shared
+	 * with the caller are always included.
 	 */
 	readonly PinnedProjectsOnly: boolean;
 }
