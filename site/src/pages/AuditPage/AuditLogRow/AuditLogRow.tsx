@@ -63,7 +63,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 			data-testid={`audit-log-row-${auditLog.id}`}
 			clickable={shouldDisplayDiff}
 		>
-			<TableCell className="p-0! border-0 border-t text-base">
+			<TableCell className="p-0! border-t text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
 					{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Clicking the row is a mouse shortcut; keyboard users use the disclosure button. */}
 					<div

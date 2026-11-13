@@ -323,7 +323,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 						onKeyDown={handleQuickPickKeyDown}
 						className={cn(
 							"flex flex-col gap-0.5 p-2 text-sm",
-							customExpanded && "border-r border-border",
+							customExpanded && "border-r",
 						)}
 					>
 						{quickPresets.map((preset, index) => (
@@ -365,7 +365,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 									<div
 										id={errorId}
 										role="alert"
-										className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-solid border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive shadow-md"
+										className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive shadow-md"
 									>
 										{visibleError}
 									</div>
@@ -373,7 +373,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 							</div>
 
 							{/* From/To time fields */}
-							<div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+							<div className="flex flex-col gap-2 border-t px-3 py-3">
 								<TimeRow
 									id={fromTimeId}
 									label="From"
@@ -428,7 +428,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 							</div>
 
 							{/* Apply footer */}
-							<div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
+							<div className="flex items-center justify-end gap-2 border-t px-3 py-2">
 								<Button
 									variant="subtle"
 									size="sm"

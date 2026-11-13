@@ -26,7 +26,7 @@ export const AgentRowPreview: React.FC<AgentRowPreviewProps> = ({
 		>
 			<div className="flex items-baseline gap-4">
 				<div className="flex w-6 shrink-0 justify-center">
-					<div className="relative z-1 size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
+					<div className="relative z-1 size-2.5 rounded-full border-2 border-content-secondary bg-surface-secondary" />
 				</div>
 				<div className="flex items-baseline gap-8 font-normal text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
 					<div

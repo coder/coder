@@ -1940,7 +1940,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connect
     "transition": "start"
   },
   "error": {
-    "code": 0,
+    "code": 1,
     "details": "string",
     "message": "string",
     "retryable": true
