@@ -255,6 +255,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			if (e.key === "Escape") {
 				input.blur();
 			}
+			if (e.key === "ArrowDown") {
+				setOpen(true);
+			}
 		}
 	};
 
@@ -275,14 +278,29 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			}
 		};
 
+		// Escape closes only the list. An enclosing dialog listens for Escape
+		// on the document in the capture phase, so this listens on the window,
+		// which the event reaches first.
+		const handleEscape = (event: KeyboardEvent) => {
+			if (
+				event.key === "Escape" &&
+				dropdownRef.current?.contains(event.target as Node)
+			) {
+				event.stopPropagation();
+				setOpen(false);
+			}
+		};
+
 		if (open) {
 			document.addEventListener("mousedown", handleClickOutside);
 			document.addEventListener("touchend", handleClickOutside);
+			window.addEventListener("keydown", handleEscape, { capture: true });
 		}
 
 		return () => {
 			document.removeEventListener("mousedown", handleClickOutside);
 			document.removeEventListener("touchend", handleClickOutside);
+			window.removeEventListener("keydown", handleEscape, { capture: true });
 		};
 	}, [open]);
 
@@ -501,6 +519,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									</div>
 									<button
 										type="button"
+										aria-label={`Remove ${option.label}`}
 										data-testid="clear-option-button"
 										className={cn(
 											"ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden",
@@ -531,11 +550,19 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							disabled={disabled}
 							onValueChange={(value) => {
 								setInputValue(value);
+								setOpen(true);
 								inputProps?.onValueChange?.(value);
 							}}
 							onBlur={(event) => {
 								if (!onScrollbar) {
-									setOpen(false);
+									// Closing removes the list. A dialog's focus trap moves
+									// focus to the dialog when nodes are removed while focus
+									// is between elements, so close once the focus move ends.
+									setTimeout(() => {
+										if (document.activeElement !== inputRef.current) {
+											setOpen(false);
+										}
+									});
 								}
 								inputProps?.onBlur?.(event);
 							}}
@@ -565,6 +592,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 					<div className="flex items-center justify-between">
 						<button
 							type="button"
+							aria-label="Clear all"
 							data-testid="clear-all-button"
 							onClick={() => {
 								setSelected(fixedOptions);
