@@ -2411,10 +2411,9 @@ export const createChat = (queryClient: QueryClient) => ({
 	},
 });
 
-// The mutations that change a chat's messages or queue share one scope, so
-// they run one at a time in call order, also across useMutation instances.
-// A mutation that waits is pending. The server then makes the changes in
-// click order, which the chat store's pending actions rely on.
+// The mutations behind the chat store's pending actions share one scope, so
+// they run one at a time in call order and the server makes the changes in
+// click order. A mutation that waits is pending.
 const chatMessagesScope = (chatId: string) => ({
 	id: `chat-messages-${chatId}`,
 });
