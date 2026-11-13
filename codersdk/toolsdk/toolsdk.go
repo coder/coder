@@ -1379,10 +1379,11 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Organization UUID.",
+					"description": "Optional organization UUID or name. Defaults to the organization of template_id when set. Without template_id, defaults to your only organization and is required when you belong to several; use " + ToolNameListOrganizations + " to discover organizations.",
 				},
 				"template_id": map[string]any{
-					"type": "string",
+					"type":        "string",
+					"description": "Optional ID of an existing template to add the version to. Omit to create a version for a new template.",
 				},
 				"file_id": map[string]any{
 					"type": "string",
@@ -1393,10 +1394,6 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
-		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
-		if err != nil {
-			return codersdk.TemplateVersion{}, err
-		}
 		fileID, err := uuid.Parse(args.FileID)
 		if err != nil {
 			return codersdk.TemplateVersion{}, xerrors.Errorf("file_id must be a valid UUID: %w", err)
@@ -1408,6 +1405,20 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 				return codersdk.TemplateVersion{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 			}
 			templateID = tid
+		}
+		var organizationID uuid.UUID
+		if templateID == uuid.Nil {
+			organizationID, err = resolveOrganization(ctx, deps, args.OrganizationID)
+		} else {
+			var template codersdk.Template
+			template, err = deps.coderClient.Template(ctx, templateID)
+			if err != nil {
+				return codersdk.TemplateVersion{}, xerrors.Errorf("get template: %w", err)
+			}
+			organizationID, err = resolveOwningOrganization(ctx, deps, args.OrganizationID, template.OrganizationID, "template_id")
+		}
+		if err != nil {
+			return codersdk.TemplateVersion{}, err
 		}
 		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 			Message:       "Created by AI",
@@ -1656,7 +1667,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Organization UUID.",
+					"description": "Optional organization UUID or name. Defaults to the organization of version_id and must match it when set.",
 				},
 				"name": map[string]any{
 					"type": "string",
@@ -1681,13 +1692,17 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateArgs) (codersdk.Template, error) {
-		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
-		if err != nil {
-			return codersdk.Template{}, err
-		}
 		versionID, err := uuid.Parse(args.VersionID)
 		if err != nil {
 			return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
+		}
+		version, err := deps.coderClient.TemplateVersion(ctx, versionID)
+		if err != nil {
+			return codersdk.Template{}, xerrors.Errorf("get template version: %w", err)
+		}
+		organizationID, err := resolveOwningOrganization(ctx, deps, args.OrganizationID, version.OrganizationID, "version_id")
+		if err != nil {
+			return codersdk.Template{}, err
 		}
 		template, err := deps.coderClient.CreateTemplate(ctx, organizationID, codersdk.CreateTemplateRequest{
 			Name:        args.Name,
