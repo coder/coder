@@ -20035,8 +20035,8 @@ func TestGetUnpricedAIModels(t *testing.T) {
 			want  func(f fixture) unpricedModelsByScope
 		}{
 			{
-				// Given unpriced usage in orgA only, then it is listed for every
-				// organization and orgA only.
+				// Given unpriced usage in orgA, then it is listed for all organizations and
+				// for orgA, but not for orgB.
 				name: "UsageIsListedOnlyForItsOrganization",
 				given: func(t *testing.T, f fixture) {
 					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
@@ -20050,8 +20050,8 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 			},
 			{
-				// Given unpriced usage without an effective group, then it is
-				// listed for every organization only, since it belongs to none.
+				// Given unpriced usage without an effective group, then it is listed only for
+				// all organizations.
 				name: "UsageWithoutEffectiveGroupIsListedOnlyForAllOrganizations",
 				given: func(t *testing.T, f fixture) {
 					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
