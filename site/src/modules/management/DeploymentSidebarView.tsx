@@ -76,7 +76,7 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-						<div className="flex flex-row items-center gap-1">
+						<div className="flex items-center gap-1">
 							Groups
 							{showOrganizations && (
 								<>
@@ -97,7 +97,7 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewNotificationTemplate && (
 					<SidebarNavItem href="/deployment/notifications">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Notifications</span>
 						</div>
 					</SidebarNavItem>

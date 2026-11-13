@@ -26,6 +26,10 @@ import {
 	MockOrganizationSkillPreferences,
 	MockSkill,
 } from "#/testHelpers/skills";
+import {
+	coarsePointerMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -112,6 +116,25 @@ const QueuedReplacementHarness: React.FC<{
 	);
 };
 
+const stubMatchMedia = (coarsePointer: boolean, width = 1280) => {
+	vi.stubGlobal(
+		"matchMedia",
+		(query: string): MediaQueryList => ({
+			matches:
+				query === coarsePointerMediaQuery
+					? coarsePointer
+					: query === mobileViewportMediaQuery && width < 640,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		}),
+	);
+};
+
 beforeAll(() => {
 	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
 		configurable: true,
@@ -179,22 +202,7 @@ describe("ChatMessageInput", () => {
 			])(
 				"handles $keys with the $shortcut preference",
 				async ({ shortcut, keys, modifier, shift }) => {
-					vi.stubGlobal(
-						"matchMedia",
-						(query: string): MediaQueryList => ({
-							matches:
-								query === "(pointer: coarse)"
-									? coarsePointer
-									: query === "(max-width: 639px)" && width < 640,
-							media: query,
-							onchange: null,
-							addListener: vi.fn(),
-							removeListener: vi.fn(),
-							addEventListener: vi.fn(),
-							removeEventListener: vi.fn(),
-							dispatchEvent: vi.fn(),
-						}),
-					);
+					stubMatchMedia(coarsePointer, width);
 					const user = userEvent.setup();
 					const inputRef = createRef<ChatMessageInputRef>();
 					const onEnter = vi.fn();
@@ -225,6 +233,76 @@ describe("ChatMessageInput", () => {
 			);
 		});
 	});
+
+	it.each<{
+		shortcut: AgentChatSendShortcut;
+		coarsePointer: boolean;
+		afterTurnKeys: string;
+		sendKeys: string;
+	}>([
+		{
+			shortcut: "enter",
+			coarsePointer: false,
+			afterTurnKeys: "{Control>}{Enter}{/Control}",
+			sendKeys: "{Alt>}{Enter}{/Alt}",
+		},
+		{
+			shortcut: "enter",
+			coarsePointer: false,
+			afterTurnKeys: "{Meta>}{Enter}{/Meta}",
+			sendKeys: "{Enter}",
+		},
+		{
+			shortcut: "enter",
+			coarsePointer: true,
+			afterTurnKeys: "{Alt>}{Enter}{/Alt}",
+			sendKeys: "{Control>}{Enter}{/Control}",
+		},
+		{
+			shortcut: "modifier_enter",
+			coarsePointer: false,
+			afterTurnKeys: "{Alt>}{Enter}{/Alt}",
+			sendKeys: "{Meta>}{Enter}{/Meta}",
+		},
+		{
+			shortcut: "modifier_enter",
+			coarsePointer: true,
+			afterTurnKeys: "{Alt>}{Enter}{/Alt}",
+			sendKeys: "{Control>}{Enter}{/Control}",
+		},
+	])(
+		"sends $afterTurnKeys after the turn and $sendKeys now with the $shortcut preference and coarse pointer $coarsePointer",
+		async ({ shortcut, coarsePointer, afterTurnKeys, sendKeys }) => {
+			stubMatchMedia(coarsePointer);
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onEnter = vi.fn();
+			const onSendAfterTurn = vi.fn();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+					sendShortcut={shortcut}
+					onEnter={onEnter}
+					onSendAfterTurn={onSendAfterTurn}
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste("Draft");
+
+			await user.keyboard(afterTurnKeys);
+			expect(onSendAfterTurn).toHaveBeenCalledTimes(1);
+			expect(onEnter).not.toHaveBeenCalled();
+
+			await user.keyboard(sendKeys);
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(onSendAfterTurn).toHaveBeenCalledTimes(1);
+			expect(inputRef.current?.getValue()).toBe("Draft");
+		},
+	);
 
 	it("returns the initial draft before the editor visually hydrates", async () => {
 		renderWithQueryClient(
@@ -973,26 +1051,47 @@ describe("ChatMessageInput", () => {
 			expect(errorSpy).not.toHaveBeenCalled();
 		});
 
-		it("reopens an edited message with its skill chips in place", async () => {
-			const content: ChatMessagePart[] = [
-				{ type: "text", text: "Use " },
-				mockSkillPart("project", "triage"),
-				{ type: "text", text: " on\nthe diff" },
-			];
-			const { text, editorState } = getEditableContentPayload(content);
-			const inputRef = createRef<ChatMessageInputRef>();
-			renderWithQueryClient(
-				<ChatMessageInput
-					{...requiredProps()}
-					ref={inputRef}
-					initialValue={text}
-					initialEditorState={editorState}
-					aria-label="Chat message input"
-				/>,
-			);
-			await waitFor(() => {
-				expect(getRequestContent(inputRef)).toEqual(content);
-			});
-		});
+		const fileReferencePart: ChatMessagePart = {
+			type: "file-reference",
+			file_name: "main.go",
+			start_line: 3,
+			end_line: 5,
+			content: "func main() {}",
+		};
+
+		it.each<[string, ChatMessagePart[]]>([
+			[
+				"skill and file-reference chips",
+				[
+					{ type: "text", text: "Use " },
+					mockSkillPart("project", "triage"),
+					{ type: "text", text: " on\nthe diff" },
+					fileReferencePart,
+					{ type: "text", text: " here" },
+				],
+			],
+			[
+				"file-reference chip and no skill chip",
+				[{ type: "text", text: "Explain " }, fileReferencePart],
+			],
+		])(
+			"reopens an edited message with its %s in place",
+			async (_name, content) => {
+				const { text, editorState } = getEditableContentPayload(content);
+				const inputRef = createRef<ChatMessageInputRef>();
+				renderWithQueryClient(
+					<ChatMessageInput
+						{...requiredProps()}
+						ref={inputRef}
+						initialValue={text}
+						initialEditorState={editorState}
+						aria-label="Chat message input"
+					/>,
+				);
+				await waitFor(() => {
+					expect(getRequestContent(inputRef)).toEqual(content);
+				});
+			},
+		);
 	});
 });

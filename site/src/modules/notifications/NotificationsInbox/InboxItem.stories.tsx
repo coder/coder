@@ -9,10 +9,7 @@ const meta: Meta<typeof InboxItem> = {
 	component: InboxItem,
 	render: (args) => {
 		return (
-			<div
-				role="list"
-				className="max-w-[460px] border-solid border-border rounded"
-			>
+			<div role="list" className="max-w-115 rounded">
 				<InboxItem {...args} />
 			</div>
 		);
@@ -104,5 +101,18 @@ export const OnMarkNotificationAsRead: Story = {
 	},
 	parameters: {
 		pixel: { exclude: true },
+	},
+};
+
+export const UnreadFocused: Story = {
+	args: {
+		notification: {
+			...MockNotification,
+			read_at: null,
+			actions: [],
+		},
+	},
+	play: async () => {
+		await userEvent.tab();
 	},
 };

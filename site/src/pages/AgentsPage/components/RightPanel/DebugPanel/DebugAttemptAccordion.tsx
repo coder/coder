@@ -103,7 +103,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 						<CollapsibleTrigger asChild>
 							<button
 								type="button"
-								className="group flex w-full items-start gap-3 border-0 bg-transparent px-4 py-3 text-left transition-colors hover:bg-surface-secondary/20"
+								className="group flex w-full items-start gap-3 bg-transparent px-4 py-3 text-left transition-colors hover:bg-surface-secondary/20"
 							>
 								<div className="min-w-0 flex-1 space-y-2">
 									<div className="flex flex-wrap items-center gap-2">
@@ -111,7 +111,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 											Attempt {attempt.attempt_number}
 										</span>
 										{attempt.method || attempt.path ? (
-											<span className="truncate font-mono text-xs font-medium text-content-secondary">
+											<span className="truncate font-mono text-xs text-content-secondary">
 												{[attempt.method, attempt.path]
 													.filter(Boolean)
 													.join(" ")}

@@ -22,10 +22,10 @@ export const DynamicClientRegistrationSetting: React.FC<
 		<>
 			<section
 				aria-labelledby={headingId}
-				className="flex flex-row items-start justify-between gap-8"
+				className="flex items-start justify-between gap-8"
 			>
 				<div className="flex flex-col gap-1 max-w-xl">
-					<div className="flex flex-row items-center gap-2">
+					<div className="flex items-center gap-2">
 						<h2
 							id={headingId}
 							className="text-content-primary text-base font-semibold m-0"

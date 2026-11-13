@@ -62,9 +62,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
-			{open && (
-				<div className="fixed inset-0 top-[72px] z-10 bg-surface-primary" />
-			)}
+			{open && <div className="fixed inset-0 top-18 z-10 bg-surface-primary" />}
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label={open ? "Close menu" : "Open menu"}
@@ -75,7 +73,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
-				className="w-screen border-0 border-b border-solid p-0 py-2"
+				className="w-screen border-0 border-b p-0 py-2"
 				sideOffset={17}
 			>
 				<DropdownMenuItem asChild className={itemStyles.default}>

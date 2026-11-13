@@ -4031,8 +4031,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "x-example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the filename as a quoted string.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -4621,6 +4621,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Interrupts the active turn of a chat.\nIf the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.",
                 "produces": [
                     "application/json"
                 ],
@@ -10249,32 +10250,25 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by provisioner daemon IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown",
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed"
-                        ],
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "offline",
+                                "idle",
+                                "busy"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter results by status",
                         "name": "status",
                         "in": "query"
@@ -10360,32 +10354,29 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by job IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown",
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed"
-                        ],
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "pending",
+                                "running",
+                                "succeeded",
+                                "canceling",
+                                "canceled",
+                                "failed",
+                                "unknown"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter results by status",
                         "name": "status",
                         "in": "query"
@@ -11592,16 +11583,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get the available idp sync claim fields",
                 "operationId": "get-the-available-idp-sync-claim-fields",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -11631,14 +11612,6 @@ const docTemplate = `{
                 "summary": "Get the idp sync claim field values",
                 "operationId": "get-the-idp-sync-claim-field-values",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "format": "string",
@@ -19039,7 +19012,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
+                        "x-example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
                         "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
                         "name": "Authorization",
                         "in": "header"
@@ -19710,6 +19683,10 @@ const docTemplate = `{
                 },
                 "disable_content_recording": {
                     "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
+                    "type": "boolean"
+                },
+                "embedded_enabled": {
+                    "description": "EmbeddedEnabled controls whether coderd starts the in-memory AI\nGateway. It only takes effect when Enabled is true.",
                     "type": "boolean"
                 },
                 "enabled": {
@@ -20487,17 +20464,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "login_type": {
-                    "enum": [
-                        "password",
-                        "github",
-                        "oidc",
-                        "token"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
-                    ]
+                    ],
+                    "example": "password"
                 },
                 "scope": {
                     "description": "Deprecated: use Scopes instead.",
@@ -21550,17 +21522,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "enum": [
-                        "create",
-                        "read",
-                        "update",
-                        "delete"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.RBACAction"
                         }
-                    ]
+                    ],
+                    "example": "read"
                 },
                 "object": {
                     "description": "Object can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
@@ -21704,7 +21671,8 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "autodelete"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -21715,7 +21683,8 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection"
+                "BuildReasonJetbrainsConnection",
+                "BuildReasonAutodelete"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -22038,12 +22007,12 @@ const docTemplate = `{
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
-                "queue",
-                "interrupt"
+                "steer",
+                "queue"
             ],
             "x-enum-varnames": [
-                "ChatBusyBehaviorQueue",
-                "ChatBusyBehaviorInterrupt"
+                "ChatBusyBehaviorSteer",
+                "ChatBusyBehaviorQueue"
             ]
         },
         "codersdk.ChatClientType": {
@@ -22055,6 +22024,19 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatClientTypeUI",
                 "ChatClientTypeAPI"
+            ]
+        },
+        "codersdk.ChatComputerUseProvider": {
+            "type": "string",
+            "enum": [
+                "anthropic",
+                "openai",
+                "openai-compat"
+            ],
+            "x-enum-varnames": [
+                "ChatComputerUseProviderAnthropic",
+                "ChatComputerUseProviderOpenAI",
+                "ChatComputerUseProviderOpenAICompat"
             ]
         },
         "codersdk.ChatConfig": {
@@ -22655,10 +22637,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "args_delta": {
                     "type": "string"
@@ -22707,10 +22686,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "end_line": {
                     "type": "integer"
@@ -22760,21 +22738,12 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
-                "provider_metadata": {
-                    "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
                 "reasoning_delta": {
                     "type": "string"
                 },
                 "result": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Result is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "result_delta": {
                     "type": "string"
@@ -22937,6 +22906,7 @@ const docTemplate = `{
                     }
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -22957,6 +22927,14 @@ const docTemplate = `{
                 },
                 "compression_threshold": {
                     "type": "integer"
+                },
+                "computer_use_provider": {
+                    "description": "ComputerUseProvider names the computer use tool that Coder sends for\nthis model. It is omitted when computer use can't run on the model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatComputerUseProvider"
+                        }
+                    ]
                 },
                 "context_limit": {
                     "type": "integer"
@@ -23646,6 +23624,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatProjectGroup"
                     }
                 },
+                "owner": {
+                    "description": "Owner is the project owner, who is never listed in Users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
                 "users": {
                     "type": "array",
                     "items": {
@@ -23857,6 +23843,18 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "busy_behavior": {
+                    "description": "BusyBehavior is the lane of the message. Steer messages go in\nbefore the next model call, and queue messages go in after the\nturn ends.",
+                    "enum": [
+                        "steer",
+                        "queue"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatBusyBehavior"
+                        }
+                    ]
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -23872,7 +23870,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "editing_since": {
-                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends; a\nturn that ends at a message under edit pauses the chat.",
+                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends. A\nsteer message under edit also holds the steer messages ahead of\nit. A turn that ends at a message under edit pauses the chat.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -23972,6 +23970,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -24486,10 +24485,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "busy_behavior": {
-                    "enum": [
-                        "queue",
-                        "interrupt"
-                    ],
+                    "description": "BusyBehavior controls when the message reaches the agent if the\nchat is busy. \"steer\", the default, delivers it before the next\nmodel call. \"queue\" delivers it after the active turn ends.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatBusyBehavior"
@@ -24540,7 +24536,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
                 "messages": {
-                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A queued send on an errored chat may promote the\nprevious queue head, so clients must upsert the full batch.",
+                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A send to an errored or paused chat can also insert\nqueued messages: a steer send inserts the queued steer messages\nbefore the new message, and a queue send to an errored chat inserts\nthe steer lane, or the first queue message when that lane is empty.\nClients must upsert the full batch.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
@@ -24872,6 +24868,18 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "type": "string"
                 },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
+                },
                 "oauth2_client_secret": {
                     "type": "string"
                 },
@@ -25165,36 +25173,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "enum": [
-                        "create",
-                        "write",
-                        "delete",
-                        "start",
-                        "stop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AuditAction"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.AuditAction"
                 },
                 "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "build_reason": {
-                    "enum": [
-                        "autostart",
-                        "autostop",
-                        "initiator"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.BuildReason"
                 },
                 "organization_id": {
                     "type": "string",
@@ -25209,20 +25194,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "resource_type": {
-                    "enum": [
-                        "template",
-                        "template_version",
-                        "user",
-                        "workspace",
-                        "workspace_build",
-                        "git_ssh_key",
-                        "auditable_group"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ResourceType"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ResourceType"
                 },
                 "time": {
                     "type": "string",
@@ -25534,10 +25506,9 @@ const docTemplate = `{
                     }
                 },
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "ProvisionerState overrides the provisioner state for this build. JSON\ncarries it as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -26266,10 +26237,7 @@ const docTemplate = `{
                 },
                 "input_schema": {
                     "description": "InputSchema's JSON key \"input_schema\" uses snake_case for\nSDK consistency, deviating from the camelCase \"inputSchema\"\nconvention used by MCP.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "name": {
                     "type": "string"
@@ -26422,13 +26390,15 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "chat-automations"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
+                "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
@@ -26458,7 +26428,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Enables webhook and scheduled automations that deliver prompts to agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -26476,7 +26447,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentChatAutomations"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -27385,11 +27357,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "REQUIRED_TEMPLATE_VARIABLES",
-                "INSUFFICIENT_QUOTA"
+                "INSUFFICIENT_QUOTA",
+                "MISSING_TEMPLATE_PARAMETER"
             ],
             "x-enum-varnames": [
                 "RequiredTemplateVariables",
-                "InsufficientQuota"
+                "InsufficientQuota",
+                "MissingTemplateParameter"
             ]
         },
         "codersdk.License": {
@@ -27510,6 +27484,7 @@ const docTemplate = `{
                 "github",
                 "oidc",
                 "token",
+                "oauth2_provider_app",
                 "none"
             ],
             "x-enum-varnames": [
@@ -27518,6 +27493,7 @@ const docTemplate = `{
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
                 "LoginTypeToken",
+                "LoginTypeOAuth2ProviderApp",
                 "LoginTypeNone"
             ]
         },
@@ -27615,6 +27591,9 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "description": "OAuth2 fields (only populated for admins).",
                     "type": "string"
+                },
+                "oauth2_client_registration": {
+                    "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
                 },
                 "oauth2_resource": {
                     "type": "string"
@@ -27776,6 +27755,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.MCPServerOAuth2ClientRegistration": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "dynamic"
+            ],
+            "x-enum-varnames": [
+                "MCPServerOAuth2ClientRegistrationManual",
+                "MCPServerOAuth2ClientRegistrationDynamic"
+            ]
         },
         "codersdk.MCPServerOAuth2DisconnectResponse": {
             "type": "object",
@@ -29183,15 +29173,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "updated_at": {
                     "type": "string",
@@ -30044,6 +30026,9 @@ const docTemplate = `{
                 "collect_db_metrics": {
                     "type": "boolean"
                 },
+                "collect_workspace_stats": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -30134,16 +30119,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "offline",
-                        "idle",
-                        "busy"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
                 },
                 "tags": {
                     "type": "object",
@@ -30164,19 +30140,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "running",
-                        "succeeded",
-                        "canceling",
-                        "canceled",
-                        "failed"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                 },
                 "template_display_name": {
                     "type": "string"
@@ -30228,15 +30192,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "error_code": {
-                    "enum": [
-                        "REQUIRED_TEMPLATE_VARIABLES",
-                        "INSUFFICIENT_QUOTA"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.JobErrorCode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.JobErrorCode"
                 },
                 "file_id": {
                     "type": "string",
@@ -30274,19 +30230,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "running",
-                        "succeeded",
-                        "canceling",
-                        "canceled",
-                        "failed"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                 },
                 "tags": {
                     "type": "object",
@@ -30333,18 +30277,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "log_level": {
-                    "enum": [
-                        "trace",
-                        "debug",
-                        "info",
-                        "warn",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.LogLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "log_source": {
                     "$ref": "#/definitions/codersdk.LogSource"
@@ -30558,17 +30491,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "mode": {
-                    "enum": [
-                        "inherit",
-                        "on",
-                        "off",
-                        "condition"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ExperimentRuleMode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ExperimentRuleMode"
                 }
             }
         },
@@ -30828,15 +30751,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -31330,15 +31245,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actor_type": {
-                    "enum": [
-                        "group",
-                        "user"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
                 },
                 "avatar_url": {
                     "type": "string",
@@ -32028,10 +31935,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Default is the variable's default as a JSON string, number, or boolean,\nmatching the variable's type.",
+                    "type": "object"
                 },
                 "description": {
                     "type": "string"
@@ -32424,15 +32329,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -32497,9 +32394,6 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "enum": [
-                            "DEPRECATED_PARAMETERS"
-                        ],
                         "$ref": "#/definitions/codersdk.TemplateVersionWarning"
                     }
                 }
@@ -32603,15 +32497,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "validation_monotonic": {
-                    "enum": [
-                        "increasing",
-                        "decreasing"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
                 },
                 "validation_regex": {
                     "type": "string"
@@ -32760,10 +32646,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "output": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Output is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "tool_call_id": {
                     "type": "string"
@@ -33196,6 +33080,18 @@ const docTemplate = `{
                 },
                 "oauth2_client_id": {
                     "type": "string"
+                },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config ignores empty and unchanged values for\nthe client ID, client secret, auth URL, and token URL. Other values\nfail unless the request also sets \"manual\".",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
                 },
                 "oauth2_client_secret": {
                     "type": "string"
@@ -33710,10 +33606,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "State is the provisioner state, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 }
             }
         },
@@ -33738,11 +33633,6 @@ const docTemplate = `{
             "properties": {
                 "shareable_workspace_owners": {
                     "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
@@ -33856,28 +33746,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "enum": [
-                        "http",
-                        "https"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
                 },
                 "share_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 }
             }
         },
@@ -33962,15 +33834,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -34488,15 +34352,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "automatic_updates": {
-                    "enum": [
-                        "always",
-                        "never"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AutomaticUpdates"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.AutomaticUpdates"
                 },
                 "autostart_schedule": {
                     "type": "string"
@@ -34666,6 +34522,7 @@ const docTemplate = `{
                     }
                 },
                 "environment_variables": {
+                    "description": "EnvironmentVariables lists the variables set on the agent. Non-empty\nvalues are redacted as \"***REDACTED***\" because they often hold credentials.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -35162,28 +35019,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "enum": [
-                        "http",
-                        "https"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
                 },
                 "share_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
                 "workspace_id": {
                     "type": "string",
@@ -35412,17 +35251,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
                 },
                 "sharing_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
                 },
                 "slug": {
                     "description": "Slug is a unique identifier within the agent.",
@@ -35594,16 +35423,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "reason": {
-                    "enum": [
-                        "initiator",
-                        "autostart",
-                        "autostop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.BuildReason"
                 },
                 "resources": {
                     "type": "array",
@@ -35612,23 +35432,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "starting",
-                        "running",
-                        "stopping",
-                        "stopped",
-                        "failed",
-                        "canceling",
-                        "canceled",
-                        "deleting",
-                        "deleted"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceStatus"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -35642,16 +35446,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "transition": {
-                    "enum": [
-                        "start",
-                        "stop",
-                        "delete"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
                 },
                 "updated_at": {
                     "type": "string",
@@ -35972,16 +35767,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_transition": {
-                    "enum": [
-                        "start",
-                        "stop",
-                        "delete"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
                 }
             }
         },
@@ -36097,11 +35883,6 @@ const docTemplate = `{
             "properties": {
                 "shareable_workspace_owners": {
                     "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
@@ -36332,16 +36113,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "status_code": {
                     "type": "integer"
@@ -36386,16 +36158,7 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36449,16 +36212,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "stun": {
                     "$ref": "#/definitions/healthsdk.STUNReport"
@@ -36494,16 +36248,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/tailcfg.DERPRegion"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36536,16 +36281,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "threshold_ms": {
                     "type": "integer"
@@ -36613,11 +36349,6 @@ const docTemplate = `{
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/health.Severity"
@@ -36653,16 +36384,7 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36731,16 +36453,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36764,16 +36477,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -37448,7 +37152,6 @@ const docTemplate = `{
         "workspacesdk.WatchErrorCode": {
             "type": "integer",
             "enum": [
-                0,
                 1,
                 2,
                 3,
@@ -37456,20 +37159,7 @@ const docTemplate = `{
                 5,
                 6
             ],
-            "x-enum-comments": {
-                "_": "Ensure that zero value is not a valid code"
-            },
-            "x-enum-descriptions": [
-                "Ensure that zero value is not a valid code",
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
-            ],
             "x-enum-varnames": [
-                "_",
                 "WatchErrorTooManyAgents",
                 "WatchErrorNameNotFound",
                 "WatchErrorNoAgents",

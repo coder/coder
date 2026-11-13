@@ -2142,14 +2142,15 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
--- Returns the queue in promotion order (position ASC, id ASC), the same
--- order chatstate uses to pick the head. Clients read the queue through
+-- Returns the queue in promotion order (steer lane first, then the queue
+-- lane, each by position ASC, id ASC), the same order chatstate uses to
+-- pick the head. Clients read the queue through
 -- this query, so it must not order by created_at: promoting a message
 -- changes only its position, and concurrent senders can commit with
 -- created_at and position in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY position ASC, id ASC;
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -2612,6 +2613,11 @@ ORDER BY
     chats.id ASC
 LIMIT @limit_count::int;
 
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatsByIDsForRunnerSync :many
 SELECT *
 FROM chats_expanded
@@ -2988,13 +2994,14 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    @created_by::uuid
+    @created_by::uuid,
+    @busy_behavior::chat_busy_behavior
 )
 RETURNING *;
 
@@ -3004,10 +3011,12 @@ FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id).
+-- Returns the queue head: the first row in GetChatQueuedMessages order.
+-- A steer row under edit comes first instead, because it holds the
+-- whole steer lane.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC
+ORDER BY (busy_behavior = 'steer' AND editing_since IS NOT NULL) DESC, CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one
@@ -3042,20 +3051,12 @@ SET content = @content::jsonb,
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid
 RETURNING *;
 
--- name: ReorderChatQueuedMessageToHead :execrows
--- Sets the target queued message's position to one less than the
--- current minimum position for that chat, moving it to the head.
-UPDATE chat_queued_messages AS target
-SET position = COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    0
-) - 1
-WHERE target.id = @id::bigint
-  AND target.chat_id = @chat_id::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    target.position
-  );
+-- name: SteerChatQueuedMessage :execrows
+UPDATE chat_queued_messages
+SET position = nextval('chat_queued_messages_position_seq'),
+    busy_behavior = 'steer'
+WHERE id = @id::bigint
+  AND chat_id = @chat_id::uuid;
 
 -- name: UpsertChatHeartbeat :exec
 -- Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses

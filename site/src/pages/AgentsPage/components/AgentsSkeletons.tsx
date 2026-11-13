@@ -39,11 +39,11 @@ export const AgentsPageLayoutSkeleton: React.FC = () => {
 				style={{
 					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
 				}}
-				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
+				className="order-2 sm:order-0 flex-1 min-h-0 border-t sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-60 sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
-				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
+				<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 					<div className="absolute inset-0 flex flex-col">
-						<div className="hidden border-b border-border px-2 pb-3 pt-1.5 sm:block">
+						<div className="hidden border-b px-2 pb-3 pt-1.5 sm:block">
 							<div className="mb-2.5 flex items-center justify-between">
 								<Skeleton className="size-6 rounded" />
 								<div className="flex items-center gap-0.5 -mr-1.5">
@@ -120,7 +120,7 @@ export const ChatConversationSkeleton: React.FC = () => (
 export const RightPanelSkeleton: React.FC = () => (
 	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 		{/* Skeleton tab bar */}
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1">
+		<div className="flex shrink-0 items-center gap-2 border-b px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />
 			<div className="flex-1" />
 		</div>
@@ -144,7 +144,7 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
 			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-xs">
-				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
+				<div className="min-h-15 sm:min-h-24 px-3 py-2" />
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<Skeleton className="h-6 w-24 rounded" />
 					<Skeleton className="size-7 rounded-full" />
@@ -192,7 +192,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 					style={{
 						"--panel-width": `${rightPanel.width}px`,
 					}}
-					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
+					className="relative flex h-full w-screen min-w-0 flex-col border-l sm:w-(--panel-width) sm:min-w-90 sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />
 				</div>

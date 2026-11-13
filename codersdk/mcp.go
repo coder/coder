@@ -53,6 +53,20 @@ func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id u
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
+// MCPServerOAuth2ClientRegistration is how Coder got the OAuth2 client of
+// an MCP server config.
+type MCPServerOAuth2ClientRegistration string
+
+const (
+	// MCPServerOAuth2ClientRegistrationManual means an admin registered the
+	// client and entered its credentials and endpoints.
+	MCPServerOAuth2ClientRegistrationManual MCPServerOAuth2ClientRegistration = "manual"
+	// MCPServerOAuth2ClientRegistrationDynamic means Coder discovered the
+	// endpoints and registered the client with RFC 7591 Dynamic Client
+	// Registration.
+	MCPServerOAuth2ClientRegistrationDynamic MCPServerOAuth2ClientRegistration = "dynamic"
+)
+
 // MCPServerConfig represents an admin-configured MCP server.
 type MCPServerConfig struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`
@@ -75,6 +89,8 @@ type MCPServerConfig struct {
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
 	OAuth2Resource      string `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
+
+	OAuth2ClientRegistration MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty"`
 
 	// API key fields (only populated for admins).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
@@ -170,6 +186,13 @@ type CreateMCPServerConfigRequest struct {
 	APIKeyHeader   string            `json:"api_key_header,omitempty"`
 	APIKeyValue    string            `json:"api_key_value,omitempty"`
 	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
+	// OAuth2ClientRegistration selects how Coder gets the OAuth2 client.
+	// With "dynamic", Coder discovers the authorization server of URL and
+	// registers a client (RFC 7591), so the client ID, client secret, auth
+	// URL, and token URL must be empty. With "manual", the client ID, auth
+	// URL, and token URL are required. When empty, Coder uses "dynamic" if
+	// those three fields are empty, and "manual" otherwise.
+	OAuth2ClientRegistration MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty" validate:"omitempty,oneof=manual dynamic"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -212,6 +235,16 @@ type UpdateMCPServerConfigRequest struct {
 	APIKeyHeader   *string            `json:"api_key_header,omitempty"`
 	APIKeyValue    *string            `json:"api_key_value,omitempty"`
 	CustomHeaders  *map[string]string `json:"custom_headers,omitempty"`
+	// OAuth2ClientRegistration changes how Coder gets the OAuth2 client.
+	// When a request that sets the URL or an auth field omits it, Coder
+	// uses "dynamic" if the resulting config has no client ID, auth URL,
+	// and token URL, and keeps the stored value otherwise. Coder registers
+	// a new client when the config becomes "dynamic" or when the URL of a
+	// "dynamic" config changes. A new client deletes the stored user
+	// tokens. A "dynamic" config ignores empty and unchanged values for
+	// the client ID, client secret, auth URL, and token URL. Other values
+	// fail unless the request also sets "manual".
+	OAuth2ClientRegistration *MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty" validate:"omitempty,oneof=manual dynamic"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`

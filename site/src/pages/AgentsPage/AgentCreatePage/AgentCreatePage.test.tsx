@@ -16,7 +16,6 @@ import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildSearchParam,
@@ -47,6 +46,7 @@ import {
 	emptyInputStorageKey,
 } from "../components/AgentCreateForm";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
+import { highlightComposerState } from "../utils/composerHighlight";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildPrompt,
@@ -66,6 +66,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 			| undefined,
 		createError: undefined as unknown,
 		prefill: undefined as AgentCreateFormProps["prefill"],
+		highlightKey: undefined as string | undefined,
 	},
 }));
 
@@ -107,6 +108,7 @@ vi.mock("../components/AgentCreateForm", async (importOriginal) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
 			formProps.prefill = props.prefill;
+			formProps.highlightKey = props.highlightKey;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -137,21 +139,15 @@ const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	);
 };
 
-// The project page header shows tooltips, which need a provider.
 const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
-	renderWithAuth(
-		<TooltipProvider>
-			<AgentCreatePage />
-		</TooltipProvider>,
-		{
-			path: "/agents/projects/:projectId",
-			route,
-			extraRoutes: [
-				{ path: "/agents", element: <AgentCreatePage /> },
-				{ path: "/agents/:agentId", element: null },
-			],
-		},
-	);
+	renderWithAuth(<AgentCreatePage />, {
+		path: "/agents/projects/:projectId",
+		route,
+		extraRoutes: [
+			{ path: "/agents", element: <AgentCreatePage /> },
+			{ path: "/agents/:agentId", element: null },
+		],
+	});
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -229,6 +225,7 @@ afterEach(() => {
 	renderedProjects.length = 0;
 	realForm.enabled = false;
 	formProps.prefill = undefined;
+	formProps.highlightKey = undefined;
 	vi.restoreAllMocks();
 	localStorage.clear();
 });
@@ -694,25 +691,72 @@ describe("AgentCreatePage project frame", () => {
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 	});
 
-	it("looks up the owner of a project owned by someone else", async () => {
-		serveProjects({ ...MockChatProject, owner_id: MockUserMember.id });
-		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
-
-		renderAgentsRoutes();
-
-		await waitFor(() => {
-			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
-		});
-	});
-
-	it("does not look up the owner of the user's own project", async () => {
-		serveProjects(MockChatProject);
+	it("shows the owner of a project owned by someone else from its ACL", async () => {
+		const owner = { ...MockUserMember, name: "Jane Doe" };
+		serveProjects({ ...MockChatProject, owner_id: owner.id });
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockResolvedValue({ owner, users: [], groups: [] });
 		const getUser = vi.spyOn(API, "getUser");
 
 		renderAgentsRoutes();
 
-		await screen.findByRole("button", { name: "Project actions" });
+		const details = await screen.findByRole("region", { name: "Details" });
+		await within(details).findByText(owner.name);
+		expect(getACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
 		expect(getUser).not.toHaveBeenCalled();
+	});
+});
+
+describe("AgentCreatePage composer highlight", () => {
+	// Mirrors the sidebar's New chat link, which replaces the current entry
+	// when it already points at the project.
+	const pickNewChat = (
+		router: ReturnType<typeof renderAgentsRoutes>["router"],
+	) =>
+		act(() =>
+			router.navigate(projectPath(MockChatProject.id), {
+				replace: true,
+				state: highlightComposerState,
+			}),
+		);
+
+	it("highlights the composer again for each New chat picked on the page", async () => {
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		expect(formProps.highlightKey).toBeUndefined();
+
+		await pickNewChat(router);
+		const firstKey = formProps.highlightKey;
+		expect(firstKey).toBeDefined();
+		await pickNewChat(router);
+		expect(formProps.highlightKey).toBeDefined();
+		expect(formProps.highlightKey).not.toBe(firstKey);
+	});
+
+	it("does not replay the highlight when returning to its history entry", async () => {
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await pickNewChat(router);
+		expect(formProps.highlightKey).toBeDefined();
+		await act(() => router.navigate("/agents"));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("heading", { name: MockChatProject.name }),
+			).toBeNull(),
+		);
+		await act(() => router.navigate(-1));
+
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		expect(router.state.location.state).toEqual(highlightComposerState);
+		expect(formProps.highlightKey).toBeUndefined();
 	});
 });
 
