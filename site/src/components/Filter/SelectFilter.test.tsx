@@ -93,3 +93,15 @@ it("adds no description to the focused trigger when the label fits", async () =>
 	await user.tab();
 	expect(trigger).toHaveAccessibleDescription("");
 });
+
+it("shows a truncated option's full label while it is highlighted", async () => {
+	const user = userEvent.setup();
+	renderLongLabelFilter(200);
+
+	await user.tab();
+	await user.keyboard("{Enter}");
+	await screen.findByRole("option", { name: longOption.label });
+	expect(await screen.findByRole("tooltip")).toHaveTextContent(
+		longOption.label,
+	);
+});

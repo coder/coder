@@ -13,7 +13,11 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
-import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "#/components/Filter/UserFilter";
 import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
@@ -54,8 +58,7 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({
 	error,
 	menus,
 }) => {
-	// Wide enough that "All resource types" fits under text spacing overrides.
-	const width = 210;
+	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
 			learnMoreLink={docs(

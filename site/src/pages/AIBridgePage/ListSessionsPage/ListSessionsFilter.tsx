@@ -14,9 +14,8 @@ import {
 } from "../filters/ProviderFilter";
 
 // Narrower than the SelectFilter default so the search input keeps most
-// of the row on wide viewports, but wide enough that "All providers" fits
-// under text spacing overrides.
-const FILTER_WIDTH = 165;
+// of the row on wide viewports.
+const FILTER_WIDTH = 150;
 
 type ListSessionsFilterProps = {
 	filter: ReturnType<typeof useFilter>;
