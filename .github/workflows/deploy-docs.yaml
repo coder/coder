@@ -17,6 +17,7 @@ permissions: {}
 jobs:
   deploy-docs:
     runs-on: ubuntu-latest
+    environment: main
     steps:
       - name: Deploy docs site
         run: |
