@@ -140,31 +140,28 @@ export const SharedWithYou: Story = { args: { tab: "shared" } };
 
 export const Loading: Story = { args: { projects: undefined } };
 
+const mockArchivedProjects: ChatProject[] = [
+	{
+		...MockArchivedChatProject,
+		id: "archived-release",
+		name: "Release 2.0",
+		description: "Chats from the 2.0 release.",
+	},
+	{
+		...MockArchivedChatProject,
+		id: "archived-shared",
+		name: "Shared archive",
+		description: "",
+		owner_id: MockUserMember.id,
+		permissions: { update: false, delete: false, share: false, archive: false },
+	},
+];
+
 export const Archived: Story = {
 	args: {
 		tab: "archived",
 		showArchivedTab: true,
-		archivedProjects: [
-			{
-				...MockArchivedChatProject,
-				id: "archived-release",
-				name: "Release 2.0",
-				description: "Chats from the 2.0 release.",
-			},
-			{
-				...MockArchivedChatProject,
-				id: "archived-shared",
-				name: "Shared archive",
-				description: "",
-				owner_id: MockUserMember.id,
-				permissions: {
-					update: false,
-					delete: false,
-					share: false,
-					archive: false,
-				},
-			},
-		],
+		archivedProjects: mockArchivedProjects,
 	},
 };
 
@@ -186,6 +183,7 @@ export const ArchivedLoading: Story = {
 export const ArchivedLoadError: Story = {
 	args: {
 		...Archived.args,
+		archivedProjects: undefined,
 		archivedError: mockApiError({
 			message: "Failed to load archived projects.",
 		}),
