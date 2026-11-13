@@ -44,6 +44,7 @@ The agent uses three tools to provision a workspace:
 | `create_workspace` | Create the workspace from a chosen template               |
 
 Administrators can restrict which templates these tools can use with the switches on the [Templates page](./platform-controls/template-optimization.md#restrict-available-templates).
+In a chat that belongs to a [project](./projects.md#templates), the tools can use only the project's templates, recommend the project's default template, and apply its default values.
 
 ### list_templates
 
@@ -103,6 +104,7 @@ The response carries the raw evidence instead: `active_developers`, `your_worksp
 Beyond the ranked list, the result tells the agent what to do next:
 
 - `recommended_template_id` is present only when the top template is a clear winner: it is the only available template, it matches the query at a strictly higher tier than every other match, or its affinity score reaches at least the score of two active developers and leads the runner-up by a clear margin.
+  In a project chat with a [default template](./projects.md#default-template), the default template is recommended instead whenever no other template matches the query at a higher tier.
 - `next_step` is always present and contains one of four fixed instructions:
 
 | Situation                           | `next_step` instruction for the agent                 |
@@ -188,3 +190,5 @@ Guardrails:
   It follows the `next_step` from `list_templates`, asking you to choose when no template is recommended.
 - The tool is idempotent: if the chat already has a workspace building or running, that workspace is returned instead of creating a duplicate.
 - Templates that do not allow Coder Agents are rejected.
+- In a project chat, templates outside the project's templates are rejected.
+- A `preset_id` must belong to the template's active version.

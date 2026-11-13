@@ -8,6 +8,7 @@ title: Projects
 
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
+The project also sets which templates its chats can use for workspaces.
 Your projects appear in the **Projects** section of the **Agents** page sidebar.
 
 ## What a project provides
@@ -17,6 +18,7 @@ Your projects appear in the **Projects** section of the **Agents** page sidebar.
 | [Instructions](#instructions) | Text added to the system prompt of every chat in the project.            |
 | [Skills](#skills)             | Skills available only to chats in the project.                           |
 | [Memory](#memory)             | Durable notes that the agent saves in one chat and reads in later chats. |
+| [Templates](#templates)       | The templates that chats in the project can use for workspaces.          |
 
 ## Ownership
 
@@ -35,9 +37,15 @@ Coder records project, instruction, skill, and memory changes in the [audit log]
 1. On the **Agents** page, select **New project** in the **Projects** section of the sidebar.
 1. Enter a **Project name** and an optional **Description**, and pick an icon.
 1. Choose the **Organization**.
+1. Under **Templates**, select the templates that chats in the project can use.
+
+   You can skip this step and add templates later.
+   Until the project has templates, its chats can't create or attach workspaces.
+   To also set a default template, refer to [Default template](#default-template).
+
 1. Select **Create project**.
 
-The project page shows a **Details** panel with the project owner, creation date, organization, skills, and instructions, and lists your chats in the project.
+The project page shows a **Details** panel with the project owner, creation date, organization, template count, skills, and instructions, and lists your chats in the project.
 
 To rename or delete a project, open the project's menu on its page or in the sidebar and select **Edit project** or **Delete project**.
 Deleting a project deletes its instructions, skills, and memories.
@@ -56,6 +64,7 @@ Its chats are kept and move back to your chat list.
 You can move only top-level chats that you own, that aren't archived, and that aren't running.
 Sub-agent chats always follow their top-level chat.
 After a move, the chat's next turn uses the new project's instructions, skills, and memory.
+The chat can use only the new project's templates, but it keeps any workspace it already has.
 
 The API equivalent is `PATCH /api/v2/chats/{chat}` with `project_id`.
 Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000-0000-0000-000000000000`) to remove a chat from its project.
@@ -114,3 +123,51 @@ How memory reaches the agent:
 
 The dashboard doesn't show memories yet.
 To list, read, create, or delete them directly, use `/api/experimental/organizations/{organization}/chats/projects/{project}/memories`.
+
+## Templates
+
+A project sets which of its organization's templates its chats can use.
+Chats in the project can only create workspaces from those templates, and you can only attach a workspace built from one of them.
+When you start a chat in the project, the composer's workspace list shows only workspaces built from the project's templates.
+When a project has no templates, the agent in its chats can't create a workspace, and you can't attach one.
+If the agent in a project chat says that no templates are available, add templates to the project.
+
+To change a project's templates, select the template count, such as **2 templates**, in the **Templates** row of the project's **Details** panel.
+This opens the **Edit templates** dialog.
+You need the `chat_project:update` permission on the project, which the project owner has.
+If the templates change elsewhere while the dialog is open, such as in another browser tab, the dialog shows a warning and you can't save.
+Select **Load latest** to start over from the saved templates, or **Keep my draft** to replace them with yours when you save.
+
+You can add any template in the project's organization that you can access, that allows Coder Agents, and that isn't deprecated.
+**Select all** adds every such template.
+The project's list never overrides the administrator setting: the agent can't use a template that doesn't allow Coder Agents, even when it's in the list.
+For that setting, refer to [Template routing](./platform-controls/index.md#template-routing).
+
+The API equivalent is the `templates` field of `POST /api/experimental/organizations/{organization}/chats/projects` and `PATCH /api/experimental/organizations/{organization}/chats/projects/{project}`.
+A `PATCH` that includes `templates` replaces the templates and all defaults, and a `PATCH` without it keeps them.
+Attaching a workspace whose template isn't one of the project's templates fails with `This workspace's template is not allowed in the chat's project.`
+
+### Default template
+
+Optionally, choose a **Default template** from the project's templates.
+`list_templates` recommends the default template to the agent, unless the agent's search matches another template more closely.
+
+For the default template, you can also set default values as either a **Preset** or **Parameter values**, but not both:
+
+- **Preset:** when the agent creates a workspace from the default template without choosing a preset, Coder uses the default preset.
+  Coder skips the default preset when the agent sets a parameter that the preset also sets.
+- **Parameter values:** when the agent creates a workspace from the default template, Coder fills in each default value that the agent doesn't set.
+  Values the agent sets take precedence.
+
+When the agent chooses a preset itself, the project's default values don't apply.
+
+The default preset must belong to the template's active version.
+After a new template version becomes active, the default preset stops applying until you choose a preset from the new version.
+For a template in [parameter compatibility mode](../templates/extending-templates/parameters/compatibility-mode.md), Coder checks the default parameter values when you save.
+For other templates, Coder checks them when the agent creates a workspace.
+
+### Template changes and existing workspaces
+
+A change to a project's templates applies to its chats right away, including chats that are already running.
+A chat that already has a workspace keeps it, even when the workspace's template isn't one of the project's templates.
+This applies when you remove a template from the project and when you move a chat that has a workspace into the project.
