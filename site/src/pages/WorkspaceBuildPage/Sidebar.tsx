@@ -48,7 +48,6 @@ export const SidebarItemSkeleton: React.FC<React.PropsWithChildren> = ({
 
 export const SidebarCaption: React.FC<React.ComponentProps<"h2">> = ({
 	children,
-	className,
 	...attrs
 }) => {
 	return (
