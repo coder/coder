@@ -555,6 +555,9 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	// FOR SHARE conflicts with sharing-list updates, which lock the row FOR
+	// UPDATE, so a chat attached under this lock cannot miss a removal.
+	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
@@ -1476,6 +1479,10 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks the user's group memberships with FOR KEY SHARE for the rest of the
+	// current transaction. FOR KEY SHARE conflicts with DELETE, so the user
+	// cannot leave a group, or have a group deleted, until the transaction ends.
+	LockGroupMembersByUserIDForShare(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
 	// the current transaction. FOR KEY SHARE conflicts with DELETE, so a member
 	// cannot be removed until the transaction ends, and a removal committed

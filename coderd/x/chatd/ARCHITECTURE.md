@@ -1216,7 +1216,7 @@ Memory tools, instruction loading and skill loading run as chatd, so `ChatProjec
 
 Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` check it on every turn. If the check fails, for example for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
-When an owner loses access because they are removed from the project's sharing list, a group, or the organization, the transaction that removes them also runs `RemoveChatsFromUnusableChatProjects`, which moves their chats out of the project. Getting access back does not move the chats back. The access check in that query must match `IsChatProjectUsableByUserID`.
+When an owner loses access because they are removed from the project's sharing list, a group, or the organization, the transaction that removes them also runs `RemoveChatsFromUnusableChatProjects`, which moves their chats out of the project. Getting access back does not move the chats back. The access check in that query must match `IsChatProjectUsableByUserID`. Creating a chat in a project and moving a chat into one lock the owner's organization membership, group memberships, and the project row, then check access again in the same transaction, so a concurrent removal either rejects the attach or sees the attached chat.
 
 ##### Reasoning effort
 

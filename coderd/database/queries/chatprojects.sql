@@ -21,6 +21,14 @@ FROM chat_projects
 WHERE id = @id::uuid
 FOR UPDATE;
 
+-- name: GetChatProjectByIDForShare :one
+-- FOR SHARE conflicts with sharing-list updates, which lock the row FOR
+-- UPDATE, so a chat attached under this lock cannot miss a removal.
+SELECT *
+FROM chat_projects
+WHERE id = @id::uuid
+FOR SHARE;
+
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
 -- Entries match regardless of the actions they grant, so callers must
 -- authorize each row.

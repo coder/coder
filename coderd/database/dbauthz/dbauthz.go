@@ -3810,6 +3810,10 @@ func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (databas
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
+func (q *querier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForShare)(ctx, id)
+}
+
 func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
@@ -7531,6 +7535,15 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 	return q.db.LockChatByID(ctx, id)
+}
+
+// LockGroupMembersByUserIDForShare spans every organization the user is in,
+// so it is a system operation.
+func (q *querier) LockGroupMembersByUserIDForShare(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.LockGroupMembersByUserIDForShare(ctx, userID)
 }
 
 func (q *querier) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {

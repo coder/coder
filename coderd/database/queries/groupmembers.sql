@@ -212,3 +212,17 @@ DELETE FROM
 WHERE
 	user_id = $1 AND
 	group_id = $2;
+
+-- name: LockGroupMembersByUserIDForShare :many
+-- Locks the user's group memberships with FOR KEY SHARE for the rest of the
+-- current transaction. FOR KEY SHARE conflicts with DELETE, so the user
+-- cannot leave a group, or have a group deleted, until the transaction ends.
+SELECT
+	group_id
+FROM
+	group_members
+WHERE
+	user_id = @user_id
+ORDER BY
+	group_id
+FOR KEY SHARE;

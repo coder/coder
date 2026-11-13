@@ -194,6 +194,20 @@ func SetFamilyProject(
 
 	var familyChats []database.Chat
 	err := store.InTx(func(tx database.Store) error {
+		if input.ProjectID.Valid {
+			// The owner never changes, so an unlocked read is enough to
+			// lock their project access before any chat row.
+			current, err := tx.GetChatByID(ctx, input.RootID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatNotFound
+				}
+				return xerrors.Errorf("get root chat: %w", err)
+			}
+			if err := lockChatProjectAccess(ctx, tx, input.ProjectID.UUID, current.OwnerID); err != nil {
+				return err
+			}
+		}
 		// Child creation takes FOR SHARE on the root row, so holding this
 		// lock keeps new subagent chats out of the family during the move.
 		root, err := tx.GetChatByIDForUpdate(ctx, input.RootID)

@@ -8323,6 +8323,33 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 	return i, err
 }
 
+const getChatProjectByIDForShare = `-- name: GetChatProjectByIDForShare :one
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+FROM chat_projects
+WHERE id = $1::uuid
+FOR SHARE
+`
+
+// FOR SHARE conflicts with sharing-list updates, which lock the row FOR
+// UPDATE, so a chat attached under this lock cannot miss a removal.
+func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+	)
+	return i, err
+}
+
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
 SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
 FROM chat_projects
@@ -18017,6 +18044,44 @@ type InsertUserGroupsByIDParams struct {
 // If there is a conflict, the user is already a member
 func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, insertUserGroupsByID, arg.UserID, pq.Array(arg.GroupIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var group_id uuid.UUID
+		if err := rows.Scan(&group_id); err != nil {
+			return nil, err
+		}
+		items = append(items, group_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockGroupMembersByUserIDForShare = `-- name: LockGroupMembersByUserIDForShare :many
+SELECT
+	group_id
+FROM
+	group_members
+WHERE
+	user_id = $1
+ORDER BY
+	group_id
+FOR KEY SHARE
+`
+
+// Locks the user's group memberships with FOR KEY SHARE for the rest of the
+// current transaction. FOR KEY SHARE conflicts with DELETE, so the user
+// cannot leave a group, or have a group deleted, until the transaction ends.
+func (q *sqlQuerier) LockGroupMembersByUserIDForShare(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, lockGroupMembersByUserIDForShare, userID)
 	if err != nil {
 		return nil, err
 	}

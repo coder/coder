@@ -50,6 +50,12 @@ var (
 	// no new chat may join one.
 	ErrChatFamilyArchived = xerrors.New("chat family is archived")
 
+	// ErrChatProjectNotUsable is returned by [CreateChat],
+	// [CreateChatWithID], and [SetFamilyProject] when the chat owner
+	// cannot use the target project, for example because their access
+	// was removed after the caller checked it.
+	ErrChatProjectNotUsable = xerrors.New("chat owner cannot use the chat project")
+
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
