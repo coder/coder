@@ -7,7 +7,11 @@ import {
 	richParameters,
 	templateVersionPresets,
 } from "#/api/queries/templates";
-import type { ChatProject, ChatProjectTemplates } from "#/api/typesGenerated";
+import type {
+	ChatProject,
+	ChatProjectTemplates,
+	Template,
+} from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -115,6 +119,9 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
+const serializeTemplateIds = (templates: readonly Template[] | undefined) =>
+	JSON.stringify((templates ?? []).map(({ id }) => id).sort());
+
 const serializeValues = (values: ChatProjectTemplatesValues) =>
 	JSON.stringify({
 		...values,
@@ -144,9 +151,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// moment cannot cancel that check's request and save unchecked.
 	const isSubmittingRef = useRef(false);
 	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
-	// Save and Retry are disabled while their operation runs, which drops
-	// their focus. When it ends without closing the dialog, focus moves to
-	// what explains the outcome.
+	// Outcomes of a save or refresh that leaves the dialog open: focus moves
+	// to what explains it (the conflict warning, Retry, or Save), but only
+	// when focus was lost, such as inputs disabled during a save.
 	const pendingFocusRef = useRef<"conflict" | "retry" | "save" | null>(null);
 	const conflictAlertRef = useRef<HTMLDivElement>(null);
 	const retryButtonRef = useRef<HTMLButtonElement>(null);
@@ -346,7 +353,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				const checkId = onBeginCheck();
 				const draftVersion = draftVersionRef.current;
 				setIsCheckingBeforeSave(true);
-				const refreshed = await projectsQuery.refetch();
+				// The request was built from the eligible-templates list, so it is
+				// refreshed too.
+				const [refreshed, refreshedTemplates] = await Promise.all([
+					projectsQuery.refetch(),
+					templatesQuery.refetch(),
+				]);
 				isSubmittingRef.current = false;
 				setIsCheckingBeforeSave(false);
 				if (
@@ -355,8 +367,15 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				) {
 					return;
 				}
-				if (refreshed.isError) {
+				if (refreshed.isError || refreshedTemplates.isError) {
 					pendingFocusRef.current = "retry";
+					return;
+				}
+				// A changed list rebuilds the request; the user saves again.
+				if (
+					serializeTemplateIds(refreshedTemplates.data) !==
+					serializeTemplateIds(eligibleTemplates)
+				) {
 					return;
 				}
 				const latest = refreshed.data?.find(({ id }) => id === project.id);
@@ -477,6 +496,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 							setBaseTemplates(project.templates);
 							setValue(chatProjectTemplatesValues(project.templates));
 							onResetError();
+							// The newer save can include templates this list hasn't seen.
+							void templatesQuery.refetch();
 							saveButtonRef.current?.focus();
 						}}
 					>

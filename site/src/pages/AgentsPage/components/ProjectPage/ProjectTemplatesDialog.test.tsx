@@ -456,7 +456,8 @@ describe("ProjectTemplatesDialog", () => {
 				template_ids: [MockTemplate.id],
 			}),
 		);
-		expect(getTemplates).toHaveBeenCalledTimes(2);
+		// The failed load, Retry, and the pre-save check.
+		expect(getTemplates).toHaveBeenCalledTimes(3);
 	});
 
 	it("pauses saving until the default preset list loads", async () => {
@@ -523,5 +524,22 @@ describe("ProjectTemplatesDialog", () => {
 				default_parameters: { [MockTemplateVersionParameter1.name]: "x" },
 			}),
 		);
+	});
+
+	it("saves nothing when the eligible templates change during the check", async () => {
+		const { user, props } = renderDialog();
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		vi.mocked(API.getTemplates).mockResolvedValue([
+			MockTemplate,
+			{ ...MockTemplate, id: "newly-eligible" },
+		]);
+
+		await user.click(save);
+
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(props.onSave).not.toHaveBeenCalled();
 	});
 });
