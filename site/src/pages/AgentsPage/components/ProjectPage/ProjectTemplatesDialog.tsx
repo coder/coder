@@ -272,20 +272,23 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		...(hasDefaultParameters ? [parametersQuery] : []),
 	].filter((query) => query.isError);
 	const refreshFailed = failedQueries.length > 0;
+	// Retry stays enabled while it runs so it keeps focus.
+	const isRetrying = failedQueries.some((query) => query.isFetching);
+	const isLoadingDefaults =
+		(hasDefaultPreset && presetsQuery.isFetching) ||
+		(hasDefaultParameters && parametersQuery.isFetching);
 	// Templates missing from a stale list would be dropped on save. The
 	// pre-save check's own refresh leaves Save enabled, so focus stays on it.
 	const isRefreshing =
 		(projectsQuery.isFetching && !isCheckingBeforeSave) ||
 		templatesQuery.isFetching ||
-		presetsQuery.isFetching ||
-		parametersQuery.isFetching;
+		isLoadingDefaults;
 	const isBusy =
 		isSaving ||
 		isCheckingBeforeSave ||
 		projectsQuery.isFetching ||
 		templatesQuery.isFetching ||
-		presetsQuery.isFetching ||
-		parametersQuery.isFetching;
+		isLoadingDefaults;
 	const canSave =
 		request !== undefined &&
 		!isUnchanged &&
@@ -429,8 +432,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 							type="button"
 							size="sm"
 							variant="outline"
+							aria-busy={isRetrying}
 							onClick={() => {
-								if (failedQueries.some((query) => query.isFetching)) {
+								if (isRetrying) {
 									return;
 								}
 								pendingFocusRef.current = "retry";
@@ -439,6 +443,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 								}
 							}}
 						>
+							<Spinner loading={isRetrying} />
 							Retry
 						</Button>
 					}
