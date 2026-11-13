@@ -383,3 +383,19 @@ export const RemovedClassicParameter: Story = {
 		],
 	},
 };
+
+export const RefreshingProject: Story = {
+	parameters: DefaultPreset.parameters,
+	args: { project: mockProjectWithDefaultPreset },
+	decorators: [
+		withRefetch({
+			queryKey: chatProjectsKey,
+			queryFn: () => API.experimental.getChatProjects(),
+		}),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};

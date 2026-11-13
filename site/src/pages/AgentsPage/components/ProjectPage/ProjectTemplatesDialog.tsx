@@ -105,7 +105,6 @@ type ProjectTemplatesFormProps = Omit<
 	"onOpenChange" | "onCloseAutoFocus"
 > & {
 	readonly isCheckingBeforeSave: boolean;
-	/** Starts a pre-save check and returns its ID. */
 	readonly onBeginCheck: () => number;
 	/** Ends a check; false when it was cancelled and must not save. */
 	readonly onEndCheck: (checkId: number) => boolean;
@@ -158,9 +157,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// The check disables the focused control, which drops focus to the
 	// page. When it ends without saving, focus moves to the control that
 	// explains why, once that control renders enabled.
-	const pendingFocusRef = useRef<"loadLatest" | "retry" | null>(null);
+	const pendingFocusRef = useRef<"loadLatest" | "retry" | "save" | null>(null);
 	const loadLatestButtonRef = useRef<HTMLButtonElement>(null);
 	const retryButtonRef = useRef<HTMLButtonElement>(null);
+	const saveButtonRef = useRef<HTMLButtonElement>(null);
 	const isBusy = isSaving || isCheckingBeforeSave;
 	// A rejected save no longer applies once the draft follows newer
 	// templates, so its error is hidden.
@@ -282,12 +282,14 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				? loadLatestButtonRef.current
 				: pendingFocusRef.current === "retry" && refreshFailed
 					? retryButtonRef.current
-					: null;
+					: pendingFocusRef.current === "save" && shownError
+						? saveButtonRef.current
+						: null;
 		if (target) {
 			pendingFocusRef.current = null;
 			target.focus();
 		}
-	}, [isBusy, hasConflict, refreshFailed]);
+	}, [isBusy, hasConflict, refreshFailed, shownError]);
 
 	return (
 		<form
@@ -325,6 +327,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					pendingFocusRef.current = "loadLatest";
 					return;
 				}
+				// A rejected save leaves the dialog open, so focus returns to Save.
+				pendingFocusRef.current = "save";
 				onSave(request);
 			}}
 		>
@@ -427,6 +431,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					Cancel
 				</Button>
 				<Button
+					ref={saveButtonRef}
 					type="submit"
 					disabled={!canSave}
 					aria-busy={isBusy || projectsQuery.isFetching}
