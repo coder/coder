@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -233,4 +235,59 @@ func TestGitSSH(t *testing.T) {
 			t.Fatal("timeout waiting for auth")
 		}
 	})
+}
+
+func TestGitSignSSH(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	keypair, err := client.GitSSHKey(ctx, codersdk.Me)
+	require.NoError(t, err)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	dir := t.TempDir()
+	payload := filepath.Join(dir, "buffer")
+	require.NoError(t, os.WriteFile(payload, []byte("commit payload"), 0o600))
+	// Git passes the public key via -f and -U when user.signingkey is a
+	// literal key.
+	pubFile := filepath.Join(dir, "signing_key.pub")
+	require.NoError(t, os.WriteFile(pubFile, []byte(keypair.PublicKey), 0o600))
+
+	inv, _ := clitest.New(t,
+		"gitsign-ssh",
+		"--agent-url", client.URL.String(),
+		"--agent-token", r.AgentToken,
+		"--", "-Y", "sign", "-n", "git", "-f", pubFile, "-U", payload,
+	)
+	require.NoError(t, inv.WithContext(ctx).Run())
+	sig, err := os.ReadFile(payload + ".sig")
+	require.NoError(t, err)
+	require.Contains(t, string(sig), "-----BEGIN SSH SIGNATURE-----")
+
+	if _, err := exec.LookPath("ssh-keygen"); err != nil {
+		t.Skip("ssh-keygen not found, skipping verification")
+	}
+	allowed := filepath.Join(dir, "allowed_signers")
+	require.NoError(t, os.WriteFile(allowed, []byte("coder "+keypair.PublicKey), 0o600))
+	verify := exec.CommandContext(ctx, "ssh-keygen", "-Y", "verify", "-f", allowed, "-I", "coder", "-n", "git", "-s", payload+".sig")
+	verify.Stdin = strings.NewReader("commit payload")
+	out, err := verify.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	// Verification requests are passed to ssh-keygen untouched.
+	inv, _ = clitest.New(t,
+		"gitsign-ssh",
+		"--agent-url", client.URL.String(),
+		"--agent-token", r.AgentToken,
+		"--", "-Y", "find-principals", "-f", allowed, "-s", payload+".sig",
+	)
+	var principals bytes.Buffer
+	inv.Stdout = &principals
+	require.NoError(t, inv.WithContext(ctx).Run())
+	require.Equal(t, "coder", strings.TrimSpace(principals.String()))
 }

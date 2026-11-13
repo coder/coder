@@ -780,4 +780,51 @@ func TestGetManifest(t *testing.T) {
 
 		require.Equal(t, expected, got)
 	})
+
+	t.Run("GitSigningPublicKey", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name        string
+			experiments codersdk.Experiments
+			enabled     bool
+			want        string
+		}{
+			{name: "ExperimentDisabled", enabled: true},
+			{name: "PreferenceDisabled", experiments: codersdk.Experiments{codersdk.ExperimentGitCommitSigning}},
+			{name: "Enabled", experiments: codersdk.Experiments{codersdk.ExperimentGitCommitSigning}, enabled: true, want: "ssh-ed25519 AAAAtest"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				mDB := dbmock.NewMockStore(gomock.NewController(t))
+				api := &agentapi.ManifestAPI{
+					AccessURL:        &url.URL{Scheme: "https", Host: "example.com"},
+					AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+					WorkspaceID:      workspace.ID,
+					WorkspaceBuildID: agentBuild.ID,
+					Database:         mDB,
+					DerpMapFn:        derpMapFn,
+					Experiments:      tc.experiments,
+				}
+
+				mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(nil, nil)
+				mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return(nil, nil)
+				mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).Return(nil, nil)
+				mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(nil, nil)
+				mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+				mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+				mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return(nil, nil)
+				if len(tc.experiments) > 0 {
+					mDB.EXPECT().GetUserSignCommitsWithSSHKey(gomock.Any(), workspace.OwnerID).Return(tc.enabled, nil)
+				}
+				if tc.want != "" {
+					mDB.EXPECT().GetGitSSHKey(gomock.Any(), workspace.OwnerID).Return(database.GitSSHKey{PublicKey: tc.want}, nil)
+				}
+
+				got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got.GitSigningPublicKey)
+			})
+		}
+	})
 }

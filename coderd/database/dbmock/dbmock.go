@@ -7073,6 +7073,21 @@ func (mr *MockStoreMockRecorder) GetUserShellToolDisplayMode(ctx, userID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserShellToolDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserShellToolDisplayMode), ctx, userID)
 }
 
+// GetUserSignCommitsWithSSHKey mocks base method.
+func (m *MockStore) GetUserSignCommitsWithSSHKey(ctx context.Context, userID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserSignCommitsWithSSHKey", ctx, userID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserSignCommitsWithSSHKey indicates an expected call of GetUserSignCommitsWithSSHKey.
+func (mr *MockStoreMockRecorder) GetUserSignCommitsWithSSHKey(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSignCommitsWithSSHKey", reflect.TypeOf((*MockStore)(nil).GetUserSignCommitsWithSSHKey), ctx, userID)
+}
+
 // GetUserSkillByUserIDAndName mocks base method.
 func (m *MockStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
@@ -12160,6 +12175,21 @@ func (m *MockStore) UpdateUserShellToolDisplayMode(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) UpdateUserShellToolDisplayMode(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserShellToolDisplayMode", reflect.TypeOf((*MockStore)(nil).UpdateUserShellToolDisplayMode), ctx, arg)
+}
+
+// UpdateUserSignCommitsWithSSHKey mocks base method.
+func (m *MockStore) UpdateUserSignCommitsWithSSHKey(ctx context.Context, arg database.UpdateUserSignCommitsWithSSHKeyParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserSignCommitsWithSSHKey", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserSignCommitsWithSSHKey indicates an expected call of UpdateUserSignCommitsWithSSHKey.
+func (mr *MockStoreMockRecorder) UpdateUserSignCommitsWithSSHKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserSignCommitsWithSSHKey", reflect.TypeOf((*MockStore)(nil).UpdateUserSignCommitsWithSSHKey), ctx, arg)
 }
 
 // UpdateUserSkillByUserIDAndName mocks base method.

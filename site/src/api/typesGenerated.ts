@@ -5797,6 +5797,7 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
+	| "git-commit-signing"
 	| "mcp-server-http"
 	| "no_nats_pubsub"
 	| "notifications"
@@ -5877,6 +5878,7 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
+	"git-commit-signing",
 	"mcp-server-http",
 	"no_nats_pubsub",
 	"notifications",
@@ -11562,6 +11564,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly code_diff_display_mode?: AgentDisplayMode;
 	readonly collapse_assistant_steps?: boolean;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
+	readonly sign_commits_with_ssh_key?: boolean;
 }
 
 // From codersdk/users.go
@@ -12075,6 +12078,11 @@ export interface UserPreferenceSettings {
 	readonly code_diff_display_mode: AgentDisplayMode;
 	readonly collapse_assistant_steps: boolean;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
+	/**
+	 * SignCommitsWithSSHKey signs git commits and tags in the user's
+	 * workspaces with their Coder git SSH key.
+	 */
+	readonly sign_commits_with_ssh_key: boolean;
 }
 
 // From codersdk/deployment.go

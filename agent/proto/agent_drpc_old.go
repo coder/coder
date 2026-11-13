@@ -135,3 +135,9 @@ type DRPCAgentClient215 interface {
 type DRPCAgentClient216 interface {
 	DRPCAgentClient215
 }
+
+// DRPCAgentClient217 is the Agent API at v2.17. It adds
+// git_signing_public_key to the manifest. No new RPCs.
+type DRPCAgentClient217 interface {
+	DRPCAgentClient216
+}

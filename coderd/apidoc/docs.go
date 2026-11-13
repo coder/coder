@@ -26391,7 +26391,8 @@ const docTemplate = `{
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
                 "chat-acp-subagents",
-                "chat-automations"
+                "chat-automations",
+                "git-commit-signing"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -26405,6 +26406,7 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentGitCommitSigning": "Enables signing git commits in workspaces with the user's Coder SSH key.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
@@ -26429,7 +26431,8 @@ const docTemplate = `{
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "Enables workspace-local ACP subagent tools in root chats.",
-                "Enables webhook and scheduled automations that deliver prompts to agent chats."
+                "Enables webhook and scheduled automations that deliver prompts to agent chats.",
+                "Enables signing git commits in workspaces with the user's Coder SSH key."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -26448,7 +26451,8 @@ const docTemplate = `{
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
                 "ExperimentChatACPSubagents",
-                "ExperimentChatAutomations"
+                "ExperimentChatAutomations",
+                "ExperimentGitCommitSigning"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -33509,6 +33513,9 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
+                "sign_commits_with_ssh_key": {
+                    "type": "boolean"
+                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -34156,6 +34163,10 @@ const docTemplate = `{
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "sign_commits_with_ssh_key": {
+                    "description": "SignCommitsWithSSHKey signs git commits and tags in the user's\nworkspaces with their Coder git SSH key.",
+                    "type": "boolean"
                 },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"

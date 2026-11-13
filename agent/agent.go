@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentgitsign"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -129,10 +130,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC216WithRole connects to the Agent API v2.16. The workspace
+	// ConnectRPC217WithRole connects to the Agent API v2.17. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC216WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC217WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -1017,7 +1018,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC216WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC217WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1605,6 +1606,12 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// and GIT_ASKPASS.
 	for k, v := range a.environmentVariables {
 		envs[k] = v
+	}
+
+	if manifest.GitSigningPublicKey != "" {
+		// Git runs gpg.ssh.program as a single executable, passing
+		// ssh-keygen style arguments. The coder binary recognizes them.
+		agentgitsign.Append(envs, unixExecutablePath, manifest.GitSigningPublicKey)
 	}
 
 	// Prepend the agent script bin directory to the PATH

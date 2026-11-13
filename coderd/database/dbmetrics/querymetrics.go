@@ -3752,6 +3752,14 @@ func (m queryMetricsStore) GetUserShellToolDisplayMode(ctx context.Context, user
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserSignCommitsWithSSHKey(ctx context.Context, userID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSignCommitsWithSSHKey(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserSignCommitsWithSSHKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSignCommitsWithSSHKey").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSkillByUserIDAndName(ctx, arg)
@@ -6438,6 +6446,14 @@ func (m queryMetricsStore) UpdateUserShellToolDisplayMode(ctx context.Context, a
 	r0, r1 := m.s.UpdateUserShellToolDisplayMode(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserShellToolDisplayMode").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserShellToolDisplayMode").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserSignCommitsWithSSHKey(ctx context.Context, arg database.UpdateUserSignCommitsWithSSHKeyParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserSignCommitsWithSSHKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserSignCommitsWithSSHKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserSignCommitsWithSSHKey").Inc()
 	return r0, r1
 }
 

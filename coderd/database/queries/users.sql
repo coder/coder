@@ -403,6 +403,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_collapse_assistant_steps'
 RETURNING value::boolean AS collapse_assistant_steps;
 
+-- name: GetUserSignCommitsWithSSHKey :one
+SELECT
+	value::boolean as sign_commits_with_ssh_key
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_sign_commits_with_ssh_key';
+
+-- name: UpdateUserSignCommitsWithSSHKey :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_sign_commits_with_ssh_key', (@sign_commits_with_ssh_key::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @sign_commits_with_ssh_key
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_sign_commits_with_ssh_key'
+RETURNING value::boolean AS sign_commits_with_ssh_key;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users

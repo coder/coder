@@ -34517,6 +34517,23 @@ func (q *sqlQuerier) GetUserShellToolDisplayMode(ctx context.Context, userID uui
 	return shell_tool_display_mode, err
 }
 
+const getUserSignCommitsWithSSHKey = `-- name: GetUserSignCommitsWithSSHKey :one
+SELECT
+	value::boolean as sign_commits_with_ssh_key
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_sign_commits_with_ssh_key'
+`
+
+func (q *sqlQuerier) GetUserSignCommitsWithSSHKey(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserSignCommitsWithSSHKey, userID)
+	var sign_commits_with_ssh_key bool
+	err := row.Scan(&sign_commits_with_ssh_key)
+	return sign_commits_with_ssh_key, err
+}
+
 const getUserThinkingDisplayMode = `-- name: GetUserThinkingDisplayMode :one
 SELECT
 	value AS thinking_display_mode
@@ -35503,6 +35520,33 @@ func (q *sqlQuerier) UpdateUserShellToolDisplayMode(ctx context.Context, arg Upd
 	var shell_tool_display_mode string
 	err := row.Scan(&shell_tool_display_mode)
 	return shell_tool_display_mode, err
+}
+
+const updateUserSignCommitsWithSSHKey = `-- name: UpdateUserSignCommitsWithSSHKey :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_sign_commits_with_ssh_key', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_sign_commits_with_ssh_key'
+RETURNING value::boolean AS sign_commits_with_ssh_key
+`
+
+type UpdateUserSignCommitsWithSSHKeyParams struct {
+	UserID                uuid.UUID `db:"user_id" json:"user_id"`
+	SignCommitsWithSshKey bool      `db:"sign_commits_with_ssh_key" json:"sign_commits_with_ssh_key"`
+}
+
+func (q *sqlQuerier) UpdateUserSignCommitsWithSSHKey(ctx context.Context, arg UpdateUserSignCommitsWithSSHKeyParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserSignCommitsWithSSHKey, arg.UserID, arg.SignCommitsWithSshKey)
+	var sign_commits_with_ssh_key bool
+	err := row.Scan(&sign_commits_with_ssh_key)
+	return sign_commits_with_ssh_key, err
 }
 
 const updateUserStatus = `-- name: UpdateUserStatus :one

@@ -139,6 +139,10 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// GitSigningPublicKey is the workspace owner's git SSH public key. It is
+	// set only when the git-commit-signing experiment is enabled and the owner
+	// opted in to commit signing with it.
+	GitSigningPublicKey string `json:"git_signing_public_key"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
@@ -425,6 +429,19 @@ func (c *Client) ConnectRPC216WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 16), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC217WithRole returns a dRPC client to the Agent API v2.17, which
+// adds the git signing public key to the manifest. Pass role "agent" for
+// workspace agents to enable connection monitoring.
+func (c *Client) ConnectRPC217WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 17), role)
 	if err != nil {
 		return nil, nil, err
 	}

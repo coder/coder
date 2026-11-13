@@ -5762,6 +5762,17 @@ func (q *querier) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.U
 	return q.db.GetUserShellToolDisplayMode(ctx, userID)
 }
 
+func (q *querier) GetUserSignCommitsWithSSHKey(ctx context.Context, userID uuid.UUID) (bool, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return false, err
+	}
+	return q.db.GetUserSignCommitsWithSSHKey(ctx, userID)
+}
+
 func (q *querier) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -9093,6 +9104,17 @@ func (q *querier) UpdateUserShellToolDisplayMode(ctx context.Context, arg databa
 		return "", err
 	}
 	return q.db.UpdateUserShellToolDisplayMode(ctx, arg)
+}
+
+func (q *querier) UpdateUserSignCommitsWithSSHKey(ctx context.Context, arg database.UpdateUserSignCommitsWithSSHKeyParams) (bool, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return false, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return false, err
+	}
+	return q.db.UpdateUserSignCommitsWithSSHKey(ctx, arg)
 }
 
 func (q *querier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.Skill, error) {

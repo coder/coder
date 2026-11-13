@@ -1,6 +1,11 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
-import { MockGitSSHKey, mockApiError } from "#/testHelpers/entities";
+import {
+	MockGitSSHKey,
+	MockUserPreferenceSettings,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import SSHKeysPage from "./SSHKeysPage";
 
@@ -8,6 +13,30 @@ describe("SSH keys Page", () => {
 	it("shows the SSH key", async () => {
 		renderWithAuth(<SSHKeysPage />);
 		await screen.findByText(MockGitSSHKey.public_key);
+	});
+
+	it("enables commit signing", async () => {
+		vi.spyOn(API, "getExperiments").mockResolvedValue(["git-commit-signing"]);
+		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
+		const update = vi
+			.spyOn(API, "updateUserPreferenceSettings")
+			.mockResolvedValueOnce({
+				...MockUserPreferenceSettings,
+				sign_commits_with_ssh_key: true,
+			});
+		renderWithAuth(<SSHKeysPage />);
+
+		const checkbox = await screen.findByRole("checkbox", {
+			name: "Sign my commits with my Coder SSH key",
+		});
+		await waitFor(() => expect(checkbox).toBeEnabled());
+		await userEvent.click(checkbox);
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith({ sign_commits_with_ssh_key: true }),
+		);
 	});
 
 	describe("regenerate SSH key", () => {

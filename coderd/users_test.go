@@ -2670,6 +2670,30 @@ func TestUserCollapseAssistantSteps(t *testing.T) {
 	}
 }
 
+func TestUserSignCommitsWithSSHKey(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.False(t, settings.SignCommitsWithSSHKey)
+
+	for _, sign := range []bool{true, false} {
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			SignCommitsWithSSHKey: &sign,
+		})
+		require.NoError(t, err)
+		require.Equal(t, sign, updated.SignCommitsWithSSHKey)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, sign, settings.SignCommitsWithSSHKey)
+	}
+}
+
 func TestThinkingDisplayMode(t *testing.T) {
 	t.Parallel()
 

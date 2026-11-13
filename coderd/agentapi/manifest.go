@@ -36,6 +36,8 @@ type ManifestAPI struct {
 	// WorkspaceBuildID is the build that created the agent. Its live secrets
 	// are delivered in the manifest.
 	WorkspaceBuildID uuid.UUID
+	// Experiments gates the git commit signing public key in the manifest.
+	Experiments codersdk.Experiments
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -108,6 +110,24 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
 	}
 
+	var gitSigningPublicKey string
+	var signCommits bool
+	if a.Experiments.Enabled(codersdk.ExperimentGitCommitSigning) {
+		//nolint:gocritic // System context needed to read the owner's preferences.
+		signCommits, err = a.Database.GetUserSignCommitsWithSSHKey(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("getting sign commits preference: %w", err)
+		}
+	}
+	if signCommits {
+		//nolint:gocritic // System context needed to read the owner's key.
+		key, err := a.Database.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("getting git ssh key: %w", err)
+		}
+		gitSigningPublicKey = key.PublicKey
+	}
+
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
@@ -173,6 +193,8 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbSecretsToProto(userSecrets, workspaceSecrets, secretFilePathPolicy),
+
+		GitSigningPublicKey: gitSigningPublicKey,
 	}, nil
 }
 

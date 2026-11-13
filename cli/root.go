@@ -154,6 +154,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		// Hidden
 		r.connectCmd(),
 		gitssh(),
+		gitsignssh(),
 		r.support(),
 		r.vpnDaemon(),
 		r.vscodeSSH(),
@@ -204,6 +205,17 @@ func ExperimentalCommand(subcommands []*serpent.Command) *serpent.Command {
 	return cmd
 }
 
+// gitSignArgs routes an invocation by git as gpg.ssh.program, which passes
+// ssh-keygen style arguments such as `-Y sign`, to the gitsign-ssh command.
+// Git runs the program without splitting its value, so the agent points it at
+// the coder binary itself. No coder command takes a -Y flag.
+func gitSignArgs(args []string) []string {
+	if len(args) < 2 || args[1] != "-Y" {
+		return args
+	}
+	return append([]string{args[0], "gitsign-ssh", "--"}, args[1:]...)
+}
+
 // RunWithSubcommands runs the root command with the given subcommands.
 // It is abstracted to enable the Enterprise code to add commands.
 func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
@@ -227,6 +239,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 	if err != nil {
 		panic(err)
 	}
+	os.Args = gitSignArgs(os.Args)
 	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
 		code := 1

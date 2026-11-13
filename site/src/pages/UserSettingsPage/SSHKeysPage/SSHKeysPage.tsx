@@ -2,12 +2,17 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { regenerateUserSSHKey, userSSHKey } from "#/api/queries/sshKeys";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "#/api/queries/users";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
@@ -21,6 +26,16 @@ const SSHKeysPage: React.FC = () => {
 		regenerateUserSSHKey("me", queryClient),
 	);
 
+	const { experiments } = useDashboard();
+	const showSignCommits = experiments.includes("git-commit-signing");
+	const preferencesQuery = useQuery({
+		...preferenceSettings(),
+		enabled: showSignCommits,
+	});
+	const updatePreferencesMutation = useMutation(
+		updatePreferenceSettings(queryClient),
+	);
+
 	return (
 		<>
 			<title>{pageTitle("SSH Keys", "Settings")}</title>
@@ -32,6 +47,24 @@ const SSHKeysPage: React.FC = () => {
 				getSSHKeyError={userSSHKeyQuery.error}
 				sshKey={userSSHKeyQuery.data}
 				onRegenerateClick={() => setIsConfirmingRegeneration(true)}
+				showSignCommits={showSignCommits}
+				signCommitsError={preferencesQuery.error}
+				signCommits={preferencesQuery.data?.sign_commits_with_ssh_key ?? false}
+				isSignCommitsDisabled={
+					!preferencesQuery.data || updatePreferencesMutation.isPending
+				}
+				onSignCommitsChange={(checked) =>
+					updatePreferencesMutation.mutate(
+						{ sign_commits_with_ssh_key: checked },
+						{
+							onError: (error) =>
+								toast.error(
+									getErrorMessage(error, "Failed to update commit signing"),
+									{ description: getErrorDetail(error) },
+								),
+						},
+					)
+				}
 			/>
 
 			<ConfirmDialog

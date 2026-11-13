@@ -285,6 +285,9 @@ type UserPreferenceSettings struct {
 	CodeDiffDisplayMode    AgentDisplayMode      `json:"code_diff_display_mode"`
 	CollapseAssistantSteps bool                  `json:"collapse_assistant_steps"`
 	AgentChatSendShortcut  AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
+	// SignCommitsWithSSHKey signs git commits and tags in the user's
+	// workspaces with their Coder git SSH key.
+	SignCommitsWithSSHKey bool `json:"sign_commits_with_ssh_key"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
@@ -293,6 +296,7 @@ type UpdateUserPreferenceSettingsRequest struct {
 	CodeDiffDisplayMode    AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
 	CollapseAssistantSteps *bool                 `json:"collapse_assistant_steps,omitempty"`
 	AgentChatSendShortcut  AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+	SignCommitsWithSSHKey  *bool                 `json:"sign_commits_with_ssh_key,omitempty"`
 }
 
 type AgentChatSendShortcut string

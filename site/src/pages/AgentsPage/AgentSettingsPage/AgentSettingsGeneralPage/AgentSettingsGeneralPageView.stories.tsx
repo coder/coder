@@ -13,6 +13,7 @@ const preferencesData = {
 	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,
 	collapse_assistant_steps: false,
+	sign_commits_with_ssh_key: false,
 	agent_chat_send_shortcut: "enter" as const,
 };
 
