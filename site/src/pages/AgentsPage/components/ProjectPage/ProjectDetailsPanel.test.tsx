@@ -650,13 +650,13 @@ describe("ProjectDetailsPanel", () => {
 	});
 });
 
-const dockerTemplate: Template = {
+const mockDockerTemplate: Template = {
 	...MockTemplate,
 	id: "template-docker",
 	name: "docker",
 	display_name: "Docker",
 };
-const kubernetesTemplate: Template = {
+const mockKubernetesTemplate: Template = {
 	...MockTemplate,
 	id: "template-kubernetes",
 	name: "kubernetes",
@@ -672,8 +672,8 @@ describe("ProjectDetailsPanel templates", () => {
 	const setup = () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		vi.spyOn(API, "getTemplates").mockResolvedValue([
-			dockerTemplate,
-			kubernetesTemplate,
+			mockDockerTemplate,
+			mockKubernetesTemplate,
 		]);
 		const updateProject = vi
 			.spyOn(API.experimental, "updateChatProject")
@@ -710,7 +710,7 @@ describe("ProjectDetailsPanel templates", () => {
 				MockChatProject.id,
 				{
 					templates: {
-						template_ids: [dockerTemplate.id, kubernetesTemplate.id],
+						template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
 					},
 				},
 			),
@@ -738,7 +738,7 @@ describe("ProjectDetailsPanel templates", () => {
 		rerenderWithProject({
 			...MockChatProject,
 			templates: {
-				template_ids: [dockerTemplate.id, kubernetesTemplate.id],
+				template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
 			},
 		});
 
@@ -755,7 +755,7 @@ describe("ProjectDetailsPanel templates", () => {
 			expect(updateProject).toHaveBeenCalledWith(
 				MockChatProject.organization_id,
 				MockChatProject.id,
-				{ templates: { template_ids: [dockerTemplate.id] } },
+				{ templates: { template_ids: [mockDockerTemplate.id] } },
 			),
 		);
 	});
@@ -765,7 +765,7 @@ describe("ProjectDetailsPanel templates", () => {
 		vi.spyOn(API, "getTemplates").mockResolvedValue([]);
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [dockerTemplate.id] },
+			templates: { template_ids: [mockDockerTemplate.id] },
 		});
 
 		await user.click(
@@ -805,7 +805,7 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [kubernetesTemplate.id] },
+			templates: { template_ids: [mockKubernetesTemplate.id] },
 		});
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		expect(updateProject).not.toHaveBeenCalled();
@@ -818,7 +818,7 @@ describe("ProjectDetailsPanel templates", () => {
 				MockChatProject.id,
 				{
 					templates: {
-						template_ids: [dockerTemplate.id, kubernetesTemplate.id],
+						template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
 					},
 				},
 			),
@@ -834,7 +834,7 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [kubernetesTemplate.id] },
+			templates: { template_ids: [mockKubernetesTemplate.id] },
 		});
 		await user.click(screen.getByRole("button", { name: "Load latest" }));
 		await user.click(screen.getByRole("combobox", { name: "Templates" }));
@@ -852,7 +852,9 @@ describe("ProjectDetailsPanel templates", () => {
 
 	it("does not block Save when the latest templates already match the draft", async () => {
 		const { user, updateProject, rerenderWithProject } = setup();
-		const draft = { template_ids: [dockerTemplate.id, kubernetesTemplate.id] };
+		const draft = {
+			template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
+		};
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
@@ -893,7 +895,7 @@ describe("ProjectDetailsPanel templates", () => {
 		);
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [kubernetesTemplate.id] },
+			templates: { template_ids: [mockKubernetesTemplate.id] },
 		});
 		await user.click(
 			await screen.findByRole("combobox", { name: "Templates" }),
@@ -907,7 +909,7 @@ describe("ProjectDetailsPanel templates", () => {
 				MockChatProject.id,
 				{
 					templates: {
-						template_ids: [kubernetesTemplate.id, dockerTemplate.id],
+						template_ids: [mockKubernetesTemplate.id, mockDockerTemplate.id],
 					},
 				},
 			),

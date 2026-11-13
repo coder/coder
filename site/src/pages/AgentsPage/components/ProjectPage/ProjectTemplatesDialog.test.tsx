@@ -131,7 +131,7 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
-	const projectWithRemovedParameter: ChatProject = {
+	const mockProjectWithRemovedParameter: ChatProject = {
 		...MockChatProject,
 		templates: {
 			template_ids: [MockTemplate.id],
@@ -145,7 +145,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("drops default values for parameters a classic template no longer has", async () => {
 		const { user, props } = renderDialog(
-			{ project: projectWithRemovedParameter },
+			{ project: mockProjectWithRemovedParameter },
 			{ ...MockTemplate, use_classic_parameter_flow: true },
 		);
 
@@ -164,7 +164,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("keeps default values a dynamic template may still evaluate", async () => {
 		const { user, props } = renderDialog({
-			project: projectWithRemovedParameter,
+			project: mockProjectWithRemovedParameter,
 		});
 
 		const kept = await screen.findByRole("textbox", {
@@ -302,6 +302,9 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Use template default" }),
 		);
+		expect(
+			screen.getByRole("textbox", { name: MockTemplateVersionParameter1.name }),
+		).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
 		await waitFor(() => expect(props.onSave).toHaveBeenCalledWith(templates));
@@ -343,5 +346,43 @@ describe("ProjectTemplatesDialog", () => {
 		await user.keyboard("{Escape}");
 
 		expect(props.onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("treats an edited and restored parameter as untouched", async () => {
+		const templates = {
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
+			default_parameters: {
+				[MockTemplateVersionParameter1.name]: "a",
+				[MockTemplateVersionParameter2.name]: "b",
+			},
+		};
+		const { user, props, rerenderWithProject } = renderDialog({
+			project: { ...MockChatProject, templates },
+		});
+		const first = await screen.findByRole("textbox", {
+			name: MockTemplateVersionParameter1.name,
+		});
+		await user.clear(first);
+		await user.type(first, "a");
+
+		// An untouched draft follows the newer save instead of warning.
+		const newer = {
+			...templates,
+			default_parameters: { [MockTemplateVersionParameter1.name]: "z" },
+		};
+		rerenderWithProject({ ...MockChatProject, templates: newer });
+		await user.type(
+			screen.getByRole("textbox", { name: MockTemplateVersionParameter1.name }),
+			"!",
+		);
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				...newer,
+				default_parameters: { [MockTemplateVersionParameter1.name]: "z!" },
+			}),
+		);
 	});
 });

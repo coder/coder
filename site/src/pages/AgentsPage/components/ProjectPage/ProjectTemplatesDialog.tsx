@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { isApiValidationError } from "#/api/errors";
 import { chatProjects } from "#/api/queries/chatProjects";
@@ -50,8 +50,6 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 	onCloseAutoFocus,
 	...formProps
 }) => {
-	// Lifted out of the form so the dialog also stays open while the form
-	// checks for newer templates before saving.
 	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen && !formProps.isSaving && !isCheckingBeforeSave) {
@@ -100,6 +98,15 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
+/** Serializes form values so parameter order does not matter. */
+const serializeValues = (values: ChatProjectTemplatesValues) =>
+	JSON.stringify({
+		...values,
+		defaultParameters: Object.entries(values.defaultParameters).sort(
+			([a], [b]) => a.localeCompare(b),
+		),
+	});
+
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	isCheckingBeforeSave,
 	onCheckingBeforeSaveChange,
@@ -116,6 +123,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [baseTemplates, setBaseTemplates] = useState(project.templates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
+	// Set before the pre-save check renders, so a second submit in the same
+	// moment cannot cancel that check's request and save unchecked.
+	const isSubmittingRef = useRef(false);
 	const isBusy = isSaving || isCheckingBeforeSave;
 	// A rejected save no longer applies once the draft follows newer
 	// templates, so its error is hidden.
@@ -128,7 +138,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		refetchOnWindowFocus: true,
 	});
 	const isDraftUntouched =
-		JSON.stringify(value) === JSON.stringify(initialValue);
+		serializeValues(value) === serializeValues(initialValue);
 	if (
 		isDraftUntouched &&
 		serializeTemplates(project.templates) !== serializeTemplates(baseTemplates)
@@ -234,9 +244,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			className="flex flex-col gap-4"
 			onSubmit={async (event) => {
 				event.preventDefault();
-				if (!request || !canSave) {
+				if (!request || !canSave || isSubmittingRef.current) {
 					return;
 				}
+				isSubmittingRef.current = true;
 				// A change saved elsewhere since the last refresh would otherwise
 				// be overwritten, so check first. A newer save shows the conflict
 				// warning instead.
@@ -245,6 +256,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				onCheckingBeforeSaveChange(true);
 				const refreshed = await projectsQuery.refetch();
 				onCheckingBeforeSaveChange(false);
+				isSubmittingRef.current = false;
 				const latest = refreshed.data?.find(({ id }) => id === project.id);
 				const serializedLatest = latest && serializeTemplates(latest.templates);
 				if (

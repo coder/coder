@@ -177,6 +177,8 @@ The **Edit templates** dialog warns you about it: choose a preset from the activ
 For a template in [parameter compatibility mode](../templates/extending-templates/parameters/compatibility-mode.md), Coder checks the default parameter values when you save.
 When you edit the templates, the dialog warns about values for parameters that the active version no longer has, and saving removes them.
 For other templates, Coder keeps every value and checks it when the agent creates a workspace.
+A value for a parameter that the active version no longer has isn't shown in the dialog, and the workspace build ignores it.
+To remove it, update `default_parameters` through the API, or switch the default values to **Preset** and save.
 
 The API keeps returning a default preset after it leaves the active version.
 Sending those `templates` back unchanged fails with a `400` error until you set `default_preset_id` to a preset from the active version or remove it.
