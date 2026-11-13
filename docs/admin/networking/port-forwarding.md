@@ -206,7 +206,7 @@ It has two values:
 - `Passthru`: Coder bypasses its built-in CORS protection and passes the application's own CORS headers through to the browser.
 
 Passthru reduces protection against cross-origin requests, so only use it for applications that handle CORS correctly.
-For more about managing template settings, see [Managing templates](../../templates/managing-templates/index.md).
+For more about managing template settings, refer to [Managing templates](../../templates/managing-templates/index.md).
 
 #### Allowed by default
 

@@ -50,27 +50,29 @@ postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslce
 
 ## Server verification (client verifies the server)
 
-1. Download the database certificate authority (CA) certificate chain and store it in the `postgres-certs` secret.
-   If you don't use client verification, create the secret with the CA file only:
+1. Download the database certificate authority (CA) certificate chain, and save it as `postgres-root.crt`.
 
-```sh
-kubectl create secret generic postgres-certs -n coder --from-file=postgres-root.crt=postgres-root.crt
-```
+1. If you don't use client verification, create the `postgres-certs` secret with the CA file only:
 
-   If you already created the secret for client verification, recreate it with all three files:
+   ```sh
+   kubectl create secret generic postgres-certs -n coder --from-file=postgres-root.crt=postgres-root.crt
+   ```
 
-```sh
-kubectl create secret generic postgres-certs -n coder --from-file=tls.crt=postgres.crt --from-file=tls.key=postgres.key --from-file=postgres-root.crt=postgres-root.crt --dry-run=client -o yaml | kubectl apply -f -
-```
+1. If you already created the secret for client verification, recreate it with all three files:
 
-1. Define the secret volume and volumeMounts in the Helm chart as shown in the client verification section.
-   If you already did, the volume mounts the CA file too, so the Helm chart doesn't change.
+   ```sh
+   kubectl create secret generic postgres-certs -n coder --from-file=tls.crt=postgres.crt --from-file=tls.key=postgres.key --from-file=postgres-root.crt=postgres-root.crt --dry-run=client -o yaml | kubectl apply -f -
+   ```
+
+1. If you don't use client verification, add the volume and volumeMounts from the client verification section to the Helm chart.
+
+   If you use client verification, the volume already mounts the CA file, so the Helm chart doesn't change.
 
 1. Lastly, your PG connection URL will look like:
 
-```sh
-postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert=/home/coder/.postgresql/postgres-root.crt
-```
+   ```sh
+   postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert=/home/coder/.postgresql/postgres-root.crt
+   ```
 
 If your database also requires a client certificate, keep the `sslcert` and `sslkey` parameters from the client verification section.
 

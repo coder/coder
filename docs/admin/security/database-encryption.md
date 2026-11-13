@@ -145,7 +145,7 @@ data:
   > [!NOTE]
   > This command does not re-encrypt the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
   > These values keep referencing the key that encrypted them.
-  > For a known issue that affects revoking keys, see [Troubleshooting](#troubleshooting).
+  > For a known issue that affects revoking keys, refer to [Troubleshooting](#troubleshooting).
 
 - Once the above command completes successfully, remove the old encryption key from Coder's configuration and restart Coder once more.
   You can now safely delete the old key from your secret store.
@@ -167,7 +167,7 @@ To disable encryption, perform the following actions:
 
   > [!NOTE]
   > This command does not decrypt the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
-  > For a known issue that affects revoking keys, see [Troubleshooting](#troubleshooting).
+  > For a known issue that affects revoking keys, refer to [Troubleshooting](#troubleshooting).
   >
   > for `decrypt` command, the equivalent environment variable for `--keys` is `CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS` and not `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`.
   > This is explicitly named differently to help prevent accidentally decrypting data.
@@ -197,7 +197,7 @@ To delete all encrypted data from your database, perform the following actions:
 
   > [!NOTE]
   > This command does not delete the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
-  > For a known issue that affects revoking keys, see [Troubleshooting](#troubleshooting).
+  > For a known issue that affects revoking keys, refer to [Troubleshooting](#troubleshooting).
 
 - Remove all [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys) from Coder's configuration.
 
@@ -213,7 +213,7 @@ To delete all encrypted data from your database, perform the following actions:
 - Decryption might fail if newly encrypted data is written while decryption is in progress.
   If this happens, make sure that all active coder instances are stopped, and retry.
 - Revoking encryption keys during rotate, decrypt, or delete can fail with a foreign key violation while rows in the fields that these commands do not handle still reference the key.
-  For details, see [GitHub issue 25381](https://github.com/coder/coder/issues/25381).
+  For details, visit [GitHub issue 25381](https://github.com/coder/coder/issues/25381).
 
 ## Next steps
 

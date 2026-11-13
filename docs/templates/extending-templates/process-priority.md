@@ -14,11 +14,11 @@ Configure the feature with environment variables in the environment that launche
 These must be set on the workspace container or host, not in the `coder_agent` resource's `env` block.
 The agent reads them from its own process environment at startup.
 
-| Variable                | Required | Default                       | Description                                                                                                                                                                                   |
-|-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_PROC_PRIO_MGMT`  | Yes      | —                             | Set to enable the feature. The agent checks whether the variable is present, not its value — even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely. |
-| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                 |
-| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority). A value below the agent's own nice value is not applied.                                             |
+| Variable                | Required | Default                       | Description                                                                                                                                                                                                                       |
+|-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_PROC_PRIO_MGMT`  | Yes      | None                          | Set to enable the feature. The agent checks whether the variable is present, not its value, so even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely.                                   |
+| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                                                     |
+| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority). A value below the agent's own nice value is not applied. Coder writes `failed to adjust niceness` to stderr, and the command still runs. |
 
 ### OOM score defaults
 
@@ -37,7 +37,7 @@ The goal is for the kernel's OOM killer to target child processes before the age
 If you do not set `CODER_PROC_NICE_SCORE`, the agent sets children to its own nice value plus 5, capped at 19. This gives the agent more CPU scheduling priority than user workloads.
 
 By default, Linux does not let the agent give child processes a nice value below its own.
-It starts each child process through a wrapper that drops its Linux capabilities before it sets the nice value, so adding `CAP_SYS_NICE` to the container does not let it set a lower value.
+Adding `CAP_SYS_NICE` to the container does not change this, because Coder drops the child process's Linux capabilities before it sets the nice value.
 
 ## Example
 

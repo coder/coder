@@ -139,4 +139,4 @@ A separate setting determines how long workspaces will remain in the dormant sta
 
 Licensed admins can also configure failure cleanup, which stops workspaces that remain in a `failed` state for too long.
 Failure cleanup does not delete workspaces.
-See [failure cleanup](../templates/managing-templates/schedule.md#failure-cleanup) for details.
+Refer to [failure cleanup](../templates/managing-templates/schedule.md#failure-cleanup) for details.

@@ -39,7 +39,7 @@ Agent logs are also stored in the workspace filesystem by default:
 
 > [!NOTE]
 > The agent rotates its log file once it reaches 5&nbsp;MB and keeps up to 19 rotated files.
-> For details, see [Trace connections](trace-connections.md#agent-logs).
+> For details, refer to [Trace connections](trace-connections.md#agent-logs).
 
 Startup script logs are also stored in the temporary directory of macOS and Linux workspaces.
 
