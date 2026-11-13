@@ -76,7 +76,7 @@ The dialog shows how many top-level chats will be archived, along with their sub
 
 Archived chats follow the deployment's [conversation data retention](./platform-controls/chat-retention.md) period.
 After that period, Coder permanently deletes them, and unarchiving the project doesn't bring them back.
-When retention is disabled, archived chats are kept until you unarchive the project.
+When retention is turned off, archived chats are kept until you unarchive the project.
 
 An archived project leaves the sidebar, the **Your projects** and **Shared with you** tabs, the new-chat project picker, and **Move to project**, and you can't pin it.
 Its page stays available to read its archived chats, but you can't start chats in it, move chats into it, or edit its details, instructions, skills, sharing, or memory.
