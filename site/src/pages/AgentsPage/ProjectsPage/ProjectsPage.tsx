@@ -9,7 +9,6 @@ import { useLocation } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archivedChatProjects,
-	archivedChatProjectsKey,
 	chatProjectSummaries,
 	createChatProject,
 	deleteChatProject,
@@ -94,31 +93,29 @@ const ProjectsPage: React.FC = () => {
 	const tabState = useSearchParamsKey({ key: tabSearchParam, replace: false });
 	const summariesQuery = useQuery(chatProjectSummaries());
 	const archivedQuery = useQuery(archivedChatProjects());
-	// The Archived tab shows only while there are archived projects. A link
-	// to it keeps it selected until the list loads, and shows a load error.
+	// The Archived tab shows while there are archived projects, or while a
+	// link to it waits for them to load or shows why they failed to.
 	const hasArchivedProjects = (archivedQuery.data?.length ?? 0) > 0;
+	// Once the tab's last project is gone, a stale ?tab=archived no longer
+	// selects it, so archiving another project later does not switch to it.
+	const [isArchivedTabDropped, setIsArchivedTabDropped] = useState(false);
+	if (
+		tabState.value === "archived" &&
+		!isArchivedTabDropped &&
+		archivedQuery.data?.length === 0
+	) {
+		setIsArchivedTabDropped(true);
+	}
 	let tab: ProjectsTab = "yours";
 	if (tabState.value === "shared") {
 		tab = "shared";
 	} else if (
 		tabState.value === "archived" &&
-		(hasArchivedProjects || archivedQuery.data === undefined)
+		!isArchivedTabDropped &&
+		archivedQuery.data?.length !== 0
 	) {
 		tab = "archived";
 	}
-	// Leaves the Archived tab once its last project is gone, so archiving
-	// another project later does not switch to it.
-	const leaveEmptiedArchivedTab = (removedProjectId: string) => {
-		const archived = queryClient.getQueryData<ChatProject[]>(
-			archivedChatProjectsKey,
-		);
-		if (
-			tabState.value === "archived" &&
-			archived?.every(({ id }) => id === removedProjectId)
-		) {
-			tabState.deleteValue();
-		}
-	};
 
 	const createMutation = useMutation(createChatProject(queryClient));
 	const updateMutation = useMutation(updateChatProject(queryClient));
@@ -135,13 +132,14 @@ const ProjectsPage: React.FC = () => {
 	});
 
 	const newProjectButtonRef = useRef<HTMLButtonElement>(null);
+	const focusNewProject = () =>
+		requestAnimationFrame(() => newProjectButtonRef.current?.focus());
 	// The dialogs have no trigger, so they return focus to their opener.
 	const returnFocusRef = useRef<HTMLElement | null>(null);
 
 	const deleteMutation = useMutation({
 		...deleteChatProject(queryClient),
 		onSuccess: (_data, project) => {
-			leaveEmptiedArchivedTab(project.id);
 			// Nothing can open the deleted project's composer again.
 			const draftKeys = draftStorageKeys(project.id);
 			localStorage.removeItem(draftKeys.text);
@@ -151,7 +149,7 @@ const ProjectsPage: React.FC = () => {
 			if (deleteDialog.project?.id === project.id) {
 				setDeleteDialog({ project, open: false });
 				// The project's card is gone, so focus moves to New project.
-				requestAnimationFrame(() => newProjectButtonRef.current?.focus());
+				focusNewProject();
 			}
 		},
 		onError: (error) => {
@@ -242,16 +240,21 @@ const ProjectsPage: React.FC = () => {
 			<AgentPageHeader />
 			<ProjectsPageView
 				tab={tab}
-				onTabChange={(tab) =>
-					tab === "yours" ? tabState.deleteValue() : tabState.setValue(tab)
-				}
+				onTabChange={(tab) => {
+					setIsArchivedTabDropped(false);
+					if (tab === "yours") {
+						tabState.deleteValue();
+					} else {
+						tabState.setValue(tab);
+					}
+				}}
 				projects={projectsByTab}
 				error={summariesQuery.error}
 				onRetry={async () => {
 					const { isSuccess } = await summariesQuery.refetch();
 					// The loaded grid replaces Retry, so focus moves to New project.
 					if (isSuccess) {
-						requestAnimationFrame(() => newProjectButtonRef.current?.focus());
+						focusNewProject();
 					}
 				}}
 				projectLinkSearch={projectLinkSearch}
@@ -279,20 +282,21 @@ const ProjectsPage: React.FC = () => {
 					returnFocusRef.current = returnFocusTo;
 					setDeleteDialog({ project, open: true });
 				}}
-				showArchivedTab={hasArchivedProjects || tab === "archived"}
+				showArchivedTab={
+					hasArchivedProjects ||
+					tab === "archived" ||
+					(archivedQuery.isError && !archivedQuery.data)
+				}
 				archivedProjects={archivedQuery.data}
 				archivedError={archivedQuery.error}
 				onRetryArchived={async () => {
 					const { isSuccess } = await archivedQuery.refetch();
 					if (isSuccess) {
-						requestAnimationFrame(() => newProjectButtonRef.current?.focus());
+						focusNewProject();
 					}
 				}}
-				onUnarchived={(project) => {
-					leaveEmptiedArchivedTab(project.id);
-					// The project's card is gone, so focus moves to New project.
-					requestAnimationFrame(() => newProjectButtonRef.current?.focus());
-				}}
+				// The project's card is gone, so focus moves to New project.
+				onUnarchived={focusNewProject}
 			/>
 			<ChatProjectDialog
 				organizations={organizations}

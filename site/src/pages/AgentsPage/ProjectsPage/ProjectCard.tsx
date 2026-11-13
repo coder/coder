@@ -110,7 +110,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 type ArchivedProjectCardProps = {
 	readonly project: ChatProject;
 	readonly to: To;
-	/** Runs once the project is unarchived, after its card has left. */
+	/** Runs once the project is unarchived and has left the archived list. */
 	readonly onUnarchived: () => void;
 	readonly onDelete: DialogAction;
 };
@@ -203,7 +203,11 @@ const ProjectCardFrame: React.FC<ProjectCardFrameProps> = ({
 	);
 };
 
-const CardTime: React.FC<{ readonly time: string }> = ({ time }) => (
+type CardTimeProps = {
+	readonly time: string;
+};
+
+const CardTime: React.FC<CardTimeProps> = ({ time }) => (
 	<time
 		dateTime={time}
 		data-pixel="ignore"
@@ -240,11 +244,9 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	// Edit, Archive, and Delete open a dialog only once the menu has closed,
 	// so the closing menu cannot take focus back from the dialog.
 	const openPickedDialogRef = useRef<DialogAction>(undefined);
-	const pickDialog = (openDialog: DialogAction | undefined) =>
-		openDialog &&
-		(() => {
-			openPickedDialogRef.current = openDialog;
-		});
+	const pickDialog = (openDialog: DialogAction) => () => {
+		openPickedDialogRef.current = openDialog;
+	};
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
 			<DropdownMenu>
@@ -278,12 +280,10 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 						}
 						onUnpin={pin?.pinned ? pin.onUnpin : undefined}
 						project={project}
-						onEdit={pickDialog(onEdit)}
-						onArchive={pickDialog(onArchive)}
+						onEdit={onEdit && pickDialog(onEdit)}
+						onArchive={onArchive && pickDialog(onArchive)}
 						onUnarchive={onUnarchive}
-						onDelete={() => {
-							openPickedDialogRef.current = onDelete;
-						}}
+						onDelete={pickDialog(onDelete)}
 					/>
 				</DropdownMenuContent>
 			</DropdownMenu>

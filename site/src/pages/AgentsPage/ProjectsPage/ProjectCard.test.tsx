@@ -1,6 +1,5 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ChatProjectSummary } from "#/api/typesGenerated";
@@ -9,10 +8,7 @@ import {
 	MockChatProject,
 	MockChatProjectSummary,
 } from "#/testHelpers/entities";
-import {
-	createTestQueryClient,
-	renderComponent,
-} from "#/testHelpers/renderHelpers";
+import { render, renderComponent } from "#/testHelpers/renderHelpers";
 import { ArchivedProjectCard, ProjectCard } from "./ProjectCard";
 
 const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
@@ -106,17 +102,13 @@ describe("ArchivedProjectCard", () => {
 		});
 		const user = userEvent.setup({ delay: null });
 		const onDelete = vi.fn();
-		renderComponent(
-			<QueryClientProvider client={createTestQueryClient()}>
-				<MemoryRouter>
-					<ArchivedProjectCard
-						project={MockArchivedChatProject}
-						to="/agents/projects/chat-project-1"
-						onUnarchived={vi.fn()}
-						onDelete={onDelete}
-					/>
-				</MemoryRouter>
-			</QueryClientProvider>,
+		render(
+			<ArchivedProjectCard
+				project={MockArchivedChatProject}
+				to="/agents/projects/chat-project-1"
+				onUnarchived={vi.fn()}
+				onDelete={onDelete}
+			/>,
 		);
 		const actions = screen.getByRole("button", { name: /^Open project/ });
 		await user.click(actions);
