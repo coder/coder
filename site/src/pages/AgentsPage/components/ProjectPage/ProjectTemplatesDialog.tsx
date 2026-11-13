@@ -4,6 +4,7 @@ import { isApiValidationError } from "#/api/errors";
 import { chatProjects } from "#/api/queries/chatProjects";
 import {
 	agentTemplates,
+	richParameters,
 	templateVersionPresets,
 } from "#/api/queries/templates";
 import type { ChatProject, ChatProjectTemplates } from "#/api/typesGenerated";
@@ -172,7 +173,32 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!(presetsQuery.data ?? []).some(
 			(preset) => preset.ID === value.defaultPresetId,
 		);
-	const formValue = hasStalePreset ? { ...value, defaultPresetId: "" } : value;
+	const hasDefaultParameters =
+		value.defaultsKind === "parameters" &&
+		Object.keys(value.defaultParameters).length > 0;
+	const parametersQuery = useQuery({
+		...richParameters(defaultTemplate?.active_version_id ?? ""),
+		enabled: defaultTemplate !== undefined && hasDefaultParameters,
+	});
+	// Values for parameters the active version no longer has are not shown,
+	// and the server rejects them for classic templates, so the form drops
+	// them.
+	const parameterNames = parametersQuery.data?.map(({ name }) => name);
+	const staleParameterNames =
+		hasDefaultParameters && parameterNames
+			? Object.keys(value.defaultParameters).filter(
+					(name) => !parameterNames.includes(name),
+				)
+			: [];
+	const formValue: ChatProjectTemplatesValues = {
+		...value,
+		defaultPresetId: hasStalePreset ? "" : value.defaultPresetId,
+		defaultParameters: Object.fromEntries(
+			Object.entries(value.defaultParameters).filter(
+				([name]) => !staleParameterNames.includes(name),
+			),
+		),
+	};
 	const request =
 		eligibleTemplates &&
 		keepSavedEmptyParameters(
@@ -187,7 +213,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			? 0
 			: value.templateIds.length - request.template_ids.length;
 	const isUnchanged =
-		droppedTemplateCount === 0 && !hasStalePreset && isDraftUntouched;
+		droppedTemplateCount === 0 &&
+		!hasStalePreset &&
+		staleParameterNames.length === 0 &&
+		isDraftUntouched;
 	// Save replaces every template setting, so a change saved elsewhere must
 	// be resolved first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
@@ -225,7 +254,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}}
 				disabled={isSaving}
 			/>
-			{(droppedTemplateCount > 0 || hasStalePreset) && (
+			{(droppedTemplateCount > 0 ||
+				hasStalePreset ||
+				staleParameterNames.length > 0) && (
 				<Alert severity="warning">
 					{droppedTemplateCount > 0 && (
 						<AlertDescription>
@@ -235,6 +266,13 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 							no longer available to agents (deleted, deprecated, or no longer
 							allowed for agents). Saving removes{" "}
 							{droppedTemplateCount === 1 ? "it" : "them"} from the project.
+						</AlertDescription>
+					)}
+					{staleParameterNames.length > 0 && (
+						<AlertDescription>
+							The template's active version no longer has{" "}
+							{staleParameterNames.join(", ")}. Saving removes{" "}
+							{staleParameterNames.length === 1 ? "its value" : "their values"}.
 						</AlertDescription>
 					)}
 					{hasStalePreset && (

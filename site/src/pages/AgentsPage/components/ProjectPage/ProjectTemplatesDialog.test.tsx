@@ -112,4 +112,30 @@ describe("ProjectTemplatesDialog", () => {
 			default_template_id: MockTemplate.id,
 		});
 	});
+
+	it("drops default values for parameters the active version no longer has", async () => {
+		const { user, props } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: {
+					template_ids: [MockTemplate.id],
+					default_template_id: MockTemplate.id,
+					default_parameters: {
+						[MockTemplateVersionParameter1.name]: "kept",
+						removed_parameter: "gone",
+					},
+				},
+			},
+		});
+
+		const save = await screen.findByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		expect(props.onSave).toHaveBeenCalledWith({
+			template_ids: [MockTemplate.id],
+			default_template_id: MockTemplate.id,
+			default_parameters: { [MockTemplateVersionParameter1.name]: "kept" },
+		});
+	});
 });
