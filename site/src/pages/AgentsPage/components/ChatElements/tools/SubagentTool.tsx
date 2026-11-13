@@ -235,7 +235,7 @@ export const SubagentTool: React.FC<{
 			</ToolCall.HeaderLayout>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
-				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid">
+				<div className="mt-1.5 overflow-hidden rounded-lg border">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}
@@ -254,7 +254,7 @@ export const SubagentTool: React.FC<{
 			<ToolCall.Content>
 				{hasPrompt && (
 					<ToolCall.Scrollable
-						className="mt-1.5 rounded-md border border-solid"
+						className="mt-1.5 rounded-md border"
 						viewportClassName="max-h-64"
 						ariaLabel="Subagent prompt"
 					>
@@ -266,7 +266,7 @@ export const SubagentTool: React.FC<{
 
 				{hasMessage && (
 					<ToolCall.Scrollable
-						className="mt-1.5 rounded-md border border-solid"
+						className="mt-1.5 rounded-md border"
 						viewportClassName="max-h-64"
 						ariaLabel="Subagent response"
 					>
@@ -278,7 +278,7 @@ export const SubagentTool: React.FC<{
 
 				{hasReport && (
 					<ToolCall.Scrollable
-						className="mt-1.5 rounded-md border border-solid"
+						className="mt-1.5 rounded-md border"
 						viewportClassName="max-h-64"
 						ariaLabel="Subagent report"
 					>

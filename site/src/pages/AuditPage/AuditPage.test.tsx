@@ -129,7 +129,7 @@ describe("AuditPage", () => {
 			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs");
 			getAuditLogsSpy.mockClear();
 
-			const filterField = screen.getByLabelText("Filter");
+			const filterField = screen.getByLabelText("Search");
 			const query = "resource_type:workspace action:create";
 			await userEvent.type(filterField, query);
 

@@ -242,7 +242,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 						Add a user to this Coder deployment.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<form
 						onSubmit={form.handleSubmit}
 						autoComplete="off"

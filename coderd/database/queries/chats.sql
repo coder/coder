@@ -2669,6 +2669,11 @@ ORDER BY
     chats.id ASC
 LIMIT @limit_count::int;
 
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatsByIDsForRunnerSync :many
 SELECT *
 FROM chats_expanded

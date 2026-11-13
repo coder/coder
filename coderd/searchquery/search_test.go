@@ -982,6 +982,16 @@ func TestSearchUsers(t *testing.T) {
 				LoginType: []database.LoginType{},
 			},
 		},
+		{
+			Name:  "IncludeSystem",
+			Query: "include_system:true",
+			Expected: database.GetUsersParams{
+				IncludeSystem: true,
+				Status:        []database.UserStatus{},
+				RbacRole:      []string{},
+				LoginType:     []database.LoginType{},
+			},
+		},
 
 		// Failures
 		{

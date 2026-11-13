@@ -11,12 +11,25 @@ import {
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { getProviderDisplayName } from "../utils";
 
-const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => ({
-	value: provider.name,
-	label: provider.display_name || provider.name,
-	startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
-});
+const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => {
+	const label = provider.display_name || provider.name;
+	const typeLabel = getProviderDisplayName(provider.type);
+	// The default icon identifies the provider type, which a custom name may
+	// omit. A custom icon's meaning is unknown, so it stays decorative.
+	const alt =
+		provider.icon || label.toLowerCase().includes(typeLabel.toLowerCase())
+			? ""
+			: typeLabel;
+	return {
+		value: provider.name,
+		label,
+		startIcon: (
+			<ProviderIcon provider={provider.type} icon={provider.icon} alt={alt} />
+		),
+	};
+};
 
 export const useProviderFilterMenu = ({
 	value,

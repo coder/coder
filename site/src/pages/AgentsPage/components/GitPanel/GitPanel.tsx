@@ -468,7 +468,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 				{selectedPrUrl && <ViewPrButton href={selectedPrUrl} />}
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid">
+					<div className="flex h-6 items-stretch overflow-hidden rounded-md border">
 						<button
 							type="button"
 							onClick={() => handleDiffStyleChange("unified")}
@@ -491,7 +491,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+								"flex cursor-pointer items-center border-l px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -614,7 +614,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 	if (!activeItem) {
 		return (
 			<div
-				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid px-2 text-xs text-content-secondary"
+				className="inline-flex h-6 items-center gap-1.5 rounded-md border px-2 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
 				<GitBranchIcon className="size-3.5! shrink-0" />
@@ -629,7 +629,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 		<>
 			<span
 				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid px-1.5 font-medium leading-none",
+					"inline-flex h-full items-center gap-1 rounded-l-md border-r px-1.5 font-medium leading-none",
 					activeItem.stateClasses,
 				)}
 			>
@@ -650,7 +650,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 	if (isSingleItem) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid bg-surface-primary text-xs"
+				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border bg-surface-primary text-xs"
 				data-testid="git-panel-view-switcher"
 			>
 				{triggerContent}
@@ -663,7 +663,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
+					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
 					data-testid="git-panel-view-switcher"
 					aria-label="Switch git view"
 				>
@@ -747,7 +747,7 @@ const RemoteContent: React.FC<{
 		}
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid bg-surface-secondary">
+				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border bg-surface-secondary">
 					{hasGitContext ? (
 						<GitCompareArrowsIcon className="size-5 text-content-secondary" />
 					) : (
@@ -826,7 +826,7 @@ const RepoHeader: React.FC<{
 	onCommit: () => void;
 }> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid px-3 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
@@ -843,7 +843,7 @@ const RepoHeader: React.FC<{
 					type="button"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
 				>
 					<CheckIcon className="size-3" />
 					Commit
