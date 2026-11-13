@@ -1520,6 +1520,13 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// Moves chats out of projects their owners can no longer use. Callers run it
+	// after any change that can remove project access, narrowed by whichever of
+	// project, owner, and organization the change affects. The access check must
+	// match IsChatProjectUsableByUserID. Only root chats have a project_id, and
+	// updated_at is not touched, matching UpdateChatProjectIDByID. Rows are locked
+	// in id order so concurrent removals cannot deadlock each other.
+	RemoveChatsFromUnusableChatProjects(ctx context.Context, arg RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never

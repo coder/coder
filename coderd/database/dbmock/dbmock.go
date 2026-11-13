@@ -10338,6 +10338,21 @@ func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
 }
 
+// RemoveChatsFromUnusableChatProjects mocks base method.
+func (m *MockStore) RemoveChatsFromUnusableChatProjects(ctx context.Context, arg database.RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveChatsFromUnusableChatProjects", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveChatsFromUnusableChatProjects indicates an expected call of RemoveChatsFromUnusableChatProjects.
+func (mr *MockStoreMockRecorder) RemoveChatsFromUnusableChatProjects(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveChatsFromUnusableChatProjects", reflect.TypeOf((*MockStore)(nil).RemoveChatsFromUnusableChatProjects), ctx, arg)
+}
+
 // RemoveUserFromGroups mocks base method.
 func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

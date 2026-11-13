@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -215,7 +216,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var removedChatIDs []uuid.UUID
 	err = database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		// Reset for retries of this closure.
+		removedChatIDs = nil
 		group, err = tx.GetGroupByID(ctx, group.ID)
 		if err != nil {
 			return xerrors.Errorf("get group by ID: %w", err)
@@ -274,6 +278,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return xerrors.Errorf("insert group member %q: %w", id, err)
 			}
+			removed, err := chatd.RemoveChatsFromUnusableProjects(ctx, tx, database.RemoveChatsFromUnusableChatProjectsParams{
+				OwnerID:        uuid.NullUUID{UUID: userID, Valid: true},
+				OrganizationID: uuid.NullUUID{UUID: group.OrganizationID, Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			removedChatIDs = append(removedChatIDs, removed...)
 		}
 		return nil
 	})
@@ -302,6 +314,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	chatd.PublishChatsLeftProject(ctx, api.Logger, api.Database, api.Pubsub, removedChatIDs)
 
 	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
 	if err != nil {
@@ -376,11 +389,22 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.Old = group.Auditable(groupMembers)
 
-	err := api.Database.DeleteGroupByID(ctx, group.ID)
+	var removedChatIDs []uuid.UUID
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.DeleteGroupByID(ctx, group.ID); err != nil {
+			return err
+		}
+		var err error
+		removedChatIDs, err = chatd.RemoveChatsFromUnusableProjects(ctx, tx, database.RemoveChatsFromUnusableChatProjectsParams{
+			OrganizationID: uuid.NullUUID{UUID: group.OrganizationID, Valid: true},
+		})
+		return err
+	}, nil)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	chatd.PublishChatsLeftProject(ctx, api.Logger, api.Database, api.Pubsub, removedChatIDs)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Successfully deleted group!",

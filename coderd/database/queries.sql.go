@@ -8499,6 +8499,80 @@ func (q *sqlQuerier) IsChatProjectUsableByUserID(ctx context.Context, arg IsChat
 	return column_1, err
 }
 
+const removeChatsFromUnusableChatProjects = `-- name: RemoveChatsFromUnusableChatProjects :many
+WITH unusable AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE
+        ($1::uuid IS NULL OR chats.project_id = $1::uuid)
+        AND ($2::uuid IS NULL OR chats.owner_id = $2::uuid)
+        AND ($3::uuid IS NULL OR chats.organization_id = $3::uuid)
+        AND chat_projects.owner_id != chats.owner_id
+        -- A missing ACL entry makes the check NULL, which counts as no access.
+        AND NOT COALESCE((
+            EXISTS (
+                SELECT 1
+                FROM organization_members
+                WHERE organization_members.user_id = chats.owner_id
+                    AND organization_members.organization_id = chat_projects.organization_id
+            )
+            AND (
+                chat_projects.user_acl -> chats.owner_id::text -> 'permissions' ?| ARRAY['read', '*']
+                OR chat_projects.group_acl -> chat_projects.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+                OR EXISTS (
+                    SELECT 1
+                    FROM group_members
+                    WHERE group_members.user_id = chats.owner_id
+                        AND chat_projects.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+                )
+            )
+        ), false)
+    ORDER BY chats.id
+    FOR UPDATE OF chats
+)
+UPDATE chats
+SET project_id = NULL
+FROM unusable
+WHERE chats.id = unusable.id
+RETURNING chats.id
+`
+
+type RemoveChatsFromUnusableChatProjectsParams struct {
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	OwnerID        uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
+// Moves chats out of projects their owners can no longer use. Callers run it
+// after any change that can remove project access, narrowed by whichever of
+// project, owner, and organization the change affects. The access check must
+// match IsChatProjectUsableByUserID. Only root chats have a project_id, and
+// updated_at is not touched, matching UpdateChatProjectIDByID. Rows are locked
+// in id order so concurrent removals cannot deadlock each other.
+func (q *sqlQuerier) RemoveChatsFromUnusableChatProjects(ctx context.Context, arg RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, removeChatsFromUnusableChatProjects, arg.ProjectID, arg.OwnerID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
 UPDATE chat_projects
 SET

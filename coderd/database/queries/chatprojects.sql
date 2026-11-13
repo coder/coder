@@ -77,6 +77,50 @@ SELECT EXISTS (
         )
 )::boolean;
 
+-- name: RemoveChatsFromUnusableChatProjects :many
+-- Moves chats out of projects their owners can no longer use. Callers run it
+-- after any change that can remove project access, narrowed by whichever of
+-- project, owner, and organization the change affects. The access check must
+-- match IsChatProjectUsableByUserID. Only root chats have a project_id, and
+-- updated_at is not touched, matching UpdateChatProjectIDByID. Rows are locked
+-- in id order so concurrent removals cannot deadlock each other.
+WITH unusable AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE
+        (sqlc.narg('project_id')::uuid IS NULL OR chats.project_id = sqlc.narg('project_id')::uuid)
+        AND (sqlc.narg('owner_id')::uuid IS NULL OR chats.owner_id = sqlc.narg('owner_id')::uuid)
+        AND (sqlc.narg('organization_id')::uuid IS NULL OR chats.organization_id = sqlc.narg('organization_id')::uuid)
+        AND chat_projects.owner_id != chats.owner_id
+        -- A missing ACL entry makes the check NULL, which counts as no access.
+        AND NOT COALESCE((
+            EXISTS (
+                SELECT 1
+                FROM organization_members
+                WHERE organization_members.user_id = chats.owner_id
+                    AND organization_members.organization_id = chat_projects.organization_id
+            )
+            AND (
+                chat_projects.user_acl -> chats.owner_id::text -> 'permissions' ?| ARRAY['read', '*']
+                OR chat_projects.group_acl -> chat_projects.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+                OR EXISTS (
+                    SELECT 1
+                    FROM group_members
+                    WHERE group_members.user_id = chats.owner_id
+                        AND chat_projects.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+                )
+            )
+        ), false)
+    ORDER BY chats.id
+    FOR UPDATE OF chats
+)
+UPDATE chats
+SET project_id = NULL
+FROM unusable
+WHERE chats.id = unusable.id
+RETURNING chats.id;
+
 -- name: UpdateChatProjectACLByID :exec
 UPDATE chat_projects
 SET

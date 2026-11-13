@@ -5440,6 +5440,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) RemoveChatsFromUnusableChatProjects(ctx context.Context, arg database.RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.RemoveChatsFromUnusableChatProjects(ctx, arg)
+	m.queryLatencies.WithLabelValues("RemoveChatsFromUnusableChatProjects").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveChatsFromUnusableChatProjects").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
