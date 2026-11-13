@@ -14,7 +14,7 @@ import {
 import type React from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link, useNavigate } from "react-router";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { API } from "#/api/api";
 import { templateVersion } from "#/api/queries/templates";
 import {
@@ -38,6 +38,7 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -221,10 +222,17 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 										title={
 											<div className="flex items-center gap-1">
 												<Link
-													to={workspacePageLink}
-													className="whitespace-nowrap select-none"
+													asChild
+													showExternalIcon={false}
+													className="my-0 py-0 pl-0 font-semibold text-inherit visited:text-inherit whitespace-nowrap select-none"
 												>
-													{workspace.name}
+													<RouterLink
+														to={workspacePageLink}
+														onClick={(e) => e.stopPropagation()}
+														onAuxClick={(e) => e.stopPropagation()}
+													>
+														{workspace.name}
+													</RouterLink>
 												</Link>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
@@ -234,13 +242,13 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
 													<Badge size="sm" variant="info" hover asChild>
-														<Link
+														<RouterLink
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
 															onClick={(e) => e.stopPropagation()}
 															aria-label={`View agent conversation for ${workspace.name}`}
 														>
 															Agent
-														</Link>
+														</RouterLink>
 													</Badge>
 												)}
 											</div>
@@ -330,7 +338,9 @@ const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 	const navigate = useNavigate();
 
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
-	const { role, hover, ...clickableProps } = useClickableTableRow({
+	// Mouse-only shortcut; keyboard and screen reader users open the workspace
+	// from the name link.
+	const { onClick, onAuxClick, className } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
 		onClick: (event) => {
 			// Order of booleans actually matters here for Windows-Mac compatibility;
@@ -349,11 +359,12 @@ const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 
 	return (
 		<TableRow
-			{...clickableProps}
+			onClick={onClick}
+			onAuxClick={onAuxClick}
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
 				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
-				clickableProps.className,
+				className,
 			])}
 		>
 			{children}
