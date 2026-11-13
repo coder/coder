@@ -368,6 +368,82 @@ func TestResolver_BrokenSymlink(t *testing.T) {
 	require.Equal(t, agentcontext.StatusUnreadable, snap.Resources[0].Status)
 }
 
+// TestResolver_SingleFileSymlinkSource covers scan roots that
+// point directly at a symlinked file, as AddSource and seeded
+// sources can. The boundary is the link's parent directory, so a
+// link to a sibling is followed and a link elsewhere is rejected.
+func TestResolver_SingleFileSymlinkSource(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+
+	t.Run("OutsideParentRejected", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		secret := filepath.Join(t.TempDir(), "id_rsa")
+		mustWriteFile(t, secret, "-----BEGIN OPENSSH PRIVATE KEY-----")
+		link := filepath.Join(dir, "AGENTS.md")
+		require.NoError(t, os.Symlink(secret, link))
+
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: link, UserSource: link}})
+
+		require.Len(t, snap.Resources, 1)
+		got := snap.Resources[0]
+		require.Equal(t, agentcontext.StatusInvalid, got.Status)
+		require.Empty(t, got.Payload, "escaping symlink target must not be shipped")
+		require.Contains(t, got.Error, "escapes scan root")
+	})
+
+	t.Run("SameDirectoryAllowed", func(t *testing.T) {
+		t.Parallel()
+		dir := testutil.TempDirResolved(t)
+		target := filepath.Join(dir, "AGENTS.md")
+		mustWriteFile(t, target, "sibling guidance")
+		link := filepath.Join(dir, "CLAUDE.md")
+		require.NoError(t, os.Symlink(target, link))
+
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: link, UserSource: link}})
+
+		require.Len(t, snap.Resources, 1)
+		got := snap.Resources[0]
+		require.Equal(t, agentcontext.StatusOK, got.Status)
+		require.Equal(t, target, got.Source)
+		require.Equal(t, "sibling guidance", string(got.Payload))
+	})
+
+	t.Run("BrokenUnreadable", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		link := filepath.Join(dir, "AGENTS.md")
+		require.NoError(t, os.Symlink(filepath.Join(dir, "does-not-exist"), link))
+
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: link, UserSource: link}})
+
+		require.Len(t, snap.Resources, 1)
+		require.Equal(t, agentcontext.StatusUnreadable, snap.Resources[0].Status)
+		require.Empty(t, snap.Resources[0].Payload)
+	})
+
+	t.Run("DirectoryRootStillScanned", func(t *testing.T) {
+		t.Parallel()
+		realDir := testutil.TempDirResolved(t)
+		mustWriteFile(t, filepath.Join(realDir, "AGENTS.md"), "via linked dir")
+		link := filepath.Join(t.TempDir(), "repo")
+		require.NoError(t, os.Symlink(realDir, link))
+
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: link}})
+
+		require.Len(t, snap.Resources, 1)
+		require.Equal(t, agentcontext.StatusOK, snap.Resources[0].Status)
+		require.Equal(t, "via linked dir", string(snap.Resources[0].Payload))
+	})
+}
+
 func TestResolver_OversizeInstructionFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
