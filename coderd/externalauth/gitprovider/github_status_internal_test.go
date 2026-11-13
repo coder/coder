@@ -22,23 +22,33 @@ import (
 	"github.com/coder/quartz"
 )
 
-// The pull ETag changes on every request, as when unrelated branches are
-// pushed. The issue and reviews ETags change only with their own content.
+// githubStatusServer serves the issue, pull, and reviews endpoints and counts
+// requests by endpoint. The pull ETag changes on every request, as when
+// unrelated branches are pushed, unless pullETag is set. The issue and
+// reviews ETags change only with their own content.
 type githubStatusServer struct {
-	mu            sync.Mutex
-	issue         map[string]any
-	pull          map[string]any
-	reviews       []map[string]any
+	mu      sync.Mutex
+	issue   map[string]any
+	pull    map[string]any
+	reviews []map[string]any
+	// issueVersion and reviewVersion number the issue and reviews ETags.
 	issueVersion  int
 	reviewVersion int
-	pullRequests  int
-	pullETag      string
-	requests      map[string]int
-	charged       map[string]int
-	issueStatus   int
-	issueHeaders  http.Header
-	pullStatus    int
-	reviewStatus  int
+	// pullRequests counts pull requests and numbers the changing pull ETag.
+	pullRequests int
+	// pullETag, when set, replaces the changing pull ETag.
+	pullETag string
+	// requests counts requests by endpoint. charged counts the requests
+	// that cost primary rate limit: every response except a 304.
+	requests map[string]int
+	charged  map[string]int
+	// issueHeaders replace the default rate-limit headers of the same name on
+	// issue responses.
+	issueHeaders http.Header
+	// A non-zero status makes every request to that endpoint fail with it.
+	issueStatus  int
+	pullStatus   int
+	reviewStatus int
 }
 
 func newGitHubStatusServer(t *testing.T) (*githubStatusServer, *httptest.Server) {
@@ -162,6 +172,15 @@ func (s *githubStatusServer) change(fn func()) {
 	fn()
 }
 
+// lastPullETag returns the changing pull ETag of the latest pull response.
+// Setting pullETag to it makes the next conditional pull request return 304.
+// The caller holds s.mu.
+func (s *githubStatusServer) lastPullETag() string {
+	return fmt.Sprintf(`"pull-%d"`, s.pullRequests)
+}
+
+// assertRequests checks the requests by endpoint since the last call, then
+// resets the counts. A nil charged skips the check of charged requests.
 func (s *githubStatusServer) assertRequests(t *testing.T, requests, charged map[string]int) {
 	t.Helper()
 	s.mu.Lock()
@@ -294,6 +313,8 @@ func TestGitHubStatusIssueGate(t *testing.T) {
 	}
 	for i, change := range changes {
 		t.Logf("PR change: %s", change.name)
+		// Every change also updates the issue timestamp and ETag, including
+		// changes to fields that only the pull returns.
 		state.change(func() {
 			for key, value := range change.issue {
 				state.issue[key] = value
@@ -335,6 +356,8 @@ func TestGitHubStatusPullOnlyChange(t *testing.T) {
 	require.NoError(t, err)
 	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 
+	// A pull change that leaves the issue unchanged is visible once the
+	// snapshot reaches githubPullRequestMaxAge.
 	state.change(func() {
 		state.pull["additions"] = 200
 		state.pull["base"] = map[string]any{"ref": "new-base"}
@@ -358,7 +381,7 @@ func TestGitHubStatusPullOnlyChange(t *testing.T) {
 
 	// A quiet repository's periodic pull request is also conditional, and a
 	// 304 starts a new maximum-age window without charging a request.
-	state.change(func() { state.pullETag = fmt.Sprintf(`"pull-%d"`, state.pullRequests) })
+	state.change(func() { state.pullETag = state.lastPullETag() })
 	clock.Advance(time.Hour)
 	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 	require.NoError(t, err)
@@ -372,8 +395,48 @@ func TestGitHubStatusPullOnlyChange(t *testing.T) {
 func TestGitHubStatusEndpointLag(t *testing.T) {
 	t.Parallel()
 
-	for _, change := range []string{"Timestamp", "TimestampNotModified", "Title", "State", "Draft", "Merged", "AuthorLogin", "AuthorAvatarURL"} {
-		t.Run(change, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// issue holds the issue fields that change before the pull catches up.
+		issue map[string]any
+		// lagWithNotModified makes the lagging pull return 304.
+		lagWithNotModified bool
+	}{
+		{
+			name:  "Timestamp",
+			issue: map[string]any{"updated_at": "2026-11-13T12:01:00Z"},
+		},
+		{
+			name:               "TimestampNotModified",
+			issue:              map[string]any{"updated_at": "2026-11-13T12:01:00Z"},
+			lagWithNotModified: true,
+		},
+		{
+			name:  "Title",
+			issue: map[string]any{"title": "Renamed"},
+		},
+		{
+			name:  "State",
+			issue: map[string]any{"state": "closed"},
+		},
+		{
+			name:  "Draft",
+			issue: map[string]any{"draft": true},
+		},
+		{
+			name:  "Merged",
+			issue: map[string]any{"pull_request": map[string]any{"merged_at": "2026-11-13T12:01:00Z"}},
+		},
+		{
+			name:  "AuthorLogin",
+			issue: map[string]any{"user": map[string]any{"login": "new-author", "avatar_url": "https://example.com/author.png"}},
+		},
+		{
+			name:  "AuthorAvatarURL",
+			issue: map[string]any{"user": map[string]any{"login": "author", "avatar_url": "https://example.com/new.png"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			state, srv := newGitHubStatusServer(t)
 			provider, err := New("github", srv.URL+"/api/v3", srv.Client())
@@ -382,36 +445,27 @@ func TestGitHubStatusEndpointLag(t *testing.T) {
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+
+			// The issue changes while the pull still returns the old fields.
 			state.change(func() {
 				state.issueVersion++
-				switch change {
-				case "Timestamp", "TimestampNotModified":
-					state.issue["updated_at"] = "2026-11-13T12:01:00Z"
-					if change == "TimestampNotModified" {
-						state.pullETag = fmt.Sprintf(`"pull-%d"`, state.pullRequests)
-					}
-				case "Title":
-					state.issue["title"] = "Renamed"
-				case "State":
-					state.issue["state"] = "closed"
-				case "Draft":
-					state.issue["draft"] = true
-				case "Merged":
-					state.issue["pull_request"] = map[string]any{"merged_at": "2026-11-13T12:01:00Z"}
-				case "AuthorLogin":
-					state.issue["user"] = map[string]any{"login": "new-author", "avatar_url": "https://example.com/author.png"}
-				case "AuthorAvatarURL":
-					state.issue["user"] = map[string]any{"login": "author", "avatar_url": "https://example.com/new.png"}
+				for key, value := range tc.issue {
+					state.issue[key] = value
+				}
+				if tc.lagWithNotModified {
+					state.pullETag = state.lastPullETag()
 				}
 			})
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
 			charged := map[string]int{"issue": 1, "pull": 1}
-			if change == "TimestampNotModified" {
-				delete(charged, "pull")
+			if tc.lagWithNotModified {
+				charged = map[string]int{"issue": 1}
 			}
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, charged)
 
+			// The pull catches up with the issue and changes its ETag. The
+			// disagreement left the snapshot expired, so the pull is requested.
 			state.change(func() {
 				state.pullETag = ""
 				state.pull["updated_at"] = state.issue["updated_at"]
@@ -419,19 +473,21 @@ func TestGitHubStatusEndpointLag(t *testing.T) {
 				state.pull["state"] = state.issue["state"]
 				state.pull["draft"] = state.issue["draft"]
 				state.pull["user"] = state.issue["user"]
-				state.pull["merged"] = change == "Merged"
+				state.pull["merged"] = tc.name == "Merged"
 				state.pull["additions"] = 200
 			})
 			after, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
 			assert.Equal(t, int32(200), after.DiffStats.Additions)
-			if change == "AuthorLogin" {
+			if tc.name == "AuthorLogin" {
 				assert.Equal(t, "new-author", after.AuthorLogin)
 			}
-			if change == "AuthorAvatarURL" {
+			if tc.name == "AuthorAvatarURL" {
 				assert.Equal(t, "https://example.com/new.png", after.AuthorAvatarURL)
 			}
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"pull": 1})
+
+			// Once they agree, the issue gates the pull again.
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
 			state.assertRequests(t, map[string]int{"issue": 1, "reviews": 1}, map[string]int{})
@@ -443,6 +499,8 @@ func TestGitHubStatusTokenIsolationAndEviction(t *testing.T) {
 	t.Parallel()
 
 	state, srv := newGitHubStatusServer(t)
+	// Large descriptions and an embedded repository, which the snapshot must
+	// not keep.
 	state.change(func() {
 		state.issue["body"] = strings.Repeat("description", 5_000)
 		state.pull["body"] = state.issue["body"]
@@ -455,6 +513,8 @@ func TestGitHubStatusTokenIsolationAndEviction(t *testing.T) {
 	require.NoError(t, err)
 	github, ok := provider.(*githubProvider)
 	require.True(t, ok)
+	// One token's lookup stores two entries, the snapshot and the reviews, so
+	// a lookup with another token evicts both.
 	github.cache = newResponseCache(2)
 	ref := PRRef{Owner: "owner", Repo: "repo", Number: 1}
 	first, err := provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
@@ -470,6 +530,8 @@ func TestGitHubStatusTokenIsolationAndEviction(t *testing.T) {
 	_, err = provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
 	require.NoError(t, err)
 	state.assertRequests(t, map[string]int{"issue": 1, "reviews": 1}, map[string]int{})
+
+	// token-b gets its own pull response, not token-a's snapshot.
 	state.change(func() { state.pull["head"] = map[string]any{"sha": "private-sha", "ref": "private-branch"} })
 	second, err := provider.FetchPullRequestStatus(t.Context(), "token-b", ref)
 	require.NoError(t, err)
@@ -477,6 +539,7 @@ func TestGitHubStatusTokenIsolationAndEviction(t *testing.T) {
 	assert.Equal(t, "private-sha", second.HeadSHA)
 	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 
+	// token-b's lookup evicted token-a's entries, so every request is charged.
 	state.change(func() { state.pull["head"] = map[string]any{"sha": "abc123", "ref": "feature"} })
 	third, err := provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
 	require.NoError(t, err)
@@ -503,6 +566,9 @@ func TestGitHubStatusUnchangedRequestCounts(t *testing.T) {
 			require.NoError(t, err)
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 
+			// Two hours of lookups every two minutes. Each hour the snapshot
+			// reaches githubPullRequestMaxAge once, and that pull request is
+			// charged only when the pull ETag changed.
 			for range 2 {
 				for range 30 {
 					clock.Advance(2 * time.Minute)
@@ -556,11 +622,14 @@ func TestGitHubStatusIssueRejectionFallback(t *testing.T) {
 				ReviewerCount: 1,
 				FetchedAt:     clock.Now(),
 			}
+			// The issue is rejected and the pull is readable, so the rejection
+			// is remembered.
 			first, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
 			require.Equal(t, want, first)
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 
+			// While the rejection is remembered, the issue is not requested.
 			clock.Advance(59 * time.Minute)
 			second, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
@@ -568,6 +637,8 @@ func TestGitHubStatusIssueRejectionFallback(t *testing.T) {
 			require.Equal(t, want, second)
 			state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{})
 
+			// The pull is requested on every lookup, so its changes are visible
+			// at once.
 			state.change(func() {
 				state.pull["head"] = map[string]any{"sha": "updated-head", "ref": "feature"}
 				state.pull["additions"] = 20
@@ -587,10 +658,14 @@ func TestGitHubStatusIssueRejectionFallback(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, 2, otherPR.PRNumber)
 			state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{"pull": 1, "reviews": 1})
+
+			// Another repository is not affected.
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "other", Number: 1})
 			require.NoError(t, err)
 			state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 
+			// The rejection expires after githubIssueRejectionTTL, and a
+			// readable issue restores the gate.
 			state.change(func() { state.issueStatus = 0 })
 			clock.Advance(time.Minute)
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
@@ -600,6 +675,7 @@ func TestGitHubStatusIssueRejectionFallback(t *testing.T) {
 			require.NoError(t, err)
 			state.assertRequests(t, map[string]int{"issue": 1, "reviews": 1}, map[string]int{})
 
+			// A new rejection is remembered again.
 			state.change(func() { state.issueStatus = statusCode })
 			_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 			require.NoError(t, err)
@@ -629,16 +705,21 @@ func TestGitHubStatusIssueRejectionIsolationAndEviction(t *testing.T) {
 	require.NoError(t, err)
 	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 
+	// token-a's rejection does not apply to token-b.
 	state.change(func() { state.issueStatus = 0 })
 	_, err = provider.FetchPullRequestStatus(t.Context(), "token-b", ref)
 	require.NoError(t, err)
 	state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
+
+	// token-a's rejection is still remembered.
 	state.change(func() { state.issueStatus = http.StatusForbidden })
 	_, err = provider.FetchPullRequestStatus(t.Context(), "token-a", ref)
 	require.NoError(t, err)
 	state.assertRequests(t, map[string]int{"pull": 1, "reviews": 1}, map[string]int{})
 
-	// Rejection markers compete with responses for the same entry limit.
+	// Rejection markers compete with responses for the same entry limit. Two
+	// more lookups that each store a marker, a snapshot, and reviews evict
+	// token-a's entries, including its marker, so its issue is requested again.
 	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 	require.NoError(t, err)
 	_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", PRRef{Owner: "owner", Repo: "other", Number: 1})
@@ -656,6 +737,9 @@ func TestGitHubStatusIssueErrors(t *testing.T) {
 	t.Parallel()
 
 	reset := time.Date(2026, 11, 13, 12, 2, 0, 0, time.UTC)
+	// Unless headers replace them, issue responses carry the server's
+	// default X-Ratelimit-Remaining of 14999 and a reset 30 minutes after the
+	// real time, which is later than the test clock.
 	for _, tc := range []struct {
 		name           string
 		status         int
@@ -790,6 +874,8 @@ func TestGitHubStatusOtherRequestsKeepRateClassification(t *testing.T) {
 			t.Parallel()
 
 			state, srv := newGitHubStatusServer(t)
+			// With the server's default future reset header, the shared
+			// classifier treats a 403 as a rate limit.
 			state.change(func() {
 				if endpoint == "pull" {
 					state.pullStatus = http.StatusForbidden
@@ -869,6 +955,7 @@ func TestGitHubStatusPersistentDisagreement(t *testing.T) {
 					state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, map[string]int{"issue": 1, "pull": 1, "reviews": 1})
 				}
 
+				// The issue avatar changes and the pull keeps the old one.
 				state.change(func() {
 					state.issueVersion++
 					state.issue["user"] = map[string]any{
@@ -878,6 +965,8 @@ func TestGitHubStatusPersistentDisagreement(t *testing.T) {
 				})
 				_, err = provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 				require.NoError(t, err)
+				// A cold lookup charges every endpoint. A warm one charges the
+				// changed issue, and the pull only when its ETag changed.
 				firstCharges := map[string]int{"issue": 1}
 				if !warm {
 					firstCharges["reviews"] = 1
@@ -887,6 +976,8 @@ func TestGitHubStatusPersistentDisagreement(t *testing.T) {
 				}
 				state.assertRequests(t, map[string]int{"issue": 1, "pull": 1, "reviews": 1}, firstCharges)
 
+				// While they disagree, every lookup checks the pull and returns
+				// its fields. The unchanged issue returns 304.
 				for range 3 {
 					status, err := provider.FetchPullRequestStatus(t.Context(), "test-token", ref)
 					require.NoError(t, err)
@@ -898,6 +989,7 @@ func TestGitHubStatusPersistentDisagreement(t *testing.T) {
 				}
 				state.assertRequests(t, map[string]int{"issue": 3, "pull": 3, "reviews": 3}, charges)
 
+				// A pull change is visible on the next lookup.
 				state.change(func() {
 					state.pull["additions"] = 40
 					if !busy {
