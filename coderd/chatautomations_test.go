@@ -343,6 +343,8 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 	// The caller reads every owner's automations, so each row shows whether
 	// the filter applies.
 	adminClient, _ := coderdtest.CreateAnotherUser(t, env.owner, org, rbac.ScopedRoleOrgAdmin(org))
+	// This caller reads every automation of the organization and no other user.
+	readerClient, _ := env.readOnlyClient(t)
 	mine := env.automation(t, database.ChatAutomation{OwnerID: member.ID})
 	env.automation(t, database.ChatAutomation{OwnerID: other.ID})
 	// A username of 32 hexadecimal characters is the ID of another user
@@ -356,6 +358,9 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 		owner string
 		// asMember lists as a member, who cannot read the user that owner names.
 		asMember bool
+		// asReader lists as a caller who can read the rows of the user that
+		// owner names and cannot read that user.
+		asReader bool
 		want     []uuid.UUID
 	}{
 		"Me":              {owner: codersdk.Me},
@@ -365,10 +370,11 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 		"NilUUID":         {owner: uuid.Nil.String()},
 		"Email":           {owner: member.Email},
 		// Only the canonical form of an ID is an ID.
-		"HexUsername":        {owner: hexName, want: []uuid.UUID{hexMine.ID}},
-		"Braces":             {owner: "{" + member.ID.String() + "}"},
-		"URN":                {owner: "urn:uuid:" + member.ID.String()},
-		"UnreadableUsername": {owner: other.Username, asMember: true},
+		"HexUsername":                        {owner: hexName, want: []uuid.UUID{hexMine.ID}},
+		"Braces":                             {owner: "{" + member.ID.String() + "}"},
+		"URN":                                {owner: "urn:uuid:" + member.ID.String()},
+		"UnreadableUsername":                 {owner: other.Username, asMember: true},
+		"UnreadableUsernameWithReadableRows": {owner: other.Username, asReader: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -376,6 +382,9 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 			client := adminClient
 			if tc.asMember {
 				client = memberClient
+			}
+			if tc.asReader {
+				client = readerClient
 			}
 			require.ElementsMatch(t, tc.want, listChatAutomationIDs(t, client, org, query))
 		})
