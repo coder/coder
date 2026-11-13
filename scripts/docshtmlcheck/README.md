@@ -1,6 +1,6 @@
 # docshtmlcheck
 
-`docshtmlcheck` fails CI when Markdown under `docs/` contains invalid inline HTML that the documentation site's renderer silently drops or mangles, or a table header cell with no text.
+`docshtmlcheck` fails CI when Markdown under `docs/` contains invalid inline HTML that the documentation site's renderer silently drops or mangles, a table header cell with no text, or an element or attribute that docs pages don't use.
 It runs as `make lint/docs-html` (part of `make lint`).
 
 ## What it catches
@@ -28,6 +28,11 @@ It runs as `make lint/docs-html` (part of `make lint`).
   Markdown between the HTML blocks of a `<th>` counts as its text, and so do an image's alt text, an autolink, and a code block.
   Each finding names the table by its first non-empty header.
   For the top-left corner of a matrix, name what the row headers hold, such as `Permission`.
+- **Elements and attributes docs pages don't use** (`disallowed-element`, `disallowed-attribute`).
+  The check rejects `aria-*`, `role`, `tabindex`, and `lang` attributes, and `<iframe>`, `<object>`, `<area>`, `<form>`, `<input>`, `<select>`, `<textarea>`, `<button>`, and `<meta>` elements.
+  Each one brings accessibility requirements of its own, such as an accessible name, a valid role, a sensible focus order, or a valid language tag, that no docs check verifies.
+  No docs page uses any of them, so keeping them out keeps those requirements out too.
+  Write the content in Markdown, link to embedded content instead of framing it, and use bold text for a UI label instead of a `<button>`.
 
 ## How it works
 

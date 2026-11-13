@@ -1,0 +1,92 @@
+# Coder.HeadingOrder - flag a heading that skips a level, counting raw HTML
+# headings as well as Markdown ones.
+#
+# markdownlint MD001 checks heading increments, but only between Markdown
+# headings: it never sees a raw <h1> to <h6>, such as the <h3> headings the
+# generated API reference emits. This rule walks every heading in document
+# order and flags one that is more than one level deeper than the heading
+# before it.
+#
+# To avoid reporting the same skip twice, the rule stays quiet on a Markdown
+# heading that MD001 already flags (a skip measured against the previous
+# Markdown heading). It reports the skips MD001 can't see: a raw HTML heading
+# that skips, and a Markdown heading that skips only because a raw HTML
+# heading sits before it. The policy lives in the style guide:
+# docs/.style/style-guide/accessibility-and-inclusion.md#heading-structure-and-placement
+#
+# Implementation: a raw-scoped script. Heading levels are structure, and only
+# the raw source shows them. Raw scope also reaches fenced code, YAML front
+# matter, and HTML comments, where a line starting with `#` is not a heading,
+# so the script skips all three. Known gaps, none hit by the current corpus:
+# setext headings (underlined with `===` or `---`), headings inside block
+# quotes or list items, and raw HTML headings that don't start a line.
+#
+# Tengo note: text.re_find panics on a capture group that didn't take part in
+# the match, so every group below either always participates or is
+# non-capturing.
+#
+# Level: error. A skipped level is objectively wrong, and the corpus is clean.
+extends: script
+message: "Heading level jumps by more than one; descend one level at a time. Refer to accessibility-and-inclusion.md#heading-structure-and-placement."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#heading-structure-and-placement
+level: error
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  pos := 0
+  frontmatter := false
+  fence := ""
+  comment := false
+  prevAny := 0
+  prevMarkdown := 0
+  for i, line in text.split(scope, "\n") {
+    start := pos
+    pos += len(line) + 1
+    if i == 0 && text.trim_space(line) == "---" {
+      frontmatter = true
+      continue
+    }
+    if frontmatter {
+      if text.trim_space(line) == "---" { frontmatter = false }
+      continue
+    }
+    f := text.re_find("^\\s*(`{3,}|~{3,})", line)
+    if fence != "" {
+      if f != undefined && text.has_prefix(f[0][1].text, fence) && text.re_match("^\\s*[`~]+\\s*$", line) { fence = "" }
+      continue
+    }
+    if f != undefined {
+      fence = f[0][1].text
+      continue
+    }
+    if comment {
+      if text.contains(line, "-->") { comment = false }
+      continue
+    }
+    open := text.last_index(line, "<!--")
+    if open >= 0 && !text.contains(line[open:], "-->") {
+      comment = true
+      continue
+    }
+    level := 0
+    html := false
+    m := text.re_find("^ {0,3}(#{1,6})(?:[ \\t]|$)", line)
+    if m != undefined {
+      level = len(m[0][1].text)
+    } else {
+      h := text.re_find("(?i)^\\s*<h([1-6])[\\s>]", line)
+      if h != undefined {
+        level = int(h[0][1].text)
+        html = true
+      }
+    }
+    if level == 0 { continue }
+    skipped := prevAny > 0 && level > prevAny + 1
+    md001 := !html && prevMarkdown > 0 && level > prevMarkdown + 1
+    if skipped && !md001 {
+      matches = append(matches, {begin: start, end: start + len(line)})
+    }
+    prevAny = level
+    if !html { prevMarkdown = level }
+  }

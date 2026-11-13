@@ -1,0 +1,82 @@
+# Coder.EmptyHeading - flag a heading with no text.
+#
+# A heading with no text still appears in the outline that screen readers
+# offer for navigation, as an entry with no name. No other docs check catches
+# it: markdownlint has no empty-heading rule, and a Vale rule on `heading`
+# scope can't match text that isn't there. The policy lives in the style
+# guide:
+# docs/.style/style-guide/accessibility-and-inclusion.md#heading-structure-and-placement
+#
+# The rule flags a Markdown heading that is only `#` marks (`##`, or `## ##`
+# with a closing sequence) and a raw HTML heading whose content is only
+# whitespace, `&nbsp;`, or `<br>`, on one line.
+#
+# Implementation: a raw-scoped script, because the other scopes drop the empty
+# heading before a rule sees it. Raw scope also reaches fenced code, YAML front
+# matter, and HTML comments, where a lone `#` is not a heading, so the script
+# skips all three. It also skips inline code when matching raw HTML headings.
+# Known gaps, none hit by the current corpus: a raw HTML heading split across
+# lines, and a heading whose only content is an anchor such as
+# `<a id="x"></a>`.
+#
+# Level: error. An empty heading is objectively wrong, and the corpus is clean.
+extends: script
+message: "Heading has no text; give it text or remove it. Refer to accessibility-and-inclusion.md#heading-structure-and-placement."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#heading-structure-and-placement
+level: error
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  pos := 0
+  frontmatter := false
+  fence := ""
+  comment := false
+  for i, line in text.split(scope, "\n") {
+    start := pos
+    pos += len(line) + 1
+    if i == 0 && text.trim_space(line) == "---" {
+      frontmatter = true
+      continue
+    }
+    if frontmatter {
+      if text.trim_space(line) == "---" { frontmatter = false }
+      continue
+    }
+    f := text.re_find("^\\s*(`{3,}|~{3,})", line)
+    if fence != "" {
+      if f != undefined && text.has_prefix(f[0][1].text, fence) && text.re_match("^\\s*[`~]+\\s*$", line) { fence = "" }
+      continue
+    }
+    if f != undefined {
+      fence = f[0][1].text
+      continue
+    }
+    if comment {
+      if text.contains(line, "-->") { comment = false }
+      continue
+    }
+    open := text.last_index(line, "<!--")
+    if open >= 0 && !text.contains(line[open:], "-->") {
+      comment = true
+      continue
+    }
+    if text.re_match("^ {0,3}#{1,6}(?:[ \\t]+#*)?[ \\t]*$", line) {
+      matches = append(matches, {begin: start, end: start + len(line)})
+      continue
+    }
+    found := text.re_find("(?i)<h[1-6](?:\\s[^>]*)?>(?:\\s|&nbsp;|&#160;|<br\\s*/?>)*</h[1-6]\\s*>", line, -1)
+    if found == undefined { continue }
+    skip := []
+    spans := text.re_find("`[^`]*`|<!--.*?-->", line, -1)
+    if spans != undefined { skip = spans }
+    for m in found {
+      inside := false
+      for s in skip {
+        if m[0].begin < s[0].end && m[0].end > s[0].begin { inside = true }
+      }
+      if !inside {
+        matches = append(matches, {begin: start + m[0].begin, end: start + m[0].end})
+      }
+    }
+  }
