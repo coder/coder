@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -877,59 +877,51 @@ describe("pending actions", () => {
 
 		store.setQueuedMessages([mockQueuedRow12]);
 		expect(visible(store).queue).toEqual(["queue:q12"]);
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 
-	it("ends pending sends oldest first and runs their requests one at a time", async () => {
-		const store = seededStore([mockFirstMessage], [], "waiting");
-		const first = createDeferred<undefined>();
-		const firstRequest = vi.fn(() => first.promise);
-		const secondRequest = vi.fn(() => Promise.resolve());
-		const firstRun = store.runPendingAction(pendingSend("one"), firstRequest);
-		const secondRun = store.runPendingAction(pendingSend("two"), secondRequest);
-		await Promise.resolve();
-		expect(firstRequest).toHaveBeenCalledOnce();
-		expect(secondRequest).not.toHaveBeenCalled();
+	it("ends pending sends oldest first", () => {
+		const store = seededStore([mockFirstMessage], [], "running");
+		addPending(store, pendingSend("one"));
+		addPending(store, pendingSend("two"));
 
-		store.upsertDurableMessages([makeMessage(2, "user", "one")]);
-		const state = store.getSnapshot();
+		store.setQueuedMessages([steerRow(12, "one")]);
+
 		expect(
-			selectOrderedMessageIDs(state).map((id) => [
-				textOf(selectMessagesByID(state).get(id)?.content),
-				isPendingRowID(id),
+			selectQueuedMessages(store.getSnapshot()).map((row) => [
+				textOf(row.content),
+				isPendingRowID(row.id),
 			]),
 		).toEqual([
-			["first", false],
 			["one", false],
 			["two", true],
 		]);
-
-		first.resolve(undefined);
-		await firstRun;
-		await secondRun;
-		expect(secondRequest).toHaveBeenCalledOnce();
 	});
 
-	it("runs the next request after a request rejects", async () => {
+	it("queues a send behind an earlier pending message", () => {
+		const store = seededStore([mockFirstMessage], [], "waiting");
+		addPending(store, pendingSend("one"));
+		addPending(store, pendingSend("two"));
+
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "user:one"],
+			queue: ["steer:two"],
+		});
+	});
+
+	it("keeps the shown queue's identity while a message part streams", () => {
 		const store = seededStore(
 			[mockFirstMessage],
 			[mockQueuedRow10, mockQueuedRow11],
 			"running",
 		);
-		const failed = store.runPendingAction(
-			{ kind: "deleteQueued", queuedMessageID: 10 },
-			() => Promise.reject(new Error("failed")),
-		);
-		const nextRequest = vi.fn(() => Promise.resolve());
-		const nextRun = store.runPendingAction(
-			{ kind: "deleteQueued", queuedMessageID: 11 },
-			nextRequest,
-		);
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
+		const shownQueue = selectQueuedMessages(store.getSnapshot());
 
-		await expect(failed).rejects.toThrow("failed");
-		await nextRun;
-		expect(nextRequest).toHaveBeenCalledOnce();
-		expect(visible(store).queue).toEqual(["queue:q10"]);
+		store.applyMessagePart({ type: "text", text: "partial" });
+
+		expect(store.getSnapshot().streamState).not.toBeNull();
+		expect(selectQueuedMessages(store.getSnapshot())).toBe(shownQueue);
 	});
 
 	it.each<PendingAction>([
