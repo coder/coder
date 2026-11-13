@@ -54,6 +54,19 @@ coder:
   # the component type (coderd, wsproxy, or provisionerd).
   podAnnotations: {}
 
+  # coder.prometheus -- Prometheus scrape discovery.
+  prometheus:
+    # coder.prometheus.scrapeAnnotations -- Add the `prometheus.io/scrape`,
+    # `prometheus.io/port` and `prometheus.io/path` pod annotations that
+    # annotation-based scrapers (Grafana Alloy, the Prometheus Helm chart, the
+    # Coder observability chart) use to discover pods. Metrics must still be
+    # enabled by setting CODER_PROMETHEUS_ENABLE. Annotations set in
+    # coder.podAnnotations take precedence.
+    scrapeAnnotations: false
+    # coder.prometheus.port -- The port in the `prometheus.io/port` annotation.
+    # Must match the port of CODER_PROMETHEUS_ADDRESS.
+    port: 2112
+
   # coder.podLabels -- The Coder pod labels. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
   podLabels: {}

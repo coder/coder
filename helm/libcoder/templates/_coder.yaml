@@ -28,7 +28,13 @@ spec:
           {{- end }}
       annotations:
         {{- include "coder.componentAnnotation" . | nindent 8 }}
-        {{- with .Values.coder.podAnnotations }}
+        {{- $annotations := dict }}
+        {{- with .Values.coder.prometheus }}
+        {{- if .scrapeAnnotations }}
+        {{- $annotations = dict "prometheus.io/scrape" "true" "prometheus.io/port" (.port | default 2112 | toString) "prometheus.io/path" "/metrics" }}
+        {{- end }}
+        {{- end }}
+        {{- with merge (deepCopy (.Values.coder.podAnnotations | default dict)) $annotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
 

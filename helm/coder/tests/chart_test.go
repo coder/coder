@@ -50,6 +50,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "prometheus_annotations",
+		expectedError: "",
+	},
+	{
 		name:          "workspace_proxy",
 		expectedError: "",
 	},
