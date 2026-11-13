@@ -29,6 +29,9 @@ children:
   - title: AI Governance cost control
     description: Configure AI Gateway budgets, enforcement, notifications, and spend reporting.
     path: ./ai-governance/ai-gateway/cost-controls.md
+  - title: Request organization
+    description: How AI Gateway assigns each request to an organization, and how that affects budgets and spend.
+    path: ./ai-governance/ai-gateway/request-organization.md
   - title: Reference
     description: Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.
     path: ./ai-governance/ai-gateway/reference.md

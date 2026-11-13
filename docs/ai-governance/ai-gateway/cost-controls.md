@@ -101,7 +101,9 @@ Override a group budget when one user needs a different limit from the rest of t
 Overrides behave as follows:
 
 - A user can have only one override at a time.
-- An override supersedes every group budget the user belongs to.
+- An override applies to requests in the organization of its assigned group, where it supersedes every group budget the user belongs to.
+  It doesn't apply to requests in other organizations.
+  For details, refer to [Request organization](./request-organization.md#effective-group-and-budget).
 - Spend is always attributed to a group, so an override must name the assigned group.
   This group can be different from the group selected in the **Members** tab.
   The user must belong to the assigned group.
@@ -111,7 +113,7 @@ Overrides behave as follows:
 ### Effective group resolution
 
 A user can belong to several groups that have budgets, and can also hold an override.
-AI Gateway resolves a single effective group for each request, in this order:
+AI Gateway assigns each request to one organization, then resolves a single effective group for the request within that organization, in this order:
 
 1. The user's [override](#user-override) takes precedence over every group budget.
 1. Otherwise, the [budget policy](#deployment-settings) selects one of the user's groups.
@@ -119,12 +121,15 @@ AI Gateway resolves a single effective group for each request, in this order:
    The default policy, `highest`, selects the group with the largest budget.
 1. If none of those groups has a budget, the user has *effectively* unlimited spend.
 
-   Their spend is recorded against the `Everyone` group.
+   Their spend is recorded against the organization's `Everyone` group.
+
+When a request authenticates with a workspace session token or comes from a Coder Agents chat, only the user's groups in that organization count.
+When it comes from any other client, AI Gateway resolves the effective group across all of the user's organizations, and the request takes that group's organization.
+For the full rules, refer to [Request organization](./request-organization.md).
 
 > [!NOTE]
 > Groups with identical budgets are ranked by the organization membership the user joined first, then by group ID.
-> To see the effective group currently assigned to a user, see [Monitor spend](#monitor-spend).
-> The effective group is deployment-wide, so it can be a group in a different organization.
+> To see the effective group resolved across all of a user's organizations, see [Monitor spend](#monitor-spend).
 
 Recorded spend is immutable.
 Changing which budget applies to a user affects future requests only: spend that Coder has already recorded stays with the group it was attributed to, so a user's history can span several groups.
@@ -139,7 +144,7 @@ The check compares the user's spend in the current budget period with the budget
 - Spend at or above the budget: AI Gateway returns `403 Forbidden` with a message that describes the issue.
 
 Users without a budget have **unlimited spend**, so their requests proceed without enforcement.
-A blocked user's access resumes when the budget period resets, when an administrator raises the budget, or when an override is added.
+A blocked user's access resumes when the budget period resets, when an administrator raises the budget, or when an override is added for a group in the request's organization.
 
 > [!NOTE]
 > Enforcement is approximate.
@@ -309,6 +314,10 @@ Visibility follows the viewer's role:
 - The avatar menu reports the signed-in user's own spend for the budget period as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget applies.
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
+
+The avatar menu, the Coder Agents usage indicator, the **Members** tab budget, the **Groups** page combined limits, and the Get user AI spend endpoint resolve the effective group across all of the user's organizations.
+For a user in several organizations, these reports can differ from the budget that applied to a request that used a workspace session token or came from a chat.
+Refer to [Where spend reports can differ](./request-organization.md#where-spend-reports-can-differ).
 
 ### Spend export
 
