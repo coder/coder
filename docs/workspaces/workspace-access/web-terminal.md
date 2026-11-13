@@ -136,7 +136,7 @@ CODER_WEB_TERMINAL_RENDERER=canvas
 The Web Terminal supports standard terminal keybindings:
 
 | Shortcut                            | Action                              |
-| ----------------------------------- | ----------------------------------- |
+|-------------------------------------|-------------------------------------|
 | `Ctrl+Shift+C` (Mac: `Cmd+Shift+C`) | Copy selected text                  |
 | `Ctrl+Shift+V` (Mac: `Cmd+Shift+V`) | Paste from clipboard                |
 | `Shift+Enter`                       | Insert literal newline              |
