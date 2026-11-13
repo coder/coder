@@ -1,4 +1,5 @@
 import {
+	ArchiveIcon,
 	CircleAlertIcon,
 	EllipsisVerticalIcon,
 	LockIcon,
@@ -25,8 +26,14 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { shortRelativeTime } from "#/utils/time";
 import { ChatProjectIcon } from "../components/ChatProjectIcon";
-import { ProjectActionsMenuItems } from "../components/ChatsSidebar/chats/ProjectActionsMenuItems";
+import {
+	hasProjectManageAction,
+	ProjectActionsMenuItems,
+} from "../components/ChatsSidebar/chats/ProjectActionsMenuItems";
 import { getChatStatusDisplay } from "../components/ChatsSidebar/tree/statusConfig";
+import { useUnarchiveChatProject } from "../hooks/useUnarchiveChatProject";
+
+type DialogAction = (returnFocusTo: HTMLElement | null) => void;
 
 type ProjectCardProps = {
 	readonly summary: ChatProjectSummary;
@@ -35,9 +42,9 @@ type ProjectCardProps = {
 	readonly onUnpin: () => void;
 	/** A pin request for the project is running, so Pin is held back. */
 	readonly pinPending: boolean;
-	readonly onEdit: (returnFocusTo: HTMLElement | null) => void;
-	readonly onArchive: (returnFocusTo: HTMLElement | null) => void;
-	readonly onDelete: (returnFocusTo: HTMLElement | null) => void;
+	readonly onEdit: DialogAction;
+	readonly onArchive: DialogAction;
+	readonly onDelete: DialogAction;
 };
 
 const compactNumber = new Intl.NumberFormat("en-US", {
@@ -61,6 +68,104 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	onDelete,
 }) => {
 	const { project, pinned, member_count, last_activity_at } = summary;
+	return (
+		<ProjectCardFrame
+			project={project}
+			to={to}
+			footer={
+				<>
+					<ActivityLabel summary={summary} />
+					{member_count > 1 ? (
+						<span className="flex shrink-0 items-center gap-1">
+							<UsersIcon aria-hidden="true" className="size-3.5" />
+							<span aria-hidden="true" className="tabular-nums">
+								{compactNumber.format(member_count).toLowerCase()}
+							</span>
+							<span className="sr-only">
+								{member_count.toLocaleString("en-US")} members
+							</span>
+						</span>
+					) : (
+						<span className="flex shrink-0 items-center">
+							<LockIcon aria-hidden="true" className="size-3.5" />
+							<span className="sr-only">Only you</span>
+						</span>
+					)}
+					{last_activity_at && <CardTime time={last_activity_at} />}
+				</>
+			}
+			actions={
+				<ProjectCardActions
+					project={project}
+					pin={{ pinned, pinPending, onPin, onUnpin }}
+					onEdit={onEdit}
+					onArchive={onArchive}
+					onDelete={onDelete}
+				/>
+			}
+		/>
+	);
+};
+
+type ArchivedProjectCardProps = {
+	readonly project: ChatProject;
+	readonly to: To;
+	/** Runs once the project is unarchived, after its card has left. */
+	readonly onUnarchived: () => void;
+	readonly onDelete: DialogAction;
+};
+
+/**
+ * An archived project on the Projects page. It links to the read-only
+ * project page, and its actions unarchive or delete the project.
+ */
+export const ArchivedProjectCard: React.FC<ArchivedProjectCardProps> = ({
+	project,
+	to,
+	onUnarchived,
+	onDelete,
+}) => {
+	const { unarchive } = useUnarchiveChatProject(project, onUnarchived);
+	return (
+		<ProjectCardFrame
+			project={project}
+			to={to}
+			footer={
+				<>
+					<span className="flex shrink-0 items-center gap-1">
+						<ArchiveIcon aria-hidden="true" className="size-3.5" />
+						Archived
+					</span>
+					{project.archived_at && <CardTime time={project.archived_at} />}
+				</>
+			}
+			actions={
+				hasProjectManageAction(project) && (
+					<ProjectCardActions
+						project={project}
+						onUnarchive={unarchive}
+						onDelete={onDelete}
+					/>
+				)
+			}
+		/>
+	);
+};
+
+type ProjectCardFrameProps = {
+	readonly project: ChatProject;
+	readonly to: To;
+	/** The footer row, which also describes the card's link. */
+	readonly footer: React.ReactNode;
+	readonly actions: React.ReactNode;
+};
+
+const ProjectCardFrame: React.FC<ProjectCardFrameProps> = ({
+	project,
+	to,
+	footer,
+	actions,
+}) => {
 	const footerId = useId();
 	return (
 		<div className="group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-primary p-4 hover:bg-surface-secondary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link">
@@ -90,67 +195,56 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 				id={footerId}
 				className="mt-auto flex items-center gap-3 text-xs text-content-secondary"
 			>
-				<ActivityLabel summary={summary} />
-				{member_count > 1 ? (
-					<span className="flex shrink-0 items-center gap-1">
-						<UsersIcon aria-hidden="true" className="size-3.5" />
-						<span aria-hidden="true" className="tabular-nums">
-							{compactNumber.format(member_count).toLowerCase()}
-						</span>
-						<span className="sr-only">
-							{member_count.toLocaleString("en-US")} members
-						</span>
-					</span>
-				) : (
-					<span className="flex shrink-0 items-center">
-						<LockIcon aria-hidden="true" className="size-3.5" />
-						<span className="sr-only">Only you</span>
-					</span>
-				)}
-				{last_activity_at && (
-					<time
-						dateTime={last_activity_at}
-						data-pixel="ignore"
-						className="ml-auto shrink-0 tabular-nums"
-					>
-						{shortRelativeTime(last_activity_at)}
-					</time>
-				)}
+				{footer}
 			</div>
 			{/* Follows the link in tab order. */}
-			<ProjectCardActions
-				project={project}
-				pinned={pinned}
-				pinPending={pinPending}
-				onPin={onPin}
-				onUnpin={onUnpin}
-				onEdit={onEdit}
-				onArchive={onArchive}
-				onDelete={onDelete}
-			/>
+			{actions}
 		</div>
 	);
 };
 
-type ProjectCardActionsProps = Omit<ProjectCardProps, "summary" | "to"> & {
+const CardTime: React.FC<{ readonly time: string }> = ({ time }) => (
+	<time
+		dateTime={time}
+		data-pixel="ignore"
+		className="ml-auto shrink-0 tabular-nums"
+	>
+		{shortRelativeTime(time)}
+	</time>
+);
+
+type ProjectCardActionsProps = {
 	readonly project: ChatProject;
-	readonly pinned: boolean;
+	/** The pin button and pin items, which archived projects lack. */
+	readonly pin?: {
+		readonly pinned: boolean;
+		readonly pinPending: boolean;
+		readonly onPin: () => void;
+		readonly onUnpin: () => void;
+	};
+	readonly onEdit?: DialogAction;
+	readonly onArchive?: DialogAction;
+	readonly onUnarchive?: () => void;
+	readonly onDelete: DialogAction;
 };
 
 const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	project,
-	pinned,
-	pinPending,
-	onPin,
-	onUnpin,
+	pin,
 	onEdit,
 	onArchive,
+	onUnarchive,
 	onDelete,
 }) => {
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
-	// Edit, Archive, and Delete open a dialog only once the menu has closed, so the
-	// closing menu cannot take focus back from the dialog.
-	const openPickedDialogRef = useRef<typeof onEdit>(undefined);
+	// Edit, Archive, and Delete open a dialog only once the menu has closed,
+	// so the closing menu cannot take focus back from the dialog.
+	const openPickedDialogRef = useRef<DialogAction>(undefined);
+	const pickDialog = (openDialog: DialogAction | undefined) =>
+		openDialog &&
+		(() => {
+			openPickedDialogRef.current = openDialog;
+		});
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
 			<DropdownMenu>
@@ -179,22 +273,21 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 					<ProjectActionsMenuItems
 						Item={DropdownMenuItem}
 						Separator={DropdownMenuSeparator}
-						onPin={pinned || pinPending ? undefined : onPin}
-						onUnpin={pinned ? onUnpin : undefined}
+						onPin={
+							pin && !pin.pinned && !pin.pinPending ? pin.onPin : undefined
+						}
+						onUnpin={pin?.pinned ? pin.onUnpin : undefined}
 						project={project}
-						onEdit={() => {
-							openPickedDialogRef.current = onEdit;
-						}}
-						onArchive={() => {
-							openPickedDialogRef.current = onArchive;
-						}}
+						onEdit={pickDialog(onEdit)}
+						onArchive={pickDialog(onArchive)}
+						onUnarchive={onUnarchive}
 						onDelete={() => {
 							openPickedDialogRef.current = onDelete;
 						}}
 					/>
 				</DropdownMenuContent>
 			</DropdownMenu>
-			{pinned ? (
+			{pin?.pinned && (
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<Button
@@ -203,7 +296,7 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 							aria-label={`Unpin ${project.name}`}
 							className="group/pin size-7"
 							onClick={() => {
-								onUnpin();
+								pin.onUnpin();
 								// Unpinning removes this button, so focus moves to actions.
 								actionsButtonRef.current?.focus();
 							}}
@@ -216,11 +309,12 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 						Unpin project
 					</TooltipContent>
 				</Tooltip>
-			) : (
+			)}
+			{pin && !pin.pinned && (
 				// Holds the pin's place, so a second click there after unpinning
 				// does not open the actions menu.
 				<span className="flex size-7 items-center justify-center">
-					<Spinner loading={pinPending} label={`Pinning ${project.name}`} />
+					<Spinner loading={pin.pinPending} label={`Pinning ${project.name}`} />
 				</span>
 			)}
 		</div>
