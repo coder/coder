@@ -811,6 +811,7 @@ describe("ProjectDetailsPanel templates", () => {
 		expect(updateProject).not.toHaveBeenCalled();
 
 		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		expect(screen.getByRole("button", { name: /Save/ })).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() =>
 			expect(updateProject).toHaveBeenCalledWith(

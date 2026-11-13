@@ -324,8 +324,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			conflictAlertRef.current?.focus();
 		} else if (pending === "retry" && refreshFailed) {
 			retryButtonRef.current?.focus();
-		} else if (canSave) {
-			// Also covers Save losing focus to a background refresh.
+		} else if (pending !== null || canSave) {
+			// Save stays focusable while it waits. This also covers Save losing
+			// focus to a background refresh.
 			saveButtonRef.current?.focus();
 		}
 	}, [isBusy, hasConflict, refreshFailed, canSave, shownError]);
@@ -466,12 +467,17 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				>
 					<ProjectEditConflictAlert
 						disabled={isSaving}
-						onKeepDraft={() => setBaseTemplates(project.templates)}
+						// The warning unmounts once resolved, so focus moves to Save.
+						onKeepDraft={() => {
+							setBaseTemplates(project.templates);
+							saveButtonRef.current?.focus();
+						}}
 						onLoadLatest={() => {
 							draftVersionRef.current += 1;
 							setBaseTemplates(project.templates);
 							setValue(chatProjectTemplatesValues(project.templates));
 							onResetError();
+							saveButtonRef.current?.focus();
 						}}
 					>
 						Someone else changed these templates while you were editing. Load
