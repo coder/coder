@@ -59,11 +59,10 @@ const CategoryHeader: React.FC<EmojiPickerListCategoryHeaderProps> = ({
 	category,
 	...props
 }) => (
-	<div
-		className="bg-surface-primary px-3 pt-3 pb-1.5 text-xs font-medium text-content-secondary"
-		{...props}
-	>
-		{category.label}
+	<div className="bg-surface-primary px-3 pt-3 pb-1.5" {...props}>
+		<h2 className="m-0 text-xs font-medium text-content-secondary">
+			{category.label}
+		</h2>
 	</div>
 );
 
