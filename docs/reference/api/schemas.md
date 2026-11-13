@@ -12573,6 +12573,140 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendOverview
+
+```json
+{
+  "count": 0,
+  "intervals": [
+    {
+      "end_time": "2019-08-24T14:15:22Z",
+      "spend_micros": 0,
+      "start_time": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "median_spend_micros": 0,
+    "spend_micros": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "groups": [
+        {
+          "group_display_name": "string",
+          "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+          "group_name": "string",
+          "spend_micros": 0
+        }
+      ],
+      "name": "string",
+      "spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                            |
+|----------------|-------------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`        | integer                                                                                               | false    |              | Count is the number of users with spend in the period.                                                                                                                                                                                 |
+| `intervals`    | array of [codersdk.OrganizationAISpendOverviewInterval](#codersdkorganizationaispendoverviewinterval) | false    |              | Intervals holds the daily spend, one interval per UTC day in the period (omitting days after the current day). Days without spend are zero. When the period includes the current day, its interval only has the spend recorded so far. |
+| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                  |
+| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                |
+| `totals`       | [codersdk.OrganizationAISpendOverviewTotals](#codersdkorganizationaispendoverviewtotals)              | false    |              |                                                                                                                                                                                                                                        |
+| `users`        | array of [codersdk.OrganizationAISpendOverviewUser](#codersdkorganizationaispendoverviewuser)         | false    |              | Users is the requested page, most spend first.                                                                                                                                                                                         |
+
+## codersdk.OrganizationAISpendOverviewGroup
+
+```json
+{
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                              |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------|
+| `group_display_name` | string  | false    |              |                                                                          |
+| `group_id`           | string  | false    |              |                                                                          |
+| `group_name`         | string  | false    |              |                                                                          |
+| `spend_micros`       | integer | false    |              | Spend micros is the user's spend attributed to this group in the period. |
+
+## codersdk.OrganizationAISpendOverviewInterval
+
+```json
+{
+  "end_time": "2019-08-24T14:15:22Z",
+  "spend_micros": 0,
+  "start_time": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `end_time`     | string  | false    |              |             |
+| `spend_micros` | integer | false    |              |             |
+| `start_time`   | string  | false    |              |             |
+
+## codersdk.OrganizationAISpendOverviewTotals
+
+```json
+{
+  "median_spend_micros": 0,
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                                       |
+|-----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `median_spend_micros` | integer | false    |              | Median spend micros is the median spend across users with spend in the period. It is zero when no user has spend. |
+| `spend_micros`        | integer | false    |              | Spend micros is the total spend of all users in the period.                                                       |
+
+## codersdk.OrganizationAISpendOverviewUser
+
+```json
+{
+  "avatar_url": "string",
+  "groups": [
+    {
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "spend_micros": 0
+    }
+  ],
+  "name": "string",
+  "spend_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                            | Required | Restrictions | Description                                                                       |
+|----------------|-------------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `avatar_url`   | string                                                                                          | false    |              |                                                                                   |
+| `groups`       | array of [codersdk.OrganizationAISpendOverviewGroup](#codersdkorganizationaispendoverviewgroup) | false    |              | Groups are the groups the user's spend was attributed to, most spend first.       |
+| `name`         | string                                                                                          | false    |              |                                                                                   |
+| `spend_micros` | integer                                                                                         | false    |              | Spend micros is the user's total spend in the period, across all of their groups. |
+| `user_id`      | string                                                                                          | false    |              |                                                                                   |
+| `username`     | string                                                                                          | false    |              |                                                                                   |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
