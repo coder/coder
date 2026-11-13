@@ -869,28 +869,6 @@ func collectSnapshot(
 	return testutil.RequireReceive(ctx, t, deployment), testutil.RequireReceive(ctx, t, snapshot)
 }
 
-// messageSink sends the message of each log entry to a channel and drops it
-// when the channel is full.
-type messageSink chan string
-
-func (s messageSink) LogEntry(_ context.Context, e slog.SinkEntry) {
-	select {
-	case s <- e.Message:
-	default:
-	}
-}
-
-func (messageSink) Sync() {}
-
-func waitForMessage(ctx context.Context, t *testing.T, messages <-chan string, want string) {
-	t.Helper()
-	for {
-		if testutil.RequireReceive(ctx, t, messages) == want {
-			return
-		}
-	}
-}
-
 // TestTelemetry_ReporterOwnsConnectionPool covers a reporter that shares
 // http.DefaultTransport. Any code in the process can close that transport's
 // idle connections, and httptest.Server.Close does. If that happens while
@@ -921,10 +899,10 @@ func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	logs := make(chan string, 64)
+	sink := testutil.NewFakeSink(t)
 	reporter, err := telemetry.New(telemetry.Options{
 		Database:     db,
-		Logger:       testutil.Logger(t).AppendSinks(messageSink(logs)),
+		Logger:       testutil.Logger(t).AppendSinks(sink),
 		URL:          serverURL,
 		DeploymentID: uuid.NewString(),
 	})
@@ -933,10 +911,16 @@ func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 
 	// The response has no body, so the connection is in the idle pool by the
 	// time the first report is logged as submitted.
-	waitForMessage(ctx, t, logs, "submitted snapshot")
+	waitSubmitted := func(n int) {
+		t.Helper()
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "submitted snapshot" })) >= n
+		}, testutil.IntervalFast, "want %d submitted snapshots", n)
+	}
+	waitSubmitted(1)
 	http.DefaultClient.CloseIdleConnections()
 	reporter.Report(&telemetry.Snapshot{})
-	waitForMessage(ctx, t, logs, "submitted snapshot")
+	waitSubmitted(2)
 	require.EqualValues(t, 1, newConns.Load(), "the reporter must reuse its connection")
 
 	reporter.Close()
