@@ -5,9 +5,7 @@ type ProjectEditConflictAlertProps = {
 	/** Explains what changed and what each action does. */
 	readonly children: React.ReactNode;
 	readonly disabled: boolean;
-	/** Keeps the draft and lets Save replace the newer change. */
 	readonly onKeepDraft: () => void;
-	/** Replaces the draft with the newer change. */
 	readonly onLoadLatest: () => void;
 	readonly loadLatestButtonRef?: React.Ref<HTMLButtonElement>;
 };

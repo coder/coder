@@ -107,6 +107,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [baseTemplates, setBaseTemplates] = useState(project.templates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
+	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
+	const isBusy = isSaving || isCheckingBeforeSave;
+	// A rejected save no longer applies once the draft follows newer
+	// templates, so its error is hidden.
+	const [dismissedError, setDismissedError] = useState<unknown>();
+	const shownError = error === dismissedError ? undefined : error;
 	// Templates are shared by every editor of the project, so refresh them
 	// on open and when the tab regains focus to detect changes made elsewhere.
 	const projectsQuery = useQuery({
@@ -119,6 +125,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		isDraftUntouched &&
 		serializeTemplates(project.templates) !== serializeTemplates(baseTemplates)
 	) {
+		setDismissedError(error);
 		setBaseTemplates(project.templates);
 		setValue(chatProjectTemplatesValues(project.templates));
 	}
@@ -214,7 +221,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!hasConflict &&
 		!refreshFailed &&
 		!projectsQuery.isFetching &&
-		!isSaving;
+		!isBusy;
 
 	return (
 		<form
@@ -227,7 +234,11 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				// A change saved elsewhere since the last refresh would otherwise
 				// be overwritten, so check first. A newer save shows the conflict
 				// warning instead.
+				// The draft is frozen until the check ends, so the request
+				// still matches what the user sees.
+				setIsCheckingBeforeSave(true);
 				const refreshed = await projectsQuery.refetch();
+				setIsCheckingBeforeSave(false);
 				const latest = refreshed.data?.find(({ id }) => id === project.id);
 				const serializedLatest = latest && serializeTemplates(latest.templates);
 				if (
@@ -247,15 +258,15 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			<ChatProjectTemplatesFields
 				templates={eligibleTemplates}
 				templatesError={templatesQuery.error}
-				saveError={templatesValidationDetail(error)}
+				saveError={templatesValidationDetail(shownError)}
 				value={formValue}
 				onChange={(next) => {
 					setValue(next);
-					if (error) {
+					if (shownError) {
 						onResetError();
 					}
 				}}
-				disabled={isSaving}
+				disabled={isBusy}
 			/>
 			{(droppedTemplateCount > 0 ||
 				hasStalePreset ||
@@ -313,7 +324,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			)}
 			{hasConflict && (
 				<ProjectEditConflictAlert
-					disabled={isSaving}
+					disabled={isBusy}
 					onKeepDraft={() => setBaseTemplates(project.templates)}
 					onLoadLatest={() => {
 						setBaseTemplates(project.templates);
@@ -325,20 +336,20 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					latest templates, or keep your draft to replace them.
 				</ProjectEditConflictAlert>
 			)}
-			{Boolean(error) && !isApiValidationError(error) && (
-				<ErrorAlert error={error} showDebugDetail={false} />
+			{Boolean(shownError) && !isApiValidationError(shownError) && (
+				<ErrorAlert error={shownError} showDebugDetail={false} />
 			)}
 			<DialogFooter>
 				<Button
 					type="button"
 					variant="outline"
-					disabled={isSaving}
+					disabled={isBusy}
 					onClick={onCancel}
 				>
 					Cancel
 				</Button>
 				<Button type="submit" disabled={!canSave}>
-					<Spinner loading={isSaving} />
+					<Spinner loading={isBusy} />
 					Save
 				</Button>
 			</DialogFooter>

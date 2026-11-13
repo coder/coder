@@ -306,4 +306,18 @@ describe("ProjectTemplatesDialog", () => {
 
 		await waitFor(() => expect(props.onSave).toHaveBeenCalledWith(templates));
 	});
+
+	it("freezes the draft while it checks for newer templates before saving", async () => {
+		const { user } = renderDialog();
+		const getProjects = vi.mocked(API.experimental.getChatProjects);
+		const selectAll = await screen.findByRole("button", { name: "Select all" });
+		await user.click(selectAll);
+		const save = screen.getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		getProjects.mockReturnValue(new Promise(() => {}));
+
+		await user.click(save);
+
+		await waitFor(() => expect(selectAll).toBeDisabled());
+	});
 });

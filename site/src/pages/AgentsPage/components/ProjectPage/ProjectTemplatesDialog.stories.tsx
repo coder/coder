@@ -282,7 +282,6 @@ export const Conflict: Story = {
 	},
 };
 
-/** The saved default preset is not in the template's active version. */
 export const StaleDefaultPreset: Story = {
 	args: {
 		project: {
@@ -296,7 +295,6 @@ export const StaleDefaultPreset: Story = {
 	parameters: DefaultPreset.parameters,
 };
 
-/** One saved template is no longer available to agents. */
 export const IneligibleTemplate: Story = {
 	args: {
 		project: {
@@ -308,7 +306,6 @@ export const IneligibleTemplate: Story = {
 	},
 };
 
-/** The dialog could not refresh the project, so saving is paused. */
 export const ProjectRefreshError: Story = {
 	parameters: {
 		queries: [
@@ -328,7 +325,6 @@ export const ProjectRefreshError: Story = {
 	},
 };
 
-/** The default template is no longer available to agents. */
 export const IneligibleDefaultTemplate: Story = {
 	args: {
 		project: {
@@ -341,7 +337,6 @@ export const IneligibleDefaultTemplate: Story = {
 	},
 };
 
-/** A parameter's default was saved as an empty value through the API. */
 export const SavedEmptyParameter: Story = {
 	args: {
 		project: {
@@ -353,4 +348,35 @@ export const SavedEmptyParameter: Story = {
 		},
 	},
 	parameters: DefaultParameters.parameters,
+};
+
+export const RemovedClassicParameter: Story = {
+	args: {
+		project: {
+			...projectWithDefaultParameters,
+			templates: {
+				...projectWithDefaultParameters.templates,
+				default_parameters: {
+					[MockTemplateVersionParameter1.name]: "custom",
+					removed_parameter: "gone",
+				},
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				data: [
+					{ ...dockerTemplate, use_classic_parameter_flow: true },
+					kubernetesTemplate,
+				],
+			},
+			{
+				key: richParametersKey(dockerTemplate.active_version_id),
+				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+			},
+		],
+	},
 };
