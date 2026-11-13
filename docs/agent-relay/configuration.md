@@ -303,6 +303,8 @@ Must be positive.
 
 - If a build is still pending or starting after the longer of this grace and the pool's `dispatch_deadline`, the reaper deletes the workspace.
 - A workspace where the build succeeded but the worker still reports no status, or `pending`, fails after this grace.
+  In Agent Relay v0.16.0 or later, a workspace whose agent reports that startup scripts failed or timed out fails sooner, about a minute after the agent reports it.
+  Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 - A short grace can fail workspaces where the agent connects slowly or the worker starts slowly.
   Unless you run an isolated test deployment, keep the default.
 - When the template orders the worker after setup scripts, this is the budget those scripts share with the build.

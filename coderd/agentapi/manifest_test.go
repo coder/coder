@@ -345,6 +345,7 @@ func TestGetManifest(t *testing.T) {
 			},
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
+			AgentPluginsEnabled:      true,
 
 			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
 			WorkspaceID:      workspace.ID,
@@ -384,6 +385,7 @@ func TestGetManifest(t *testing.T) {
 			MotdPath:                 agent.MOTDFile,
 			DisableDirectConnections: true,
 			DerpForceWebsockets:      true,
+			AgentPluginsEnabled:      true,
 			// tailnet.DERPMapToProto() is extensively tested elsewhere, so it's
 			// not necessary to manually recreate a big DERP map here like we
 			// did for apps and metadata.

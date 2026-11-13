@@ -319,7 +319,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 												>
 													<span className="absolute right-2 top-2 flex items-center justify-center">
 														<SelectPrimitive.ItemIndicator>
-															<CheckIcon className="size-icon-sm" />
+															<CheckIcon className="size-icon-sm text-content-primary" />
 														</SelectPrimitive.ItemIndicator>
 													</span>
 													<div className="flex flex-col py-0.5">
