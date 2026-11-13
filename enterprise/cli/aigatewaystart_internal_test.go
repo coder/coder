@@ -421,10 +421,30 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	}()
 	testutil.RequireReceive(testCtx, t, handlerStarted)
 
+	// Trap each shutdown timer so the test can inspect the gateway while serve
+	// is paused at the start of that phase.
+	provReloadTrap := mClock.Trap().AfterFunc("aigateway", "provider_reload_shutdown")
+	defer provReloadTrap.Close()
+	httpShutdownTrap := mClock.Trap().AfterFunc("aigateway", "http_shutdown")
+	defer httpShutdownTrap.Close()
+
 	// Trigger shutdown after the initial load enters the provider watch loop.
 	cancelServe()
-	testutil.RequireReceive(testCtx, t, httpShutdownStarted)
+
+	// Phase 1: provider reload is stopping. HTTP draining has not started.
+	provReloadCall := provReloadTrap.MustWait(testCtx)
+	require.Empty(t, httpShutdownStarted, "HTTP draining must not start before provider reload stops")
+	require.False(t, gateway.listenerClosed.Load(), "HTTP listener must remain open while provider reload stops")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open while provider reload stops")
+	provReloadCall.MustRelease(testCtx)
+
+	// Phase 2: provider reload has stopped and HTTP draining is about to start.
+	httpShutdownCall := httpShutdownTrap.MustWait(testCtx)
 	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before HTTP draining")
+	require.Empty(t, httpShutdownStarted, "HTTP draining must start only after its timeout is armed")
+	httpShutdownCall.MustRelease(testCtx)
+
+	testutil.RequireReceive(testCtx, t, httpShutdownStarted)
 	require.False(t, gateway.listenerClosed.Load(), "HTTP listener must remain open while requests drain")
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open while requests drain")
 
