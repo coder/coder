@@ -3367,6 +3367,10 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	// The provider cache is keyed on the file contents. mainTfTemplate holds
 	// a temporary path that is new on every run, so it would never find the
 	// cached providers.
+	//
+	// List every provider mainTfTemplate uses, including ones it only uses
+	// through a resource, like local for local_file. Terraform can only
+	// install the providers listed here, so a missing one fails the import.
 	tfCliConfigPath := downloadProviders(t, `
 		terraform {
 			required_providers {
