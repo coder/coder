@@ -9,11 +9,63 @@
 import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
 	menuContentClass,
 	menuItemClass,
 	menuSeparatorClass,
 } from "./menuClasses";
+
+/**
+ * Blocks the page below popovers and dialogs while a non-modal menu is open,
+ * so the press that dismisses the menu does not reach the element under it.
+ * Not a React portal, so ancestor popovers see presses on it as outside.
+ */
+const useOutsideClickCatcher = (active: boolean) => {
+	useEffect(() => {
+		if (!active) {
+			return;
+		}
+		const catcher = document.createElement("div");
+		catcher.className = "fixed inset-0 z-49";
+		catcher.dataset.testid = "dropdown-menu-click-catcher";
+
+		let pressed = false;
+		let closed = false;
+
+		const onPointerDown = (event: PointerEvent) => {
+			if (event.button !== 0) {
+				return;
+			}
+			pressed = true;
+			// Keeps the click on the catcher if the pointer is released elsewhere.
+			catcher.setPointerCapture(event.pointerId);
+		};
+		// Touch hit-tests a tap on release, so outlive the menu until the
+		// press that closed it ends.
+		const onPressEnd = () => {
+			pressed = false;
+			if (closed) {
+				catcher.remove();
+			}
+		};
+
+		catcher.addEventListener("pointerdown", onPointerDown);
+		catcher.addEventListener("click", onPressEnd);
+		catcher.addEventListener("pointercancel", onPressEnd);
+		document.body.append(catcher);
+
+		return () => {
+			closed = true;
+			if (!pressed) {
+				catcher.remove();
+			}
+		};
+	}, [active]);
+};
+
+const TriggerRefContext =
+	createContext<React.RefObject<HTMLButtonElement | null> | null>(null);
 
 /**
  * Non-modal by default: a modal menu sets `aria-hidden` on the rest of the
@@ -22,45 +74,60 @@ import {
  */
 export const DropdownMenu: React.FC<
 	React.ComponentProps<typeof DropdownMenuPrimitive.Root>
-> = ({ modal = false, ...props }) => {
-	return <DropdownMenuPrimitive.Root modal={modal} {...props} />;
+> = ({
+	modal = false,
+	open: openProp,
+	defaultOpen = false,
+	onOpenChange,
+	...props
+}) => {
+	const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+	const open = openProp ?? uncontrolledOpen;
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	useOutsideClickCatcher(open && !modal);
+	return (
+		<TriggerRefContext value={triggerRef}>
+			<DropdownMenuPrimitive.Root
+				modal={modal}
+				open={open}
+				onOpenChange={(next) => {
+					setUncontrolledOpen(next);
+					onOpenChange?.(next);
+				}}
+				{...props}
+			/>
+		</TriggerRefContext>
+	);
 };
 
-export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+export const DropdownMenuTrigger: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>
+> = ({ onPointerDown, onKeyDown, ...props }) => {
+	const triggerRef = useContext(TriggerRefContext);
+	// Records the trigger on the interactions that open the menu.
+	const record = (event: React.SyntheticEvent<HTMLButtonElement>) => {
+		if (triggerRef) {
+			triggerRef.current = event.currentTarget;
+		}
+	};
+	return (
+		<DropdownMenuPrimitive.Trigger
+			onPointerDown={(event) => {
+				record(event);
+				onPointerDown?.(event);
+			}}
+			onKeyDown={(event) => {
+				record(event);
+				onKeyDown?.(event);
+			}}
+			{...props}
+		/>
+	);
+};
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 const DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
-
-/**
- * Stops the click that ends a press, so dismissing a non-modal menu does not
- * also activate what is under the pointer, such as a clickable table row.
- */
-const swallowNextClick = (doc: Document) => {
-	// A press that never becomes a click, such as a right click or a touch
-	// scroll, must not swallow a later click.
-	const endEvents = [
-		"pointerdown",
-		"pointercancel",
-		"contextmenu",
-		"keydown",
-	] as const;
-	const release = () => {
-		doc.removeEventListener("click", swallow, true);
-		for (const type of endEvents) {
-			doc.removeEventListener(type, release, true);
-		}
-	};
-	const swallow = (event: MouseEvent) => {
-		event.preventDefault();
-		event.stopPropagation();
-		release();
-	};
-	doc.addEventListener("click", swallow, true);
-	for (const type of endEvents) {
-		doc.addEventListener(type, release, true);
-	}
-};
 
 export const DropdownMenuContent: React.FC<
 	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
@@ -68,29 +135,24 @@ export const DropdownMenuContent: React.FC<
 	className,
 	sideOffset = 4,
 	onFocusOutside,
-	onPointerDownOutside,
+	onCloseAutoFocus,
 	...props
 }) => {
+	const triggerRef = useContext(TriggerRefContext);
 	return (
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Content
 				sideOffset={sideOffset}
 				className={cn(menuContentClass, className)}
-				onPointerDownOutside={(event) => {
-					onPointerDownOutside?.(event);
-					const { target } = event.detail.originalEvent;
-					const doc = target instanceof Node ? target.ownerDocument : null;
-					if (event.defaultPrevented || !(target instanceof Node) || !doc) {
-						return;
-					}
-					// A dialog or popover the press lands outside dismisses on the same
-					// click, and Radix keeps it open when that click is stopped.
+				// A press on the click catcher leaves focus on the body. Return it to
+				// the trigger, as a modal menu does.
+				onCloseAutoFocus={(event) => {
+					onCloseAutoFocus?.(event);
 					if (
-						[...doc.querySelectorAll(DIALOG_SELECTOR)].every((dialog) =>
-							dialog.contains(target),
-						)
+						!event.defaultPrevented &&
+						document.activeElement === document.body
 					) {
-						swallowNextClick(doc);
+						triggerRef?.current?.focus();
 					}
 				}}
 				// An item that opens a dialog moves focus into it. Keep that from
