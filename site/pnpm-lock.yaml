@@ -258,8 +258,8 @@ importers:
         specifier: 1.1.1
         version: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       cn:
-        specifier: 0.3.2
-        version: 0.3.2
+        specifier: 0.5.0
+        version: 0.5.0
       color-convert:
         specifier: 2.0.1
         version: 2.0.1
@@ -3985,14 +3985,14 @@ packages:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
-  cn@0.3.2:
-    resolution: {integrity: sha512-RKzY5Edavc8B2Ka6tjJecKFC4nm0p7lADY72xzICmiJSf4TkaxWXt0fHsib2P2G4FkFyXfSDi9oDtIBuCZvY2g==, tarball: https://registry.npmjs.org/cn/-/cn-0.3.2.tgz}
-    engines: {node: '>=20'}
-    hasBin: true
-
   cn@0.4.0:
     resolution: {integrity: sha512-qOAeUhPwPzBxx6jaeQdo646XIKliKHc2j1ZF7Ngb1o0pJZKH5gq8FkA0aVdUdPFUDXNXyUCXpCtoJISo6dhizg==, tarball: https://registry.npmjs.org/cn/-/cn-0.4.0.tgz}
     engines: {node: '>=20'}
+    hasBin: true
+
+  cn@0.5.0:
+    resolution: {integrity: sha512-JGEixZEpfFXm1P5uXwvEobOFLlHwIWi5v4tjd1ZwfiYmcEilkuD2l+054rvJcYCR1B+uVThHeUbgmNz1FwuxuA==, tarball: https://registry.npmjs.org/cn/-/cn-0.5.0.tgz}
+    engines: {node: '>=22'}
     hasBin: true
 
   color-convert@2.0.1:
@@ -10251,9 +10251,9 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
-  cn@0.3.2: {}
-
   cn@0.4.0: {}
+
+  cn@0.5.0: {}
 
   color-convert@2.0.1:
     dependencies:
