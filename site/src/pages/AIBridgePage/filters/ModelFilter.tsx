@@ -4,8 +4,17 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "#/components/Filter/menu";
-import { SelectFilter } from "#/components/Filter/SelectFilter";
+import {
+	SelectFilter,
+	type SelectFilterOption,
+} from "#/components/Filter/SelectFilter";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
+
+const toFilterOption = (model: string): SelectFilterOption => ({
+	label: model,
+	value: model,
+	startIcon: <AIBridgeModelIcon model={model} className="size-icon-sm" />,
+});
 
 export const useModelFilterMenu = ({
 	value,
@@ -14,35 +23,15 @@ export const useModelFilterMenu = ({
 }: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
 	return useFilterMenu({
 		id: "model",
-		getSelectedOption: async () => {
-			const modelsRes = await API.getAIBridgeModels({
-				model: value,
-				limit: 1,
-			});
-			const firstModel = modelsRes.at(0);
-
-			if (firstModel && firstModel === value) {
-				return {
-					label: firstModel,
-					value: firstModel,
-					startIcon: (
-						<AIBridgeModelIcon model={firstModel} className="size-icon-sm" />
-					),
-				};
-			}
-
-			return null;
-		},
+		// The search matches substrings, so a request cannot single out the
+		// selected model. Its identifier is all that the option shows.
+		getSelectedOption: async () => (value ? toFilterOption(value) : null),
 		getOptions: async (query) => {
 			const modelsRes = await API.getAIBridgeModels({
 				model: query,
 				limit: 25,
 			});
-			return modelsRes.map((model) => ({
-				label: model,
-				value: model,
-				startIcon: <AIBridgeModelIcon model={model} className="size-icon-sm" />,
-			}));
+			return modelsRes.map(toFilterOption);
 		},
 		value,
 		onChange,
