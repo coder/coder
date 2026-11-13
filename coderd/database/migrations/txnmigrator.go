@@ -127,6 +127,7 @@ func (d *pgTxnDriver) runStatement(statement []byte) error {
 		return nil
 	}
 	if _, err := d.tx.ExecContext(ctx, query); err != nil {
+		d.reporter.statementFailed(err)
 		var pgErr *pq.Error
 		if xerrors.As(err, &pgErr) {
 			var line uint

@@ -183,17 +183,13 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 	}()
 
 	err = m.Up()
-	r.close()
-	if err != nil {
-		if errors.Is(err, migrate.ErrNoChange) {
-			// It's OK if no changes happened!
-			return nil
-		}
-
-		return xerrors.Errorf("up: %w", err)
+	if errors.Is(err, migrate.ErrNoChange) {
+		// It's OK if no changes happened!
+		err = nil
 	}
 
-	return nil
+	_, err = r.finish(err)
+	return err
 }
 
 // Down runs all down SQL migrations.
