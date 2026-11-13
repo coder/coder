@@ -806,17 +806,20 @@ func TestDeleteAndPurgeLockChatsInIDOrder(t *testing.T) {
 	low := f.chatWith(t, ids[0], database.ChatStatusError)
 	between := f.chatWith(t, ids[1], database.ChatStatusError)
 	high := f.chatWith(t, ids[2], database.ChatStatusError)
-	// The higher chat is written first and is the older one, so a purge
-	// that follows the table or the age of the chats meets it first.
+	automation := f.automation(t, between)
+	for _, chat := range []database.Chat{low, between, high} {
+		queue(ctx, t, sqlDB, chat.ID, automation.ID)
+	}
+	// The higher chat is written last but one and is the older one, so a
+	// purge that follows the table or the age of the chats meets it first.
 	for i, id := range []uuid.UUID{high.ID, low.ID} {
 		_, err := sqlDB.ExecContext(ctx, `UPDATE chats SET archived = true, updated_at = now() - make_interval(days => $2)
 			WHERE id = $1`, id, 2-i)
 		require.NoError(t, err)
 	}
-	automation := f.automation(t, between)
-	for _, chat := range []database.Chat{low, between, high} {
-		queue(ctx, t, sqlDB, chat.ID, automation.ID)
-	}
+	var firstInTable uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT id FROM chats WHERE archived ORDER BY ctid LIMIT 1`).Scan(&firstInTable))
+	require.Equal(t, high.ID, firstInTable, "the table holds the higher chat first")
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, f.owner.ID, rbac.ScopeAll)
 	require.NoError(t, err)
 	waiting := func(want int) func(context.Context) bool {
