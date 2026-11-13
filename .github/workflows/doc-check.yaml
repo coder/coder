@@ -5,7 +5,8 @@
 # Triggers:
 #   - New PR opened: Initial documentation review
 #   - PR updated (synchronize): Re-review after changes
-#   - Label "doc-check" added: Manual trigger for review
+#   - Label "doc-check" added: Review now, and on every later push until
+#     the label is removed
 #   - PR marked ready for review: Review when draft is promoted
 #   - PR merged (closed with merged == true): Delete the review workspace
 #   - Workflow dispatch: Manual run with PR URL
@@ -53,12 +54,21 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    # Runs for one PR share its review workspace. Queue them, so one run
-    # cannot stop or delete the workspace while another run reviews in it.
+    # Runs for one PR share its review chat and workspace, so any new run in
+    # the group cancels the one in progress, and the cancelled run's last
+    # step stops that review before the new run starts. The key is the PR
+    # URL, so a manual run and a pull request run for one PR share the group;
+    # workflow_dispatch validates pr_url to the same
+    # https://github.com/<owner>/<repo>/pull/<number> form. A push therefore
+    # cancels a manual run too, and on a PR whose changed files all skip
+    # review, the push run then skips; dispatch again after the push, or add
+    # the doc-check label.
     concurrency:
-      group: doc-check-${{ github.event.pull_request.number || inputs.pr_url }}
-      cancel-in-progress: false
-    timeout-minutes: 50
+      group: doc-check-${{ github.event.pull_request.html_url || inputs.pr_url }}
+      cancel-in-progress: true
+    # Covers the wait set by wait-timeout-seconds, setup, and both cleanup
+    # steps.
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: write
@@ -147,6 +157,8 @@ jobs:
               # though it sits under .github.
               - ".github/workflows/ci.yaml"
               - ".github/workflows/doc-check.yaml"
+              - ".github/scripts/doc-check-stop-review.sh"
+              - ".github/scripts/doc-check-stop-review.test.sh"
               - ".github/workflows/deploy-docs.yaml"
               - ".github/workflows/docs-preview.yaml"
               - ".github/workflows/audit-docs-paths.yaml"
@@ -160,8 +172,10 @@ jobs:
         id: check-paths
         env:
           # The doc-check label and a manual dispatch always force a review, so
-          # any skip below stays overridable from the pull request.
-          FORCED: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'doc-check' }}
+          # any skip below stays overridable from the pull request. The label
+          # keeps forcing reviews on later pushes, because a push cancels the
+          # labeled run in progress.
+          FORCED: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'doc-check') }}
           ALL_COUNT: ${{ steps.filter.outputs.all_count }}
           NODOCS_COUNT: ${{ steps.filter.outputs.nodocs_count }}
           CI_DOCS_COUNT: ${{ steps.filter.outputs.ci_docs_count }}
@@ -186,7 +200,7 @@ jobs:
               echo ""
               echo "All ${ALL_COUNT} changed file(s) are in path classes with no documentation surface, so no review ran."
               echo ""
-              echo "Add the \`doc-check\` label to review anyway."
+              echo "Add the \`doc-check\` label to review this push and every later push until the label is removed."
             } >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "skip=false" >> "${GITHUB_OUTPUT}"
@@ -248,6 +262,32 @@ jobs:
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
           fi
+
+      - name: Check out doc-check-stop-review.sh
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
+        id: checkout-scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      # A review still running from an earlier run would hold the PR's chat,
+      # so the new prompt would queue behind it, and its workspace may hold a
+      # GitHub token past its one-hour expiry. Stop both, so the next step
+      # starts the workspace fresh.
+      - name: Stop the previous review and its workspace
+        if: steps.checkout-scripts.outcome == 'success'
+        # The script starts no poll after its STOP_BUDGET_SECONDS (270 by
+        # default), inside the 5 minutes GitHub gives an always() step after
+        # a cancel. A sweep can run past the budget on a slow deployment,
+        # and this limit stops a script that hangs.
+        timeout-minutes: 6
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+        run: ./.github/scripts/doc-check-stop-review.sh
 
       - name: Prepare the review workspace
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
@@ -439,9 +479,8 @@ jobs:
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: doc-check
-        # A wait timeout is not a failed review: the chat keeps running in
-        # Coder and posts its own comment. The next step fails the job for
-        # every other error.
+        # Continue so the stop step below can read this step's outputs. The
+        # last step fails the job when this step failed.
         continue-on-error: true
         uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
@@ -463,52 +502,53 @@ jobs:
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
           wait: complete
-          # The chat keeps running in Coder after this job stops watching.
-          # When this wait runs out, the job ends with a notice, not a
-          # failure. When the local model is busy, a review takes longer
-          # than 40 minutes.
-          wait-timeout-seconds: "2400"
+          # A review that runs past this stops in the last step and fails the
+          # job. On the local model, a review whose steps are not slowed by
+          # load is estimated at a median of about 13 minutes, at 15 seconds
+          # a step plus its measured tool time.
+          wait-timeout-seconds: "1500"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"
 
-      - name: Report a review that is still running
+      # Nothing may keep generating on the shared model once this job stops
+      # watching: not a review past the wait, and not one whose run was
+      # cancelled by a newer push. Stop the review and its workspace after
+      # every run. The next run starts the workspace again.
+      - name: Stop the review and its workspace
+        if: always() && steps.checkout-scripts.outcome == 'success'
+        # Sized like the timeout on "Stop the previous review and its
+        # workspace" above.
+        timeout-minutes: 6
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          CHAT_ERROR_KIND: ${{ steps.doc-check.outputs.chat-error-kind }}
+        run: |
+          ./.github/scripts/doc-check-stop-review.sh
+          if [[ "${CHAT_ERROR_KIND}" == "timeout" ]]; then
+            {
+              echo "### Documentation check stopped"
+              echo ""
+              echo "The review did not finish in time, so this job tried to stop it. A warning from this step means the review or its workspace may still be running in Coder."
+              echo ""
+              echo "Re-run this job or push a commit to start a new review."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      # The review is stopped by the step above, so a failed review, a wait
+      # timeout included, fails the job. The wait step continues on error so
+      # that the stop step reads its outputs first.
+      - name: Fail the job if the review failed
         if: always() && steps.doc-check.outcome == 'failure'
         env:
           ERROR_KIND: ${{ steps.doc-check.outputs.chat-error-kind }}
           CHAT_STATUS: ${{ steps.doc-check.outputs.chat-status }}
-          CHAT_ID: ${{ steps.doc-check.outputs.chat-id }}
         run: |
-          if [[ "${ERROR_KIND}" == "timeout" && ( "${CHAT_STATUS}" == "running" || "${CHAT_STATUS}" == "pending" ) ]]; then
-            echo "::notice::The doc-check review is still running in chat ${CHAT_ID}. It posts its result on the PR when it finishes."
-            exit 0
-          fi
-          echo "::error::doc-check failed (${ERROR_KIND:-unknown}, chat status '${CHAT_STATUS:-unknown}'). See the step above."
+          echo "::error::doc-check failed (${ERROR_KIND:-unknown}, chat status '${CHAT_STATUS:-unknown}'). See the doc-check step above."
           exit 1
-
-      # A review workspace left running until autostop holds its share of the
-      # host, and enough of them at once overload it. Stop it once the chat is
-      # done; the next run starts it again. Skip when the wait timed out,
-      # because the chat is still working in the workspace.
-      - name: Stop the review workspace
-        if: |
-          always() &&
-          steps.doc-check.outputs.workspace-id != '' &&
-          contains(fromJSON('["waiting", "completed", "error"]'), steps.doc-check.outputs.chat-status)
-        env:
-          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
-          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
-          WORKSPACE_ID: ${{ steps.doc-check.outputs.workspace-id }}
-        run: |
-          curl -sS --fail-with-body -X POST \
-            -H "Coder-Session-Token: ${CODER_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"transition":"stop"}' \
-            "${CODER_URL%/}/api/v2/workspaces/${WORKSPACE_ID}/builds" > /dev/null || {
-              echo "::warning::Could not stop workspace ${WORKSPACE_ID}. It stops at its autostop deadline instead."
-              exit 0
-            }
-          echo "Stopped workspace ${WORKSPACE_ID}."
 
   # Delete the review workspace once its PR merges. A PR closed without
   # merging keeps its workspace, because stale PRs get closed and reopened
@@ -522,7 +562,7 @@ jobs:
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository
     concurrency:
-      group: doc-check-${{ github.event.pull_request.number }}
+      group: doc-check-${{ github.event.pull_request.html_url }}
       cancel-in-progress: false
     timeout-minutes: 5
     permissions: {}
