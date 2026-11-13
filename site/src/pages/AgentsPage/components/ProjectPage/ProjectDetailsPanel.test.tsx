@@ -822,7 +822,6 @@ describe("ProjectDetailsPanel templates", () => {
 			templates: { template_ids: [kubernetesTemplate.id] },
 		});
 		await user.click(screen.getByRole("button", { name: "Load latest" }));
-		// Removes Kubernetes, the only template in the latest save.
 		await user.click(screen.getByRole("combobox", { name: "Templates" }));
 		await user.keyboard("{Backspace}");
 		await user.click(screen.getByRole("button", { name: "Save" }));
