@@ -23,9 +23,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// mergedPRTTL is the expected value of gitsync's private mergedDiffStatusTTL.
-const mergedPRTTL = time.Hour
-
 // mockProvider implements gitprovider.Provider with function fields
 // so each test can wire only the methods it needs. Any method left
 // nil panics with "unexpected call".
@@ -534,7 +531,7 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 			name:         "merged",
 			storedState:  gitprovider.PRStateOpen,
 			fetchedState: gitprovider.PRStateMerged,
-			wantTTL:      mergedPRTTL,
+			wantTTL:      gitsync.MergedDiffStatusTTL,
 		},
 	}
 
@@ -891,14 +888,14 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			headBranch:  "feature-b",
 			wantURL:     "https://github.com/org/repo/pull/42",
 			wantResolve: false,
-			wantTTL:     mergedPRTTL,
+			wantTTL:     gitsync.MergedDiffStatusTTL,
 		},
 		{
 			name:        "empty head branch keeps stored URL",
 			headBranch:  "",
 			wantURL:     "https://github.com/org/repo/pull/42",
 			wantResolve: false,
-			wantTTL:     mergedPRTTL,
+			wantTTL:     gitsync.MergedDiffStatusTTL,
 		},
 	}
 

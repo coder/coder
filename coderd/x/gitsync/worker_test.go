@@ -1297,7 +1297,7 @@ func TestWorker_MarkStaleRefreshesMergedPR(t *testing.T) {
 		PullRequestState: sql.NullString{String: string(gitprovider.PRStateMerged), Valid: true},
 		PullRequestTitle: "Original title",
 		RefreshedAt:      now,
-		StaleAt:          now.Add(mergedPRTTL),
+		StaleAt:          now.Add(gitsync.MergedDiffStatusTTL),
 	})
 	require.NoError(t, err)
 
@@ -1353,7 +1353,7 @@ func TestWorker_MarkStaleRefreshesMergedPR(t *testing.T) {
 	require.Len(t, statuses, 1)
 	assert.Equal(t, "Updated title", statuses[0].PullRequestTitle)
 	assert.Equal(t, mClock.Now(), statuses[0].RefreshedAt.Time.UTC())
-	assert.Equal(t, mClock.Now().Add(mergedPRTTL), statuses[0].StaleAt.UTC())
+	assert.Equal(t, mClock.Now().Add(gitsync.MergedDiffStatusTTL), statuses[0].StaleAt.UTC())
 	require.Equal(t, wantPublishes, publishCount.Load())
 }
 
