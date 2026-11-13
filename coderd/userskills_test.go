@@ -241,6 +241,14 @@ func TestSkillFrontmatterDisablesModelInvocation(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, edited.ModelInvocable)
 
+			// disable-model-invocation: false turns automatic use back on.
+			reenabled, err := owner.update(ctx, "manual", codersdk.UpdateSkillRequest{
+				Content: ptr.Ref(strings.Replace(withKey("manual", "Edited."), ": true", ": false", 1)),
+			})
+			require.NoError(t, err)
+			assert.True(t, reenabled.ModelInvocable)
+			assert.Equal(t, withoutKey("manual", "Edited."), reenabled.Content)
+
 			automatic, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withoutKey("automatic", "Body.")})
 			require.NoError(t, err)
 			require.True(t, automatic.ModelInvocable)

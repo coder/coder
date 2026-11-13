@@ -82,7 +82,7 @@ describe("SkillsTable row menu dialogs", () => {
 });
 
 describe("SkillsTable download", () => {
-	it("marks a downloaded manual-only skill so re-importing keeps it manual", async () => {
+	it("marks a downloaded manual-only skill as manual-only", async () => {
 		vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
 			...mockReviewSkill,
 			model_invocable: false,

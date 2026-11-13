@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/skills"
 )
 
@@ -324,10 +325,10 @@ func TestRemoveDisableModelInvocation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		raw          string
-		wantContent  string
-		wantDisabled bool
+		name        string
+		raw         string
+		wantContent string
+		wantDisable *bool
 	}{
 		{
 			name:        "Absent",
@@ -335,28 +336,28 @@ func TestRemoveDisableModelInvocation(t *testing.T) {
 			wantContent: "---\nname: my-skill\n---\nBody.\n",
 		},
 		{
-			name:         "True",
-			raw:          "---\nname: my-skill\ndisable-model-invocation: true\ndescription: Does a thing\n---\nBody.\n",
-			wantContent:  "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
-			wantDisabled: true,
+			name:        "True",
+			raw:         "---\nname: my-skill\ndisable-model-invocation: true\ndescription: Does a thing\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
 		},
 		{
-			name:        "FalseIsRemoved",
+			name:        "False",
 			raw:         "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
 			wantContent: "---\nname: my-skill\n---\nBody.\n",
+			wantDisable: ptr.Ref(false),
 		},
 		{
-			// Only the YAML boolean true counts, matching the browser
-			// import.
+			// Only YAML booleans count, matching the browser import.
 			name:        "StringIsIgnoredAndRemoved",
 			raw:         "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
 			wantContent: "---\nname: my-skill\n---\nBody.\n",
 		},
 		{
-			name:         "CRLFAndBOM",
-			raw:          "\xef\xbb\xbf---\r\nname: my-skill\r\ndisable-model-invocation: true\r\n---\r\nBody.\r\n",
-			wantContent:  "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
-			wantDisabled: true,
+			name:        "CRLFAndBOM",
+			raw:         "\xef\xbb\xbf---\r\nname: my-skill\r\ndisable-model-invocation: true\r\n---\r\nBody.\r\n",
+			wantContent: "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
+			wantDisable: ptr.Ref(true),
 		},
 		{
 			name:        "MultiLineValue",
@@ -369,21 +370,53 @@ func TestRemoveDisableModelInvocation(t *testing.T) {
 			wantContent: "---\nname: my-skill\n---\ndisable-model-invocation: true\n",
 		},
 		{
-			// A quoted key cannot be removed line by line, so the content
-			// stays as uploaded while the setting still applies.
-			name:         "QuotedKeyIsKept",
-			raw:          "---\nname: my-skill\n\"disable-model-invocation\": true\n---\nBody.\n",
-			wantContent:  "---\nname: my-skill\n\"disable-model-invocation\": true\n---\nBody.\n",
-			wantDisabled: true,
+			name:        "QuotedKey",
+			raw:         "---\nname: my-skill\n\"disable-model-invocation\": true\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
+		},
+		{
+			name:        "SpaceBeforeColon",
+			raw:         "---\nname: my-skill\ndisable-model-invocation : true\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
+		},
+		{
+			name:        "LastKey",
+			raw:         "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
+		},
+		{
+			// A comment above the next key belongs to that key.
+			name:        "NextKeyCommentIsKept",
+			raw:         "---\nname: my-skill\ndisable-model-invocation: true\n# What it does.\ndescription: Does a thing\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n# What it does.\ndescription: Does a thing\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
+		},
+		{
+			// A quoted value can wrap onto a line that looks like the key.
+			name:        "WrappedValueIsKept",
+			raw:         "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: true\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
+		},
+		{
+			// Flow-style frontmatter cannot be edited line by line, so the
+			// content stays as uploaded while the setting still applies.
+			name:        "FlowStyleIsKept",
+			raw:         "---\n{name: my-skill, disable-model-invocation: true}\n---\nBody.\n",
+			wantContent: "---\n{name: my-skill, disable-model-invocation: true}\n---\nBody.\n",
+			wantDisable: ptr.Ref(true),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			content, disabled := skills.RemoveDisableModelInvocation(tt.raw)
+			content, disable := skills.RemoveDisableModelInvocation(tt.raw)
 			require.Equal(t, tt.wantContent, content)
-			require.Equal(t, tt.wantDisabled, disabled)
+			require.Equal(t, tt.wantDisable, disable)
 			_, err := skills.ParsePersonalSkillMarkdown([]byte(content))
 			require.NoError(t, err)
 		})

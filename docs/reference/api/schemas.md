@@ -17554,12 +17554,12 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                    |
-|-------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                    |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body.                                          |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                |
-| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter has `disable-model-invocation: true`, which turns it off. The server removes that frontmatter key before storing the content. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                 |
+|-------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                                                 |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body.                                                                       |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                                             |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter sets `disable-model-invocation` to a boolean: true turns it off and false turns it on. The server removes that frontmatter key before storing the content. |
 
 ## codersdk.UpdateTemplateACL
 

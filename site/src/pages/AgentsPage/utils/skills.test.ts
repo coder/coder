@@ -456,6 +456,20 @@ describe("skillFileContent", () => {
 		);
 	});
 
+	it.each([
+		["quoted", '"disable-model-invocation": true'],
+		["spaced", "disable-model-invocation : true"],
+	])("keeps a %s key instead of adding a duplicate", (_, key) => {
+		const content = `---\nname: triage\n${key}\n---\nTriage issues.\n`;
+		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);
+	});
+
+	it("leaves content unmarked when a different spelling of the key would duplicate it", () => {
+		const content =
+			'---\nname: triage\n"disable-model-invocation": false\n---\nTriage issues.\n';
+		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);
+	});
+
 	it("leaves content unmarked when the marker would pass the size limit", () => {
 		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
 		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);

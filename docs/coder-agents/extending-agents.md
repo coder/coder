@@ -331,16 +331,17 @@ In the API, the setting is the `model_invocable` field, which is on by default.
 
 When you create or update a skill through the API without setting `model_invocable`, Coder reads the `disable-model-invocation` frontmatter key that Claude Code, Cursor, and VS Code use:
 
-- `disable-model-invocation: true` makes the skill manual-only.
-  The value must be the YAML boolean `true`, not a quoted string.
+- `disable-model-invocation: true` makes the skill manual-only, and `disable-model-invocation: false` turns automatic use back on.
+  The value must be the YAML boolean `true` or `false`, not a quoted string.
 - A `model_invocable` value in the request takes priority over the key.
 - New content without the key leaves the setting as it was.
 
-Coder removes the key before it stores the file, so the stored file never disagrees with the setting.
-Coder also removes a key whose value it ignores, such as `disable-model-invocation: "true"`, so check `model_invocable` in the response to confirm the setting.
+Coder removes the key from the content you upload and keeps the setting in `model_invocable` instead.
+Coder also removes a key whose value it ignores, such as the quoted string `"true"`, so check `model_invocable` in the response to confirm the setting.
 
-When you download or export a manual-only skill, Coder adds `disable-model-invocation: true` back, so other tools also treat the file as manual-only.
+When you select **Download** or **Export all** for a manual-only skill, Coder adds `disable-model-invocation: true` back, so other tools also treat the file as manual-only.
 A file that the extra line would push over the 64&nbsp;KB limit downloads without it.
+The API returns the stored content without the key, so read `model_invocable` to find out whether a skill is manual-only.
 
 ### Skills with the same name
 
