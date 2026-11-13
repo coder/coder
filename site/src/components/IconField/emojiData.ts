@@ -3,8 +3,8 @@ import emojibaseEmojis from "emojibase-data/en/data.json";
 import emojibaseMessages from "emojibase-data/en/messages.json";
 import type { EmojiData } from "frimousse";
 import capitalize from "lodash/capitalize";
+import icons from "#/theme/builtinIcons.json";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
-import icons from "#/theme/icons.json";
 import { EMOJI_SHEET } from "./emojiSheet";
 
 const COMPONENT_GROUP = 2;
@@ -16,7 +16,7 @@ const UNSHIPPED_EMOJI = new Set([
 	"\u2642\uFE0F",
 	"\u2695\uFE0F",
 ]);
-/** Category index for icons.json, placed after every Emojibase group. */
+/** Category index for built-in icons, placed after every Emojibase group. */
 export const ICONS_CATEGORY = 100;
 
 const EMOJI_PRESENTATION = /\p{Emoji_Presentation}/u;
@@ -133,17 +133,19 @@ export const buildEmojiData = (): EmojiData => {
 	}
 
 	for (const icon of icons) {
-		if (DEPRECATED_ICONS.includes(icon)) {
-			continue;
+		for (const source of icon.sources) {
+			const file = source.slice("/icon/".length);
+			if (DEPRECATED_ICONS.includes(file)) {
+				continue;
+			}
+			emojis.push({
+				emoji: source,
+				category: ICONS_CATEGORY,
+				label: icon.name,
+				version: 0,
+				tags: [file.replace(/\.[^.]+$/, "")],
+			});
 		}
-		const id = icon.split(".")[0];
-		emojis.push({
-			emoji: `/icon/${icon}`,
-			category: ICONS_CATEGORY,
-			label: id,
-			version: 0,
-			tags: id.split("-"),
-		});
 	}
 
 	return {
