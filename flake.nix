@@ -149,9 +149,11 @@
           else
             throw "protobuf 23.4 is not defined for ${system}";
 
-        # Custom sqlc build from coder/sqlc fork to fix ambiguous column bug, see:
+        # Custom sqlc build from the coder/sqlc fork: upstream sqlc v1.31.1
+        # plus CTE scope tracking, which fixes false "column reference is
+        # ambiguous" errors for subqueries inside CTEs. See:
         # - https://github.com/coder/sqlc/pull/1
-        # - https://github.com/sqlc-dev/sqlc/pull/4159
+        # - https://github.com/sqlc-dev/sqlc/pull/4159 (upstream)
         #
         # To update hashes:
         # 1. Run: `nix --extra-experimental-features 'nix-command flakes' build .#devShells.x86_64-linux.default`
@@ -161,13 +163,13 @@
         # 5. Update the vendorHash
         sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
-          version = "coder-fork-337309bfb9524f38466a5090e310040fc7af0203";
+          version = "coder-fork-fb627c9c93f089ff1888f6799ca348986b2818e0";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "sqlc";
-            rev = "337309bfb9524f38466a5090e310040fc7af0203";
-            sha256 = "sha256-i8hZaaMlNJyW0hUWYcuNqUcwRdQU747055OknZsJ9Es=";
+            rev = "fb627c9c93f089ff1888f6799ca348986b2818e0";
+            sha256 = "sha256-50KkO+tqHMrMUUivwPcoyLtBmkewY7Vf0VLRSQJVgGA=";
           };
 
           subPackages = [ "cmd/sqlc" ];
