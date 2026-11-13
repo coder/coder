@@ -142,6 +142,54 @@ func TestSpeaker_RPCAfterWriterExits(t *testing.T) {
 	})
 }
 
+func TestSpeaker_ResponseBeforeWriterExits(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// The response and writer exit are both selectable. Repeat to
+		// exercise either selection.
+		for range 32 {
+			func() {
+				gate := newRPCSendGate()
+				ctx, tun, mgr := setupSpeakers(t, gate)
+				defer tun.Close()
+				defer mgr.Close()
+				type result struct {
+					response *ManagerMessage
+					err      error
+				}
+				done := make(chan result, 1)
+				go func() {
+					response, err := tun.unaryRPC(ctx, &TunnelMessage{
+						Msg: &TunnelMessage_NetworkSettings{NetworkSettings: &NetworkSettingsRequest{}},
+					})
+					done <- result{response: response, err: err}
+				}()
+				req := testutil.TryReceive(ctx, t, mgr.requests)
+				testutil.TryReceive(ctx, t, gate.entered)
+				require.NoError(t, req.sendReply(&ManagerMessage{
+					Msg: &ManagerMessage_NetworkSettings{NetworkSettings: &NetworkSettingsResponse{Success: true}},
+				}))
+				// Keep recvLoopDone open, so only writer exit competes with
+				// the response.
+				testutil.RequireSend(ctx, t, mgr.sendCh, &ManagerMessage{
+					Rpc: &RPC{MsgId: 1},
+					Msg: &ManagerMessage_Wake{Wake: &WakeRequest{}},
+				})
+				synctest.Wait()
+				require.NoError(t, mgr.Close())
+				// This write fails, so the writer exits.
+				testutil.RequireSend(ctx, t, tun.sendCh, &TunnelMessage{Msg: &TunnelMessage_Log{Log: &Log{}}})
+				synctest.Wait()
+				close(gate.release)
+				got := testutil.TryReceive(ctx, t, done)
+				require.NoError(t, got.err)
+				require.True(t, got.response.GetNetworkSettings().GetSuccess())
+			}()
+		}
+	})
+}
+
 // rpcSendGate pauses the first RPC after sending but before awaiting its reply.
 // The log sink lets the peer respond while the caller is not yet receiving.
 type rpcSendGate struct {

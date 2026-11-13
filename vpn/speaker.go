@@ -215,20 +215,21 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 		return resp, ctx.Err()
 	case <-s.sendCtx.Done():
 		s.rmResponseChan(msgID)
-		return resp, s.sendClosedErr()
+		err = s.sendClosedErr()
 	case <-s.recvLoopDone:
-		// The receive loop publishes responses before it exits. Prefer a
-		// response already received to EOF, even if both cases are ready.
-		select {
-		case resp = <-respCh:
-			return resp, nil
-		default:
-		}
 		logger.Debug(s.ctx, "recvLoopDone while waiting for response")
-		return resp, io.ErrUnexpectedEOF
+		err = io.ErrUnexpectedEOF
 	case resp = <-respCh:
 		logger.Debug(s.ctx, "got response", slog.F("resp", resp))
 		return resp, nil
+	}
+	// A response may already be buffered when the receive loop exits or
+	// sending ends. Prefer it, even if both cases are ready.
+	select {
+	case resp = <-respCh:
+		return resp, nil
+	default:
+		return resp, err
 	}
 }
 
