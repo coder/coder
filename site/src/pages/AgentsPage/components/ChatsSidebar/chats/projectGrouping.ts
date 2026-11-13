@@ -4,6 +4,7 @@ import type {
 	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
+import { isOwnPinnedChat } from "../../../utils/pinnedChats";
 import { canManageChat } from "../../ChatActionsMenuItems";
 
 type ChatsGroupedByProject = {
@@ -14,14 +15,17 @@ type ChatsGroupedByProject = {
 
 /**
  * Splits chats into the folders of the user's pinned projects. Chats with a
- * project are held back while the summaries load, and so are unpinned chats
- * of a project the summaries list as unpinned, which the chat list keeps
- * until it refetches. A chat whose project the summaries lack stays unfiled
- * so it never leaves the sidebar.
+ * project are held back while the summaries load, and so are the user's own
+ * chats of a project the summaries list as unpinned, which the chat list
+ * keeps until it refetches. Chats shared with the user are listed whether or
+ * not their project is pinned, so outside a folder they stay unfiled. A chat
+ * whose project the summaries lack stays unfiled so it never leaves the
+ * sidebar.
  */
 export const groupChatsByProject = (
 	chats: readonly Chat[],
 	summaries: readonly ChatProjectSummary[],
+	currentUserId: string,
 	isLoadingProjects = false,
 ): ChatsGroupedByProject => {
 	const folderProjectIds = new Set(
@@ -40,13 +44,17 @@ export const groupChatsByProject = (
 			} else {
 				chatsByProjectId.set(chat.project_id, [chat]);
 			}
-		} else if (
-			!chat.project_id ||
-			(!isLoadingProjects &&
-				(chat.pin_order > 0 || !unpinnedProjectIds.has(chat.project_id)))
-		) {
-			unfiledChats.push(chat);
+			continue;
 		}
+		if (
+			chat.project_id &&
+			(isLoadingProjects ||
+				(canManageChat(chat, currentUserId) &&
+					unpinnedProjectIds.has(chat.project_id)))
+		) {
+			continue;
+		}
+		unfiledChats.push(chat);
 	}
 	return { chatsByProjectId, unfiledChats, folderProjectIds };
 };
@@ -66,7 +74,8 @@ type MergeProjectFolderChatsOptions = {
  * A fetched row is used only for chats the sidebar has not loaded: the
  * sidebar sees creates, moves, and pins first, and a collapsed folder's
  * cached copy can be stale. Fetched rows are checked again because cached
- * rows change in place after the fetch.
+ * rows change in place after the fetch. The user's pinned chats are listed
+ * under Pinned instead.
  */
 export const mergeProjectFolderChats = ({
 	projectId,
@@ -81,9 +90,8 @@ export const mergeProjectFolderChats = ({
 		if (
 			!sidebarChatById.has(chat.id) &&
 			chat.project_id === projectId &&
-			chat.pin_order === 0 &&
 			chat.archived === archived &&
-			canManageChat(chat, currentUserId)
+			!isOwnPinnedChat(chat, currentUserId)
 		) {
 			chatsById.set(chat.id, chat);
 		}
@@ -116,8 +124,7 @@ export const countProjectFolderPins = ({
 		if (
 			!sidebarChatById.has(chat.id) &&
 			chat.project_id === projectId &&
-			chat.pin_order > 0 &&
-			canManageChat(chat, currentUserId)
+			isOwnPinnedChat(chat, currentUserId)
 		) {
 			pinnedIds.add(chat.id);
 		}

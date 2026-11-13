@@ -254,9 +254,7 @@ describe("ChatsSidebar projects", () => {
 					name: `Open project actions for ${name}`,
 				}),
 			);
-			await user.click(
-				screen.getByRole("menuitem", { name: "Delete project" }),
-			);
+			await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 			await user.type(await screen.findByRole("textbox"), name);
 		};
 
@@ -487,7 +485,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the project to delete"),
 			MockChatProject.name,
@@ -533,7 +531,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the project to delete"),
 			MockChatProject.name,
@@ -569,7 +567,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
 		expect(
 			await screen.findByRole("dialog", {
@@ -662,7 +660,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Archive" }));
 		await screen.findByText(/will be archived/);
 		await user.click(screen.getByRole("button", { name: "Archive project" }));
 
@@ -695,7 +693,7 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		await user.click(actionsButton);
-		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Archive" }));
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
 		await waitFor(() => expect(actionsButton).toHaveFocus());
@@ -835,9 +833,7 @@ describe("ChatsSidebar unpin focus", () => {
 		});
 		await user.tab();
 		await user.keyboard("{Enter}");
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Unpin project" }),
-		);
+		await user.click(await screen.findByRole("menuitem", { name: "Unpin" }));
 	};
 
 	it("removes the folder before the unpin request settles", async () => {

@@ -84,9 +84,7 @@ describe("ProjectsPage", () => {
 		// Pins run in order, so Kilo's pin waits behind India's.
 		for (const name of ["India", "Kilo"]) {
 			await openActions(name);
-			await user.click(
-				await screen.findByRole("menuitem", { name: "Pin project" }),
-			);
+			await user.click(await screen.findByRole("menuitem", { name: "Pin" }));
 		}
 		await waitFor(() =>
 			expect(pin).toHaveBeenCalledWith(
@@ -96,8 +94,8 @@ describe("ProjectsPage", () => {
 			),
 		);
 		await openActions("India");
-		await screen.findByRole("menuitem", { name: "Edit project" });
-		expect(screen.queryByRole("menuitem", { name: "Pin project" })).toBeNull();
+		await screen.findByRole("menuitem", { name: "Edit" });
+		expect(screen.queryByRole("menuitem", { name: "Pin" })).toBeNull();
 	});
 
 	it("unpins once when the pin button is double-clicked", async () => {
@@ -120,7 +118,7 @@ describe("ProjectsPage", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Open project actions for Kilo" }),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Pin project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Pin" }));
 		await waitFor(() => expect(pin).toHaveBeenCalled());
 		expect(unpin).toHaveBeenCalledOnce();
 	});
@@ -147,7 +145,7 @@ describe("ProjectsPage", () => {
 				name: "Open project actions for Kilo",
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Archive" }));
 		await user.click(
 			await screen.findByRole("button", { name: "Archive project" }),
 		);
@@ -194,9 +192,7 @@ describe("ProjectsPage", () => {
 					name: "Open project actions for Lima",
 				}),
 			);
-			await user.click(
-				screen.getByRole("menuitem", { name: "Unarchive project" }),
-			);
+			await user.click(screen.getByRole("menuitem", { name: "Unarchive" }));
 		};
 
 		// The card stays until the request succeeds, but its menu leaves
@@ -205,9 +201,7 @@ describe("ProjectsPage", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Open project actions for Lima" }),
 		);
-		expect(
-			screen.queryByRole("menuitem", { name: "Unarchive project" }),
-		).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Unarchive" })).toBeNull();
 		await user.keyboard("{Escape}");
 		archived = [];
 		unarchived.resolve({ ...mockArchivedLima, archived_at: undefined });
