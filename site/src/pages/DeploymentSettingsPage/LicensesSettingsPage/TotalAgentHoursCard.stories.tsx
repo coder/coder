@@ -90,7 +90,7 @@ export const ReachedSoftLimit: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 85% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 85% or more of your total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -110,7 +110,7 @@ export const ReachedAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
@@ -130,7 +130,7 @@ export const OverAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 120% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
@@ -151,7 +151,7 @@ export const ReachedAllocationByFraction: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
@@ -197,7 +197,7 @@ export const NearAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 99\.9% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 99\.9% or more of your total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -303,7 +303,7 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 85% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 85% or more of your total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -328,7 +328,7 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 120% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
@@ -353,7 +353,7 @@ export const ReachedHardCap: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 160% of your Total Agent hours for this license and reached the hard cap of 1,500 hours\. Contact sales to receive more Agent hours\./,
+			/You've used 160% of your total Agent hours for this license and reached the hard cap of 1,500 hours\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
@@ -379,7 +379,7 @@ export const ReachedCoincidentHardCap: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your Total Agent hours for this license and reached the hard cap of 1,000 hours\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your total Agent hours for this license and reached the hard cap of 1,000 hours\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
