@@ -12,6 +12,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// repeatedSlashesRe matches runs of slashes that the router collapses to one.
+var repeatedSlashesRe = regexp.MustCompile(`/+`)
+
 // CSRF is a middleware that verifies that a CSRF token is present in the request
 // for non-GET requests.
 // If enforce is false, then CSRF enforcement is disabled. We still want
@@ -59,12 +62,17 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 		mw.ExemptRegexp(regexp.MustCompile(`^/derp(/|$)`))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
+			// The router collapses repeated slashes before matching, so
+			// "/oauth2//authorize" reaches the authorize handler. Check the
+			// same path so a stray slash cannot skip CSRF.
+			path := repeatedSlashesRe.ReplaceAllString(r.URL.Path, "/")
+
 			// Enforce CSRF on API routes and the OAuth2 authorize
 			// endpoint. The authorize endpoint serves a browser consent
 			// form whose POST must be CSRF-protected to prevent
 			// cross-site authorization code theft (coder/security#121).
-			if !strings.HasPrefix(r.URL.Path, "/api") &&
-				!strings.HasPrefix(r.URL.Path, "/oauth2/authorize") {
+			if !strings.HasPrefix(path, "/api") &&
+				!strings.HasPrefix(path, "/oauth2/authorize") {
 				return true
 			}
 
