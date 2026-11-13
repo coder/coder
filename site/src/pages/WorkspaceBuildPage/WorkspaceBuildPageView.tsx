@@ -32,6 +32,7 @@ import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
+	WorkspaceBuildReasonTooltip,
 } from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { formatDate } from "#/utils/time";
@@ -161,13 +162,14 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 						))}
 
 					{builds?.map((build) => (
-						<SidebarLink
-							key={build.id}
-							to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
-							active={build.build_number === activeBuildNumber}
-						>
-							<WorkspaceBuildData build={build} />
-						</SidebarLink>
+						<WorkspaceBuildReasonTooltip key={build.id} build={build}>
+							<SidebarLink
+								to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+								active={build.build_number === activeBuildNumber}
+							>
+								<WorkspaceBuildData build={build} />
+							</SidebarLink>
+						</WorkspaceBuildReasonTooltip>
 					))}
 				</Sidebar>
 

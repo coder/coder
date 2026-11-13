@@ -15,6 +15,36 @@ import {
 	systemBuildReasons,
 } from "#/utils/workspace";
 
+const getDisplayBuildReason = (build: WorkspaceBuild) =>
+	!systemBuildReasons.includes(build.reason) && build.transition === "start"
+		? getBuildReasonLabel(build.reason)
+		: undefined;
+
+type WorkspaceBuildReasonTooltipProps = {
+	build: WorkspaceBuild;
+	children: React.ReactElement;
+};
+
+/**
+ * Shows the build reason when its trigger, the build's link, is hovered or
+ * focused. Renders the trigger alone for builds without a displayed reason.
+ */
+export const WorkspaceBuildReasonTooltip: React.FC<
+	WorkspaceBuildReasonTooltipProps
+> = ({ build, children }) => {
+	const buildReason = getDisplayBuildReason(build);
+	if (!buildReason) {
+		return children;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent side="right">{buildReason}</TooltipContent>
+		</Tooltip>
+	);
+};
+
 type WorkspaceBuildDataProps = {
 	build: WorkspaceBuild;
 };
@@ -22,10 +52,7 @@ type WorkspaceBuildDataProps = {
 export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 	build,
 }) => {
-	const buildReason =
-		!systemBuildReasons.includes(build.reason) && build.transition === "start"
-			? getBuildReasonLabel(build.reason)
-			: undefined;
+	const buildReason = getDisplayBuildReason(build);
 
 	return (
 		<div className="flex items-center gap-3 leading-normal">
@@ -42,19 +69,14 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
 					{buildReason && (
-						// This renders inside the build's sidebar link, so the reason
-						// joins the link's accessible name instead of becoming a nested
-						// focusable trigger.
+						// This renders inside the build's link, so the reason joins the
+						// link's name and the link triggers the tooltip, avoiding a
+						// nested focusable control.
 						<>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<InfoIcon
-										aria-hidden
-										className="text-content-secondary size-icon-xs -mt-px"
-									/>
-								</TooltipTrigger>
-								<TooltipContent side="bottom">{buildReason}</TooltipContent>
-							</Tooltip>
+							<InfoIcon
+								aria-hidden
+								className="text-content-secondary size-icon-xs -mt-px"
+							/>
 							<span className="sr-only">, build reason: {buildReason}</span>
 						</>
 					)}

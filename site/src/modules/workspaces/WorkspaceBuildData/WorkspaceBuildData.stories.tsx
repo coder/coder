@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent } from "storybook/test";
 import { MockWorkspaceBuild } from "#/testHelpers/entities";
-import { WorkspaceBuildData } from "./WorkspaceBuildData";
+import {
+	WorkspaceBuildData,
+	WorkspaceBuildReasonTooltip,
+} from "./WorkspaceBuildData";
 
 const meta: Meta<typeof WorkspaceBuildData> = {
 	title: "modules/workspaces/WorkspaceBuildData",
@@ -13,6 +17,22 @@ type Story = StoryObj<typeof WorkspaceBuildData>;
 export const Start: Story = {
 	args: {
 		build: MockWorkspaceBuild,
+	},
+};
+
+export const FocusedLinkWithReason: Story = {
+	args: {
+		build: { ...MockWorkspaceBuild, transition: "start", reason: "cli" },
+	},
+	render: ({ build }) => (
+		<WorkspaceBuildReasonTooltip build={build}>
+			<a href="/builds/1" className="block w-fit">
+				<WorkspaceBuildData build={build} />
+			</a>
+		</WorkspaceBuildReasonTooltip>
+	),
+	play: async () => {
+		await userEvent.tab();
 	},
 };
 
