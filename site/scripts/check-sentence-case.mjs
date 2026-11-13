@@ -405,10 +405,10 @@ function rendersSpace(whitespace) {
 	return whitespace.length > 0 && !whitespace.includes("\n");
 }
 
-// Caps the rendered variants checked for one JSX element. Past the cap,
-// further conditional children are treated as substitutions and their
-// JSX is checked on its own.
-const MAX_JSX_VARIANTS = 64;
+// Caps the rendered variants checked for one JSX element or string. Past
+// the cap, further conditional values are treated as substitutions and
+// their text is checked on its own.
+const MAX_VARIANTS = 64;
 
 /**
  * Returns what an inline JSX expression may render: a JSX node, string
@@ -464,14 +464,14 @@ function renderedOptions(expression) {
 
 /**
  * Returns the parts of a template expression in order: the source range
- * of each literal part, without its `, ${, and } delimiters, and a
- * substitution between each pair of parts.
+ * of each literal part, without its `, ${, and } delimiters, and the
+ * substituted expression between each pair of parts.
  */
 function templateParts(node, sourceFile) {
 	const head = node.head;
 	const parts = [{ start: head.getStart(sourceFile) + 1, end: head.end - 2 }];
 	for (const span of node.templateSpans) {
-		parts.push({ substitution: true });
+		parts.push({ substitution: span.expression });
 		const literal = span.literal;
 		const isTail = literal.kind === ts.SyntaxKind.TemplateTail;
 		parts.push({
@@ -536,8 +536,8 @@ function isOutermostConcatenation(node) {
 
 /**
  * Returns the parts of a string concatenation in order, like
- * templateParts: the source range of each string's text, and a
- * substitution for each other operand. `"New " + name` renders as one
+ * templateParts: the source range of each string's text, and each other
+ * operand as a substituted expression. `"New " + name` renders as one
  * phrase. The strings read here are added to `consumed`.
  */
 function concatenationParts(node, sourceFile, consumed) {
@@ -553,41 +553,32 @@ function concatenationParts(node, sourceFile, consumed) {
 				end: operand.end - 1,
 			});
 		} else {
-			parts.push({ substitution: true });
+			parts.push({ substitution: operand });
 		}
 	}
 	return parts;
 }
 
 /**
- * Collects the rendered text of a JSX element or fragment, including the
- * text of nested elements, so a phrase that crosses inline markup is
- * checked as one phrase: `Create <strong>New Workspace</strong>` reads as
- * "Create New Workspace". JSX that a child expression renders
- * conditionally is read in place too, once per rendered variant, so
- * `Create {show && <b>Workspace</b>}` reads as "Create Workspace" and as
- * "Create".
- *
- * The edge of a nested element joins the text on either side only when
- * JSX renders a space there; otherwise it ends the phrase, because
- * adjacent elements are usually separate labels. Nested nodes that are
- * read here are added to `consumed` so they are not checked again on
- * their own.
+ * Returns functions that build the rendered pieces of JSX and string
+ * expressions: text ranges, substitutions for unknown values, boundaries
+ * at the edges of nested elements, breaks for self-closing elements, and
+ * choices between the pieces of each variant a conditional expression
+ * renders. Nodes read here are added to `consumed` so they are not
+ * checked again on their own.
  */
-function collectJsxTexts(container, sourceFile, consumed) {
+function createPieceBuilder(sourceFile, consumed) {
 	const sourceText = sourceFile.text;
 	let variants = 1;
 
-	// Appends the rendered pieces of `node` to `pieces`: text ranges,
-	// substitutions for unknown values, boundaries at the edges of nested
-	// elements, breaks for self-closing elements, and choices between the
-	// pieces of each variant a conditional expression renders.
-	const addNode = (node, pieces) => {
+	// `inline` marks pieces inside a string, where a substitution joins the
+	// text around it, as in `${count}s`.
+	const addNode = (node, pieces, inline = false) => {
 		if (node === null) {
 			return;
 		}
 		if (node === "substitution") {
-			pieces.push({ kind: "substitution" });
+			pieces.push({ kind: "substitution", inline });
 		} else if (ts.isJsxText(node)) {
 			consumed.add(node);
 			const text = sourceText.slice(node.pos, node.end);
@@ -616,11 +607,11 @@ function collectJsxTexts(container, sourceFile, consumed) {
 				? concatenationParts(node, sourceFile, consumed)
 				: templateParts(node, sourceFile);
 			for (const { start, end, substitution } of parts) {
-				pieces.push(
-					substitution
-						? { kind: "substitution", inline: true }
-						: { kind: "text", start, end },
-				);
+				if (substitution) {
+					addExpression(substitution, pieces, true);
+				} else {
+					pieces.push({ kind: "text", start, end });
+				}
 			}
 		} else if (ts.isJsxExpression(node)) {
 			// An empty expression, such as {/* note */}, renders nothing.
@@ -641,38 +632,70 @@ function collectJsxTexts(container, sourceFile, consumed) {
 		}
 	};
 
-	const addExpression = (expression, pieces) => {
+	const addExpression = (expression, pieces, inline = false) => {
 		const options = renderedOptions(expression);
 		if (options.length === 1) {
-			addNode(options[0], pieces);
+			addNode(options[0], pieces, inline);
 		} else if (
 			options.every((option) => option === "substitution") ||
-			variants * options.length > MAX_JSX_VARIANTS
+			variants * options.length > MAX_VARIANTS
 		) {
-			pieces.push({ kind: "substitution" });
+			pieces.push({ kind: "substitution", inline });
 		} else {
 			variants *= options.length;
 			pieces.push({
 				kind: "choice",
 				options: options.map((option) => {
 					const optionPieces = [];
-					addNode(option, optionPieces);
+					addNode(option, optionPieces, inline);
 					return optionPieces;
 				}),
 			});
 		}
 	};
 
-	const rootPieces = [];
-	for (const child of container.children) {
-		addNode(child, rootPieces);
-	}
+	// Returns the phrases of every rendered variant of `pieces`.
+	const join = (pieces) =>
+		expandChoices(pieces).flatMap((sequence) =>
+			joinJsxPieces(sequence, sourceText),
+		);
 
-	const texts = [];
-	for (const pieces of expandChoices(rootPieces)) {
-		texts.push(...joinJsxPieces(pieces, sourceText));
+	return { addNode, join };
+}
+
+/**
+ * Collects the rendered text of a JSX element or fragment, including the
+ * text of nested elements, so a phrase that crosses inline markup is
+ * checked as one phrase: `Create <strong>New Workspace</strong>` reads as
+ * "Create New Workspace". JSX that a child expression renders
+ * conditionally is read in place too, once per rendered variant, so
+ * `Create {show && <b>Workspace</b>}` reads as "Create Workspace" and as
+ * "Create".
+ *
+ * The edge of a nested element joins the text on either side only when
+ * JSX renders a space there; otherwise it ends the phrase, because
+ * adjacent elements are usually separate labels.
+ */
+function collectJsxTexts(container, sourceFile, consumed) {
+	const builder = createPieceBuilder(sourceFile, consumed);
+	const pieces = [];
+	for (const child of container.children) {
+		builder.addNode(child, pieces);
 	}
-	return texts;
+	return builder.join(pieces);
+}
+
+/**
+ * Collects the rendered text of a template literal or string
+ * concatenation. Substituted values that render known strings, such as
+ * `"Create " + (ok ? "New Workspace" : name)`, are read in place once per
+ * variant.
+ */
+function collectStringTexts(node, sourceFile, consumed) {
+	const builder = createPieceBuilder(sourceFile, consumed);
+	const pieces = [];
+	builder.addNode(node, pieces);
+	return builder.join(pieces);
 }
 
 /** Expands choice pieces into every linear sequence of pieces. */
@@ -813,19 +836,7 @@ function collectTexts(sourceFile) {
 				) {
 					break;
 				}
-				const parts = isPlus(node)
-					? concatenationParts(node, sourceFile, consumed)
-					: templateParts(node, sourceFile);
-				const text = { text: "", positions: [] };
-				for (const { start, end, substitution } of parts) {
-					if (substitution) {
-						text.text += SUBSTITUTION;
-						text.positions.push(-1);
-					} else {
-						appendSource(text, sourceText, start, end, false);
-					}
-				}
-				texts.push(text);
+				texts.push(...collectStringTexts(node, sourceFile, consumed));
 				break;
 			}
 		}

@@ -201,12 +201,14 @@ describe("checkSource", () => {
 		);
 	});
 
-	it("checks string concatenation as one phrase", () => {
+	it("checks string concatenation as one phrase, per rendered variant", () => {
 		const source = [
 			'const a = <p>Create {"New " + "Workspace"}</p>;',
 			'const b = "Create " + "New Workspace";',
 			'const c = "Retry in " + count + " Seconds";',
 			"const d = total + 1;",
+			'const e = "Create " + (ok ? "New Workspace" : "Old Template");',
+			'const f = `${ok ? "New" : "Old"} Workspace`;',
 		].join("\n");
 		const { issues, fixedText } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
@@ -215,6 +217,11 @@ describe("checkSource", () => {
 			[2, "New"],
 			[2, "Workspace"],
 			[3, "Seconds"],
+			[5, "New"],
+			[5, "Workspace"],
+			[5, "Old"],
+			[5, "Template"],
+			[6, "Workspace"],
 		]);
 		expect(fixedText.split("\n")[0]).toBe(
 			'const a = <p>Create {"new " + "workspace"}</p>;',
