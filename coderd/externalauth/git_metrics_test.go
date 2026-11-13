@@ -27,6 +27,15 @@ import (
 func TestConfigGitRequestMetrics(t *testing.T) {
 	t.Parallel()
 
+	// Each step of the test switches the server to a mode. Every mode has its
+	// own issue ETag, so the issue changes with the mode.
+	const (
+		modeInitial int32 = iota
+		modeIssueChanged
+		modeIssueUnauthorized
+		modeReviewsRateLimited
+		modeIssueForbidden
+	)
 	var mode atomic.Int32
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resetAt := time.Now().Add(30 * time.Minute)
@@ -40,11 +49,11 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 		var body string
 		switch r.URL.Path {
 		case "/api/v3/repos/owner/repo/issues/1":
-			if mode.Load() == 2 {
+			if mode.Load() == modeIssueUnauthorized {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if mode.Load() == 4 {
+			if mode.Load() == modeIssueForbidden {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
@@ -57,7 +66,7 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 				body = `{"title":"PR","state":"open","draft":false,"merged":false,"updated_at":"2026-11-13T12:00:00Z"}`
 			}
 		case "/api/v3/repos/owner/repo/pulls/1/reviews":
-			if mode.Load() == 3 {
+			if mode.Load() == modeReviewsRateLimited {
 				w.Header().Set("Retry-After", "60")
 				w.WriteHeader(http.StatusTooManyRequests)
 				return
@@ -123,23 +132,26 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 	assert.Equal(t, 1, count("GitProviderReviews", http.StatusOK))
 	assert.Equal(t, 1, count("GitProviderReviews", http.StatusNotModified))
 
-	mode.Store(1)
+	mode.Store(modeIssueChanged)
 	_, err = provider.FetchPullRequestStatus(ctx, "test-token", ref)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count("GitProviderIssue", http.StatusOK))
 	assert.Equal(t, 1, count("GitProviderPullRequest", http.StatusNotModified))
 
-	mode.Store(2)
+	mode.Store(modeIssueUnauthorized)
 	_, err = provider.FetchPullRequestStatus(ctx, "test-token", ref)
 	require.ErrorContains(t, err, "401")
 	assert.Equal(t, 1, count("GitProviderIssue", http.StatusUnauthorized))
-	mode.Store(3)
+
+	mode.Store(modeReviewsRateLimited)
 	_, err = provider.FetchPullRequestStatus(ctx, "test-token", ref)
 	var rateLimitErr *gitprovider.RateLimitError
 	require.ErrorAs(t, err, &rateLimitErr)
 	assert.Equal(t, 1, count("GitProviderReviews", http.StatusTooManyRequests))
 
-	mode.Store(4)
+	// The first issue 403 is a rejection, and the second lookup skips the
+	// issue request.
+	mode.Store(modeIssueForbidden)
 	pullsBefore := count("GitProviderPullRequest", http.StatusNotModified)
 	for range 2 {
 		_, err = provider.FetchPullRequestStatus(ctx, "test-token", ref)

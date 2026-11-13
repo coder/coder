@@ -92,6 +92,8 @@ func TestGitHubStatusConcurrentIsolation(t *testing.T) {
 	require.NoError(t, err)
 	tokens := []string{"token-a", "token-b"}
 
+	// 40 simultaneous lookups over two tokens and two PRs, first with a cold
+	// cache and then with a warm one. Each must return its own token's PR.
 	for range 2 {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		group, ctx := errgroup.WithContext(ctx)
