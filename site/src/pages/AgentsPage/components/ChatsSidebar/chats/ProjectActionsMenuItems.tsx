@@ -1,4 +1,4 @@
-import { PinIcon, PinOffIcon, SquarePenIcon } from "lucide-react";
+import { SquarePenIcon } from "lucide-react";
 import { Link, type To } from "react-router";
 import type { ChatProject } from "#/api/typesGenerated";
 import type {
@@ -22,14 +22,14 @@ type ProjectActionsMenuItemsProps = {
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
 	readonly onNewChatInPlace?: () => void;
-	/** Adds a "Pin project" item. */
+	/** Adds a "Pin" item. */
 	readonly onPin?: () => void;
-	/** Adds an "Unpin project" item. */
+	/** Adds an "Unpin" item. */
 	readonly onUnpin?: () => void;
 	readonly project: Pick<ChatProject, "permissions" | "archived_at">;
 	readonly onEdit: () => void;
 	readonly onArchive: () => void;
-	/** When omitted, an archived project gets no "Unarchive project" item. */
+	/** When omitted, an archived project gets no "Unarchive" item. */
 	readonly onUnarchive?: () => void;
 	readonly onDelete: () => void;
 };
@@ -61,6 +61,11 @@ export const ProjectActionsMenuItems: React.FC<
 }) => {
 	const { permissions } = project;
 	const isArchived = Boolean(project.archived_at);
+	const showEdit = permissions.update && !isArchived;
+	const showArchive = permissions.archive && !isArchived;
+	const showUnarchive = onUnarchive && permissions.archive && isArchived;
+	const hasItemsAboveDelete =
+		onPin || onUnpin || showEdit || showArchive || showUnarchive;
 	return (
 		<>
 			{projectPath !== undefined && (
@@ -80,34 +85,21 @@ export const ProjectActionsMenuItems: React.FC<
 					)}
 				</>
 			)}
-			{onPin && (
-				<Item onSelect={onPin}>
-					<PinIcon />
-					Pin project
-				</Item>
-			)}
-			{onUnpin && (
-				<Item onSelect={onUnpin}>
-					<PinOffIcon />
-					Unpin project
-				</Item>
-			)}
-			{permissions.update && !isArchived && (
-				<Item onSelect={onEdit}>Edit project</Item>
-			)}
-			{permissions.archive &&
-				(isArchived ? (
-					onUnarchive && <Item onSelect={onUnarchive}>Unarchive project</Item>
-				) : (
-					<Item onSelect={onArchive}>Archive project</Item>
-				))}
+			{onPin && <Item onSelect={onPin}>Pin</Item>}
+			{onUnpin && <Item onSelect={onUnpin}>Unpin</Item>}
+			{showEdit && <Item onSelect={onEdit}>Edit</Item>}
+			{showArchive && <Item onSelect={onArchive}>Archive</Item>}
+			{showUnarchive && <Item onSelect={onUnarchive}>Unarchive</Item>}
 			{permissions.delete && (
-				<Item
-					className="text-content-destructive focus:text-content-destructive"
-					onSelect={onDelete}
-				>
-					Delete project
-				</Item>
+				<>
+					{hasItemsAboveDelete && <Separator />}
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						onSelect={onDelete}
+					>
+						Delete
+					</Item>
+				</>
 			)}
 		</>
 	);

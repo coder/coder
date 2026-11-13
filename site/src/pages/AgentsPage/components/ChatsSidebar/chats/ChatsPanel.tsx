@@ -10,7 +10,7 @@ import {
 import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
-	FolderKanbanIcon,
+	FoldersIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -48,7 +48,7 @@ import {
 	getSidebarChatListInput,
 } from "../../../utils/agentSidebarFilters";
 import { focusFirstVisible } from "../../../utils/focus";
-import { getOwnPinnedChats } from "../../../utils/pinnedChats";
+import { getOwnPinnedChats, isOwnPinnedChat } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
@@ -224,26 +224,29 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => chat !== undefined);
-	const ownedChats = visibleRootChats.filter((chat) =>
+	const pinnedChats = getOwnPinnedChats(visibleRootChats, currentUserId);
+	// Each chat outside Pinned shows once: in its pinned project's folder,
+	// or else in Chats or Shared with you.
+	const unpinnedChats = visibleRootChats.filter(
+		(chat) => !isOwnPinnedChat(chat, currentUserId),
+	);
+	const { chatsByProjectId, unfiledChats, folderProjectIds } =
+		groupChatsByProject(
+			unpinnedChats,
+			projectSummaries,
+			currentUserId,
+			isPinnedProjectsLoading,
+		);
+	const unfiledOwnedChats = unfiledChats.filter((chat) =>
 		canManageChat(chat, currentUserId),
 	);
-	const pinnedChats = getOwnPinnedChats(visibleRootChats, currentUserId);
-	const sharedWithYouChats = visibleRootChats.filter(
+	const sharedWithYouChats = unfiledChats.filter(
 		(chat) => !canManageChat(chat, currentUserId),
-	);
-	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
-	const {
-		chatsByProjectId,
-		unfiledChats: unfiledOwnedChats,
-		folderProjectIds,
-	} = groupChatsByProject(
-		unpinnedOwnedChats,
-		projectSummaries,
-		isPinnedProjectsLoading,
 	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
 		projectSummaries,
+		currentUserId,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -461,8 +464,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// chats are all filed is empty. While projects load, chats with a project
 	// are held back, so the section is not known to be empty yet.
 	const isWithholdingProjectChats =
-		isPinnedProjectsLoading &&
-		unpinnedOwnedChats.some((chat) => chat.project_id);
+		isPinnedProjectsLoading && unpinnedChats.some((chat) => chat.project_id);
 	const isShowingEmptyState =
 		!isWithholdingProjectChats &&
 		pinnedChats.length === 0 &&
@@ -598,7 +600,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				/>
 				{chatProjectsEnabled && (
 					<SettingsNavItem
-						icon={FolderKanbanIcon}
+						icon={FoldersIcon}
 						label="Projects"
 						active={isProjectsActive}
 						// Takes focus when the move dialog's chat or the last pinned
