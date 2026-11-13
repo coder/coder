@@ -488,4 +488,40 @@ describe("ProjectTemplatesDialog", () => {
 		);
 		expect(getPresets).toHaveBeenCalledTimes(2);
 	});
+
+	it("ignores a failed preset list after switching to parameter values", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Network error." }),
+		);
+		const { user, props } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: {
+					template_ids: [MockTemplate.id],
+					default_template_id: MockTemplate.id,
+					default_preset_id: "preset-id",
+				},
+			},
+		});
+
+		await screen.findByRole("button", { name: "Retry" });
+		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
+		await user.type(
+			await screen.findByRole("textbox", {
+				name: MockTemplateVersionParameter1.name,
+			}),
+			"x",
+		);
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				template_ids: [MockTemplate.id],
+				default_template_id: MockTemplate.id,
+				default_parameters: { [MockTemplateVersionParameter1.name]: "x" },
+			}),
+		);
+	});
 });

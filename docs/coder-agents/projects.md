@@ -142,7 +142,9 @@ The dialog checks for template changes made elsewhere, such as in another browse
 If you haven't edited anything, the dialog switches to the newer templates.
 If you have unsaved edits, it shows a warning and you can't save until you choose.
 Select **Load latest** to start over from the newer templates, or **Keep my draft** to replace them with yours when you save.
-If the check fails, saving is paused until you select **Retry**.
+The dialog also reloads the list of templates you can add when you return to its tab.
+If the check fails, or the templates, presets, or parameters the dialog needs don't load, saving is paused until you select **Retry**.
+If you edit the draft while the check runs, nothing is saved; select **Save** again.
 You can close the dialog while it checks; the save is then canceled.
 
 You can add any template in the project's organization that you can access, that allows Coder Agents, and that isn't deprecated.

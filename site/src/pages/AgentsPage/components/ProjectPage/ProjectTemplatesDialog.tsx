@@ -263,11 +263,13 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// Without a fresh copy of the project, Save could overwrite a change
 	// made elsewhere that the conflict check has not seen.
 	// The defaults queries decide which stale values the save clears.
+	// A disabled query keeps its last error, so only the queries this draft
+	// uses count.
 	const failedQueries = [
 		projectsQuery,
 		templatesQuery,
-		presetsQuery,
-		parametersQuery,
+		...(hasDefaultPreset ? [presetsQuery] : []),
+		...(hasDefaultParameters ? [parametersQuery] : []),
 	].filter((query) => query.isError);
 	const refreshFailed = failedQueries.length > 0;
 	// Templates missing from a stale list would be dropped on save. The
@@ -292,9 +294,17 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!isRefreshing &&
 		!isSaving;
 	useEffect(() => {
-		if (isBusy) {
+		const pending = pendingFocusRef.current;
+		// Wait for the outcome: a save either closes the dialog or fails, and
+		// a found conflict renders its warning after the project refreshes.
+		if (
+			isBusy ||
+			(pending === "save" && !shownError) ||
+			(pending === "conflict" && !hasConflict)
+		) {
 			return;
 		}
+		pendingFocusRef.current = null;
 		const focused = document.activeElement;
 		const isFocusLost =
 			!focused ||
@@ -302,22 +312,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			focused.getAttribute("role") === "dialog" ||
 			focused === saveButtonRef.current ||
 			focused === retryButtonRef.current;
-		const pending = pendingFocusRef.current;
-		pendingFocusRef.current = null;
 		if (!isFocusLost) {
 			return;
 		}
-		if (pending === "conflict" && hasConflict) {
+		if (pending === "conflict") {
 			conflictAlertRef.current?.focus();
 		} else if (pending === "retry" && refreshFailed) {
 			retryButtonRef.current?.focus();
-		} else if (
-			canSave &&
-			(pending === "retry" || (pending === "save" && shownError))
-		) {
+		} else if (canSave) {
+			// Also covers Save losing focus to a background refresh.
 			saveButtonRef.current?.focus();
-		} else if (pending !== null) {
-			pendingFocusRef.current = pending;
 		}
 	}, [isBusy, hasConflict, refreshFailed, canSave, shownError]);
 
