@@ -101,6 +101,7 @@ type ChatListParams = Readonly<{
 	status: ChatListStatusFilter | "all";
 	statuses: readonly TypesGen.ChatStatus[];
 	sources: readonly TypesGen.ChatListSource[];
+	pinnedProjectsOnly: boolean;
 }>;
 
 export type ChatListInput = Readonly<{
@@ -109,6 +110,8 @@ export type ChatListInput = Readonly<{
 	chatStatus?: ChatListStatusFilter;
 	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
+	/** Leaves out chats in projects the user has not pinned. */
+	pinnedProjectsOnly?: boolean;
 }>;
 
 type ChatSearchParams = Readonly<{ q: string }>;
@@ -210,11 +213,13 @@ export const updateInfiniteChatsCache = (
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
  * runs independently on each page. Lists whose archive or status
- * filters exclude the chat are skipped.
+ * filters exclude the chat are skipped, and so are pinned-projects-only lists
+ * when the caller knows the chat's project is not pinned.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
+	{ inUnpinnedProject = false }: { inUnpinnedProject?: boolean } = {},
 ) => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
@@ -239,6 +244,15 @@ export const prependToInfiniteChatsCache = (
 			!statuses.includes(
 				chat.status === "interrupting" ? "running" : chat.status,
 			)
+		) {
+			continue;
+		}
+		if (
+			inUnpinnedProject &&
+			params !== null &&
+			typeof params === "object" &&
+			"pinnedProjectsOnly" in params &&
+			params.pinnedProjectsOnly === true
 		) {
 			continue;
 		}
@@ -1439,6 +1453,7 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	status: input?.chatStatus ?? "all",
 	statuses: canonicalizeChatListStatuses(input?.statuses ?? []),
 	sources: canonicalizeChatSources(input?.sources ?? []),
+	pinnedProjectsOnly: input?.pinnedProjectsOnly ?? false,
 });
 
 // Sidebar-emitted query shapes must match TestSearchChatsFrontendEmitted in
@@ -1496,6 +1511,7 @@ const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
 					project_id: projectId,
+					pinned_projects_only: params.pinnedProjectsOnly || undefined,
 				},
 				signal,
 			),
@@ -2143,7 +2159,10 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
 		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
 		copyFolderChatToSidebarList(queryClient, chatId);
-		return { previousProjectId: previousChat?.project_id };
+		return {
+			previousProjectId: previousChat?.project_id,
+			wasChatPinned: (previousChat?.pin_order ?? 0) > 0,
+		};
 	},
 	onError: (
 		_error: unknown,

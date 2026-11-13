@@ -260,15 +260,19 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	// The debug link wins when both are present.
 	const linkPrompt =
 		debugBuildId === null && promptValue?.trim() ? promptValue : undefined;
+	// Navigations from this page forward this, not location.search: the
+	// router commits the replace below in a transition, so the user can act
+	// while location.search still holds the link parameters.
+	const forwardedSearchParams = new URLSearchParams(searchParams);
+	forwardedSearchParams.delete(debugWorkspaceBuildSearchParam);
+	forwardedSearchParams.delete(promptSearchParam);
+	const forwardedSearch = forwardedSearchParams.toString();
 	// One navigation removes both parameters: separate navigations would each
 	// rebuild the URL from the same snapshot and restore the other parameter.
 	useEffect(() => {
 		if (debugLinkParam === null && promptParam === null) {
 			return;
 		}
-		const search = new URLSearchParams(searchParams);
-		search.delete(debugWorkspaceBuildSearchParam);
-		search.delete(promptSearchParam);
 		const state: DeepLinkState | undefined =
 			debugBuildId !== null
 				? { debugWorkspaceBuildId: debugBuildId }
@@ -276,7 +280,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 					? { prompt: linkPrompt }
 					: undefined;
 		navigate(
-			{ pathname: location.pathname, search: search.toString() },
+			{ pathname: location.pathname, search: forwardedSearch },
 			{ replace: true, state },
 		);
 	}, [
@@ -286,7 +290,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		linkPrompt,
 		location.pathname,
 		navigate,
-		searchParams,
+		forwardedSearch,
 	]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
@@ -461,7 +465,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search: location.search,
+			search: forwardedSearch,
 		});
 	};
 

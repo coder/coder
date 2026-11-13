@@ -8,7 +8,13 @@ title: Projects
 
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
-Your projects appear in the **Projects** section of the **Agents** page sidebar.
+Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards.
+The **Your projects** tab lists the projects you own.
+The **Shared with you** tab lists projects that other users own and you can use.
+While you have [archived projects](#archive-a-project), an **Archived** tab lists them.
+Each card shows whether one of your chats in the project needs attention or is running, or else how many of your chats are unread or read.
+It also shows how many users can use the project, counting its owner, and when your chats in it last changed.
+[Pinned projects](#pin-a-project) also appear in the sidebar.
 
 ## What a project provides
 
@@ -27,20 +33,24 @@ Chats in a project must be in the project's organization.
 Any organization member who can use Coder Agents can create projects in that organization.
 Each user can own up to 100 projects across all organizations.
 
-A project is private to its owner.
-When the experimental `chat-project-sharing` feature is enabled (`--experiments=chat-project-sharing`), the owner can share a project with other users and groups, who can then start chats in it.
+Only the owner can use a project until they share it.
+Project sharing is experimental: your deployment administrator must include `chat-project-sharing` in the `CODER_EXPERIMENTS` environment variable or the `coder server --experiments` list.
+The owner can then share the project with users and groups in its organization, and it appears on the **Shared with you** tab for them.
+If your administrator later removes the experiment, owners can no longer change who a project is shared with, but existing shares keep working.
+[Disabling chat sharing](./chat-sharing.md#disable-chat-sharing) also turns off project sharing.
 Coder records project, instruction, skill, and memory changes in the [audit log](../admin/security/audit-logs.md).
 
 ## Create a project
 
-1. On the **Agents** page, select **New project** in the **Projects** section of the sidebar.
+1. On the **Projects** page, select **New project**.
 1. Enter a **Project name** and an optional **Description**, and pick an icon.
 1. Choose the **Organization**.
 1. Select **Create project**.
 
+New projects start pinned to your sidebar.
 The project page shows a **Details** panel with the project owner, creation date, organization, skills, and instructions, and lists your chats in the project.
 
-To rename or delete a project, open the project's menu on its page or in the sidebar and select **Edit project** or **Delete project**.
+To rename or delete a project, open the project's menu on its page, on its card, or in the sidebar and select **Edit project** or **Delete project**.
 Deleting a project deletes its instructions, skills, and memories.
 Its chats are kept and move back to your chat list.
 To set a project aside without deleting it, [archive it](#archive-a-project).
@@ -49,10 +59,10 @@ To set a project aside without deleting it, [archive it](#archive-a-project).
 
 Archive a project when its work is done.
 The project owner, organization admins, and site Owners can archive and unarchive a project.
-A project that isn't shared with you doesn't appear in your sidebar or in **Archived projects**, so admins open it from its link and use the menu or banner on its page.
+A project that isn't shared with you doesn't appear on the **Projects** page, so admins open it from its link and use the menu or banner on its page.
 Admins can't start chats in a project that isn't shared with them.
 
-To archive a project, open the project's menu on its page or in the sidebar and select **Archive project**.
+To archive a project, open the project's menu on its page, on its card, or in the sidebar and select **Archive project**.
 The dialog shows how many top-level chats will be archived, along with their subagent chats, and what happens next:
 
 - Every chat in the project is archived, including chats that other users started in it.
@@ -68,11 +78,11 @@ Archived chats follow the deployment's [conversation data retention](./platform-
 After that period, Coder permanently deletes them, and unarchiving the project doesn't bring them back.
 When retention is disabled, archived chats are kept until you unarchive the project.
 
-An archived project leaves the sidebar's **Projects** section, the new-chat project picker, and **Move to project**.
+An archived project leaves the sidebar, the **Your projects** and **Shared with you** tabs, the new-chat project picker, and **Move to project**, and you can't pin it.
 Its page stays available to read its archived chats, but you can't start chats in it, move chats into it, or edit its details, instructions, skills, sharing, or memory.
 
-To unarchive a project, select **Archived projects** (the archive icon) in the **Projects** section of the sidebar and select **Unarchive**, or select **Unarchive** on the project's page.
-Unarchiving restores the chats that were archived with the project.
+To unarchive a project, open its card's menu on the **Archived** tab of the **Projects** page and select **Unarchive project**, or select **Unarchive** on the project's page.
+Unarchiving restores the chats that were archived with the project, and a project you had pinned returns to the **Pinned** area.
 You can't unarchive a single chat while its project is archived.
 Unarchive the project instead.
 
@@ -88,7 +98,10 @@ List archived projects with `GET /api/experimental/chats/projects?archived=true`
   The picker defaults to **No project**.
 - Move an existing chat: open the chat's menu, select **Move to project**, and choose a project.
   Select **Remove from project** to take it out.
-- Drag a chat in the sidebar onto a project folder.
+- Drag a chat in the sidebar onto a pinned project.
+  Only pinned projects appear in the sidebar, so use **Move to project** to move a chat into an unpinned project.
+  If that move takes the chat out of the sidebar, a dialog explains that the sidebar lists the project's chats only while the project is pinned, and offers **Pin project** and **Go to project**.
+  This happens when the chat isn't pinned and was listed in the sidebar before the move.
 
 You can move only top-level chats that you own, that aren't archived, and that aren't running.
 Sub-agent chats always follow their top-level chat.
@@ -96,6 +109,24 @@ After a move, the chat's next turn uses the new project's instructions, skills, 
 
 The API equivalent is `PATCH /api/v2/chats/{chat}` with `project_id`.
 Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000-0000-0000-000000000000`) to remove a chat from its project.
+
+## Pin a project
+
+- To pin a project, open its card's menu on the **Projects** page and select **Pin project**.
+  The project appears at the end of the **Pinned** area of the sidebar, below your pinned chats.
+- To unpin a project, select the pin icon on its card.
+- You can also open the project's menu on its card or in the sidebar and select **Unpin project**.
+- To reorder pinned projects, drag them in the **Pinned** area of the sidebar.
+
+Pins are personal and change only your own sidebar.
+Projects you create start pinned at the end of the **Pinned** area, and projects that other users share with you start unpinned.
+When you upgrade to a release with pinning, Coder pins every project you already own, so your sidebar doesn't lose any projects.
+
+The sidebar lists a chat in an unpinned project only if you pin the chat itself.
+Every chat stays available from the project's page.
+Chats you own in a project that you can no longer open, for example after the owner stops sharing it, stay in the sidebar.
+
+The API equivalents are `PUT` and `DELETE` on `/api/experimental/organizations/{organization}/chats/projects/{project}/pin`.
 
 ## Instructions
 

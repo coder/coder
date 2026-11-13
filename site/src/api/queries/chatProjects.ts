@@ -4,6 +4,7 @@ import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
+	chatListFamilyKey,
 	DEFAULT_CHAT_PAGE_LIMIT,
 	invalidateChatListQueries,
 	invalidateChatSearches,
@@ -149,6 +150,156 @@ export const chatProjectArchivePreview = (project: TypesGen.ChatProject) =>
 			),
 	});
 
+/** Nested under chatProjectsKey, so project list invalidations reach it. */
+export const chatProjectSummariesKey = [
+	...chatProjectsKey,
+	"summaries",
+] as const;
+
+/**
+ * The user's projects with their pins and counts over the user's own chats.
+ * Pins send no watch events, so other tabs catch up on focus.
+ */
+export const chatProjectSummaries = () =>
+	queryOptions({
+		queryKey: chatProjectSummariesKey,
+		queryFn: () => API.experimental.getChatProjectSummaries(),
+		refetchOnWindowFocus: true,
+	});
+
+/** The pinned summaries, in pin order. */
+export const getPinnedProjectSummaries = (
+	summaries: readonly TypesGen.ChatProjectSummary[],
+): TypesGen.ChatProjectSummary[] =>
+	summaries
+		.filter((summary) => summary.pinned)
+		.sort((a, b) => a.pin_order - b.pin_order);
+
+const projectPinsMutationKey = ["chat-project-pins"] as const;
+
+// Pin changes share a scope, so the server applies them in the order the
+// user made them.
+const projectPinsMutationOptions = {
+	mutationKey: projectPinsMutationKey,
+	scope: { id: "chat-project-pins" },
+} as const;
+
+// An earlier queued pin change would replace the later changes' optimistic
+// order with the server's, so only the last one restores or refreshes it.
+const isLastProjectPinChange = (queryClient: QueryClient) =>
+	queryClient.isMutating({ mutationKey: projectPinsMutationKey }) <= 1;
+
+// The sidebar's chat list leaves out chats in unpinned projects, so pinning
+// or unpinning can add or remove chats from it; moving a pin cannot. Project
+// chat lists do not change.
+const invalidateProjectPins = (
+	queryClient: QueryClient,
+	{ changesChatList }: { changesChatList: boolean },
+) =>
+	Promise.all([
+		isLastProjectPinChange(queryClient) &&
+			queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		changesChatList &&
+			queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
+	]);
+
+type PinChatProjectVariables = {
+	project: TypesGen.ChatProject;
+	pinOrder?: number;
+};
+
+/** Pins a project at the end, or moves a pinned project to pinOrder. */
+export const pinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		...projectPinsMutationOptions,
+		mutationFn: ({ project, pinOrder }: PinChatProjectVariables) =>
+			API.experimental.pinChatProject(
+				project.organization_id,
+				project.id,
+				pinOrder,
+			),
+		// A move shows at once, and a summaries fetch already in flight cannot
+		// put the project back while the request runs.
+		onMutate: async ({ project, pinOrder }: PinChatProjectVariables) => {
+			if (pinOrder === undefined) {
+				return { previousSummaries: undefined, isMove: false };
+			}
+			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
+			const previousSummaries = queryClient.getQueryData<
+				TypesGen.ChatProjectSummary[]
+			>(chatProjectSummariesKey);
+			const previousPinnedIds = getPinnedProjectSummaries(
+				previousSummaries ?? [],
+			).map((s) => s.project.id);
+			const pinnedIds = previousPinnedIds
+				.filter((id) => id !== project.id)
+				.toSpliced(pinOrder - 1, 0, project.id);
+			const pinOrderById = new Map(pinnedIds.map((id, i) => [id, i + 1]));
+			queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+				(summaries) =>
+					summaries?.map((s) => {
+						const order = pinOrderById.get(s.project.id);
+						return order === undefined
+							? s
+							: { ...s, pinned: true, pin_order: order };
+					}),
+			);
+			return {
+				previousSummaries,
+				isMove: previousPinnedIds.includes(project.id),
+			};
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
+				queryClient.setQueryData(
+					chatProjectSummariesKey,
+					context.previousSummaries,
+				);
+			}
+		},
+		onSettled: (_data, _error, _variables, context) =>
+			invalidateProjectPins(queryClient, {
+				changesChatList: !context?.isMove,
+			}),
+	});
+
+/** Unpins a project, which also takes its chats out of the sidebar. */
+export const unpinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		...projectPinsMutationOptions,
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.unpinChatProject(project.organization_id, project.id),
+		// The folder and its chats leave the sidebar at once, and a summaries
+		// fetch already in flight cannot bring them back.
+		onMutate: async (project: TypesGen.ChatProject) => {
+			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
+			const previousSummaries = queryClient.getQueryData<
+				TypesGen.ChatProjectSummary[]
+			>(chatProjectSummariesKey);
+			queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+				(summaries) =>
+					summaries?.map((s) =>
+						s.project.id === project.id
+							? { ...s, pinned: false, pin_order: 0 }
+							: s,
+					),
+			);
+			return { previousSummaries };
+		},
+		onError: (_error, _project, context) => {
+			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
+				queryClient.setQueryData(
+					chatProjectSummariesKey,
+					context.previousSummaries,
+				);
+			}
+		},
+		onSettled: () =>
+			invalidateProjectPins(queryClient, { changesChatList: true }),
+	});
+
 export const createChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: ({
@@ -220,7 +371,8 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 
 /**
  * Moves a project between the cached active and archived lists, so pages
- * that look it up keep finding it while both lists refetch. A project in
+ * that look it up keep finding it while both lists refetch, and drops an
+ * archived project from the cached summaries. A project in
  * neither list stays out of them and is updated where unlistedChatProject
  * cached it.
  */
@@ -246,7 +398,14 @@ const setCachedProjectArchiveState = (
 	queryClient.setQueriesData<TypesGen.ChatProject | null>(
 		{ queryKey: unlistedChatProjectKey(project.id) },
 		(cached) => (cached ? project : cached),
-	);
+	); // Summaries list only active projects. An unarchived project returns
+	// when they refetch.
+	if (project.archived_at) {
+		queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+			chatProjectSummariesKey,
+			(summaries) => summaries?.filter((s) => s.project.id !== project.id),
+		);
+	}
 };
 
 /** Refreshes what archiving or unarchiving a project changes. */
@@ -345,6 +504,8 @@ export const setChatProjectRole = (queryClient: QueryClient) =>
 					queryKey: chatProjectACLKey(project.id),
 					exact: true,
 				}),
+				// Summaries carry the project's permissions and member count.
+				queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
 			]),
 	});
 

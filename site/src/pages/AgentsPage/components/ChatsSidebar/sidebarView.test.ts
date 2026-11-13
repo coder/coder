@@ -19,6 +19,13 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
+	it("returns the projects page for /agents/projects", () => {
+		expect(sidebarViewFromPath("/agents/projects")).toEqual({
+			panel: "chats",
+			projectsPage: true,
+		});
+	});
+
 	it("returns the settings index for /agents/settings", () => {
 		expect(sidebarViewFromPath("/agents/settings")).toEqual({
 			panel: "settings",

@@ -38,6 +38,7 @@ const (
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
+	CheckChatProjectPinsPinOrderCheck                        CheckConstraint = "chat_project_pins_pin_order_check"                         // chat_project_pins
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
 	CheckChatProjectsGroupAclIsObject                        CheckConstraint = "chat_projects_group_acl_is_object"                         // chat_projects
 	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects

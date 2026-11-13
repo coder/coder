@@ -580,6 +580,23 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Aggregates pin usage over each active, non-system user's accessible
+	// projects. Grants count only when @acl_enabled, matching the summaries.
+	// No identifiers leave this query.
+	// Users act on pins by pinning, reordering, or unpinning a project.
+	GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error)
+	// Returns the unarchived projects from GetChatProjectsOwnedOrSharedWithUserID
+	// with the user's active pin and aggregates over the user's own top-level,
+	// non-archived chats. Entries match regardless of the actions they grant,
+	// so callers must authorize each row; pins on projects the user can no
+	// longer see, or on archived projects, are never returned.
+	// Users who can use each project: the owner, granted users who are
+	// organization members, and members of granted groups (including the
+	// Everyone group). Counted only while project sharing is available;
+	// otherwise every project counts its owner alone. Suspended users cannot
+	// sign in, so they are not counted.
+	// Read through idx_chats_owner.
+	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Entries match regardless of the actions they grant, so callers must
 	// authorize each row. A NULL archived returns archived and active projects.
 	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg GetChatProjectsOwnedOrSharedWithUserIDParams) ([]ChatProject, error)
@@ -637,6 +654,7 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
+	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
@@ -1169,6 +1187,7 @@ type sqlcQuerier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
@@ -1277,6 +1296,8 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
+	// Pins a newly created project for its creator at the end of their list.
+	InsertChatProjectPin(ctx context.Context, arg InsertChatProjectPinParams) error
 	// Legacy queue insertion path. When no caller-supplied creator exists,
 	// preserve the created_by invariant by attributing the queued row to the
 	// chat owner.
@@ -1520,6 +1541,13 @@ type sqlcQuerier interface {
 	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
+	// Pins a project, or moves an already pinned project, to pin_order. Without
+	// pin_order a new pin goes to the end and an existing pin keeps its place.
+	// Positions count only pins the user can still see, as the summaries do, and
+	// are clamped to [1, count]. Pins on projects the user can no longer see, or
+	// on archived projects, move after the visible ones. Callers must hold the per-user pin lock so
+	// concurrent writes cannot interleave.
+	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
@@ -1601,6 +1629,12 @@ type sqlcQuerier interface {
 	// re-authenticate under a new OIDC provider.
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
+	// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
+	// The source is kept so telemetry can tell which pins users removed.
+	// Unpinning a project that is not pinned changes nothing. Like
+	// PinChatProject, pins the user can still see on unarchived projects come
+	// first, and callers must hold the per-user pin lock.
+	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
