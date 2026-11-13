@@ -23,7 +23,7 @@ func TestSerdes_StopClosesAfterResponse(t *testing.T) {
 		defer manager.Close()
 		sendCh := make(chan *TunnelMessage)
 		recvCh := make(chan *ManagerMessage)
-		s := newSerdes(ctx, testutil.Logger(t), tunnel, sendCh, recvCh)
+		s := newSerdes(ctx, testutil.Logger(t), tunnel, sendCh, recvCh, cancel)
 		s.start()
 		defer func() {
 			cancel()

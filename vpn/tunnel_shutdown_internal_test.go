@@ -24,25 +24,7 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
 		defer cancel()
-		manager, tunnel := net.Pipe()
-		defer manager.Close()
-		defer tunnel.Close()
-
-		var tun *Tunnel
-		ready := make(chan error, 1)
-		go func() {
-			var err error
-			tun, err = NewTunnel(ctx, testutil.Logger(t), tunnel, newFakeClient(ctx, t))
-			ready <- err
-		}()
-		header := make([]byte, len(expectedHandshake))
-		_, err := io.ReadFull(manager, header)
-		require.NoError(t, err)
-		require.Equal(t, expectedHandshake, string(header))
-		_, err = manager.Write([]byte("codervpn manager 1.3\n"))
-		require.NoError(t, err)
-		require.NoError(t, <-ready)
-		defer tun.Close()
+		tun, manager := newPipeTunnel(ctx, t)
 
 		// Occupy the writer so both the network-settings RPC and the Stop
 		// response must wait for a send on the unbuffered channel.
@@ -58,15 +40,7 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 		default:
 		}
 
-		stop, err := proto.Marshal(&ManagerMessage{
-			Rpc: &RPC{MsgId: 1},
-			Msg: &ManagerMessage_Stop{Stop: &StopRequest{}},
-		})
-		require.NoError(t, err)
-		// #nosec G115 - The Stop request is a small, fixed-size message.
-		require.NoError(t, binary.Write(manager, binary.BigEndian, uint32(len(stop))))
-		_, err = manager.Write(stop)
-		require.NoError(t, err)
+		writeStop(t, manager)
 		synctest.Wait()
 
 		// Queue another RPC behind Stop. The writer is still blocked, so
@@ -91,7 +65,7 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 			// is blocked on its payload, before accepting another send.
 			synctest.Wait()
 			payload := make([]byte, length)
-			_, err = io.ReadFull(manager, payload)
+			_, err := io.ReadFull(manager, payload)
 			require.NoError(t, err)
 			msg := new(TunnelMessage)
 			require.NoError(t, proto.Unmarshal(payload, msg))
@@ -105,7 +79,7 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 		require.Error(t, <-rpcDone)
 		require.Error(t, <-lateRPCDone)
 		var b [1]byte
-		_, err = manager.Read(b[:])
+		_, err := manager.Read(b[:])
 		require.ErrorIs(t, err, io.EOF)
 
 		// Stop is also valid before Start. It must terminate the updater
@@ -120,6 +94,29 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 		}
 		require.NoError(t, ctx.Err(), "shutdown must not depend on the parent context ending")
 	})
+}
+
+func TestTunnel_StopAfterWriterExits(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tun, manager := newPipeTunnel(ctx, t)
+
+	// Occupy the writer so the update blocks sending while it holds the
+	// updater mutex that Stop needs.
+	tun.LogEntry(ctx, slog.SinkEntry{Message: "before stop"})
+	updateDone := make(chan error, 1)
+	go func() {
+		updateDone <- tun.Update(tailnet.WorkspaceUpdate{})
+	}()
+	writeStop(t, manager)
+	// The manager closes without reading, so the blocked write fails and
+	// nothing reads the send channel again.
+	require.NoError(t, manager.Close())
+
+	require.Error(t, testutil.TryReceive(ctx, t, updateDone))
+	testutil.TryReceive(ctx, t, tun.requestLoopDone)
+	testutil.TryReceive(ctx, t, tun.netLoopDone)
 }
 
 func TestTunnel_StopForwardsCloseLogs(t *testing.T) {
@@ -175,4 +172,45 @@ func (c *loggingCloseConn) Close() error {
 		c.tun.LogEntry(context.Background(), slog.SinkEntry{Message: "closing conn"})
 	}
 	return c.fakeConn.Close()
+}
+
+// newPipeTunnel starts a Tunnel on one end of a pipe and completes the
+// handshake on the other end, which it returns as the manager side.
+func newPipeTunnel(ctx context.Context, t *testing.T) (*Tunnel, net.Conn) {
+	t.Helper()
+	manager, tunnel := net.Pipe()
+	t.Cleanup(func() { _ = manager.Close() })
+	t.Cleanup(func() { _ = tunnel.Close() })
+
+	var tun *Tunnel
+	ready := make(chan error, 1)
+	go func() {
+		var err error
+		tun, err = NewTunnel(ctx, testutil.Logger(t), tunnel, newFakeClient(ctx, t))
+		ready <- err
+	}()
+	header := make([]byte, len(expectedHandshake))
+	_, err := io.ReadFull(manager, header)
+	require.NoError(t, err)
+	require.Equal(t, expectedHandshake, string(header))
+	_, err = manager.Write([]byte("codervpn manager 1.3\n"))
+	require.NoError(t, err)
+	require.NoError(t, <-ready)
+	t.Cleanup(func() { _ = tun.Close() })
+	return tun, manager
+}
+
+// writeStop writes a Stop request with message ID 1. The pipe returns once
+// the tunnel has read the whole frame.
+func writeStop(t *testing.T, manager net.Conn) {
+	t.Helper()
+	stop, err := proto.Marshal(&ManagerMessage{
+		Rpc: &RPC{MsgId: 1},
+		Msg: &ManagerMessage_Stop{Stop: &StopRequest{}},
+	})
+	require.NoError(t, err)
+	// #nosec G115 - The Stop request is a small, fixed-size message.
+	require.NoError(t, binary.Write(manager, binary.BigEndian, uint32(len(stop))))
+	_, err = manager.Write(stop)
+	require.NoError(t, err)
 }

@@ -24,6 +24,9 @@ type serdes[S rpcMessage, R receivableRPCMessage[RR], RR any] struct {
 	recvCh    chan<- R
 	closeOnce sync.Once
 	wg        sync.WaitGroup
+
+	// sendDone is called when sendLoop exits. Nothing reads sendCh after that.
+	sendDone func()
 }
 
 func (s *serdes[_, R, RR]) recvLoop() {
@@ -65,6 +68,7 @@ func (s *serdes[_, R, RR]) recvLoop() {
 
 func (s *serdes[S, _, _]) sendLoop() {
 	s.logger.Debug(s.ctx, "starting sendLoop")
+	defer s.sendDone()
 	defer s.closeIdempotent()
 	for {
 		select {
@@ -133,13 +137,14 @@ func (s *serdes[_, _, _]) start() {
 
 func newSerdes[S rpcMessage, R receivableRPCMessage[RR], RR any](
 	ctx context.Context, logger slog.Logger, conn io.ReadWriteCloser,
-	sendCh <-chan S, recvCh chan<- R,
+	sendCh <-chan S, recvCh chan<- R, sendDone func(),
 ) *serdes[S, R, RR] {
 	return &serdes[S, R, RR]{
-		ctx:    ctx,
-		logger: logger.Named("serdes"),
-		conn:   conn,
-		sendCh: sendCh,
-		recvCh: recvCh,
+		ctx:      ctx,
+		logger:   logger.Named("serdes"),
+		conn:     conn,
+		sendCh:   sendCh,
+		recvCh:   recvCh,
+		sendDone: sendDone,
 	}
 }

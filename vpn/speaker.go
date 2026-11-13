@@ -97,6 +97,9 @@ type speaker[S rpcMessage, R receivableRPCMessage[RR], RR any] struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+	// sendCtx ends with ctx or when serdes stops reading sendCh, so a sender
+	// that waits on it cannot block forever.
+	sendCtx context.Context
 
 	sendCh       chan<- S
 	recvCh       <-chan R
@@ -120,14 +123,16 @@ func newSpeaker[S rpcMessage, R receivableRPCMessage[RR], RR any](
 	}
 	sendCh := make(chan S)
 	recvCh := make(chan R)
+	sendCtx, sendCancel := context.WithCancel(ctx)
 	s := &speaker[S, R, RR]{
-		serdes:        newSerdes(ctx, logger, conn, sendCh, recvCh),
+		serdes:        newSerdes(ctx, logger, conn, sendCh, recvCh, sendCancel),
 		logger:        logger,
 		requests:      make(chan *request[S, R]),
 		responseChans: make(map[uint64]chan R),
 		nextMsgID:     1,
 		ctx:           ctx,
 		cancel:        cancel,
+		sendCtx:       sendCtx,
 		sendCh:        sendCh,
 		recvCh:        recvCh,
 		recvLoopDone:  make(chan struct{}),
@@ -164,7 +169,7 @@ func (s *speaker[S, R, _]) recvFromSerdes() {
 				continue
 			}
 			req := &request[S, R]{
-				ctx:     s.ctx,
+				ctx:     s.sendCtx,
 				msg:     msg,
 				replyCh: s.sendCh,
 			}
