@@ -44,3 +44,28 @@ export const OpenWithHover: Story = {
 		await user.hover(menuItem);
 	},
 };
+
+export const NarrowViewport: Story = {
+	args: {
+		children: (
+			<>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline">Filters</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start">
+					{Array.from({ length: 24 }, (_, i) => (
+						<DropdownMenuItem key={i}>Filter preset {i + 1}</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</>
+		),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		await user.click(within(canvasElement).getByText("Filters"));
+	},
+};

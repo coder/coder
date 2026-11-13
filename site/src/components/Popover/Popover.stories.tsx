@@ -55,3 +55,25 @@ export const AlignStart: Story = {
 	},
 	play: Default.play,
 };
+
+export const NarrowViewport: Story = {
+	args: {
+		children: (
+			<Popover>
+				<PopoverTrigger asChild>
+					<Button>Click here!</Button>
+				</PopoverTrigger>
+				<PopoverContent align="start" className="w-[404px]">
+					{content}
+				</PopoverContent>
+			</Popover>
+		),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
