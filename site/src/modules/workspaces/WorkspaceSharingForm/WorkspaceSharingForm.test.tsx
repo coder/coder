@@ -65,7 +65,7 @@ describe("WorkspaceSharingForm", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: `Role for ${MockGroup.display_name || MockGroup.name}: Use`,
+				name: `Role for ${MockGroup.display_name}: Use`,
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: /Admin/ }));
