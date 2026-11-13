@@ -399,8 +399,8 @@ describe("submitChatTurn", () => {
 			reasoning_effort: undefined,
 			editing: false,
 		});
-		// The row shows the saved content, no longer under edit, until a queue
-		// update.
+		// The row shows the saved content, no longer under edit, until the
+		// stored queue shows the row no longer under edit.
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([
 			{
 				...queued,

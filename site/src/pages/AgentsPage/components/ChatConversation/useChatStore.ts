@@ -221,6 +221,7 @@ export const useChatStore = (
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 			socket: { close: () => void },
+			afterEvents: () => void,
 		) => {
 			if (disposed) {
 				return;
@@ -428,14 +429,22 @@ export const useChatStore = (
 						}
 					}
 				}
+				afterEvents();
 			});
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
+				// A connection's first read is made after it opens, so it holds
+				// the result of every request that settled before.
+				let endSettledActions: (() => void) | undefined =
+					store.captureSettledActions();
 				// The server sends the changes made at or after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
 				socket.addEventListener("message", (payload) =>
-					handleMessage(payload, socket),
+					handleMessage(payload, socket, () => {
+						endSettledActions?.();
+						endSettledActions = undefined;
+					}),
 				);
 				return socket;
 			},

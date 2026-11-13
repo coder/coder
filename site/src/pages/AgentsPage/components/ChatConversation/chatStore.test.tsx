@@ -4972,6 +4972,114 @@ describe("chat stream contract", () => {
 		},
 	);
 
+	it("ends at a reconnect's first read the actions whose requests settled before it", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([
+				buildMessage(chatID, 1, "user", "a"),
+				buildMessage(chatID, 2, "assistant", "b"),
+				buildMessage(chatID, 3, "user", "c"),
+				buildMessage(chatID, 4, "assistant", "d"),
+			]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		const { store } = result.current;
+		await act(async () => {
+			store.applyServerChatStatus("running");
+			await store.runPendingAction(
+				{
+					kind: "send",
+					busyBehavior: "queue",
+					chatID,
+					content: [{ type: "text", text: "queued" }],
+				},
+				() => Promise.resolve(),
+			);
+			await store.runPendingAction(
+				{
+					kind: "edit",
+					editedMessageID: 3,
+					content: [{ type: "text", text: "c2" }],
+				},
+				() => Promise.resolve(),
+			);
+		});
+		expect(result.current.pendingRowCount).toBe(2);
+
+		// The stream reconnects after both requests settled. Its first read
+		// holds both results: the edit cleared the queued send.
+		act(() => {
+			sockets[0].emitError();
+		});
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(sockets).toHaveLength(2);
+		const shownMessageIDs: number[][] = [];
+		store.subscribe(() =>
+			shownMessageIDs.push([...selectOrderedMessageIDs(store.getSnapshot())]),
+		);
+		act(() => {
+			sockets[1].emitOpen();
+			sockets[1].emitDataBatch([
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 3 },
+					snapshot_version: 7,
+				},
+				message(5, "user", 7),
+				{
+					type: "queue_update",
+					chat_id: chatID,
+					queued_messages: [],
+					snapshot_version: 7,
+				},
+			]);
+		});
+
+		expect(result.current).toMatchObject({
+			messageIDs: [1, 2, 5],
+			queuedIDs: [],
+			pendingRowCount: 0,
+		});
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		// The edit's pending message and the stored one never both show, and
+		// one of them always does.
+		expect(shownMessageIDs.map((ids) => ids.length)).toEqual(
+			shownMessageIDs.map(() => 3),
+		);
+	});
+
+	it("keeps an action whose request settled after the connection opened", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		const { store } = result.current;
+		await act(async () => {
+			store.applyServerChatStatus("running");
+			await store.runPendingAction(
+				{
+					kind: "send",
+					busyBehavior: "queue",
+					chatID,
+					content: [{ type: "text", text: "queued" }],
+				},
+				() => Promise.resolve(),
+			);
+		});
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitData(statusEvent(chatID));
+		});
+
+		expect(result.current.pendingRowCount).toBe(1);
+	});
+
 	it("keeps a delete's result through a reconnect that resends its events", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
@@ -5112,15 +5220,16 @@ describe("chat stream contract", () => {
 			queuedIDs: [],
 		});
 
+		// The second frame's queue also holds a row queued since.
 		act(() => {
 			sockets[0].emitData({
 				type: "queue_update",
 				chat_id: chatID,
-				queued_messages: [],
-				snapshot_version: 5,
+				queued_messages: [buildQueuedMessage(chatID, 11, "later")],
+				snapshot_version: 6,
 			});
 		});
-		expect(result.current.queuedIDs).toEqual([]);
+		expect(result.current.queuedIDs).toEqual([11]);
 	});
 
 	it("reconnects at the last applied version without the retry", async () => {
