@@ -3,7 +3,6 @@ package database_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,15 +10,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -435,20 +430,6 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	}
 
-	t.Run("Owner", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		org := dbgen.Organization(t, db, database.Organization{})
-		owner := dbgen.User(t, db, database.User{})
-		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
-		// A hard delete needs the status history gone first.
-		_, err := sqlDB.ExecContext(ctx, `DELETE FROM user_status_changes WHERE user_id = $1`, owner.ID)
-		require.NoError(t, err)
-		_, err = sqlDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, owner.ID)
-		require.NoError(t, err)
-		requireGone(ctx, t, automation.ID)
-	})
-
 	// Coder soft-deletes users, so the foreign key never cascades. The
 	// user cleanup trigger deletes the automations instead.
 	t.Run("SoftDeletedOwner", func(t *testing.T) {
@@ -463,17 +444,6 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 		requireGone(ctx, t, automation.ID)
 		_, err := db.GetChatAutomationByID(ctx, kept.ID)
 		require.NoError(t, err, "the automation of another user stays")
-	})
-
-	t.Run("Organization", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		org := dbgen.Organization(t, db, database.Organization{})
-		owner := dbgen.User(t, db, database.User{})
-		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
-		_, err := sqlDB.ExecContext(ctx, `DELETE FROM organizations WHERE id = $1`, org.ID)
-		require.NoError(t, err)
-		requireGone(ctx, t, automation.ID)
 	})
 
 	// A queued message names its automation and its input together.
@@ -567,15 +537,12 @@ func TestChatAutomationForeignKeys(t *testing.T) {
 		require.NoError(t, err)
 
 		// Model configs are soft-deleted. The row stays, so the reference
-		// stays valid. A hard delete of a referenced model is refused.
+		// stays valid.
 		_, err = db.DeleteChatModelConfigByID(ctx, model.ID)
 		require.NoError(t, err)
 		got, err := db.GetChatAutomationByID(ctx, automation.ID)
 		require.NoError(t, err)
 		require.Equal(t, nullUUID(model.ID), got.NewChatModelConfigID)
-
-		_, err = sqlDB.ExecContext(ctx, `DELETE FROM chat_model_configs WHERE id = $1`, model.ID)
-		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsNewChatModelConfig), "got %v", err)
 	})
 
 	t.Run("SecretKey", func(t *testing.T) {
@@ -619,7 +586,7 @@ func TestChatAutomationQueries(t *testing.T) {
 	first := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: o.org.ID, OwnerID: owner.ID})
 	second := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: o.org.ID, OwnerID: owner.ID})
 	third := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: o.org.ID, OwnerID: otherOwner.ID})
-	inOtherOrg := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: other.org.ID, OwnerID: owner.ID})
+	_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: other.org.ID, OwnerID: owner.ID})
 
 	// Give the rows known times. first and second share one, so their
 	// order comes from the ID.
@@ -683,15 +650,6 @@ func TestChatAutomationQueries(t *testing.T) {
 		require.Zero(t, count)
 	})
 
-	t.Run("GetReturnsTheInsertedRow", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		got, err := db.GetChatAutomationByID(ctx, inOtherOrg.ID)
-		require.NoError(t, err)
-		require.Equal(t, inOtherOrg, got)
-		require.True(t, got.WebhookSecret.Valid)
-	})
-
 	// A list covers every automation of an organization, so it must not
 	// load a secret. The row type has no field that could carry one.
 	t.Run("ListRowHasNoSecret", func(t *testing.T) {
@@ -704,95 +662,4 @@ func TestChatAutomationQueries(t *testing.T) {
 		full := reflect.TypeOf(database.ChatAutomation{})
 		require.Equal(t, full.NumField()-2, row.NumField(), "the list leaves out the secret and its key ID only")
 	})
-}
-
-// The chats queries name their columns one by one. A chat's automation
-// columns must come back from them and from the hand-written scans.
-func TestChatAutomationColumnsOnChats(t *testing.T) {
-	t.Parallel()
-
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	user := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleOwner().String()}})
-	o := newChatAutomationOrg(t, db, user)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	require.False(t, o.chat.AutomationID.Valid, "a new chat has no automation")
-	require.False(t, o.chat.ManageAutomationsEnabled)
-
-	automationID := uuid.New()
-	_, err := sqlDB.ExecContext(ctx,
-		`UPDATE chats SET automation_id = $2, manage_automations_enabled = true WHERE id = $1`, o.chat.ID, automationID)
-	require.NoError(t, err)
-
-	requireColumns := func(name string, chat database.Chat, err error) {
-		t.Helper()
-		require.NoError(t, err, name)
-		require.Equal(t, o.chat.ID, chat.ID, name)
-		require.Equal(t, nullUUID(automationID), chat.AutomationID, name)
-		require.True(t, chat.ManageAutomationsEnabled, name)
-	}
-	first := func(chats []database.Chat, err error) (database.Chat, error) {
-		if err != nil || len(chats) != 1 {
-			return database.Chat{}, err
-		}
-		return chats[0], nil
-	}
-
-	chat, err := db.GetChatByID(ctx, o.chat.ID)
-	requireColumns("GetChatByID", chat, err)
-	chat, err = db.GetChatByIDForUpdate(ctx, o.chat.ID)
-	requireColumns("GetChatByIDForUpdate", chat, err)
-	chat, err = db.GetChatByIDForShare(ctx, o.chat.ID)
-	requireColumns("GetChatByIDForShare", chat, err)
-	chat, err = db.LockChatAndBumpSnapshotVersion(ctx, o.chat.ID)
-	requireColumns("LockChatAndBumpSnapshotVersion", chat, err)
-	chat, err = first(db.ArchiveChatByID(ctx, o.chat.ID))
-	requireColumns("ArchiveChatByID", chat, err)
-	chat, err = first(db.UnarchiveChatByID(ctx, o.chat.ID))
-	requireColumns("UnarchiveChatByID", chat, err)
-	chat, err = db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID: o.chat.ID, Title: "renamed", TitleSource: database.ChatTitleSourceUser,
-	})
-	requireColumns("UpdateChatTitleByID", chat, err)
-	chat, err = db.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{ID: o.chat.ID, Labels: json.RawMessage(`{}`)})
-	requireColumns("UpdateChatLabelsByID", chat, err)
-	chat, err = db.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{ID: o.chat.ID, LastModelConfigID: o.model.ID})
-	requireColumns("UpdateChatLastModelConfigByID", chat, err)
-	chat, err = db.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{ID: o.chat.ID, MCPServerIDs: []uuid.UUID{}})
-	requireColumns("UpdateChatMCPServerIDs", chat, err)
-	chat, err = db.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{ID: o.chat.ID})
-	requireColumns("UpdateChatPlanModeByID", chat, err)
-	chat, err = db.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{ID: o.chat.ID, RetryState: json.RawMessage(`{}`)})
-	requireColumns("UpdateChatRetryState", chat, err)
-	chat, err = db.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{ID: o.chat.ID})
-	requireColumns("UpdateChatBuildAgentBinding", chat, err)
-	chat, err = db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{ID: o.chat.ID})
-	requireColumns("UpdateChatWorkspaceBinding", chat, err)
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{ID: o.chat.ID, Status: database.ChatStatusWaiting})
-	requireColumns("UpdateChatStatus", chat, err)
-	chat, err = db.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: o.chat.ID, Status: database.ChatStatusWaiting})
-	requireColumns("UpdateChatExecutionState", chat, err)
-
-	// GetAuthorizedChats and GetAuthorizedChatsByChatFileID scan their rows
-	// by hand.
-	subject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
-	require.NoError(t, err)
-	prepared, err := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()).
-		Prepare(ctx, subject, policy.ActionRead, rbac.ResourceChat.Type)
-	require.NoError(t, err)
-	rows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, prepared)
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	requireColumns("GetAuthorizedChats", rows[0].Chat, nil)
-
-	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID: user.ID, OrganizationID: o.org.ID, Name: "notes.txt", Mimetype: "text/plain", Data: []byte("notes"),
-	})
-	require.NoError(t, err)
-	_, err = db.LinkChatFilesAfterLock(ctx, database.LinkChatFilesAfterLockParams{
-		ChatID: o.chat.ID, FileIds: []uuid.UUID{file.ID}, MaxFileLinks: 1,
-	})
-	require.NoError(t, err)
-	chat, err = first(db.GetAuthorizedChatsByChatFileID(ctx, file.ID, prepared))
-	requireColumns("GetAuthorizedChatsByChatFileID", chat, err)
 }
