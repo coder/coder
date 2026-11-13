@@ -145,11 +145,7 @@ func WithFS(fsys fs.FS) Option {
 	}
 }
 
-// WithLogger writes the progress of the migrations to logger: waits for the
-// migration lock, each migration as it is applied, and a heartbeat every 10
-// seconds while a wait or a migration lasts. The migration connection is
-// named coder-migrate/<version> in pg_stat_activity. Without it, migrations
-// report nothing.
+// WithLogger logs the progress of the migrations to logger.
 func WithLogger(logger slog.Logger) Option {
 	return func(o *upOptions) {
 		o.logger = &logger

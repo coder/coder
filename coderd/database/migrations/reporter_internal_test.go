@@ -23,17 +23,19 @@ func TestReporterClosed(t *testing.T) {
 	r := newReporter(nil, newUpOptions(WithLogger(sink.Logger()), WithClock(mClock), WithHeartbeatInterval(time.Second)))
 
 	r.lockStarted()
-	r.lockWaitStarted(phaseBatch)
+	since, stop := r.lockWaitStarted(phaseBatch)
 	require.Len(t, sink.Entries(), 1)
 
 	// The run returns on the lock timeout while the attempt still waits.
 	r.close()
 
-	// The abandoned attempt gets the lock later, or another Lock starts.
+	// The abandoned attempt gets the lock later, or another Lock starts and
+	// never stops its heartbeat: close already stopped both.
 	r.setBackend(1, "1")
-	r.lockAcquired(phaseBatch)
+	stop()
+	r.lockAcquired(phaseBatch, since)
 	r.lockStarted()
-	r.lockWaitStarted(phaseBatch)
+	_, _ = r.lockWaitStarted(phaseBatch)
 	mClock.Advance(time.Second).MustWait(ctx)
 
 	entries := sink.Entries()

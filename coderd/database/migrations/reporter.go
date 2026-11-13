@@ -50,21 +50,12 @@ type migrationRef struct {
 	name    string
 }
 
-// reporter tracks one migration run and writes progress lines. The driver
-// calls it at fixed moments (lock, version read, step start and end). It
-// never changes what the driver executes: its own queries run on a separate
-// pooled connection with a short timeout, against PostgreSQL system views.
-// Without WithLogger it runs the same way with a zero slog.Logger, which
-// discards every line.
+// reporter logs the progress of one migration run. Its own queries run on a
+// separate connection and never change what the driver executes.
 //
-// Concurrency: golang-migrate calls the driver, and so the reporter, in order
-// from the goroutine running Up. The one exception is Lock: golang-migrate
-// runs it in its own goroutine and abandons it after LockTimeout, so a Lock
-// can still be waiting, and call the reporter, after Up has returned. Every
-// heartbeat therefore derives its context from runCtx, which close cancels:
-// a heartbeat started before or after close is stopped either way. r.mu
-// guards the fields below it and makes a heartbeat's final context check and
-// its log line atomic with stopping it.
+// It is called in order from the goroutine running Up, except by a Lock that
+// golang-migrate abandoned after LockTimeout, which can still run after Up
+// returns. Heartbeats derive from runCtx, so close stops all of them.
 type reporter struct {
 	logger     slog.Logger
 	appName    string
@@ -83,16 +74,14 @@ type reporter struct {
 	// check that transaction's outcome with pg_xact_status. It is reset on
 	// every Lock, so after the batch transaction starts it identifies that
 	// transaction.
-	xid           string
-	fromVersion   int
-	names         map[int]string
-	total         int
-	position      int
-	stepStart     time.Time
-	lockWaitStart time.Time
+	xid         string
+	fromVersion int
+	names       map[int]string
+	total       int
+	position    int
+	stepStart   time.Time
 
-	stopLockWait func()
-	stopStep     func()
+	stopStep func()
 
 	observerFailed bool
 }
@@ -147,13 +136,10 @@ func (r *reporter) setBackend(pid int, xid string) {
 }
 
 // lockWaitStarted is called right before Lock requests the migration lock.
-// The heartbeat only appears if the wait lasts a full interval.
-func (r *reporter) lockWaitStarted(phase string) {
-	since := r.clock.Now()
-
-	r.mu.Lock()
-	r.lockWaitStart = since
-	r.mu.Unlock()
+// Lock stops the returned heartbeat when the request returns. The heartbeat
+// only appears if the wait lasts a full interval.
+func (r *reporter) lockWaitStarted(phase string) (since time.Time, stop func()) {
+	since = r.clock.Now()
 
 	// An abandoned Lock can get here after close. Logging is skipped, and
 	// the heartbeat below starts already stopped.
@@ -164,43 +150,23 @@ func (r *reporter) lockWaitStarted(phase string) {
 			slog.F("phase", phase))
 	}
 
-	stop := r.startHeartbeat(func(ctx context.Context, activity []slog.Field) {
+	stop = r.startHeartbeat(func(ctx context.Context, activity []slog.Field) {
 		fields := append([]slog.Field{slog.F("elapsed_ms", r.clock.Since(since).Milliseconds())}, activity...)
 		r.logger.Info(ctx, msgStillWaitingLock, fields...)
 	})
-
-	r.mu.Lock()
-	r.stopLockWait = stop
-	r.mu.Unlock()
+	return since, stop
 }
 
-// stopLockWaitHeartbeat stops the lock wait heartbeat, whether or not the
-// lock was acquired.
-func (r *reporter) stopLockWaitHeartbeat() {
-	r.mu.Lock()
-	stop := r.stopLockWait
-	r.stopLockWait = nil
-	r.mu.Unlock()
-
-	if stop != nil {
-		stop()
-	}
-}
-
-// lockAcquired is called after Lock acquired the migration lock.
-func (r *reporter) lockAcquired(phase string) {
-	r.mu.Lock()
-	waited := r.clock.Since(r.lockWaitStart)
-	r.mu.Unlock()
-
-	r.stopLockWaitHeartbeat()
+// lockAcquired is called after Lock acquired the migration lock it started
+// waiting for at since.
+func (r *reporter) lockAcquired(phase string, since time.Time) {
 	// An abandoned Lock that gets the lock after close logs nothing.
 	if r.runCtx.Err() != nil {
 		return
 	}
 	r.logger.Debug(r.runCtx, msgAcquiredLock,
 		slog.F("phase", phase),
-		slog.F("waited_ms", waited.Milliseconds()))
+		slog.F("waited_ms", r.clock.Since(since).Milliseconds()))
 }
 
 // versionRead is called once per run, after the lock is held and the current
