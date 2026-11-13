@@ -520,8 +520,8 @@ var likePatternEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
-// @Param q query string false "Search query in the format `key:value`. Available keys are: model. A bare term searches by model prefix."
-// @Param model query string false "Literal model identifier prefix. Cannot be combined with q."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring."
+// @Param model query string false "Literal model identifier substring, matched case-insensitively. Cannot be combined with q."
 // @Success 200 {array} string
 // @Router /api/v2/ai-gateway/models [get]
 func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
@@ -545,8 +545,8 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	modelPrefix := r.URL.Query().Get("model")
-	if queryStr != "" && modelPrefix != "" {
+	modelSubstring := r.URL.Query().Get("model")
+	if queryStr != "" && modelSubstring != "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameters \"q\" and \"model\" cannot be combined.",
 		})
@@ -564,8 +564,8 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	// The search grammar cannot carry every recorded identifier (quotes end a
 	// quoted value) and the query matches with LIKE, so the explicit parameter
 	// escapes the pattern characters to match the identifier literally.
-	if modelPrefix != "" {
-		filter.Model = likePatternEscaper.Replace(modelPrefix)
+	if modelSubstring != "" {
+		filter.Model = likePatternEscaper.Replace(modelSubstring)
 	}
 
 	models, err := api.Database.ListAIBridgeModels(ctx, filter)

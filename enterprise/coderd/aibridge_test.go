@@ -1388,19 +1388,25 @@ func TestAIBridgeListModels(t *testing.T) {
 		}
 	})
 
-	t.Run("ModelIsAPrefix", func(t *testing.T) {
+	t.Run("ModelIsACaseInsensitiveSubstring", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		got, err := client.AIBridgeListModels(ctx, codersdk.AIBridgeListModelsFilter{Model: "gpt"})
-		require.NoError(t, err)
-		require.ElementsMatch(t, []string{"gpt-4", "gpt_4", "gpt%4", `gpt\4`}, got)
+		for model, want := range map[string][]string{
+			"gpt":    {"gpt-4", "gpt_4", "gpt%4", `gpt\4`},
+			"sonnet": {"us.anthropic.claude-3-5-sonnet-20241022-v2:0"},
+			"SONNET": {"us.anthropic.claude-3-5-sonnet-20241022-v2:0"},
+		} {
+			got, err := client.AIBridgeListModels(ctx, codersdk.AIBridgeListModelsFilter{Model: model})
+			require.NoError(t, err, model)
+			require.ElementsMatch(t, want, got, model)
+		}
 	})
 
 	t.Run("SearchQueryKeepsPatternMatching", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, func(r *http.Request) {
-			r.URL.RawQuery = "q=gpt_4"
+			r.URL.RawQuery = "q=pt_4"
 		})
 		require.NoError(t, err)
 		defer res.Body.Close()

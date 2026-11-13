@@ -735,9 +735,9 @@ FROM
 WHERE
 	-- Remove inflight interceptions (ones which lack an ended_at value).
 	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter model
+	-- Filter model (case-insensitive substring match).
 	AND CASE
-		WHEN @model::text != '' THEN aibridge_interceptions.model LIKE @model::text || '%'
+		WHEN @model::text != '' THEN aibridge_interceptions.model ILIKE '%' || @model::text || '%'
 		ELSE true
 	END
 	-- We use an `@authorize_filter` as we are attempting to list models that are relevant
@@ -760,9 +760,9 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
-	-- Filter client (prefix match to allow B-tree index usage).
+	-- Filter client (case-insensitive substring match).
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE @client::text || '%'
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') ILIKE '%' || @client::text || '%'
 		ELSE true
 	END
 	-- We use an `@authorize_filter` as we are attempting to list clients
