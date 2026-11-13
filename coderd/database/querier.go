@@ -236,6 +236,8 @@ type sqlcQuerier interface {
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
 	// Parent/root references on child chats are SET NULL.
+	// Lock the batch in chat ID order, as every transaction that locks more
+	// than one chat does. The delete alone locks the rows in plan order.
 	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.

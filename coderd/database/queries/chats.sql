@@ -2516,10 +2516,19 @@ WITH deletable AS (
       AND updated_at < @before_time::timestamptz
     ORDER BY updated_at ASC
     LIMIT @limit_count
+),
+-- Lock the batch in chat ID order, as every transaction that locks more
+-- than one chat does. The delete alone locks the rows in plan order.
+locked AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.id IN (SELECT id FROM deletable)
+    ORDER BY chats.id
+    FOR UPDATE
 )
 DELETE FROM chats
-USING deletable
-WHERE chats.id = deletable.id
+USING locked
+WHERE chats.id = locked.id
   AND chats.archived = true;
 
 -- name: GetChatsUpdatedAfter :many
