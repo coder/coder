@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -446,9 +447,7 @@ func TestGitLabRateLimitDiffEndpoints(t *testing.T) {
 					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						w.Header().Set("Content-Type", "application/json")
 						if strings.Contains(r.URL.Path, "raw_diffs") || strings.HasSuffix(r.URL.Path, "/repository/compare") {
-							for name, values := range headers {
-								w.Header()[name] = values
-							}
+							maps.Copy(w.Header(), headers)
 							w.WriteHeader(status)
 							_, _ = w.Write([]byte(`{"message":"rate limit"}`))
 							return

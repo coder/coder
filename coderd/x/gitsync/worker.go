@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math/rand"
+	"math/rand/v2"
 	"regexp"
 	"time"
 
@@ -31,15 +31,15 @@ const (
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
 
-	// maxRateLimitBackoff caps the provider's retry delay, including
-	// gitprovider.RateLimitPadding, before jitter to bound far-future headers.
+	// maxRateLimitRetryDelay caps the padded provider retry delay to bound
+	// far-future headers. Jitter is added after the cap.
 	// GitHub's primary rate limit resets within an hour, so a capped retry
 	// is never earlier than a real primary reset.
-	maxRateLimitBackoff = time.Hour
+	maxRateLimitRetryDelay = time.Hour
 
-	// rateLimitBackoffJitter spreads rows across one TTL so a shared
-	// provider reset does not make every row due at once.
-	rateLimitBackoffJitter = DiffStatusTTL
+	// maxRateLimitJitter spreads rows that share a provider reset time so
+	// they do not all become due at once.
+	maxRateLimitJitter = DiffStatusTTL
 
 	// NoTokenBackoff is the backoff duration applied to rows
 	// whose owner has no linked external-auth token. Much longer
@@ -247,9 +247,9 @@ func (w *Worker) tick(ctx context.Context) {
 			case isRateLimited:
 				// Direct limits and in-batch skips carry
 				// the same RateLimitError.
-				backoff = min(rateLimit.RetryAfter.Sub(now), maxRateLimitBackoff)
+				backoff = min(rateLimit.RetryAfter.Sub(now), maxRateLimitRetryDelay)
 				//nolint:gosec // Jitter does not need cryptographic randomness.
-				backoff += time.Duration(rand.Int63n(int64(rateLimitBackoffJitter)))
+				backoff += rand.N(maxRateLimitJitter)
 			default:
 				// Rejected requests and other errors
 				// back off by DiffStatusTTL.

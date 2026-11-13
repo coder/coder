@@ -494,14 +494,14 @@ func TestWorker_RateLimitAndRejectedBackoff(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name        string
-		retryDelay  time.Duration
-		wantBackoff time.Duration
-		rejected    bool
+		name       string
+		retryDelay time.Duration
+		minBackoff time.Duration
+		rejected   bool
 	}{
-		{name: "RetryAfter", retryDelay: 30 * time.Minute, wantBackoff: 30 * time.Minute},
-		{name: "CappedAtOneHour", retryDelay: 24 * time.Hour, wantBackoff: time.Hour},
-		{name: "Rejected", rejected: true, wantBackoff: gitsync.DiffStatusTTL},
+		{name: "RetryAfter", retryDelay: 30 * time.Minute, minBackoff: 30 * time.Minute},
+		{name: "CappedAtOneHour", retryDelay: 24 * time.Hour, minBackoff: time.Hour},
+		{name: "Rejected", rejected: true, minBackoff: gitsync.DiffStatusTTL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -564,7 +564,7 @@ func TestWorker_RateLimitAndRejectedBackoff(t *testing.T) {
 
 			require.Equal(t, int32(1), calls.Load(), "the other row must be skipped within its group")
 			require.Len(t, backoffs, len(rows))
-			earliest := clock.Now().UTC().Add(tc.wantBackoff)
+			earliest := clock.Now().UTC().Add(tc.minBackoff)
 			for i, backoff := range backoffs {
 				require.Equal(t, rows[i].ChatID, backoff.ChatID)
 				if tc.rejected {
@@ -572,8 +572,8 @@ func TestWorker_RateLimitAndRejectedBackoff(t *testing.T) {
 					continue
 				}
 
-				require.False(t, backoff.StaleAt.Before(earliest))
-				require.True(t, backoff.StaleAt.Before(earliest.Add(gitsync.DiffStatusTTL)))
+				require.WithinRange(t, backoff.StaleAt, earliest,
+					earliest.Add(gitsync.DiffStatusTTL-time.Nanosecond))
 			}
 			if !tc.rejected {
 				require.NotEqual(t, backoffs[0].StaleAt, backoffs[1].StaleAt,

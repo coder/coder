@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -631,9 +632,7 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 				headers.Set("Retry-After", strconv.FormatInt(int64(tc.retryDelay/time.Second), 10))
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				for name, values := range headers {
-					w.Header()[name] = values
-				}
+				maps.Copy(w.Header(), headers)
 				w.WriteHeader(status)
 				_, _ = w.Write([]byte(`{"message":"rate limit"}`))
 			}))
