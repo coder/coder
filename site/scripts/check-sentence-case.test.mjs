@@ -50,6 +50,17 @@ describe("findTitleCaseWords", () => {
 		expect(words("Default (Recommended)")).toEqual([]);
 	});
 
+	it("reports title-cased segments of hyphenated words", () => {
+		expect(words("Configure Role-Based Access")).toEqual([
+			"Role",
+			"Based",
+			"Access",
+		]);
+		expect(words("Browser-Only connections")).toEqual(["Only"]);
+		expect(words("Set X-Forwarded-For headers")).toEqual([]);
+		expect(words("Use built-in roles")).toEqual([]);
+	});
+
 	it("returns the offset of each reported word", () => {
 		expect(findTitleCaseWords("Delete  Workspace")).toEqual([
 			{ offset: 8, word: "Workspace" },
@@ -133,6 +144,31 @@ describe("checkSource", () => {
 		expect(fixedText.split("\n")[1]).toBe(
 			'const b = <p>Create {show ? <b>new template</b> : "old template"}</p>;',
 		);
+	});
+
+	it("checks fallback values rendered in JSX in place", () => {
+		const source = [
+			'const a = <p>Create {label || "New Workspace"}</p>;',
+			'const b = <p>Create {label ?? "New Template"}</p>;',
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "New"],
+			[1, "Workspace"],
+			[2, "New"],
+			[2, "Template"],
+		]);
+		expect(fixedText.split("\n")[0]).toBe(
+			'const a = <p>Create {label || "new workspace"}</p>;',
+		);
+	});
+
+	it("lowercases title-cased segments of hyphenated words", () => {
+		const { fixedText } = checkSource(
+			"file.tsx",
+			'const a = "Configure Role-Based Access";',
+		);
+		expect(fixedText).toBe('const a = "Configure role-based access";');
 	});
 
 	it("checks template literals rendered in JSX in place", () => {

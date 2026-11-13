@@ -139,6 +139,32 @@ const TRAILING_PUNCTUATION = /[^\p{L}\p{N}]+$/u;
 // A regular capitalized word, like "Workspace" or "Don't".
 const CAPITALIZED_WORD = /^[A-Z][a-z]+(?:['’-][a-z]+)*$/;
 
+// One segment of a hyphenated word: a regular capitalized word or a
+// lowercase word. Words with a segment like "X" in "X-Forwarded-For" are
+// left alone, since they are usually names.
+const HYPHEN_SEGMENT = /^(?:[A-Z][a-z]+|[a-z]+)(?:['’][a-z]+)*$/;
+
+/**
+ * Returns the capitalized segments of a hyphenated word, such as "Based"
+ * in "Role-Based", with their offsets in the word. Returns nothing when
+ * the word has no hyphen or a segment is not a regular word.
+ */
+function capitalizedSegments(word) {
+	const segments = word.split("-");
+	if (segments.length < 2 || !segments.every((s) => HYPHEN_SEGMENT.test(s))) {
+		return [];
+	}
+	const results = [];
+	let offset = 0;
+	for (const segment of segments) {
+		if (/^[A-Z]/.test(segment)) {
+			results.push({ offset, word: segment });
+		}
+		offset += segment.length + 1;
+	}
+	return results;
+}
+
 // Punctuation that ends a sentence, label, or list item, so the next
 // word starts a new phrase and may be capitalized ("GitHub, GitLab").
 const PHRASE_END = /[.!?:;,]["'’)\]]*$/;
@@ -198,12 +224,27 @@ export function findTitleCaseWords(text) {
 			// A lowercase word outside a phrase may continue text from
 			// elsewhere, so only a capitalized word starts a phrase.
 			inPhrase = capitalized;
-		} else if (
-			capitalized &&
-			CAPITALIZED_WORD.test(token.word) &&
-			!properNounTokens.has(i)
-		) {
+			if (capitalized && !properNounTokens.has(i)) {
+				// Only the first segment of the first word keeps its
+				// capital: "Browser-Only" becomes "Browser-only".
+				for (const segment of capitalizedSegments(token.word).slice(1)) {
+					results.push({
+						offset: token.offset + segment.offset,
+						word: segment.word,
+					});
+				}
+			}
+		} else if (properNounTokens.has(i)) {
+			// Proper nouns keep their capitalization.
+		} else if (capitalized && CAPITALIZED_WORD.test(token.word)) {
 			results.push({ offset: token.offset, word: token.word });
+		} else {
+			for (const segment of capitalizedSegments(token.word)) {
+				results.push({
+					offset: token.offset + segment.offset,
+					word: segment.word,
+				});
+			}
 		}
 		if (PHRASE_END.test(token.raw)) {
 			inPhrase = false;
@@ -343,7 +384,8 @@ const MAX_JSX_VARIANTS = 64;
  * Returns what an inline JSX expression may render: a JSX node, string
  * literal, or template literal to read as text, null for nothing, or "substitution" for an
  * unknown value. `cond && <b>Text</b>` renders the element or nothing,
- * and a conditional renders either branch.
+ * `value || "Text"` and `value ?? "Text"` render the value or the
+ * fallback, and a conditional renders either branch.
  */
 function renderedOptions(expression) {
 	let node = expression;
@@ -360,11 +402,18 @@ function renderedOptions(expression) {
 	) {
 		return [node];
 	}
-	if (
-		ts.isBinaryExpression(node) &&
-		node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
-	) {
-		return [...renderedOptions(node.right), null];
+	if (ts.isBinaryExpression(node)) {
+		const operator = node.operatorToken.kind;
+		if (operator === ts.SyntaxKind.AmpersandAmpersandToken) {
+			return [...renderedOptions(node.right), null];
+		}
+		// `label || "Fallback"` renders the left value or the fallback.
+		if (
+			operator === ts.SyntaxKind.BarBarToken ||
+			operator === ts.SyntaxKind.QuestionQuestionToken
+		) {
+			return [...renderedOptions(node.left), ...renderedOptions(node.right)];
+		}
 	}
 	if (ts.isConditionalExpression(node)) {
 		return [
@@ -389,9 +438,7 @@ function renderedOptions(expression) {
  */
 function templateParts(node, sourceFile) {
 	const head = node.head;
-	const parts = [
-		{ start: head.getStart(sourceFile) + 1, end: head.end - 2 },
-	];
+	const parts = [{ start: head.getStart(sourceFile) + 1, end: head.end - 2 }];
 	for (const span of node.templateSpans) {
 		parts.push({ substitution: true });
 		const literal = span.literal;
