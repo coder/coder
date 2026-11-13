@@ -88,18 +88,7 @@ const index = await fetch(new URL("index.json", baseURL))
 	});
 
 if (!index.entries[storyId]) {
-	const [title, name = ""] = storyId.split("--");
-	const suggestions = Object.keys(index.entries)
-		.filter(
-			(id) =>
-				index.entries[id].type === "story" &&
-				(id.startsWith(`${title}--`) || (name && id.endsWith(`--${name}`))),
-		)
-		.slice(0, 10);
 	console.error(`Story not found: ${storyId}`);
-	if (suggestions.length > 0) {
-		console.error(`Did you mean:\n  ${suggestions.join("\n  ")}`);
-	}
 	process.exit(1);
 }
 
