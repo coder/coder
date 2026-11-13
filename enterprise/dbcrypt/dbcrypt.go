@@ -1157,6 +1157,66 @@ func (db *dbCrypt) UpdateGitSSHKey(ctx context.Context, params database.UpdateGi
 	return key, nil
 }
 
+// encryptChatAutomationSecret encrypts a webhook secret in place. A NULL or
+// empty secret holds nothing to protect, so it stays as it is with a NULL key
+// ID, the state that dbcrypt delete leaves, and out of key rotation.
+func (db *dbCrypt) encryptChatAutomationSecret(secret, keyID *sql.NullString) error {
+	if !secret.Valid || secret.String == "" {
+		*keyID = sql.NullString{}
+		return nil
+	}
+	return db.encryptField(&secret.String, keyID)
+}
+
+func (db *dbCrypt) decryptChatAutomation(automation *database.ChatAutomation) error {
+	return db.decryptField(&automation.WebhookSecret.String, automation.WebhookSecretKeyID)
+}
+
+func (db *dbCrypt) InsertChatAutomation(ctx context.Context, params database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	if err := db.encryptChatAutomationSecret(&params.WebhookSecret, &params.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	automation, err := db.Store.InsertChatAutomation(ctx, params)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := db.decryptChatAutomation(&automation); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	return automation, nil
+}
+
+func (db *dbCrypt) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	automation, err := db.Store.GetChatAutomationByID(ctx, id)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := db.decryptChatAutomation(&automation); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	return automation, nil
+}
+
+func (db *dbCrypt) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatAutomation, error) {
+	automations, err := db.Store.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range automations {
+		if err := db.decryptChatAutomation(&automations[i]); err != nil {
+			return nil, err
+		}
+	}
+	return automations, nil
+}
+
+func (db *dbCrypt) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, params database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	if err := db.encryptChatAutomationSecret(&params.WebhookSecret, &params.WebhookSecretKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateEncryptedChatAutomationWebhookSecret(ctx, params)
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
@@ -1203,7 +1263,7 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	if err != nil {
 		// If it's not valid base64, we should complain loudly.
 		return &DecryptFailedError{
-			Inner: xerrors.Errorf("malformed encrypted field %q: %w", *field, err),
+			Inner: xerrors.Errorf("malformed encrypted field: %w", err),
 		}
 	}
 	decrypted, err := key.Decrypt(data)

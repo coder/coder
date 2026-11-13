@@ -1992,3 +1992,165 @@ func TestFullLifecycleAllHandledTables(t *testing.T) {
 
 	requireAllKeysRevoked(ctx, t, rawDB)
 }
+
+//nolint:gosec // test credentials
+const chatAutomationSecret = "whsec_super-secret-value"
+
+// chatAutomationRows holds the four shapes of chat_automations row that the
+// dbcrypt commands treat differently.
+type chatAutomationRows struct {
+	// secret and empty are written through the encrypting store.
+	secret, empty database.ChatAutomation
+	// schedule has a NULL secret.
+	schedule database.ChatAutomation
+	// plain is written through the raw store, as before encryption was on.
+	plain database.ChatAutomation
+}
+
+func seedChatAutomations(t *testing.T, rawDB, encDB database.Store) chatAutomationRows {
+	t.Helper()
+	base := database.ChatAutomation{
+		OrganizationID: dbgen.Organization(t, rawDB, database.Organization{}).ID,
+		OwnerID:        dbgen.User(t, rawDB, database.User{}).ID,
+	}
+	webhook := func(secret string) database.ChatAutomation {
+		a := base
+		a.WebhookSecret = sql.NullString{String: secret, Valid: true}
+		return a
+	}
+	schedule := base
+	schedule.Kind = database.ChatAutomationKindSchedule
+	return chatAutomationRows{
+		secret:   dbgen.ChatAutomation(t, encDB, webhook(chatAutomationSecret)),
+		empty:    dbgen.ChatAutomation(t, encDB, webhook("")),
+		schedule: dbgen.ChatAutomation(t, encDB, schedule),
+		plain:    dbgen.ChatAutomation(t, rawDB, webhook("plain-secret-value")),
+	}
+}
+
+func requireRawChatAutomation(ctx context.Context, t *testing.T, rawDB database.Store, id uuid.UUID) database.ChatAutomation {
+	t.Helper()
+	row, err := rawDB.GetChatAutomationByID(ctx, id)
+	require.NoError(t, err)
+	return row
+}
+
+// chatAutomationXmin returns the xmin of a chat_automations row, which changes
+// with every write. A row that a command has no reason to change must keep it,
+// or the command conflicts with a coderd that writes the same row.
+func chatAutomationXmin(ctx context.Context, t *testing.T, sqlDB *sql.DB, id uuid.UUID) string {
+	t.Helper()
+	var xmin string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT xmin::text FROM chat_automations WHERE id = $1`, id).Scan(&xmin))
+	return xmin
+}
+
+// TestRotateChatAutomations covers the webhook secret of chat_automations.
+// Rotate encrypts a plaintext secret and moves a secret from cipher A to
+// cipher B. It leaves a secret under the primary cipher, an empty secret and
+// a schedule row alone, and never changes the secret version.
+func TestRotateChatAutomations(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
+	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
+	current := dbgen.ChatAutomation(t, f.registerCipher(t, f.cipherB), database.ChatAutomation{
+		OrganizationID: rows.secret.OrganizationID,
+		OwnerID:        rows.secret.OwnerID,
+		WebhookSecret:  sql.NullString{String: chatAutomationSecret, Valid: true},
+	})
+	require.Equal(t, f.cipherB.HexDigest(), current.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher B")
+	untouched := []database.ChatAutomation{rows.empty, rows.schedule, current}
+	before := map[uuid.UUID]string{}
+	for _, row := range untouched {
+		before[row.ID] = chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID)
+	}
+
+	f.rotate(t)
+
+	for _, row := range []database.ChatAutomation{rows.secret, rows.plain} {
+		got := requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID)
+		require.Equal(t, f.cipherB.HexDigest(), got.WebhookSecretKeyID.String)
+		require.Equal(t, row.WebhookSecret.String, decryptRawString(t, f.cipherB, got.WebhookSecret.String))
+		require.Equal(t, row.WebhookSecretVersion, got.WebhookSecretVersion)
+	}
+	for _, row := range untouched {
+		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
+	}
+	requireDBCryptKeyRevoked(f.ctx, t, f.rawDB, f.cipherA)
+}
+
+// TestDecryptChatAutomations covers the webhook secret of chat_automations.
+// Decrypt writes the plaintext back with a NULL key ID.
+func TestDecryptChatAutomations(t *testing.T) {
+	t.Parallel()
+	f := newDecryptFixture(t)
+
+	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
+	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+	f.decrypt(t)
+
+	got := requireRawChatAutomation(f.ctx, t, f.rawDB, rows.secret.ID)
+	require.False(t, got.WebhookSecretKeyID.Valid)
+	require.Equal(t, chatAutomationSecret, got.WebhookSecret.String)
+	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
+}
+
+// TestDeleteChatAutomations covers the webhook secret of chat_automations.
+// Delete blanks an encrypted secret and keeps the row. A webhook row must hold
+// a secret, so the column becomes the empty string and not NULL.
+func TestDeleteChatAutomations(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+
+	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
+	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+	f.delete(t)
+
+	got := requireRawChatAutomation(f.ctx, t, f.rawDB, rows.secret.ID)
+	require.Equal(t, sql.NullString{Valid: true}, got.WebhookSecret, "the secret is blanked, not NULL")
+	require.False(t, got.WebhookSecretKeyID.Valid)
+	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
+	plain := requireRawChatAutomation(f.ctx, t, f.rawDB, rows.plain.ID)
+	require.Equal(t, rows.plain.WebhookSecret, plain.WebhookSecret, "a plaintext secret is not encrypted data")
+	requireAllKeysRevoked(f.ctx, t, f.rawDB)
+}
+
+// TestChatAutomationsCorruptSecret covers a secret that does not decrypt under
+// a key that the command loaded. The command stops with a decrypt error and
+// revokes nothing.
+func TestChatAutomationsCorruptSecret(t *testing.T) {
+	t.Parallel()
+	seedCorrupt := func(t *testing.T, rawDB database.Store, cipher dbcrypt.Cipher) {
+		t.Helper()
+		dbgen.ChatAutomation(t, rawDB, database.ChatAutomation{
+			OrganizationID:     dbgen.Organization(t, rawDB, database.Organization{}).ID,
+			OwnerID:            dbgen.User(t, rawDB, database.User{}).ID,
+			WebhookSecret:      sql.NullString{String: base64.StdEncoding.EncodeToString([]byte(testutil.MustRandString(t, 32))), Valid: true},
+			WebhookSecretKeyID: sql.NullString{String: cipher.HexDigest(), Valid: true},
+		})
+	}
+
+	t.Run("Rotate", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+		seedCorrupt(t, f.rawDB, f.cipherA)
+
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, f.rotateErr(t), &derr)
+		requireDBCryptKeyActive(f.ctx, t, f.rawDB, f.cipherA)
+	})
+
+	t.Run("Decrypt", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+		seedCorrupt(t, f.rawDB, f.cipherA)
+
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, f.decryptErr(t), &derr)
+		requireDBCryptKeyActive(f.ctx, t, f.rawDB, f.cipherA)
+	})
+}

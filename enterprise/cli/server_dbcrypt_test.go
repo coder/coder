@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -199,6 +201,14 @@ func TestServerDBCrypt(t *testing.T) {
 		chatMCPServers, err := db.GetChatMCPServersByChatOwnerID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get chat MCP servers for user %s", usr.ID)
 		require.Empty(t, chatMCPServers)
+
+		// Chat automation rows are preserved, since a webhook row must hold
+		// a secret. Only the ciphertext is blanked.
+		automations, err := db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get chat automations for user %s", usr.ID)
+		require.Len(t, automations, 1)
+		require.Equal(t, sql.NullString{Valid: true}, automations[0].WebhookSecret)
+		require.False(t, automations[0].WebhookSecretKeyID.Valid)
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -258,6 +268,11 @@ func genData(t *testing.T, db database.Store) []database.User {
 				_ = dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
 					ChatID:  chat.ID,
 					Headers: "headers-" + usr.ID.String(),
+				})
+				_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
+					OrganizationID: chatModel.OrganizationID,
+					OwnerID:        usr.ID,
+					WebhookSecret:  sql.NullString{String: "webhook-" + usr.ID.String(), Valid: true},
 				})
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
@@ -351,6 +366,12 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	require.Len(t, chatMCPServers, 1)
 	requireEncryptedEquals(t, c, "headers-"+userID.String(), chatMCPServers[0].Headers)
 	require.Equal(t, c.HexDigest(), chatMCPServers[0].HeadersKeyID.String)
+
+	automations, err := db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, userID)
+	require.NoError(t, err, "failed to get chat automations for user %s", userID)
+	require.Len(t, automations, 1)
+	requireEncryptedEquals(t, c, "webhook-"+userID.String(), automations[0].WebhookSecret.String)
+	require.Equal(t, c.HexDigest(), automations[0].WebhookSecretKeyID.String)
 
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,
@@ -494,3 +515,22 @@ func (*nullCipher) HexDigest() string {
 }
 
 var _ dbcrypt.Cipher = (*nullCipher)(nil)
+
+// TestServerDBCryptDeletePrompt checks that the confirmation of dbcrypt delete
+// names the chat automation webhook secrets it blanks, and that answering no
+// stops the command before it connects to the database.
+func TestServerDBCryptDeletePrompt(t *testing.T) {
+	t.Parallel()
+
+	inv, _ := newCLI(t, "server", "dbcrypt", "delete", "--postgres-url", "postgres://unused")
+	pty := ptytest.New(t).Attach(inv)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	done := make(chan error, 1)
+	go func() {
+		done <- inv.WithContext(ctx).Run()
+	}()
+
+	pty.ExpectMatch(ctx, "chat automation webhook secrets")
+	pty.WriteLine("no")
+	require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), cliui.ErrCanceled)
+}

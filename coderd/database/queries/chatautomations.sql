@@ -104,3 +104,22 @@ WHERE owner_id = @owner_id::uuid;
 -- name: DeleteChatAutomationByID :exec
 DELETE FROM chat_automations
 WHERE id = @id::uuid;
+
+-- name: GetChatAutomationsWithWebhookSecretByOwnerID :many
+-- Returns the automations of one owner that hold a webhook secret, secret
+-- included. Used only by the dbcrypt key rotation utility.
+SELECT *
+FROM chat_automations
+WHERE owner_id = @owner_id::uuid
+  AND webhook_secret IS NOT NULL
+ORDER BY id;
+
+-- name: UpdateEncryptedChatAutomationWebhookSecret :exec
+-- Rewrites only the secret and its key ID. The version stays, because
+-- re-encrypting does not change the secret. Used only by the dbcrypt key
+-- rotation utility to re-encrypt or decrypt rows in place.
+UPDATE chat_automations
+SET
+    webhook_secret = sqlc.narg('webhook_secret')::text,
+    webhook_secret_key_id = sqlc.narg('webhook_secret_key_id')::text
+WHERE id = @id::uuid;
