@@ -31,6 +31,10 @@ export type ChatProjectTemplatesValues = {
 	 */
 	defaultsKind: "preset" | "parameters";
 	defaultPresetId: string;
+	/**
+	 * Values by parameter name. A missing name uses the template default; an
+	 * empty string is an explicit empty value.
+	 */
 	defaultParameters: Readonly<Record<string, string>>;
 };
 
@@ -69,9 +73,7 @@ export const chatProjectTemplatesRequest = (
 			default_preset_id: values.defaultPresetId || undefined,
 		};
 	}
-	const parameters = Object.fromEntries(
-		Object.entries(values.defaultParameters).filter(([, value]) => value),
-	);
+	const parameters = values.defaultParameters;
 	return {
 		template_ids: templateIds,
 		default_template_id: values.defaultTemplateId,
@@ -155,7 +157,9 @@ export const ChatProjectTemplatesFields: React.FC<
 						placeholder="Select templates"
 						emptyIndicator={
 							<p className="m-0 text-center text-sm text-content-secondary">
-								No templates in this organization allow agents.
+								{options.length === 0
+									? "No templates in this organization allow agents."
+									: "No matching templates."}
 							</p>
 						}
 						disabled={disabled}
@@ -324,23 +328,55 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 				) : (
 					parametersQuery.data.map((parameter) => {
 						const id = `${parameterIdPrefix}-${parameter.name}`;
+						const current = value.defaultParameters[parameter.name];
+						const otherParameters = Object.fromEntries(
+							Object.entries(value.defaultParameters).filter(
+								([name]) => name !== parameter.name,
+							),
+						);
+						// An empty input leaves the parameter out, so it uses the
+						// template default. Only the API can save an empty value.
+						const isSavedEmpty = current === "";
 						return (
 							<div key={parameter.name} className="flex flex-col gap-2">
-								<Label htmlFor={id}>
-									{parameter.display_name || parameter.name}
-								</Label>
+								<div className="flex items-center justify-between">
+									<Label htmlFor={id}>
+										{parameter.display_name || parameter.name}
+									</Label>
+									{isSavedEmpty && (
+										<Button
+											type="button"
+											variant="subtle"
+											size="sm"
+											disabled={disabled}
+											onClick={() =>
+												onChange({
+													...value,
+													defaultParameters: otherParameters,
+												})
+											}
+										>
+											Use template default
+										</Button>
+									)}
+								</div>
 								<Input
 									id={id}
-									value={value.defaultParameters[parameter.name] ?? ""}
-									placeholder={parameter.default_value}
+									value={current ?? ""}
+									placeholder={
+										isSavedEmpty ? "Empty value" : parameter.default_value
+									}
 									disabled={disabled}
 									onChange={(event) =>
 										onChange({
 											...value,
-											defaultParameters: {
-												...value.defaultParameters,
-												[parameter.name]: event.target.value,
-											},
+											defaultParameters:
+												event.target.value === ""
+													? otherParameters
+													: {
+															...otherParameters,
+															[parameter.name]: event.target.value,
+														},
 										})
 									}
 								/>
