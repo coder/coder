@@ -32,11 +32,6 @@ type (
 		Stackdriver string
 		Trace       bool
 		Verbose     bool
-
-		// sinkConfigured is set when a sink location is supplied, even an
-		// empty or /dev/null one, so Build can tell an explicit disable
-		// from a missing configuration.
-		sinkConfigured bool
 	}
 )
 
@@ -57,21 +52,18 @@ func WithFilter(filters ...string) Option {
 func WithHuman(loc string) Option {
 	return func(b *Builder) {
 		b.Human = loc
-		b.sinkConfigured = true
 	}
 }
 
 func WithJSON(loc string) Option {
 	return func(b *Builder) {
 		b.JSON = loc
-		b.sinkConfigured = true
 	}
 }
 
 func WithStackdriver(loc string) Option {
 	return func(b *Builder) {
 		b.Stackdriver = loc
-		b.sinkConfigured = true
 	}
 }
 
@@ -89,7 +81,6 @@ func FromDeploymentValues(vals *codersdk.DeploymentValues) Option {
 		b.Stackdriver = vals.Logging.Stackdriver.Value()
 		b.Trace = vals.Trace.Enable.Value()
 		b.Verbose = vals.Verbose.Value()
-		b.sinkConfigured = true
 	}
 }
 
@@ -147,12 +138,8 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		sinks = append(sinks, tracing.SlogSink{})
 	}
 
-	// An empty or /dev/null sink disables logging, so this error only
-	// reports a missing sink configuration.
-	if len(sinks) == 0 && !b.sinkConfigured {
-		return slog.Logger{}, noopClose, xerrors.New("no loggers provided, use /dev/null to disable logging")
-	}
-
+	// No sinks is valid: an empty or /dev/null location disables a sink,
+	// and disabling all of them turns logging off.
 	filter := &debugFilterSink{next: sinks}
 
 	err = filter.compile(b.Filter)
