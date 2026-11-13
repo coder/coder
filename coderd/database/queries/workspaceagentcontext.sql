@@ -30,6 +30,7 @@ INSERT INTO workspace_agent_context_resources (
     status,
     error,
     source_path,
+    plugin_name,
     created_at,
     updated_at
 ) VALUES (
@@ -42,6 +43,7 @@ INSERT INTO workspace_agent_context_resources (
     @status,
     @error,
     @source_path,
+    @plugin_name,
     @now,
     @now
 )
@@ -53,6 +55,7 @@ ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     status = EXCLUDED.status,
     error = EXCLUDED.error,
     source_path = EXCLUDED.source_path,
+    plugin_name = EXCLUDED.plugin_name,
     updated_at = EXCLUDED.updated_at
 RETURNING *;
 
