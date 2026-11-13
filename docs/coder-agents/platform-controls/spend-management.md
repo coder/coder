@@ -15,29 +15,16 @@ Coder Agents spend is controlled by AI Gateway budgets, which cap all AI Gateway
   set a custom budget for an individual user, attributed to one of their groups.
   Per-user overrides take priority over group budgets.
 
-The deployment flags `--ai-budget-policy` and `--ai-budget-period` currently support only `highest` and `month`.
-`highest` selects the group with the largest spend limit, and `month` resets spend at the start of each Coordinated Universal Time (UTC) calendar month.
-A user who belongs to no budgeted group falls back to the Everyone group, which has no budget unless one is set for it.
-There is no deployment-wide budget amount, and a configured spend limit cannot exceed $1,000,000 per member per period.
+For budget settings, limits, and how Coder picks a user's budget group, refer to [AI Governance cost control](../../ai-governance/ai-gateway/cost-controls.md).
 
 > [!IMPORTANT]
 > Budget controls in the Coder UI, the group budget endpoints (`/api/v2/groups/{group}/ai/budget`), and the AI spend status and reporting endpoints all require the AI Gateway entitlement.
 > No experiment is needed.
 >
-> Native chat usage limits and native cost tracking are removed from the application.
-> Existing native limit values are not migrated to AI Gateway budgets and are no longer enforced.
-> Configured per-model prices and historical native cost totals are also not migrated to AI Gateway.
-> Before upgrading, record any per-model prices you need from **Admin settings** > **AI** > **Models**.
-> These export steps apply only when you upgrade from a release before Coder v2.37.
-> The old cost endpoints default `start_date` to 30&nbsp;days before the request and `end_date` to the request time, so choose explicit Request for Comments (RFC) 3339 UTC values that cover all history you need.
-> Fetch `/api/experimental/chats/cost/users?start_date=<start>&end_date=<end>&limit=100&offset=0` and save the response.
-> After each page, stop when `offset + users.length >= count`.
-> Otherwise, increase `offset` by 100 and fetch the next page.
-> For every `users[].user_id` across those pages, save `/api/experimental/chats/cost/{user_id}/summary?start_date=<start>&end_date=<end>` with the same dates.
-> Each summary contains the user's totals plus `by_model` and `by_chat` breakdowns.
-> After upgrading, the native **Spend** page, per-model pricing fields, and aggregate cost endpoints are unavailable.
-> Historical `chat_messages.total_cost_micros` values remain in the database temporarily for rolling upgrade compatibility, but AI Gateway reports do not include or reconstruct them.
-> Configure AI Gateway budgets separately.
+> Coder v2.37 removed native chat usage limits and native cost tracking.
+> Coder does not move the old limits, per-model prices, or cost history to AI Gateway.
+> After the upgrade, the **Spend** page, the per-model price fields, and the old cost endpoints are not available.
+> To keep the old data, [export it before you upgrade](#export-native-cost-data-before-you-upgrade).
 
 The API reference documents how to [get](../../reference/api/enterprise.md#get-group-ai-budget), [upsert](../../reference/api/enterprise.md#upsert-group-ai-budget), and [delete](../../reference/api/enterprise.md#delete-group-ai-budget) a group budget.
 
@@ -51,6 +38,30 @@ The API reference documents how to [get](../../reference/api/enterprise.md#get-g
 
 The usage indicator on the Agents page and the summary in the user menu both show the signed-in user's current AI spend, their budget, and the period reset date.
 Both appear only when the deployment has the AI Gateway entitlement.
+
+### Export native cost data before you upgrade
+
+Do these steps on your current server, before you upgrade to Coder v2.37 or later.
+
+1. Record the per-model prices in **Admin settings** > **AI** > **Models**.
+1. Choose a start date and an end date that cover all the history you need.
+   Use RFC 3339 UTC timestamps.
+
+   If you do not set the dates, the endpoints return only the last 30&nbsp;days.
+1. Get the first page of users:
+
+   `GET /api/experimental/chats/cost/users?start_date=<start>&end_date=<end>&limit=100&offset=0`
+
+1. If `offset + users.length` is less than `count`, get the next page.
+   For each page, increase `offset` by 100.
+1. For each `users[].user_id`, get the summary with the same dates:
+
+   `GET /api/experimental/chats/cost/{user_id}/summary?start_date=<start>&end_date=<end>`
+
+   Each summary has the user's totals and the `by_model` and `by_chat` breakdowns.
+
+After you upgrade, set up AI Gateway budgets.
+AI Gateway reports do not include the old cost history.
 
 ## Spend details
 
