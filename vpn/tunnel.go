@@ -567,6 +567,8 @@ func (u *updater) stop() error {
 		return nil
 	}
 	err := u.conn.Close()
+	// Cancel after closing so logs the conn emits while closing reach the
+	// manager.
 	u.cancel()
 	u.conn = nil
 	return err
