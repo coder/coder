@@ -755,6 +755,10 @@ func TestFetchPullRequestStatus(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write(reviewsJSON)
 			})
+			mux.HandleFunc("/api/v3/repos/owner/repo/issues/1", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.pullJSON))
+			})
 			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1", func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(tc.pullJSON))
