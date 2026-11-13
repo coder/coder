@@ -81,7 +81,7 @@ import {
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { PinnedSection } from "./PinnedSection";
 import {
-	type ArchiveProject,
+	type ArchiveProjectAction,
 	type ProjectAction,
 	projectLabelOf,
 } from "./ProjectFolders";
@@ -131,7 +131,7 @@ type ChatsPanelProps = {
 	readonly pinnedProjectsError: unknown;
 	readonly onRetryPinnedProjects: () => void;
 	readonly onEditProject: ProjectAction;
-	readonly onArchiveProject: ArchiveProject;
+	readonly onArchiveProject: ArchiveProjectAction;
 	readonly onDeleteProject: ProjectAction;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;

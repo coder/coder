@@ -148,8 +148,8 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	onDelete,
 }) => {
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
-	// Edit, Archive, and Delete open a dialog only once the menu has closed, so the
-	// closing menu cannot take focus back from the dialog.
+	// Edit, Archive, and Delete open a dialog only once the menu has closed,
+	// so the closing menu cannot take focus back from the dialog.
 	const openPickedDialogRef = useRef<typeof onEdit>(undefined);
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">

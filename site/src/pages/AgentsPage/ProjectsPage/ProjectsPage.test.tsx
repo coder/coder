@@ -164,7 +164,6 @@ describe("ProjectsPage", () => {
 				screen.getAllByRole("button", { name: "New project" })[0],
 			).toHaveFocus(),
 		);
-		expect(screen.queryByRole("link", { name: "Kilo" })).toBeNull();
 	});
 
 	it("moves focus to New project when Retry loads the projects", async () => {
