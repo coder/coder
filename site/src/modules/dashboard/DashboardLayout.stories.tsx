@@ -176,3 +176,28 @@ export const SkipToMainContent: Story = {
 		await expect(main).toHaveFocus();
 	},
 };
+
+export const FocusClearOfNavbar: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: reactRouterOutlet(
+				{ path: "/" },
+				<div className="p-6">
+					{Array.from({ length: 40 }, (_, i) => (
+						<a key={i} href={`#row-${i}`} className="block h-10">
+							Row {i}
+						</a>
+					))}
+				</div>,
+			),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const rows = within(canvasElement).getAllByRole("link", {
+			name: /^Row \d+$/,
+		});
+		window.scrollBy(0, rows[10].getBoundingClientRect().top);
+		rows[10].focus();
+	},
+};
