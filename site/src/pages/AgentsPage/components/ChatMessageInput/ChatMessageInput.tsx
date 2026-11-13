@@ -189,7 +189,11 @@ const EDITOR_NAMESPACE = "ChatMessageInput";
 const PasteSanitizationPlugin: React.FC<{
 	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
-	isSkillAvailable: (source: SkillSource, name: string) => boolean;
+	isSkillAvailable: (
+		source: SkillSource,
+		name: string,
+		pluginName: string | undefined,
+	) => boolean;
 }> = function PasteSanitizationPlugin({
 	onFilePaste,
 	allowTextAttachmentPaste = true,
@@ -574,6 +578,7 @@ type FileReferenceData = {
 type SkillInvocationData = {
 	readonly source: SkillSource;
 	readonly name: string;
+	readonly pluginName?: string;
 };
 
 /**
@@ -616,7 +621,7 @@ export type ChatMessageInputRef = {
 	 * end when the editor has no selection. A skill already in the
 	 * editor is not added again.
 	 */
-	insertSkill: (source: SkillSource, name: string) => void;
+	insertSkill: (source: Exclude<SkillSource, "plugin">, name: string) => void;
 	removeSkills: (sources: readonly SkillSource[]) => void;
 	/** Serialize the editor content, including chips, for restoreEditorState. */
 	getEditorState: () => string;
@@ -784,7 +789,7 @@ const $replaceTypedSkillAlias = (
 	}
 
 	// Unlike a menu pick, typed text is kept when no chip can replace it.
-	if ($hasSkillInvocationNode(skill.source, skill.name)) {
+	if ($hasSkillInvocationNode(skill.source, skill.name, skill.pluginName)) {
 		return;
 	}
 	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
@@ -794,7 +799,7 @@ const $replaceTypedSkillAlias = (
 
 	anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 	focus.set(trigger.nodeKey, aliasEnd, "text");
-	$insertSkillInvocation(selection, skill.source, skill.name);
+	$insertSkillInvocation(selection, skill.source, skill.name, skill.pluginName);
 };
 
 /**
@@ -957,6 +962,12 @@ const ChatMessageInput = ({
 	);
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
+	const loadedPlainWorkspaceSkills = loadedWorkspaceSkills?.filter(
+		(skill) => !skill.pluginName,
+	);
+	const loadedPluginSkills = loadedWorkspaceSkills?.filter(
+		(skill) => skill.pluginName,
+	);
 
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
@@ -973,13 +984,23 @@ const ChatMessageInput = ({
 				? usableChatProjectSkills(projectUsability, projectSource.skills)
 				: [],
 		},
-		{ source: "workspace", skills: loadedWorkspaceSkills },
+		{ source: "workspace", skills: loadedPlainWorkspaceSkills },
+		{ source: "plugin", skills: loadedPluginSkills },
 	];
 
 	// A skill whose source list has not loaded stays a chip when pasted.
-	const isSkillAvailable = (source: SkillSource, name: string) => {
+	const isSkillAvailable = (
+		source: SkillSource,
+		name: string,
+		pluginName: string | undefined,
+	) => {
 		const skills = skillLists.find((list) => list.source === source)?.skills;
-		return !skills || skills.some((skill) => skill.name === name);
+		return (
+			!skills ||
+			skills.some(
+				(skill) => skill.name === name && skill.pluginName === pluginName,
+			)
+		);
 	};
 	const availableSlashCommands = (slashCommands ?? []).filter(
 		(command) =>
@@ -1010,15 +1031,15 @@ const ChatMessageInput = ({
 		skillsSearchQuery,
 	);
 	const skillTriggers = resolveSkillTriggers(skillLists);
-	const filterSkillTriggers = (source: SkillSource) =>
+	const filterSkillTriggers = (...sources: SkillSource[]) =>
 		filterSkillsByQuery(
-			skillTriggers.filter((trigger) => trigger.source === source),
+			skillTriggers.filter((trigger) => sources.includes(trigger.source)),
 			skillsSearchQuery,
 		);
 	const personalSkillItems = filterSkillTriggers("personal");
 	const organizationSkillItems = filterSkillTriggers("org");
 	const projectSkillItems = filterSkillTriggers("project");
-	const workspaceSkillItems = filterSkillTriggers("workspace");
+	const workspaceSkillItems = filterSkillTriggers("workspace", "plugin");
 	const isPersonalSkillsLoading =
 		personalSkillsQueryEnabled &&
 		skillsQuery.isFetching &&
@@ -1112,7 +1133,12 @@ const ChatMessageInput = ({
 			if (skill.source === "command") {
 				selection.insertText(skill.triggerText);
 			} else {
-				$insertSkillInvocation(selection, skill.source, skill.name);
+				$insertSkillInvocation(
+					selection,
+					skill.source,
+					skill.name,
+					skill.pluginName,
+				);
 			}
 		});
 		setSkillsTrigger(null);
@@ -1223,7 +1249,7 @@ const ChatMessageInput = ({
 					chipNode.selectNext();
 				});
 			},
-			insertSkill: (source: SkillSource, name: string) => {
+			insertSkill: (source: Exclude<SkillSource, "plugin">, name: string) => {
 				const editor = editorRef.current;
 				if (!editor) return;
 
@@ -1323,6 +1349,7 @@ const ChatMessageInput = ({
 									type: "skill-invocation",
 									source: node.__source,
 									name: node.__name,
+									pluginName: node.__pluginName,
 								});
 							} else {
 								const t = node.getTextContent();

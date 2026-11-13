@@ -1,13 +1,16 @@
 import { cn } from "cn";
 import {
+	BlocksIcon,
 	BotIcon,
 	CircleAlertIcon,
 	FileIcon,
 	TriangleAlertIcon,
 	ZapIcon,
 } from "lucide-react";
+import { Fragment } from "react";
 import type {
 	ChatContext,
+	ChatContextResource,
 	ChatContextResourceKind,
 	ChatContextResourceStatus,
 	ChatContextTool,
@@ -61,32 +64,81 @@ export type AgentContextUsage = {
 	readonly context?: ChatContext;
 };
 
+// Groups by parent directory or Agent Plugin so basename-only rows (a
+// repo-root AGENTS.md and a nested one) stay distinguishable. A directory
+// label with an empty name renders without a header.
+type ContextGroupLabel = {
+	readonly kind: "directory" | "plugin";
+	readonly name: string;
+};
+
 // Normalized popover entries, sourced from the chat's pinned context
 // resources.
-type ContextFileItem = { readonly path: string; readonly dir: string };
+type ContextFileItem = {
+	readonly path: string;
+	readonly label: ContextGroupLabel;
+};
 type ContextSkillItem = {
 	readonly source: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly dir: string;
+	readonly label: ContextGroupLabel;
+};
+type ContextPluginItem = {
+	readonly name: string;
+	readonly source: string;
 };
 // MCP configs are file-backed (shown by full path), while MCP servers are
-// keyed by name and carry their tools.
+// keyed by source, not by display name, and carry their tools.
 type ContextMcpConfigItem = { readonly source: string };
 type ContextMcpServerItem = {
 	readonly name: string;
 	readonly source: string;
+	readonly label: ContextGroupLabel;
 	readonly connected: boolean;
 	readonly tools: readonly ChatContextTool[];
 };
-// A pinned resource the agent could not use, surfaced with its error so the
-// failure is visible instead of silent.
+type ContextHarnessItem = {
+	readonly slug: string;
+	readonly label: ContextGroupLabel;
+};
+// A pinned resource that failed to load, or an OK resource whose error field
+// carries a non-fatal warning.
 type ContextIssueItem = {
 	readonly name: string;
 	readonly kind: ChatContextResourceKind;
 	readonly status: ChatContextResourceStatus;
+	readonly statusLabel: string;
 	readonly error: string;
 	readonly source: string;
+};
+
+type ContextGroup<T> = {
+	readonly key: string;
+	readonly label: ContextGroupLabel;
+	readonly items: readonly T[];
+};
+
+type ContextPanelModel = {
+	readonly fileGroups: readonly ContextGroup<ContextFileItem>[];
+	readonly skillGroups: readonly ContextGroup<ContextSkillItem>[];
+	readonly plugins: readonly ContextPluginItem[];
+	readonly mcpConfigs: readonly ContextMcpConfigItem[];
+	// Servers without a plugin come first so they never render under a
+	// plugin header.
+	readonly mcpServerGroups: readonly ContextGroup<ContextMcpServerItem>[];
+	readonly harnessGroups: readonly ContextGroup<ContextHarnessItem>[];
+	readonly issues: readonly ContextIssueItem[];
+	readonly fileIssues: readonly ContextIssueItem[];
+	readonly skillIssues: readonly ContextIssueItem[];
+	readonly pluginIssues: readonly ContextIssueItem[];
+	// MCP config issues and warnings on running servers.
+	readonly mcpIssues: readonly ContextIssueItem[];
+	// Servers that are not running.
+	readonly mcpServerFailures: readonly ContextIssueItem[];
+	readonly harnessIssues: readonly ContextIssueItem[];
+	readonly hasResourceIssues: boolean;
+	readonly hasResourceFailures: boolean;
 };
 
 // Human-readable label per resource kind, used in the issues list.
@@ -120,48 +172,222 @@ const formatTokenCountCompact = (value: number | undefined): string => {
 	return String(value);
 };
 
+type IndicatorTone = "default" | "warning" | "destructive";
+
+const INDICATOR_TONE_CLASS_NAMES: Record<IndicatorTone, string> = {
+	default: "text-content-secondary",
+	warning: "text-content-warning",
+	destructive: "text-content-destructive",
+};
+
+const getUsageTone = (
+	percentUsed: number | null,
+	compactionPercent: number | undefined,
+): IndicatorTone => {
+	if (percentUsed === null) {
+		return "default";
+	}
+	if (percentUsed >= 95) {
+		return "destructive";
+	}
+	if (percentUsed >= (compactionPercent ?? 100) * 0.9) {
+		return "warning";
+	}
+	return "default";
+};
+
 const getIndicatorToneClassName = (
 	percentUsed: number | null,
 	compactionPercent: number | undefined,
-): string => {
-	if (percentUsed === null) {
-		return "text-content-secondary";
+): string =>
+	INDICATOR_TONE_CLASS_NAMES[getUsageTone(percentUsed, compactionPercent)];
+
+// Any resource issue marks the indicator, including warnings on OK rows:
+// some warnings are the only report that a resource was skipped.
+export const getIndicatorState = ({
+	percentUsed,
+	compactionPercent,
+	isDirty,
+	hasContextError,
+	hasResourceIssues,
+}: {
+	percentUsed: number | null;
+	compactionPercent?: number;
+	isDirty: boolean;
+	hasContextError: boolean;
+	hasResourceIssues: boolean;
+}): { tone: IndicatorTone; needsAttention: boolean } => {
+	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	if (hasContextError) {
+		return { tone: "destructive", needsAttention };
 	}
-	if (percentUsed >= 95) {
-		return "text-content-destructive";
+	if (needsAttention) {
+		return { tone: "warning", needsAttention };
 	}
-	if (percentUsed >= (compactionPercent ?? 100) * 0.9) {
-		return "text-content-warning";
-	}
-	return "text-content-secondary";
+	return {
+		tone: getUsageTone(percentUsed, compactionPercent),
+		needsAttention,
+	};
 };
 
-// A set of context resources that share a parent directory. Lists are grouped
-// by directory so resources pulled from different roots (for example a
-// repo-root AGENTS.md and a nested one) stay distinguishable instead of
-// collapsing to identical basenames.
-type DirectoryGroup<T> = {
-	readonly dir: string;
-	readonly items: readonly T[];
-};
-
-// Group items by their precomputed dir, preserving first-seen order so the
-// popover layout stays stable across renders.
-const groupByDirectory = <T extends { readonly dir: string }>(
+// Merges items with equal labels even when they are not adjacent. Groups keep
+// first-seen order so the popover layout stays stable across renders.
+const groupByLabel = <T extends { readonly label: ContextGroupLabel }>(
 	items: readonly T[],
-): readonly DirectoryGroup<T>[] => {
-	const order: string[] = [];
-	const byDir = new Map<string, T[]>();
+): readonly ContextGroup<T>[] => {
+	const groups: { key: string; label: ContextGroupLabel; items: T[] }[] = [];
+	const byKey = new Map<string, T[]>();
 	for (const item of items) {
-		const existing = byDir.get(item.dir);
+		const key = `${item.label.kind}:${item.label.name}`;
+		const existing = byKey.get(key);
 		if (existing) {
 			existing.push(item);
 		} else {
-			byDir.set(item.dir, [item]);
-			order.push(item.dir);
+			const bucket = [item];
+			byKey.set(key, bucket);
+			groups.push({ key, label: item.label, items: bucket });
 		}
 	}
-	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
+	return groups;
+};
+
+const countGroupItems = (groups: readonly ContextGroup<unknown>[]): number =>
+	groups.reduce((count, group) => count + group.items.length, 0);
+
+const directoryGroupLabel = (source: string): ContextGroupLabel => ({
+	kind: "directory",
+	name: getPathDirname(source),
+});
+
+const resourceGroupLabel = (
+	resource: ChatContextResource,
+): ContextGroupLabel =>
+	resource.plugin_name
+		? { kind: "plugin", name: resource.plugin_name }
+		: directoryGroupLabel(resource.source);
+
+const groupHeaderText = (label: ContextGroupLabel): string =>
+	label.kind === "plugin" ? `plugin: ${label.name}` : label.name;
+
+// Plugin MCP servers are sourced as "<plugin>/<server>".
+const mcpServerDisplayName = (resource: ChatContextResource): string =>
+	resource.plugin_name
+		? resource.source.slice(resource.plugin_name.length + 1)
+		: resource.source;
+
+const issueDisplayName = (resource: ChatContextResource): string => {
+	const base =
+		resource.kind === "mcp_server"
+			? mcpServerDisplayName(resource)
+			: resource.skill_name ||
+				getPathBasename(resource.source) ||
+				resource.source;
+	if (resource.kind === "plugin") {
+		// Rejected manifests carry no plugin name.
+		return resource.plugin_name || base;
+	}
+	return resource.plugin_name ? `${resource.plugin_name}/${base}` : base;
+};
+
+// An OK row with a non-empty error appears in its section and in issues.
+export const buildContextPanelModel = (
+	resources: readonly ChatContextResource[],
+): ContextPanelModel => {
+	const okResources = resources.filter((resource) => resource.status === "ok");
+	// Drop entries with no usable name or path so an empty marker never
+	// renders as a blank row.
+	const files: ContextFileItem[] = okResources
+		.filter((resource) => resource.kind === "instruction_file")
+		.map((resource) => ({
+			path: resource.source,
+			label: directoryGroupLabel(resource.source),
+		}))
+		.filter((file) => file.path.trim().length > 0);
+	const skills: ContextSkillItem[] = okResources
+		.filter((resource) => resource.kind === "skill")
+		.map((resource) => ({
+			source: resource.source,
+			name: resource.skill_name || getPathBasename(resource.source),
+			description: resource.skill_description,
+			label: resourceGroupLabel(resource),
+		}))
+		.filter((skill) => skill.name.trim().length > 0);
+	const plugins: ContextPluginItem[] = okResources
+		.filter((resource) => resource.kind === "plugin")
+		.map((resource) => ({
+			name: resource.plugin_name ?? "",
+			source: resource.source,
+		}))
+		.filter((plugin) => plugin.name.trim().length > 0);
+	// MCP configs are shown by their full path so multiple .mcp.json files
+	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated.
+	const mcpConfigs: ContextMcpConfigItem[] = okResources
+		.filter((resource) => resource.kind === "mcp_config")
+		.map((resource) => ({ source: resource.source }))
+		.filter((config) => config.source.trim().length > 0);
+	// Servers in any status are listed so disconnected ones stay visible.
+	const mcpServers: ContextMcpServerItem[] = resources
+		.filter((resource) => resource.kind === "mcp_server")
+		.map((resource) => ({
+			name: mcpServerDisplayName(resource),
+			source: resource.source,
+			label: resource.plugin_name
+				? { kind: "plugin" as const, name: resource.plugin_name }
+				: { kind: "directory" as const, name: "" },
+			connected: resource.status === "ok",
+			tools: resource.tools ?? [],
+		}))
+		.filter((server) => server.name.trim().length > 0);
+	const harnesses: ContextHarnessItem[] = okResources
+		.filter((resource) => resource.kind === "acp_harness")
+		.map((resource) => ({
+			slug: resource.source,
+			label: { kind: "directory" as const, name: resource.source_path ?? "" },
+		}))
+		.filter((harness) => harness.slug.trim().length > 0);
+	const issues: ContextIssueItem[] = resources
+		.filter(
+			(resource) =>
+				resource.status !== "ok" || (resource.error ?? "").trim() !== "",
+		)
+		.map((resource) => ({
+			name: issueDisplayName(resource),
+			kind: resource.kind,
+			status: resource.status,
+			statusLabel: resource.status === "ok" ? "warning" : resource.status,
+			error: resource.error ?? "",
+			source: resource.source,
+		}))
+		.filter((issue) => issue.name.trim().length > 0);
+	const issuesOfKind = (...kinds: ChatContextResourceKind[]) =>
+		issues.filter((issue) => kinds.includes(issue.kind));
+
+	return {
+		fileGroups: groupByLabel(files),
+		skillGroups: groupByLabel(skills),
+		plugins,
+		mcpConfigs,
+		mcpServerGroups: groupByLabel([
+			...mcpServers.filter((server) => server.label.kind !== "plugin"),
+			...mcpServers.filter((server) => server.label.kind === "plugin"),
+		]),
+		harnessGroups: groupByLabel(harnesses),
+		issues,
+		fileIssues: issuesOfKind("instruction_file"),
+		skillIssues: issuesOfKind("skill"),
+		pluginIssues: issuesOfKind("plugin"),
+		mcpIssues: issues.filter(
+			(issue) =>
+				issue.kind === "mcp_config" ||
+				(issue.kind === "mcp_server" && issue.status === "ok"),
+		),
+		mcpServerFailures: issues.filter(
+			(issue) => issue.kind === "mcp_server" && issue.status !== "ok",
+		),
+		harnessIssues: issuesOfKind("acp_harness"),
+		hasResourceIssues: issues.length > 0,
+		hasResourceFailures: issues.some((issue) => issue.status !== "ok"),
+	};
 };
 
 const ContextResourceIssues: React.FC<{
@@ -180,7 +406,7 @@ const ContextResourceIssues: React.FC<{
 						<span className="truncate">
 							{issue.name}{" "}
 							<span className="text-content-secondary">
-								({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+								({RESOURCE_KIND_LABELS[issue.kind]}: {issue.statusLabel})
 							</span>
 						</span>
 						{issue.error && <span>{issue.error}</span>}
@@ -228,12 +454,12 @@ const ContextMcpServerIssues: React.FC<ContextMcpServerIssuesProps> = ({
 	) : null;
 
 const ContextHarnessSection: React.FC<{
-	groups: readonly DirectoryGroup<{ slug: string; dir: string }>[];
+	groups: readonly ContextGroup<ContextHarnessItem>[];
 	issues: readonly ContextIssueItem[];
 }> = ({ groups, issues }) => (
 	<ContextResourceAccordion>
 		<ContextResourceAccordionTrigger
-			detail={`${groups.reduce((count, group) => count + group.items.length, 0)} available`}
+			detail={`${countGroupItems(groups)} available`}
 		>
 			ACP
 		</ContextResourceAccordionTrigger>
@@ -241,11 +467,14 @@ const ContextHarnessSection: React.FC<{
 			{groups.length > 0 && (
 				<ContextResourceTree>
 					{groups.map((group) => (
-						<ContextResourceTreeDirectory key={group.dir} dir={group.dir}>
+						<ContextResourceTreeDirectory
+							key={group.key}
+							dir={group.label.name}
+						>
 							{group.items.map((harness) => (
 								<ContextResourceTreeItem
 									key={harness.slug}
-									icon={group.dir === "" ? BotIcon : undefined}
+									icon={group.label.name === "" ? BotIcon : undefined}
 									name={harness.slug}
 									title={harness.slug}
 								/>
@@ -310,124 +539,53 @@ export const ContextUsageIndicator: React.FC<{
 	const isDirty = context?.dirty ?? false;
 	const contextError = context?.error ?? "";
 	const hasContextError = contextError !== "";
-	const pinnedResources = context?.resources;
-
-	// Drive the listed context from the chat's pinned resources.
-	const fileItems: readonly ContextFileItem[] = (pinnedResources ?? [])
-		.filter(
-			(resource) =>
-				resource.kind === "instruction_file" && resource.status === "ok",
-		)
-		.map((resource) => ({
-			path: resource.source,
-			dir: getPathDirname(resource.source),
-		}))
-		// Drop entries with no usable path so an empty marker never renders as a
-		// nameless "Context files" row.
-		.filter((file) => file.path.trim().length > 0);
-	const skillItems: readonly ContextSkillItem[] = (pinnedResources ?? [])
-		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
-		.map((resource) => ({
-			source: resource.source,
-			name: resource.skill_name || getPathBasename(resource.source),
-			description: resource.skill_description,
-			dir: getPathDirname(resource.source),
-		}))
-		// Drop entries with no usable name so an empty skill marker never renders
-		// as a blank row.
-		.filter((skill) => skill.name.trim().length > 0);
-	// MCP configs are shown by their full path so multiple .mcp.json files
-	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated; servers
-	// are keyed by name and carry their tools.
-	const mcpConfigItems: readonly ContextMcpConfigItem[] = (
-		pinnedResources ?? []
-	)
-		.filter(
-			(resource) => resource.kind === "mcp_config" && resource.status === "ok",
-		)
-		.map((resource) => ({ source: resource.source }))
-		.filter((config) => config.source.trim().length > 0);
-	const mcpServerItems: readonly ContextMcpServerItem[] = (
-		pinnedResources ?? []
-	)
-		.filter((resource) => resource.kind === "mcp_server")
-		.map((resource) => ({
-			name: resource.source,
-			source: resource.source,
-			connected: resource.status === "ok",
-			tools: resource.tools ?? [],
-		}))
-		// Drop entries with no usable name so an empty MCP marker never renders as
-		// a blank row.
-		.filter((server) => server.name.trim().length > 0);
-	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
-	const harnessItems = (pinnedResources ?? [])
-		.filter(
-			(resource) => resource.kind === "acp_harness" && resource.status === "ok",
-		)
-		.map((resource) => ({
-			slug: resource.source,
-			dir: resource.source_path ?? "",
-		}))
-		.filter((harness) => harness.slug.trim().length > 0);
-	// Pinned resources the agent could not use (invalid skill, unreadable or
-	// oversize file) are surfaced as issues with their error so the failure is
-	// visible rather than a silent omission.
-	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
-		.filter((resource) => resource.status !== "ok")
-		.map((resource) => ({
-			name:
-				resource.skill_name ||
-				getPathBasename(resource.source) ||
-				resource.source,
-			kind: resource.kind,
-			status: resource.status,
-			error: resource.error ?? "",
-			source: resource.source,
-		}))
-		.filter((issue) => issue.name.trim().length > 0);
-	const fileIssues = issueItems.filter(
-		(issue) => issue.kind === "instruction_file",
-	);
-	const skillIssues = issueItems.filter((issue) => issue.kind === "skill");
-	const mcpIssues = issueItems.filter(
-		(issue) => issue.kind === "mcp_config" || issue.kind === "mcp_server",
-	);
-	const mcpConfigIssues = mcpIssues.filter(
-		(issue) => issue.kind === "mcp_config",
-	);
-	const mcpServerIssues = mcpIssues.filter(
-		(issue) => issue.kind === "mcp_server",
-	);
-	const harnessIssues = issueItems.filter(
-		(issue) => issue.kind === "acp_harness",
-	);
+	const {
+		fileGroups,
+		skillGroups,
+		plugins,
+		mcpConfigs,
+		mcpServerGroups,
+		harnessGroups,
+		issues,
+		fileIssues,
+		skillIssues,
+		pluginIssues,
+		mcpIssues,
+		mcpServerFailures,
+		harnessIssues,
+		hasResourceIssues,
+		hasResourceFailures,
+	} = buildContextPanelModel(context?.resources ?? []);
+	const fileCount = countGroupItems(fileGroups);
+	const skillCount = countGroupItems(skillGroups);
+	const mcpServers = mcpServerGroups.flatMap((group) => group.items);
+	const hasMcp = mcpConfigs.length > 0 || mcpServers.length > 0;
 
 	const hasContextList =
-		fileItems.length > 0 ||
-		skillItems.length > 0 ||
+		fileGroups.length > 0 ||
+		skillGroups.length > 0 ||
+		plugins.length > 0 ||
 		hasMcp ||
-		harnessItems.length > 0 ||
-		issueItems.length > 0;
+		harnessGroups.length > 0 ||
+		issues.length > 0;
 
-	const hasResourceIssues = issueItems.length > 0;
-	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const { tone, needsAttention } = getIndicatorState({
+		percentUsed,
+		compactionPercent,
+		isDirty,
+		hasContextError,
+		hasResourceIssues,
+	});
 	const AttentionIcon = hasContextError ? CircleAlertIcon : TriangleAlertIcon;
-	const toneClassName = hasContextError
-		? "text-content-destructive"
-		: isDirty || hasResourceIssues
-			? "text-content-warning"
-			: getIndicatorToneClassName(percentUsed, compactionPercent);
-
-	// Group files and skills by directory so every context root is labeled,
-	// keeping resources pulled from different directories distinguishable.
-	const fileGroups = groupByDirectory(fileItems);
-	const skillGroups = groupByDirectory(skillItems);
+	const toneClassName = INDICATOR_TONE_CLASS_NAMES[tone];
 
 	const statusNotes = [
 		hasContextError ? "Context error." : "",
 		isDirty ? "Context changed." : "",
-		hasResourceIssues ? "Some context resources failed to load." : "",
+		hasResourceFailures ? "Some context resources failed to load." : "",
+		hasResourceIssues && !hasResourceFailures
+			? "Some context resources have warnings."
+			: "",
 	].filter((note) => note !== "");
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	let ariaLabel = "Context usage";
@@ -565,25 +723,27 @@ export const ContextUsageIndicator: React.FC<{
 				</div>
 				{hasContextList && (
 					<div className="flex flex-col text-content-secondary">
-						{(fileItems.length > 0 || fileIssues.length > 0) && (
+						{(fileCount > 0 || fileIssues.length > 0) && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
-									detail={`${fileItems.length} ${fileItems.length === 1 ? "file" : "files"}`}
+									detail={`${fileCount} ${fileCount === 1 ? "file" : "files"}`}
 								>
 									Context files
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent>
-									{fileItems.length > 0 && (
+									{fileCount > 0 && (
 										<ContextResourceTree>
 											{fileGroups.map((group) => (
 												<ContextResourceTreeDirectory
-													key={group.dir}
-													dir={group.dir}
+													key={group.key}
+													dir={group.label.name}
 												>
 													{group.items.map((file) => (
 														<ContextResourceTreeItem
 															key={file.path}
-															icon={group.dir === "" ? FileIcon : undefined}
+															icon={
+																group.label.name === "" ? FileIcon : undefined
+															}
 															name={getPathBasename(file.path)}
 															title={file.path}
 														/>
@@ -596,25 +756,56 @@ export const ContextUsageIndicator: React.FC<{
 								</ContextResourceAccordionContent>
 							</ContextResourceAccordion>
 						)}
-						{(skillItems.length > 0 || skillIssues.length > 0) && (
+						{(plugins.length > 0 || pluginIssues.length > 0) && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
-									detail={`${skillItems.length} available`}
+									detail={`${plugins.length} available`}
+								>
+									Plugins
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent>
+									{plugins.length > 0 && (
+										<ContextResourceTree>
+											{plugins.map((plugin) => (
+												<ContextResourceTreeItem
+													key={plugin.source}
+													icon={BlocksIcon}
+													name={plugin.name}
+													title={plugin.source}
+												/>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={pluginIssues} />
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(skillCount > 0 || skillIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${skillCount} available`}
 								>
 									Skills
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent>
-									{skillItems.length > 0 && (
+									{skillCount > 0 && (
 										<ContextResourceTree>
 											{skillGroups.map((group) => (
 												<ContextResourceTreeDirectory
-													key={group.dir}
-													dir={group.dir}
+													key={group.key}
+													dir={groupHeaderText(group.label)}
+													icon={
+														group.label.kind === "plugin"
+															? BlocksIcon
+															: undefined
+													}
 												>
 													{group.items.map((skill) => (
 														<ContextResourceTreeItem
 															key={skill.source}
-															icon={group.dir === "" ? ZapIcon : undefined}
+															icon={
+																group.label.name === "" ? ZapIcon : undefined
+															}
 															name={skill.name}
 															description={skill.description}
 														/>
@@ -627,17 +818,19 @@ export const ContextUsageIndicator: React.FC<{
 								</ContextResourceAccordionContent>
 							</ContextResourceAccordion>
 						)}
-						{(hasMcp || mcpIssues.length > 0) && (
+						{(hasMcp ||
+							mcpIssues.length > 0 ||
+							mcpServerFailures.length > 0) && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
-									detail={`${mcpServerItems.filter((server) => server.connected).length} of ${mcpServerItems.length} connected`}
+									detail={`${mcpServers.filter((server) => server.connected).length} of ${mcpServers.length} connected`}
 								>
 									MCP Servers
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent className="gap-2">
 									{hasMcp && (
 										<ContextResourceTree>
-											{mcpConfigItems.map((config) => (
+											{mcpConfigs.map((config) => (
 												<ContextResourceTreeItem
 													key={config.source}
 													icon={FileIcon}
@@ -646,36 +839,48 @@ export const ContextUsageIndicator: React.FC<{
 													appearance="path"
 												/>
 											))}
-											{mcpServerItems.map((mcp) => (
-												<ContextResourceServer
-													key={mcp.source}
-													name={mcp.name}
-													title={mcp.source}
-													connected={mcp.connected}
-												>
-													{mcp.tools.length > 0 &&
-														mcp.tools.map((tool) => (
-															<ContextResourceTool
-																key={tool.name}
-																name={tool.name}
-																description={tool.description}
-															/>
-														))}
-												</ContextResourceServer>
+											{mcpServerGroups.map((group) => (
+												<Fragment key={group.key}>
+													{group.label.kind === "plugin" && (
+														<ContextResourceTreeItem
+															icon={BlocksIcon}
+															name={groupHeaderText(group.label)}
+															title={groupHeaderText(group.label)}
+															appearance="path"
+														/>
+													)}
+													{group.items.map((mcp) => (
+														<ContextResourceServer
+															key={mcp.source}
+															name={mcp.name}
+															title={mcp.source}
+															connected={mcp.connected}
+														>
+															{mcp.tools.length > 0 &&
+																mcp.tools.map((tool) => (
+																	<ContextResourceTool
+																		key={tool.name}
+																		name={tool.name}
+																		description={tool.description}
+																	/>
+																))}
+														</ContextResourceServer>
+													))}
+												</Fragment>
 											))}
 										</ContextResourceTree>
 									)}
-									<ContextResourceIssues issues={mcpConfigIssues} />
+									<ContextResourceIssues issues={mcpIssues} />
 									<ContextMcpServerIssues
-										issues={mcpServerIssues}
+										issues={mcpServerFailures}
 										onManageServers={onManageServers}
 									/>
 								</ContextResourceAccordionContent>
 							</ContextResourceAccordion>
 						)}
-						{(harnessItems.length > 0 || harnessIssues.length > 0) && (
+						{(harnessGroups.length > 0 || harnessIssues.length > 0) && (
 							<ContextHarnessSection
-								groups={groupByDirectory(harnessItems)}
+								groups={harnessGroups}
 								issues={harnessIssues}
 							/>
 						)}

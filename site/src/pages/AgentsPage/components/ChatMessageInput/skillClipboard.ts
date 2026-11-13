@@ -49,7 +49,11 @@ export const getClipboardNodes = (
 export const $insertClipboardNodes = (
 	selection: RangeSelection,
 	serializedNodes: readonly SerializedLexicalNode[],
-	isSkillAvailable: (source: SkillSource, name: string) => boolean,
+	isSkillAvailable: (
+		source: SkillSource,
+		name: string,
+		pluginName: string | undefined,
+	) => boolean,
 ): boolean => {
 	let nodes: LexicalNode[];
 	try {
@@ -64,12 +68,15 @@ export const $insertClipboardNodes = (
 	let isWithinLimit = true;
 	const $resolveNode = (node: LexicalNode): LexicalNode | null => {
 		if (node instanceof SkillInvocationNode) {
-			const { __source: source, __name: name } = node;
-			const alias = getSkillAlias(source, name);
-			if (!isSkillAvailable(source, name)) {
+			const { __source: source, __name: name, __pluginName: pluginName } = node;
+			const alias = getSkillAlias(source, name, pluginName);
+			if (!isSkillAvailable(source, name, pluginName)) {
 				return $createTextNode(alias);
 			}
-			if (pastedAliases.has(alias) || $hasSkillInvocationNode(source, name)) {
+			if (
+				pastedAliases.has(alias) ||
+				$hasSkillInvocationNode(source, name, pluginName)
+			) {
 				return null;
 			}
 			if (chipCount >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
@@ -101,7 +108,7 @@ export const $insertClipboardNodes = (
 
 const getSerializedNodeText = (node: SerializedLexicalNode): string => {
 	if (isSerializedSkillInvocationNode(node)) {
-		return getSkillAlias(node.source, node.name);
+		return getSkillAlias(node.source, node.name, node.pluginName);
 	}
 	if (node.type === "linebreak") {
 		return "\n";

@@ -34,6 +34,7 @@ const buildOptimisticEditedContent = ({
 			return {
 				type: "skill-invocation",
 				skill_source: part.skill_source ?? "personal",
+				skill_plugin_name: part.skill_plugin_name,
 				skill_name: part.skill_name ?? "",
 			};
 		}
