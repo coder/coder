@@ -327,7 +327,7 @@ export const ModelFormFields: React.FC<{
 						}
 						open={showCostEstimate}
 						onOpenChange={setShowCostEstimate}
-						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-4"
+						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 md:grid-cols-4"
 					>
 						<PricingEstimateFields
 							provider={selectedProviderType}
