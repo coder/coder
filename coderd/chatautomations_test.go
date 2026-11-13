@@ -763,7 +763,10 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 			canary := "canary-" + uuid.NewString()
+			before, err := env.db.CountChatAutomationsByOwnerID(ctx, tc.who.id)
+			require.NoError(t, err)
 
 			_, status, body := postChatAutomation(t, tc.who.client, org, tc.body(canary))
 
@@ -783,6 +786,9 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 				require.Contains(t, got.Validations[0].Detail, tc.detail)
 			}
 			require.Empty(t, env.automationAudit(tc.who.id))
+			after, err := env.db.CountChatAutomationsByOwnerID(ctx, tc.who.id)
+			require.NoError(t, err)
+			require.Equal(t, before, after, "a rejected create stored a row")
 		})
 	}
 }

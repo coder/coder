@@ -498,6 +498,7 @@ func TestCreateReferenceDeleted(t *testing.T) {
 			_, err := h.creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, req))
 
 			require.ErrorIs(t, err, chatautomation.ErrReferenceUnavailable)
+			require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
 		})
 	}
 }
