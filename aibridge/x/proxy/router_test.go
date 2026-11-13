@@ -3,7 +3,6 @@ package proxy_test
 import (
 	"context"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,44 +99,17 @@ func TestNewRouterRequiresRecorder(t *testing.T) {
 	require.Nil(t, router)
 }
 
-//nolint:paralleltest,tparallel // Sequential subtests verify connection reuse.
 func TestRouterRoutes(t *testing.T) {
 	t.Parallel()
 
-	var calls, connections atomic.Int32
-	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		_, _ = io.WriteString(w, r.URL.Path)
-	}))
-	upstream.Config.ConnState = func(_ net.Conn, state http.ConnState) {
-		if state == http.StateNew {
-			connections.Add(1)
-		}
-	}
-	upstream.Start()
-	t.Cleanup(upstream.Close)
-	enabled := &aibtestutil.MockProvider{
-		NameStr:     "openai",
-		URL:         upstream.URL,
-		Bridged:     []string{"/bridged/exact/path", "/bridged/whole/subtree/", "/passthrough/whole/subtree/bridged"},
-		Passthrough: []string{"/passthrough/exact/path", "/passthrough/whole/subtree/"},
-	}
-	m := metrics.NewMetrics(prometheus.NewRegistry())
-	router, err := proxy.NewRouter(
-		t.Context(), []provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{},
-	)
-	require.NoError(t, err)
-
-	const bridgedBody = "bridged routes are not yet implemented in proxy mode\n"
 	const disabledBody = routing.ErrorCodeProviderDisabled + ": AI provider \"disabled-openai\" is disabled\n"
-	var passthroughPaths []string
 	for _, tc := range []struct {
-		name       string
-		path       string
-		noActor    bool
-		wantStatus int
-		wantBody   string
+		name        string
+		path        string
+		noActor     bool
+		passthrough bool
+		wantStatus  int
+		wantBody    string
 	}{
 		{
 			name:       "DisabledProvider_Bridged_ExactPath",
@@ -172,14 +144,14 @@ func TestRouterRoutes(t *testing.T) {
 		{
 			name:       "EnabledProvider_Bridged_ExactPath",
 			path:       "/openai/bridged/exact/path",
-			wantStatus: http.StatusNotImplemented,
-			wantBody:   bridgedBody,
+			wantStatus: http.StatusOK,
+			wantBody:   "/bridged/exact/path",
 		},
 		{
 			name:       "EnabledProvider_Bridged_SubtreePath",
 			path:       "/openai/bridged/whole/subtree/nested",
-			wantStatus: http.StatusNotImplemented,
-			wantBody:   bridgedBody,
+			wantStatus: http.StatusOK,
+			wantBody:   "/bridged/whole/subtree/nested",
 		},
 		{
 			name:       "BridgedRouteWithoutActor",
@@ -191,20 +163,22 @@ func TestRouterRoutes(t *testing.T) {
 		{
 			name:       "EnabledProvider_Bridged_ExactPathOverridesPassthroughSubtree",
 			path:       "/openai/passthrough/whole/subtree/bridged",
-			wantStatus: http.StatusNotImplemented,
-			wantBody:   bridgedBody,
+			wantStatus: http.StatusOK,
+			wantBody:   "/passthrough/whole/subtree/bridged",
 		},
 		{
-			name:       "EnabledProvider_Passthrough_ExactPath",
-			path:       "/openai/passthrough/exact/path",
-			wantStatus: http.StatusOK,
-			wantBody:   "/passthrough/exact/path",
+			name:        "EnabledProvider_Passthrough_ExactPath",
+			path:        "/openai/passthrough/exact/path",
+			passthrough: true,
+			wantStatus:  http.StatusOK,
+			wantBody:    "/passthrough/exact/path",
 		},
 		{
-			name:       "EnabledProvider_Passthrough_SubtreePath",
-			path:       "/openai/passthrough/whole/subtree/nested",
-			wantStatus: http.StatusOK,
-			wantBody:   "/passthrough/whole/subtree/nested",
+			name:        "EnabledProvider_Passthrough_SubtreePath",
+			path:        "/openai/passthrough/whole/subtree/nested",
+			passthrough: true,
+			wantStatus:  http.StatusOK,
+			wantBody:    "/passthrough/whole/subtree/nested",
 		},
 		{
 			name:       "EnabledProvider_UnknownPath",
@@ -232,9 +206,27 @@ func TestRouterRoutes(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.wantStatus == http.StatusOK {
-				passthroughPaths = append(passthroughPaths, tc.wantBody)
+			t.Parallel()
+
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				_, _ = io.WriteString(w, r.URL.Path)
+			}))
+			t.Cleanup(upstream.Close)
+			enabled := &aibtestutil.MockProvider{
+				NameStr:     "openai",
+				URL:         upstream.URL,
+				Bridged:     []string{"/bridged/exact/path", "/bridged/whole/subtree/", "/passthrough/whole/subtree/bridged"},
+				Passthrough: []string{"/passthrough/exact/path", "/passthrough/whole/subtree/"},
 			}
+			m := metrics.NewMetrics(prometheus.NewRegistry())
+			router, err := proxy.NewRouter(
+				t.Context(), []provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
+				slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{},
+			)
+			require.NoError(t, err)
+
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil).WithContext(t.Context())
 			if !tc.noActor {
 				req = req.WithContext(aibcontext.AsActor(req.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
@@ -243,14 +235,18 @@ func TestRouterRoutes(t *testing.T) {
 			router.ServeHTTP(resp, req)
 			assert.Equal(t, tc.wantStatus, resp.Code, "path: %s", tc.path)
 			assert.Equal(t, tc.wantBody, resp.Body.String(), "path: %s", tc.path)
+			if tc.wantStatus == http.StatusOK {
+				assert.EqualValues(t, 1, calls.Load(), "request must reach upstream")
+			} else {
+				assert.Zero(t, calls.Load(), "rejected requests must not reach upstream")
+			}
+			if tc.passthrough {
+				require.Equal(t, 1, promtestutil.CollectAndCount(m.PassthroughCount))
+				assert.Equal(t, float64(1), promtestutil.ToFloat64(m.PassthroughCount.WithLabelValues("openai", tc.wantBody, http.MethodGet)))
+			} else {
+				assert.Zero(t, promtestutil.CollectAndCount(m.PassthroughCount))
+			}
 		})
-	}
-
-	require.EqualValues(t, len(passthroughPaths), calls.Load(), "only passthrough routes must reach upstream")
-	require.EqualValues(t, min(len(passthroughPaths), 1), connections.Load(), "passthrough routes must share the provider transport")
-	require.Equal(t, len(passthroughPaths), promtestutil.CollectAndCount(m.PassthroughCount))
-	for _, path := range passthroughPaths {
-		require.Equal(t, float64(1), promtestutil.ToFloat64(m.PassthroughCount.WithLabelValues("openai", path, http.MethodGet)), "path: %s", path)
 	}
 }
 

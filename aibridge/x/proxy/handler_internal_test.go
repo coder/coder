@@ -131,32 +131,31 @@ func newTestPool(t *testing.T, keys ...string) *keypool.Pool {
 	return pool
 }
 
-// prepareAndProxy validates r, captures its body for replay, and serves it
-// through a proxy bound to the resolved credential, without response
-// observation.
+// prepareAndProxy validates r, captures its body for replay, and forwards it
+// outside the circuit breaker.
 func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
-	_, record, cred := h.checkRequest(w, r)
+	logger, record, cred := h.checkRequest(w, r)
 	require.NotNil(t, record, "request must pass validation")
 	outbound, body := replaybody.NewRequest(r)
 	t.Cleanup(func() { _ = body.Close() })
-	h.newProxy(cred).ServeHTTP(w, outbound)
+	_ = h.forward(w, outbound, cred, &forwardResult{}, logger)
 	require.NoError(t, body.Close())
 	_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
 	require.NoError(t, err)
 }
 
-func TestForwardingHandlerPlaceholder(t *testing.T) {
+func TestForwardingHandlerRejects(t *testing.T) {
 	t.Parallel()
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("placeholder must not call upstream")
+		t.Error("rejected requests must not call upstream")
 	}))
 	t.Cleanup(upstream.Close)
 	prov := &testutil.MockProvider{
 		NameStr: "test", URL: upstream.URL,
 		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
-			t.Error("placeholder must not create an interceptor")
+			t.Error("forwarding must not create an interceptor")
 			return nil, io.ErrUnexpectedEOF
 		},
 	}
@@ -166,7 +165,6 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 		status  int
 		message string
 	}{
-		{name: "UnparsedBody", status: http.StatusNotImplemented, message: "bridged routes are not yet implemented in proxy mode"},
 		{name: "WebSocket", prepare: func(r *http.Request) {
 			r.Method = http.MethodGet
 			r.Header.Set("Connection", "Upgrade")
@@ -199,7 +197,7 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 			handler.ServeHTTP(response, req)
 			require.Equal(t, tc.status, response.Code)
 			require.Contains(t, response.Body.String(), tc.message)
-			require.False(t, body.read, "placeholder must not read the request body")
+			require.False(t, body.read, "rejected requests must not read the request body")
 			require.False(t, body.closed, "the transport owns request-body cleanup")
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
