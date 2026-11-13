@@ -44,11 +44,15 @@ export const archivedChatProjectsKey = [
 	"archived",
 ] as const;
 
-/** Lists the archived projects the current user owns or that are shared with them. */
+/**
+ * Lists the archived projects the current user owns or that are shared with
+ * them. Archiving sends no watch events, so other tabs catch up on focus.
+ */
 export const archivedChatProjects = () =>
 	queryOptions({
 		queryKey: archivedChatProjectsKey,
 		queryFn: () => API.experimental.getChatProjects({ archived: true }),
+		refetchOnWindowFocus: true,
 	});
 
 /**
