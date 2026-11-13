@@ -1,10 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
 /**
- * The content that a message shows for requestContent before the server
- * returns it. A file part that originalContent holds keeps its details.
+ * The parts that a pending message or queued row shows for requestContent.
+ * A file part that originalContent holds keeps its details.
  */
-export const buildOptimisticEditedContent = ({
+export const buildPendingContent = ({
 	requestContent,
 	originalContent = [],
 	attachmentMediaTypes,

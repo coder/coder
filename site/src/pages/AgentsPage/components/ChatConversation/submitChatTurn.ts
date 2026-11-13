@@ -1,6 +1,5 @@
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
-import { buildOptimisticEditedContent } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -29,6 +28,7 @@ import {
 	selectMessagesByID,
 	selectQueuedMessages,
 } from "./chatStore";
+import { buildPendingContent } from "./pendingContent";
 import type { EditingTarget } from "./types";
 
 export type SubmitChatTurnParams = {
@@ -310,7 +310,7 @@ export async function submitChatTurn(
 				kind: "editQueued",
 				queuedMessageID,
 				editing: false,
-				content: buildOptimisticEditedContent({
+				content: buildPendingContent({
 					requestContent: content,
 					originalContent: row?.content,
 					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
@@ -341,7 +341,7 @@ export async function submitChatTurn(
 			{
 				kind: "edit",
 				editedMessageID,
-				content: buildOptimisticEditedContent({
+				content: buildPendingContent({
 					requestContent: content,
 					originalContent: originalEditedMessage?.content,
 					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
@@ -367,7 +367,7 @@ export async function submitChatTurn(
 			// The server steers a send that names no lane.
 			busyBehavior: busyBehavior ?? "steer",
 			chatID: agentId,
-			content: buildOptimisticEditedContent({
+			content: buildPendingContent({
 				requestContent: content,
 				attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 			}),
