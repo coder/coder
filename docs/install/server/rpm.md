@@ -82,8 +82,9 @@ To stage the RPM on a host with no internet access, refer to [Air-gapped deploym
 
 ## Configure the server
 
-`coder.service` doesn't start while `/etc/coder.d/coder.env` is empty.
-Set your configuration before you start the service.
+Set your configuration in `/etc/coder.d/coder.env` before you start the service.
+If `CODER_ACCESS_URL` is empty, Coder opens a public tunnel to the deployment.
+If `CODER_PG_CONNECTION_URL` is empty, Coder uses a built-in PostgreSQL database.
 
 1. Open the configuration file.
 
@@ -95,8 +96,13 @@ Set your configuration before you start the service.
 3. Set `CODER_PG_CONNECTION_URL` to your PostgreSQL connection string.
 4. Save the file.
 
-The file ships with the TLS and HTTP address variables commented in place.
 For every server option, refer to the [configuration reference](../../admin/setup/configuration-reference.md).
+
+> [!NOTE]
+> If the file has a `CODER_HTTP_ADDRESS=` line with no value, add a `#` at the start of the line.
+> Otherwise the service does not start, unless TLS is enabled. For the cause, refer to the note in [Reinstall Coder to upgrade](../operate/upgrade.md#reinstall-coder-to-upgrade).
+> With the line commented out, Coder listens on `127.0.0.1:3000`.
+> To accept direct connections from other hosts, set `CODER_HTTP_ADDRESS` to an address such as `0.0.0.0:3000`, or put a reverse proxy in front of Coder.
 
 ## Start the service
 

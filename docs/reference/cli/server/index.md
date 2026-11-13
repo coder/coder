@@ -956,7 +956,7 @@ Allow site-owners to access workspace apps from workspaces they do not own. Owne
 | Environment | <code>$CODER_EXPERIMENTS</code> |
 | YAML        | <code>experiments</code>        |
 
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.
 
 ### --update-check
 
@@ -1409,7 +1409,7 @@ The interval in which coderd should be checking the status of workspace proxies.
 | YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
 | Default     | <code>CRON_TZ=UTC 0 0 ** *</code>                             |
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).
 
 ### --allow-custom-quiet-hours
 

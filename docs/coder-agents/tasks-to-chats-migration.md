@@ -358,7 +358,8 @@ Key differences from the Tasks GitHub Action (GHA):
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template.
   They are configured in the Coder control plane.
-- No user mapping: the Tasks GHA's `github-user-id` input has no equivalent, because the chat is always owned by the user the `coder-token` belongs to and the Chats API has no owner override.
+- No user mapping: the Tasks GHA's `github-user-id` input has no equivalent in the action, which always creates chats as the user that owns the `coder-token`.
+  The Chats API accepts an optional `owner_id` in the request body, but only when the caller can create API keys for that user.
 
 See the [action README](https://github.com/coder/create-agent-chat-action#inputs) for the full input and output reference, including the `existing-chat-id` input for sending follow-up messages on a previous chat.
 
@@ -527,13 +528,16 @@ If this returns an empty list or an error, revisit [Step 1: Configure an LLM pro
 
 ### 2. Create a chat and confirm the response
 
-Create a simple chat that does not require a workspace:
+Create a simple chat that does not require a workspace.
+Replace `<your-org-id>` with the ID of an organization you belong to.
+To find the ID, run `coder organizations list` and copy the value in the `id` column.
 
 ```sh
 curl -s -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [{"type": "text", "text": "What is 2 + 2?"}]
   }' | jq '{id, status, title}'
 ```

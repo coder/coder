@@ -7,18 +7,6 @@ Coder's agent can automatically lower the scheduling priority and raise the out-
 ## Prerequisites
 
 - **Linux** — The feature is ignored on other operating systems.
-- **`CAP_SYS_NICE`** is required if the agent needs to lower the nice value below its current value.
-  In Kubernetes, add it to the container's security context:
-
-  ```tf
-  container {
-    security_context {
-      capabilities {
-        add = ["CAP_SYS_NICE"]
-      }
-    }
-  }
-  ```
 
 ## Environment variables
 
@@ -26,11 +14,11 @@ Configure the feature with environment variables in the environment that launche
 These must be set on the workspace container or host, not in the `coder_agent` resource's `env` block.
 The agent reads them from its own process environment at startup.
 
-| Variable                | Required | Default                       | Description                                                                                                                                                                                   |
-|-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_PROC_PRIO_MGMT`  | Yes      | —                             | Set to enable the feature. The agent checks whether the variable is present, not its value — even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely. |
-| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                 |
-| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority).                                                                                                      |
+| Variable                | Required | Default                       | Description                                                                                                                                                                                                         |
+|-------------------------|----------|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_PROC_PRIO_MGMT`  | Yes      | None                          | Set to enable the feature. The agent checks whether the variable is present, not its value, so even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely.                     |
+| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                                       |
+| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority). A value below the agent's own nice value is not applied. Refer to [Nice value is not applied](#nice-value-is-not-applied). |
 
 ### OOM score defaults
 
@@ -47,6 +35,9 @@ The goal is for the kernel's OOM killer to target child processes before the age
 ### Nice score defaults
 
 If you do not set `CODER_PROC_NICE_SCORE`, the agent sets children to its own nice value plus 5, capped at 19. This gives the agent more CPU scheduling priority than user workloads.
+
+By default, Linux does not let the agent give child processes a nice value below its own.
+Adding `CAP_SYS_NICE` to the container does not change this, because Coder drops the child process's Linux capabilities before it sets the nice value.
 
 ## Example
 
@@ -79,12 +70,6 @@ resource "kubernetes_deployment" "workspace" {
             name  = "CODER_PROC_NICE_SCORE"
             value = "1"
           }
-
-          security_context {
-            capabilities {
-              add = ["CAP_SYS_NICE"]
-            }
-          }
         }
       }
     }
@@ -94,7 +79,6 @@ resource "kubernetes_deployment" "workspace" {
 
 - `CODER_PROC_OOM_SCORE=10` gives child processes a slightly elevated OOM score while keeping them well below the maximum.
 - `CODER_PROC_NICE_SCORE=1` gives children a mildly lower CPU priority than the agent.
-- `CAP_SYS_NICE` allows the agent to set nice values.
 
 ## Troubleshooting
 
@@ -105,12 +89,15 @@ Make sure the process is dumpable (the agent handles this automatically, but it 
 
 ### Nice value is not applied
 
-If you see `failed to adjust niceness` in stderr, nice values can only be increased (lowered in priority) without `CAP_SYS_NICE`.
-If your template sets a `CODER_PROC_NICE_SCORE` lower than the agent's current nice value, add the capability to the container's security context.
+If you see `coder-agent: failed to adjust niceness` before a command's output, the most likely cause is a `CODER_PROC_NICE_SCORE` that is lower than the agent's current nice value.
+Coder writes the message to the stderr of the command, so it appears with that command's output, for example in the terminal session that ran it.
+The command still runs with the agent's nice value.
+Set `CODER_PROC_NICE_SCORE` to a value at or above the agent's nice value, or remove it to use the default.
+For details, refer to [Nice score defaults](#nice-score-defaults).
 
 ### Environment variables leak to nested Coder agents
 
-The agent strips all `CODER_PROC_*` variables from child environments automatically.
+The agent strips the `CODER_PROC_PRIO_MGMT`, `CODER_PROC_OOM_SCORE`, and `CODER_PROC_NICE_SCORE` variables from child environments automatically.
 This prevents interference in "Coder on Coder" development scenarios where a workspace runs another Coder agent.
 
 <a id="verifying-the-feature-is-enabled"></a>

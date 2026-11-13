@@ -157,7 +157,7 @@ The bind address to serve prometheus metrics.
 | Environment | <code>$CODER_EXPERIMENTS</code> |
 | YAML        | <code>experiments</code>        |
 
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.
 
 ### -O, --org
 

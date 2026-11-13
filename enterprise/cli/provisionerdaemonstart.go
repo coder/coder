@@ -383,7 +383,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		},
 		{
 			Name:        "Experiments",
-			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.",
 			Flag:        "experiments",
 			Env:         "CODER_EXPERIMENTS",
 			Value:       serpent.StringArrayOf(&experiments),

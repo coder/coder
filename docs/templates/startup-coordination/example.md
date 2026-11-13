@@ -211,7 +211,7 @@ A short summary of the changes:
 - We've broken the monolithic "setup" script into two separate scripts: one for the `apt` commands, and one for the `pip` commands.
   - In each script, we've added a `coder exp sync start $SCRIPT_NAME` command to mark the startup script as started.
   - We've also added an exit trap to make sure that we mark the startup scripts as completed.
-    Without this, the `coder exp sync wait` command would eventually time out.
+    Without this, the `coder exp sync start` command would eventually time out.
 - We have used the `post_clone_script` feature of the `git-clone` module to allow waiting on the Git repository clone.
 - In the `pip-install` script, we have declared a dependency on both `git-clone` and `apt-install`.
 

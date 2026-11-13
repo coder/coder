@@ -44,10 +44,10 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "CPU Usage (Host)"
     key  = "cpu_host"
-    # calculates CPU usage by summing the "us", "sy" and "id" columns of
+    # calculates CPU usage by summing the "us" and "sy" columns of
     # top.
     script = <<EOT
-    top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$3+$4}'
+    top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$4}'
     EOT
     interval = 1
     timeout = 1
@@ -57,7 +57,7 @@ resource "coder_agent" "main" {
     display_name = "Memory Usage (Host)"
     key  = "mem_host"
     script = <<EOT
-    free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
+    free | awk '/^Mem/ { printf("%.0f%%", $3/$2 * 100.0) }'
     EOT
     interval = 1
     timeout = 1
@@ -119,22 +119,24 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 
 ## Manage the database load
 
-Agent metadata can generate a significant write load and overwhelm your Coder database if you're not careful.
-The approximate writes per second can be calculated using the formula:
+Agent metadata adds write load to your Coder database, and the load grows with the number of agents and metadata snippets.
 
-```txt
-(metadata_count * num_running_agents * 2) / metadata_avg_interval
-```
+Each Coder server replica collects metadata updates from the agents connected to it and writes them in batches.
+Each metadata key for each agent takes one place in the batch, and a newer update replaces the value that is waiting.
+Coder writes the batch to the database every 5&nbsp;seconds, or sooner when 500 entries are waiting.
+Each write is a single statement that covers every entry in the batch.
+After each write, Coder sends notifications to the UI for the agents it updated, so live stats keep streaming.
 
 For example, let's say you have
 
 - 10 running agents
 - each with 6 metadata snippets
-- with an average interval of 4&nbsp;seconds
 
-You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
+In this example, at most 60 entries wait in the batch, which is under the 500-entry limit.
+The database therefore receives one batch statement from each replica every 5&nbsp;seconds, no matter how often each snippet runs.
 
-One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the other to the `NOTIFY` query that enables live stats streaming in the UI.
+When a replica has more than 500 entries waiting, it writes more often than every 5&nbsp;seconds.
+To lower the load, reduce the number of metadata snippets in the template.
 
 ## Next Steps
 

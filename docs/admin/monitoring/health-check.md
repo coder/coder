@@ -303,7 +303,7 @@ Otherwise, make sure [`--provisioner-daemons`](../../reference/cli/server/index.
 #### Provisioner Daemon Version Mismatch
 
 **Problem:**
-One or more provisioner daemons are more than one major or minor version out of date with the main deployment.
+One or more provisioner daemons report a different major or minor version than the main deployment.
 It is important that provisioner daemons are updated at the same time as the main deployment to minimize the risk of API incompatibility.
 
 **Solution:**
