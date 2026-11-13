@@ -175,9 +175,8 @@ func TestEngine_AddRootIdempotent(t *testing.T) {
 	require.NoError(t, eng.AddRoot(ctx, dir))
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	roots := eng.snap.Load()
-	require.NotNil(t, roots)
-	require.Len(t, *roots, 1, "expected exactly one root after duplicate add")
+	snapLen := engineSnapLen(eng)
+	require.Equal(t, 1, snapLen, "expected exactly one root after duplicate add")
 }
 
 func TestEngine_RemoveRoot(t *testing.T) {
@@ -213,6 +212,16 @@ func TestEngine_Rebuild(t *testing.T) {
 	results, err := eng.Search(ctx, "sneaky_rebuild", DefaultSearchOptions())
 	require.NoError(t, err)
 	requireResultHasPath(t, results, "sneaky_rebuild.txt")
+}
+
+// engineSnapLen returns the number of root snapshots currently held
+// by the engine, or -1 if the pointer is nil.
+func engineSnapLen(eng *Engine) int {
+	p := eng.snap.Load()
+	if p == nil {
+		return -1
+	}
+	return len(*p)
 }
 
 // createFile creates a file (and parent dirs) at relPath under dir.
