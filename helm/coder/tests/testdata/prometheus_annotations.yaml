@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+  prometheus:
+    scrapeAnnotations: true
+  podAnnotations:
+    prometheus.io/path: /custom
+    com.coder/podAnnotation/foo: bar

@@ -63,6 +63,23 @@ coder:
     com.coder/podLabel/baz: qux
 ```
 
+### Prometheus Scraping
+
+To let annotation-based scrapers (Grafana Alloy, the Prometheus Helm chart, the
+Coder observability chart) discover provisioner pods, enable metrics and set
+`coder.prometheus.scrapeAnnotations`. The chart then adds the
+`prometheus.io/scrape`, `prometheus.io/port` and `prometheus.io/path`
+annotations to the pods.
+
+```yaml
+coder:
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+  prometheus:
+    scrapeAnnotations: true
+```
+
 ### Additional Templates
 
 You can include extra Kubernetes manifests in `extraTemplates`.
