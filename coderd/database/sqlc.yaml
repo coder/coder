@@ -264,6 +264,7 @@ sql:
           workspace_group_acl: WorkspaceGroupACL
           user_acl_display_info: UserACLDisplayInfo
           group_acl_display_info: GroupACLDisplayInfo
+          acl_enabled: ACLEnabled
           troubleshooting_url: TroubleshootingURL
           default_ttl: DefaultTTL
           motd_file: MOTDFile

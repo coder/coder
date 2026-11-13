@@ -1824,6 +1824,28 @@ func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
+// authorizeChatProjectPin authorizes the actor to change their own pin on a
+// project. A pin is a personal preference, so reading the project is
+// enough.
+func (q *querier) authorizeChatProjectPin(ctx context.Context, userID, projectID uuid.UUID) error {
+	if err := requireActorIsUser(ctx, userID); err != nil {
+		return err
+	}
+	return q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID)
+}
+
+// requireActorIsUser rejects queries about another user's personal data.
+func requireActorIsUser(ctx context.Context, userID uuid.UUID) error {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return ErrNoActor
+	}
+	if act.ID != userID.String() {
+		return NotAuthorizedError{Err: xerrors.New("actor does not match the user")}
+	}
+	return nil
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -6597,6 +6619,13 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
+func (q *querier) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.InsertChatProjectPin(ctx, arg)
+}
+
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7626,6 +7655,13 @@ func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.PinChatByID(ctx, id)
 }
 
+func (q *querier) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.PinChatProject(ctx, arg)
+}
+
 func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -7861,6 +7897,13 @@ func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return q.db.UnpinChatByID(ctx, id)
+}
+
+func (q *querier) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.UnpinChatProject(ctx, arg)
 }
 
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {

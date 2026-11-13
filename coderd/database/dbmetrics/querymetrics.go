@@ -4536,6 +4536,14 @@ func (m queryMetricsStore) InsertChatProjectMemory(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
+	start := time.Now()
+	r0 := m.s.InsertChatProjectPin(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatProjectPin").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectPin").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatQueuedMessage(ctx, arg)
@@ -5408,6 +5416,14 @@ func (m queryMetricsStore) PinChatByID(ctx context.Context, id uuid.UUID) error 
 	return r0
 }
 
+func (m queryMetricsStore) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	start := time.Now()
+	r0 := m.s.PinChatProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("PinChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PinChatProject").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.PopNextQueuedMessage(ctx, chatID)
@@ -5605,6 +5621,14 @@ func (m queryMetricsStore) UnpinChatByID(ctx context.Context, id uuid.UUID) erro
 	r0 := m.s.UnpinChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UnpinChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnpinChatByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	start := time.Now()
+	r0 := m.s.UnpinChatProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnpinChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnpinChatProject").Inc()
 	return r0
 }
 

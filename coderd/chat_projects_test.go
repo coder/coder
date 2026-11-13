@@ -109,6 +109,8 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, duplicate.ID, fetched.ID)
 
+	// The creator's pin references the project, so the delete only
+	// succeeds because pins cascade with it.
 	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
 	storedChat, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)

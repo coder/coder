@@ -1263,6 +1263,8 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
+	// Pins a newly created project for its creator at the end of their list.
+	InsertChatProjectPin(ctx context.Context, arg InsertChatProjectPinParams) error
 	// Legacy queue insertion path. When no caller-supplied creator exists,
 	// preserve the created_by invariant by attributing the queued row to the
 	// chat owner.
@@ -1496,6 +1498,13 @@ type sqlcQuerier interface {
 	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
+	// Pins a project, or moves an already pinned project, to pin_order. Without
+	// pin_order a new pin goes to the end and an existing pin keeps its place.
+	// Positions count only pins the user can still see and are clamped to
+	// [1, count]. Pins on projects the user can no longer see move
+	// after the visible ones. Callers must hold the per-user pin lock so
+	// concurrent writes cannot interleave.
+	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
@@ -1571,6 +1580,12 @@ type sqlcQuerier interface {
 	// re-authenticate under a new OIDC provider.
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
+	// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
+	// The source is kept so telemetry can tell which pins users removed.
+	// Unpinning a project that is not pinned changes nothing. Like
+	// PinChatProject, pins the user can still see come first, and callers must
+	// hold the per-user pin lock.
+	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
