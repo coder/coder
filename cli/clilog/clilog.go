@@ -138,8 +138,13 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		sinks = append(sinks, tracing.SlogSink{})
 	}
 
-	// No sinks is valid: an empty or /dev/null location disables a sink,
-	// and disabling all of them turns logging off.
+	// Only /dev/null turns logging off. An empty location is more likely a
+	// mistake, such as an environment variable set with no value.
+	disabled := b.Human == "/dev/null" || b.JSON == "/dev/null" || b.Stackdriver == "/dev/null"
+	if len(sinks) == 0 && !disabled {
+		return slog.Logger{}, noopClose, xerrors.New("no loggers provided, use /dev/null to disable logging")
+	}
+
 	filter := &debugFilterSink{next: sinks}
 
 	err = filter.compile(b.Filter)

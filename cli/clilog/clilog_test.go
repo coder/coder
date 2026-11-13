@@ -29,10 +29,12 @@ func TestBuilder(t *testing.T) {
 		for _, tc := range []struct {
 			name    string
 			options []clilog.Option
+			wantErr bool
 		}{
-			{name: "NoConfiguration"},
+			{name: "NoConfiguration", wantErr: true},
+			{name: "HumanEmpty", options: []clilog.Option{clilog.WithHuman("")}, wantErr: true},
 			{name: "HumanDevNull", options: []clilog.Option{clilog.WithHuman("/dev/null")}},
-			{name: "HumanEmpty", options: []clilog.Option{clilog.WithHuman("")}},
+			{name: "JSONDevNull", options: []clilog.Option{clilog.WithJSON("/dev/null")}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -41,7 +43,12 @@ func TestBuilder(t *testing.T) {
 					Use:     "test",
 					Handler: testHandler(t, tc.options...),
 				}
-				require.NoError(t, cmd.Invoke().Run())
+				err := cmd.Invoke().Run()
+				if tc.wantErr {
+					require.ErrorContains(t, err, "no loggers provided, use /dev/null to disable logging")
+					return
+				}
+				require.NoError(t, err)
 			})
 		}
 	})
