@@ -19,6 +19,10 @@ import (
 
 const MaxStoredFileNameBytes = 255
 
+// MaxMediaTypeBytes bounds client-supplied media types, parameters
+// included.
+const MaxMediaTypeBytes = 255
+
 var (
 	// ErrStoredFileNameRequired indicates that a durable file name is empty
 	// after normalization.
@@ -55,6 +59,28 @@ func BaseMediaType(mediaType string) string {
 		return parsed
 	}
 	return mediaType
+}
+
+// ParseBaseMediaType strictly parses a client-supplied media type and
+// returns its lowercased type/subtype without parameters. Unlike
+// BaseMediaType, it rejects values that do not parse instead of
+// returning them unchanged.
+func ParseBaseMediaType(mediaType string) (string, error) {
+	if len(mediaType) > MaxMediaTypeBytes {
+		return "", xerrors.Errorf("media type exceeds %d bytes", MaxMediaTypeBytes)
+	}
+	if strings.ContainsFunc(mediaType, unicode.IsControl) {
+		return "", xerrors.New("media type contains control characters")
+	}
+	parsed, _, err := mime.ParseMediaType(mediaType)
+	if err != nil {
+		return "", xerrors.Errorf("parse media type: %w", err)
+	}
+	// mime.ParseMediaType also accepts bare Content-Disposition tokens.
+	if !strings.Contains(parsed, "/") {
+		return "", xerrors.New("media type must be type/subtype")
+	}
+	return parsed, nil
 }
 
 // AllowedPromptInputMediaTypesString returns the supported prompt input media

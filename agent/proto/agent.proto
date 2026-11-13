@@ -125,9 +125,11 @@ message Manifest {
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
 	bytes workspace_build_id = 20;
+	bytes template_id = 21;
+	string template_name = 22;
 	// agent_plugins_enabled is true when the agent-plugins experiment is
 	// enabled. When false, the agent does not discover Agent Plugins.
-	bool agent_plugins_enabled = 21;
+	bool agent_plugins_enabled = 23;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest

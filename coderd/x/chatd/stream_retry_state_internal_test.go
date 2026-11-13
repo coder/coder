@@ -147,9 +147,10 @@ func TestStreamSnapshotRetryAfterTurnEnded(t *testing.T) {
 			machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
 			update := func(fn func(tx *chatstate.Tx) error) {
 				t.Helper()
-				require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					return fn(tx)
-				}))
+				})
+				require.NoError(t, err)
 			}
 
 			// Worker acquires, starts attempt 1, the attempt fails with a
@@ -190,7 +191,7 @@ func TestStreamSnapshotRetryAfterTurnEnded(t *testing.T) {
 			require.Greater(t, chat.RetryStateVersion, retryStateVersion)
 
 			// A client connects: the bootstrap sync in stream_subscribe.go.
-			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 0)
+			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 0, 0)
 			events, _, changed, err := loop.syncDB(ctx)
 			require.NoError(t, err)
 			require.True(t, changed)
@@ -286,7 +287,7 @@ func TestStreamSyncObservesTransitionCommittedDuringRead(t *testing.T) {
 	defer cancel()
 
 	store := &holdFirstChatReadStore{Store: db, entered: make(chan struct{}), release: make(chan struct{}), once: new(sync.Once)}
-	loop := newStreamLoop(chat, store, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(chat, store, slogtest.Make(t, nil), 0, 0)
 
 	// A client connects and its bootstrap sync reads the chat, then the
 	// snapshot is held open.
@@ -304,10 +305,11 @@ func TestStreamSyncObservesTransitionCommittedDuringRead(t *testing.T) {
 	// A transition commits while the read snapshot is open. It must not
 	// wait for the reader.
 	machine := chatstate.NewChatMachine(db, ps, chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	hint := testutil.RequireReceive(ctx, t, hints)
 	require.Equal(t, chat.SnapshotVersion+1, hint.snapshotVersion)
 

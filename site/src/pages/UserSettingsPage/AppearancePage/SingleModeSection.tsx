@@ -53,7 +53,7 @@ const SingleTile: React.FC<SingleTileProps> = ({ theme, selected }) => {
 		<label
 			htmlFor={id}
 			className={cn(
-				"flex cursor-pointer flex-col gap-3 rounded-md border border-solid border-border p-4",
+				"flex cursor-pointer flex-col gap-3 rounded-md border p-4",
 				selected && "ring-2 ring-content-link",
 				"has-[button:focus-visible]:outline-solid has-[button:focus-visible]:outline-2 has-[button:focus-visible]:outline-offset-2 has-[button:focus-visible]:outline-content-link",
 			)}

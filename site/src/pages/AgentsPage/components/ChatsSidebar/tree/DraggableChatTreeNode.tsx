@@ -48,7 +48,7 @@ type ChatDragPreviewProps = {
 
 /** The copy of a dragged row that follows the pointer. */
 export const ChatDragPreview: React.FC<ChatDragPreviewProps> = ({ chat }) => (
-	<div className="max-w-60 truncate rounded-md border border-solid border-border bg-surface-secondary px-2.5 py-1 text-sm text-content-primary shadow-md">
+	<div className="max-w-60 truncate rounded-md border bg-surface-secondary px-2.5 py-1 text-sm text-content-primary shadow-md">
 		{chat.title}
 	</div>
 );

@@ -1197,6 +1197,12 @@ func TestFilterBedrockBetaFlags(t *testing.T) {
 			expectValues: []string{"interleaved-thinking-2025-05-14"},
 		},
 		{
+			name:         "computer use flag kept",
+			model:        "anthropic.claude-opus-4-6-v1",
+			inputValues:  []string{"computer-use-2025-11-24,claude-code-20250219"},
+			expectValues: []string{"computer-use-2025-11-24"},
+		},
+		{
 			name:         "separate header values are handled correctly",
 			model:        "anthropic.claude-sonnet-4-5-20250929-v1:0",
 			inputValues:  []string{"interleaved-thinking-2025-05-14", "context-management-2025-06-27"},

@@ -202,8 +202,8 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 	},
 ];
 
-export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-	...MockWorkspaceProxies.reduce(
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> =
+	MockWorkspaceProxies.reduce(
 		(acc, proxy) => {
 			if (!proxy.healthy) {
 				return acc;
@@ -234,8 +234,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 			return acc;
 		},
 		{} as Record<string, ProxyLatencyReport>,
-	),
-};
+	);
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
@@ -594,6 +593,22 @@ export const MockUserMember: TypesGen.User = {
 	login_type: "oidc",
 	has_ai_seat: false,
 	name: "Mock User The Second",
+};
+
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -1899,13 +1914,12 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockWorkspace,
-		id: "test-outdated-workspace-require-active-version",
-		outdated: true,
-		template_require_active_version: true,
-	};
+const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-outdated-workspace-require-active-version",
+	outdated: true,
+	template_require_active_version: true,
+};
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
 	{
@@ -3192,7 +3206,7 @@ export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
-export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockConnectedSSHConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3214,10 +3228,11 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: undefined,
 		disconnect_time: undefined,
 		exit_code: undefined,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
-export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockDisconnectedSSHConnectionLog = {
 	id: "893e75e0-1518-4ac8-9629-35923a39533a",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3239,8 +3254,9 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: "server shut down",
 		disconnect_time: "2022-05-19T16:49:57.122Z",
 		exit_code: 0,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
@@ -3415,6 +3431,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 		{ ...MockGroup, role: "read" },
 		{ ...MockEveryoneGroup, role: "read" },
 	],
+};
+
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
 };
 
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
@@ -4159,7 +4181,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "999b",
 							RegionID: 999,
-							HostName: "dev.coder.com",
+							HostName: "coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4200,7 +4222,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "999b",
 							RegionID: 999,
-							HostName: "dev.coder.com",
+							HostName: "coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4214,16 +4236,16 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://coder.example.com/derp",
 							],
 						],
 						client_errs: [
 							["recv derp message: derphttp.Client closed"],
 							[
-								"connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.dev.coder.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
+								"connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.coder.example.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
 								"connect to derp: derphttp.Client closed",
 								"connect to derp: derphttp.Client closed",
 								"connect to derp: derphttp.Client closed",
@@ -4259,7 +4281,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10007a",
 							RegionID: 10007,
-							HostName: "sydney.dev.coder.com",
+							HostName: "sydney.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4300,7 +4322,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10007a",
 							RegionID: 10007,
-							HostName: "sydney.dev.coder.com",
+							HostName: "sydney.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4314,10 +4336,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://sydney.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://sydney.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4349,7 +4371,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10008a",
 							RegionID: 10008,
-							HostName: "europe.dev.coder.com",
+							HostName: "europe.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4390,7 +4412,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10008a",
 							RegionID: 10008,
-							HostName: "europe.dev.coder.com",
+							HostName: "europe.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4404,10 +4426,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://europe.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://europe.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4439,7 +4461,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10009a",
 							RegionID: 10009,
-							HostName: "brazil.dev.coder.com",
+							HostName: "brazil.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4480,7 +4502,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10009a",
 							RegionID: 10009,
-							HostName: "brazil.dev.coder.com",
+							HostName: "brazil.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4494,10 +4516,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://brazil.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://brazil.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4558,7 +4580,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 		severity: "ok",
 		warnings: [],
 		dismissed: false,
-		access_url: "https://dev.coder.com",
+		access_url: "https://coder.example.com",
 		reachable: true,
 		status_code: 200,
 		healthz_response: "OK",
@@ -4601,8 +4623,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Council Bluffs, Iowa",
 					icon_url: "/emojis/1f3e1.png",
 					healthy: true,
-					path_app_url: "https://dev.coder.com",
-					wildcard_hostname: "*--apps.dev.coder.com",
+					path_app_url: "https://coder.example.com",
+					wildcard_hostname: "*--apps.coder.example.com",
 					derp_enabled: false,
 					derp_only: false,
 					status: {
@@ -4624,8 +4646,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Sydney GCP",
 					icon_url: "/emojis/1f1e6-1f1fa.png",
 					healthy: true,
-					path_app_url: "https://sydney.dev.coder.com",
-					wildcard_hostname: "*--apps.sydney.dev.coder.com",
+					path_app_url: "https://sydney.coder.example.com",
+					wildcard_hostname: "*--apps.sydney.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4647,8 +4669,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Europe GCP (Frankfurt)",
 					icon_url: "/emojis/1f1e9-1f1ea.png",
 					healthy: true,
-					path_app_url: "https://europe.dev.coder.com",
-					wildcard_hostname: "*--apps.europe.dev.coder.com",
+					path_app_url: "https://europe.coder.example.com",
+					wildcard_hostname: "*--apps.europe.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4670,8 +4692,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Brazil GCP (Sao Paulo)",
 					icon_url: "/emojis/1f1e7-1f1f7.png",
 					healthy: true,
-					path_app_url: "https://brazil.dev.coder.com",
-					wildcard_hostname: "*--apps.brazil.dev.coder.com",
+					path_app_url: "https://brazil.coder.example.com",
+					wildcard_hostname: "*--apps.brazil.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4806,6 +4828,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				},
 			],
 		},
+	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
 	},
 	provisioner_daemons: {
 		severity: "ok",
@@ -5029,6 +5057,12 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				},
 			],
 		},
+	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
 	},
 	provisioner_daemons: {
 		severity: "error",
@@ -5371,7 +5405,7 @@ export const MockNotification: TypesGen.InboxNotification = {
 	actions: [
 		{
 			label: "View template",
-			url: "https://dev.coder.com/templates/coder/coder",
+			url: "https://coder.example.com/templates/coder/coder",
 		},
 	],
 	user_id: MockUserOwner.id,
@@ -5575,6 +5609,15 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
+		cost_micros: 15_325,
+		has_unpriced_usage: false,
+	},
+	priced_model: {
+		model: "claude-opus-4-6",
+		input_price: 5_000_000,
+		output_price: 25_000_000,
+		cache_read_price: 500_000,
+		cache_write_price: 6_250_000,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
@@ -5592,6 +5635,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 				cache_read_input_tokens: 450,
 				cache_write_input_tokens: 70,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [

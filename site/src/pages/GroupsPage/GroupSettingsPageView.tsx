@@ -46,7 +46,9 @@ const validationSchema = Yup.object({
 
 const BudgetDocsLink: React.FC = () => (
 	<Link
-		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
+		href={docs(
+			"/ai-governance/ai-gateway/cost-controls#effective-group-resolution",
+		)}
 		target="_blank"
 		rel="noreferrer"
 		size="sm"
@@ -243,7 +245,6 @@ const UpdateGroupForm: React.FC<UpdateGroupFormProps> = ({
 							<IconField
 								{...getFieldHelpers("avatar_url")}
 								onChange={onChangeTrimmed(form)}
-								fullWidth
 								label="Avatar URL"
 								onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 							/>
