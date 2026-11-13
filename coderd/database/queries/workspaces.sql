@@ -108,10 +108,17 @@ SELECT
 	LOWER(unnest(@param_values :: text[])) AS value
 ),
 filtered_workspaces AS (
+	-- Only the columns needed to filter, sort and count are selected here.
+	-- The wide workspaces_expanded row (owner, organization, template and ACL
+	-- display info) is built for the returned page only, in
+	-- filtered_workspaces_page, so the cost does not scale with the number of
+	-- matching workspaces.
 SELECT
-	workspaces.*,
+	workspaces.id,
+	workspaces.name,
+	workspaces.favorite,
+	users.username AS owner_username,
 	latest_build.template_version_id,
-	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
@@ -120,7 +127,10 @@ SELECT
 	latest_build.has_external_agent as latest_build_has_external_agent,
 	latest_build.provisioner_job_id as latest_build_provisioner_job_id
 FROM
-	workspaces_expanded as workspaces
+	workspaces
+	-- workspaces_expanded inner joins the owner, organization and template.
+	-- All three are non-null foreign keys, so the base table yields the same
+	-- rows.
 JOIN
     users
 ON
@@ -131,7 +141,6 @@ LEFT JOIN LATERAL (
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		workspace_builds.has_external_agent,
-		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -145,10 +154,6 @@ LEFT JOIN LATERAL (
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
-	LEFT JOIN
-		template_versions
-	ON
-		template_versions.id = workspace_builds.template_version_id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -268,7 +273,7 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
+			workspaces.template_id = ANY(ARRAY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false))
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -417,11 +422,43 @@ WHERE
 		END
 	OFFSET
 		@offset_
-), filtered_workspaces_order_with_summary AS (
+), filtered_workspaces_page AS (
+	-- Expand only the rows of the requested page, keeping the page order.
 	SELECT
-		fwo.*
+		workspaces.*,
+		fwo.template_version_id,
+		template_versions.name AS template_version_name,
+		fwo.latest_build_completed_at,
+		fwo.latest_build_canceled_at,
+		fwo.latest_build_error,
+		fwo.latest_build_transition,
+		fwo.latest_build_status,
+		fwo.latest_build_has_external_agent,
+		fwo.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces_order fwo
+	JOIN
+		workspaces_expanded AS workspaces
+	ON
+		workspaces.id = fwo.id
+	LEFT JOIN
+		template_versions
+	ON
+		template_versions.id = fwo.template_version_id
+	ORDER BY
+		CASE WHEN fwo.favorite AND fwo.owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		CASE WHEN fwo.owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		(fwo.latest_build_completed_at IS NOT NULL AND
+			fwo.latest_build_canceled_at IS NULL AND
+			fwo.latest_build_error IS NULL AND
+			fwo.latest_build_transition = 'start'::workspace_transition) DESC,
+		LOWER(fwo.owner_username) ASC,
+		LOWER(fwo.name) ASC
+), filtered_workspaces_order_with_summary AS (
+	SELECT
+		fwp.*
+	FROM
+		filtered_workspaces_page fwp
 	-- Return a technical summary row with total count of workspaces.
 	-- It is used to present the correct count if pagination goes beyond the offset.
 	UNION ALL
@@ -735,66 +772,60 @@ AND
   last_used_at < @last_used_at;
 
 -- name: GetDeploymentWorkspaceStats :one
-WITH workspaces_with_jobs AS (
-	SELECT
-	latest_build.* FROM workspaces
-	LEFT JOIN LATERAL (
-		SELECT
-			workspace_builds.transition,
-			provisioner_jobs.id AS provisioner_job_id,
-			provisioner_jobs.started_at,
-			provisioner_jobs.updated_at,
-			provisioner_jobs.canceled_at,
-			provisioner_jobs.completed_at,
-			provisioner_jobs.error
-		FROM
-			workspace_builds
-		LEFT JOIN
-			provisioner_jobs
-		ON
-			provisioner_jobs.id = workspace_builds.job_id
-		WHERE
-			workspace_builds.workspace_id = workspaces.id
-		ORDER BY
-			build_number DESC
-		LIMIT
-			1
-	) latest_build ON TRUE WHERE deleted = false
-), pending_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		started_at IS NULL
-), building_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		started_at IS NOT NULL AND
-		canceled_at IS NULL AND
-		completed_at IS NULL AND
-		updated_at - INTERVAL '30 seconds' < NOW()
-), running_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		completed_at IS NOT NULL AND
-		canceled_at IS NULL AND
-		error IS NULL AND
-		transition = 'start'::workspace_transition
-), failed_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		(canceled_at IS NOT NULL AND
-			error IS NOT NULL) OR
-		(completed_at IS NOT NULL AND
-			error IS NOT NULL)
-), stopped_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		completed_at IS NOT NULL AND
-		canceled_at IS NULL AND
-		error IS NULL AND
-		transition = 'stop'::workspace_transition
-)
 SELECT
-	pending_workspaces.count AS pending_workspaces,
-	building_workspaces.count AS building_workspaces,
-	running_workspaces.count AS running_workspaces,
-	failed_workspaces.count AS failed_workspaces,
-	stopped_workspaces.count AS stopped_workspaces
-FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
+	-- One pass with FILTER instead of a CTE scanned once per counter.
+	COUNT(*) FILTER (WHERE
+		latest_build.started_at IS NULL
+	) AS pending_workspaces,
+	COUNT(*) FILTER (WHERE
+		latest_build.started_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.completed_at IS NULL AND
+		latest_build.updated_at - INTERVAL '30 seconds' < NOW()
+	) AS building_workspaces,
+	COUNT(*) FILTER (WHERE
+		latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'start'::workspace_transition
+	) AS running_workspaces,
+	COUNT(*) FILTER (WHERE
+		(latest_build.canceled_at IS NOT NULL AND
+			latest_build.error IS NOT NULL) OR
+		(latest_build.completed_at IS NOT NULL AND
+			latest_build.error IS NOT NULL)
+	) AS failed_workspaces,
+	COUNT(*) FILTER (WHERE
+		latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'stop'::workspace_transition
+	) AS stopped_workspaces
+FROM
+	workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_builds.transition,
+		provisioner_jobs.started_at,
+		provisioner_jobs.updated_at,
+		provisioner_jobs.canceled_at,
+		provisioner_jobs.completed_at,
+		provisioner_jobs.error
+	FROM
+		workspace_builds
+	LEFT JOIN
+		provisioner_jobs
+	ON
+		provisioner_jobs.id = workspace_builds.job_id
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		build_number DESC
+	LIMIT
+		1
+) latest_build ON TRUE
+WHERE
+	workspaces.deleted = false;
 
 -- name: GetWorkspacesEligibleForLifecycleAction :many
 -- Returns workspaces the lifecycle executor must act on this tick. An
