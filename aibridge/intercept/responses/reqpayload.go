@@ -28,8 +28,11 @@ const (
 
 var (
 	constCustomToolCallOutput = string(constant.ValueOf[constant.CustomToolCallOutput]())
+	constDeveloper            = string(constant.ValueOf[constant.Developer]())
 	constFunctionCallOutput   = string(constant.ValueOf[constant.FunctionCallOutput]())
 	constInputText            = string(constant.ValueOf[constant.InputText]())
+	constReasoning            = string(constant.ValueOf[constant.Reasoning]())
+	constSystem               = string(constant.ValueOf[constant.System]())
 	constUser                 = string(constant.ValueOf[constant.User]())
 
 	reqPathContent = string(constant.ValueOf[constant.Content]())
@@ -75,26 +78,43 @@ func (p RequestPayload) correlatingToolCallID() *string {
 	}
 
 	arr := items.Array()
-	if len(arr) == 0 {
-		return nil
+	for i := len(arr) - 1; i >= 0; i-- {
+		item := arr[i]
+
+		// Clients can append items that don't start a new turn after a tool
+		// result. For example, Codex appends a developer message recording an
+		// approved command prefix. Look past them to find the tool result.
+		switch item.Get(reqPathRole).String() {
+		case constDeveloper, constSystem:
+			continue
+		}
+		if item.Get(reqPathType).String() == constReasoning {
+			continue
+		}
+
+		// The first remaining item decides. Anything other than a tool result,
+		// such as a user message, means a new turn. Stopping here matters
+		// because the full history is resent on every request, so a new prompt
+		// always has older tool results earlier in the input.
+		//
+		// Both function and custom (freeform) tool results reference the
+		// originating tool call by call_id. Codex sends custom_tool_call_output
+		// for custom tools such as apply_patch.
+		switch item.Get(reqPathType).String() {
+		case constFunctionCallOutput, constCustomToolCallOutput:
+		default:
+			return nil
+		}
+
+		callID := item.Get(reqPathCallID).String()
+		if callID == "" {
+			return nil
+		}
+
+		return &callID
 	}
 
-	// Both function and custom (freeform) tool results reference the
-	// originating tool call by call_id. Codex sends custom_tool_call_output
-	// for custom tools such as apply_patch.
-	last := arr[len(arr)-1]
-	switch last.Get(reqPathType).String() {
-	case constFunctionCallOutput, constCustomToolCallOutput:
-	default:
-		return nil
-	}
-
-	callID := last.Get(reqPathCallID).String()
-	if callID == "" {
-		return nil
-	}
-
-	return &callID
+	return nil
 }
 
 // LastUserPrompt returns input text with the "user" role from the last input
