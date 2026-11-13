@@ -11,7 +11,7 @@ If you don't have an Prometheus server installed, you can follow the Prometheus 
 
 ## Set up metrics
 
-To set up metrics monitoring, please read our [Prometheus integration guide](../integrations/prometheus.md).
+To set up metrics monitoring, read our [Prometheus integration guide](../integrations/prometheus.md).
 The following links point to relevant sections there.
 
 - [Enable Prometheus metrics](../integrations/prometheus.md#enable-prometheus-metrics) in the control plane

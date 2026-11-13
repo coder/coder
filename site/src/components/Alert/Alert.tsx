@@ -10,54 +10,63 @@ import {
 import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 
-const alertVariants = cva(
-	"relative w-full rounded-lg border border-solid p-4 text-left",
-	{
-		variants: {
-			severity: {
-				info: "",
-				success: "",
-				warning: "",
-				error: "",
-			},
-			prominent: {
-				true: "",
-				false: "",
-			},
+const alertVariants = cva("relative w-full rounded-lg border p-4 text-left", {
+	variants: {
+		severity: {
+			info: "",
+			success: "",
+			warning: "",
+			error: "",
 		},
-		compoundVariants: [
-			{
-				prominent: false,
-				className: "border-border bg-surface-secondary",
-			},
-			{
-				severity: "success",
-				prominent: true,
-				className: "border-border-success bg-surface-green",
-			},
-			{
-				severity: "warning",
-				prominent: true,
-				className: "border-border-warning bg-surface-orange",
-			},
-			{
-				severity: "error",
-				prominent: true,
-				className: "border-border-destructive bg-surface-red",
-			},
-		],
-		defaultVariants: {
-			severity: "info",
-			prominent: false,
+		prominent: {
+			true: "",
+			false: "",
 		},
 	},
-);
+	compoundVariants: [
+		{
+			prominent: false,
+			className: "bg-surface-secondary",
+		},
+		{
+			severity: "success",
+			prominent: true,
+			className: "border-border-success bg-surface-green",
+		},
+		{
+			severity: "warning",
+			prominent: true,
+			className: "border-border-warning bg-surface-orange",
+		},
+		{
+			severity: "error",
+			prominent: true,
+			className: "border-border-destructive bg-surface-red",
+		},
+	],
+	defaultVariants: {
+		severity: "info",
+		prominent: false,
+	},
+});
 
 const severityIcons = {
-	info: { icon: InfoIcon, className: "text-highlight-sky" },
-	success: { icon: CircleCheckIcon, className: "text-content-success" },
-	warning: { icon: TriangleAlertIcon, className: "text-content-warning" },
-	error: { icon: CircleAlertIcon, className: "text-content-destructive" },
+	info: { icon: InfoIcon, className: "text-highlight-sky", label: "Info" },
+	success: {
+		icon: CircleCheckIcon,
+		className: "text-content-success",
+		label: "Success",
+	},
+	warning: {
+		icon: TriangleAlertIcon,
+		className: "text-content-warning",
+		label: "Warning",
+	},
+	error: {
+		icon: CircleAlertIcon,
+		className: "text-content-destructive",
+		label: "Error",
+	},
 } as const;
 
 export type AlertColor = "info" | "success" | "warning" | "error";
@@ -88,7 +97,11 @@ export const Alert: React.FC<AlertProps> = ({
 		return null;
 	}
 
-	const { icon: Icon, className: iconClassName } = severityIcons[severity];
+	const {
+		icon: Icon,
+		className: iconClassName,
+		label,
+	} = severityIcons[severity];
 
 	return (
 		<div
@@ -102,10 +115,13 @@ export const Alert: React.FC<AlertProps> = ({
 					dismissible ? "pr-8" : undefined,
 				)}
 			>
-				<div className="flex min-w-0 flex-1 flex-row items-start gap-3">
-					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
+				<div className="flex min-w-0 flex-1 items-start gap-3">
+					<Icon className={cn("size-icon-sm mt-0.75", iconClassName)} />
 					<div className="flex min-w-0 flex-1 flex-col gap-4">
-						<div className="min-w-0 flex-1">{children}</div>
+						<div className="min-w-0 flex-1">
+							<span className="sr-only">{label}: </span>
+							{children}
+						</div>
 						{actions && (
 							<div className="flex items-center gap-2">{actions}</div>
 						)}

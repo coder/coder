@@ -1,0 +1,131 @@
+# Coder.USSpelling - use US spelling in prose.
+# Refer to word-choice.md#use-us-spelling for the policy and its exceptions.
+#
+# The rule has two parts, both written as substitution swaps so the message
+# names the US form:
+#
+#   1. An -ise family. Any word that ends in -ise, -ises, -ised, -ising, -iser,
+#      -isers, -isable, -isation, or -isations is flagged, because US English
+#      spells most of them with -ize. Many words end in -ise in US English too
+#      (advise, enterprise, exercise, otherwise, promise), so the `exceptions`
+#      list below names those words. Add a word there, anchored with ^ and $,
+#      when the rule flags an -ise word that US English spells with -ise.
+#   2. An explicit list of British spellings and their US forms.
+#
+# Vale applies an exception to the matched word, so each exception is anchored
+# to match the whole word. An unanchored pattern would also exempt every longer
+# word that contains it.
+#
+# Merriam-Webster is the reference. It spells `canceled` and `canceling`, and
+# lists `cancellation` as the only spelling of the noun, so the rule flags the
+# double-l verb forms and leaves `cancellation` alone.
+#
+# Vale skips code spans and fenced code blocks, so identifiers and API enum
+# values such as `cancelled` stay untouched when they sit in code font. Vale
+# doesn't skip bold text, so a UI label that keeps British spelling and sits in
+# bold is still flagged. Put it in a code span instead.
+#
+# Swap keys must not contain capturing groups: Vale joins the keys into one
+# pattern and uses the group position to look up the replacement.
+#
+# Level: warning. The -ise exception list is curated, so a rare US word can
+# still be flagged.
+extends: substitution
+message: "Use '%s' instead of '%s' to match US spelling. Refer to word-choice.md#use-us-spelling."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#use-us-spelling
+level: warning
+ignorecase: true
+nonword: false
+action:
+  name: replace
+exceptions:
+  # The mise tool.
+  - '(?i)^mise$'
+  # Words that end in -wise: otherwise, likewise, clockwise, and so on.
+  - '(?i)^[a-z]+wise$'
+  # US words in -ise. Each stem takes the endings e, es, ed, ing, er, and ers,
+  # with an optional prefix such as un-, im-, or dis-.
+  - '(?i)^(?:un|im|dis|mis|over|under|re|pre|en|disen)?(?:adv|advert|apprais|appr|bru|chast|comprom|compr|conc|cru|dem|desp|devis|dev|disgu|exerc|exc|expert|franch|gu|inc|improv|lia|merchand|no|parad|po|prec|prem|prom|appra|upra|sunr|pra|bra|ra|r|rev|superv|surm|surpr|telev|treat|turquo|w)is(?:e|es|ed|ing|er|ers)$'
+  # Words in -ise or -ises that the stems above don't cover.
+  - '(?i)^(?:anise|arise|arises|arising|chemise|enterprise|enterprises|enterprising|premises|valise|vise)$'
+swap:
+  # Part 1: the -ise family.
+  '\b[a-z]{2,}is(?:e|es|ed|ing|er|ers)\b': "the -ize form"
+  '\b[a-z]{2,}isable\b': "the -izable form"
+  '\b[a-z]{2,}isations?\b': "the -ization form"
+  # Part 2: explicit British spellings.
+  '\b(?:behaviour|behaviours)\b': "behavior"
+  '\bbehavioural\b': "behavioral"
+  '\b(?:colour|colours)\b': "color"
+  '\bcoloured\b': "colored"
+  '\bcolouring\b': "coloring"
+  '\b(?:favour|favours)\b': "favor"
+  '\bfavoured\b': "favored"
+  '\bfavouring\b': "favoring"
+  '\bfavourites?\b': "favorite"
+  '\b(?:honour|honours)\b': "honor"
+  '\bhonoured\b': "honored"
+  '\bhonouring\b': "honoring"
+  '\bneighbours?\b': "neighbor"
+  '\bneighboured\b': "neighbored"
+  '\bneighbouring\b': "neighboring"
+  '\bneighbourhoods?\b': "neighborhood"
+  '\blabelled\b': "labeled"
+  '\blabelling\b': "labeling"
+  '\bcancelled\b': "canceled"
+  '\bcancelling\b': "canceling"
+  '\bmodelled\b': "modeled"
+  '\bmodelling\b': "modeling"
+  '\btravelled\b': "traveled"
+  '\btravelling\b': "traveling"
+  '\btravellers?\b': "traveler"
+  '\bsignalled\b': "signaled"
+  '\bsignalling\b': "signaling"
+  '\blevelled\b': "leveled"
+  '\blevelling\b': "leveling"
+  '\bchannelled\b': "channeled"
+  '\bchannelling\b': "channeling"
+  '\bfuelled\b': "fueled"
+  '\bfuelling\b': "fueling"
+  '\btunnelled\b': "tunneled"
+  '\btunnelling\b': "tunneling"
+  '\banalogues?\b': "analog"
+  '\bcatalogues?\b': "catalog"
+  '\bcatalogued\b': "cataloged"
+  '\bcataloguing\b': "cataloging"
+  '\bcentres?\b': "center"
+  '\bcentred\b': "centered"
+  '\bcentring\b': "centering"
+  '\bmetres?\b': "meter"
+  '\blitres?\b': "liter"
+  '\bfibres?\b': "fiber"
+  '\btheatres?\b': "theater"
+  '\bcalibres?\b': "caliber"
+  '\blicences?\b': "license"
+  '\blicenced\b': "licensed"
+  '\blicencing\b': "licensing"
+  '\bdefences?\b': "defense"
+  '\boffences?\b': "offense"
+  '\bpretences?\b': "pretense"
+  '\bgrey(?:s|ed|ing|er|est)?\b': "gray"
+  '\bprogrammes?\b': "program"
+  '\bwhilst\b': "while"
+  '\bamongst\b': "among"
+  '\banalyse\b': "analyze"
+  '\banalyses\b': "analyzes"
+  '\banalysed\b': "analyzed"
+  '\banalysing\b': "analyzing"
+  '\bjudgements?\b': "judgment"
+  '\backnowledgements?\b': "acknowledgment"
+  '\bageing\b': "aging"
+  '\bartefacts?\b': "artifact"
+  '\bsceptic(?:s|al)?\b': "skeptic"
+  '\baluminium\b': "aluminum"
+  '\bpractise\b': "practice"
+  '\bpractised\b': "practiced"
+  '\bpractising\b': "practicing"
+  '\benrol\b': "enroll"
+  '\benrolment\b': "enrollment"
+  '\bfulfil\b': "fulfill"
+  '\binstil\b': "instill"
+  '\bskilful\b': "skillful"

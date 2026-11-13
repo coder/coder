@@ -44,7 +44,7 @@ export const Markdown: React.FC<MarkdownProps> = (props) => {
 							href={href}
 							target={isExternal ? "_blank" : undefined}
 							showExternalIcon={isExternal}
-							className="text-[length:inherit] p-0"
+							className="text-[length:inherit] pl-0"
 						>
 							{children}
 						</Link>
@@ -298,7 +298,7 @@ const MarkdownGfmAlert: React.FC<MarkdownGfmAlertProps> = ({
 			<aside
 				{...delegatedProps}
 				className={cn(
-					"border-0 border-l-4 border-solid border-border p-4 text-content-primary",
+					"border-l-4 p-4 text-content-primary",
 					"[&_p]:m-0 [&_p]:mb-2",
 
 					alertType === "important" &&

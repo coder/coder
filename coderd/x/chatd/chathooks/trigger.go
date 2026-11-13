@@ -101,12 +101,14 @@ type Message struct {
 }
 
 // UserPromptMessage builds the user_prompt_submit payload for parts.
-// Invoked skill bodies stay out of the payload sent to the hook consumer;
-// the caller's parts keep them for the stored message.
+// Invoked skill bodies and directories stay out of the payload sent to the
+// hook consumer; the caller's parts keep them for the stored message.
 func UserPromptMessage(parts []codersdk.ChatMessagePart) (Message, error) {
 	hookParts := make([]codersdk.ChatMessagePart, len(parts))
 	for i, part := range parts {
 		part.SkillBody = ""
+		part.SkillDir = ""
+		part.SkillWorkspaceID = uuid.Nil
 		hookParts[i] = part
 	}
 	encoded, err := chatprompt.MarshalParts(hookParts)

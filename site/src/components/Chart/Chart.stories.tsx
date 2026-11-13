@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -24,9 +24,14 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-const meta: Meta<typeof ChartContainer> = {
+type ChartStoryArgs = Pick<
+	React.ComponentProps<typeof ChartTooltipContent>,
+	"indicator"
+>;
+
+const meta: Meta<ChartStoryArgs> = {
 	title: "components/Chart",
-	render: () => {
+	render: ({ indicator = "dot" }) => {
 		return (
 			<ChartContainer config={chartConfig}>
 				<AreaChart
@@ -57,7 +62,9 @@ const meta: Meta<typeof ChartContainer> = {
 					/>
 					<ChartTooltip
 						cursor={false}
-						content={<ChartTooltipContent indicator="dot" />}
+						content={(props) => (
+							<ChartTooltipContent {...props} indicator={indicator} />
+						)}
 					/>
 					<Area
 						dataKey="users"
@@ -74,7 +81,7 @@ const meta: Meta<typeof ChartContainer> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof ChartContainer>;
+type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
@@ -87,5 +94,32 @@ export const Default: Story = {
 		await waitFor(() =>
 			expect(liveRegion).toHaveTextContent(/^January Users 186$/),
 		);
+	},
+};
+
+export const DashedTooltip: Story = {
+	args: { indicator: "dashed" },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chart = await canvas.findByRole("group", { name: "Users" });
+		chart.focus();
+		await canvas.findByText("186");
+	},
+};
+
+export const TooltipHovered: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("show the tooltip for the first data point", async () => {
+			// Wait for the chart to mount so it can receive focus.
+			await canvas.findByRole("group", { name: "Users" });
+			await userEvent.tab();
+			await userEvent.keyboard("{ArrowRight}");
+		});
+
+		await step("move the pointer onto the tooltip", async () => {
+			await userEvent.hover(await canvas.findByText("February"));
+		});
 	},
 };

@@ -12,7 +12,7 @@ For a full list of the options, run `coder server --help` or see our [CLI docume
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel.
-Set this to the external URL that users and workspaces use to connect to Coder (e.g. <https://coder.example.com>).
+Set this to the external URL that users and workspaces use to connect to Coder (for example, <https://coder.example.com>).
 This should not be localhost.
 
 Access URL should be an external IP address or domain with DNS records pointing to Coder.
@@ -45,7 +45,7 @@ coder server
 > [!TIP]
 > Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../../templates/index.md) on an absolute path.
 Set it to a wildcard hostname that resolves to Coder, such as `*.coder.example.com` or `*-coder.example.com`.
 The suffix form creates application hostnames such as `8080--main--myworkspace--john-coder.example.com`.
 It requires a DNS record and TLS certificate for `*.example.com`.
@@ -57,18 +57,21 @@ It requires a DNS record and TLS certificate for `*.example.com`.
 If you are providing TLS certificates directly to the control plane, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
-1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart, or [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options (these both take a comma separated list of files; list certificates and their respective keys in the same order).
+1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart, or [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options.
 
-After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.
+   These options both take a comma separated list of files.
+   List certificates and their respective keys in the same order.
+
+After you enable the wildcard access URL, you should [disable path-based apps](../security/security-best-practices.md#disable-path-based-apps) for security.
 
 ## TLS & Reverse Proxy
 
 The control plane can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags.
 However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
-- [Apache](../../tutorials/reverse-proxy-apache.md)
-- [Caddy](../../tutorials/reverse-proxy-caddy.md)
-- [NGINX](../../tutorials/reverse-proxy-nginx.md)
+- [Apache](../networking/reverse-proxy-apache.md)
+- [Caddy](../networking/reverse-proxy-caddy.md)
+- [NGINX](../networking/reverse-proxy-nginx.md)
 
 ### Kubernetes TLS configuration
 
@@ -82,7 +85,7 @@ You must have the certificate `.key` and `.crt` files in your working directory 
    ```
 
    You can use a single certificate for the both the access URL and wildcard access URL.
-   The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
+   The certificate Common Name (CN) must match the wildcard domain, such as `*.example.coder.com`.
 
 1. Reference the TLS secret in your Coder Helm chart values
 
@@ -137,7 +140,7 @@ To migrate from the built-in database to an external database, follow these step
 
 To configure Coder behind a corporate proxy, set the environment variables `HTTP_PROXY` and `HTTPS_PROXY`.
 Be sure to restart the control plane.
-Lowercase values (e.g. `http_proxy`) are also respected in this case.
+Lowercase values (for example, `http_proxy`) are also respected in this case.
 
 ## Continue your setup with external authentication
 
@@ -146,9 +149,9 @@ This allows enabling integrations with Git providers, such as GitHub, GitLab, an
 
 External authentication can also be used to integrate with external services like JFrog Artifactory and others.
 
-Please refer to the [external authentication](../external-auth.md) section for more information.
+Refer to the [external authentication](../external-auth.md) section for more information.
 
 ## Up Next
 
-- [Setup and manage templates](../templates/index.md)
+- [Setup and manage templates](../../templates/index.md)
 - [Setup external provisioners](../../install/operate/provisioners/index.md)
