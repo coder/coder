@@ -62,11 +62,11 @@ export const Saving: Story = {
 	},
 };
 
-export const DeleteConfirmation: Story = {
+/** Clear empties the draft. Saving it removes the instructions. */
+export const Cleared: Story = {
 	args: { instructions: MockChatProjectInstructions.instructions },
 	play: async () => {
-		await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-		await screen.findByRole("button", { name: "Delete instructions" });
+		await userEvent.click(screen.getByRole("button", { name: "Clear" }));
 	},
 };
 
@@ -113,19 +113,6 @@ export const Conflict: Story = {
 		return <ProjectInstructionsDialog {...args} instructions={instructions} />;
 	},
 	play: () => {
-		serverInstructions.set("Edited in another tab.");
-	},
-};
-
-/**
- * The conflict arrives while the delete confirmation is open, which closes
- * the confirmation so the conflict warning is visible.
- */
-export const ConflictDuringDeleteConfirmation: Story = {
-	...Conflict,
-	play: async () => {
-		await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-		await screen.findByRole("button", { name: "Delete instructions" });
 		serverInstructions.set("Edited in another tab.");
 	},
 };
