@@ -2876,15 +2876,13 @@ func (api *API) updateChat(
 			//nolint:gocritic // See above.
 			project, err := api.Database.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
 			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				return database.Chat{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to get chat project.",
 					Detail:  err.Error(),
 				})
-				return
 			}
 			if !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, errChatProjectWorkspaceTemplate)
-				return
+				return database.Chat{}, httperror.NewResponseError(http.StatusBadRequest, errChatProjectWorkspaceTemplate)
 			}
 		}
 	}
