@@ -10,14 +10,17 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { buildAgentProjectPath } from "../utils/navigation";
-import { ProjectCard } from "./ProjectCard";
+import { ArchivedProjectCard, ProjectCard } from "./ProjectCard";
 
-/** The Projects page tabs: projects the user owns, or others' projects. */
-type ProjectsTab = "yours" | "shared";
+/**
+ * The Projects page tabs: active projects the user owns, active projects of
+ * others, or archived projects.
+ */
+export type ProjectsTab = "yours" | "shared" | "archived";
 
-/** The project summaries on each tab, in display order. */
+/** The project summaries on each active tab, in display order. */
 export type ProjectsByTab = Readonly<
-	Record<ProjectsTab, readonly ChatProjectSummary[]>
+	Record<Exclude<ProjectsTab, "archived">, readonly ChatProjectSummary[]>
 >;
 
 type ProjectAction = (
@@ -46,9 +49,19 @@ type ProjectsPageViewProps = {
 	readonly onEdit: ProjectAction;
 	readonly onArchive: ProjectAction;
 	readonly onDelete: ProjectAction;
+	readonly showArchivedTab: boolean;
+	/** Undefined until the archived projects first load. */
+	readonly archivedProjects: readonly ChatProject[] | undefined;
+	readonly archivedError: unknown;
+	readonly onRetryArchived: () => void;
+	/** Runs once a project is unarchived and has left the archived list. */
+	readonly onUnarchived: () => void;
 };
 
-/** Lists the user's projects as cards, in a tab each for owned and shared. */
+/**
+ * Lists the user's projects as cards, in a tab each for owned, shared, and
+ * archived projects.
+ */
 export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	tab,
 	onTabChange,
@@ -64,22 +77,46 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	onEdit,
 	onArchive,
 	onDelete,
+	showArchivedTab,
+	archivedProjects,
+	archivedError,
+	onRetryArchived,
+	onUnarchived,
 }) => {
-	const summaries = projects?.[tab];
+	const projectPath = (project: ChatProject) => ({
+		pathname: buildAgentProjectPath({ projectId: project.id }),
+		search: projectLinkSearch,
+	});
+	const summaries = tab === "archived" ? undefined : projects?.[tab];
+	const [tabError, onTabRetry] =
+		tab === "archived" ? [archivedError, onRetryArchived] : [error, onRetry];
 	let body: React.ReactNode = null;
-	if (summaries && summaries.length > 0) {
+	if (tab === "archived") {
+		if (archivedProjects) {
+			body = (
+				<ProjectGrid>
+					{archivedProjects.map((project) => (
+						<ArchivedProjectCard
+							key={project.id}
+							project={project}
+							to={projectPath(project)}
+							onUnarchived={onUnarchived}
+							onDelete={(returnFocusTo) => onDelete(project, returnFocusTo)}
+						/>
+					))}
+				</ProjectGrid>
+			);
+		} else if (!archivedError) {
+			body = <ProjectGridSkeleton />;
+		}
+	} else if (summaries && summaries.length > 0) {
 		body = (
 			<ProjectGrid>
 				{summaries.map((summary) => (
 					<ProjectCard
 						key={summary.project.id}
 						summary={summary}
-						to={{
-							pathname: buildAgentProjectPath({
-								projectId: summary.project.id,
-							}),
-							search: projectLinkSearch,
-						}}
+						to={projectPath(summary.project)}
 						onPin={() => onPin(summary.project)}
 						onUnpin={() => onUnpin(summary.project)}
 						pinPending={pendingPinIds.has(summary.project.id)}
@@ -114,14 +151,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 			/>
 		);
 	} else if (!error) {
-		body = (
-			<ProjectGrid role="status">
-				<span className="sr-only">Loading projects</span>
-				{Array.from({ length: 6 }, (_, index) => (
-					<Skeleton key={index} className="h-44 rounded-lg" />
-				))}
-			</ProjectGrid>
-		);
+		body = <ProjectGridSkeleton />;
 	}
 
 	return (
@@ -145,22 +175,27 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 					// Each tab change adds a history entry, so focus alone must not.
 					activationMode="manual"
 					onValueChange={(value) =>
-						onTabChange(value === "shared" ? "shared" : "yours")
+						onTabChange(
+							value === "shared" || value === "archived" ? value : "yours",
+						)
 					}
 				>
 					<TabsList>
 						<TabsTrigger value="yours">Your projects</TabsTrigger>
 						<TabsTrigger value="shared">Shared with you</TabsTrigger>
+						{showArchivedTab && (
+							<TabsTrigger value="archived">Archived</TabsTrigger>
+						)}
 					</TabsList>
-					{/* Only the selected tab's panel mounts, so one serves both tabs. */}
+					{/* Only the selected tab's panel mounts, so one serves every tab. */}
 					<TabsContent value={tab} className="pt-6">
-						{Boolean(error) && (
+						{Boolean(tabError) && (
 							<ErrorAlert
-								error={error}
+								error={tabError}
 								showDebugDetail={false}
 								className="mb-6"
 								actions={
-									<Button size="sm" variant="outline" onClick={onRetry}>
+									<Button size="sm" variant="outline" onClick={onTabRetry}>
 										Retry
 									</Button>
 								}
@@ -173,6 +208,15 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 		</div>
 	);
 };
+
+const ProjectGridSkeleton: React.FC = () => (
+	<ProjectGrid role="status">
+		<span className="sr-only">Loading projects</span>
+		{Array.from({ length: 6 }, (_, index) => (
+			<Skeleton key={index} className="h-44 rounded-lg" />
+		))}
+	</ProjectGrid>
+);
 
 // Columns follow the page width, which the agents sidebar narrows.
 const ProjectGrid: React.FC<React.ComponentProps<"div">> = (props) => (

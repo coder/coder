@@ -44,6 +44,17 @@ export const archivedChatProjectsKey = [
 	"archived",
 ] as const;
 
+/**
+ * Lists the archived projects the current user owns or that are shared with
+ * them. Archiving sends no watch events, so other tabs catch up on focus.
+ */
+export const archivedChatProjects = () =>
+	queryOptions({
+		queryKey: archivedChatProjectsKey,
+		queryFn: () => API.experimental.getChatProjects({ archived: true }),
+		refetchOnWindowFocus: true,
+	});
+
 const unlistedChatProjectKey = (projectId: string | undefined) =>
 	[...chatProjectsKey, projectId, "unlisted"] as const;
 
@@ -399,6 +410,10 @@ export const archiveChatProject = (queryClient: QueryClient) =>
 		onSuccess: (project) => setCachedProjectArchiveState(queryClient, project),
 		onSettled: () => invalidateProjectArchiveState(queryClient),
 	});
+
+/** Keys the unarchive requests for one project, so callers share them. */
+export const unarchiveChatProjectMutationKey = (projectId: string) =>
+	[...chatProjectsKey, "unarchive", projectId] as const;
 
 /** Unarchives a project and the chats archived with it. */
 export const unarchiveChatProject = (queryClient: QueryClient) =>
