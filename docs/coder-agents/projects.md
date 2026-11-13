@@ -11,6 +11,7 @@ Every chat in a project gets the project's instructions, skills, and memory, so 
 Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards.
 The **Your projects** tab lists the projects you own.
 The **Shared with you** tab lists projects that other users own and you can use.
+While you have [archived projects](#archive-a-project), an **Archived** tab lists them.
 Each card shows whether one of your chats in the project needs attention or is running, or else how many of your chats are unread or read.
 It also shows how many users can use the project, counting its owner, and when your chats in it last changed.
 [Pinned projects](#pin-a-project) also appear in the sidebar.
@@ -52,6 +53,42 @@ The project page shows a **Details** panel with the project owner, creation date
 To rename or delete a project, open the project's menu on its page, on its card, or in the sidebar and select **Edit project** or **Delete project**.
 Deleting a project deletes its instructions, skills, and memories.
 Its chats are kept and move back to your chat list.
+To set a project aside without deleting it, [archive it](#archive-a-project).
+
+## Archive a project
+
+Archive a project when its work is done.
+The project owner, organization admins, and site Owners can archive and unarchive a project.
+A project that isn't shared with you doesn't appear on the **Projects** page, so admins open it from its link and use the menu or banner on its page.
+Admins can't start chats in a project that isn't shared with them.
+
+To archive a project, open the project's menu on its page, on its card, or in the sidebar and select **Archive project**.
+The dialog shows how many top-level chats will be archived, along with their subagent chats, and what happens next:
+
+- Every chat in the project is archived, including chats that other users started in it.
+- If chats are active (running, interrupting, waiting on a tool result, or paused on a queued message being edited), the dialog warns you and the button changes to **Stop chats and archive**, or **Stop chat and archive** when the active chats all belong to one top-level chat.
+  Archiving stops them and discards any reply in progress.
+  Queued messages are kept.
+- If your own chats in the project use workspaces, choose whether to leave, stop, or delete those workspaces.
+  The dialog marks workspaces that existed before the chat that uses them.
+  Deleting workspaces requires you to type the project name.
+  A workspace that an unarchived chat outside the project still uses is skipped.
+
+Archived chats follow the deployment's [conversation data retention](./platform-controls/chat-retention.md) period.
+After that period, Coder permanently deletes them, and unarchiving the project doesn't bring them back.
+When retention is turned off, archived chats are kept until you unarchive the project.
+
+An archived project leaves the sidebar, the **Your projects** and **Shared with you** tabs, the new-chat project picker, and **Move to project**, and you can't pin it.
+Its page stays available to read its archived chats, but you can't start chats in it, move chats into it, or edit its details, instructions, skills, sharing, or memory.
+
+To unarchive a project, open its card's menu on the **Archived** tab of the **Projects** page and select **Unarchive project**, or select **Unarchive** on the project's page.
+Unarchiving restores the chats that were archived with the project, and a project you had pinned returns to the **Pinned** area.
+You can't unarchive a single chat while its project is archived.
+Unarchive the project instead.
+
+The API equivalents are `POST /api/experimental/organizations/{organization}/chats/projects/{project}/archive` and `POST /api/experimental/organizations/{organization}/chats/projects/{project}/unarchive`.
+When any chat in the project, or one of its subagent chats, is active (`running`, `interrupting`, `requires_action`, or `paused`), the archive request returns `409 Conflict` unless its body is `{"stop_active_chats": true}`.
+List archived projects with `GET /api/experimental/chats/projects?archived=true`.
 
 ## Add chats to a project
 
