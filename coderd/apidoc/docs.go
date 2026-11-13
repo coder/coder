@@ -36640,16 +36640,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",

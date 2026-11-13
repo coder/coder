@@ -22697,12 +22697,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`  | [health.Severity](#healthseverity)        | false    |              |                                              |
 | `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                              |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.STUNReport
 
 ```json
