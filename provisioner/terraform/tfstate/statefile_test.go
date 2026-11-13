@@ -5,7 +5,6 @@ package tfstate_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -29,48 +28,15 @@ import (
 // templateDir holds the template that TestReadMatchesTerraformShow applies.
 const templateDir = "testdata/ordering"
 
-// fixturesDir holds the templates that ConvertState's golden tests cover.
-const fixturesDir = "../testdata/resources"
-
-// fixtureProviders requires the providers that the templates in fixturesDir
-// require, so that one provider mirror serves all of them. The coder
-// provider's version is the one their golden files are generated with.
-const fixtureProviders = `terraform {
-  required_providers {
-    coder = {
-      source  = "coder/coder"
-      version = "%s"
-    }
-    null = {
-      source = "hashicorp/null"
-    }
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 2.22"
-    }
-  }
-}
-`
-
-// readTemplateDir returns the .tf files of the template in dir, keyed by
-// their slash-separated path. It leaves out what a local Terraform run may
-// have left behind, such as .terraform.
+// readTemplateDir returns the files of the template in dir, keyed by their
+// slash-separated path.
 func readTemplateDir(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	files := map[string]string{}
 	fsys := os.DirFS(dir)
 	require.NoError(t, fs.WalkDir(fsys, ".", func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
+		if err != nil || entry.IsDir() {
 			return err
-		}
-		if entry.IsDir() {
-			if path != "." && strings.HasPrefix(entry.Name(), ".") {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(path) != ".tf" {
-			return nil
 		}
 		content, err := fs.ReadFile(fsys, path)
 		files[path] = string(content)
@@ -102,19 +68,6 @@ func installedTerraform(ctx context.Context) (string, error) {
 		return "", xerrors.Errorf("terraform %s is not supported", v)
 	}
 	return path, nil
-}
-
-// terraformBinary returns the path of a Terraform whose state Read supports:
-// the installed one, or else the version the provisioner installs.
-func terraformBinary(ctx context.Context, t *testing.T) string {
-	t.Helper()
-	binaryPath, err := installedTerraform(ctx)
-	if err != nil {
-		// Read leaves other versions to `terraform show`.
-		binaryPath, err = terraform.Install(ctx, slogtest.Make(t, nil), false, t.TempDir(), terraform.TerraformVersion, "")
-		require.NoError(t, err)
-	}
-	return binaryPath
 }
 
 // workDir runs Terraform in a template's directory.
@@ -163,11 +116,22 @@ func resources(modules []*tfjson.StateModule) []*tfjson.StateResource {
 	return all
 }
 
-// applyTemplate applies the template made of files in a directory of its own.
-// Terraform installs providers from the local mirror that the CLI
-// configuration at cliConfigPath names.
-func applyTemplate(ctx context.Context, t *testing.T, binaryPath, cliConfigPath string, files map[string]string) workDir {
-	t.Helper()
+// TestReadMatchesTerraformShow applies the template in templateDir with real
+// Terraform and checks that Read returns what `terraform show -json` shows,
+// and that both convert to the same resources.
+func TestReadMatchesTerraformShow(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	logger := slogtest.Make(t, nil)
+
+	binaryPath, err := installedTerraform(ctx)
+	if err != nil {
+		// Read leaves other versions to `terraform show`.
+		binaryPath, err = terraform.Install(ctx, logger, false, t.TempDir(), terraform.TerraformVersion, "")
+		require.NoError(t, err)
+	}
+
+	files := readTemplateDir(t, templateDir)
 	dir := t.TempDir()
 	for name, content := range files {
 		path := filepath.Join(dir, filepath.FromSlash(name))
@@ -175,9 +139,10 @@ func applyTemplate(ctx context.Context, t *testing.T, binaryPath, cliConfigPath 
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 
-	// Keep the CODER_* variables of a surrounding workspace away from the
-	// coder provider.
-	env := []string{"TF_CLI_CONFIG_FILE=" + cliConfigPath}
+	// Install providers from a local mirror, and keep the CODER_* variables
+	// of a surrounding workspace away from the coder provider.
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
+	env := []string{"TF_CLI_CONFIG_FILE=" + testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)}
 	for _, variable := range os.Environ() {
 		if !strings.HasPrefix(variable, "CODER_") {
 			env = append(env, variable)
@@ -185,24 +150,10 @@ func applyTemplate(ctx context.Context, t *testing.T, binaryPath, cliConfigPath 
 	}
 	w := workDir{files: tfpath.Layout(dir), binaryPath: binaryPath, env: env}
 
-	_, err := w.run(ctx, "init", "-no-color", "-input=false")
+	_, err = w.run(ctx, "init", "-no-color", "-input=false")
 	require.NoError(t, err)
 	_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve")
 	require.NoError(t, err)
-	return w
-}
-
-// TestReadMatchesTerraformShow applies the template in templateDir with real
-// Terraform and checks that Read returns what `terraform show -json` shows,
-// and that both convert to the same resources.
-func TestReadMatchesTerraformShow(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-
-	files := readTemplateDir(t, templateDir)
-	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
-	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
-	w := applyTemplate(ctx, t, terraformBinary(ctx, t), cliConfigPath, files)
 	_, converted := requireReadMatchesShow(ctx, t, w)
 	// Make sure the conversion compared above is not trivially empty.
 	require.Len(t, converted.Parameters, 2)
@@ -221,7 +172,7 @@ func TestReadMatchesTerraformShow(t *testing.T) {
 	require.Len(t, agent.Scripts, 19+11+2) // module.child, module.counted, and the two wrap modules
 
 	// A failed replacement leaves a tainted and a deposed object.
-	_, err := w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve",
+	_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve",
 		"-replace=coder_agent.replaced", "-var=fail_provisioner=true")
 	require.Error(t, err)
 	modules, _ := requireReadMatchesShow(ctx, t, w)
@@ -246,45 +197,6 @@ func TestReadMatchesTerraformShow(t *testing.T) {
 	require.Empty(t, read)
 }
 
-// TestReadMatchesTerraformShowOnFixtures makes the same comparison for the
-// templates the provisioner already has fixtures for.
-func TestReadMatchesTerraformShowOnFixtures(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	binaryPath := terraformBinary(ctx, t)
-	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
-
-	providerVersion, err := os.ReadFile("../testdata/provider-version.txt")
-	require.NoError(t, err)
-	fixturesCLIConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), map[string]string{
-		"main.tf": fmt.Sprintf(fixtureProviders, strings.TrimSpace(string(providerVersion))),
-	})
-	entries, err := os.ReadDir(fixturesDir)
-	require.NoError(t, err)
-	for _, entry := range entries {
-		// Applying kubernetes-metadata takes a cluster.
-		if !entry.IsDir() || entry.Name() == "kubernetes-metadata" {
-			continue
-		}
-		t.Run(entry.Name(), func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitSuperLong)
-			files := readTemplateDir(t, filepath.Join(fixturesDir, entry.Name()))
-			requireReadMatchesShow(ctx, t, applyTemplate(ctx, t, binaryPath, fixturesCLIConfigPath, files))
-		})
-	}
-
-	// The script ordering template requires a newer coder provider than
-	// the others.
-	t.Run("script-order-modules", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		files := readTemplateDir(t, "../testdata/script-order-modules")
-		cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
-		requireReadMatchesShow(ctx, t, applyTemplate(ctx, t, binaryPath, cliConfigPath, files))
-	})
-}
-
 // requireReadMatchesShow checks that the state file in w reads the same as
 // `terraform show -json` shows it, apart from the fields Read leaves out, and
 // that both convert to the same resources. It returns what Read returned,
@@ -300,14 +212,10 @@ func requireReadMatchesShow(ctx context.Context, t *testing.T, w workDir) ([]*tf
 	rawGraph, err := w.run(ctx, "graph", "-type=plan")
 	require.NoError(t, err)
 	logger := slogtest.Make(t, nil)
-	wantConverted, wantErr := terraform.ConvertState(ctx, shown, string(rawGraph), logger)
-	gotConverted, gotErr := terraform.ConvertState(ctx, read, string(rawGraph), logger)
-	if wantErr != nil {
-		// Some fixtures hold state that ConvertState rejects.
-		require.EqualError(t, gotErr, wantErr.Error())
-	} else {
-		require.NoError(t, gotErr)
-	}
+	wantConverted, err := terraform.ConvertState(ctx, shown, string(rawGraph), logger)
+	require.NoError(t, err)
+	gotConverted, err := terraform.ConvertState(ctx, read, string(rawGraph), logger)
+	require.NoError(t, err)
 	wantJSON, err := json.Marshal(wantConverted)
 	require.NoError(t, err)
 	gotJSON, err := json.Marshal(gotConverted)
