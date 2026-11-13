@@ -15,6 +15,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	ChatProjectTemplatesFields,
+	type ChatProjectTemplatesValues,
 	chatProjectTemplatesRequest,
 	chatProjectTemplatesValues,
 	templatesValidationDetail,
@@ -87,6 +88,40 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
+/**
+ * An empty parameter input means "use the template default", so the request
+ * omits it. An empty value that is already saved (set through the API) is
+ * kept while its input stays empty, so editing other settings does not drop
+ * it.
+ */
+const keepSavedEmptyParameters = (
+	request: ChatProjectTemplates,
+	value: ChatProjectTemplatesValues,
+	saved: ChatProjectTemplates,
+): ChatProjectTemplates => {
+	if (
+		value.defaultsKind !== "parameters" ||
+		request.default_template_id === undefined ||
+		request.default_template_id !== saved.default_template_id
+	) {
+		return request;
+	}
+	const savedEmpty = Object.entries(saved.default_parameters ?? {}).filter(
+		([name, savedValue]) =>
+			savedValue === "" && value.defaultParameters[name] === "",
+	);
+	if (savedEmpty.length === 0) {
+		return request;
+	}
+	return {
+		...request,
+		default_parameters: {
+			...request.default_parameters,
+			...Object.fromEntries(savedEmpty),
+		},
+	};
+};
+
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	open,
 	project,
@@ -104,7 +139,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const templatesQuery = useQuery(agentTemplates(project.organization_id));
 	const eligibleTemplates = templatesQuery.data;
 	const request =
-		eligibleTemplates && chatProjectTemplatesRequest(value, eligibleTemplates);
+		eligibleTemplates &&
+		keepSavedEmptyParameters(
+			chatProjectTemplatesRequest(value, eligibleTemplates),
+			value,
+			baseTemplates,
+		);
 	// Saving drops templates that are no longer eligible, so a draft that
 	// still holds any differs from the saved templates even when untouched.
 	const dropsIneligible =
