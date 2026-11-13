@@ -2,6 +2,7 @@ package vpn
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -94,6 +95,49 @@ func TestSpeaker_ResponseBeforeEOF(t *testing.T) {
 				require.NoError(t, got.err)
 				require.True(t, got.response.GetStop().GetSuccess())
 			}()
+		}
+	})
+}
+
+func TestSpeaker_RPCAfterWriterExits(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx, tun, mgr := setupSpeakers(t)
+		defer tun.Close()
+		defer mgr.Close()
+		// Leave a manager request undelivered, so the tunnel's receive side
+		// cannot exit and close recvLoopDone.
+		testutil.RequireSend(ctx, t, mgr.sendCh, &ManagerMessage{
+			Rpc: &RPC{MsgId: 1},
+			Msg: &ManagerMessage_Wake{Wake: &WakeRequest{}},
+		})
+		rpc := func() chan error {
+			done := make(chan error, 1)
+			go func() {
+				_, err := tun.unaryRPC(ctx, &TunnelMessage{
+					Msg: &TunnelMessage_NetworkSettings{NetworkSettings: &NetworkSettingsRequest{}},
+				})
+				done <- err
+			}()
+			return done
+		}
+		awaitingResponse := rpc()
+		synctest.Wait()
+		// Closing the manager makes the tunnel's next write fail.
+		require.NoError(t, mgr.Close())
+		failedWrite := rpc()
+		synctest.Wait()
+		unread := rpc()
+		synctest.Wait()
+
+		for _, done := range []chan error{awaitingResponse, failedWrite, unread} {
+			select {
+			case err := <-done:
+				require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+			default:
+				t.Fatal("RPC still blocked after the writer exited")
+			}
 		}
 	})
 }

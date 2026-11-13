@@ -201,8 +201,8 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 	select {
 	case <-ctx.Done():
 		return resp, ctx.Err()
-	case <-s.ctx.Done():
-		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
+	case <-s.sendCtx.Done():
+		return resp, s.sendClosedErr()
 	case <-s.recvLoopDone:
 		logger.Debug(s.ctx, "recvLoopDone while sending request")
 		return resp, io.ErrUnexpectedEOF
@@ -213,9 +213,9 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 	case <-ctx.Done():
 		s.rmResponseChan(msgID)
 		return resp, ctx.Err()
-	case <-s.ctx.Done():
+	case <-s.sendCtx.Done():
 		s.rmResponseChan(msgID)
-		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
+		return resp, s.sendClosedErr()
 	case <-s.recvLoopDone:
 		// The receive loop publishes responses before it exits. Prefer a
 		// response already received to EOF, even if both cases are ready.
@@ -230,6 +230,15 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 		logger.Debug(s.ctx, "got response", slog.F("resp", resp))
 		return resp, nil
 	}
+}
+
+// sendClosedErr reports why sendCtx ended. When the speaker is still open,
+// the writer exited, so the connection is gone.
+func (s *speaker[_, _, _]) sendClosedErr() error {
+	if err := s.ctx.Err(); err != nil {
+		return xerrors.Errorf("vpn protocol closed: %w", err)
+	}
+	return io.ErrUnexpectedEOF
 }
 
 func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
