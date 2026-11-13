@@ -26,7 +26,7 @@ export const AccountUserGroups: React.FC<AccountGroupsProps> = ({
 	return (
 		<div>
 			<SettingsHeader>
-				<SettingsHeaderTitle hierarchy="secondary">
+				<SettingsHeaderTitle level="h2" hierarchy="secondary">
 					Your groups
 				</SettingsHeaderTitle>
 				{groups && (

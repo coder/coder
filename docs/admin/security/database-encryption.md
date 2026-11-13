@@ -26,7 +26,7 @@ The following database fields are currently encrypted:
 - `gitsshkeys.private_key`
 - `chat_mcp_servers.headers`
 
-Additional database fields may be encrypted in the future.
+Additional database fields might be encrypted in the future.
 
 ### Implementation notes
 
@@ -49,7 +49,7 @@ You cannot revoke a key until you have rotated all values using that key to a ne
 > Enabling encryption does not encrypt all existing data.
 > To encrypt existing data, see [rotating keys](#rotate-keys) below.
 
-- Ensure you have a valid backup of your database.
+- Make sure you have a valid backup of your database.
   **Do not skip this step.**
   If you are using the built-in PostgreSQL database, you can run [`coder server postgres-builtin-url`](../../reference/cli/server/postgres-builtin-url.md) to get the connection URL.
 
@@ -90,7 +90,7 @@ coder:
 We recommend only having one active encryption key at a time normally.
 However, if you need to rotate keys, you can perform the following procedure:
 
-- Ensure you have a valid backup of your database.
+- Make sure you have a valid backup of your database.
   **Do not skip this step.**
 
 - Generate a new encryption key following the same procedure as above.
@@ -129,11 +129,11 @@ data:
 
 To disable encryption, perform the following actions:
 
-- Ensure you have a valid backup of your database.
+- Make sure you have a valid backup of your database.
   **Do not skip this step.**
 
 - Stop all active `coderd` instances.
-  This will prevent new encrypted data from being written, which may cause the next step to fail.
+  This will prevent new encrypted data from being written, which might cause the next step to fail.
 
 - Run [`coder server dbcrypt decrypt`](../../reference/cli/server/dbcrypt/decrypt.md).
   This command will decrypt all encrypted user tokens and revoke all active encryption keys.
@@ -156,7 +156,7 @@ To disable encryption, perform the following actions:
 
 To delete all encrypted data from your database, perform the following actions:
 
-- Ensure you have a valid backup of your database.
+- Make sure you have a valid backup of your database.
   **Do not skip this step.**
 
 - Stop all active `coderd` instances.
@@ -173,12 +173,12 @@ To delete all encrypted data from your database, perform the following actions:
 ## Troubleshooting
 
 - If Coder detects that the data stored in the database was not encrypted with any known keys, it will refuse to start.
-  If you are seeing this behavior, ensure that the encryption keys provided are correct.
+  If you are seeing this behavior, make sure that the encryption keys provided are correct.
 - If Coder detects that the data stored in the database was encrypted with a key that is no longer active, it will refuse to start.
-  If you are seeing this behavior, ensure that the encryption keys provided are correct and that you have not revoked any keys that are still in use.
-- Decryption may fail if newly encrypted data is written while decryption is in progress.
-  If this happens, ensure that all active coder instances are stopped, and retry.
+  If you are seeing this behavior, make sure that the encryption keys provided are correct and that you have not revoked any keys that are still in use.
+- Decryption might fail if newly encrypted data is written while decryption is in progress.
+  If this happens, make sure that all active coder instances are stopped, and retry.
 
 ## Next steps
 
-- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)
+- [Security - best practices](security-best-practices.md)

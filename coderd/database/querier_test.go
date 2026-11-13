@@ -885,6 +885,124 @@ func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time
 	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime}
 }
 
+func TestGetTemplateParameterInsights(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	startTime := dbtime.Now().Add(-time.Hour).Truncate(time.Minute)
+	endTime := startTime.Add(30 * time.Minute)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newTemplate := func() (database.Template, database.TemplateVersion) {
+		tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+		ver := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		})
+		return tpl, ver
+	}
+	addParam := func(ver database.TemplateVersion, name, description string) {
+		dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+			TemplateVersionID: ver.ID,
+			Name:              name,
+			DisplayName:       name,
+			Description:       description,
+			Options:           []byte("[]"),
+		})
+	}
+	newWorkspace := func(tpl database.Template) database.WorkspaceTable {
+		return dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: tpl.ID, OwnerID: user.ID})
+	}
+	addBuild := func(ws database.WorkspaceTable, ver database.TemplateVersion, buildNumber int32, createdAt time.Time, values map[string]string) {
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID, InitiatorID: user.ID})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: ver.ID,
+			BuildNumber:       buildNumber,
+			InitiatorID:       user.ID,
+			JobID:             job.ID,
+			CreatedAt:         createdAt,
+		})
+		params := make([]database.WorkspaceBuildParameter, 0, len(values))
+		for name, value := range values {
+			params = append(params, database.WorkspaceBuildParameter{WorkspaceBuildID: build.ID, Name: name, Value: value})
+		}
+		dbgen.WorkspaceBuildParameters(t, db, params)
+	}
+
+	// Templates A and B share an identical region definition, so they form one
+	// group. Template C uses the same name with a different description, so it
+	// forms its own group. Only template A has a size parameter.
+	tplA, verA := newTemplate()
+	tplB, verB := newTemplate()
+	tplC, verC := newTemplate()
+	addParam(verA, "region", "Shared region")
+	addParam(verA, "size", "Size")
+	addParam(verB, "region", "Shared region")
+	addParam(verC, "region", "Other region")
+
+	// Only the latest build inside the window counts for each workspace.
+	wsA1 := newWorkspace(tplA)
+	addBuild(wsA1, verA, 1, startTime.Add(-10*time.Minute), map[string]string{"region": "ap", "size": "small"})
+	addBuild(wsA1, verA, 2, startTime.Add(5*time.Minute), map[string]string{"region": "eu", "size": "small"})
+	addBuild(wsA1, verA, 3, startTime.Add(10*time.Minute), map[string]string{"region": "us", "size": "large"})
+	addBuild(wsA1, verA, 4, endTime.Add(2*time.Minute), map[string]string{"region": "ap", "size": "small"})
+	addBuild(newWorkspace(tplA), verA, 1, startTime.Add(15*time.Minute), map[string]string{"region": "us", "size": "small"})
+	addBuild(newWorkspace(tplB), verB, 1, startTime.Add(20*time.Minute), map[string]string{"region": "eu"})
+	addBuild(newWorkspace(tplC), verC, 1, startTime.Add(25*time.Minute), map[string]string{"region": "eu"})
+	// Builds outside the window are ignored.
+	addBuild(newWorkspace(tplB), verB, 1, endTime.Add(time.Minute), map[string]string{"region": "ap"})
+	addBuild(newWorkspace(tplA), verA, 1, startTime.Add(-time.Minute), map[string]string{"region": "ap", "size": "large"})
+
+	type paramCount struct {
+		TemplateIDs string
+		Name        string
+		Description string
+		Value       string
+		Count       int64
+	}
+	// joinIDs makes template ID sets comparable regardless of order.
+	joinIDs := func(ids ...uuid.UUID) string {
+		s := make([]string, 0, len(ids))
+		for _, id := range ids {
+			s = append(s, id.String())
+		}
+		slices.Sort(s)
+		return strings.Join(s, ",")
+	}
+	query := func(templateIDs []uuid.UUID) []paramCount {
+		rows, err := db.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: templateIDs,
+		})
+		require.NoError(t, err)
+		got := make([]paramCount, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, paramCount{joinIDs(row.TemplateIDs...), row.Name, row.Description, row.Value, row.Count})
+		}
+		return got
+	}
+
+	require.ElementsMatch(t, []paramCount{
+		{joinIDs(tplA.ID, tplB.ID), "region", "Shared region", "us", 2},
+		{joinIDs(tplA.ID, tplB.ID), "region", "Shared region", "eu", 1},
+		{joinIDs(tplA.ID), "size", "Size", "large", 1},
+		{joinIDs(tplA.ID), "size", "Size", "small", 1},
+		{joinIDs(tplC.ID), "region", "Other region", "eu", 1},
+	}, query(nil))
+
+	require.ElementsMatch(t, []paramCount{
+		{joinIDs(tplA.ID), "region", "Shared region", "us", 2},
+		{joinIDs(tplA.ID), "size", "Size", "large", 1},
+		{joinIDs(tplA.ID), "size", "Size", "small", 1},
+		{joinIDs(tplC.ID), "region", "Other region", "eu", 1},
+	}, query([]uuid.UUID{tplA.ID, tplC.ID}))
+}
+
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	t.Parallel()
 
@@ -1659,6 +1777,104 @@ func TestChatContextHydration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, hashOther, gotOther.ContextAggregateHash)
 	require.False(t, gotOther.ContextDirtySince.Valid)
+}
+
+func TestChatContextResourcesCopyPluginName(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Status:            database.ChatStatusRunning,
+	})
+
+	upsert := func(source string, kind database.WorkspaceAgentContextBodyKind, status database.WorkspaceAgentContextResourceStatus, pluginName string) {
+		t.Helper()
+		_, err := db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agent.ID,
+			Source:           source,
+			BodyKind:         kind,
+			Body:             []byte(`{}`),
+			ContentHash:      []byte(source),
+			Status:           status,
+			PluginName:       pluginName,
+			Now:              dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+	pinnedPluginNames := func() map[string]string {
+		t.Helper()
+		rows, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		got := make(map[string]string, len(rows))
+		for _, r := range rows {
+			got[r.Source] = r.PluginName
+		}
+		return got
+	}
+
+	statusOK := database.WorkspaceAgentContextResourceStatusOk
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, statusOK, "acme")
+	upsert("/w/plugins/acme/skills/deploy", database.WorkspaceAgentContextBodyKindSkill, statusOK, "acme")
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "acme")
+	upsert("/w/AGENTS.md", database.WorkspaceAgentContextBodyKindInstructionFile, statusOK, "")
+	want := map[string]string{
+		"/w/plugins/acme":               "acme",
+		"/w/plugins/acme/skills/deploy": "acme",
+		"acme/echo":                     "acme",
+		"/w/AGENTS.md":                  "",
+	}
+
+	_, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       agent.ID,
+		AggregateHash: []byte{0x01},
+	})
+	require.NoError(t, err)
+	require.Equal(t, want, pinnedPluginNames(), "hydrate")
+
+	upsert("acme/other", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "acme")
+	_, err = db.SyncAgentChatsContextLiveResources(ctx, agent.ID)
+	require.NoError(t, err)
+	want["acme/other"] = "acme"
+	require.Equal(t, want, pinnedPluginNames(), "MCP sync")
+
+	// Same source, content hash, and status: only plugin_name differs.
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "renamed")
+	_, err = db.SyncAgentChatsContextLiveResources(ctx, agent.ID)
+	require.NoError(t, err)
+	want["acme/echo"] = "renamed"
+	require.Equal(t, want, pinnedPluginNames(), "MCP sync of a plugin_name change")
+
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, database.WorkspaceAgentContextResourceStatusExcluded, "")
+	want["/w/plugins/acme"] = ""
+
+	require.NoError(t, db.DeleteChatContextResourcesByChatID(ctx, chat.ID))
+	require.NoError(t, db.InsertAgentContextResourcesIntoChat(ctx, database.InsertAgentContextResourcesIntoChatParams{
+		ChatID:  chat.ID,
+		AgentID: agent.ID,
+	}))
+	require.Equal(t, want, pinnedPluginNames(), "re-pin")
 }
 
 func TestGetAuthorizedChats(t *testing.T) {
@@ -7685,6 +7901,7 @@ func createTmplVersionAndPreset(
 
 type createPrebuiltWorkspaceOpts struct {
 	failedJob      bool
+	succeededJob   bool
 	createdAt      time.Time
 	readyAgents    int
 	notReadyAgents int
@@ -7705,12 +7922,19 @@ func createPrebuiltWorkspace(
 	if opts != nil && opts.failedJob {
 		jobError = sql.NullString{String: "failed", Valid: true}
 	}
+	var jobStartedAt, jobCompletedAt sql.NullTime
+	if opts != nil && opts.succeededJob {
+		jobStartedAt = sql.NullTime{Time: now.Add(-1 * time.Minute), Valid: true}
+		jobCompletedAt = sql.NullTime{Time: now, Valid: true}
+	}
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		OrganizationID: orgID,
 
-		CreatedAt: now.Add(-1 * time.Minute),
-		Error:     jobError,
+		CreatedAt:   now.Add(-1 * time.Minute),
+		StartedAt:   jobStartedAt,
+		CompletedAt: jobCompletedAt,
+		Error:       jobError,
 	})
 
 	// create ready agents
@@ -8717,7 +8941,9 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		name string
 		// true - build is successful
 		// false - build is unsuccessful
-		buildSuccesses  []bool
+		buildSuccesses []bool
+		// newestInFlight adds a pending build after buildSuccesses, as the reconciler sees while it is still creating.
+		newestInFlight  bool
 		hardLimit       int64
 		expHitHardLimit bool
 	}{
@@ -8763,6 +8989,20 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			hardLimit:       3,
 			expHitHardLimit: false,
 		},
+		{
+			name:            "last 3 builds are failed and a newer one is in flight - hard limit is reached",
+			buildSuccesses:  []bool{false, false, false},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "last build is successful and a newer one is in flight - hard limit is NOT reached",
+			buildSuccesses:  []bool{false, false, true},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: false,
+		},
 		// hardLimit set to zero, implicitly disables the hard limit.
 		{
 			name:            "despite 5 failed builds, the hard limit is not reached because it's disabled.",
@@ -8789,8 +9029,14 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
 			for idx, buildSuccess := range tc.buildSuccesses {
 				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
-					failedJob: !buildSuccess,
-					createdAt: hourBefore.Add(time.Duration(idx) * time.Second),
+					failedJob:    !buildSuccess,
+					succeededJob: buildSuccess,
+					createdAt:    hourBefore.Add(time.Duration(idx) * time.Second),
+				})
+			}
+			if tc.newestInFlight {
+				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+					createdAt: hourBefore.Add(time.Duration(len(tc.buildSuccesses)) * time.Second),
 				})
 			}
 
@@ -18508,7 +18754,10 @@ func TestGetChatsSearch(t *testing.T) {
 
 	// Soft-deleted rows stay excluded even though search_tsv remains
 	// populated.
-	err = store.SoftDeleteChatMessageByID(ctx, deletedMsg.ID)
+	err = store.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  deletedMsgChat.ID,
+		AfterID: deletedMsg.ID - 1,
+	})
 	require.NoError(t, err)
 
 	// Inserted after backfill: search_tsv IS NULL, must match nothing.
@@ -19559,78 +19808,499 @@ func TestSingleUseDelete(t *testing.T) {
 	})
 }
 
-func TestGetUnpricedAIModelsSince(t *testing.T) {
+func TestGetUnpricedAIModels(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	db, _ := dbtestutil.NewDB(t)
-	now := dbtime.Now()
-	initiator := dbgen.User(t, db, database.User{})
-	anthropic := dbgen.AIProvider(t, db, database.AIProvider{
-		Name: "anthropic",
-		Type: database.AIProviderTypeAnthropic,
-	})
-	openai := dbgen.AIProvider(t, db, database.AIProvider{
-		Name: "openai",
-		Type: database.AIProviderTypeOpenai,
-	})
+	// Use fixed dates to keep every case deterministic.
+	periodStart := time.Date(2030, time.January, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := periodStart.AddDate(0, 0, 7)
+	inPeriod := periodStart.Add(time.Hour)
 
-	seedUsage := func(provider database.AIProvider, model string, startedAt time.Time, inputTokens, outputTokens int64, cost sql.NullInt64) {
-		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  initiator.ID,
-			Provider:     string(provider.Type),
-			ProviderName: provider.Name,
-			Model:        model,
+	type fixture struct {
+		ctx context.Context
+		db  database.Store
+		// anthropic and anthropicDev share a type, so they share site-wide
+		// prices.
+		anthropic    database.AIProvider
+		anthropicDev database.AIProvider
+		openaiCompat database.AIProvider
+		// Usage is attributed to orgA or orgB through groupA or groupB.
+		orgA, orgB     database.Organization
+		groupA, groupB database.Group
+	}
+	type usage struct {
+		provider database.AIProvider
+		model    string
+		// group is the effective group the usage was attributed to, and zero
+		// means none.
+		group database.Group
+		// startedAt is when the interception started, and zero means createdAt.
+		startedAt time.Time
+		createdAt time.Time
+		// inputTokens and outputTokens must be non-zero, since dbgen replaces a
+		// zero count with a default.
+		inputTokens  int64
+		outputTokens int64
+		// providerModel is the model the provider reported serving.
+		providerModel string
+		// pricedModel and cost are the price snapshot taken when the usage was
+		// recorded. Both are unset when no price was found.
+		pricedModel string
+		cost        int64
+	}
+	recordTokenUsage := func(t *testing.T, f fixture, u usage) {
+		t.Helper()
+		startedAt := u.startedAt
+		if startedAt.IsZero() {
+			startedAt = u.createdAt
+		}
+		interception := dbgen.AIBridgeInterception(t, f.db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  dbgen.User(t, f.db, database.User{}).ID,
+			Provider:     string(u.provider.Type),
+			ProviderName: u.provider.Name,
+			Model:        u.model,
 			StartedAt:    startedAt,
 		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: interception.ID,
-			InputTokens:    inputTokens,
-			OutputTokens:   outputTokens,
-			CostMicros:     cost,
-			CreatedAt:      startedAt,
+		dbgen.AIBridgeTokenUsage(t, f.db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   interception.ID,
+			EffectiveGroupID: uuid.NullUUID{UUID: u.group.ID, Valid: u.group.ID != uuid.Nil},
+			InputTokens:      u.inputTokens,
+			OutputTokens:     u.outputTokens,
+			CreatedAt:        u.createdAt,
+			ProviderModel:    sql.NullString{String: u.providerModel, Valid: u.providerModel != ""},
+			PricedModel:      sql.NullString{String: u.pricedModel, Valid: u.pricedModel != ""},
+			CostMicros:       sql.NullInt64{Int64: u.cost, Valid: u.cost != 0},
 		})
 	}
+	priceSiteWide := func(t *testing.T, f fixture, providerType database.AIProviderType, model string) {
+		t.Helper()
+		seed, err := json.Marshal([]map[string]any{{
+			"provider": providerType, "model": model,
+			"input_price": 3_000_000, "output_price": 15_000_000, "cache_read_price": 300_000, "cache_write_price": 3_750_000,
+		}})
+		require.NoError(t, err)
+		require.NoError(t, f.db.UpsertAIModelPrices(f.ctx, database.UpsertAIModelPricesParams{
+			Seed:   seed,
+			Source: database.AIModelPriceSourceCustom,
+		}))
+	}
+	// configureOrgModel sets an organization config for the model on the
+	// provider, priced only when price is set.
+	configureOrgModel := func(t *testing.T, f fixture, org database.Organization, provider database.AIProvider, model string, price sql.NullInt64) {
+		t.Helper()
+		require.NoError(t, f.db.UpsertOrganizationAIProviderModelConfig(f.ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID,
+			ProviderID:     provider.ID,
+			Model:          model,
+			InputPrice:     price,
+		}))
+	}
+	orgInputPrice := sql.NullInt64{Int64: 3_000_000, Valid: true}
+	unpricedModel := func(provider database.AIProvider, model string, tokens int64) database.GetUnpricedAIModelsRow {
+		return database.GetUnpricedAIModelsRow{
+			ProviderName:        provider.Name,
+			ProviderDisplayName: provider.DisplayName,
+			ProviderIcon:        provider.Icon,
+			ProviderType:        string(provider.Type),
+			Model:               model,
+			TokenCount:          tokens,
+		}
+	}
 
-	// Included and aggregated into one result with 500 total tokens.
-	seedUsage(anthropic, "model-a", now, 200, 100, sql.NullInt64{})
-	seedUsage(anthropic, "model-a", now, 100, 100, sql.NullInt64{})
-	// Included after model-a because it has only 200 total tokens.
-	seedUsage(anthropic, "model-b", now, 100, 100, sql.NullInt64{})
-	// Excluded because its recorded cost is not NULL.
-	seedUsage(anthropic, "costed-model", now, 100, 100, sql.NullInt64{Int64: 1, Valid: true})
-	// Excluded because its interception started before the requested window.
-	seedUsage(anthropic, "old-model", now.Add(-2*time.Hour), 100, 100, sql.NullInt64{})
-	// Excluded because OpenAI is not in the supplied priceable provider list.
-	seedUsage(openai, "excluded-provider-model", now, 100, 100, sql.NullInt64{})
+	newFixture := func(t *testing.T) fixture {
+		db, _ := dbtestutil.NewDB(t)
+		orgA := dbgen.Organization(t, db, database.Organization{})
+		orgB := dbgen.Organization(t, db, database.Organization{})
+		return fixture{
+			ctx: testutil.Context(t, testutil.WaitLong),
+			db:  db,
+			anthropic: dbgen.AIProvider(t, db, database.AIProvider{
+				Name: "anthropic-prod", Type: database.AIProviderTypeAnthropic, Icon: "/icon/anthropic.svg",
+			}),
+			anthropicDev: dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-dev", Type: database.AIProviderTypeAnthropic}),
+			openaiCompat: dbgen.AIProvider(t, db, database.AIProvider{Name: "self-hosted", Type: database.AIProviderTypeOpenaiCompat}),
+			orgA:         orgA,
+			orgB:         orgB,
+			groupA:       dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID}),
+			groupB:       dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID}),
+		}
+	}
+	listUnpricedModels := func(t *testing.T, f fixture, org uuid.NullUUID) []database.GetUnpricedAIModelsRow {
+		t.Helper()
+		got, err := f.db.GetUnpricedAIModels(f.ctx, database.GetUnpricedAIModelsParams{
+			OrganizationID: org,
+			PeriodStart:    periodStart,
+			PeriodEnd:      periodEnd,
+			PriceableProviders: []string{
+				string(database.AIProviderTypeAnthropic),
+				string(database.AIProviderTypeOpenai),
+			},
+		})
+		require.NoError(t, err)
+		return got
+	}
 
-	// Excluded because an interception without token usage does not represent
-	// model usage.
-	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		InitiatorID:  initiator.ID,
-		Provider:     string(anthropic.Type),
-		ProviderName: anthropic.Name,
-		Model:        "model-without-usage",
-		StartedAt:    now,
-	}, nil)
+	t.Run("AllOrganizations", func(t *testing.T) {
+		t.Parallel()
 
-	// Excluded because a current price exists for this provider and model.
-	const pricedSeed = `[{"provider":"anthropic","model":"priced-model","input_price":1,"output_price":2,"cache_read_price":null,"cache_write_price":null}]`
-	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-		Seed:   []byte(pricedSeed),
-		Source: database.AIModelPriceSourceCustom,
-	}))
-	seedUsage(anthropic, "priced-model", now, 100, 100, sql.NullInt64{})
+		tests := []struct {
+			name  string
+			given func(t *testing.T, f fixture)
+			want  func(f fixture) []database.GetUnpricedAIModelsRow
+		}{
+			{
+				// Given usage of models without a price on two providers of the
+				// same type, then each provider lists its models, most used first.
+				name: "UnpricedUsageIsListedPerProviderMostUsedFirst",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 120, outputTokens: 80})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
+					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{
+						unpricedModel(f.anthropic, "model-a", 300),
+						unpricedModel(f.anthropicDev, "model-a", 100),
+						unpricedModel(f.anthropic, "model-b", 50),
+					}
+				},
+			},
+			{
+				// Given models with the same usage, then they are sorted by
+				// provider name, then by model ignoring case.
+				name: "TiesSortedByProviderNameThenModel",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "Model-C", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{
+						unpricedModel(f.anthropicDev, "model-a", 100),
+						unpricedModel(f.anthropic, "model-b", 100),
+						unpricedModel(f.anthropic, "Model-C", 100),
+					}
+				},
+			},
+			{
+				// Given usage priced when it was recorded, then the model is not
+				// listed.
+				name: "PricedUsageIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-a", cost: 10})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given usage priced through the model reported by the provider,
+				// then the requested model is not listed, even though it has no
+				// price of its own.
+				name: "UsagePricedThroughProviderModelIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-y", cost: 10})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given usage whose price was found but whose cost could not be
+				// computed, then the model is not listed, since it is not missing a
+				// price.
+				name: "UsageWithUncomputableCostIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-a"})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage of a model that was priced site-wide since,
+				// then the model is not listed.
+				name: "ModelPricedSinceIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-a")
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage of a model whose provider model was priced
+				// since, then the requested model is still listed, since the
+				// provider may not serve that model next time.
+				name: "ModelWhoseProviderModelWasPricedSinceIsListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-y")
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)}
+				},
+			},
+			{
+				// Given prices that match only the provider type or only the
+				// model, then the model is still listed.
+				name: "PriceMustMatchProviderTypeAndModel",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					priceSiteWide(t, f, database.AIProviderTypeOpenai, "model-a")
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-b")
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
+				},
+			},
+			{
+				// Given unpriced usage recorded before the period and at its
+				// exclusive end, then neither is listed.
+				name: "UsageOutsidePeriodIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: periodStart.Add(-time.Second), inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: periodEnd, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage recorded in the period by an interception
+				// that started before it, then the model is listed, since the
+				// period applies to when the usage was recorded.
+				name: "UsageRecordedInPeriodIsListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", startedAt: periodStart.Add(-time.Hour), createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
+				},
+			},
+			{
+				// Given unpriced usage on an openai-compat provider, which cannot be
+				// priced, then the model is not listed.
+				name: "UnpriceableProviderIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.openaiCompat, model: "llama-4", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage on a provider deleted since, then the model
+				// is not listed.
+				name: "DeletedProviderIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					require.NoError(t, f.db.DeleteAIProviderByID(f.ctx, f.anthropic.ID))
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given an interception without token usage, then its model is not
+				// listed, since nothing was used.
+				name: "InterceptionWithoutUsageIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					dbgen.AIBridgeInterception(t, f.db, database.InsertAIBridgeInterceptionParams{
+						InitiatorID:  dbgen.User(t, f.db, database.User{}).ID,
+						Provider:     string(f.anthropic.Type),
+						ProviderName: f.anthropic.Name,
+						Model:        "model-a",
+						StartedAt:    inPeriod,
+					}, nil)
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+		}
 
-	got, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
-		Since:              now.Add(-time.Hour),
-		PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newFixture(t)
+				tc.given(t, f)
+
+				// When listing the unpriced models of the period for every
+				// organization.
+				got := listUnpricedModels(t, f, uuid.NullUUID{})
+
+				// Then only the expected models are listed.
+				require.Equal(t, tc.want(f), got)
+			})
+		}
 	})
-	require.NoError(t, err)
-	require.Equal(t, []database.GetUnpricedAIModelsSinceRow{
-		{ProviderType: "anthropic", Model: "model-a", TokenCount: 500},
-		{ProviderType: "anthropic", Model: "model-b", TokenCount: 200},
-	}, got)
+
+	t.Run("OrganizationPrices", func(t *testing.T) {
+		t.Parallel()
+
+		// unpricedModelsByScope is the unpriced models listed for every
+		// organization, for orgA, and for orgB.
+		type unpricedModelsByScope struct {
+			all, orgA, orgB []database.GetUnpricedAIModelsRow
+		}
+		tests := []struct {
+			name  string
+			given func(t *testing.T, f fixture)
+			want  func(f fixture) unpricedModelsByScope
+		}{
+			{
+				// Given unpriced usage in orgA, then it is listed for all organizations and
+				// for orgA, but not for orgB.
+				name: "UsageIsListedOnlyForItsOrganization",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given unpriced usage without an effective group, then it is listed only for
+				// all organizations.
+				name: "UsageWithoutEffectiveGroupIsListedOnlyForAllOrganizations",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: nil,
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given orgA priced the model after using it unpriced, then it is not
+				// listed, since it now has a price.
+				name: "ModelPricedInOrganizationSinceIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", orgInputPrice)
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  nil,
+						orgA: nil,
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given orgA priced the model and orgB did not, and both used it,
+				// then it is listed for every organization and orgB only.
+				name: "ModelPricedInOneOrganizationIsListedForTheOther",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", orgInputPrice)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-x", cost: 10})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupB, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: nil,
+						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+					}
+				},
+			},
+			{
+				// Given orgA priced the provider model and orgB did not, and the
+				// provider served it for both, then the requested model is listed for
+				// every organization and orgB only.
+				name: "UsagePricedThroughProviderModelInOneOrganizationIsListedForTheOther",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-y", orgInputPrice)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-y", cost: 10})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupB, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: nil,
+						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+					}
+				},
+			},
+			{
+				// Given unpriced usage in both organizations whose provider model was
+				// priced site-wide after the usage, then the requested model is still
+				// listed for each of them.
+				name: "ModelWhoseProviderModelWasPricedSinceIsListedForEachOrganization",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupB, createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-y")
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 150)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 50)},
+					}
+				},
+			},
+			{
+				// Given orgA priced the model on one provider only, then its usage
+				// on the other provider of the same type is still listed.
+				name: "OrganizationPriceMustMatchProvider",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", orgInputPrice)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropicDev, "model-x", 100)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropicDev, "model-x", 100)},
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given orgA configured the model without any price, or priced it
+				// and deleted the config since, then it is still listed.
+				name: "OrganizationConfigWithoutPriceIsListed",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", sql.NullInt64{})
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-y", orgInputPrice)
+					_, err := f.db.DeleteOrganizationAIProviderModelConfig(f.ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+						OrganizationID: f.orgA.ID, ProviderID: f.anthropic.ID, Model: "model-y",
+					})
+					require.NoError(t, err)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-y", group: f.groupA, createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)},
+						orgB: nil,
+					}
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newFixture(t)
+				tc.given(t, f)
+
+				// When listing the unpriced models of the period for every
+				// organization, for orgA, and for orgB.
+				want := tc.want(f)
+				for _, scope := range []struct {
+					name string
+					org  uuid.NullUUID
+					want []database.GetUnpricedAIModelsRow
+				}{
+					{name: "AllOrganizations", want: want.all},
+					{name: "OrgA", org: uuid.NullUUID{UUID: f.orgA.ID, Valid: true}, want: want.orgA},
+					{name: "OrgB", org: uuid.NullUUID{UUID: f.orgB.ID, Valid: true}, want: want.orgB},
+				} {
+					got := listUnpricedModels(t, f, scope.org)
+
+					// Then only the expected models are listed.
+					require.Equal(t, scope.want, got, scope.name)
+				}
+			})
+		}
+	})
 }
 
 func TestGetAIModelPrices(t *testing.T) {
@@ -20436,6 +21106,190 @@ func TestUpdateUserEmail(t *testing.T) {
 		})
 		require.True(t, database.IsUniqueViolation(err, database.UniqueUsersEmailLowerIndex),
 			"expected unique_violation on users_email_lower_idx, got: %v", err)
+	})
+}
+
+func TestOrganizationAISpendOverviewQueries(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	start := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 3)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	alpha := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "alpha", DisplayName: "Alpha"})
+	beta := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "beta"})
+	gamma := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "Gamma"})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+
+	alice := dbgen.User(t, db, database.User{Username: "alice", Name: "Alice Liddell", AvatarURL: "https://example.com/alice.png"})
+	bob := dbgen.User(t, db, database.User{Username: "bob"})
+	carol := dbgen.User(t, db, database.User{Username: "carol"})
+	dave := dbgen.User(t, db, database.User{Username: "dave"})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, s := range []struct {
+		user  database.User
+		group database.Group
+		day   time.Time
+		spend int64
+	}{
+		// alice: 400 split across two groups.
+		{user: alice, group: alpha, day: start, spend: 100},
+		{user: alice, group: beta, day: start.AddDate(0, 0, 1), spend: 300},
+		// bob ties with alice and sorts after her by username.
+		{user: bob, group: alpha, day: start, spend: 400},
+		// carol spends the least, on the last day in the window, split evenly
+		// so her groups tie.
+		{user: carol, group: gamma, day: start.AddDate(0, 0, 2), spend: 50},
+		{user: carol, group: alpha, day: start.AddDate(0, 0, 2), spend: 50},
+		// Excluded: without spend.
+		{user: dave, group: alpha, day: start, spend: 0},
+		// Excluded: before the window.
+		{user: bob, group: alpha, day: start.AddDate(0, 0, -1), spend: 99_999},
+		// Excluded: at the exclusive end.
+		{user: bob, group: alpha, day: end, spend: 99_999},
+		// Excluded: attributed to another organization.
+		{user: bob, group: otherGroup, day: start, spend: 99_999},
+	} {
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: s.user.ID, EffectiveGroupID: s.group.ID, Day: s.day, CostMicros: s.spend,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("GetOrganizationAISpendPerDay", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name           string
+			organizationID uuid.UUID
+			periodEnd      time.Time
+			want           []int64
+		}{
+			{
+				// Day 1: alice 100 and bob 400. Day 2: alice 300. Day 3: carol 100.
+				name:           "Organization",
+				organizationID: org.ID,
+				periodEnd:      end,
+				want:           []int64{500, 300, 100},
+			},
+			{
+				// The other organization only has bob's 99_999 on day 1, so
+				// day 2 is zero.
+				name:           "OtherOrganization",
+				organizationID: otherOrg.ID,
+				periodEnd:      start.AddDate(0, 0, 2),
+				want:           []int64{99_999, 0},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := db.GetOrganizationAISpendPerDay(ctx, database.GetOrganizationAISpendPerDayParams{
+					OrganizationID: tc.organizationID, PeriodStart: start, PeriodEnd: tc.periodEnd,
+				})
+				require.NoError(t, err)
+				require.Len(t, got, len(tc.want))
+				for i, d := range got {
+					require.True(t, d.Day.Equal(start.AddDate(0, 0, i)), "day %d = %s", i, d.Day)
+					require.Equal(t, tc.want[i], d.SpendMicros, "day %d", i)
+				}
+			})
+		}
+	})
+
+	t.Run("GetOrganizationAISpendTotals", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name        string
+			periodStart time.Time
+			periodEnd   time.Time
+			want        database.GetOrganizationAISpendTotalsRow
+		}{
+			{
+				// alice 400, bob 400 and carol 100: 3 users, 900 in total, and
+				// a median of 400.
+				name:        "WithSpend",
+				periodStart: start,
+				periodEnd:   end,
+				want:        database.GetOrganizationAISpendTotalsRow{UserCount: 3, SpendMicros: 900, MedianSpendMicros: 400},
+			},
+			{
+				// No spend after the window, so every total is zero.
+				name:        "WithoutSpend",
+				periodStart: end.AddDate(0, 0, 1),
+				periodEnd:   end.AddDate(0, 0, 2),
+				want:        database.GetOrganizationAISpendTotalsRow{},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := db.GetOrganizationAISpendTotals(ctx, database.GetOrganizationAISpendTotalsParams{
+					OrganizationID: org.ID, PeriodStart: tc.periodStart, PeriodEnd: tc.periodEnd,
+				})
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
+			})
+		}
+	})
+
+	t.Run("ListOrganizationAISpendPerUser", func(t *testing.T) {
+		t.Parallel()
+		userGroupSpend := func(user database.User, userSpend int64, group database.Group, groupSpend int64) database.ListOrganizationAISpendPerUserRow {
+			return database.ListOrganizationAISpendPerUserRow{
+				UserID: user.ID, Username: user.Username, Name: user.Name, AvatarURL: user.AvatarURL, SpendMicros: userSpend,
+				GroupID: group.ID, GroupName: group.Name, GroupDisplayName: group.DisplayName, GroupSpendMicros: groupSpend,
+			}
+		}
+		for _, tc := range []struct {
+			name   string
+			limit  int32
+			offset int32
+			want   []database.ListOrganizationAISpendPerUserRow
+		}{
+			{
+				// alice and bob tie at 400 and sort by username, then carol at
+				// 100. alice's rows are ordered by group spend: beta 300, then
+				// alpha 100. carol's groups tie and sort by name, ignoring case:
+				// alpha, then Gamma.
+				name: "AllUsers",
+				want: []database.ListOrganizationAISpendPerUserRow{
+					userGroupSpend(alice, 400, beta, 300),
+					userGroupSpend(alice, 400, alpha, 100),
+					userGroupSpend(bob, 400, alpha, 400),
+					userGroupSpend(carol, 100, alpha, 50),
+					userGroupSpend(carol, 100, gamma, 50),
+				},
+			},
+			{
+				// The offset and limit count users, not groups: offset 1 skips
+				// both of alice's rows, and limit 1 returns only bob.
+				name:   "Pagination",
+				limit:  1,
+				offset: 1,
+				want:   []database.ListOrganizationAISpendPerUserRow{userGroupSpend(bob, 400, alpha, 400)},
+			},
+			{
+				// Offset 3 skips alice, bob and carol, the only users with
+				// spend, so the page is empty.
+				name:   "PaginationPastLastUser",
+				limit:  1,
+				offset: 3,
+				want:   nil,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				got, err := db.ListOrganizationAISpendPerUser(ctx, database.ListOrganizationAISpendPerUserParams{
+					OrganizationID: org.ID, PeriodStart: start, PeriodEnd: end, LimitOpt: tc.limit, OffsetOpt: tc.offset,
+				})
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
+			})
+		}
 	})
 }
 

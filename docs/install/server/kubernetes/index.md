@@ -123,7 +123,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.38.0
+        --version 2.39.0
     ```
 
   - **Open Container Initiative (OCI) Registry**
@@ -134,7 +134,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.38.0
+        --version 2.39.0
     ```
 
 - **Stable** Coder release:
@@ -147,7 +147,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.37.5
+        --version 2.38.6
     ```
 
   - **OCI Registry**
@@ -158,7 +158,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.37.5
+        --version 2.38.6
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`.
@@ -185,9 +185,9 @@ helm upgrade coder coder-v2/coder \
 
 ## Standalone AI gateway chart
 
-Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../../ai-coder/ai-gateway/index.md) as its own Deployment alongside the control plane.
+Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../../ai-governance/ai-gateway/index.md) as its own Deployment alongside the control plane.
 Use it when you want to scale AI traffic independently of `coderd`.
-For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../../ai-coder/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
+For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../../ai-governance/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
 ## Coder Observability Chart
 
@@ -200,7 +200,7 @@ For installation instructions, visit the [observability repository](https://gith
 ## Kubernetes Security Reference
 
 Below are common requirements we see from our enterprise customers when deploying an application in Kubernetes.
-This is intended to serve as a reference, and not all security requirements may apply to your business.
+This is intended to serve as a reference, and some security requirements might not apply to your business.
 
 1. **All container images must be sourced from an internal container registry.**
 
@@ -288,12 +288,12 @@ You can also view these logs in your Cloud's log management system if you are us
 
 ### Kubernetes-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart.
+Make sure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart.
 If you do not have a domain set up, this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../../../admin/templates/troubleshooting.md) for more steps.
+See [troubleshooting templates](../../../templates/troubleshooting.md) for more steps.
 
 ## Next steps
 
-- [Create your first template](../../../tutorials/template-from-scratch.md)
+- [Create your first template](../../../templates/template-from-scratch.md)
 - [Control plane configuration](../../../admin/setup/index.md)

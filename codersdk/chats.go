@@ -567,7 +567,8 @@ type ChatMessagePart struct {
 	// positional argument. Program names are normalized to their base
 	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
 	// is "execute" and the command parses successfully; nil otherwise.
-	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	ParsedCommands [][]string `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	// Result is the tool output, which can be any JSON value.
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
 	ReasoningDelta string          `json:"reasoning_delta,omitempty" variants:"tool-result?"`
@@ -579,17 +580,18 @@ type ChatMessagePart struct {
 	Title          string          `json:"title,omitempty" variants:"source?"`
 	MediaType      string          `json:"media_type" variants:"file"`
 	Name           string          `json:"name,omitempty" variants:"file?"`
-	Data           []byte          `json:"data,omitempty" variants:"file?"`
-	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName       string          `json:"file_name" variants:"file-reference"`
-	StartLine      int             `json:"start_line" variants:"file-reference"`
-	EndLine        int             `json:"end_line" variants:"file-reference"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data      []byte        `json:"data,omitempty" swaggertype:"string" format:"byte" variants:"file?"`
+	FileID    uuid.NullUUID `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName  string        `json:"file_name" variants:"file-reference"`
+	StartLine int           `json:"start_line" variants:"file-reference"`
+	EndLine   int           `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
-	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-" swaggerignore:"true"`
 	// ProviderIdentity records the provider that produced a reasoning
 	// part, because a model config's provider can change after the
 	// message was written. Internal only: stripped before API responses.
@@ -876,9 +878,10 @@ type SubmitToolResultsRequest struct {
 
 // ToolResult is the client's response to a dynamic tool call.
 type ToolResult struct {
-	ToolCallID string          `json:"tool_call_id"`
-	Output     json.RawMessage `json:"output"`
-	IsError    bool            `json:"is_error"`
+	ToolCallID string `json:"tool_call_id"`
+	// Output is the tool output, which can be any JSON value.
+	Output  json.RawMessage `json:"output"`
+	IsError bool            `json:"is_error"`
 }
 
 // MaxChatTitleRunes is the longest title accepted at creation or rename,
@@ -990,18 +993,17 @@ type UpdateChatRequest struct {
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
 }
 
-// ChatBusyBehavior controls what happens when a user sends a message
-// while the chat is already processing.
+// ChatBusyBehavior controls when a message sent to a busy chat reaches
+// the model. A waiting chat receives the message at once for every value.
 type ChatBusyBehavior string
 
 const (
-	// ChatBusyBehaviorQueue queues the message for processing after
-	// the current run finishes.
+	// ChatBusyBehaviorSteer delivers the message before the next model
+	// call. This is the default.
+	ChatBusyBehaviorSteer ChatBusyBehavior = "steer"
+	// ChatBusyBehaviorQueue delivers the message after the active turn
+	// ends.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
-	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
 // ChatPlanMode represents the persistent plan mode state of a chat.
@@ -1020,7 +1022,10 @@ type CreateChatMessageRequest struct {
 	// InlineMCPServers replaces the inline MCP servers.
 	// nil: no change, empty: remove all.
 	InlineMCPServers *[]InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
-	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	// BusyBehavior controls when the message reaches the agent if the
+	// chat is busy. "steer", the default, delivers it before the next
+	// model call. "queue" delivers it after the active turn ends.
+	BusyBehavior ChatBusyBehavior `json:"busy_behavior,omitempty"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -1045,8 +1050,11 @@ type EditChatMessageRequest struct {
 type CreateChatMessageResponse struct {
 	Message *ChatMessage `json:"message,omitempty"`
 	// Messages contains all user-visible messages inserted by the send, in
-	// insertion order. A queued send on an errored chat may promote the
-	// previous queue head, so clients must upsert the full batch.
+	// insertion order. A send to an errored or paused chat can also insert
+	// queued messages: a steer send inserts the queued steer messages
+	// before the new message, and a queue send to an errored chat inserts
+	// the steer lane, or the first queue message when that lane is empty.
+	// Clients must upsert the full batch.
 	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
@@ -1100,13 +1108,24 @@ type UploadChatWorkspaceFileResponse struct {
 
 // ChatMessagesResponse contains the messages and queued messages for a chat.
 type ChatMessagesResponse struct {
-	Messages       []ChatMessage       `json:"messages"`
+	Messages []ChatMessage `json:"messages"`
+	// QueuedMessages lists the queued messages in delivery order: steer
+	// messages first, then queue messages.
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
 	// TurnStartID is the ID of the user prompt that starts the turn
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
+	// SnapshotVersion is the chat's snapshot version, a number that the
+	// server increases each time it changes the chat's messages, queue or
+	// status. The server sets it only when the request has neither
+	// before_id nor after_id. Pass it as the stream's snapshot_version
+	// parameter. The server reads this version before the page's messages
+	// and queued messages, so the page can include changes made at a
+	// higher version. The stream can send changes that are already in the
+	// page.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -1398,19 +1417,24 @@ type UpdateAdvisorConfigRequest struct {
 }
 
 // ChatComputerUseProvider identifies the computer use tool flavor. Chatd
-// derives it from the AI provider type of the model a computer use chat runs
-// on.
+// derives it from the API format of the client for the model that a computer
+// use chat runs on, so a Claude model on AWS Bedrock uses the Anthropic tool.
+// Each value names that client. The openai-compat client speaks the chat
+// completions API, which has no hosted computer tool, so its flavor is an
+// ordinary function tool.
 type ChatComputerUseProvider string
 
 const (
-	ChatComputerUseProviderAnthropic ChatComputerUseProvider = "anthropic"
-	ChatComputerUseProviderOpenAI    ChatComputerUseProvider = "openai"
+	ChatComputerUseProviderAnthropic    ChatComputerUseProvider = "anthropic"
+	ChatComputerUseProviderOpenAI       ChatComputerUseProvider = "openai"
+	ChatComputerUseProviderOpenAICompat ChatComputerUseProvider = "openai-compat"
 )
 
 // AllChatComputerUseProviders contains every ChatComputerUseProvider value.
 var AllChatComputerUseProviders = []ChatComputerUseProvider{
 	ChatComputerUseProviderAnthropic,
 	ChatComputerUseProviderOpenAI,
+	ChatComputerUseProviderOpenAICompat,
 }
 
 // Valid reports whether p is a supported computer use provider.
@@ -1724,9 +1748,12 @@ type ChatModel struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 	// ReasoningEfforts lists selectable reasoning effort values through
 	// the model's configured maximum.
-	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
+	// ComputerUseProvider names the computer use tool that Coder sends for
+	// this model. It is omitted when computer use can't run on the model.
+	ComputerUseProvider ChatComputerUseProvider `json:"computer_use_provider,omitempty"`
+	CreatedAt           time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time               `json:"updated_at" format:"date-time"`
 }
 
 // ChatModelACL is the access control list for an organization-scoped chat
@@ -2081,15 +2108,20 @@ const (
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
 type ChatQueuedMessage struct {
-	ID              int64             `json:"id"`
-	ChatID          uuid.UUID         `json:"chat_id" format:"uuid"`
-	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	Content         []ChatMessagePart `json:"content"`
-	CreatedAt       time.Time         `json:"created_at" format:"date-time"`
-	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
+	ID            int64             `json:"id"`
+	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	Content       []ChatMessagePart `json:"content"`
+	// BusyBehavior is the lane of the message. Steer messages go in
+	// before the next model call, and queue messages go in after the
+	// turn ends.
+	BusyBehavior    ChatBusyBehavior `json:"busy_behavior" enums:"steer,queue"`
+	CreatedAt       time.Time        `json:"created_at" format:"date-time"`
+	ReasoningEffort *string          `json:"reasoning_effort,omitempty"`
 	// EditingSince is set while the owner edits the message. A message
-	// under edit and every message behind it wait until the edit ends; a
-	// turn that ends at a message under edit pauses the chat.
+	// under edit and every message behind it wait until the edit ends. A
+	// steer message under edit also holds the steer messages ahead of
+	// it. A turn that ends at a message under edit pauses the chat.
 	EditingSince *time.Time `json:"editing_since,omitempty" format:"date-time"`
 }
 
@@ -2329,15 +2361,35 @@ type ChatWatchEvent struct {
 
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
-	Type           ChatStreamEventType       `json:"type"`
-	ChatID         uuid.UUID                 `json:"chat_id" format:"uuid"`
-	Message        *ChatMessage              `json:"message,omitempty"`
-	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
-	Status         *ChatStreamStatus         `json:"status,omitempty"`
-	Error          *ChatError                `json:"error,omitempty"`
-	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
+	Type        ChatStreamEventType    `json:"type"`
+	ChatID      uuid.UUID              `json:"chat_id" format:"uuid"`
+	Message     *ChatMessage           `json:"message,omitempty"`
+	MessagePart *ChatStreamMessagePart `json:"message_part,omitempty"`
+	Status      *ChatStreamStatus      `json:"status,omitempty"`
+	Error       *ChatError             `json:"error,omitempty"`
+	Retry       *ChatStreamRetry       `json:"retry,omitempty"`
+	// QueuedMessages lists the queued messages in delivery order: steer
+	// messages first, then queue messages.
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	// HistoryReset is set on history_reset events of streams opened with a
+	// snapshot_version.
+	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
+	// SnapshotVersion is set on the message, queue_update and history_reset
+	// events of streams opened with a snapshot_version. It is the chat's
+	// snapshot version when the change that the event reports was made. To
+	// reconnect, open the stream with the highest one received from the
+	// messages page or from events.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
+}
+
+// ChatStreamHistoryReset identifies the messages that an edit deleted.
+type ChatStreamHistoryReset struct {
+	// FromMessageID is the ID of a message that was edited. The edit deleted
+	// that message and every message after it. When managing history state,
+	// delete every message with this ID or higher. The messages that follow
+	// were written by the edit or after it and should be kept.
+	FromMessageID int64 `json:"from_message_id"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -2923,11 +2975,20 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 
 // StreamChatOptions are optional parameters for StreamChat.
 type StreamChatOptions struct {
-	// AfterID limits the initial snapshot to messages created
-	// after the given ID. This is useful for relay connections
-	// that only need live message_part events and can skip the
-	// full message history.
+	// AfterID is a message ID that selects the messages the stream sends
+	// when it opens. The server uses it only when SnapshotVersion is unset.
+	// When AfterID is the ID of a non-deleted message in the chat, the
+	// stream sends only the non-deleted messages with a higher ID. When it
+	// is unset or the ID of a deleted message in the chat, the stream sends
+	// every non-deleted message, after a history_reset event if the chat
+	// has a deleted message.
 	AfterID *int64
+	// SnapshotVersion is a snapshot version of the chat. When it is set,
+	// the stream sends what changed at that version or later: each
+	// non-deleted message written, a history_reset event for each edit,
+	// and the queue if it changed. Set it to the highest one received in a
+	// ChatMessagesResponse or a ChatStreamEvent.
+	SnapshotVersion int64
 }
 
 // StreamChat streams chat updates in real time.
@@ -2937,8 +2998,17 @@ type StreamChatOptions struct {
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
-	if opts != nil && opts.AfterID != nil {
-		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	if opts != nil {
+		query := url.Values{}
+		if opts.AfterID != nil {
+			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
+		}
+		if opts.SnapshotVersion > 0 {
+			query.Set("snapshot_version", strconv.FormatInt(opts.SnapshotVersion, 10))
+		}
+		if len(query) > 0 {
+			path += "?" + query.Encode()
+		}
 	}
 
 	conn, err := c.Dial(

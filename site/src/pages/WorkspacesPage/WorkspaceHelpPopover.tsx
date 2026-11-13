@@ -13,7 +13,7 @@ export const WorkspaceHelpPopover: React.FC = () => {
 				<br />
 				<Link
 					size="sm"
-					href={docs("/user-guides")}
+					href={docs("/workspaces")}
 					target="_blank"
 					rel="noreferrer"
 				>
@@ -22,7 +22,7 @@ export const WorkspaceHelpPopover: React.FC = () => {
 				<br />
 				<Link
 					size="sm"
-					href={docs("/user-guides/workspace-access")}
+					href={docs("/workspaces/workspace-access")}
 					target="_blank"
 					rel="noreferrer"
 				>

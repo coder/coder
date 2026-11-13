@@ -29,11 +29,11 @@ export const LogLine: React.FC<LogLineProps> = ({
 				"m-0 break-all flex items-center h-auto",
 				"text-xs font-normal text-content-primary font-mono",
 				level === "error" &&
-					"bg-surface-error text-content-error [&_.dashed-line]:bg-border-error",
+					"bg-surface-red text-content-destructive [&_.dashed-line]:bg-border-destructive",
 				level === "debug" &&
-					"bg-surface-sky text-content-sky [&_.dashed-line]:bg-border-sky",
+					"bg-surface-sky text-highlight-sky [&_.dashed-line]:bg-border-pending",
 				level === "warn" &&
-					"bg-surface-warning text-content-warning [&_.dashed-line]:bg-border-warning",
+					"bg-surface-orange text-content-warning [&_.dashed-line]:bg-border-warning",
 				className,
 			)}
 			style={{

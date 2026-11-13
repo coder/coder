@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -24,21 +23,9 @@ import (
 )
 
 type computerUseModel struct {
-	config   database.ChatModelConfig
-	provider codersdk.ChatComputerUseProvider
+	config database.ChatModelConfig
 	// reasoningEffort comes from the organization override, if any.
 	reasoningEffort *string
-}
-
-func computerUseProviderForAIProviderType(providerType string) (codersdk.ChatComputerUseProvider, bool) {
-	switch chatprovider.NormalizeProvider(providerType) {
-	case fantasyanthropic.Name:
-		return codersdk.ChatComputerUseProviderAnthropic, true
-	case fantasyopenai.Name:
-		return codersdk.ChatComputerUseProviderOpenAI, true
-	default:
-		return "", false
-	}
 }
 
 func computerUseModelLabel(config database.ChatModelConfig) string {
@@ -83,19 +70,19 @@ func (p *Server) resolveComputerUseModel(
 			return computerUseModel{}, "", xerrors.Errorf("get AI provider for model %s: %w", override.Config.ID, err)
 		}
 
-		if provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type)); ok {
+		if _, ok := chatprovider.ComputerUseProvider(aiProvider.Type, override.Config.Model); ok {
 			return computerUseModel{
 				config:          override.Config,
-				provider:        provider,
 				reasoningEffort: override.ReasoningEffort,
 			}, "", nil
 		}
 
-		// The override API rejects these AI providers, but the model API can
-		// still move the saved model to one. Ignore the override then, as the
+		// The override API rejects these models, but the model API can still
+		// change the saved model to one. Ignore the override then, as the
 		// settings page does.
-		p.logger.Info(ctx, "computer use model override has an unsupported AI provider, using default model",
+		p.logger.Info(ctx, "computer use model override is unsupported, using default model",
 			slog.F("model_config_id", override.Config.ID),
+			slog.F("model", override.Config.Model),
 			slog.F("ai_provider_type", aiProvider.Type),
 		)
 	}
@@ -124,21 +111,19 @@ func (p *Server) resolveComputerUseModel(
 	}
 
 	label := computerUseModelLabel(model.config)
-	provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type))
-	if !ok {
+	if _, ok := chatprovider.ComputerUseProvider(aiProvider.Type, model.config.Model); !ok {
 		return computerUseModel{}, fmt.Sprintf(
-			`type "computer_use" is unavailable because %s and model %s uses AI provider %q of type %q; computer use requires an Anthropic or OpenAI AI provider`,
-			overrideState, label, aiProvider.Name, aiProvider.Type,
+			`type "computer_use" is unavailable because %s and model %s uses AI provider %q of type %q; computer use requires %s`,
+			overrideState, label, aiProvider.Name, aiProvider.Type, chatprovider.ComputerUseModelRequirement,
 		), nil
 	}
-	model.provider = provider
 
 	providerKeys, err := p.resolveUserProviderAPIKeys(chatdCtx, ownerID, aiProvider.ID)
 	if err != nil {
 		return computerUseModel{}, "", xerrors.Errorf("resolve provider API keys: %w", err)
 	}
 
-	if !userCanUseProviderKeys(providerKeys, string(provider)) {
+	if !userCanUseProviderKeys(providerKeys, chatprovider.NormalizeProvider(string(aiProvider.Type))) {
 		return computerUseModel{}, fmt.Sprintf(
 			`type "computer_use" is unavailable because %s and credentials for AI provider %q, used by model %s, are not configured`,
 			overrideState, aiProvider.Name, label,

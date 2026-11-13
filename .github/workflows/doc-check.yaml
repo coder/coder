@@ -479,6 +479,9 @@ jobs:
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: doc-check
+        # Continue so the stop step below can read this step's outputs. The
+        # last step fails the job when this step failed.
+        continue-on-error: true
         uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -534,6 +537,18 @@ jobs:
               echo "Re-run this job or push a commit to start a new review."
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
+
+      # The review is stopped by the step above, so a failed review, a wait
+      # timeout included, fails the job. The wait step continues on error so
+      # that the stop step reads its outputs first.
+      - name: Fail the job if the review failed
+        if: always() && steps.doc-check.outcome == 'failure'
+        env:
+          ERROR_KIND: ${{ steps.doc-check.outputs.chat-error-kind }}
+          CHAT_STATUS: ${{ steps.doc-check.outputs.chat-status }}
+        run: |
+          echo "::error::doc-check failed (${ERROR_KIND:-unknown}, chat status '${CHAT_STATUS:-unknown}'). See the doc-check step above."
+          exit 1
 
   # Delete the review workspace once its PR merges. A PR closed without
   # merging keeps its workspace, because stale PRs get closed and reopened

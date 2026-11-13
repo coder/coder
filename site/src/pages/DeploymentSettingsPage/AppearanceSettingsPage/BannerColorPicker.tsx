@@ -45,7 +45,7 @@ export const BannerColorPicker: React.FC<BannerColorPickerProps> = ({
 							aria-label={preset}
 							aria-pressed={selected}
 							className={cn(
-								"size-8 rounded-md border border-solid border-border p-0",
+								"size-8 rounded-md border p-0",
 								"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 								selected &&
 									"ring-2 ring-content-link ring-offset-2 ring-offset-surface-primary",

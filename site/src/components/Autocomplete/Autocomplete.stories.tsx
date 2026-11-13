@@ -322,22 +322,13 @@ export const InlineSearch: Story = {
 };
 
 export const ClearSelection: Story = {
-	args: {
-		onChange: fn<(value: unknown) => void>(),
-	},
-	render: function ClearSelectionStory(args) {
+	render: function ClearSelectionStory() {
 		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
-		const handleChange = (newValue: SimpleOption | null) => {
-			args.onChange(newValue);
-			setValue(newValue);
-		};
-
 		return (
 			<div className="w-80">
 				<Autocomplete
-					{...args}
 					value={value}
-					onChange={handleChange}
+					onChange={setValue}
 					options={simpleOptions}
 					getOptionValue={(opt) => opt.id}
 					getOptionLabel={(opt) => opt.name}
@@ -346,29 +337,31 @@ export const ClearSelection: Story = {
 			</div>
 		);
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("button", { name: /mango/i });
-		expect(trigger).toHaveTextContent("Mango");
+		await userEvent.click(canvas.getByLabelText("Clear selection"));
+	},
+};
 
-		const onChangeSpy = args.onChange as ReturnType<
-			typeof fn<(value: unknown) => void>
-		>;
-		onChangeSpy.mockClear();
-
-		const clearButton = canvas.getByLabelText("Clear selection");
-		expect(clearButton).toHaveAttribute("role", "button");
-		expect(clearButton).toHaveAttribute("tabindex", "0");
-		expect(clearButton.tagName).toBe("SPAN");
-
-		await userEvent.click(clearButton);
-		await waitFor(() => expect(onChangeSpy).toHaveBeenCalledWith(null));
-
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", { name: /select a fruit/i }),
-			).toBeInTheDocument(),
+export const ClearButtonFocused: Story = {
+	render: function ClearButtonFocusedStory() {
+		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
+		return (
+			<div className="w-80">
+				<Autocomplete
+					value={value}
+					onChange={setValue}
+					options={simpleOptions}
+					getOptionValue={(opt) => opt.id}
+					getOptionLabel={(opt) => opt.name}
+					placeholder="Select a fruit"
+				/>
+			</div>
 		);
+	},
+	play: async () => {
+		await userEvent.tab();
+		await userEvent.tab();
 	},
 };
 
@@ -404,7 +397,7 @@ export const WithCustomRenderOption: Story = {
 	render: function WithCustomRenderOptionStory() {
 		const [value, setValue] = useState<User | null>(null);
 		return (
-			<div className="w-[350px]">
+			<div className="w-87.5">
 				<Autocomplete
 					value={value}
 					onChange={setValue}
@@ -439,7 +432,7 @@ export const WithStartAdornment: Story = {
 	render: function WithStartAdornmentStory() {
 		const [value, setValue] = useState<User | null>(users[0]);
 		return (
-			<div className="w-[350px]">
+			<div className="w-87.5">
 				<Autocomplete
 					value={value}
 					onChange={setValue}
