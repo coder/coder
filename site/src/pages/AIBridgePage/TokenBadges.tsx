@@ -3,7 +3,6 @@ import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
@@ -114,39 +113,35 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 
 	return (
 		<div className="flex items-center whitespace-nowrap">
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<button
-							type="button"
-							className="m-0 flex flex-col items-end gap-1 whitespace-nowrap border-0 bg-transparent p-0 text-inherit rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-						>
-							{pairs.map((pair) => (
-								<TokenPairBadge key={pair[0].title} pair={pair} />
-							))}
-						</button>
-					</TooltipTrigger>
-					<TooltipContent>
-						<div className="flex flex-col gap-4">
-							{pairs.map((pair) => (
-								<TokenPairDetails key={pair[0].title} pair={pair} />
-							))}
-						</div>
-						{tokenUsageMetadata && (
-							<>
-								<div className="text-content-primary text-sm mt-4">
-									Token usage metadata
-								</div>
-								<pre className="mt-2 mb-1 p-4 bg-surface-secondary rounded overflow-x-auto">
-									<JsonPrettyPrinter
-										input={JSON.stringify(tokenUsageMetadata)}
-									/>
-								</pre>
-							</>
-						)}
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						className="m-0 flex flex-col items-end gap-1 whitespace-nowrap bg-transparent p-0 text-inherit rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					>
+						{pairs.map((pair) => (
+							<TokenPairBadge key={pair[0].title} pair={pair} />
+						))}
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>
+					<div className="flex flex-col gap-4">
+						{pairs.map((pair) => (
+							<TokenPairDetails key={pair[0].title} pair={pair} />
+						))}
+					</div>
+					{tokenUsageMetadata && (
+						<>
+							<div className="text-content-primary text-sm mt-4">
+								Token usage metadata
+							</div>
+							<pre className="mt-2 mb-1 p-4 bg-surface-secondary rounded overflow-x-auto">
+								<JsonPrettyPrinter input={JSON.stringify(tokenUsageMetadata)} />
+							</pre>
+						</>
+					)}
+				</TooltipContent>
+			</Tooltip>
 		</div>
 	);
 };

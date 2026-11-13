@@ -187,6 +187,34 @@ func TestNew(t *testing.T) {
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
 }
 
+// The method suite can only allow or deny every chat, so it cannot catch a
+// check that stops after the first readable chat.
+func TestGetChatDiffStatusesByChatIDsMixedAccess(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+	faker := gofakeit.New(0)
+	readable := testutil.Fake(t, faker, database.Chat{})
+	unreadable := testutil.Fake(t, faker, database.Chat{})
+	ids := []uuid.UUID{readable.ID, unreadable.ID}
+
+	authz := &coderdtest.FakeAuthorizer{
+		ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, object rbac.Object) error {
+			if object.ID == unreadable.ID.String() {
+				return xerrors.New("denied")
+			}
+			return nil
+		},
+	}
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	db.EXPECT().GetChatsByIDs(gomock.Any(), ids).Times(1).Return([]database.Chat{readable, unreadable}, nil)
+	q := dbauthz.New(db, authz, slog.Make(), coderdtest.AccessControlStorePointer())
+
+	_, err := q.GetChatDiffStatusesByChatIDs(ctx, ids)
+	require.True(t, dbauthz.IsNotAuthorizedError(err), "expected not authorized, got %v", err)
+}
+
 func TestChatFilesAllowLinkedChatReads(t *testing.T) {
 	t.Parallel()
 
@@ -1127,12 +1155,27 @@ func (s *MethodTestSuite) TestChats() {
 		ids := []uuid.UUID{chatA.ID, chatB.ID}
 		diffStatusA := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatA.ID})
 		diffStatusB := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatB.ID})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chatA.ID).Return(chatA, nil).AnyTimes()
-		dbm.EXPECT().GetChatByID(gomock.Any(), chatB.ID).Return(chatB, nil).AnyTimes()
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
 		dbm.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), ids).Return([]database.ChatDiffStatus{diffStatusA, diffStatusB}, nil).AnyTimes()
 		check.Args(ids).
 			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
 			Returns([]database.ChatDiffStatus{diffStatusA, diffStatusB})
+	}))
+	// A requested chat that does not exist must fail, not be silently skipped.
+	s.Run("GetChatDiffStatusesByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chat.ID, uuid.New()}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(ids).Asserts(chat, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).
+			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
+			Returns([]database.Chat{chatA, chatB})
 	}))
 	s.Run("GetChatFileByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		file := testutil.Fake(s.T(), faker, database.ChatFile{})
@@ -1775,11 +1818,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteAllChatQueuedMessagesReturningCount(gomock.Any(), chat.ID).Return(int64(1), nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
-	s.Run("ReorderChatQueuedMessageToHead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("SteerChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.ReorderChatQueuedMessageToHeadParams{ChatID: chat.ID, ID: 1}
+		arg := database.SteerChatQueuedMessageParams{ChatID: chat.ID, ID: 1}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().ReorderChatQueuedMessageToHead(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		dbm.EXPECT().SteerChatQueuedMessage(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("UpdateChatQueuedMessageEditing", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -3994,6 +4037,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspacesForWorkspaceMetrics(gomock.Any()).Return([]database.GetWorkspacesForWorkspaceMetricsRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace, policy.ActionRead)
 	}))
+	s.Run("GetWorkspaceLastUsedForMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetWorkspaceLastUsedForMetrics(gomock.Any()).Return([]database.GetWorkspaceLastUsedForMetricsRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace, policy.ActionRead)
+	}))
 	s.Run("GetAuthorizedWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetWorkspacesParams{}
 		dbm.EXPECT().GetAuthorizedWorkspaces(gomock.Any(), arg, gomock.Any()).Return([]database.GetWorkspacesRow{}, nil).AnyTimes()
@@ -5393,6 +5440,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceBuildsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceBuildParametersByBuildIDsAndNames", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams{
+			WorkspaceBuildIds: []uuid.UUID{uuid.New()},
+			Names:             []string{"agent_relay_session_id"},
+			NamePrefixes:      []string{"agent_relay_cursor_"},
+		}
+		dbm.EXPECT().GetWorkspaceBuildParametersByBuildIDsAndNames(gomock.Any(), arg).Return([]database.WorkspaceBuildParameter{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ts := dbtime.Now()

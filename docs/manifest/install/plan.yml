@@ -7,3 +7,6 @@ children:
     description: Learn about Coder's architecture and the components that make up a deployment.
     path: ./install/plan/architecture.md
   - include: install/plan/sizing.yml
+  - title: Migrate from Ona (formerly Gitpod)
+    description: Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.
+    path: ./install/plan/migrate-from-ona.md

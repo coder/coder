@@ -205,7 +205,7 @@ const CompactIntegerField: React.FC<CompactIntegerFieldProps> = ({
 	return (
 		<label
 			className={cn(
-				"grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors focus-within:ring-2 focus-within:ring-content-link",
+				"grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border bg-transparent px-3 transition-colors focus-within:ring-2 focus-within:ring-content-link",
 				error && "border-border-destructive",
 				disabled && "opacity-50",
 				className,
@@ -224,9 +224,9 @@ const CompactIntegerField: React.FC<CompactIntegerFieldProps> = ({
 				onBlur={onBlur}
 				aria-invalid={error}
 				disabled={disabled}
-				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-hidden disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+				className="min-w-0 w-full border-none bg-transparent p-0 text-sm leading-6 text-content-primary outline-hidden disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
 			/>
-			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-secondary">
+			<span className="shrink-0 text-xs font-normal leading-4.5 text-content-secondary">
 				{label}
 			</span>
 		</label>

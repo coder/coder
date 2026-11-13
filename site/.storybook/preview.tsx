@@ -7,7 +7,10 @@ import { MotionConfig, MotionGlobalConfig } from "motion/react";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
-import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
+import {
+	TOOLTIP_DELAY_DURATION,
+	TooltipProvider,
+} from "../src/components/Tooltip/Tooltip";
 import themes, { baseModeFor, isConcreteThemeName } from "../src/theme";
 import { AppearanceProvider } from "../src/theme/appearance";
 import { ThemeContextProvider } from "../src/theme/context";
@@ -136,7 +139,7 @@ const withTheme: Decorator = function WithTheme(Story, context) {
 				<AppearanceProvider
 					externalImages={themes[concreteName].externalImages}
 				>
-					<TooltipProvider delayDuration={100}>
+					<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
 						<Story />
 					</TooltipProvider>
 				</AppearanceProvider>

@@ -123,16 +123,28 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    parts with a blank line, also before the first part, so each
 //    part's bold title renders on its own line. Upstream as
 //    charmbracelet/fantasy#436.
-// 17) coder/fantasy#78, replay OpenAI web searches inline from their
-//    result metadata unless they go back as an item reference, which
-//    needs a stored request, a stored source response and the reasoning
-//    item right before the search. Each search replays at most once.
+// 17) coder/fantasy#78 and coder/fantasy#77, replay OpenAI web searches
+//    inline from their result metadata, without item IDs and never as
+//    item references. Each search replays at most once. Replayed
+//    computer calls also drop their item IDs.
 // 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
 //    the toolset tool definition, ComputerUseToolVersionForModel, and
 //    mapping of toolset member calls to and from the computer tool.
 //    Since coder/fantasy#82, unknown model IDs take computer_20251124.
-// See: https://github.com/coder/fantasy/commits/7882f906a89a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261102054736-7882f906a89a
+// 19) coder/fantasy#73 and coder/fantasy#74, convert tool result media
+//    through each provider's file part converter (Anthropic documents,
+//    Chat Completions user file parts, native Responses outputs) and add
+//    a filename. Chat Completions file parts refuse text files, as
+//    Responses does. Since coder/fantasy#84, a text part ahead of the
+//    media in the Chat Completions user message names the tool call and
+//    marks the media as tool output.
+// 20) coder/fantasy#85, send the output token limit as
+//    max_completion_tokens on every OpenAI Chat Completions request, not
+//    only for model IDs that look like reasoning models, so Azure OpenAI
+//    deployment names work. The OpenAI-compatible providers keep
+//    max_tokens.
+// See: https://github.com/coder/fantasy/commits/764e4a1985b4
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261110065722-764e4a1985b4
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -185,7 +197,7 @@ require (
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.15.0
-	github.com/coder/terraform-provider-coder/v2 v2.19.0
+	github.com/coder/terraform-provider-coder/v2 v2.20.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -213,7 +225,7 @@ require (
 	github.com/gohugoio/hugo v0.163.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
-	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
+	github.com/gomarkdown/markdown v0.0.0-20260724235538-61af6e1e6971
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/go-github/v61 v61.0.0
@@ -250,7 +262,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.26.2
@@ -264,7 +276,7 @@ require (
 	github.com/tidwall/gjson v1.19.0
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
-	github.com/valyala/fasthttp v1.75.0
+	github.com/valyala/fasthttp v1.77.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.2.0
 	go.nhat.io/otelsql v0.16.0
@@ -280,16 +292,16 @@ require (
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/mod v0.42.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
 	golang.org/x/tools v0.52.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.308.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -562,7 +574,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrock v1.73.0
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.18.0
-	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.11.0
 	github.com/coder/preview v1.0.10-0.20261027154125-155f674f1c7b
 	github.com/coder/safedial v0.2.0
@@ -583,18 +594,18 @@ require (
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5
 	gitlab.com/gitlab-org/api/client-go v1.46.0
-	gonum.org/v1/gonum v0.17.0
 	gopkg.in/dnaeon/go-vcr.v4 v4.0.6
 	mvdan.cc/sh/v3 v3.14.0
 )
 
 require (
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 
 require (
-	cel.dev/cel-go v0.32.0
+	cel.dev/cel-go v0.33.2
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 )
 
@@ -683,7 +694,6 @@ require (
 	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
-	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect

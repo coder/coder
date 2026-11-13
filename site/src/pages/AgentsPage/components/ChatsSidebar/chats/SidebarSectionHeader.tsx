@@ -23,7 +23,7 @@ export const SidebarSectionHeader: React.FC<SidebarSectionHeaderProps> = ({
 				{collapsible ? (
 					<button
 						type="button"
-						className="flex cursor-pointer appearance-none items-center gap-1 rounded-md border-0 bg-transparent p-0 font-sans text-sm leading-6 text-current hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+						className="flex cursor-pointer appearance-none items-center gap-1 rounded-md bg-transparent p-0 font-sans text-sm leading-6 text-current hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 						aria-expanded={collapsible.expanded}
 						onClick={collapsible.onToggle}
 					>

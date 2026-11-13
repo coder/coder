@@ -1936,6 +1936,7 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 		t.Parallel()
 
 		available, inactive, unsupported := uuid.New(), uuid.New(), uuid.New()
+		bedrockClaude, bedrockNonClaude := uuid.New(), uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		expectOverrides(db, []database.GetChatOrganizationModelOverridesByContextRow{
 			{
@@ -1952,6 +1953,18 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 				ModelAvailable: true,
 				Model:          "openai/gpt-test",
 				ProviderType:   string(database.AIProviderTypeOpenrouter),
+			},
+			{
+				OrganizationID: bedrockClaude,
+				ModelAvailable: true,
+				Model:          "us.anthropic.claude-opus-5-5",
+				ProviderType:   string(database.AIProviderTypeBedrock),
+			},
+			{
+				OrganizationID: bedrockNonClaude,
+				ModelAvailable: true,
+				Model:          "openai.gpt-5.4",
+				ProviderType:   string(database.AIProviderTypeBedrock),
 			},
 		}, nil)
 
@@ -1970,6 +1983,16 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 			},
 			{
 				OrganizationID: unsupported.String(),
+				Provider:       telemetry.AgentsExperimentComputerUseOrgDefaultModel,
+				Model:          telemetry.AgentsExperimentComputerUseOrgDefaultModel,
+			},
+			{
+				OrganizationID: bedrockClaude.String(),
+				Provider:       string(database.AIProviderTypeBedrock),
+				Model:          "us.anthropic.claude-opus-5-5",
+			},
+			{
+				OrganizationID: bedrockNonClaude.String(),
 				Provider:       telemetry.AgentsExperimentComputerUseOrgDefaultModel,
 				Model:          telemetry.AgentsExperimentComputerUseOrgDefaultModel,
 			},
