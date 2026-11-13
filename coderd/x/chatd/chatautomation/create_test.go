@@ -839,3 +839,69 @@ func TestCreateReferenceDeleted(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateReferenceDeletedWhileInserting leaves a delete of the target chat,
+// the creating chat or the project open until the insert waits on it. The
+// trigger of the table still reads the row, so the foreign key check is what
+// fails when the delete commits. dbpurge deletes chats in one long transaction,
+// so that window is not short.
+func TestCreateReferenceDeletedWhileInserting(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		// reference sets the chat or project that the request names and returns
+		// the statement that deletes it.
+		reference func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, p *chatautomation.CreateParams) (deleteSQL string, id uuid.UUID)
+	}{
+		{name: "TargetChat", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, _ *chatautomation.CreateParams) (string, uuid.UUID) {
+			target := f.chat(t)
+			req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
+			return "DELETE FROM chats WHERE id = $1", target.ID
+		}},
+		{name: "CreatingChat", reference: func(t *testing.T, f fixture, _ *codersdk.CreateChatAutomationRequest, p *chatautomation.CreateParams) (string, uuid.UUID) {
+			creating := f.chat(t)
+			p.CreatedByChatID = nullID(creating.ID)
+			return "DELETE FROM chats WHERE id = $1", creating.ID
+		}},
+		{name: "Project", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, _ *chatautomation.CreateParams) (string, uuid.UUID) {
+			project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+			req.ProjectID = &project.ID
+			return "DELETE FROM chat_projects WHERE id = $1", project.ID
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newFixture(t, db, sqlDB)
+			req := webhookToNewChat(t, f)
+			p := createParams(f.org.ID, req)
+			deleteSQL, id := tc.reference(t, f, &req, &p)
+			p.Request = req
+			h, actor := newHarness(t, db, testLimits), userActor(t, db, f.owner.ID)
+
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			_, err = tx.ExecContext(ctx, deleteSQL, id)
+			require.NoError(t, err)
+			errc := make(chan error, 1)
+			go func() {
+				_, err := h.creator.Create(ctx, actor, p)
+				errc <- err
+			}()
+			require.Eventually(t, func() bool {
+				var n int
+				err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_stat_activity
+					WHERE datname = current_database() AND wait_event_type = 'Lock'
+					AND query LIKE '%INSERT INTO chat_automations%'`).Scan(&n)
+				return err == nil && n > 0
+			}, testutil.WaitMedium, testutil.IntervalFast, "the insert never waited on the open delete")
+			require.NoError(t, tx.Commit())
+
+			require.ErrorIs(t, <-errc, chatautomation.ErrReferenceUnavailable)
+			var rows int
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM chat_automations").Scan(&rows))
+			require.Zero(t, rows)
+		})
+	}
+}

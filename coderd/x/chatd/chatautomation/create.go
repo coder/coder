@@ -55,7 +55,9 @@ type CreateResult struct {
 // The triggers of chat_automations raise these constraints when a chat or
 // project of the row is gone or in another organization. checkReferences has
 // read them in this organization, so a trigger fires only when a concurrent
-// delete removes the chat or project between that read and the insert.
+// delete removes the chat or project between that read and the insert. A
+// delete that is still open at the trigger makes the foreign key check wait
+// and then fail, and Create maps that to the same answer.
 const (
 	chatOrganizationTrigger    database.CheckConstraint = "chat_automations_chat_organization"
 	projectOrganizationTrigger database.CheckConstraint = "chat_automations_project_organization"
@@ -141,7 +143,9 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 			return missingRow(actorCtx, tx, owner)
 		case dbauthz.IsNotAuthorizedError(err):
 			return ErrCreateForbidden
-		case database.IsCheckViolation(err, chatOrganizationTrigger, projectOrganizationTrigger):
+		case database.IsCheckViolation(err, chatOrganizationTrigger, projectOrganizationTrigger),
+			database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsTargetChatID,
+				database.ForeignKeyChatAutomationsCreatedByChatID, database.ForeignKeyChatAutomationsProjectID):
 			return ErrReferenceUnavailable
 		case err != nil:
 			return xerrors.Errorf("insert chat automation: %w", err)
