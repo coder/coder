@@ -53,4 +53,26 @@ describe("MultiSelectCombobox", () => {
 		await user.click(screen.getByRole("button", { name: "Clear all" }));
 		expect(onChange).toHaveBeenLastCalledWith([]);
 	});
+
+	it("keeps focus in the field and adds nothing when Enter removes an option", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<MultiSelectCombobox
+				commandProps={{ label: "Templates" }}
+				options={options}
+				onChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("combobox", { name: "Templates" });
+		await user.click(input);
+		await user.click(screen.getByRole("option", { name: "Docker" }));
+		await user.click(screen.getByRole("option", { name: "Kubernetes" }));
+
+		screen.getByRole("button", { name: "Remove Docker" }).focus();
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith([options[1]]);
+		expect(input).toHaveFocus();
+	});
 });

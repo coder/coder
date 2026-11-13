@@ -257,7 +257,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			if (e.key === "Escape") {
 				input.blur();
 			}
-			if (e.key === "ArrowDown") {
+			// Only from the input: cmdk would otherwise select the highlighted
+			// option on a following Enter pressed on a remove button.
+			if (e.key === "ArrowDown" && e.target === input) {
 				setOpen(true);
 			}
 		}
@@ -530,14 +532,26 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										)}
 										onKeyDown={(e) => {
 											if (e.key === "Enter") {
+												// The button unmounts with its option, so keep focus
+												// in the field. cmdk would treat Enter as selecting an
+												// option, so it must not reach the list.
+												e.preventDefault();
+												e.stopPropagation();
 												handleUnselect(option);
+												inputRef.current?.focus();
 											}
 										}}
 										onMouseDown={(e) => {
 											e.preventDefault();
 											e.stopPropagation();
 										}}
-										onClick={() => handleUnselect(option)}
+										onClick={(e) => {
+											handleUnselect(option);
+											// detail is 0 for a click from the keyboard (Space).
+											if (e.detail === 0) {
+												inputRef.current?.focus();
+											}
+										}}
 									>
 										<XIcon className="size-4 text-content-secondary hover:text-content-primary align-text-bottom" />
 									</button>
@@ -596,14 +610,23 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							type="button"
 							aria-label="Clear all"
 							data-testid="clear-all-button"
-							onClick={() => {
+							onClick={(e) => {
 								setSelected(fixedOptions);
 								onChange?.(fixedOptions);
+								// detail is 0 for a click from the keyboard (Space).
+								if (e.detail === 0) {
+									inputRef.current?.focus();
+								}
 							}}
 							onKeyDown={(e) => {
 								if (e.key === "Enter") {
+									// The button hides once nothing is selected, so keep
+									// focus in the field, and keep Enter away from cmdk.
+									e.preventDefault();
+									e.stopPropagation();
 									setSelected(fixedOptions);
 									onChange?.(fixedOptions);
+									inputRef.current?.focus();
 								}
 							}}
 							className={cn(
