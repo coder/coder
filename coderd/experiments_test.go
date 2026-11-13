@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -170,6 +171,61 @@ func Test_Experiments(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+	})
+
+	// Later automation code asks api.ExperimentEvaluator about one user ID at
+	// a time: the caller, a chat's owner, or an automation's owner.
+	t.Run("chat automations per user", func(t *testing.T) {
+		t.Parallel()
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{string(codersdk.ExperimentChatAutomations)}
+		ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: cfg,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		var revision int64
+		writeRule := func(rule experimentrules.Rule) {
+			t.Helper()
+			_, stored, _, err := experimentrules.WriteRule(dbauthz.AsSystemRestricted(ctx), api.Database, owner.UserID, codersdk.ExperimentChatAutomations, rule, revision)
+			require.NoError(t, err)
+			revision = stored.Revision
+		}
+		requireEnabled := func(wantOwner, wantMember bool) {
+			t.Helper()
+			for _, tc := range []struct {
+				name   string
+				client *codersdk.Client
+				userID uuid.UUID
+				want   bool
+			}{
+				{"owner", ownerClient, owner.UserID, wantOwner},
+				{"member", memberClient, member.ID, wantMember},
+			} {
+				require.Equal(t, tc.want, api.ExperimentEvaluator.Enabled(ctx, tc.userID, codersdk.ExperimentChatAutomations), tc.name)
+				listed, err := tc.client.Experiments(ctx)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, listed.Enabled(codersdk.ExperimentChatAutomations), tc.name)
+			}
+		}
+
+		requireEnabled(true, true)
+		require.False(t, api.ExperimentEvaluator.Enabled(ctx, uuid.Nil, codersdk.ExperimentChatAutomations), "nil subject")
+
+		writeRule(experimentrules.Rule{
+			Mode:      experimentrules.ModeCondition,
+			Condition: fmt.Sprintf("user.username == %q", member.Username),
+		})
+		requireEnabled(false, true)
+
+		writeRule(experimentrules.Rule{Mode: experimentrules.ModeOff})
+		requireEnabled(false, false)
+
+		writeRule(experimentrules.Rule{Mode: experimentrules.ModeInherit})
+		requireEnabled(true, true)
 	})
 
 	t.Run("available experiments", func(t *testing.T) {

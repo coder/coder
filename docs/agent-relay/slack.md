@@ -141,20 +141,22 @@ Guests can read everything Claude posts, including output it produced with the T
 ### Channel session lifecycle
 
 - Workspace names start with `cc-`, followed by the session's UUID.
-- The module releases a session after 60&nbsp;minutes without a user message, and Agent Relay deletes the workspace.
+- The pool's `idle_release_timeout`, 1&nbsp;hour by default, releases a session that goes that long without a user message, and Agent Relay deletes the workspace.
   The next message resumes the session in a new workspace.
 - Claude replaces a channel's session after about an hour without activity, when the channel's configuration changes, or when the session is about a day old.
   Each replacement gets a new workspace.
 - Tagging `@claude !restart` replaces the thread's or channel's session with a new one in a new workspace.
 - Deleting a thread's first message closes the session, and Agent Relay deletes its workspace.
 
+To change how long a session can sit idle before release, set `idle_release_timeout` on the pool, as described in [Fields for every pool](./configuration.md#fields-for-every-pool).
+Agent Relay sets the value on every build, so the pool setting overrides the module's `release_idle_session_min` input, which is only a fallback.
+
 To change how long sessions run, set these inputs on the template's `agent-relay-claude-code` module:
 
-| Input                                                         | Default | Effect                                                                                                               |
-|---------------------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------------|
-| `release_idle_session_min`                                    | `60`    | Releases the session after this many minutes without a user message. `0` keeps the workspace until the session ends. |
-| `additional_args = ["--kill-session-after-min", "<minutes>"]` | Off     | Ends each session after this many minutes. Pair it with idle release, because some sessions never register as idle.  |
-| `additional_args = ["--push-outcome-on-release"]`             | Off     | Pushes the session's outcome branches before release, so commits survive.                                            |
+| Input                                                         | Default | Effect                                                                                                              |
+|---------------------------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------|
+| `additional_args = ["--kill-session-after-min", "<minutes>"]` | Off     | Ends each session after this many minutes. Pair it with idle release, because some sessions never register as idle. |
+| `additional_args = ["--push-outcome-on-release"]`             | Off     | Pushes the session's outcome branches before release, so commits survive.                                           |
 
 After an idle release, the next message rebuilds the workspace with the same name on a fresh disk, so unpushed work is lost.
 

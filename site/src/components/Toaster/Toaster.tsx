@@ -55,7 +55,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 				closeButton: true,
 				classNames: {
 					toast: cn(
-						"bg-surface-secondary text-content-secondary border border-solid text-sm p-3 pr-12",
+						"bg-surface-secondary text-content-secondary border text-sm p-3 pr-12",
 						"shadow-sm rounded-md grid grid-cols-[auto_1fr] w-96 gap-2",
 						"data-[expanded=false]:data-[front=false]:overflow-hidden",
 						"[&[data-expanded=false][data-front=false]>*]:opacity-0",
@@ -64,7 +64,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 					description: "mt-1",
 					icon: "pt-1 [&_svg]:size-icon-sm flex flex-col",
 					actionButton: cn(
-						"border border-solid bg-transparent text-xs rounded-md cursor-pointer",
+						"border bg-transparent text-xs rounded-md cursor-pointer",
 						"flex items-center gap-2 mt-1 py-1.5 px-2 col-start-2 justify-self-start",
 						"[&_svg]:size-icon-xs [&_span]:text-xs text-content-primary",
 					),

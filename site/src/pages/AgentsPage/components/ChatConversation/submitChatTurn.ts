@@ -356,14 +356,20 @@ export async function submitChatTurn(
 
 	if (editingTarget?.kind === "queued") {
 		const queuedMessageID = editingTarget.id;
+		const queuedRow = store
+			.getSnapshot()
+			.queuedMessages.find((row) => row.id === queuedMessageID);
 		// A queued row keeps its model and effort unless the user changes
 		// them during this edit; the picker otherwise shows the chat's model,
-		// not the row's.
+		// not the row's. A row whose model is no longer selectable takes the
+		// picker's model, as a history edit does.
 		const request: TypesGen.EditChatQueuedMessageRequest = {
 			content,
-			model_config_id: isEditModelDirtyRef.current
-				? effectiveSelectedModel || undefined
-				: undefined,
+			model_config_id:
+				isEditModelDirtyRef.current ||
+				isUnavailableHistoricalModelID(queuedRow?.model_config_id, modelOptions)
+					? effectiveSelectedModel || undefined
+					: undefined,
 			reasoning_effort: isEditReasoningEffortDirtyRef.current
 				? effectiveReasoningEffort
 				: undefined,
