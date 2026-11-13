@@ -94,6 +94,10 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 // An explicit "type" field takes priority; otherwise the presence
 // of "command" implies stdio and "url" implies http.
 func inferTransport(e mcpServerEntry) string {
+	// "streamable-http" is the Agent Plugins spelling.
+	if e.Type == "streamable-http" {
+		return "http"
+	}
 	if e.Type != "" {
 		return e.Type
 	}
