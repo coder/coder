@@ -52,23 +52,6 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
 
-// chatAutomationGenCtx is the generator context for a chat automation of
-// ownerID. dbauthz lets only the owner create an automation, and the owner
-// role has no create permission, so genCtx cannot insert one.
-func chatAutomationGenCtx(ownerID uuid.UUID) context.Context {
-	return dbauthz.As(context.Background(), rbac.Subject{
-		ID: ownerID.String(),
-		Roles: rbac.Roles(append(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()), rbac.Role{
-			Identifier: rbac.RoleIdentifier{Name: "dbgen-chat-automation"},
-			Site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceChatAutomation.Type: {policy.ActionCreate},
-			}),
-		})),
-		Groups: []string{},
-		Scope:  rbac.ExpandableScope(rbac.ScopeAll),
-	})
-}
-
 func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
 	log, err := db.InsertAuditLog(genCtx, database.InsertAuditLogParams{
 		ID:     takeFirst(seed.ID, uuid.New()),
@@ -147,7 +130,7 @@ func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomatio
 		params.WhenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
 	}
 
-	automation, err := db.InsertChatAutomation(chatAutomationGenCtx(params.OwnerID), params)
+	automation, err := db.InsertChatAutomation(genCtx, params)
 	require.NoError(t, err, "insert chat automation")
 	return automation
 }

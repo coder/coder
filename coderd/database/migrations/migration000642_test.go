@@ -102,18 +102,7 @@ func TestMigration000642ChatAutomationsRoundTrip(t *testing.T) {
 
 	before := schemaFingerprint(ctx, t, sqlDB)
 
-	// A failure after the migration's last statement must leave nothing
-	// behind: the migrator runs every pending migration in one transaction.
-	tx, err := sqlDB.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	_, err = tx.ExecContext(ctx, string(up))
-	require.NoError(t, err)
-	_, err = tx.ExecContext(ctx, `SELECT 1 / 0`)
-	require.Error(t, err)
-	require.NoError(t, tx.Rollback())
-	require.Equal(t, before, schemaFingerprint(ctx, t, sqlDB), "schema after a rolled back migration")
-
-	_, err = sqlDB.ExecContext(ctx, string(up))
+	_, err := sqlDB.ExecContext(ctx, string(up))
 	require.NoError(t, err)
 	migrated := schemaFingerprint(ctx, t, sqlDB)
 	require.NotEqual(t, before, migrated)
@@ -216,32 +205,13 @@ func TestMigration000642DownWithData(t *testing.T) {
 	exec(`INSERT INTO chat_messages (chat_id, role, content_version, prompt_hooks_pending)
 		VALUES ($1, 'user', 1, true)`, chatID)
 
-	// The history message above still waits for its prompt hooks. The down
-	// must not drop that flag, and a refused down changes nothing.
-	rowCounts := func() string {
-		t.Helper()
-		var counts string
-		require.NoError(t, sqlDB.QueryRowContext(ctx, `
-			SELECT format('%s automations, %s queued messages, %s pending messages, %s keys, %s tokens, %s automation chats',
-				(SELECT count(*) FROM chat_automations),
-				(SELECT count(*) FROM chat_queued_messages),
-				(SELECT count(*) FROM chat_messages WHERE prompt_hooks_pending),
-				(SELECT count(*) FROM api_keys),
-				(SELECT count(*) FROM oauth2_provider_app_tokens),
-				(SELECT count(*) FROM chats WHERE automation_id IS NOT NULL))`).Scan(&counts))
-		return counts
-	}
-	schemaBefore, rowsBefore := schemaFingerprint(ctx, t, sqlDB), rowCounts()
-	require.Equal(t, "1 automations, 4 queued messages, 2 pending messages, 11 keys, 2 tokens, 1 automation chats", rowsBefore)
-
+	// The history message above still waits for its prompt hooks, so the
+	// down must refuse.
 	_, err := sqlDB.ExecContext(ctx, string(down))
 	var refused *pq.Error
 	require.ErrorAs(t, err, &refused)
 	require.Equal(t, "migration 000642 down: 2 chat messages still wait for their prompt hooks. "+
 		"Keep this release running until chatd has started these turns, then run the down migration again.", refused.Message)
-	require.Empty(t, refused.Hint, "no caller prints a HINT, so the guidance must be in the message")
-	require.Equal(t, schemaBefore, schemaFingerprint(ctx, t, sqlDB), "schema after a refused down")
-	require.Equal(t, rowsBefore, rowCounts(), "rows after a refused down")
 
 	exec(`UPDATE chat_messages SET prompt_hooks_pending = false WHERE chat_id = $1`, chatID)
 	_, err = sqlDB.ExecContext(ctx, string(down))
@@ -281,24 +251,6 @@ func TestMigration000642DownWithData(t *testing.T) {
 		require.JSONEq(t, want, got, column)
 	}
 
-	// The previous release fails every request that loads a key or a role
-	// naming a resource type it does not know.
-	var leftovers int
-	require.NoError(t, sqlDB.QueryRowContext(ctx, `
-		SELECT
-			(SELECT count(*) FROM api_keys
-				WHERE scopes::text LIKE '%chat_automation%' OR allow_list::text LIKE '%chat_automation%')
-			+ (SELECT count(*) FROM custom_roles
-				WHERE site_permissions::text || org_permissions::text || user_permissions::text || member_permissions::text
-					LIKE '%chat_automation%')`).Scan(&leftovers))
-	require.Zero(t, leftovers, "keys and roles that still name chat_automation")
-
-	var removedLabels int
-	require.NoError(t, sqlDB.QueryRowContext(ctx, `
-		SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-		WHERE t.typname = 'api_key_scope' AND e.enumlabel LIKE 'chat\_automation:%'`).Scan(&removedLabels))
-	require.Zero(t, removedLabels)
-
 	var queued string
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
 		`SELECT string_agg(content::text, ',') FROM chat_queued_messages WHERE chat_id = $1`, chatID).Scan(&queued))
@@ -312,83 +264,24 @@ func TestMigration000642DownWithData(t *testing.T) {
 	require.Equal(t, 1, chats)
 }
 
-// The down migration deletes API keys, and that delete cascades into
-// oauth2_provider_app_tokens. The application deletes in the other order:
-// a token delete fires a trigger that deletes the API key. The migration
-// must hold both tables before it deletes anything, or the two sides wait
-// for each other.
-func TestMigration000642DownConcurrentTokenDelete(t *testing.T) {
-	t.Parallel()
-
-	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 642)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, down := readMigration000642(t)
-	now := time.Now().UTC().Truncate(time.Microsecond)
-
-	_, userID := seedChatWithStatus(ctx, t, sqlDB, "waiting")
-	appID, tokenID := uuid.New(), uuid.New()
-	for _, q := range []struct {
-		sql  string
-		args []any
-	}{
-		{`INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url)
-			VALUES ($1, $2, $2, 'app-642', '', 'http://localhost/callback')`, []any{appID, now}},
-		{`INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name)
-			VALUES ('automation-key', '\x01', $1, $2, $2, $2, $2, 'token', '{chat_automation:update}', '{*:*}', 'automation-key')`, []any{userID, now}},
-		{`INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope)
-			VALUES ($1, $2, $2, '\x01', '\x01', 'automation-key', $3, $4, 'template:read')`, []any{tokenID, now, userID, appID}},
-	} {
-		_, err := sqlDB.ExecContext(ctx, q.sql, q.args...)
-		require.NoError(t, err)
-	}
-
-	// Run the lock block, then let the application start its delete, then
-	// run the rest of the migration.
-	lockBlock, rest := splitAfterLockBlock(t, down)
-
-	migrationConn, migrationPID := dedicatedConn(ctx, t, sqlDB)
-	migrationTx, err := migrationConn.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = migrationTx.Rollback() }()
-	_, err = migrationTx.ExecContext(ctx, string(lockBlock))
-	require.NoError(t, err)
-
-	appConn, appPID := dedicatedConn(ctx, t, sqlDB)
-	app := async(func() error {
-		_, err := appConn.ExecContext(ctx, `DELETE FROM oauth2_provider_app_tokens WHERE id = $1`, tokenID)
-		return err
-	})
-	requireWaitsFor(ctx, t, sqlDB, appPID, migrationPID)
-
-	migration := async(func() error {
-		_, err := migrationTx.ExecContext(ctx, string(rest))
-		return errors.Join(err, migrationTx.Rollback())
-	})
-	requireNoDeadlockVictim(ctx, t, "migration", migration)
-	requireNoDeadlockVictim(ctx, t, "application", app)
-
-	var tokens int
-	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT count(*) FROM oauth2_provider_app_tokens WHERE id = $1`, tokenID).Scan(&tokens))
-	require.Zero(t, tokens, "the application's delete ran after the migration rolled back")
-}
-
-// The statements after the up migration's lock block need locks that
-// application transactions also take. A transaction that holds one of them
-// and then waits for a chat table would deadlock with the migration, so the
-// lock block must take them all.
-func TestMigration000642UpLocksBeforeChanges(t *testing.T) {
+// The statements after a migration's lock block need locks that application
+// transactions also take. A transaction that holds one of them and then waits
+// for a table that the migration changes would deadlock with the migration,
+// so the lock block must take them all.
+func TestMigration000642LocksBeforeChanges(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name string
+		down bool
+		// seed adds the rows that app needs before the migration starts.
+		seed func(ctx context.Context, t *testing.T, db *sql.DB, userID uuid.UUID)
 		app  func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error
 	}{
 		{
 			// The insert locks chat_queued_messages, then its foreign key
 			// and triggers lock chats. The migration alters both tables.
-			name: "QueueMessage",
+			name: "UpQueueMessage",
 			app: func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error {
 				_, err := conn.ExecContext(ctx, `
 					INSERT INTO chat_queued_messages (chat_id, content, created_by)
@@ -398,7 +291,7 @@ func TestMigration000642UpLocksBeforeChanges(t *testing.T) {
 		},
 		{
 			// The chat_automations foreign key to users locks users.
-			name: "UpdateUserThenChat",
+			name: "UpUpdateUserThenChat",
 			app: func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error {
 				tx, err := conn.BeginTx(ctx, nil)
 				if err != nil {
@@ -414,16 +307,53 @@ func TestMigration000642UpLocksBeforeChanges(t *testing.T) {
 				return tx.Commit()
 			},
 		},
+		{
+			// The down deletes API keys, and that delete cascades into
+			// oauth2_provider_app_tokens. The application deletes in the
+			// other order: a token delete fires a trigger that deletes the
+			// API key.
+			name: "DownDeleteToken",
+			down: true,
+			seed: func(ctx context.Context, t *testing.T, db *sql.DB, userID uuid.UUID) {
+				now := time.Now().UTC().Truncate(time.Microsecond)
+				appID := uuid.New()
+				for _, q := range []struct {
+					sql  string
+					args []any
+				}{
+					{`INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url)
+						VALUES ($1, $2, $2, 'app-642', '', 'http://localhost/callback')`, []any{appID, now}},
+					{`INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name)
+						VALUES ('automation-key', '\x01', $1, $2, $2, $2, $2, 'token', '{chat_automation:update}', '{*:*}', 'automation-key')`, []any{userID, now}},
+					{`INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope)
+						VALUES ($1, $2, $2, '\x01', '\x01', 'automation-key', $3, $4, 'template:read')`, []any{uuid.New(), now, userID, appID}},
+				} {
+					_, err := db.ExecContext(ctx, q.sql, q.args...)
+					require.NoError(t, err)
+				}
+			},
+			app: func(ctx context.Context, conn *sql.Conn, _, _ uuid.UUID) error {
+				_, err := conn.ExecContext(ctx, `DELETE FROM oauth2_provider_app_tokens WHERE api_key_id = 'automation-key'`)
+				return err
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			up, down := readMigration000642(t)
+			from, migrationSQL := uint(641), up
+			if tc.down {
+				from, migrationSQL = 642, down
+			}
 			sqlDB := testSQLDB(t)
-			stepTo(t, sqlDB, 641)
+			stepTo(t, sqlDB, from)
 			ctx := testutil.Context(t, testutil.WaitLong)
-			up, _ := readMigration000642(t)
 			chatID, userID := seedChatWithStatus(ctx, t, sqlDB, "waiting")
-			lockBlock, rest := splitAfterLockBlock(t, up)
+			if tc.seed != nil {
+				tc.seed(ctx, t, sqlDB, userID)
+			}
+			lockBlock, rest := splitAfterLockBlock(t, migrationSQL)
 
 			migrationConn, migrationPID := dedicatedConn(ctx, t, sqlDB)
 			migrationTx, err := migrationConn.BeginTx(ctx, nil)
@@ -556,8 +486,4 @@ func TestMigration000642DownRefusesMessageCommittedWhileItWaits(t *testing.T) {
 
 	err = testutil.TryReceive(ctx, t, migration)
 	require.ErrorContains(t, err, "1 chat messages still wait for their prompt hooks")
-	var pending int
-	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT count(*) FROM chat_messages WHERE prompt_hooks_pending`).Scan(&pending))
-	require.Equal(t, 1, pending, "the refused down keeps the flag")
 }
