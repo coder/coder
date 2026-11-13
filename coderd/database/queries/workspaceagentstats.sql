@@ -185,8 +185,17 @@ SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = late
 
 -- name: GetWorkspaceAgentUsageStats :many
 WITH stats AS (
+	-- Only the columns read below, so the sort carries narrower rows.
 	SELECT
-		*,
+		user_id,
+		agent_id,
+		workspace_id,
+		template_id,
+		created_at,
+		rx_bytes,
+		tx_bytes,
+		connection_median_latency_ms,
+		session_counts,
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		created_at > $1 AND connection_median_latency_ms > 0 AS reports_latency,
 		usage AND date_trunc('minute', created_at) = MAX(date_trunc('minute', created_at)) FILTER (
@@ -213,23 +222,39 @@ WITH stats AS (
 	GROUP BY agent_id
 )
 SELECT
-	stats.user_id,
-	stats.agent_id,
-	stats.workspace_id,
-	stats.template_id,
-	MIN(stats.created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
-	coalesce(SUM(stats.rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
-	coalesce(SUM(stats.tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95,
+	agg.user_id,
+	agg.agent_id,
+	agg.workspace_id,
+	agg.template_id,
+	agg.aggregated_from,
+	agg.workspace_rx_bytes,
+	agg.workspace_tx_bytes,
+	agg.workspace_connection_latency_50,
+	agg.workspace_connection_latency_95,
 	-- Repeated so this row keeps the same layout as GetWorkspaceAgentStats, which
 	-- telemetry converts between.
-	stats.agent_id,
+	agg.agent_id,
 	coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts
-FROM stats
-LEFT JOIN latest_sessions ON latest_sessions.agent_id = stats.agent_id
-GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id, latest_sessions.session_counts
-HAVING BOOL_OR(reports_latency);
+FROM (
+	-- Aggregate before joining, so the join sees one row per group instead of
+	-- one per stat row.
+	SELECT
+		stats.user_id,
+		stats.agent_id,
+		stats.workspace_id,
+		stats.template_id,
+		MIN(stats.created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
+		coalesce(SUM(stats.rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
+		coalesce(SUM(stats.tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
+		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
+		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95
+	FROM stats
+	GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id
+	HAVING BOOL_OR(reports_latency)
+) AS agg
+LEFT JOIN latest_sessions
+	-- One row per agent, so this neither duplicates nor drops groups.
+	ON latest_sessions.agent_id = agg.agent_id;
 
 -- name: GetWorkspaceAgentStatsAndLabels :many
 WITH agent_stats AS (
