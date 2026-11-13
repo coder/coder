@@ -39,7 +39,8 @@ func TestGetModulesArchive(t *testing.T) {
 
 		// Check that all of the files it should contain are correct
 		b := bytes.NewBuffer(archive)
-		tarfs := archivefs.FromTarReader(b)
+		tarfs, err := archivefs.FromTarReader(b)
+		require.NoError(t, err)
 
 		content, err := fs.ReadFile(tarfs, ".terraform/modules/modules.json")
 		require.NoError(t, err)
@@ -152,7 +153,8 @@ func TestGetModulesArchive(t *testing.T) {
 		require.Equal(t, "large:large", skipped[0])
 
 		// Verify small module is in the archive
-		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		tarfs, err := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		require.NoError(t, err)
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/small/payload")
 		require.NoError(t, err, "small module should be included")
 	})
@@ -187,7 +189,8 @@ func TestGetModulesArchive(t *testing.T) {
 		require.Equal(t, "large:large", skipped[0])
 
 		// Verify correct modules are in archive
-		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		tarfs, err := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		require.NoError(t, err)
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/small/payload")
 		require.NoError(t, err, "small module should be included")
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/medium/payload")
@@ -211,7 +214,8 @@ func TestGetModulesArchive(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, skipped, "no modules should be skipped")
 
-		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		tarfs, err := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		require.NoError(t, err)
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/mod1/payload")
 		require.NoError(t, err)
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/mod2/payload")
@@ -288,7 +292,8 @@ func TestGetModulesArchive(t *testing.T) {
 
 		require.Len(t, skipped, 3, "all three large modules should be skipped")
 
-		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		tarfs, err := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		require.NoError(t, err)
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/tiny/payload")
 		require.NoError(t, err, "tiny module should be included")
 		_, err = fs.ReadFile(tarfs, ".terraform/modules/small/payload")

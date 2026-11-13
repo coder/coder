@@ -1781,7 +1781,9 @@ func writeFakeProviderMirror(t *testing.T, packages ...string) string {
 // path is spelled out because provisioner versions must agree on it.
 func importedLockFile(t *testing.T, moduleFiles []byte) []byte {
 	t.Helper()
-	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)),
+	files, err := archivefs.FromTarReader(bytes.NewReader(moduleFiles))
+	require.NoError(t, err)
+	content, err := fs.ReadFile(files,
 		".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
 	require.NoError(t, err)
 	return content

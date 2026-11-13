@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -151,6 +152,35 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("InvalidTarFile", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Uploads reject archives that are not tar, so store a gzipped
+		// tar directly, as an upload from an older release would have.
+		var gzipped bytes.Buffer
+		gw := gzip.NewWriter(&gzipped)
+		_, err := gw.Write(make([]byte, 1024))
+		require.NoError(t, err)
+		require.NoError(t, gw.Close())
+		file := dbgen.File(t, db, database.File{
+			CreatedBy: user.UserID,
+			Data:      gzipped.Bytes(),
+		})
+
+		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Detail, "gzip")
 	})
 
 	t.Run("WithParameters", func(t *testing.T) {

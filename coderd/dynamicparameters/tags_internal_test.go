@@ -614,7 +614,9 @@ func Test_DynamicWorkspaceTagDefaultsFromFile(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tarData := testutil.CreateTar(t, tc.files)
 
-			output, diags := preview.Preview(ctx, preview.Input{}, archivefs.FromTarReader(bytes.NewBuffer(tarData)))
+			files, err := archivefs.FromTarReader(bytes.NewBuffer(tarData))
+			require.NoError(t, err)
+			output, diags := preview.Preview(ctx, preview.Input{}, files)
 			if tc.expectedError != "" {
 				require.True(t, diags.HasErrors())
 				require.Contains(t, diags.Error(), tc.expectedError)
