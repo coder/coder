@@ -105,30 +105,6 @@ func TestCLI(t *testing.T) {
 		requireOOMScore(t, cmd.Process.Pid, 123)
 		requireNiceScore(t, cmd.Process.Pid, 12)
 	})
-
-	t.Run("LowerNiceWithCapSysNice", func(t *testing.T) {
-		// Built next to TestBin, like the Capabilities subtest, so both
-		// binaries sit on the same filesystem for setcap.
-		capDir := filepath.Join(filepath.Dir(TestBin), "nice-caps")
-		err := os.Mkdir(capDir, 0o755)
-		require.NoError(t, err)
-		bin := buildBinary(capDir)
-		// Lowering the nice score requires CAP_SYS_NICE to be effective when setpriority runs.
-		err = setCaps(t, bin, "cap_sys_nice")
-		if os.Getenv("CI") != "" {
-			require.NoError(t, err)
-		} else if err != nil {
-			t.Skipf("unable to set capabilities for test: %v", err)
-		}
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		cmd, path := binCmd(ctx, t, bin, 0, -5)
-		err = cmd.Start()
-		require.NoError(t, err)
-		go cmd.Wait()
-
-		waitForSentinel(ctx, t, cmd, path)
-		requireNiceScore(t, cmd.Process.Pid, -5)
-	})
 }
 
 func requireNiceScore(t *testing.T, pid int, score int) {

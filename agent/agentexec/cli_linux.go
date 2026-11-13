@@ -68,16 +68,6 @@ func CLI() error {
 		}
 	}
 
-	// Lowering the nice score requires CAP_SYS_NICE to be effective, so this runs
-	// before the effective caps are dropped below.
-	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
-	if err != nil {
-		// We alert the user instead of failing the command since it can be difficult to debug
-		// for a template admin otherwise. It's quite possible (and easy) to set an
-		// inappriopriate value for niceness.
-		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
-	}
-
 	// We drop effective caps prior to setting dumpable so that we limit the
 	// impact of someone attempting to hijack the process (i.e. with a debugger)
 	// to take advantage of the capabilities of the agent process. We encourage
@@ -109,6 +99,14 @@ func CLI() error {
 	err = unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0)
 	if err != nil {
 		printfStdErr("failed to unset dumpable: %v", err)
+	}
+
+	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
+	if err != nil {
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for niceness.
+		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
 	}
 
 	path, err := exec.LookPath(args[0])
