@@ -241,6 +241,7 @@ describe("AgentsPageLayout diff status events", () => {
 	};
 	const unfiltered: ChatListInput = {
 		sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+		pinnedProjectsOnly: true,
 	};
 	const openPRsOnly: ChatListInput = { ...unfiltered, prStatuses: ["open"] };
 	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
