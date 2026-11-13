@@ -236,6 +236,7 @@ type ChatProject struct {
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
 	Icon        string                 `json:"icon"`
+	Templates   ChatProjectTemplates   `json:"templates"`
 	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
 	Permissions ChatProjectPermissions `json:"permissions"`
@@ -248,12 +249,33 @@ type ChatProjectPermissions struct {
 	Share  bool `json:"share"`
 }
 
+// ChatProjectTemplates are the workspace templates a project's chats may use.
+// An empty TemplateIDs means the project's chats cannot create or attach
+// workspaces.
+type ChatProjectTemplates struct {
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+	// DefaultTemplateID is recommended to the project's chats and must be one
+	// of TemplateIDs.
+	DefaultTemplateID *uuid.UUID `json:"default_template_id,omitempty" format:"uuid"`
+	// DefaultPresetID is a preset of the default template's active version,
+	// applied when a chat creates a workspace from the default template
+	// without choosing a preset. It is mutually exclusive with
+	// DefaultParameters.
+	DefaultPresetID *uuid.UUID `json:"default_preset_id,omitempty" format:"uuid"`
+	// DefaultParameters are parameter values, keyed by name, applied when a
+	// chat creates a workspace from the default template. Values the chat
+	// passes take precedence.
+	DefaultParameters map[string]string `json:"default_parameters,omitempty"`
+}
+
 // CreateChatProjectRequest creates a chat project in the organization named
 // by the route.
 type CreateChatProjectRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description"`
 	Icon        string `json:"icon,omitempty"`
+	// Templates defaults to no templates.
+	Templates *ChatProjectTemplates `json:"templates,omitempty"`
 }
 
 // UpdateChatProjectRequest updates a chat project.
@@ -261,6 +283,9 @@ type UpdateChatProjectRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
+	// Templates replaces the project's templates and defaults as a whole when
+	// set.
+	Templates *ChatProjectTemplates `json:"templates,omitempty"`
 }
 
 // ChatProjectRole is the access a project ACL grants.
