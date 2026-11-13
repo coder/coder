@@ -1,5 +1,7 @@
 name: "Upload Test Cache"
-description: Uploads the test cache. Only works on the main branch.
+description: |
+  Uploads the test cache when its Terraform providers have changed, or when
+  no cache has been saved yet today. Only works on the main branch.
 inputs:
   cache-key:
     description: "Cache key"
@@ -12,9 +14,33 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # A cache key can only be saved once. Adding the list of cached providers
+    # to the key lets a run that downloaded new providers save them at once,
+    # so the next run does not have to download them again.
+    - name: Get cache key with providers
+      id: vars
+      if: ${{ github.ref == 'refs/heads/main' && !cancelled() }}
+      shell: bash
+      run: |
+        cache_path="${INPUTS_CACHE_PATH/#\~/$HOME}"
+        providers=""
+        if [ -d "$cache_path" ]; then
+          # testutil/terraform_cache.go writes .complete into each provider
+          # directory once it is fully downloaded.
+          providers=$(cd "$cache_path" && find . -name .complete | LC_ALL=C sort)
+        fi
+        # git is the one hashing tool present on every runner OS.
+        hash=$(printf '%s' "$providers" | git hash-object --stdin | cut -c1-12)
+        echo "cache-key=${INPUTS_CACHE_KEY}-${hash}" >> "$GITHUB_OUTPUT"
+      env:
+        INPUTS_CACHE_KEY: ${{ inputs.cache-key }}
+        INPUTS_CACHE_PATH: ${{ inputs.cache-path }}
+
+    # This also runs when tests failed, so that providers downloaded by the
+    # tests that passed are kept.
     - name: Upload test cache
-      if: ${{ github.ref == 'refs/heads/main' }}
+      if: ${{ github.ref == 'refs/heads/main' && !cancelled() }}
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ inputs.cache-path }}
-        key: ${{ inputs.cache-key }}
+        key: ${{ steps.vars.outputs.cache-key }}

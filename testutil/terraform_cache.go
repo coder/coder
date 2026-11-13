@@ -27,6 +27,10 @@ const (
 	cacheProvidersDirName = "providers"
 	// cacheTemplateFilesDirName is the subdirectory name for template files.
 	cacheTemplateFilesDirName = "files"
+	// cacheCompleteFileName is written last, so a directory that has it holds
+	// every provider. The CI cache upload also reads it to tell when the cache
+	// has changed.
+	cacheCompleteFileName = ".complete"
 )
 
 // hashTemplateFilesAndTestName generates a unique hash based on test name and template files.
@@ -154,10 +158,14 @@ func DownloadTFProviders(t *testing.T, rootDir string, testName string, template
 	t.Helper()
 
 	dir := GetTestTFCacheDir(t, rootDir, testName, templateFiles)
-	if _, err := os.Stat(dir); err == nil {
+	completeFile := filepath.Join(dir, cacheCompleteFileName)
+	if _, err := os.Stat(completeFile); err == nil {
 		t.Logf("%s: using cached terraform providers", testName)
 		return dir
 	}
+	// A run that was stopped part way through leaves a partial directory
+	// behind, because the cleanup below never ran.
+	require.NoError(t, os.RemoveAll(dir))
 	filesDir := filepath.Join(dir, cacheTemplateFilesDirName)
 	defer func() {
 		// The files dir will contain a copy of terraform providers generated
@@ -206,6 +214,7 @@ func DownloadTFProviders(t *testing.T, rootDir string, testName string, template
 	// > about which plugins are available
 	runCmd(t, filesDir, "terraform", "providers", "mirror", providersDir)
 
+	require.NoError(t, os.WriteFile(completeFile, nil, 0o600))
 	return dir
 }
 
