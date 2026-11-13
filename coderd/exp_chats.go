@@ -4127,8 +4127,9 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return batch, false
 	}
 
-	// Without snapshot_version, the first read can be the whole history, so
-	// it is sent in several WebSocket messages.
+	// A stream opened with snapshot_version receives its first read in one
+	// WebSocket message, as it does every later read. Another stream's
+	// first read can be the whole history, so it is sent in several.
 	snapshotBatchSize := chatStreamBatchSize
 	if snapshotVersion > 0 {
 		snapshotBatchSize = len(snapshot)
