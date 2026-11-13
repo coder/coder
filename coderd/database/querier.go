@@ -93,9 +93,6 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
-	// Clears the flag of every message in the chat, for messages that a context
-	// reset hides from the model before their hooks ran.
-	ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error
 	// Drops the values of every live row that belongs to an earlier build of the
 	// workspace (lower build number than the given build), keeping the rows so
 	// the history of which secrets earlier builds received stays inspectable.
@@ -518,9 +515,6 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
-	// Returns the chats that hold messages that the automation queued, in chat ID
-	// order, which is the order in which chat rows are locked.
-	GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
 	// When the toggle is unset, a non-empty custom prompt implies false;
@@ -1539,11 +1533,6 @@ type sqlcQuerier interface {
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
-	// Settles a message that was saved with prompt_hooks_pending. It clears the
-	// flag and either replaces the content with the hooks' result (a NULL content
-	// keeps it) or soft-deletes the message when deleted is true. It matches no
-	// row once the flag is clear.
-	ResolveChatMessagePromptHooks(ctx context.Context, arg ResolveChatMessagePromptHooksParams) (ChatMessage, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1679,9 +1668,7 @@ type sqlcQuerier interface {
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.
 	UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error
-	// Replaces the content and per-message overrides of a queued message. An edit
-	// is a new submission, so the flag is cleared: the caller runs the submit hooks
-	// on the new content when they are on.
+	// Replaces the content and per-message overrides of a queued message.
 	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
 	// Begins (@editing = true) or ends the row's edit. Beginning keeps an
 	// existing editing_since, so the timestamp marks the first begin.

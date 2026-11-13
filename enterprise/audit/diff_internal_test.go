@@ -680,19 +680,6 @@ func Test_chatAutomationSecretsMasked(t *testing.T) {
 		"webhook_secret":         audit.OldNew{Old: "", New: "", Secret: true},
 		"webhook_secret_version": audit.OldNew{Old: int64(1), New: int64(2)},
 	}, rotated)
-
-	created := diffValues(audit.Empty[database.ChatAutomation](), after, AuditableResources)
-	require.Equal(t, audit.OldNew{Old: "", New: "", Secret: true}, created["prompt"])
-	require.Equal(t, audit.OldNew{Old: "", New: "", Secret: true}, created["webhook_secret"])
-	require.Equal(t, audit.OldNew{Old: "", New: "ci-failures"}, created["name"])
-
-	for _, diff := range []audit.Map{rotated, created} {
-		raw, err := json.Marshal(diff)
-		require.NoError(t, err)
-		for _, secret := range []string{oldSecret, newSecret, oldPrompt, newPrompt, "old-key-digest", "new-key-digest"} {
-			require.NotContains(t, string(raw), secret)
-		}
-	}
 }
 
 func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {

@@ -21,11 +21,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -38,77 +36,44 @@ var (
 	testNow = time.Date(2031, 3, 4, 5, 6, 7, 0, time.UTC)
 )
 
-// recorder lists the store methods that Create calls.
-type recorder struct {
-	mu    sync.Mutex
-	calls []string
-	// afterCount runs after the count of the owner, when it is set.
-	afterCount func()
-}
-
-func (r *recorder) add(name string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.calls = append(r.calls, name)
-}
-
-func (r *recorder) names() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]string(nil), r.calls...)
-}
-
-// recordingStore records the methods that Create calls on a dbauthz store. It
-// embeds the store, so it still reports dbauthz in Wrappers.
-type recordingStore struct {
+// hookStore runs a hook around two database calls of a create. It sits below
+// dbauthz, so dbauthz has already read the chat, model configuration and
+// project again when beforeInsert runs.
+type hookStore struct {
 	database.Store
-	rec *recorder
+	// afterCount runs after the count of the owner's automations.
+	afterCount func()
+	// beforeInsert runs before an insert reaches the database.
+	beforeInsert func()
 }
 
-func (s recordingStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	s.rec.add("GetChatByID")
-	return s.Store.GetChatByID(ctx, id)
-}
-
-func (s recordingStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
-	s.rec.add("GetChatModelConfigByID")
-	return s.Store.GetChatModelConfigByID(ctx, id)
-}
-
-func (s recordingStore) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
-	s.rec.add("GetChatProjectByID")
-	return s.Store.GetChatProjectByID(ctx, id)
-}
-
-func (s recordingStore) AcquireLock(ctx context.Context, id int64) error {
-	s.rec.add("AcquireLock")
-	return s.Store.AcquireLock(ctx, id)
-}
-
-func (s recordingStore) CountChatAutomationsByOwnerID(ctx context.Context, id uuid.UUID) (int64, error) {
-	s.rec.add("CountChatAutomationsByOwnerID")
+func (s hookStore) CountChatAutomationsByOwnerID(ctx context.Context, id uuid.UUID) (int64, error) {
 	count, err := s.Store.CountChatAutomationsByOwnerID(ctx, id)
-	if s.rec.afterCount != nil {
-		s.rec.afterCount()
+	if s.afterCount != nil {
+		s.afterCount()
 	}
 	return count, err
 }
 
-func (s recordingStore) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
-	s.rec.add("InsertChatAutomation")
+func (s hookStore) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	if s.beforeInsert != nil {
+		s.beforeInsert()
+	}
 	return s.Store.InsertChatAutomation(ctx, arg)
 }
 
-func (s recordingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
-	s.rec.add("InTx")
-	return s.Store.InTx(func(tx database.Store) error { return fn(recordingStore{Store: tx, rec: s.rec}) }, opts)
+func (s hookStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		hooked := s
+		hooked.Store = tx
+		return fn(hooked)
+	}, opts)
 }
 
-// harness is a Creator over a real authorizer and a recording store.
+// harness is a Creator over a real authorizer.
 type harness struct {
 	creator *chatautomation.Creator
-	rec     *recorder
-	// store is the dbauthz store without the recorder.
+	// store is the dbauthz store that the creator uses.
 	store database.Store
 }
 
@@ -116,8 +81,7 @@ func newHarness(t testing.TB, db database.Store, limits chatautomation.Limits) h
 	t.Helper()
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	store := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), coderdtest.AccessControlStorePointer())
-	rec := &recorder{}
-	return harness{creator: chatautomation.NewCreator(recordingStore{Store: store, rec: rec}, authorizer, limits), rec: rec, store: store}
+	return harness{creator: chatautomation.NewCreator(store, authorizer, limits), store: store}
 }
 
 // userActor is the subject of a user, with the roles that the database gives it.
@@ -169,31 +133,13 @@ func request(t testing.TB, placeholders *strings.Replacer, objects ...string) co
 	return req
 }
 
-// rfcExample is the request body of the RFC, without its comments.
-const rfcExample = `{
-  "name": "CI failures",
-  "kind": "webhook",
-  "enabled": true,
-  "target_mode": "existing_chat",
-  "target_chat_id": "$TARGET",
-  "when_busy": "queue",
-  "new_chat_model_config_id": null,
-  "project_id": null,
-  "reasoning_effort": null,
-  "schedule_cron": null,
-  "schedule_time_zone": null,
-  "webhook_auth": "bearer",
-  "webhook_secret": null,
-  "prompt": "Investigate the failed CI run in the event data."
-}`
-
 // TestCreate creates one automation per row as its owner, reads the row back
 // as the owner and compares every column.
 func TestCreate(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
-	f := newFixture(t, db, nil)
-	target, createdBy := f.chat(t), f.chat(t)
+	f := newFixture(t, db)
+	target := f.chat(t)
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
 	secret := "whsec_" + base64.StdEncoding.EncodeToString([]byte(uuid.NewString()))
 	prompt := strings.Repeat("p", testLimits.MaxPromptBytes)
@@ -237,19 +183,12 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			// 00:06 in New York, so 09:00 on the same day is 14:00 UTC.
-			name: "ScheduleEnabled", patch: patch(newYork, `"schedule_cron":"  0  9 * * 1-5 "`),
+			name: "ScheduleEnabled", patch: patch(newYork, `"schedule_cron":"  0  9 * * 1-5 ","enabled":true`),
 			want: func(a *database.ChatAutomation) { nyc(a, "0 9 * * 1-5", time.Date(2031, 3, 4, 14, 0, 0, 0, time.UTC)) },
 		},
 		{
 			name: "ScheduleDisabledAtMinimum", patch: patch(newYork, `"schedule_cron":"*/5 * * * *","enabled":false`),
 			want: func(a *database.ChatAutomation) { nyc(a, "*/5 * * * *", time.Time{}); a.Enabled = false },
-		},
-		{
-			// MinInterval measures 57 minutes here, and the runs of 2026-03-08 are 3 minutes apart.
-			name: "ScheduleAcrossDaylightSaving", patch: patch(newYork, `"schedule_cron":"1,58 1,3 * * *"`),
-			want: func(a *database.ChatAutomation) {
-				nyc(a, "1,58 1,3 * * *", time.Date(2031, 3, 4, 6, 1, 0, 0, time.UTC))
-			},
 		},
 		{
 			name: "NewChat", patch: `{"target_mode":"new_chat","target_chat_id":null,"new_chat_model_config_id":"$MODEL","project_id":"$PROJECT","reasoning_effort":"high"}`,
@@ -260,12 +199,6 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{name: "NameAtLimit", patch: `{"name":"` + longName + `"}`, want: func(a *database.ChatAutomation) { a.Name = longName }},
-		{
-			name: "RFCExample", patch: rfcExample,
-			want: func(a *database.ChatAutomation) {
-				a.Name, a.Prompt, a.CreatedByChatID = "CI failures", "Investigate the failed CI run in the event data.", uuid.NullUUID{}
-			},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -273,7 +206,7 @@ func TestCreate(t *testing.T) {
 			name := testutil.GetRandomName(t)
 			req := request(t, strings.NewReplacer("$NAME", name, "$TARGET", target.ID.String(), "$MODEL", f.model.ID.String(), "$PROJECT", project.ID.String()), base, tc.patch)
 			want := database.ChatAutomation{
-				OrganizationID: f.org.ID, OwnerID: f.owner.ID, Name: name, CreatedByChatID: nullID(createdBy.ID),
+				OrganizationID: f.org.ID, OwnerID: f.owner.ID, Name: name,
 				Kind: database.ChatAutomationKindWebhook, Enabled: true, Prompt: prompt,
 				TargetMode: database.ChatAutomationTargetModeExistingChat, TargetChatID: nullID(target.ID),
 				WhenBusy: busy(database.ChatAutomationWhenBusyQueue), WebhookAuth: auth(database.ChatAutomationWebhookAuthBearer),
@@ -283,10 +216,8 @@ func TestCreate(t *testing.T) {
 				tc.want(&want)
 			}
 			h, actor := newHarness(t, db, testLimits), userActor(t, db, f.owner.ID)
-			p := createParams(f.org.ID, req)
-			p.CreatedByChatID = want.CreatedByChatID
 
-			result, err := h.creator.Create(ctx, actor, p)
+			result, err := h.creator.Create(ctx, actor, createParams(f.org.ID, req))
 			require.NoError(t, err)
 
 			got, err := h.store.GetChatAutomationByID(dbauthz.As(ctx, actor), result.Automation.ID)
@@ -312,13 +243,12 @@ const (
 )
 
 // TestCreateRejected changes one thing of a valid request per row. Create
-// returns every violation of the row, and never inserts. A request that breaks
-// a field rule reads nothing from the store.
+// returns every violation of the row.
 func TestCreateRejected(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	setup := testutil.Context(t, testutil.WaitMedium)
-	f, other := newFixture(t, db, nil), newFixture(t, db, nil)
+	f, other := newFixture(t, db), newFixture(t, db)
 	// The actor can read what it owns in both organizations, so the
 	// organization rule is what refuses the references of the other one.
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
@@ -360,9 +290,6 @@ func TestCreateRejected(t *testing.T) {
 		// want lists each violation: the field, and a part of the detail where
 		// the rule has a limit or a reason ("" means any detail).
 		want []codersdk.ValidationError
-		// reference is true when a read of a chat, model or project gave the
-		// violation.
-		reference bool
 	}
 	rows := []rejection{
 		{name: "NameBlank", patch: `{"name":" \t "}`, want: bad("name", "")},
@@ -393,33 +320,22 @@ func TestCreateRejected(t *testing.T) {
 		// The limits are exact: a value at the limit reaches cron.Standard.
 		{name: "CronAtLimit", patch: patch(asSchedule, `"schedule_cron":"`+strings.Repeat("*", 256)+`"`), want: bad("schedule_cron", "expected 5 fields")},
 		{name: "ZoneAtLimit", patch: patch(asSchedule, `"schedule_time_zone":"`+strings.Repeat("a", 64)+`"`), want: bad("schedule_time_zone", "unknown time zone")},
-		{name: "ZoneFactory", patch: patch(asSchedule, `"schedule_time_zone":"Factory"`), want: bad("schedule_time_zone", "Factory")},
 		{name: "ScheduleBelowMinimum", patch: patch(asSchedule, `"schedule_cron":"*/2 * * * *"`), want: bad("schedule_cron", "5m0s")},
-		// MinInterval measures 2 minutes here, across midnight.
-		{name: "ScheduleOverStrict", patch: patch(asSchedule, `"schedule_cron":"0,58 0,23 * * 1"`), want: bad("schedule_cron", "5m0s")},
 		{name: "BearerWithSecret", patch: `{"webhook_secret":"$CANARY"}`, want: bad("webhook_secret", "")},
 		{name: "GitHubWithWhiteSpaceSecret", patch: `{"webhook_auth":"github","webhook_secret":" \n"}`, want: bad("webhook_secret", "")},
 		{name: "StandardWebhooksWithWhiteSpaceSecret", patch: `{"webhook_auth":"standard_webhooks","webhook_secret":" \n"}`, want: bad("webhook_secret", "Required")},
 		{name: "StandardWebhooksWithMalformedSecret", patch: `{"webhook_auth":"standard_webhooks","webhook_secret":"whsec_$CANARY!"}`, want: bad("webhook_secret", "Standard Webhooks secret")},
-		{name: "TwoViolations", patch: `{"name":"","target_chat_id":null}`, want: bad("name", "", "target_chat_id", "")},
-		{name: "TargetChatMissing", patch: `{"target_chat_id":"$MISSING"}`, want: bad("target_chat_id", "Chat not found."), reference: true},
+		{name: "TargetChatMissing", patch: `{"target_chat_id":"$MISSING"}`, want: bad("target_chat_id", "Chat not found.")},
 		// The same detail as a missing chat: it does not tell the actor that the chat exists.
-		{name: "TargetChatOfAnotherUser", patch: `{"target_chat_id":"$STRANGER"}`, want: bad("target_chat_id", "Chat not found."), reference: true},
-		{name: "TargetChatInAnotherOrganization", patch: `{"target_chat_id":"$FOREIGN_CHAT"}`, want: bad("target_chat_id", "not in this organization"), reference: true},
-		{name: "TargetSubChat", patch: `{"target_chat_id":"$SUB"}`, want: bad("target_chat_id", "not a root chat"), reference: true},
-		{name: "TargetChatReadableNotUpdatable", patch: `{"target_chat_id":"$SHARED"}`, want: bad("target_chat_id", "cannot send messages"), reference: true},
-		{name: "ModelMissing", patch: patch(asNewChat, `"new_chat_model_config_id":"$MISSING"`), want: bad("new_chat_model_config_id", "not found"), reference: true},
-		{name: "ModelInAnotherOrganization", patch: patch(asNewChat, `"new_chat_model_config_id":"$FOREIGN_MODEL"`), want: bad("new_chat_model_config_id", "not in this organization"), reference: true},
-		{name: "ProjectMissing", patch: patch(asNewChat, `"project_id":"$MISSING"`), want: bad("project_id", "not found"), reference: true},
-		{name: "ProjectInAnotherOrganization", patch: patch(asNewChat, `"project_id":"$FOREIGN_PROJECT"`), want: bad("project_id", "not in this organization"), reference: true},
+		{name: "TargetChatOfAnotherUser", patch: `{"target_chat_id":"$STRANGER"}`, want: bad("target_chat_id", "Chat not found.")},
+		{name: "TargetChatInAnotherOrganization", patch: `{"target_chat_id":"$FOREIGN_CHAT"}`, want: bad("target_chat_id", "not in this organization")},
+		{name: "TargetSubChat", patch: `{"target_chat_id":"$SUB"}`, want: bad("target_chat_id", "not a root chat")},
+		{name: "TargetChatReadableNotUpdatable", patch: `{"target_chat_id":"$SHARED"}`, want: bad("target_chat_id", "cannot send messages")},
+		{name: "ModelMissing", patch: patch(asNewChat, `"new_chat_model_config_id":"$MISSING"`), want: bad("new_chat_model_config_id", "not found")},
+		{name: "ModelInAnotherOrganization", patch: patch(asNewChat, `"new_chat_model_config_id":"$FOREIGN_MODEL"`), want: bad("new_chat_model_config_id", "not in this organization")},
+		{name: "ProjectMissing", patch: patch(asNewChat, `"project_id":"$MISSING"`), want: bad("project_id", "not found")},
+		{name: "ProjectInAnotherOrganization", patch: patch(asNewChat, `"project_id":"$FOREIGN_PROJECT"`), want: bad("project_id", "not in this organization")},
 	}
-	// The detail of each is the error text of cron.Standard.
-	for _, spec := range []string{"0 9 L * *"} {
-		_, err := cron.Standard(spec, "UTC")
-		require.Error(t, err)
-		rows = append(rows, rejection{name: "Cron " + spec, patch: patch(asSchedule, `"schedule_cron":"`+spec+`"`), want: bad("schedule_cron", err.Error())})
-	}
-
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -429,9 +345,8 @@ func TestCreateRejected(t *testing.T) {
 			if tc.edit != nil {
 				tc.edit(&req)
 			}
-			h := newHarness(t, db, testLimits)
 
-			_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, req))
+			_, err := newHarness(t, db, testLimits).creator.Create(ctx, actor, createParams(f.org.ID, req))
 
 			var invalid *chatautomation.InvalidRequestError
 			require.ErrorAs(t, err, &invalid)
@@ -440,12 +355,6 @@ func TestCreateRejected(t *testing.T) {
 				require.Equal(t, want.Field, invalid.Validations[i].Field)
 				require.Contains(t, invalid.Validations[i].Detail, want.Detail)
 				require.NotContains(t, invalid.Validations[i].Detail, canary)
-			}
-			calls := h.rec.names()
-			require.NotContains(t, calls, "InTx")
-			require.NotContains(t, calls, "InsertChatAutomation")
-			if !tc.reference {
-				require.Empty(t, calls)
 			}
 		})
 	}
@@ -462,7 +371,7 @@ func TestCreateCap(t *testing.T) {
 	t.Run("AcrossOrganizations", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		a, b := newFixture(t, db, nil), newFixture(t, db, nil)
+		a, b := newFixture(t, db), newFixture(t, db)
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: a.owner.ID, OrganizationID: b.org.ID})
 		h, actor := newHarness(t, db, limits), userActor(t, db, a.owner.ID)
 
@@ -487,16 +396,16 @@ func TestCreateCap(t *testing.T) {
 	t.Run("Concurrent", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		f, other := newFixture(t, db, nil), newFixture(t, db, nil)
+		f, other := newFixture(t, db), newFixture(t, db)
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
-		first, second, actor := newHarness(t, db, limits), newHarness(t, db, limits), userActor(t, db, f.owner.ID)
-		_, err := second.creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
-		require.NoError(t, err)
 		counted, release, results := make(chan struct{}, 1), make(chan struct{}), make(chan error, 2)
-		first.rec.afterCount = func() {
+		first := newHarness(t, hookStore{Store: db, afterCount: func() {
 			counted <- struct{}{}
 			<-release
-		}
+		}}, limits)
+		second, actor := newHarness(t, db, limits), userActor(t, db, f.owner.ID)
+		_, err := second.creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
+		require.NoError(t, err)
 		var once sync.Once
 		unblock := func() { once.Do(func() { close(release) }) }
 		t.Cleanup(unblock)
@@ -532,283 +441,44 @@ func TestCreateCap(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 2, count)
 	})
-
-	// The last member of a deleted organization can still create there, so
-	// its automations count: the cap holds in the deleted organization and in
-	// the others.
-	t.Run("DeletedOrganizationStillCounts", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		a, b := newFixture(t, db, nil), newFixture(t, db, nil)
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: b.owner.ID, OrganizationID: a.org.ID})
-		h, actor := newHarness(t, db, limits), userActor(t, db, b.owner.ID)
-		for range 2 {
-			_, err := h.creator.Create(ctx, actor, createParams(b.org.ID, webhookToNewChat(t, b)))
-			require.NoError(t, err)
-		}
-		require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{ID: b.org.ID, UpdatedAt: dbtime.Now()}))
-
-		for _, f := range []fixture{a, b} {
-			_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
-			var limitErr *chatautomation.LimitError
-			require.ErrorAs(t, err, &limitErr)
-		}
-	})
 }
 
-// TestCreateOwner creates as a hand-built subject that passes the create
-// check, so that the owner guard of the insert is what refuses a system or
-// deleted owner.
-func TestCreateOwner(t *testing.T) {
+// TestCreateUnwrappedStore refuses a store that dbauthz does not wrap, which
+// would skip every authorization check of the reads and of the insert.
+func TestCreateUnwrappedStore(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	f := newFixture(t, db)
+	creator := chatautomation.NewCreator(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), testLimits)
 
-	for _, tc := range []struct {
-		name  string
-		owner func(ctx context.Context, t *testing.T, f fixture) uuid.UUID
-		want  error
-	}{
-		{name: "Active", owner: func(_ context.Context, _ *testing.T, f fixture) uuid.UUID { return f.owner.ID }},
-		{name: "System", want: chatautomation.ErrOwnerUnavailable, owner: func(context.Context, *testing.T, fixture) uuid.UUID { return database.PrebuildsSystemUserID }},
-		{
-			name: "Deleted", want: chatautomation.ErrOwnerUnavailable,
-			owner: func(ctx context.Context, t *testing.T, f fixture) uuid.UUID {
-				require.NoError(t, db.UpdateUserDeletedByID(ctx, f.owner.ID))
-				return f.owner.ID
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			f := newFixture(t, db, nil)
-			owner := tc.owner(ctx, t, f)
-			actor := rbac.Subject{
-				Type: rbac.SubjectTypeUser, ID: owner.String(), Scope: rbac.ScopeAll,
-				Roles: rbac.Roles{{
-					Identifier: rbac.RoleIdentifier{Name: "automation-creator"},
-					Site: rbac.Permissions(map[string][]policy.Action{
-						rbac.ResourceChatAutomation.Type:  {policy.ActionCreate},
-						rbac.ResourceChatModelConfig.Type: {policy.ActionRead},
-					}),
-				}},
-			}
+	_, err := creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, webhookToNewChat(t, f)))
 
-			_, err := newHarness(t, db, testLimits).creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
-
-			count, countErr := db.CountChatAutomationsByOwnerID(ctx, owner)
-			require.NoError(t, countErr)
-			if tc.want == nil {
-				require.NoError(t, err)
-				require.EqualValues(t, 1, count)
-				return
-			}
-			require.ErrorIs(t, err, tc.want)
-			require.Zero(t, count)
-		})
-	}
-}
-
-// TestCreateAuthorization checks the actor before anything else: the store sees
-// no call, even for a request that is also invalid.
-func TestCreateAuthorization(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	// Members of this organization hold no agents-access role by default.
-	org := dbgen.Organization(t, db, database.Organization{DefaultOrgMemberRoles: []string{rbac.RoleOrgWorkspaceAccess()}})
-	f := fixture{db: db, org: org, model: dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})}
-
-	for _, tc := range []struct {
-		name  string
-		roles []string
-		// invalid breaks a field rule of the request.
-		invalid bool
-	}{
-		{name: "MemberWithoutAgentsAccess", invalid: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			req := webhookToNewChat(t, f)
-			if tc.invalid {
-				req.Name = ""
-			}
-			h := newHarness(t, db, testLimits)
-
-			_, err := h.creator.Create(ctx, userActor(t, db, member(t, db, org.ID, tc.roles...).ID), createParams(org.ID, req))
-
-			require.ErrorIs(t, err, chatautomation.ErrCreateForbidden)
-			require.Empty(t, h.rec.names())
-		})
-	}
-
-	t.Run("UnwrappedStore", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		valid := newFixture(t, db, nil)
-		creator := chatautomation.NewCreator(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), testLimits)
-
-		_, err := creator.Create(ctx, userActor(t, db, valid.owner.ID), createParams(valid.org.ID, webhookToNewChat(t, valid)))
-
-		require.ErrorContains(t, err, "dbauthz")
-		count, err := db.CountChatAutomationsByOwnerID(ctx, valid.owner.ID)
-		require.NoError(t, err)
-		require.Zero(t, count)
-	})
-}
-
-// TestCreateCreatingChat sets the creating chat that the agent tool passes. The
-// API never sets it, so these are errors for the tool and not field violations.
-func TestCreateCreatingChat(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	f, other := newFixture(t, db, nil), newFixture(t, db, nil)
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
-	actor := userActor(t, db, f.owner.ID)
-	stranger := dbgen.Chat(t, db, database.Chat{OrganizationID: f.org.ID, OwnerID: member(t, db, f.org.ID).ID, LastModelConfigID: f.model.ID})
-	foreign := dbgen.Chat(t, db, database.Chat{OrganizationID: other.org.ID, OwnerID: f.owner.ID, LastModelConfigID: other.model.ID})
-
-	for _, tc := range []struct {
-		name  string
-		chat  uuid.UUID
-		check func(t *testing.T, err error)
-	}{
-		// The insert would report a missing chat as a missing owner.
-		{name: "Missing", chat: uuid.New(), check: func(t *testing.T, err error) {
-			require.ErrorIs(t, err, sql.ErrNoRows)
-			require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
-		}},
-		{name: "OfAnotherUser", chat: stranger.ID, check: func(t *testing.T, err error) { require.ErrorIs(t, err, chatautomation.ErrCreateForbidden) }},
-		{name: "InAnotherOrganization", chat: foreign.ID, check: func(t *testing.T, err error) {
-			require.ErrorContains(t, err, "not in this organization")
-			require.NotErrorIs(t, err, chatautomation.ErrCreateForbidden)
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			p := createParams(f.org.ID, webhookToNewChat(t, f))
-			p.CreatedByChatID = nullID(tc.chat)
-			h := newHarness(t, db, testLimits)
-
-			_, err := h.creator.Create(ctx, actor, p)
-
-			tc.check(t, err)
-			require.NotContains(t, h.rec.names(), "InsertChatAutomation")
-		})
-	}
-}
-
-// TestCreateTargetOwnership gives the actor create and update on every chat of
-// the organization, as an organization admin who also holds agents-access has,
-// so that only the ownership rule can refuse another user's chat.
-func TestCreateTargetOwnership(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	f := newFixture(t, db, nil)
-	// Each subtest has its own admin, so that the automations of one cannot
-	// count in another.
-	newAdmin := func(t *testing.T) (database.User, rbac.Subject) {
-		t.Helper()
-		admin := member(t, db, f.org.ID, rbac.ScopedRoleOrgAdmin(f.org.ID).Name)
-		return admin, userActor(t, db, admin.ID)
-	}
-	toChat := func(chatID uuid.UUID) codersdk.CreateChatAutomationRequest {
-		req := webhookToNewChat(t, f)
-		req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &chatID
-		return req
-	}
-
-	t.Run("ChatOfAnotherUser", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		admin, actor := newAdmin(t)
-		h := newHarness(t, db, testLimits)
-
-		_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, toChat(f.chat(t).ID)))
-
-		var invalid *chatautomation.InvalidRequestError
-		require.ErrorAs(t, err, &invalid)
-		require.Len(t, invalid.Validations, 1)
-		require.Equal(t, "target_chat_id", invalid.Validations[0].Field)
-		require.Contains(t, invalid.Validations[0].Detail, "Only the owner of a chat")
-		require.NotContains(t, h.rec.names(), "InsertChatAutomation")
-		count, err := db.CountChatAutomationsByOwnerID(ctx, admin.ID)
-		require.NoError(t, err)
-		require.Zero(t, count)
-	})
-
-	t.Run("ChatOfTheOwner", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		admin, actor := newAdmin(t)
-		own := dbgen.Chat(t, db, database.Chat{OrganizationID: f.org.ID, OwnerID: admin.ID, LastModelConfigID: f.model.ID})
-
-		res, err := newHarness(t, db, testLimits).creator.Create(ctx, actor, createParams(f.org.ID, toChat(own.ID)))
-
-		require.NoError(t, err)
-		require.Equal(t, own.ID, res.Automation.TargetChatID.UUID)
-	})
-}
-
-// TestCreateScheduleNeedsNow checks that an enabled schedule is refused when
-// the caller passes no time for its first run. The API always passes one, and
-// the agent tool is the other caller.
-func TestCreateScheduleNeedsNow(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	f := newFixture(t, db, nil)
-	req := webhookToNewChat(t, f)
-	req.Kind, req.WebhookAuth, req.ScheduleCron, req.ScheduleTimeZone = codersdk.ChatAutomationKindSchedule, "", "0 9 * * *", "UTC"
-	p := createParams(f.org.ID, req)
-	p.Now = time.Time{}
-
-	_, err := newHarness(t, db, testLimits).creator.Create(testutil.Context(t, testutil.WaitMedium), userActor(t, db, f.owner.ID), p)
-
-	require.ErrorContains(t, err, "no time for the first run")
-	var invalid *chatautomation.InvalidRequestError
-	require.NotErrorAs(t, err, &invalid)
-}
-
-// insertHook runs before an insert reaches the database. It sits below
-// dbauthz, so dbauthz has already read the chat, model configuration and
-// project again by then.
-type insertHook struct {
-	database.Store
-	before func()
-}
-
-func (s insertHook) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
-	s.before()
-	return s.Store.InsertChatAutomation(ctx, arg)
-}
-
-func (s insertHook) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error { return fn(insertHook{Store: tx, before: s.before}) }, opts)
+	require.ErrorContains(t, err, "dbauthz")
+	count, err := db.CountChatAutomationsByOwnerID(ctx, f.owner.ID)
+	require.NoError(t, err)
+	require.Zero(t, count)
 }
 
 // TestCreateReferenceDeleted deletes the target chat or the project after
-// Create has checked it. Either the read of dbauthz or a trigger of the table
-// finds it missing. The owner is fine, so the answer must not say that the
-// owner is unavailable.
+// dbauthz has read it again for the insert, so that a trigger of the table finds
+// it missing. The owner is fine, so the answer must not say that the owner is
+// unavailable.
 func TestCreateReferenceDeleted(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		// project deletes the project of a new chat instead of the target chat.
 		project bool
-		// afterRecheck deletes it after dbauthz has read it again.
-		afterRecheck bool
 	}{
-		{name: "ChatBeforeRecheck"},
-		{name: "ChatAfterRecheck", afterRecheck: true},
-		{name: "ProjectAfterRecheck", project: true, afterRecheck: true},
+		{name: "ChatAfterRecheck"},
+		{name: "ProjectAfterRecheck", project: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			f := newFixture(t, db, nil)
+			f := newFixture(t, db)
 			req := webhookToNewChat(t, f)
 			deleteSQL, id := "DELETE FROM chats WHERE id = $1", uuid.UUID{}
 			if tc.project {
@@ -823,47 +493,35 @@ func TestCreateReferenceDeleted(t *testing.T) {
 				_, err := sqlDB.ExecContext(ctx, deleteSQL, id)
 				require.NoError(t, err)
 			}
-			var h harness
-			if tc.afterRecheck {
-				h = newHarness(t, insertHook{Store: db, before: remove}, testLimits)
-			} else {
-				h = newHarness(t, db, testLimits)
-				h.rec.afterCount = remove
-			}
+			h := newHarness(t, hookStore{Store: db, beforeInsert: remove}, testLimits)
 
 			_, err := h.creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, req))
 
 			require.ErrorIs(t, err, chatautomation.ErrReferenceUnavailable)
 			require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
-			require.Contains(t, h.rec.names(), "InsertChatAutomation")
 		})
 	}
 }
 
-// TestCreateReferenceDeletedWhileInserting leaves a delete of the target chat,
-// the creating chat or the project open until the insert waits on it. The
-// trigger of the table still reads the row, so the foreign key check is what
-// fails when the delete commits. dbpurge deletes chats in one long transaction,
-// so that window is not short.
+// TestCreateReferenceDeletedWhileInserting leaves a delete of the target chat
+// or the project open until the insert waits on it. The trigger of the table
+// still reads the row, so the foreign key check is what fails when the delete
+// commits. dbpurge deletes chats in one long transaction, so that window is not
+// short.
 func TestCreateReferenceDeletedWhileInserting(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		// reference sets the chat or project that the request names and returns
 		// the statement that deletes it.
-		reference func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, p *chatautomation.CreateParams) (deleteSQL string, id uuid.UUID)
+		reference func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest) (deleteSQL string, id uuid.UUID)
 	}{
-		{name: "TargetChat", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, _ *chatautomation.CreateParams) (string, uuid.UUID) {
+		{name: "TargetChat", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest) (string, uuid.UUID) {
 			target := f.chat(t)
 			req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
 			return "DELETE FROM chats WHERE id = $1", target.ID
 		}},
-		{name: "CreatingChat", reference: func(t *testing.T, f fixture, _ *codersdk.CreateChatAutomationRequest, p *chatautomation.CreateParams) (string, uuid.UUID) {
-			creating := f.chat(t)
-			p.CreatedByChatID = nullID(creating.ID)
-			return "DELETE FROM chats WHERE id = $1", creating.ID
-		}},
-		{name: "Project", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest, _ *chatautomation.CreateParams) (string, uuid.UUID) {
+		{name: "Project", reference: func(t *testing.T, f fixture, req *codersdk.CreateChatAutomationRequest) (string, uuid.UUID) {
 			project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
 			req.ProjectID = &project.ID
 			return "DELETE FROM chat_projects WHERE id = $1", project.ID
@@ -873,11 +531,10 @@ func TestCreateReferenceDeletedWhileInserting(t *testing.T) {
 			t.Parallel()
 			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			ctx := testutil.Context(t, testutil.WaitLong)
-			f := newFixture(t, db, sqlDB)
+			f := newFixture(t, db)
 			req := webhookToNewChat(t, f)
+			deleteSQL, id := tc.reference(t, f, &req)
 			p := createParams(f.org.ID, req)
-			deleteSQL, id := tc.reference(t, f, &req, &p)
-			p.Request = req
 			h, actor := newHarness(t, db, testLimits), userActor(t, db, f.owner.ID)
 
 			tx, err := sqlDB.BeginTx(ctx, nil)

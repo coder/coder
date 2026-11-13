@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -39,23 +38,6 @@ type Message struct {
 	// QueuedMessageID is the chat_queued_messages row this message was
 	// promoted from. Only messageFromQueuedRow sets it.
 	QueuedMessageID sql.NullInt64
-	// PromptHooksPending marks a message whose user_prompt_submit hooks
-	// have not run. chatd runs them when the message starts a turn. Only
-	// user messages that both the user and the model see can carry it,
-	// because chatd finds them in the history the user sees.
-	PromptHooksPending bool
-}
-
-// validateMessages rejects a message that carries PromptHooksPending but
-// is not a user message visible to both the user and the model.
-func validateMessages(messages []Message) error {
-	for i, m := range messages {
-		if m.PromptHooksPending && (m.Role != database.ChatMessageRoleUser || m.Visibility != database.ChatMessageVisibilityBoth) {
-			return xerrors.Errorf("message %d: prompt_hooks_pending requires a user message with visibility %q, got role %q and visibility %q",
-				i, database.ChatMessageVisibilityBoth, m.Role, m.Visibility)
-		}
-	}
-	return nil
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -86,7 +68,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		RuntimeMs:           make([]int64, n),
 		ProviderResponseID:  make([]string, n),
 		QueuedMessageID:     make([]int64, n),
-		PromptHooksPending:  make([]bool, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
@@ -115,7 +96,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
 		params.ProviderResponseID[i] = m.ProviderResponseID.String
 		params.QueuedMessageID[i] = nullInt64Or(m.QueuedMessageID, 0)
-		params.PromptHooksPending[i] = m.PromptHooksPending
 	}
 	return params
 }
