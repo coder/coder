@@ -1,14 +1,26 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Outlet, useLocation } from "react-router";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
+import {
+	archivedChatProjectsKey,
+	chatProjectsKey,
+} from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockDefaultOrganization,
 	MockGroup,
@@ -775,5 +787,63 @@ export const ArchivedWithUnarchive: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
 		);
+	},
+};
+
+const mockArchivedLaunchChat: TypesGen.Chat = {
+	...mockLaunchChat,
+	archived: true,
+};
+
+/** A chat archived with its project comes back only with the project. */
+export const ArchivedWithProject: Story = {
+	args: {
+		chat: mockArchivedLaunchChat,
+	},
+	parameters: {
+		queries: [
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
+/** The project's archive state is still loading, so unarchiving waits. */
+export const ArchivedWithProjectChecking: Story = {
+	args: {
+		chat: mockArchivedLaunchChat,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
+/** The project's archive state failed to load, so unarchiving waits. */
+export const ArchivedWithProjectCheckFailed: Story = {
+	args: {
+		chat: mockArchivedLaunchChat,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+		// Opening the menu retries the lookup, which fails again.
+		await screen.findByText(/Couldn't check whether the project is archived/);
 	},
 };

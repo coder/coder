@@ -197,6 +197,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		handleEditQueuedMessage: fn(),
 		handleEndQueuedMessageEdit: fn(),
 		queuedMessageUnderEditID: null,
+		isProjectArchived: false,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -322,6 +323,17 @@ export const CachedModelsWithRefetchError: Story = {
 export const Archived: Story = {
 	render: () => (
 		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
+	),
+};
+
+/** An archived agent in an archived project points to unarchiving the project. */
+export const ArchivedWithProject: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{ archived: true }}
+			isInputDisabled
+			isProjectArchived
+		/>
 	),
 };
 
@@ -950,6 +962,24 @@ const editingMessages = [
 	),
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
+
+/** An archived agent's sent messages offer no Edit action. */
+export const ArchivedMessageActions: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{ archived: true }}
+			isInputDisabled
+			store={buildStoreWithMessages(editingMessages)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		// Focus reveals the first message's hover actions.
+		const [jumpToNext] = await within(canvasElement).findAllByRole("button", {
+			name: "Jump to next user message",
+		});
+		jumpToNext.focus();
+	},
+};
 
 /** Editing a message in the middle of the conversation — shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
