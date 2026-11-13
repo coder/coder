@@ -34,13 +34,18 @@ export const SkillChip: React.FC<SkillChipProps> = ({
 
 /** Atomic Lexical decorator for SkillInvocationNode; arrows skip it, Backspace or its button removes it. */
 export const EditableSkillChip: React.FC<
-	SkillChipProps & { onRemove: () => void }
-> = ({ source, name, onRemove, className }) => {
+	SkillChipProps & { "data-selected": boolean; onRemove: () => void }
+> = ({ source, name, onRemove, className, ...props }) => {
 	const alias = getSkillAlias(source, name);
 	return (
 		<span
-			className={cn(fileReferenceChipVariants({ editable: true }), className)}
+			className={cn(
+				fileReferenceChipVariants({ editable: true }),
+				"data-[selected=true]:border-content-link data-[selected=true]:bg-content-link/10 data-[selected=true]:text-content-primary data-[selected=true]:ring-1 data-[selected=true]:ring-content-link/40",
+				className,
+			)}
 			contentEditable={false}
+			{...props}
 		>
 			<SkillChipLabel alias={alias} />
 			<ChipRemoveButton label={`Remove skill ${alias}`} onRemove={onRemove} />

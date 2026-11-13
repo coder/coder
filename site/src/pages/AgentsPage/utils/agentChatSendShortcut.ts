@@ -4,6 +4,19 @@ export const DEFAULT_AGENT_CHAT_SEND_SHORTCUT: AgentChatSendShortcut = "enter";
 export const MODIFIER_AGENT_CHAT_SEND_SHORTCUT: AgentChatSendShortcut =
 	"modifier_enter";
 
+/**
+ * Reports whether plain Enter sends an agent chat message. A coarse pointer
+ * never sends on Enter, since touch keyboards need it for newlines
+ * (CODAGT-210). Pointer type, not viewport width, keeps narrow desktop
+ * windows sending on Enter.
+ */
+export function enterSendsAgentChatMessage(
+	shortcut: AgentChatSendShortcut,
+	isCoarsePointer: boolean,
+): boolean {
+	return shortcut !== MODIFIER_AGENT_CHAT_SEND_SHORTCUT && !isCoarsePointer;
+}
+
 export function getAgentChatSendShortcut(
 	storedShortcut: AgentChatSendShortcut | undefined,
 	isLoading: boolean,

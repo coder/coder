@@ -65,11 +65,15 @@ func TestChatProjectSharing(t *testing.T) {
 			UserID:       firstUser.UserID,
 		}))
 
+		ownerUser, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
 		acl, err := client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
+		requireChatProjectACLOwner(t, ownerUser, acl)
 		require.Empty(t, acl.Groups)
 		require.Len(t, acl.Users, 1)
 		require.Equal(t, shareeUser.ID, acl.Users[0].ID)
+		require.Equal(t, shareeUser.Username, acl.Users[0].Username)
 		require.Equal(t, codersdk.ChatProjectRoleUse, acl.Users[0].Role)
 
 		requireChatProjectListed(t, sharee, project.ID)
@@ -99,8 +103,13 @@ func TestChatProjectSharing(t *testing.T) {
 		requireSDKError(t, err, http.StatusForbidden)
 		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
 		require.Equal(t, &project.ID, shareeChat.ProjectID)
-		_, err = sharee.ChatProjectACL(ctx, project.OrganizationID, project.ID)
+		// The sharee cannot read the owner directly, so the ACL is its only
+		// source for the owner's identity.
+		_, err = sharee.User(ctx, ownerUser.ID.String())
+		requireSDKError(t, err, http.StatusNotFound)
+		shareeACL, err := sharee.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
+		requireChatProjectACLOwner(t, ownerUser, shareeACL)
 
 		ownerChat := createChatInProject(t, client, project.OrganizationID, &project.ID)
 		_, err = sharee.GetChat(ctx, ownerChat.ID)
@@ -157,6 +166,13 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, acl.Users, 1)
 		require.Equal(t, codersdk.ChatProjectRoleAdmin, acl.Users[0].Role)
+		ownerUser, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		_, err = admin.User(ctx, ownerUser.ID.String())
+		requireSDKError(t, err, http.StatusNotFound)
+		adminACL, err := admin.ChatProjectACL(ctx, project.OrganizationID, project.ID)
+		require.NoError(t, err)
+		requireChatProjectACLOwner(t, ownerUser, adminACL)
 
 		err = admin.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleUse},
@@ -224,6 +240,12 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Equal(t, firstUser.OrganizationID, acl.Groups[0].ID)
 		require.Equal(t, database.EveryoneGroup, acl.Groups[0].Name)
 		require.Equal(t, codersdk.ChatProjectRoleUse, acl.Groups[0].Role)
+		require.Equal(t, 3, acl.Groups[0].TotalMemberCount)
+		acl, err = client.ChatProjectACL(ctx, groupProject.OrganizationID, groupProject.ID)
+		require.NoError(t, err)
+		require.Len(t, acl.Groups, 1)
+		require.Equal(t, group.ID, acl.Groups[0].ID)
+		require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
 
 		projects, err := groupMember.ListChatProjects(ctx)
 		require.NoError(t, err)
@@ -468,6 +490,12 @@ func newChatProjectMember(t testing.TB, client *codersdk.ExperimentalClient, org
 	t.Helper()
 	raw, user := coderdtest.CreateAnotherUser(t, client.Client, organizationID)
 	return codersdk.NewExperimentalClient(raw), user
+}
+
+func requireChatProjectACLOwner(t testing.TB, owner codersdk.User, acl codersdk.ChatProjectACL) {
+	t.Helper()
+	require.Equal(t, owner.ID, acl.Owner.ID)
+	require.Equal(t, owner.Username, acl.Owner.Username)
 }
 
 func requireChatProjectListed(t testing.TB, client *codersdk.ExperimentalClient, projectID uuid.UUID) {

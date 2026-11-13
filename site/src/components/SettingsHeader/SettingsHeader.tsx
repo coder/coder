@@ -41,7 +41,6 @@ export const SettingsHeaderDocsLink: React.FC<SettingsHeaderDocsLinkProps> = ({
 		<Link href={href} target="_blank" rel="noreferrer">
 			{children}
 			{context && <span className="sr-only"> {context}</span>}
-			<span className="sr-only"> (opens in new tab)</span>
 		</Link>
 	);
 };
@@ -80,7 +79,7 @@ export const SettingsHeaderTitle: React.FC<SettingsHeaderTitleProps> = ({
 	// in invalid markup
 	const Title = level;
 	return (
-		<div className="flex flex-row gap-2 items-center">
+		<div className="flex gap-2 items-center">
 			<Title className={cn(titleVariants({ hierarchy }), className)}>
 				{children}
 			</Title>

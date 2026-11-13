@@ -93,7 +93,7 @@ const renderList = (
 				<DashboardContext.Provider
 					value={{
 						entitlements: MockEntitlements,
-						experiments: ["chat-projects"],
+						experiments: [],
 						appearance: MockAppearanceConfig,
 						buildInfo: MockBuildInfo,
 						organizations: [MockDefaultOrganization],
@@ -224,6 +224,7 @@ describe("ProjectChatsList", () => {
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
 				{ ...mockProjectChat, owner_id: owner.id },
 			]);
@@ -241,46 +242,58 @@ describe("ProjectChatsList", () => {
 			await waitFor(() => {
 				expect(writeText).toHaveBeenCalledWith(MockChat.id);
 			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(
+					"Chat ID copied to clipboard.",
+				);
+			});
 		},
 	);
 
 	it.each([
-		["Copy ID", MockChat.id],
-		["Copy branch", "feature/project-chat"],
-	])("copies %s from a project chat's submenu", async (label, value) => {
-		const user = userEvent.setup();
-		const writeText = vi
-			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-			{
-				...mockProjectChat,
-				diff_status: {
-					chat_id: MockChat.id,
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 0,
-					changed_files: 0,
-					head_branch: "feature/project-chat",
+		["Copy ID", MockChat.id, "Chat ID copied to clipboard."],
+		["Copy branch", "feature/project-chat", "Branch name copied to clipboard."],
+	])(
+		"copies %s from a project chat's submenu",
+		async (label, value, message) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{
+					...mockProjectChat,
+					diff_status: {
+						chat_id: MockChat.id,
+						pull_request_title: "",
+						pull_request_draft: false,
+						changes_requested: false,
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+						head_branch: "feature/project-chat",
+					},
 				},
-			},
-		]);
-		renderList();
+			]);
+			renderList();
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Open chat actions for ${MockChat.title}`,
-			}),
-		);
-		await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
-		fireEvent.click(await screen.findByRole("menuitem", { name: label }));
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+			fireEvent.click(await screen.findByRole("menuitem", { name: label }));
 
-		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith(value);
-		});
-	});
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith(value);
+			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(message);
+			});
+		},
+	);
 
 	it.each([false, true])(
 		"archives and deletes a project chat workspace (confirmation: %s)",
@@ -429,30 +442,46 @@ describe("ProjectChatsList", () => {
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 
-	it("archives a chat from its project row", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
-		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+	it.each(["dropdown", "context", "right-clicked dropdown"])(
+		"archives a chat from its project row's %s menu",
+		async (menu) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 
-		const outletContext = renderList();
+			const outletContext = renderList();
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open chat actions for Chat 0",
-			}),
-		);
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Archive agent" }),
-		);
+			if (menu === "context") {
+				await user.pointer({
+					target: await screen.findByRole("link", { name: /Chat 0/ }),
+					keys: "[MouseRight]",
+				});
+			} else {
+				const button = await screen.findByRole("button", {
+					name: "Open chat actions for Chat 0",
+				});
+				if (menu === "right-clicked dropdown") {
+					// Must not open the row's context menu, which would block
+					// the click below.
+					await user.pointer({ target: button, keys: "[MouseRight]" });
+				}
+				await user.click(button);
+			}
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Archive agent" }),
+			);
 
-		await waitFor(() => {
-			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
-				archived: true,
+			await waitFor(() => {
+				expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+					archived: true,
+				});
+				expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith(
+					"chat-0",
+				);
 			});
-			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
-		});
-		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
-	});
+			expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+		},
+	);
 
 	it("moves a chat to another project from its row menu", async () => {
 		const user = userEvent.setup();

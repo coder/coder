@@ -885,9 +885,23 @@ func createWorkspace(
 
 	auditReq.New = workspace.WorkspaceTable()
 
+	// Report the stored parameters, not the request: coderd drops values for
+	// parameters the template does not declare and fills in defaults and
+	// presets, so this matches what the periodic snapshot reports.
+	var storedParameters map[string]string
+	if api.Telemetry.Enabled() {
+		buildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			api.Logger.Warn(ctx, "get workspace build parameters for telemetry", slog.Error(err))
+		}
+		storedParameters = make(map[string]string, len(buildParameters))
+		for _, param := range buildParameters {
+			storedParameters[param.Name] = param.Value
+		}
+	}
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
-		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild)},
+		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild, storedParameters)},
 	})
 
 	apiBuild, err := api.convertWorkspaceBuild(
@@ -3141,6 +3155,16 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 			Int64: int64(templateDefault),
 			Valid: true,
 		}, nil
+	}
+
+	// Check the bounds before converting to a time.Duration: out of range
+	// values wrap around and can land inside the valid range. The maximum
+	// check compares whole minutes to match the truncation below.
+	if *millis < 0 {
+		return sql.NullInt64{}, errTTLMin
+	}
+	if *millis/time.Minute.Milliseconds() > int64(ttlMaximum/time.Minute) {
+		return sql.NullInt64{}, errTTLMax
 	}
 
 	dur := time.Duration(*millis) * time.Millisecond

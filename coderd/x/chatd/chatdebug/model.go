@@ -803,6 +803,7 @@ func appendNormalizedStreamContent(
 			SourceType: string(part.SourceType),
 			Title:      part.Title,
 			URL:        part.URL,
+			ToolCallID: part.SourceToolCallID,
 		})
 		return content, currentText, currentTextIdx
 	default:
@@ -1024,10 +1025,12 @@ func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentP
 			np.SourceType = string(v.SourceType)
 			np.Title = v.Title
 			np.URL = v.URL
+			np.ToolCallID = v.ToolCallID
 		case *fantasy.SourceContent:
 			np.SourceType = string(v.SourceType)
 			np.Title = v.Title
 			np.URL = v.URL
+			np.ToolCallID = v.ToolCallID
 		case fantasy.ToolResultContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
