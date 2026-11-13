@@ -895,6 +895,34 @@ func TestCreateChatWithoutInitialUserContent(t *testing.T) {
 	}
 }
 
+// TestSendMessageStoresPlanMode verifies that a send stores the plan mode
+// that it carries.
+func TestSendMessageStoresPlanMode(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "send-options",
+		ModelConfigID:  model.ID,
+	})
+	require.NoError(t, err)
+
+	planMode := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:   chat.ID,
+		Content:  []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		PlanMode: &planMode,
+	})
+	require.NoError(t, err)
+	require.Equal(t, planMode, result.Chat.PlanMode)
+}
+
 // TestSendMessageFirstUserTurnFallbackTitle verifies that the first
 // message on a chat created without initial content persists the
 // fallback title in the send itself, independent of title generation.

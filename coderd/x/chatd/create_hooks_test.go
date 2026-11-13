@@ -62,7 +62,8 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 
 		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "secret")
 		opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(opts.InitialUserContent, nil))
-		opts.TitleSource = database.ChatTitleSourceFallback
+		// An unset title source means fallback.
+		opts.TitleSource = ""
 		chat, err := server.CreateChat(ctx, opts)
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
@@ -101,6 +102,24 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		select {
 		case request := <-requests:
 			t.Fatalf("unexpected hook dispatch %s for rejected create", request.Type)
+		default:
+		}
+	})
+
+	t.Run("no dispatch without initial content", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server, requests := newCreateHookTestServer(t, db, ps, http.StatusOK, `{}`)
+
+		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "unused")
+		opts.InitialUserContent = nil
+		_, err := server.CreateChat(ctx, opts)
+		require.NoError(t, err)
+		select {
+		case request := <-requests:
+			t.Fatalf("unexpected hook dispatch %s for a create without content", request.Type)
 		default:
 		}
 	})
