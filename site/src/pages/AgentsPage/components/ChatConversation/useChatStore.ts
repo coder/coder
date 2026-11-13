@@ -245,14 +245,12 @@ export const useChatStore = (
 			// Consecutive messages are upserted together: one Map copy and one
 			// sort instead of one per message.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
-			let userMessageVersion = 0;
 			let needsStreamReset = false;
 
 			const flushMessages = () => {
 				if (pendingMessages.length > 0) {
-					store.upsertDurableMessages(pendingMessages, userMessageVersion);
+					store.upsertDurableMessages(pendingMessages);
 					invalidatePromptAndSearchQueries(pendingMessages.splice(0));
-					userMessageVersion = 0;
 				}
 			};
 
@@ -326,19 +324,13 @@ export const useChatStore = (
 							}
 							store.clearRetryState();
 							pendingMessages.push(message);
-							if (message.role === "user") {
-								userMessageVersion = Math.max(userMessageVersion, version);
-							}
 							if (message.role === "assistant") {
 								needsStreamReset = true;
 							}
 							continue;
 						}
 						case "queue_update":
-							store.setQueuedMessages(
-								streamEvent.queued_messages ?? [],
-								version,
-							);
+							store.setQueuedMessages(streamEvent.queued_messages ?? []);
 							continue;
 						case "status": {
 							const nextStatus = streamEvent.status?.status;

@@ -1399,7 +1399,7 @@ export const WithMessageHistory: Story = {
 		}
 		store.batch(() => {
 			store.resetHistoryFrom(5, 1);
-			store.upsertDurableMessages([{ ...edited, id: 7 }], 1);
+			store.upsertDurableMessages([{ ...edited, id: 7 }]);
 			store.applyServerChatStatus("waiting");
 		});
 		await canvas.findByTestId("chat-message-message:7");
@@ -3269,18 +3269,15 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			await timeline.findByText("Follow-up question.");
 			const store = loadedChatStore(CHAT_ID);
 			store?.batch(() => {
-				store.upsertDurableMessages(
-					[
-						{
-							...MockChatMessage,
-							id: 41,
-							chat_id: CHAT_ID,
-							role: "user",
-							content: [{ type: "text", text: "Follow-up question." }],
-						},
-					],
-					1,
-				);
+				store.upsertDurableMessages([
+					{
+						...MockChatMessage,
+						id: 41,
+						chat_id: CHAT_ID,
+						role: "user",
+						content: [{ type: "text", text: "Follow-up question." }],
+					},
+				]);
 				store.applyServerChatStatus("running");
 			});
 			await waitFor(() => {

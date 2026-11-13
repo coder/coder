@@ -46,10 +46,10 @@ const renderPanel = ({
 	hasMoreMessages?: boolean;
 } = {}) => {
 	const store = createChatStore();
-	store.upsertDurableMessages(
-		[mockOldestLoadedMessage, mockNewestLoadedMessage],
-		1,
-	);
+	store.upsertDurableMessages([
+		mockOldestLoadedMessage,
+		mockNewestLoadedMessage,
+	]);
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<DashboardContext.Provider

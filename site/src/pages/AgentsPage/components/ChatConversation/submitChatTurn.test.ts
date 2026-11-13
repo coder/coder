@@ -317,7 +317,7 @@ describe("submitChatTurn", () => {
 		const updated = [{ ...queued, editing_since: "2024-01-01T00:00:01Z" }];
 		const editMessage = vi.fn(async () => {
 			if (queueUpdate) {
-				store.setQueuedMessages(updated, 2);
+				store.setQueuedMessages(updated);
 			}
 			throw new Error("edit failed");
 		});
@@ -480,7 +480,7 @@ describe("submitChatTurn", () => {
 			textMessage(3, "user", "old"),
 			textMessage(4, "assistant", "old answer"),
 		]);
-		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }], 2);
+		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }]);
 		store.applyMessagePart({ type: "text", text: "old partial answer" });
 		const edit = createDeferred<undefined>();
 		const editMessage = vi.fn(() => edit.promise);
@@ -509,8 +509,8 @@ describe("submitChatTurn", () => {
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 
 		store.batch(() => {
-			store.upsertDurableMessages([textMessage(9, "user", "new")], 2);
-			store.setQueuedMessages([], 2);
+			store.upsertDurableMessages([textMessage(9, "user", "new")]);
+			store.setQueuedMessages([]);
 		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectOrderedMessageIDs(store.getSnapshot())).toEqual([1, 2, 9]);
@@ -565,7 +565,7 @@ describe("submitChatTurn", () => {
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
 		store.batch(() => {
-			store.upsertDurableMessages([textMessage(9, "user", "hello")], 2);
+			store.upsertDurableMessages([textMessage(9, "user", "hello")]);
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
@@ -578,7 +578,7 @@ describe("submitChatTurn", () => {
 		store.subscribe(() => shown.push(visibleTexts(store)));
 		const sendMessage = vi.fn(async () => {
 			store.batch(() => {
-				store.upsertDurableMessages([textMessage(9, "user", "hello")], 2);
+				store.upsertDurableMessages([textMessage(9, "user", "hello")]);
 				store.applyServerChatStatus("running");
 			});
 			return { queued: false };
@@ -613,7 +613,7 @@ describe("submitChatTurn", () => {
 				]),
 			).toEqual([[lane, queued.content]]);
 
-			store.setQueuedMessages([queued], 2);
+			store.setQueuedMessages([queued]);
 			expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
 		},
 	);
