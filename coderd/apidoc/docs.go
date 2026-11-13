@@ -36515,7 +36515,8 @@ const docTemplate = `{
                 "Websocket",
                 "Database",
                 "WorkspaceProxy",
-                "ProvisionerDaemons"
+                "ProvisionerDaemons",
+                "Pubsub"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
@@ -36523,7 +36524,8 @@ const docTemplate = `{
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
                 "HealthSectionWorkspaceProxy",
-                "HealthSectionProvisionerDaemons"
+                "HealthSectionProvisionerDaemons",
+                "HealthSectionPubsub"
             ]
         },
         "healthsdk.HealthSettings": {
@@ -36559,6 +36561,9 @@ const docTemplate = `{
                 },
                 "provisioner_daemons": {
                     "$ref": "#/definitions/healthsdk.ProvisionerDaemonsReport"
+                },
+                "pubsub": {
+                    "$ref": "#/definitions/healthsdk.PubsubReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
@@ -36612,6 +36617,30 @@ const docTemplate = `{
             "properties": {
                 "provisioner_daemon": {
                     "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthsdk.PubsubReport": {
+            "type": "object",
+            "properties": {
+                "backend": {
+                    "description": "Backend is the pubsub implementation in use.",
+                    "type": "string"
+                },
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",

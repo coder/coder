@@ -22127,9 +22127,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Websocket`, `WorkspaceProxy` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Pubsub`, `Websocket`, `WorkspaceProxy` |
 
 ## healthsdk.HealthSettings
 
@@ -22458,6 +22458,18 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       }
     ]
   },
+  "pubsub": {
+    "backend": "string",
+    "dismissed": true,
+    "error": "string",
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
   "websocket": {
@@ -22530,6 +22542,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `pubsub`              | [healthsdk.PubsubReport](#healthsdkpubsubreport)                         | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`                | string                                                                   | false    |              | Time is the time the report was generated at.                                       |
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
@@ -22656,6 +22669,33 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 |----------------------|----------------------------------------------------------|----------|--------------|-------------|
 | `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
+
+## healthsdk.PubsubReport
+
+```json
+{
+  "backend": "string",
+  "dismissed": true,
+  "error": "string",
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                      | Required | Restrictions | Description                                  |
+|-------------|-------------------------------------------|----------|--------------|----------------------------------------------|
+| `backend`   | string                                    | false    |              | Backend is the pubsub implementation in use. |
+| `dismissed` | boolean                                   | false    |              |                                              |
+| `error`     | string                                    | false    |              |                                              |
+| `severity`  | [health.Severity](#healthseverity)        | false    |              |                                              |
+| `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                              |
 
 ## healthsdk.STUNReport
 
