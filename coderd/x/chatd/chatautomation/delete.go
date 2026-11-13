@@ -136,10 +136,14 @@ func publishStatusChange(ps chatstate.Publisher, chat database.Chat) error {
 // actor that can read it and cannot delete it gets ErrDeleteForbidden.
 //
 // The delete takes the automation lock first, as every other path does, so no
-// run queues a message after the cleanup. See DeleteQueuedMessages for the
-// cleanup and its errors.
+// run queues a message after the cleanup. It then locks the chats, and it
+// deletes the automation row last: the purge of old chats locks a chat row
+// and then updates the automations that name that chat, so a transaction
+// that holds an automation row must not wait for a chat row. See
+// DeleteQueuedMessages for the cleanup and its errors.
 //
-// actor needs delete on the automation.
+// actor needs delete on the automation. The row delete checks it, so for an
+// actor without it the cleanup rolls back with the transaction.
 func Delete(
 	ctx context.Context,
 	logger slog.Logger,
@@ -163,6 +167,10 @@ func Delete(
 		if automation.OrganizationID != organizationID {
 			return sql.ErrNoRows
 		}
+		publish, err = DeleteQueuedMessages(ctx, logger, tx, ps, []uuid.UUID{id})
+		if err != nil {
+			return err
+		}
 		rows, err := tx.DeleteChatAutomationByID(actorCtx, id)
 		if dbauthz.IsNotAuthorizedError(err) {
 			return ErrDeleteForbidden
@@ -174,10 +182,6 @@ func Delete(
 			// A soft delete of the owner by direct SQL removed the row
 			// after the read. That path takes no automation lock.
 			return sql.ErrNoRows
-		}
-		publish, err = DeleteQueuedMessages(ctx, logger, tx, ps, []uuid.UUID{id})
-		if err != nil {
-			return err
 		}
 		deleted = automation
 		return nil
