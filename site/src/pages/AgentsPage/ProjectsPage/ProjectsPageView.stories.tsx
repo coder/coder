@@ -165,6 +165,15 @@ export const Archived: Story = {
 	},
 };
 
+export const ArchivedRefetchError: Story = {
+	args: {
+		...Archived.args,
+		archivedError: mockApiError({
+			message: "Failed to refresh archived projects.",
+		}),
+	},
+};
+
 export const YourProjectsWithArchived: Story = {
 	args: { showArchivedTab: true, archivedProjects: mockArchivedProjects },
 };
