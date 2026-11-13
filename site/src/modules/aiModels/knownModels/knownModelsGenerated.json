@@ -943,9 +943,9 @@
 			"aliases": [],
 			"contextLimit": 131072,
 			"maxOutputTokens": 65536,
-			"inputCost": 0.014,
-			"outputCost": 0.053,
-			"cacheReadCost": 0.013
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "openrouter",
@@ -967,7 +967,7 @@
 			"maxOutputTokens": 235929,
 			"inputCost": 0.6,
 			"outputCost": 3.5,
-			"cacheReadCost": 0.15
+			"cacheReadCost": 0.16
 		},
 		{
 			"provider": "openrouter",
@@ -986,9 +986,9 @@
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
-			"inputCost": 0.15,
-			"outputCost": 0.5,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.0399,
+			"outputCost": 0.0784,
 			"cacheReadCost": 0.03
 		},
 		{
@@ -998,9 +998,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.006,
+			"inputCost": 0.007,
 			"outputCost": 6.8,
-			"cacheReadCost": 0.005
+			"cacheReadCost": 0.006
 		},
 		{
 			"provider": "openrouter",
@@ -1177,9 +1177,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.045,
-			"outputCost": 0.5,
-			"cacheReadCost": 0.018
+			"inputCost": 0.022,
+			"outputCost": 0.4,
+			"cacheReadCost": 0.004
 		},
 		{
 			"provider": "openrouter",
@@ -1187,10 +1187,10 @@
 			"displayName": "DeepSeek V4 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
-			"inputCost": 0.091,
-			"outputCost": 0.182,
-			"cacheReadCost": 0.0182
+			"maxOutputTokens": 393216,
+			"inputCost": 0.09,
+			"outputCost": 0.18,
+			"cacheReadCost": 0.018
 		},
 		{
 			"provider": "openrouter",
@@ -1198,10 +1198,10 @@
 			"displayName": "DeepSeek V4 Pro",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 393216,
-			"inputCost": 1.6,
-			"outputCost": 3.2,
-			"cacheReadCost": 0.135
+			"maxOutputTokens": 384000,
+			"inputCost": 0.95526,
+			"outputCost": 1.91052,
+			"cacheReadCost": 0.079605
 		},
 		{
 			"provider": "openrouter",
