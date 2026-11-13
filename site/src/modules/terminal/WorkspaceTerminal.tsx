@@ -35,7 +35,10 @@ import type { ConnectionStatus } from "./types";
 
 export type WorkspaceTerminalHandle = {
 	refit: () => void;
-	/** Connects to an ended session again, which runs its command again. */
+	/**
+	 * Connects to an ended session again, which runs its command again if it
+	 * exited.
+	 */
 	runAgain: () => void;
 };
 
@@ -47,6 +50,11 @@ type WorkspaceTerminalProps = {
 	autoFocus?: boolean;
 	isVisible?: boolean;
 	initialCommand?: string;
+	/**
+	 * Starts with the session ended: the terminal reports `ended` and does not
+	 * connect until `runAgain`.
+	 */
+	defaultEnded?: boolean;
 	containerName?: string;
 	containerUser?: string;
 	onStatusChange?: (status: ConnectionStatus) => void;
@@ -71,6 +79,7 @@ type WorkspaceTerminalProps = {
 
 const DEFAULT_TERMINAL_FONT_FAMILY = "monospace";
 const ESCAPED_CARRIAGE_RETURN = "\x1b\r";
+const NORMAL_CLOSURE_CODE = 1000;
 
 const encodeTerminalPayload = (payload: Record<string, number | string>) => {
 	return new TextEncoder().encode(JSON.stringify(payload));
@@ -84,6 +93,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	autoFocus = true,
 	isVisible = true,
 	initialCommand,
+	defaultEnded = false,
 	containerName,
 	containerUser,
 	onStatusChange,
@@ -200,8 +210,11 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	}, []);
 
 	// Connecting to an ended session runs its command again, so nothing but
-	// runAgain may connect it.
-	const [endedSessionToken, setEndedSessionToken] = useState<string>();
+	// runAgain may connect it. A new reconnectionToken is a new session, which
+	// connects as usual.
+	const [endedSessionToken, setEndedSessionToken] = useState(
+		defaultEnded ? reconnectionToken : undefined,
+	);
 	const hasEnded = endedSessionToken === reconnectionToken;
 	const getHasEnded = useEffectEvent(() => hasEnded);
 
@@ -431,8 +444,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 			return;
 		}
 		if (hasEnded) {
-			// A terminal created after the session ended starts with input on.
-			terminal.options.disableStdin = true;
+			handleStatusChange("ended");
 			return;
 		}
 
@@ -556,13 +568,12 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 						return;
 					}
 					terminal.options.disableStdin = true;
-					// A 1000 close is the browser's only sign that the command exited.
-					// Closing the socket here stops websocket-ts from retrying. Shell
-					// sessions keep reconnecting, so exiting a shell starts a new one.
-					if (initialCommand && event.code === 1000) {
+					// coderd closes normally when the command exits, and also when it
+					// loses the agent while the command still runs. Closing the socket
+					// here stops websocket-ts from retrying. Shells keep reconnecting.
+					if (initialCommand && event.code === NORMAL_CLOSURE_CODE) {
 						socket.close();
 						setEndedSessionToken(reconnectionToken);
-						handleStatusChange("ended");
 						return;
 					}
 					handleStatusChange("disconnected");
@@ -617,7 +628,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 			for (const disposer of disposers) {
 				disposer.dispose();
 			}
-			websocket?.close(1000);
+			websocket?.close(NORMAL_CLOSURE_CODE);
 			websocketRef.current = undefined;
 		};
 	}, [

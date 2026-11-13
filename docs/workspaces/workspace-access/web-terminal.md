@@ -179,6 +179,9 @@ A template-configured app runs its command again without a confirmation dialog.
 When a `?command=` parameter is present, the confirmation dialog opens again before the command runs.
 When the dialog opens from **Run again**, **Cancel** closes only the dialog, and the terminal window stays open.
 
+The page also shows `Session ended.` if Coder loses its connection to the workspace agent while the command is running.
+If the command is still running, **Run again** reconnects to it instead of starting it again.
+
 If you refresh the page after the command exits, the command runs again.
 When a `?command=` parameter is present, the confirmation dialog opens first.
 If the command exits while the terminal is disconnected (for example, during a network interruption), the command runs again when the terminal reconnects.

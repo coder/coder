@@ -9,6 +9,7 @@ const meta: Meta<typeof TerminalCommandConsentDialog> = {
 		open: true,
 		onConfirm: fn(),
 		onDeny: fn(),
+		onCloseAutoFocus: fn(),
 	},
 };
 

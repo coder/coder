@@ -38,7 +38,7 @@ const TerminalPage: React.FC = () => {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [commandConfirmed, setCommandConfirmed] = useState(false);
-	const [rerunPendingConfirmation, setRerunPendingConfirmation] =
+	const [runAgainPendingConfirmation, setRunAgainPendingConfirmation] =
 		useState(false);
 	const { rememberTrigger, restoreFocus } = useDialogFocusReturn();
 	const [searchParams] = useSearchParams();
@@ -131,7 +131,7 @@ const TerminalPage: React.FC = () => {
 	const handleRunAgain = (event: React.MouseEvent<HTMLButtonElement>) => {
 		if (commandRequiresConfirmation) {
 			rememberTrigger(event);
-			setRerunPendingConfirmation(true);
+			setRunAgainPendingConfirmation(true);
 			return;
 		}
 		terminalRef.current?.runAgain();
@@ -248,18 +248,18 @@ const TerminalPage: React.FC = () => {
 
 			{commandRequiresConfirmation && (
 				<TerminalCommandConsentDialog
-					open={!commandConfirmed || rerunPendingConfirmation}
+					open={!commandConfirmed || runAgainPendingConfirmation}
 					command={command}
 					onConfirm={() => {
 						setCommandConfirmed(true);
-						if (rerunPendingConfirmation) {
-							setRerunPendingConfirmation(false);
+						if (runAgainPendingConfirmation) {
+							setRunAgainPendingConfirmation(false);
 							terminalRef.current?.runAgain();
 						}
 					}}
 					onDeny={() => {
-						if (rerunPendingConfirmation) {
-							setRerunPendingConfirmation(false);
+						if (runAgainPendingConfirmation) {
+							setRunAgainPendingConfirmation(false);
 							return;
 						}
 						window.close();

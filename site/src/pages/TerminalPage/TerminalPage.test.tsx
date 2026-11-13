@@ -6,6 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Workspace, WorkspaceApp } from "#/api/typesGenerated";
 import {
+	createWorkspaceTerminalWebSocket,
+	normalClosure,
+	PAST_RECONNECT_WINDOW_MS,
+	setupUserWithFakeTimers,
+	WS,
+} from "#/modules/terminal/testHelpers";
+import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -25,9 +32,6 @@ vi.mock("#/utils/random", () => ({
 	generateUUID: () => "terminal-page-test-reconnect-token",
 	generateConnectionSessionId: () => mockSessionId,
 }));
-vi.stubGlobal("jest", vi);
-await import("jest-canvas-mock");
-const { default: WS } = await import("jest-websocket-mock");
 
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
@@ -42,13 +46,6 @@ Object.defineProperty(window, "matchMedia", {
 		dispatchEvent: vi.fn(),
 	})),
 });
-
-const createWorkspaceTerminalWebSocket = () => {
-	const websocketProtocol = location.protocol === "https:" ? "wss" : "ws";
-	const websocketUrl = `${websocketProtocol}://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&height=24&width=80`;
-
-	return new WS(websocketUrl);
-};
 
 // Renders the terminal page and waits for the terminal to finish
 // initializing (i.e. the WebSocket connection is established). Do not
@@ -238,14 +235,18 @@ describe("TerminalPage", () => {
 		await renderTerminal();
 		await initialResizeMessage;
 
-		const msg = ws.nextMessage;
+		const nextMessage = ws.nextMessage;
 		fireEvent.keyDown(screen.getByRole("textbox", { name: "Terminal input" }), {
 			key: "Tab",
 			keyCode: 9,
 		});
 
-		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
-		expect(req.data).toBe("\t");
+		const message = await nextMessage;
+		// The bytes come from another realm, so instanceof does not match.
+		if (!ArrayBuffer.isView(message)) {
+			throw new Error("expected a binary terminal message");
+		}
+		expect(JSON.parse(new TextDecoder().decode(message)).data).toBe("\t");
 	});
 
 	it("rebuilds the glyph cache when a font finishes loading", async () => {
@@ -413,13 +414,6 @@ describe("TerminalPage", () => {
 
 	describe("when the connection closes", () => {
 		const appRoute = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`;
-		// The server closes normally once the agent ends the session.
-		const normalClosure = { code: 1000, reason: "", wasClean: true };
-		// websocket-ts retries and the mock server accepts on timers.
-		const setupUserWithFakeTimers = () => {
-			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-			return userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync });
-		};
 
 		beforeEach(() => {
 			mockAgentApp({ slug: "my-app", command: "echo trusted" });
@@ -456,7 +450,7 @@ describe("TerminalPage", () => {
 			ws.close(closeEvent);
 			const onReconnect = vi.fn();
 			createWorkspaceTerminalWebSocket().on("connection", onReconnect);
-			await vi.advanceTimersByTimeAsync(60_000);
+			await vi.advanceTimersByTimeAsync(PAST_RECONNECT_WINDOW_MS);
 
 			expect(onReconnect).toHaveBeenCalledTimes(reconnections);
 		});
@@ -531,11 +525,11 @@ describe("TerminalPage", () => {
 
 			it("runs it again only after confirmation", async () => {
 				const { user, nextWs, onReconnect } = await askToRunAgain();
-				await vi.advanceTimersByTimeAsync(60_000);
+				await vi.advanceTimersByTimeAsync(PAST_RECONNECT_WINDOW_MS);
 				expect(onReconnect).not.toHaveBeenCalled();
 
 				await user.click(screen.getByRole("button", { name: "Run command" }));
-				await vi.advanceTimersByTimeAsync(60_000);
+				await vi.advanceTimersByTimeAsync(PAST_RECONNECT_WINDOW_MS);
 
 				expect(onReconnect).toHaveBeenCalledOnce();
 				expect(nextWs.server.clients()[0].url).toContain("command=echo+hello");
@@ -546,7 +540,7 @@ describe("TerminalPage", () => {
 				const { user, onReconnect } = await askToRunAgain();
 
 				await user.click(screen.getByRole("button", { name: "Cancel" }));
-				await vi.advanceTimersByTimeAsync(60_000);
+				await vi.advanceTimersByTimeAsync(PAST_RECONNECT_WINDOW_MS);
 
 				expect(screen.getByRole("button", { name: "Run again" })).toHaveFocus();
 				expect(closeSpy).not.toHaveBeenCalled();

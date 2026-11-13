@@ -43,10 +43,13 @@ export type UserRightPanelTab =
 			label?: string;
 			reconnectionToken: string;
 			/**
-			 * Command run when the PTY session is first created. The backend only
-			 * runs it for a fresh reconnect token, so reattaching does not re-run it.
+			 * Command run when the PTY session is first created. Reattaching to a
+			 * live session does not run it again, but connecting after it has
+			 * exited does.
 			 */
 			initialCommand?: string;
+			/** Whether the command's session ended, so the tab must not reconnect. */
+			sessionEnded?: boolean;
 			/** ID of the command app that opened this terminal, used to dedupe tabs. */
 			sourceAppId?: string;
 	  }
@@ -89,6 +92,8 @@ export function isUserRightPanelTab(
 			(record.label === undefined || typeof record.label === "string") &&
 			(record.initialCommand === undefined ||
 				typeof record.initialCommand === "string") &&
+			(record.sessionEnded === undefined ||
+				typeof record.sessionEnded === "boolean") &&
 			(record.sourceAppId === undefined ||
 				typeof record.sourceAppId === "string")
 		);
@@ -115,6 +120,22 @@ export function isUserRightPanelTab(
 	}
 
 	return false;
+}
+
+/**
+ * Records on a terminal tab whether its command's session ended. Every other
+ * tab is returned as it is.
+ */
+export function setTerminalTabSessionEnded(
+	tabs: readonly UserRightPanelTab[],
+	tabId: string,
+	sessionEnded: boolean,
+): UserRightPanelTab[] {
+	return tabs.map((tab) =>
+		tab.id === tabId && tab.kind === "terminal"
+			? { ...tab, sessionEnded }
+			: tab,
+	);
 }
 
 export function validateUserRightPanelTabs(

@@ -1,6 +1,7 @@
 /**
- * `ended` means a command session ended, normally because its command exited.
- * Unlike `disconnected`, the terminal does not reconnect on its own.
+ * `ended` means the server closed a command session, normally because its
+ * command exited. Unlike `disconnected`, the terminal does not reconnect on
+ * its own.
  */
 export type ConnectionStatus =
 	| "connected"

@@ -14,7 +14,7 @@ type TerminalCommandConsentDialogProps = {
 	command: string;
 	onConfirm: () => void;
 	onDeny: () => void;
-	onCloseAutoFocus?: (event: Event) => void;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
 export const TerminalCommandConsentDialog: React.FC<
