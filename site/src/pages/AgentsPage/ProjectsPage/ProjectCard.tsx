@@ -125,7 +125,10 @@ export const ArchivedProjectCard: React.FC<ArchivedProjectCardProps> = ({
 	onUnarchived,
 	onDelete,
 }) => {
-	const { unarchive } = useUnarchiveChatProject(project, onUnarchived);
+	const { unarchive, isPending } = useUnarchiveChatProject(
+		project,
+		onUnarchived,
+	);
 	return (
 		<ProjectCardFrame
 			project={project}
@@ -143,7 +146,10 @@ export const ArchivedProjectCard: React.FC<ArchivedProjectCardProps> = ({
 				hasProjectManageAction(project) && (
 					<ProjectCardActions
 						project={project}
-						onUnarchive={unarchive}
+						// A pending unarchive shows a spinner and leaves the item
+						// out, so it cannot be picked again.
+						onUnarchive={isPending ? undefined : unarchive}
+						pendingLabel={isPending ? `Unarchiving ${project.name}` : undefined}
 						onDelete={onDelete}
 					/>
 				)
@@ -230,6 +236,8 @@ type ProjectCardActionsProps = {
 	readonly onArchive?: DialogAction;
 	readonly onUnarchive?: () => void;
 	readonly onDelete: DialogAction;
+	/** Shows a spinner with this label while a request for the card runs. */
+	readonly pendingLabel?: string;
 };
 
 const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
@@ -239,6 +247,7 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	onArchive,
 	onUnarchive,
 	onDelete,
+	pendingLabel,
 }) => {
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
 	// Edit, Archive, and Delete open a dialog only once the menu has closed,
@@ -315,6 +324,11 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 				// does not open the actions menu.
 				<span className="flex size-7 items-center justify-center">
 					<Spinner loading={pin.pinPending} label={`Pinning ${project.name}`} />
+				</span>
+			)}
+			{pendingLabel && (
+				<span className="flex size-7 items-center justify-center">
+					<Spinner loading label={pendingLabel} />
 				</span>
 			)}
 		</div>
