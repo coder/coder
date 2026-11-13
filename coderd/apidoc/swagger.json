@@ -154,6 +154,33 @@
 				}
 			}
 		},
+		"/api/experimental/chats/projects/summaries": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "List chat project summaries",
+				"operationId": "list-chat-project-summaries",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.ChatProjectSummary"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/chats/{chat}/stream/desktop": {
 			"get": {
 				"description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -21663,6 +21690,43 @@
 				"ChatProjectRoleAdmin",
 				"ChatProjectRoleDeleted"
 			]
+		},
+		"codersdk.ChatProjectSummary": {
+			"type": "object",
+			"properties": {
+				"last_activity_at": {
+					"description": "LastActivityAt is the latest update to one of the caller's chats.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"member_count": {
+					"description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
+					"type": "integer"
+				},
+				"own_chat_count": {
+					"type": "integer"
+				},
+				"own_needs_attention": {
+					"description": "OwnNeedsAttention reports a chat that requires action, failed, or is paused.",
+					"type": "boolean"
+				},
+				"own_running": {
+					"type": "boolean"
+				},
+				"own_unread_count": {
+					"type": "integer"
+				},
+				"pin_order": {
+					"description": "PinOrder is the 1-based position among pinned projects, or 0.",
+					"type": "integer"
+				},
+				"pinned": {
+					"type": "boolean"
+				},
+				"project": {
+					"$ref": "#/definitions/codersdk.ChatProject"
+				}
+			}
 		},
 		"codersdk.ChatProjectUser": {
 			"type": "object",

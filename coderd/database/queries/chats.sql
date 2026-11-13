@@ -686,7 +686,7 @@ WHERE
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
             -- the sidebar is the only place left to find the chat. Same
-            -- access predicate as PinChatProject.
+            -- access predicate as GetChatProjectSummariesByUserID.
             OR NOT EXISTS (
                 SELECT 1
                 FROM chat_projects cp

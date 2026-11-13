@@ -10,13 +10,45 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// @Summary List chat project summaries
+// @ID list-chat-project-summaries
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatProjectSummary
+// @Router /api/experimental/chats/projects/summaries [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
+		UserID:             apiKey.UserID,
+		ACLEnabled:         !api.chatSharingDisabled(),
+		CountSharedMembers: api.chatProjectSharingAvailable(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat project summaries.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, func(row database.GetChatProjectSummariesByUserIDRow) codersdk.ChatProjectSummary {
+		return db2sdk.ChatProjectSummary(row, api.convertChatProject(r, row.ChatProject))
+	}))
+}
 
 // @Summary Pin chat project
 // @ID pin-chat-project
@@ -116,10 +148,18 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// chatProjectSharingAvailable reports whether summaries count the users a
+// project is shared with. It matches the gate on the project ACL routes.
+// Which projects are visible does not depend on it: grants count wherever
+// RBAC honors them, which is whenever chatSharingDisabled is false.
+func (api *API) chatProjectSharingAvailable() bool {
+	return !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))
+}
+
 // authorizeChatProjectPin writes a 404 and returns false unless the caller
 // owns the project or holds a grant on it that RBAC honors.
-// The project list shows only those projects, so role-based read access
-// alone would leave the pin invisible.
+// Summaries list only those projects, so role-based read access alone would
+// leave the pin invisible.
 func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request, project database.ChatProject) bool {
 	ctx := r.Context()
 	userID := httpmw.APIKey(r).UserID

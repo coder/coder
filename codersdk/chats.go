@@ -248,6 +248,26 @@ type ChatProjectPermissions struct {
 	Share  bool `json:"share"`
 }
 
+// ChatProjectSummary is a project with the caller's pin and aggregates over
+// the caller's own top-level, non-archived chats in it.
+type ChatProjectSummary struct {
+	Project ChatProject `json:"project"`
+	Pinned  bool        `json:"pinned"`
+	// PinOrder is the 1-based position among pinned projects, or 0.
+	PinOrder       int32 `json:"pin_order"`
+	OwnChatCount   int64 `json:"own_chat_count"`
+	OwnUnreadCount int64 `json:"own_unread_count"`
+	OwnRunning     bool  `json:"own_running"`
+	// OwnNeedsAttention reports a chat that requires action, failed, or is paused.
+	OwnNeedsAttention bool `json:"own_needs_attention"`
+	// LastActivityAt is the latest update to one of the caller's chats.
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty" format:"date-time"`
+	// MemberCount counts users who can use the project, including the owner.
+	// Suspended users are not counted. It is 1 when chat sharing is
+	// unavailable.
+	MemberCount int64 `json:"member_count"`
+}
+
 // PinChatProjectRequest pins a chat project for the caller, or moves an
 // already pinned project.
 type PinChatProjectRequest struct {
@@ -2587,6 +2607,12 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListChatProjectSummaries lists the projects from ListChatProjects with the
+// caller's pins and chat aggregates.
+func (c *ExperimentalClient) ListChatProjectSummaries(ctx context.Context) ([]ChatProjectSummary, error) {
+	return requestJSON[[]ChatProjectSummary](ctx, c.Client, http.MethodGet, "/api/experimental/chats/projects/summaries", http.StatusOK, nil)
 }
 
 // PinChatProject pins a chat project for the caller or moves its pin.
