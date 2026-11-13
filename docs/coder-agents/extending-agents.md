@@ -325,8 +325,11 @@ Personal, organization, and project skills can be manual-only.
 Agents don't see a manual-only skill in their list of skills, and `read_skill` reports that the skill was not found.
 You can still run it from the `/` menu, by typing its alias, or, for project skills, with an action button.
 
-To make a project skill manual-only, turn off **Agents can use it automatically** in its editor.
-Importing a `SKILL.md` file that sets `disable-model-invocation: true` while you add a project skill turns the switch off.
+To make a skill manual-only, turn off **Agents can use it automatically** in its editor.
+Skills tables mark these skills **Manual only**.
+Importing a `SKILL.md` file that sets `disable-model-invocation: true` turns the switch off.
+When you add a skill, importing a file without that line turns the switch back on.
+When you edit a skill, it leaves the switch unchanged.
 In the API, the setting is the `model_invocable` field, which is on by default.
 
 When you create or update a skill through the API without setting `model_invocable`, Coder reads the `disable-model-invocation` frontmatter key that Claude Code, Cursor, and VS Code use:

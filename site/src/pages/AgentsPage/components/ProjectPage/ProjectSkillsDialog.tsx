@@ -37,6 +37,7 @@ import { toast } from "#/components/Toaster/toast";
 import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
 	emptyProjectSkillFormValues,
+	isSkillContentChanged,
 	projectSkillsScope,
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
@@ -473,16 +474,12 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				existingNames={existingNames}
 				isSubmitting={isSubmitting}
 				onSubmit={(values, content, onSettled) => {
-					// A settings-only edit keeps the stored SKILL.md as written.
-					const opened = openedValues ?? loaded.values;
 					onSubmit(
 						values,
 						content,
 						onSettled,
 						view.type === "create" ||
-							values.name !== opened.name ||
-							values.description !== opened.description.trim() ||
-							values.body !== opened.body,
+							isSkillContentChanged(openedValues ?? loaded.values, values),
 					);
 				}}
 			>
@@ -495,7 +492,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				/>
 				<SkillEditorFields>
 					<SkillEditorSubmitError error={submitError} />
-					{canEdit && <SkillEditorImport resetsModelInvocable />}
+					{canEdit && <SkillEditorImport />}
 					<SkillEditorNameField hint="Lowercase letters, numbers, and hyphens." />
 					<SkillEditorDescriptionField />
 					<SkillEditorProjectSettings />

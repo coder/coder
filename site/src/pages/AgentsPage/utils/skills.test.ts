@@ -456,6 +456,15 @@ describe("skillFileContent", () => {
 		);
 	});
 
+	it("marks frontmatter with whitespace around the delimiters", () => {
+		const content = "  ---  \nname: triage\n --- \nTriage issues.\n";
+		const marked = skillFileContent({ ...mockManualSkill, content });
+		expect(marked).toBe(
+			"  ---  \ndisable-model-invocation: true\nname: triage\n --- \nTriage issues.\n",
+		);
+		expect(parseSkillMarkdown(marked).modelInvocable).toBe(false);
+	});
+
 	it.each([
 		["quoted", '"disable-model-invocation": true'],
 		["spaced", "disable-model-invocation : true"],
