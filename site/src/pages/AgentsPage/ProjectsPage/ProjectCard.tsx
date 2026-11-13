@@ -146,8 +146,6 @@ export const ArchivedProjectCard: React.FC<ArchivedProjectCardProps> = ({
 				hasProjectManageAction(project) && (
 					<ProjectCardActions
 						project={project}
-						// A pending unarchive shows a spinner and leaves the item
-						// out, so it cannot be picked again.
 						onUnarchive={isPending ? undefined : unarchive}
 						pendingLabel={isPending ? `Unarchiving ${project.name}` : undefined}
 						onDelete={onDelete}
