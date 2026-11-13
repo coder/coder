@@ -58,7 +58,19 @@ describe("findTitleCaseWords", () => {
 		]);
 		expect(words("Browser-Only connections")).toEqual(["Only"]);
 		expect(words("Set X-Forwarded-For headers")).toEqual([]);
+		expect(words("SFMono-Regular fonts")).toEqual([]);
 		expect(words("Use built-in roles")).toEqual([]);
+	});
+
+	it("checks hyphen suffixes after proper nouns", () => {
+		expect(words("Use Coder-Based Authentication")).toEqual([
+			"Based",
+			"Authentication",
+		]);
+		expect(words("Coder-Managed keys")).toEqual(["Managed"]);
+		expect(findTitleCaseWords("Use Coder-Based auth")).toEqual([
+			{ offset: 10, word: "Based" },
+		]);
 	});
 
 	it("returns the offset of each reported word", () => {

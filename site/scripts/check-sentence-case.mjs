@@ -146,16 +146,20 @@ const HYPHEN_SEGMENT = /^(?:[A-Z][a-z]+|[a-z]+)(?:['’][a-z]+)*$/;
 
 /**
  * Returns the capitalized segments of a hyphenated word, such as "Based"
- * in "Role-Based", with their offsets in the word. Returns nothing when
- * the word has no hyphen or a segment is not a regular word.
+ * in "Role-Based", with their offsets in the word. Segments before
+ * `start` are skipped, such as a proper noun prefix. Returns nothing
+ * when the word has no hyphen or a checked segment is not a regular word.
  */
-function capitalizedSegments(word) {
-	const segments = word.split("-");
-	if (segments.length < 2 || !segments.every((s) => HYPHEN_SEGMENT.test(s))) {
+function capitalizedSegments(word, start = 0) {
+	if (!word.includes("-")) {
+		return [];
+	}
+	const segments = word.slice(start).split("-");
+	if (!segments.every((s) => HYPHEN_SEGMENT.test(s))) {
 		return [];
 	}
 	const results = [];
-	let offset = 0;
+	let offset = start;
 	for (const segment of segments) {
 		if (/^[A-Z]/.test(segment)) {
 			results.push({ offset, word: segment });
@@ -190,8 +194,11 @@ export function findTitleCaseWords(text) {
 		});
 	}
 
-	// Indexes of tokens that belong to a proper noun.
+	// Indexes of tokens that belong to a proper noun. A token like
+	// "Coder-Based" also maps to the offset of the suffix after the proper
+	// noun, which is still checked.
 	const properNounTokens = new Set();
+	const properNounSuffixes = new Map();
 	for (const nounWords of properNounWords) {
 		for (let i = 0; i + nounWords.length <= tokens.length; i++) {
 			const matches = nounWords.every((w, j) => {
@@ -208,12 +215,24 @@ export function findTitleCaseWords(text) {
 			if (matches) {
 				for (let j = 0; j < nounWords.length; j++) {
 					properNounTokens.add(i + j);
+					const word = tokens[i + j].word;
+					if (word.startsWith(`${nounWords[j]}-`)) {
+						properNounSuffixes.set(i + j, nounWords[j].length + 1);
+					}
 				}
 			}
 		}
 	}
 
 	const results = [];
+	const reportSegments = (token, start) => {
+		for (const segment of capitalizedSegments(token.word, start)) {
+			results.push({
+				offset: token.offset + segment.offset,
+				word: segment.word,
+			});
+		}
+	};
 	let inPhrase = false;
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
@@ -224,7 +243,9 @@ export function findTitleCaseWords(text) {
 			// A lowercase word outside a phrase may continue text from
 			// elsewhere, so only a capitalized word starts a phrase.
 			inPhrase = capitalized;
-			if (capitalized && !properNounTokens.has(i)) {
+			if (properNounSuffixes.has(i)) {
+				reportSegments(token, properNounSuffixes.get(i));
+			} else if (capitalized && !properNounTokens.has(i)) {
 				// Only the first segment of the first word keeps its
 				// capital: "Browser-Only" becomes "Browser-only".
 				for (const segment of capitalizedSegments(token.word).slice(1)) {
@@ -234,17 +255,16 @@ export function findTitleCaseWords(text) {
 					});
 				}
 			}
+		} else if (properNounSuffixes.has(i)) {
+			// The proper noun keeps its capital, but not the suffix:
+			// "Coder-Based" becomes "Coder-based".
+			reportSegments(token, properNounSuffixes.get(i));
 		} else if (properNounTokens.has(i)) {
 			// Proper nouns keep their capitalization.
 		} else if (capitalized && CAPITALIZED_WORD.test(token.word)) {
 			results.push({ offset: token.offset, word: token.word });
 		} else {
-			for (const segment of capitalizedSegments(token.word)) {
-				results.push({
-					offset: token.offset + segment.offset,
-					word: segment.word,
-				});
-			}
+			reportSegments(token, 0);
 		}
 		if (PHRASE_END.test(token.raw)) {
 			inPhrase = false;
