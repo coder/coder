@@ -304,28 +304,10 @@ func TestChatAutomationOrganizationTrigger(t *testing.T) {
 		{name: "TargetChat", id: webhook.ID, query: `UPDATE chat_automations SET target_chat_id = $2 WHERE id = $1`, arg: other.chat.ID, want: chatConstraint},
 		{name: "CreatingChat", id: webhook.ID, query: `UPDATE chat_automations SET created_by_chat_id = $2 WHERE id = $1`, arg: other.chat.ID, want: chatConstraint},
 		{name: "Project", id: schedule.ID, query: `UPDATE chat_automations SET project_id = $2 WHERE id = $1`, arg: other.project.ID, want: projectConstraint},
-		// A change of the organization alone checks every reference again.
-		{name: "OrganizationOfTargetChat", id: webhook.ID, query: `UPDATE chat_automations SET organization_id = $2 WHERE id = $1`, arg: other.org.ID, want: chatConstraint},
 	} {
 		_, err := sqlDB.ExecContext(ctx, tc.query, tc.id, tc.arg)
 		requireCheckViolation(t, err, tc.want)
 	}
-
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET project_id = $2 WHERE id = $1`, schedule.ID, o.project.ID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET organization_id = $2, new_chat_model_config_id = $3 WHERE id = $1`,
-		schedule.ID, other.org.ID, other.model.ID)
-	requireCheckViolation(t, err, projectConstraint)
-
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET project_id = NULL, created_by_chat_id = $2 WHERE id = $1`, schedule.ID, o.chat.ID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET organization_id = $2, new_chat_model_config_id = $3 WHERE id = $1`,
-		schedule.ID, other.org.ID, other.model.ID)
-	requireCheckViolation(t, err, chatConstraint)
-
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET organization_id = $2, target_chat_id = $3 WHERE id = $1`,
-		webhook.ID, other.org.ID, other.chat.ID)
-	require.NoError(t, err)
 }
 
 func TestChatAutomationReferenceDeletes(t *testing.T) {

@@ -203,11 +203,11 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		}
 	})
 
-	memberAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID, Name: "member"})
-	otherMemberAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: otherMember.ID, Name: "other-member"})
+	memberAutomation := dbgen.ChatAutomation(t, rawDB, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID, Name: "member"})
+	otherMemberAutomation := dbgen.ChatAutomation(t, rawDB, database.ChatAutomation{OrganizationID: org.ID, OwnerID: otherMember.ID, Name: "other-member"})
 	// An automation whose owner has no agents-access. The owner can no
 	// longer reach it.
-	orphanedAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: noAgentsOrg.ID, OwnerID: memberWithoutAgentsAccess.ID})
+	orphanedAutomation := dbgen.ChatAutomation(t, rawDB, database.ChatAutomation{OrganizationID: noAgentsOrg.ID, OwnerID: memberWithoutAgentsAccess.ID})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
@@ -331,12 +331,5 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		require.NotEmpty(t, rows)
 
 		requireDenied(t, db.DeleteChatAutomationByID(ctx, memberAutomation.ID))
-
-		// This change has no query that updates an automation, so ask RBAC
-		// directly.
-		subject, ok := dbauthz.ActorFromContext(ctx)
-		require.True(t, ok)
-		require.NoError(t, authorizer.Authorize(ctx, subject, policy.ActionUpdate, memberAutomation.RBACObject()),
-			"chatd updates the next run time and the last run")
 	})
 }
