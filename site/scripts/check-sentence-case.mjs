@@ -563,13 +563,13 @@ function isCodeAttribute({ name, intrinsic }) {
  * Returns true when `node` is inside the value of an object property
  * whose key names code, such as `{ className: "a" }` or
  * `{ value: "a", label: "A" }`, so props built before a JSX spread are
- * handled like attributes. Stops at functions and JSX.
+ * handled like attributes. Looks through callbacks inside the value and
+ * stops at JSX.
  */
 function isInCodeProperty(node) {
 	for (
 		let parent = node.parent;
 		parent &&
-		!ts.isFunctionLike(parent) &&
 		!ts.isJsxElement(parent) &&
 		!ts.isJsxSelfClosingElement(parent) &&
 		!ts.isJsxFragment(parent) &&
@@ -1123,9 +1123,16 @@ function createPieceBuilder(sourceFile, consumed) {
 				}
 			}
 		} else if (ts.isArrayLiteralExpression(node)) {
-			// React renders an array's items one after another.
+			// React renders an array's items one after another, including
+			// the items of a spread array literal.
 			for (const element of node.elements) {
-				addExpression(element, pieces, inline);
+				const spread =
+					ts.isSpreadElement(element) && skipTransparent(element.expression);
+				if (spread && ts.isArrayLiteralExpression(spread)) {
+					addNode(spread, pieces, inline);
+				} else {
+					addExpression(element, pieces, inline);
+				}
 			}
 		} else if (ts.isJsxExpression(node)) {
 			// An empty expression, such as {/* note */}, renders nothing.

@@ -226,9 +226,18 @@ describe("checkSource", () => {
 	});
 
 	it("checks arrays rendered in JSX in place", () => {
-		const source = 'const a = <p>Create {["New ", "Workspace"]}</p>;';
+		const source = [
+			'const a = <p>Create {["New ", "Workspace"]}</p>;',
+			'const b = <p>Create {["New ", ...["Workspace Settings"]]}</p>;',
+		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
-		expect(issues.map(({ word }) => word)).toEqual(["New", "Workspace"]);
+		expect(issues.map(({ word }) => word)).toEqual([
+			"New",
+			"Workspace",
+			"New",
+			"Workspace",
+			"Settings",
+		]);
 	});
 
 	it("checks fallback values rendered in JSX in place", () => {
@@ -394,6 +403,7 @@ describe("checkSource", () => {
 			'const o = <div {...(ok && { "data-x": "Is On" })} />;',
 			'const p = <div {...{ ["className"]: "Foo Bar" }} />;',
 			'const props = { className: "Foo Bar", style: { gridArea: "Main Header" } };',
+			"const more = { style: { areas: rows.map(() => 'Main Header').join(' ') } };",
 			"const q = <div dangerouslySetInnerHTML={{ __html: \"<b class='Foo Bar'>x</b>\" }} />;",
 			'const options = [{ value: "Last Week", label: "Last Week" }];',
 			'const l = <input name="Plan Name" />;',
@@ -404,8 +414,8 @@ describe("checkSource", () => {
 			[4, "Workspaces"],
 			[4, "File"],
 			[5, "Template"],
-			[17, "Week"],
-			[19, "Workspace"],
+			[18, "Week"],
+			[20, "Workspace"],
 		]);
 	});
 
