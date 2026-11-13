@@ -48,7 +48,6 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 				chatId="test-chat"
 				onRefresh={() => true}
 				repositories={new Map()}
-				isExpanded={false}
 				isGitStatusLoading={false}
 				everDirty={new Set()}
 				chatInputRef={{ current: null }}
@@ -65,7 +64,6 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 					chatId="test-chat"
 					onRefresh={() => true}
 					repositories={new Map()}
-					isExpanded={false}
 					isGitStatusLoading={false}
 					everDirty={new Set()}
 					chatInputRef={{ current: null }}
@@ -105,6 +103,9 @@ function mockComposer(value = ""): ChatMessageInputRef {
 		focus: vi.fn(),
 		addFileReference: vi.fn(),
 		insertSkill: vi.fn(),
+		removeSkills: vi.fn(),
+		getEditorState: vi.fn(() => ""),
+		restoreEditorState: vi.fn(),
 		getContentParts: vi.fn(() => []),
 	};
 }

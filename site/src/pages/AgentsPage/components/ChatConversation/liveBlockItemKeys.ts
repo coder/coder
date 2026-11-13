@@ -2,7 +2,9 @@ import type { WorkingBlock } from "./workingBlockGrouping";
 
 type LiveBlockIdentity = {
 	itemKey: string;
-	firstMemberId: number | undefined;
+	firstPieceKey: string | undefined;
+	liveWorkOrdinal: number | undefined;
+	startedAt: number | undefined;
 	streamStartedAt: string | undefined;
 };
 
@@ -11,26 +13,31 @@ const continuesLiveBlock = (
 	identity: LiveBlockIdentity,
 	streamStartedAt: string | undefined,
 ): boolean => {
-	if (
-		identity.firstMemberId !== undefined &&
-		block.memberIds.includes(identity.firstMemberId)
-	) {
-		return true;
+	// A block keeps its persisted pieces, so once it has one no other block
+	// continues it, even a new live block of the same stream.
+	if (identity.firstPieceKey !== undefined) {
+		return block.pieceKeys.includes(identity.firstPieceKey);
 	}
 
-	if (!block.isLive || identity.streamStartedAt === undefined) {
+	if (identity.streamStartedAt === undefined) {
 		return false;
 	}
 
+	// Output can close a live-only block mid-stream while the next work opens
+	// another, so blocks of one stream match by their work ordinal in it.
 	if (identity.streamStartedAt === streamStartedAt) {
-		return true;
+		return (
+			identity.liveWorkOrdinal !== undefined &&
+			block.liveWorkOrdinal === identity.liveWorkOrdinal
+		);
 	}
 
 	// A live-only block's first persisted step keeps its streamed part
 	// timestamps, even when the stream clears in the same render.
 	return (
-		identity.firstMemberId === undefined &&
-		block.startedAt === Date.parse(identity.streamStartedAt)
+		block.isLive &&
+		identity.startedAt !== undefined &&
+		block.startedAt === identity.startedAt
 	);
 };
 
@@ -86,14 +93,22 @@ export const reconcileLiveBlockKeys = (
 			nextItemKeys = new Map(nextItemKeys).set(block.key, itemKey);
 		}
 
-		const firstMemberId = block.memberIds[0];
+		const firstPieceKey = block.pieceKeys.at(0);
 		if (
 			block.isLive &&
 			(nextIdentity?.itemKey !== itemKey ||
-				nextIdentity.firstMemberId !== firstMemberId ||
+				nextIdentity.firstPieceKey !== firstPieceKey ||
+				nextIdentity.liveWorkOrdinal !== block.liveWorkOrdinal ||
+				nextIdentity.startedAt !== block.startedAt ||
 				nextIdentity.streamStartedAt !== streamStartedAt)
 		) {
-			nextIdentity = { itemKey, firstMemberId, streamStartedAt };
+			nextIdentity = {
+				itemKey,
+				firstPieceKey,
+				liveWorkOrdinal: block.liveWorkOrdinal,
+				startedAt: block.startedAt,
+				streamStartedAt,
+			};
 		}
 	}
 

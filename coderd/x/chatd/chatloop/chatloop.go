@@ -155,7 +155,9 @@ type ExecuteLocalToolsOptions struct {
 	// ObservedToolCalls optionally carries the step's full assistant
 	// tool-call batch, including calls denied before execution, so
 	// step observers account for denied siblings that derivation will
-	// still count. Defaults to ToolCalls.
+	// still count, and halting tools skip the calls after a denied
+	// call. Calls missing from ToolCalls count as denied. Defaults to
+	// ToolCalls.
 	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
@@ -169,13 +171,8 @@ type ExecuteLocalToolsOptions struct {
 	// case a default budget applies.
 	ContextLimit int64
 
-	// ToolNameAliases maps a non-advertised tool name to the canonical
-	// tool it dispatches to. Used for backward compatibility when a tool
-	// is renamed but old chat histories still reference the old name.
-	ToolNameAliases map[string]string
-
 	// UnbilledToolNames lists called tool names excluded from the batch
-	// window. Include deprecated aliases.
+	// window.
 	UnbilledToolNames map[string]bool
 	// BillingRecorder observes each local call's start and completion
 	// for interrupt billing. Serial calls may start after concurrent
@@ -274,7 +271,8 @@ type GenerateCompactionOptions struct {
 	Logger slog.Logger
 }
 
-// ProviderTool pairs a provider-native tool definition with an
+// ProviderTool pairs a tool definition that chatd builds for one
+// provider, either provider-native or a plain function tool, with an
 // optional local executor. When Runner is nil the tool is fully
 // provider-executed (e.g. web search). When Runner is non-nil
 // the definition is sent to the API but execution is handled
@@ -295,6 +293,7 @@ type ProviderTool struct {
 type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
+	responseBytes        int
 	providerMetadata     fantasy.ProviderMetadata
 	providerResponseID   string
 	finishReason         fantasy.FinishReason
@@ -400,6 +399,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	// Observe before error handling so failed or rejected responses are still counted.
+	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
@@ -649,6 +650,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 		ssePart.CreatedAt = &completedAt
+		userResult, projectionErr := chattool.UserResultFromMetadata(tr.ClientMetadata)
+		if projectionErr != nil {
+			return PersistedStep{}, projectionErr
+		}
+		if len(userResult) > 0 {
+			ssePart.Result = userResult
+		}
 		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
@@ -930,8 +938,8 @@ func guardedStream(
 				switch part.Type {
 				case fantasy.StreamPartTypeError:
 					finishTTFT(part.Error)
-				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
-					// Neither is model output, so the window stays open.
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeKeepalive, fantasy.StreamPartTypeFinish:
+					// None is model output, so the window stays open.
 				default:
 					// Start markers such as text_start count as output.
 					finishTTFT(nil)
@@ -972,6 +980,11 @@ func processStepStream(
 	var startedToolInputIDs []string
 
 	for part := range stream {
+		// Counts Delta on every part type. This relies on providers keeping
+		// summary data, such as ToolCall input, out of Delta. Only
+		// TestGenerateAssistant_ResponseSizeBytesByPartType checks this, so
+		// update it when adding new part types.
+		result.responseBytes += len(part.Delta)
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			// OpenAI labels narration when the text starts, so every delta
@@ -1099,6 +1112,7 @@ func processStepStream(
 				ID:               part.ID,
 				URL:              part.URL,
 				Title:            part.Title,
+				ToolCallID:       part.SourceToolCallID,
 				ProviderMetadata: part.ProviderMetadata,
 			}
 			result.content = append(result.content, sourceContent)
@@ -1118,6 +1132,9 @@ func processStepStream(
 					ToolName:         part.ToolCallName,
 					ProviderExecuted: part.ProviderExecuted,
 					ProviderMetadata: part.ProviderMetadata,
+				}
+				if err := providerToolResultError(part.ProviderMetadata); err != nil {
+					tr.Result = fantasy.ToolResultOutputContentError{Error: err}
 				}
 				result.content = append(result.content, tr)
 
@@ -1224,13 +1241,6 @@ func newToolBatch(opts ExecuteLocalToolsOptions, provider, model string) *toolBa
 	}
 }
 
-func (b *toolBatch) resolve(name string) string {
-	if alias, ok := b.opts.ToolNameAliases[name]; ok {
-		return alias
-	}
-	return name
-}
-
 func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallContent, batchStart time.Time) []toolExecutionResult {
 	observed := b.opts.ObservedToolCalls
 	if observed == nil {
@@ -1309,14 +1319,34 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 	}
 	b.notifyStepToolResultObservers(localToolCalls, observed, settled)
 
+	// failed holds the halting tools with a call that failed in this batch.
+	failed := make(map[string]bool)
+	afterRejection := callsAfterRejection(localToolCalls, observed)
 	for _, i := range serialIndexes {
+		tc := localToolCalls[i]
+		name := tc.ToolName
+		haltedText, halts := b.haltedCallError(name)
+		if halts && (failed[name] || afterRejection[tc.ToolCallID]) {
+			// The call never runs, so it records no start and is not billed.
+			executions[i].content = fantasy.ToolResultContent{
+				ToolCallID: tc.ToolCallID,
+				ToolName:   tc.ToolName,
+				Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(haltedText)},
+			}
+			executions[i].interval.End = clockNow(b.opts.Clock)
+			recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, executions[i].content)
+			continue
+		}
 		// Stamp serial calls at launch, not batch start.
 		startedAt := clockNow(b.opts.Clock)
 		executions[i].interval.Start = startedAt
 		if recorder != nil {
 			recorder.RecordStart(i, startedAt)
 		}
-		runCall(i, localToolCalls[i])
+		runCall(i, tc)
+		if _, isErr := executions[i].content.Result.(fantasy.ToolResultOutputContentError); halts && isErr {
+			failed[name] = true
+		}
 	}
 
 	return executions
@@ -1424,32 +1454,26 @@ func (b *toolBatch) runOne(
 		recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, result)
 	}()
 
-	// Resolve backward-compatible tool aliases (for example a renamed
-	// tool whose old name still appears in chat history) to the canonical
-	// tool before the active-tool and dispatch lookups.
-	resolvedName := b.resolve(tc.ToolName)
-
-	_, isProviderRunner := b.providerRunners[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[resolvedName] {
+	_, isProviderRunner := b.providerRunners[tc.ToolName]
+	if !isProviderRunner && !isToolActive(tc.ToolName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[tc.ToolName] {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
+			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}
 		return result, nil
 	}
 
-	tool, exists := b.tools[resolvedName]
+	tool, exists := b.tools[tc.ToolName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not found: " + resolvedName),
+			Error: xerrors.New("Tool not found: " + tc.ToolName),
 		}
 		return result, nil
 	}
 
 	b.opts.Logger.Debug(ctx, "tool execution",
 		slog.F("tool_name", tc.ToolName),
-		slog.F("resolved_tool_name", resolvedName),
 		slog.F("tool_call_id", tc.ToolCallID),
-		slog.F("builtin", b.opts.BuiltinToolNames[resolvedName]),
+		slog.F("builtin", b.opts.BuiltinToolNames[tc.ToolName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
 	if startRun != nil {
@@ -1457,7 +1481,7 @@ func (b *toolBatch) runOne(
 	}
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
-		Name:  resolvedName,
+		Name:  tc.ToolName,
 		Input: tc.Input,
 	})
 	if err != nil {
@@ -1518,6 +1542,7 @@ func (b *toolBatch) runOne(
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
 			Text:      text,
+			Filename:  resp.Filename,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1529,7 +1554,7 @@ func (b *toolBatch) runOne(
 		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
-		if callback := b.resultMetadata[resolvedName]; callback != nil {
+		if callback := b.resultMetadata[tc.ToolName]; callback != nil {
 			metadata := callback(resp)
 			if len(metadata) > 0 {
 				result.ProviderMetadata = metadata
@@ -1570,17 +1595,59 @@ func isToolActive(name string, activeTools []string) bool {
 // must execute in tool-call order because they claim from shared state.
 type serialToolCaller interface{ SerialToolCalls() bool }
 
+// haltingToolCaller is implemented by serial tools whose calls in one step
+// build on each other, for example computer actions that the model plans
+// against one screen. After a call of the tool fails, or is rejected before
+// it runs, no later call of the tool runs in the step. Each later call gets
+// an error result with the returned text. ok is false if the tool does not
+// halt.
+type haltingToolCaller interface {
+	HaltedToolCallError() (text string, ok bool)
+}
+
+// haltedCallError returns the error text for the calls of the tool name that
+// follow a failed call, and false if the tool does not halt.
+func (b *toolBatch) haltedCallError(name string) (string, bool) {
+	halting, ok := b.tools[name].(haltingToolCaller)
+	if !ok {
+		return "", false
+	}
+	return halting.HaltedToolCallError()
+}
+
+// callsAfterRejection returns the IDs of the calls that follow, in observed
+// order, a rejected call of the same tool. Observed calls missing from calls
+// were rejected before execution.
+func callsAfterRejection(calls, observed []fantasy.ToolCallContent) map[string]bool {
+	executed := make(map[string]bool, len(calls))
+	for _, tc := range calls {
+		executed[tc.ToolCallID] = true
+	}
+	rejectedTools := make(map[string]bool)
+	after := make(map[string]bool)
+	for _, tc := range observed {
+		name := tc.ToolName
+		switch {
+		case !executed[tc.ToolCallID]:
+			rejectedTools[name] = true
+		case rejectedTools[name]:
+			after[tc.ToolCallID] = true
+		}
+	}
+	return after
+}
+
 // stepToolCallObserver is implemented by tools that need to see every
 // tool-call name in the step before any call executes, for example so
 // find_tools can charge same-step direct calls against its budget.
 type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
 
-// notifyStepToolCallObservers passes the step's resolved tool-call
-// names to each distinct called tool that observes them.
+// notifyStepToolCallObservers passes the step's tool-call names to
+// each distinct called tool that observes them.
 func (b *toolBatch) notifyStepToolCallObservers(calls []fantasy.ToolCallContent) {
 	names := make([]string, 0, len(calls))
 	for _, tc := range calls {
-		names = append(names, b.resolve(tc.ToolName))
+		names = append(names, tc.ToolName)
 	}
 	notified := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -1625,7 +1692,7 @@ func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.Tool
 	names := make([]string, 0, len(observed))
 	errored := make([]bool, 0, len(observed))
 	for _, tc := range observed {
-		names = append(names, b.resolve(tc.ToolName))
+		names = append(names, tc.ToolName)
 		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
 			errored = append(errored, isErr)
 			continue
@@ -1635,7 +1702,7 @@ func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.Tool
 	}
 	notified := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
-		name := b.resolve(tc.ToolName)
+		name := tc.ToolName
 		if _, dup := notified[name]; dup {
 			continue
 		}
@@ -1647,7 +1714,7 @@ func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.Tool
 }
 
 func (b *toolBatch) isSerialToolCall(name string) bool {
-	serial, ok := b.tools[b.resolve(name)].(serialToolCaller)
+	serial, ok := b.tools[name].(serialToolCaller)
 	return ok && serial.SerialToolCalls()
 }
 
@@ -1982,4 +2049,17 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+// providerToolResultError returns the failure a provider reported for a
+// provider-executed web search, or nil. Anthropic reports an error code and
+// OpenAI a failed item status, both only in the result's metadata.
+func providerToolResultError(metadata fantasy.ProviderMetadata) error {
+	if meta, ok := metadata[fantasyanthropic.Name].(*fantasyanthropic.WebSearchResultMetadata); ok && meta != nil && meta.ErrorCode != "" {
+		return xerrors.Errorf("web search failed: %s", meta.ErrorCode)
+	}
+	if meta, ok := metadata[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata); ok && meta != nil && meta.Status == "failed" {
+		return xerrors.New("web search failed")
+	}
+	return nil
 }

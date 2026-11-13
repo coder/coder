@@ -73,7 +73,7 @@ const SyncCard: React.FC<SyncCardProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-4 rounded-md border border-solid border-border p-4",
+				"flex flex-col gap-4 rounded-md border p-4",
 				active && "ring-2 ring-content-link",
 			)}
 		>
@@ -94,7 +94,7 @@ const SyncCard: React.FC<SyncCardProps> = ({
 				size="lg"
 				label={THEME_COPY[displayedTheme].title}
 			/>
-			<fieldset className="m-0 min-w-0 border-0 p-0">
+			<fieldset className="m-0 min-w-0 p-0">
 				<legend className="sr-only">{`${title} options`}</legend>
 				<div className="flex flex-wrap items-center gap-3">
 					{SYNC_MODE_THEMES.map((theme) => (

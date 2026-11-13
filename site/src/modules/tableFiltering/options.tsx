@@ -106,12 +106,12 @@ export const OrganizationsMenu: React.FC<OrganizationsMenuProps> = ({
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
+			searchLabel="Search organization"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search organization..."
 					value={menu.query}
 					onValueChange={menu.setQuery}
-					aria-label="Search organization"
 				/>
 			}
 			width={width}

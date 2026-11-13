@@ -2,7 +2,6 @@ import { Button } from "#/components/Button/Button";
 
 type NumberedPageButtonProps = {
 	pageNumber: number;
-	totalPages: number;
 	onClick?: () => void;
 	highlighted?: boolean;
 	disabled?: boolean;
@@ -10,7 +9,6 @@ type NumberedPageButtonProps = {
 
 export const NumberedPageButton: React.FC<NumberedPageButtonProps> = ({
 	pageNumber,
-	totalPages,
 	onClick,
 	highlighted = false,
 	disabled = false,
@@ -18,7 +16,7 @@ export const NumberedPageButton: React.FC<NumberedPageButtonProps> = ({
 	return (
 		<BasePageButton
 			name="Page button"
-			aria-label={getNumberedButtonLabel(pageNumber, totalPages, highlighted)}
+			aria-label={`Page ${pageNumber}`}
 			onClick={onClick}
 			highlighted={highlighted}
 			disabled={disabled}
@@ -70,6 +68,7 @@ const BasePageButton: React.FC<BasePageButtonProps> = ({
 			variant={highlighted ? "default" : "outline"}
 			size="icon"
 			aria-label={ariaLabel}
+			aria-current={highlighted ? "page" : undefined}
 			name={name}
 			disabled={disabled}
 			onClick={onClick}
@@ -79,23 +78,3 @@ const BasePageButton: React.FC<BasePageButtonProps> = ({
 		</Button>
 	);
 };
-
-function getNumberedButtonLabel(
-	page: number,
-	totalPages: number,
-	highlighted: boolean,
-): string {
-	if (highlighted) {
-		return "Current Page";
-	}
-
-	if (page === 1) {
-		return "First Page";
-	}
-
-	if (page === totalPages) {
-		return "Last Page";
-	}
-
-	return `Page ${page}`;
-}

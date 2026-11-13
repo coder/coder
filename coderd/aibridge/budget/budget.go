@@ -18,9 +18,9 @@ import (
 // Store is the subset of database.Store needed to resolve a user's effective
 // AI budget.
 type Store interface {
-	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
-	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
-	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg database.GetUserAIBudgetOverrideWithOrganizationParams) (database.GetUserAIBudgetOverrideWithOrganizationRow, error)
+	GetHighestGroupAIBudgetByUser(ctx context.Context, arg database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error)
 }
 
 // EffectiveGroup is a user's resolved effective group and, when a budget
@@ -28,6 +28,9 @@ type Store interface {
 type EffectiveGroup struct {
 	// GroupID is the group the spend is attributed to.
 	GroupID uuid.UUID
+	// OrganizationID is the organization GroupID belongs to. It is uuid.Nil
+	// when no effective group was resolved.
+	OrganizationID uuid.UUID
 	// Limit is the resolved spend limit, or nil for the unlimited Everyone
 	// fallback.
 	Limit *Limit
@@ -45,14 +48,23 @@ type Limit struct {
 //  1. A per-user override, if configured.
 //  2. Otherwise, a group budget selected by the deployment policy.
 //
+// When organizationID is set, only that organization's override, group budgets
+// and Everyone group count, and the organization must not be deleted. When it
+// is null, resolution is site-wide: the override, group budgets and Everyone
+// groups from all of the user's live organizations count.
+//
 // The second return value is false when no budget is configured for the user.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
-func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy codersdk.AIBudgetPolicy) (EffectiveGroup, bool, error) {
+func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, organizationID uuid.NullUUID, policy codersdk.AIBudgetPolicy) (EffectiveGroup, bool, error) {
 	// A per-user override always wins.
-	override, err := db.GetUserAIBudgetOverride(ctx, userID)
+	override, err := db.GetUserAIBudgetOverrideWithOrganization(ctx, database.GetUserAIBudgetOverrideWithOrganizationParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+	})
 	if err == nil {
 		return EffectiveGroup{
-			GroupID: override.GroupID,
+			GroupID:        override.GroupID,
+			OrganizationID: override.OrganizationID,
 			Limit: &Limit{
 				SpendLimitMicros: override.SpendLimitMicros,
 				Source:           codersdk.AIBudgetLimitSourceUserOverride,
@@ -66,7 +78,10 @@ func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy
 	// No override: select a group budget according to the deployment policy.
 	switch policy {
 	case codersdk.AIBudgetPolicyHighest:
-		row, err := db.GetHighestGroupAIBudgetByUser(ctx, userID)
+		row, err := db.GetHighestGroupAIBudgetByUser(ctx, database.GetHighestGroupAIBudgetByUserParams{
+			UserID:         userID,
+			OrganizationID: organizationID,
+		})
 		if errors.Is(err, sql.ErrNoRows) {
 			return EffectiveGroup{}, false, nil
 		}
@@ -74,7 +89,8 @@ func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy
 			return EffectiveGroup{}, false, xerrors.Errorf("get highest group AI budget: %w", err)
 		}
 		return EffectiveGroup{
-			GroupID: row.GroupID,
+			GroupID:        row.GroupID,
+			OrganizationID: row.OrganizationID,
 			Limit: &Limit{
 				SpendLimitMicros: row.SpendLimitMicros,
 				Source:           codersdk.AIBudgetLimitSourceGroup,
@@ -87,10 +103,11 @@ func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy
 
 // ResolveUserEffectiveGroup resolves the user's effective group, falling back to
 // the organization's Everyone group when no override or group budget applies.
-// The second return value is false when no effective group was found for the
-// user.
-func ResolveUserEffectiveGroup(ctx context.Context, db Store, userID uuid.UUID, policy codersdk.AIBudgetPolicy) (EffectiveGroup, bool, error) {
-	group, ok, err := ResolveUserAIBudget(ctx, db, userID, policy)
+// organizationID limits resolution as described on ResolveUserAIBudget. The
+// second return value is false when no effective group was found for the user,
+// including when the user is not a member of organizationID.
+func ResolveUserEffectiveGroup(ctx context.Context, db Store, userID uuid.UUID, organizationID uuid.NullUUID, policy codersdk.AIBudgetPolicy) (EffectiveGroup, bool, error) {
+	group, ok, err := ResolveUserAIBudget(ctx, db, userID, organizationID, policy)
 	if err != nil {
 		return EffectiveGroup{}, false, err
 	}
@@ -99,14 +116,19 @@ func ResolveUserEffectiveGroup(ctx context.Context, db Store, userID uuid.UUID, 
 	}
 
 	// No override or group budget: fall back to the Everyone group (unlimited).
-	groupID, err := db.GetUserEveryoneFallbackGroup(ctx, userID)
+	groupID, err := db.GetUserEveryoneFallbackGroup(ctx, database.GetUserEveryoneFallbackGroupParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// This should not happen, as a user should always be a member of an
-		// organization and its associated Everyone group.
+		// With a null organizationID this should not happen, as a user should
+		// always be a member of an organization and its associated Everyone
+		// group. With an organizationID, the user is not a member of it.
 		return EffectiveGroup{}, false, nil
 	}
 	if err != nil {
 		return EffectiveGroup{}, false, xerrors.Errorf("get everyone fallback group: %w", err)
 	}
-	return EffectiveGroup{GroupID: groupID}, true, nil
+	// The Everyone group's ID equals its organization's ID.
+	return EffectiveGroup{GroupID: groupID, OrganizationID: groupID}, true, nil
 }

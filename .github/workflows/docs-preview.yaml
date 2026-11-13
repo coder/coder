@@ -1,6 +1,9 @@
 # Posts a docs-preview comment on docs PRs. For every changed page with a
-# docs/manifest.json route it lists a preview link (coder.com/docs/@<branch>,
-# branch URL-encoded) and a Markdown checkbox. Checkbox state round-trips
+# docs/manifest.json route it lists a preview link on the PR's own preview
+# (pr-<number>.<DOCS_PREVIEW_DOMAIN>) and a Markdown checkbox.
+# docs-pr-preview-deploy.yaml calls this workflow only after it has deployed
+# and aliased that preview, so the comment never links to a site that does
+# not exist yet. Checkbox state round-trips
 # across pushes but resets when a page's content changes, so a checked box
 # means "reviewed the current revision." Pages with no manifest route
 # (docs/.style/** tooling, or not-yet-navigable pages) are dropped, since
@@ -17,21 +20,23 @@
 # disk, so the job checks out the PR head. An image no navigable page
 # embeds (e.g. an icon referenced only from manifest.json) is still listed
 # on its own, so an image-only PR always gets a comment.
+#
+# This is the PR's only preview comment. A collapsible list at its end keeps
+# every built commit's own preview, newest first, read back from the comment
+# on each run. A PR that changes only generated reference pages, or no page or
+# image at all, gets no comment.
 
 name: docs-preview
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths:
-      - "docs/**"
-      # docs/.style/** is contributor tooling that never deploys; skipping
-      # .style-only PRs avoids an empty preview list. Mixed PRs still run,
-      # and the selection logic below filters .style out.
-      - "!docs/.style/**"
+  # Called with the caller's pull_request event, whose docs/** paths filter
+  # (minus docs/.style/**, contributor tooling that never deploys) applies.
+  workflow_call:
+    inputs:
+      short_sha:
+        description: The first 9 characters of the deployed commit, whose preview is pr-<number>-<short_sha>.<domain>
+        type: string
+        required: true
 
 concurrency:
   group: docs-preview-${{ github.event.pull_request.number }}
@@ -42,6 +47,7 @@ permissions:
 
 jobs:
   docs-preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       # Job-level permissions replace the workflow defaults, so contents:
@@ -62,11 +68,25 @@ jobs:
       - name: Post docs preview comment
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
+          SHORT_SHA: ${{ inputs.short_sha }}
         run: |
           set -euo pipefail
+
+          if ! [[ "$SHORT_SHA" =~ ^[0-9a-f]{9}$ ]]; then
+            echo "::error::short_sha must be 9 lowercase hex characters." >&2
+            exit 1
+          fi
+
+          # A vercel.app name is first-come across every Vercel account, so
+          # only a Coder-owned domain is accepted.
+          domain=$(printf '%s' "$DOCS_PREVIEW_DOMAIN" | tr '[:upper:]' '[:lower:]')
+          if [ -z "$domain" ] || [[ "$domain" =~ (^|\.)vercel\.app\.?$ ]] || ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_DOMAIN to a Coder-owned domain (not vercel.app)." >&2
+            exit 1
+          fi
 
           # DOCS_PREVIEW_MARKER locates this workflow's own comments;
           # STATE_PREFIX carries the last-seen `path -> blob sha` map. Keep
@@ -81,6 +101,23 @@ jobs:
           # cases. Keep in sync with test-docs-preview-mapper.sh.
           IMAGE_SECTION_BUDGET=20000
           IMAGE_PAGES_MAX=25
+          # Per-commit preview lines kept in the collapsible list.
+          COMMITS_MAX=100
+
+          # The per-commit preview list, newest first: this run's commit, then
+          # the earlier commits' lines read back from the existing comment,
+          # minus a repeat of this commit. awk caps it without the SIGPIPE a
+          # head would raise under pipefail. Keep in sync with
+          # test-docs-preview-mapper.sh.
+          merge_commit_lines() {
+            local body="$1" domain_re
+            domain_re=${domain//./\\.}
+            {
+              # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+              printf -- '- `%s` https://pr-%s-%s.%s\n' "$SHORT_SHA" "$PR_NUMBER" "$SHORT_SHA" "$domain"
+              printf '%s\n' "$body" | grep -E "^- \`[0-9a-f]{9}\` https://pr-${PR_NUMBER}-[0-9a-f]{9}\.${domain_re}\$" | grep -vF "\`${SHORT_SHA}\`" || true
+            } | awk -v max="$COMMITS_MAX" 'NR <= max'
+          }
 
           # Returns IDs of github-actions[bot] comments on the PR whose
           # body contains DOCS_PREVIEW_MARKER.
@@ -223,8 +260,7 @@ jobs:
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
           # Computed early: the reference-page log below needs it too.
-          encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
-          url_prefix="https://coder.com/docs/@${encoded_branch}"
+          url_prefix="https://pr-${PR_NUMBER}.${domain}"
 
           # Fetch the PR's changed files once, then derive the Markdown and
           # image sets from the same payload: one read halves the rate-limit
@@ -244,9 +280,12 @@ jobs:
             | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/reference/.*\\.md$")) | [.filename, .sha] | @tsv')
           if [ -n "$reference_tsv" ]; then
             echo "Generated reference page(s) changed (excluded from the docs-preview comment):"
-            printf '%s\n' "$reference_tsv" | while IFS=$'\t' read -r filename sha; do
+            # File names come from the PR, and the runner reads "##[" as a
+            # workflow command anywhere in a line, so every character
+            # outside a path allowlist prints as "?".
+            printf '%s\n' "$reference_tsv" | while IFS=$'\t' read -r filename _; do
               [ -z "$filename" ] && continue
-              echo "  ${filename} -> $(page_url "$filename")"
+              printf '  %s -> %s\n' "$filename" "$(page_url "$filename")" | LC_ALL=C tr -c 'A-Za-z0-9._/:>\n -' '?'
             done
           fi
 
@@ -337,6 +376,9 @@ jobs:
               echo "Could not read existing comment ${existing_id}; checkbox state resets this push (transient, self-heals)." >&2
             fi
           fi
+
+          commit_lines=$(merge_commit_lines "$existing_body")
+          commit_count=$(printf '%s\n' "$commit_lines" | grep -c .)
 
           # Recover state from the existing comment, if any:
           #   - old_state: path -> sha map this workflow wrote last time
@@ -482,11 +524,18 @@ jobs:
             # whose state map is {}.
             {
               printf '## Docs preview\n\n'
+              # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+              printf 'Links open this pull request'"'"'s preview at %s, which updates with each push.\n\n' "$url_prefix"
               if [ -n "$page_block" ]; then
                 printf '%s\n' "$page_block"
               fi
               if [ -n "$image_section" ]; then
                 printf '%s\n' "$image_section"
+              fi
+              if [ -n "$commit_lines" ]; then
+                printf '<details>\n<summary>Preview sites for each built commit (%s)</summary>\n\n' "$commit_count"
+                printf "Every built commit keeps its own preview, newest first. Previews aren't indexed by search engines and are deleted when this pull request is merged or closed.\n\n"
+                printf '%s\n\n</details>\n\n' "$commit_lines"
               fi
               printf '%s\n' "$DOCS_PREVIEW_MARKER"
               printf '<!-- %s%s -->' "$STATE_PREFIX" "$state_b64"

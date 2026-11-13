@@ -46,11 +46,11 @@ func TestSessionStartTrackerRetriesIncompleteDispatch(t *testing.T) {
 
 func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 	t.Parallel()
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
+	chat = acquireChat(t, f, chat.ID, workerID, runnerID)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -69,7 +69,7 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	starter.server.hooks = chathooks.NewTrigger(dispatcher)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
+	debugTurn := newRunnerDebugTurn(starter.opts.Logger)
 	defer debugTurn.Finalize(ctx)
 	err := starter.StartGeneration(ctx, chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -94,11 +94,11 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 
 func TestApplySessionStartResponse(t *testing.T) {
 	t.Parallel()
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
+	chat = acquireChat(t, f, chat.ID, workerID, runnerID)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	input := chatWorkerTaskStartInput{
 		ChatID:         chat.ID,
@@ -133,7 +133,7 @@ func TestApplySessionStartResponse(t *testing.T) {
 
 func TestApplySessionStartResponseNoOp(t *testing.T) {
 	t.Parallel()
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	f.pubsub.clear()
 	result, err := applySessionStartResponse(
@@ -145,7 +145,7 @@ func TestApplySessionStartResponseNoOp(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, chat.SnapshotVersion, result.Chat.SnapshotVersion)
-	require.Empty(t, f.pubsub.events())
+	require.Empty(t, f.pubsub.published())
 }
 
 func hookMessageTextInternal(t *testing.T, message database.ChatMessage) string {

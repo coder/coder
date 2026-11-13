@@ -18,7 +18,7 @@ export const AvatarCard: React.FC<AvatarCardProps> = ({
 		<div
 			className={cn(
 				"flex flex-row flex-nowrap gap-4 items-center",
-				"border border-solid p-4 rounded-lg cursor-default",
+				"border p-4 rounded-lg cursor-default",
 			)}
 			style={{
 				maxWidth: maxWidth === "none" ? undefined : `${maxWidth}px`,

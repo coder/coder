@@ -6,6 +6,7 @@ import {
 	CompassIcon,
 	FilePenLineIcon,
 	FileTextIcon,
+	GlobeIcon,
 	LightbulbIcon,
 	type LucideIcon,
 	MonitorIcon,
@@ -25,8 +26,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { ACPToolNames } from "./acpToolNames";
 
 export const toolIcons: Partial<Record<string, LucideIcon>> = {
+	[ACPToolNames.SpawnAgent]: BotIcon,
+	[ACPToolNames.MessageAgent]: BotIcon,
+	[ACPToolNames.WaitAgent]: BotIcon,
+	[ACPToolNames.InterruptAgent]: BotIcon,
 	execute: TerminalIcon,
 	process_output: ActivityIcon,
 	process_list: TerminalIcon,
@@ -50,6 +56,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	advisor: CompassIcon,
 	computer: MonitorIcon,
 	find_tools: SearchIcon,
+	web_search: GlobeIcon,
 };
 
 export const ToolIcon: React.FC<{
