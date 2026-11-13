@@ -159,8 +159,8 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	gettext-base \
 	git \
 	gnupg \
-	google-cloud-sdk \
-	google-cloud-sdk-datastore-emulator \
+	google-cloud-cli \
+	google-cloud-cli-datastore-emulator \
 	graphviz \
 	helix \
 	htop \
