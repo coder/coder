@@ -106,6 +106,42 @@ func TestMergeExtraEnvs(t *testing.T) {
 			expectErr: "duplicate env var",
 		},
 		{
+			name:    "error_then_replace",
+			initial: map[string]string{},
+			envs: []*sdkproto.Env{
+				{Name: "FOO", Value: "first", MergeStrategy: "error"},
+				{Name: "FOO", Value: "second", MergeStrategy: "replace"},
+			},
+			expectErr: "duplicate env var",
+		},
+		{
+			name:    "error_then_append",
+			initial: map[string]string{},
+			envs: []*sdkproto.Env{
+				{Name: "PATH", Value: "/a", MergeStrategy: "error"},
+				{Name: "PATH", Value: "/b", MergeStrategy: "append"},
+			},
+			expectErr: "duplicate env var",
+		},
+		{
+			name:    "error_then_error",
+			initial: map[string]string{},
+			envs: []*sdkproto.Env{
+				{Name: "FOO", Value: "first", MergeStrategy: "error"},
+				{Name: "FOO", Value: "second", MergeStrategy: "error"},
+			},
+			expectErr: "duplicate env var",
+		},
+		{
+			name:    "replace_then_error",
+			initial: map[string]string{},
+			envs: []*sdkproto.Env{
+				{Name: "FOO", Value: "first", MergeStrategy: "replace"},
+				{Name: "FOO", Value: "second", MergeStrategy: "error"},
+			},
+			expectErr: "duplicate env var",
+		},
+		{
 			name:    "multiple_appends_same_key",
 			initial: map[string]string{},
 			envs: []*sdkproto.Env{

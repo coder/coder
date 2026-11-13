@@ -3610,8 +3610,14 @@ func insertDevcontainerSubagent(
 // respecting the merge_strategy field on each env. When merge_strategy
 // is empty or "replace", the value overwrites any existing entry.
 // "append" and "prepend" join values with a ":" separator (PATH-style).
-// "error" causes a failure if the key already exists.
+// "error" causes a failure if the key already exists or if another entry
+// in extraEnvs sets the same name, regardless of position.
 func MergeExtraEnvs(env map[string]string, extraEnvs []*sdkproto.Env) error {
+	counts := make(map[string]int, len(extraEnvs))
+	for _, e := range extraEnvs {
+		counts[e.GetName()]++
+	}
+
 	for _, e := range extraEnvs {
 		strategy := e.GetMergeStrategy()
 		if strategy == "" {
@@ -3620,9 +3626,9 @@ func MergeExtraEnvs(env map[string]string, extraEnvs []*sdkproto.Env) error {
 		existing, exists := env[e.GetName()]
 		switch strategy {
 		case "error":
-			if exists {
+			if exists || counts[e.GetName()] > 1 {
 				return xerrors.Errorf(
-					"duplicate env var %q: merge_strategy is %q but variable is already defined",
+					"duplicate env var %q: merge_strategy is %q but variable is already defined or set more than once",
 					e.GetName(), strategy,
 				)
 			}
