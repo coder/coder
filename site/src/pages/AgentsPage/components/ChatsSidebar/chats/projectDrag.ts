@@ -39,13 +39,6 @@ export type ChatDragData = { readonly chat: Chat };
 /** The dnd-kit data of a chat drop target. */
 export type DropTargetData = { readonly dropTarget: DropTarget };
 
-/** The dnd-kit data of the Projects section header. */
-export type ProjectsSectionData = { readonly projectsSection: true };
-
-/** A drop on the Projects section header moves nothing. */
-export const isProjectsSection = (target: Droppable | null): boolean =>
-	target !== null && "projectsSection" in target.data;
-
 const isChatDragData = (data: Record<string, unknown>): data is ChatDragData =>
 	"chat" in data;
 
@@ -105,9 +98,6 @@ export const projectIdForDrop = (
 ): string | null | undefined => projectIdForTarget(chat, dropTargetOf(target));
 
 const announcedTarget = (target: Droppable | null): string | undefined => {
-	if (isProjectsSection(target)) {
-		return "Projects";
-	}
 	const dropTarget = dropTargetOf(target);
 	if (!dropTarget) {
 		return undefined;
@@ -139,7 +129,10 @@ export const chatDragAnnouncements = {
 				? `Chat ${pin.title} is at position ${target.index + 1} of ${pinCount}.`
 				: undefined;
 		}
-		const over = announcedTarget(target);
+		const over =
+			projectIdForTarget(chat, dropTargetOf(target)) === undefined
+				? undefined
+				: announcedTarget(target);
 		return over
 			? `Chat ${chat.title} is over ${over}.`
 			: `Chat ${chat.title} is not over a project or Chats.`;
@@ -232,11 +225,8 @@ export const moveKeyboardChatDrag = (
 	manager: DragDropManager,
 ): void => {
 	const { source, position, shape } = manager.dragOperation;
-	if (
-		!source ||
-		!(event.nativeEvent instanceof KeyboardEvent) ||
-		!movedChatOf(source)
-	) {
+	const chat = movedChatOf(source);
+	if (!source || !(event.nativeEvent instanceof KeyboardEvent) || !chat) {
 		return;
 	}
 	event.preventDefault();
@@ -245,12 +235,23 @@ export const moveKeyboardChatDrag = (
 		return;
 	}
 	const { x, y } = position.current;
-	const targets = dropTargetsOf(manager, source);
+	// The keyboard stops skip the folders that would move nothing.
+	const targets = dropTargetsOf(manager, source).filter(
+		(target) => projectIdForTarget(chat, dropTargetOf(target)) !== undefined,
+	);
+	// The drag stops on a target's top row, so Chats, which holds the
+	// folders, is a stop above them.
+	const topRowBottom = (rect: DOMRect) =>
+		rect.top +
+		Math.min(
+			rect.height,
+			shape?.current.boundingRectangle.height ?? rect.height,
+		);
 	const next = targets
 		.map((target) => target.element)
 		.filter((element) => element !== undefined)
 		.map((element) => ({ element, rect: element.getBoundingClientRect() }))
-		.filter(({ rect }) => (step > 0 ? rect.top > y : rect.bottom < y))
+		.filter(({ rect }) => (step > 0 ? rect.top > y : topRowBottom(rect) < y))
 		.sort((a, b) => (a.rect.top - b.rect.top) * step)[0];
 	if (!next) {
 		return;

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
-import { useInfiniteQuery, useQueryClient } from "react-query";
+import { useInfiniteQuery } from "react-query";
 import { useLocation } from "react-router";
 import {
 	expect,
@@ -47,7 +47,6 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters,
 	getSidebarChatListInput,
 } from "../../utils/agentSidebarFilters";
-import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -3469,42 +3468,6 @@ export const SameNamedProjects: Story = {
 	},
 };
 
-export const ProjectsSectionCollapsed: Story = {
-	args: { chats: mockProjectChats },
-	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
-	},
-	beforeEach: () => {
-		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
-		localStorage.setItem(key, "true");
-		return () => localStorage.removeItem(key);
-	},
-};
-
-export const ChatDraggedOverCollapsedProjects: Story = {
-	args: { chats: [mockLooseChat] },
-	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
-	},
-	beforeEach: () => {
-		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
-		localStorage.setItem(key, "true");
-		return () => localStorage.removeItem(key);
-	},
-	play: async ({ canvasElement }) => {
-		await startKeyboardDrag(canvasElement, /Loose chat/);
-		await userEvent.keyboard("[ArrowUp]");
-		await screen.findByText("Chat Loose chat is over Projects.");
-	},
-};
-
-export const ProjectsEmpty: Story = {
-	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
-	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [] }],
-	},
-};
-
 export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
@@ -3631,30 +3594,6 @@ export const ProjectsLoadError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("button", { name: "Retry" });
-	},
-};
-
-export const ProjectsEmptyRefetchError: Story = {
-	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
-	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [] }],
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChatProjectSummaries").mockRejectedValue(
-			mockApiError({ message: "Failed to refresh projects." }),
-		);
-	},
-	render: function ProjectsEmptyRefetchErrorRender(args) {
-		const queryClient = useQueryClient();
-		// Seeded data never goes stale in Storybook, so refetch explicitly
-		// to fail on top of the cached empty list.
-		useEffect(() => {
-			void queryClient.refetchQueries({ queryKey: chatProjectSummariesKey });
-		}, [queryClient]);
-		return <ChatsSidebar {...args} />;
-	},
-	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("button", { name: "Retry" });
 	},
 };
 
