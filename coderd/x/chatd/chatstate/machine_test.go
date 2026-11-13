@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -168,9 +169,168 @@ func TestChatMachine_Update_RejectsMissingChat(t *testing.T) {
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, uuid.New())
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error { return nil })
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error { return nil })
 	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
 	require.Empty(t, f.Pub.channels)
+}
+
+// chatReadCounts counts chat reads issued on transactional handles.
+type chatReadCounts struct {
+	mu          sync.Mutex
+	getChatByID int
+	queueHead   int
+}
+
+type chatReadCountingStore struct {
+	database.Store
+	counts *chatReadCounts
+	inTx   bool
+}
+
+func (s *chatReadCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&chatReadCountingStore{Store: tx, counts: s.counts, inTx: true})
+	}, opts)
+}
+
+func (s *chatReadCountingStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if s.inTx {
+		s.counts.mu.Lock()
+		s.counts.getChatByID++
+		s.counts.mu.Unlock()
+	}
+	return s.Store.GetChatByID(ctx, id)
+}
+
+func (s *chatReadCountingStore) GetChatQueuedMessageHead(ctx context.Context, id uuid.UUID) (database.ChatQueuedMessage, error) {
+	if s.inTx {
+		s.counts.mu.Lock()
+		s.counts.queueHead++
+		s.counts.mu.Unlock()
+	}
+	return s.Store.GetChatQueuedMessageHead(ctx, id)
+}
+
+// Reads under the transition lock directly lengthen lock hold time, so
+// a transition given the snapshot must validate against it.
+func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name            string
+		transition      func(*chatstate.Tx, *chatstate.ChatSnapshot, *testFixture) error
+		passSnapshot    bool
+		wantGetChatByID int
+		wantQueueHead   int
+	}{
+		// The publication read, plus queue head reads after the lock
+		// and for publication.
+		{name: "FinishTurn/WithSnapshot", transition: finishTurnFromSnapshot, passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 2},
+		// Without a snapshot the transition reads the chat itself.
+		{name: "FinishTurn/WithoutSnapshot", transition: finishTurnFromSnapshot, passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 3},
+		// SendMessage also checks queue capacity against the snapshot's
+		// queue state.
+		{name: "SendMessage/WithSnapshot", transition: sendMessageFromSnapshot, passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 2},
+		{name: "SendMessage/WithoutSnapshot", transition: sendMessageFromSnapshot, passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			created := createTestChat(t, f)
+
+			counts := &chatReadCounts{}
+			m := chatstate.NewChatMachine(&chatReadCountingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
+			_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
+				if !tc.passSnapshot {
+					snapshot = nil
+				}
+				return tc.transition(tx, snapshot, f)
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tc.wantGetChatByID, counts.getChatByID)
+			require.Equal(t, tc.wantQueueHead, counts.queueHead)
+		})
+	}
+}
+
+func finishTurnFromSnapshot(tx *chatstate.Tx, snapshot *chatstate.ChatSnapshot, _ *testFixture) error {
+	_, err := tx.FinishTurn(chatstate.FinishTurnInput{Snapshot: snapshot})
+	return err
+}
+
+func sendMessageFromSnapshot(tx *chatstate.Tx, snapshot *chatstate.ChatSnapshot, f *testFixture) error {
+	_, err := tx.SendMessage(chatstate.SendMessageInput{
+		Snapshot:     snapshot,
+		Message:      userTextMessage("queued", f.User.ID, f.Model.ID),
+		BusyBehavior: chatstate.BusyBehaviorQueue,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+	})
+	return err
+}
+
+func TestChatMachine_Update_SnapshotMatchesDatabase(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	_, err := m.Update(ctx, func(_ *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
+		read, err := store.GetChatByID(ctx, created.Chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, read, snapshot.Chat, "the snapshot must match an in-transaction read")
+		require.Equal(t, created.Chat.SnapshotVersion+1, snapshot.Chat.SnapshotVersion)
+		require.Equal(t, chatstate.QueueState{}, snapshot.Queue)
+		require.Equal(t, chatstate.StateR0, snapshot.State())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestChatMachine_UpdateReturnsChat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsCommittedRow", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+
+		counts := &chatReadCounts{}
+		m := chatstate.NewChatMachine(&chatReadCountingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
+		updated, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
+			_, err := tx.FinishTurn(chatstate.FinishTurnInput{Snapshot: snapshot})
+			return err
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, counts.getChatByID, "the returned row is the publication read")
+
+		committed := f.readChat(ctx, t, created.Chat.ID)
+		require.Equal(t, committed, updated)
+		require.Equal(t, database.ChatStatusWaiting, updated.Status)
+		require.Equal(t, created.Chat.SnapshotVersion+1, updated.SnapshotVersion)
+	})
+
+	t.Run("CallbackErrorReturnsNoRow", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+
+		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+		wantErr := xerrors.New("callback failed")
+		updated, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
+			if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
+				return err
+			}
+			return wantErr
+		})
+		require.ErrorIs(t, err, wantErr)
+		require.Zero(t, updated)
+		require.Equal(t, created.Chat.SnapshotVersion, f.readChat(ctx, t, created.Chat.ID).SnapshotVersion)
+	})
 }
 
 func TestChatMachine_Lock_DoesNotBumpSnapshot(t *testing.T) {
@@ -235,7 +395,7 @@ func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 	// CommitStep an assistant message; it should land with revision = chat.snapshot_version after the bump.
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 	var step chatstate.CommitStepResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		assistant := userTextMessage("assistant", f.User.ID, f.Model.ID)
 		assistant.Role = database.ChatMessageRoleAssistant
 		var err error
@@ -243,7 +403,8 @@ func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 			Messages: []chatstate.Message{assistant},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Len(t, step.InsertedMessages, 1)
 	after := f.readChat(ctx, t, created.Chat.ID)
 	// The Update call bumps snapshot_version once before the trigger
@@ -260,14 +421,15 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 	created := createTestChat(t, f) // queue_version starts at 0
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	after := f.readChat(ctx, t, created.Chat.ID)
 	require.Equal(t, after.SnapshotVersion, after.QueueVersion)
 	require.Greater(t, after.QueueVersion, int64(0))
@@ -280,14 +442,15 @@ func TestQueueVersionTrigger_StableForNonQueueMutations(t *testing.T) {
 	created := createTestChat(t, f)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		assistant := userTextMessage("assistant", f.User.ID, f.Model.ID)
 		assistant.Role = database.ChatMessageRoleAssistant
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistant},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	// queue_version must remain unchanged from initial 0.
 	require.Equal(t, int64(0), f.readChat(ctx, t, created.Chat.ID).QueueVersion)
 }
@@ -309,11 +472,12 @@ func TestUpdateFlushesBufferedPublicationsAfterCommit(t *testing.T) {
 
 	// During the callback, no new chat:update for this chat may have
 	// reached the inner publisher because the buffer holds it.
-	require.NoError(t, m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		require.Equal(t, baseline, countChannel(f.Pub.channels, channel),
 			"inner publisher saw chat:update before transaction committed")
 		return nil
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Equal(t, baseline+1, countChannel(f.Pub.channels, channel),
 		"exactly one new chat:update reached the inner publisher after commit")

@@ -69,7 +69,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<span className="text-xl font-semibold">Inbox</span>
+							<h2 className="m-0 text-xl font-semibold">Inbox</h2>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 

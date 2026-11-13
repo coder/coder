@@ -505,11 +505,12 @@ WHERE datname = current_database()
 					chat := createChatInProject(t, client, organizationID, nil)
 					chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors a worker that owns the chat.
 					machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-					require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 						_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 						return err
-					}))
-					_, err := client.InterruptChat(ctx, chat.ID)
+					})
+					require.NoError(t, err)
+					_, err = client.InterruptChat(ctx, chat.ID)
 					require.NoError(t, err)
 					return chat
 				},

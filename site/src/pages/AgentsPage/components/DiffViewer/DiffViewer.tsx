@@ -94,6 +94,7 @@ const DIFF_CARD_CSS = [
 	"pre[data-diff] {",
 	`  margin: 0 ${DIFF_CARD_INSET}px ${DIFF_CARD_INSET}px;`,
 	"  border-radius: 6px;",
+	"  overflow: clip;",
 	"}",
 ].join(" ");
 
@@ -215,7 +216,7 @@ function gitStatusForFile(
 function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 bg-surface-secondary py-2 px-2.5 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 rounded-t-lg bg-surface-secondary py-2 px-2.5 font-sans text-sm">
 			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
 				<span
 					className={cn(

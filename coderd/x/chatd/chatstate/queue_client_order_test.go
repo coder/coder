@@ -41,12 +41,13 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 		second := sendQueuedMessage(t, f, m, "second")
 		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
 				QueuedMessageID: second.QueuedMessage.ID,
 			})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 
 		require.Equal(t, []int64{first.QueuedMessage.ID, second.QueuedMessage.ID}, queuedIDsByPosition(ctx, t, f, created.Chat.ID))
@@ -55,11 +56,12 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 			"clients see the steered message first")
 
 		var finish chatstate.FinishTurnResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			var err error
 			finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		require.Len(t, finish.PromotedMessages, 1)
 		require.Equal(t, clientOrder[0], finish.PromotedMessages[0].QueuedMessageID.Int64,
 			"the first message clients see is promoted first")
@@ -85,7 +87,7 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 			// The other sender commits on its own connection meanwhile.
 			late = sendQueuedMessage(t, f, m, "committed first")
 			// Update reuses this transaction and only now locks the chat.
-			return chatstate.NewChatMachine(tx, f.Pub, created.Chat.ID).Update(ctx, func(stx *chatstate.Tx, _ database.Store) error {
+			_, err := chatstate.NewChatMachine(tx, f.Pub, created.Chat.ID).Update(ctx, func(stx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 				var err error
 				early, err = stx.SendMessage(chatstate.SendMessageInput{
 					Message:      userTextMessage("began first", f.User.ID, f.Model.ID),
@@ -94,6 +96,7 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 				})
 				return err
 			})
+			return err
 		}, nil))
 
 		require.NotNil(t, early.QueuedMessage)

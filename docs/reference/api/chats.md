@@ -3150,6 +3150,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
@@ -4208,12 +4209,57 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
+Each WebSocket message is a JSON array of events.
+
+The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
+A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
+Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+The server reads `snapshot_version` before the messages and the queue, so the page can include changes with a higher `snapshot_version`.
+The stream can send changes that are already in the page.
+
+The server reads the chat when the stream opens and each time the chat changes.
+Each read sends the changes since the previous read.
+When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
+
+- A `message` event for each message that isn't deleted.
+- A `history_reset` event for each edit.
+- A `queue_update` event, if the queue changed.
+
+The server ignores `after_id` when you set `snapshot_version`.
+The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+
+On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
+Each read sends these events in order of `snapshot_version`.
+Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
+The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+The server sends `message_part` events between reads.
+
+A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
+The edit deleted that message and every message after it.
+When managing history state, delete every message with that ID or higher.
+After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
+
+A messages page that you request with `before_id` includes no `snapshot_version`.
+If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+
+On each new connection, the server sends the chat's current status again.
+When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
+The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
+
+When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
+After a `history_reset` event, the server sends every message in the chat as `message` events.
+On a new connection, when `after_id` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.
+When `after_id` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a `history_reset` event if the chat has a deleted message.
+
+When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
+
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
-| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
+| Name               | In    | Type         | Required | Description                                                                                   |
+|--------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                       |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set |
+| `snapshot_version` | query | integer      | false    | Send what changed at this snapshot version or later                                           |
 
 ### Example responses
 
@@ -4239,6 +4285,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "provider": "string",
       "retryable": true,
       "status_code": 0
+    },
+    "history_reset": {
+      "from_message_id": 0
     },
     "message": {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -4444,6 +4493,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "retrying_at": "2019-08-24T14:15:22Z",
       "status_code": 0
     },
+    "snapshot_version": 0,
     "status": {
       "status": "waiting"
     },
@@ -4478,6 +4528,8 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                                                                                                                    |
+| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept.                                                                                                                              |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4564,6 +4616,7 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» snapshot_version`               | integer                                                                          | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events.                                                                                             |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

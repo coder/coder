@@ -51,6 +51,13 @@ func (r *RootCmd) tokens() *serpent.Command {
 	return cmd
 }
 
+// createTokenResponse includes the one-time secret, which is only available at
+// creation time.
+type createTokenResponse struct {
+	codersdk.APIKey
+	Key string `json:"key"`
+}
+
 func (r *RootCmd) createToken() *serpent.Command {
 	var (
 		tokenLifetime string
@@ -58,6 +65,12 @@ func (r *RootCmd) createToken() *serpent.Command {
 		user          string
 		scopes        []string
 		allowList     []codersdk.APIAllowListTarget
+		formatter     = cliui.NewOutputFormatter(
+			cliui.TextFormatFunc(func(resp createTokenResponse) (string, error) {
+				return resp.Key, nil
+			}),
+			cliui.JSONFormat(),
+		)
 	)
 	cmd := &serpent.Command{
 		Use:   "create",
@@ -112,9 +125,25 @@ func (r *RootCmd) createToken() *serpent.Command {
 				return xerrors.Errorf("create tokens: %w", err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, res.Key)
+			// The key is formatted as "<id>-<secret>".
+			// The token already exists, so never fail past this point and
+			// lose the one-time secret. Print it with whatever metadata we
+			// have.
+			keyID, _, ok := strings.Cut(res.Key, "-")
+			apiKey := &codersdk.APIKey{}
+			if !ok {
+				cliui.Warn(inv.Stderr, "Could not parse the token ID from the created token. Skipping the metadata lookup.")
+			} else if fetched, err := client.APIKeyByID(inv.Context(), userID, keyID); err != nil {
+				cliui.Warnf(inv.Stderr, "Could not fetch metadata for the created token: %v", err)
+				apiKey.ID = keyID
+			} else {
+				apiKey = fetched
+			}
 
-			return nil
+			return formatter.WriteLine(inv.Context(), inv.Stdout, createTokenResponse{
+				APIKey: *apiKey,
+				Key:    res.Key,
+			})
 		},
 	}
 
@@ -150,6 +179,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Value:       AllowListFlagOf(&allowList),
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 
 	return cmd
 }
