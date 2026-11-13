@@ -518,12 +518,11 @@ type FinalizeRunParams struct {
 	Timeout time.Duration
 }
 
-// FinalizeRun aggregates the run summary, updates the run status, and
-// cleans up the step counter. It detaches from the parent context's
-// cancellation so finalization succeeds even when the request context
-// is already done. Errors are returned but are always safe to ignore;
-// callers that treat debug instrumentation as best-effort can discard
-// them.
+// FinalizeRun aggregates the run summary and updates the run status.
+// It detaches from the parent context's cancellation so finalization
+// succeeds even when the request context is already done. Errors are
+// returned but are always safe to ignore; callers that treat debug
+// instrumentation as best-effort can discard them.
 func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 	timeout := p.Timeout
 	if timeout <= 0 {
@@ -558,10 +557,8 @@ func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 		Summary:    finalSummary,
 		FinishedAt: s.clock.Now(),
 	}); err != nil {
-		CleanupStepCounter(p.RunID)
 		return xerrors.Errorf("update debug run: %w", err)
 	}
-	CleanupStepCounter(p.RunID)
 	return nil
 }
 

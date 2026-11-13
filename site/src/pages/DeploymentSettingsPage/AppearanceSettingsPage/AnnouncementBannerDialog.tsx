@@ -65,7 +65,7 @@ export const AnnouncementBannerDialog: React.FC<
 			</div>
 
 			<DialogContent
-				className="max-w-[500px]"
+				className="max-w-125"
 				data-testid="dialog"
 				aria-describedby={undefined}
 			>

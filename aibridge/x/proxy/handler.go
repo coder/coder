@@ -69,6 +69,13 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Forwarding captures the request body as it streams upstream. Without full
+	// duplex, the HTTP/1 server drains the original body past the capture before
+	// writing an early reply. Writers that cannot enable it keep the default drain.
+	if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
+		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
+	}
+
 	var err error
 	defer func() { h.finishForwarding(ctx, record, logger, err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())

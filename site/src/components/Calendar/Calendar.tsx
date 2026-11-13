@@ -57,7 +57,7 @@ function Calendar({
 				button_previous: cn(
 					"h-(--cell-size) w-(--cell-size) select-none p-0",
 					"inline-flex items-center justify-center rounded-md",
-					"bg-transparent border-0 cursor-pointer",
+					"bg-transparent cursor-pointer",
 					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
 					"aria-disabled:opacity-50 aria-disabled:pointer-events-none",
 					defaultClassNames.button_previous,
@@ -65,7 +65,7 @@ function Calendar({
 				button_next: cn(
 					"h-(--cell-size) w-(--cell-size) select-none p-0",
 					"inline-flex items-center justify-center rounded-md",
-					"bg-transparent border-0 cursor-pointer",
+					"bg-transparent cursor-pointer",
 					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
 					"aria-disabled:opacity-50 aria-disabled:pointer-events-none",
 					defaultClassNames.button_next,
@@ -79,7 +79,7 @@ function Calendar({
 					defaultClassNames.dropdowns,
 				),
 				dropdown_root: cn(
-					"border-border relative rounded-md border",
+					"relative rounded-md border",
 					defaultClassNames.dropdown_root,
 				),
 				dropdown: cn(
@@ -90,8 +90,7 @@ function Calendar({
 					"select-none font-medium text-sm text-content-primary",
 					defaultClassNames.caption_label,
 				),
-				table:
-					"w-full border-collapse border-0 [&_td]:border-0 [&_th]:border-0",
+				table: "w-full border-collapse",
 				weekdays: cn("flex", defaultClassNames.weekdays),
 				weekday: cn(
 					"text-content-secondary flex-1 select-none rounded-md text-[0.8rem] font-normal",
@@ -107,7 +106,7 @@ function Calendar({
 					defaultClassNames.week_number,
 				),
 				day: cn(
-					"group/day relative aspect-square h-full w-full select-none p-0 text-center",
+					"group/day relative aspect-square size-full select-none p-0 text-center",
 					"[&:first-child[data-selected=true]_button]:rounded-l-md",
 					"[&:last-child[data-selected=true]_button]:rounded-r-md",
 					defaultClassNames.day,

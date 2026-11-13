@@ -2,7 +2,9 @@
 
 What the changed paths predict about whether a change needs docs. A prior sets
 the starting assumption and the burden of proof; it never replaces the evidence
-discipline in [`SKILL.md`](./SKILL.md). Verify against the diff either way.
+rules in [`SKILL.md`](./SKILL.md). Verify against the diff either way.
+A prior only decides whether docs are needed. Docs the change adds still get
+the full review.
 
 Three classes. The first is decided before this skill runs.
 
@@ -32,16 +34,16 @@ These paths add or change a surface a user configures, types, calls, or lands
 on. Missing documentation here is a gap, not a judgment call. Start from
 "this needs docs" and look for the page that proves otherwise.
 
-| Change | Why it earns docs |
-|---|---|
-| New or changed `cli/` command or flag | Appears in `--help`, so it is user-facing by default |
-| New or changed public `codersdk/` field or endpoint | The API is a first-class user surface |
-| New `coderd/apidoc/` endpoint | Same, and the path must be documented in full |
-| New or changed deployment option or `CODER_*` environment variable | Configuration is product surface area |
-| New `site/src/pages/` route | A new navigable page is net-new surface |
-| New licensed `enterprise/` feature, or a new Premium gate | Needs the page plus both Premium markers |
-| A changed setup, enablement, or migration procedure | The steps a user follows are the documentation |
-| Renamed or deprecated product or feature name | The glossary and every referring page drift otherwise |
+| Change                                                             | Why it earns docs                                     |
+|--------------------------------------------------------------------|-------------------------------------------------------|
+| New or changed `cli/` command or flag                              | Appears in `--help`, so it is user-facing by default  |
+| New or changed public `codersdk/` field or endpoint                | The API is a first-class user surface                 |
+| New `coderd/apidoc/` endpoint                                      | Same, and the path must be documented in full         |
+| New or changed deployment option or `CODER_*` environment variable | Configuration is product surface area                 |
+| New `site/src/pages/` route                                        | A new navigable page is net-new surface               |
+| New licensed `enterprise/` feature, or a new Premium gate          | Needs the page plus both Premium markers              |
+| A changed setup, enablement, or migration procedure                | The steps a user follows are the documentation        |
+| Renamed or deprecated product or feature name                      | The glossary and every referring page drift otherwise |
 
 Two cautions that survive a strong prior:
 
@@ -59,5 +61,5 @@ and the mixed-diff rule above means you will see that change too.
 
 Here the path tells you nothing and the evidence discipline decides. This is
 also where the near-miss lives: a page enumerates a sibling surface rather than
-the one that changed. Resolve it under the finding bar in `SKILL.md`, and prefer
+the one that changed. Resolve it under the evidence rules in `SKILL.md`, and prefer
 naming no page over naming the nearest one.

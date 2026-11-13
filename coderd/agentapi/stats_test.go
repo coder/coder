@@ -693,9 +693,9 @@ func TestUpdateStats(t *testing.T) {
 				},
 			},
 			{
-				// Known apps win even with smaller counts. Unknown aliases
-				// merge before ranking, with name breaking count ties, and
-				// the kept names fill the 64 cap.
+				// Registered apps are exempt even with smaller counts.
+				// Unregistered aliases merge before ranking, with name
+				// breaking count ties, and the busiest 64 keep their names.
 				name: "RankAfterMerging",
 				setup: func() (map[string]int64, map[string]int64) {
 					counts := vscodeAliases()
@@ -707,8 +707,8 @@ func TestUpdateStats(t *testing.T) {
 						counts[fmt.Sprintf("app-%03d", i)] = 2
 						counts["zzz-busy"+strings.Repeat(" ", i)] = 1
 					}
-					want := map[string]int64{"vscode": 300, "ssh": 1, "zzz_busy": 300, codersdk.AppNameOverflow: 478}
-					for i := range 61 {
+					want := map[string]int64{"vscode": 300, "ssh": 1, "zzz_busy": 300, codersdk.AppNameOverflow: 474}
+					for i := range 63 {
 						want[fmt.Sprintf("app_%03d", i)] = 2
 					}
 					return counts, want

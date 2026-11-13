@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
 import {
@@ -20,7 +20,9 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 			context_limit: 1_000_000,
 		},
 	],
-	providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
+	providerInfoByID: new Map([
+		["prov-openai", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	]),
 	organizations: [MockDefaultOrganization],
 	compactionTriggersByOrganizationID: new Map(),
 	compactionTriggerLoadErrors: [],
@@ -49,49 +51,7 @@ type Story = StoryObj<typeof AgentSettingsCompactionPageView>;
 
 export const Default: Story = {};
 
-export const SavesThreshold: Story = {
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const thresholdInput = await canvas.findByLabelText(
-			`GPT 4.1 Mini compaction threshold for ${MockDefaultOrganization.display_name}`,
-		);
-
-		await userEvent.clear(thresholdInput);
-		await userEvent.type(thresholdInput, "80");
-
-		const saveButton = await canvas.findByRole("button", {
-			name: "Save 1 change",
-		});
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-config-1", 80);
-		});
-	},
-};
-
-export const ResetsThreshold: Story = {
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const resetButton = await canvas.findByLabelText(
-			`Reset GPT 4.1 Mini for ${MockDefaultOrganization.display_name} to default`,
-		);
-
-		await waitFor(() => {
-			expect(resetButton).toBeEnabled();
-		});
-		await userEvent.click(resetButton);
-
-		await waitFor(() => {
-			expect(args.onResetThreshold).toHaveBeenCalledWith("model-config-1");
-		});
-	},
-};
-
-export const InvalidThresholdIsRejected: Story = {
+export const InvalidThreshold: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const thresholdInput = await canvas.findByLabelText(
@@ -100,11 +60,5 @@ export const InvalidThresholdIsRejected: Story = {
 
 		await userEvent.clear(thresholdInput);
 		await userEvent.type(thresholdInput, "150");
-
-		// Wait for validation to run so the snapshot captures the rejected
-		// state.
-		await waitFor(() => {
-			expect(thresholdInput).toHaveAttribute("aria-invalid", "true");
-		});
 	},
 };

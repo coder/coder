@@ -91,7 +91,6 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		showCost: true,
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			...chats.map((chat, index) => ({
 				key: chatCostTreeKey(chat.id),
@@ -107,6 +106,45 @@ type Story = StoryObj<typeof ProjectChatsListView>;
 
 export const Populated: Story = {};
 
+const mockPinnedRunningChat: Chat = { ...chats[0], pin_order: 2 };
+const mockPinnedMergedChat: Chat = { ...chats[1], pin_order: 1 };
+const mockOtherOwnerPinnedChat: Chat = { ...chats[2], pin_order: 1 };
+
+/**
+ * The viewer's pins lead the page in pin order. Another owner's pin is their
+ * own sidebar preference, so that chat stays under Chats.
+ */
+export const WithPinnedChats: Story = {
+	args: {
+		chats: [
+			mockPinnedRunningChat,
+			mockPinnedMergedChat,
+			mockOtherOwnerPinnedChat,
+			chats[3],
+		],
+	},
+};
+
+export const OnlyPinnedChats: Story = {
+	args: { chats: [mockPinnedRunningChat, mockPinnedMergedChat] },
+};
+
+export const OnlyPinnedChatsMoreToLoad: Story = {
+	args: {
+		...OnlyPinnedChats.args,
+		hasNextPage: true,
+		isFetchingNextPage: true,
+	},
+};
+
+export const OnlyPinnedChatsLoadError: Story = {
+	args: {
+		...OnlyPinnedChats.args,
+		hasNextPage: true,
+		error: mockApiError({ message: "Failed to load chats." }),
+	},
+};
+
 export const MoreToLoad: Story = {
 	args: { hasNextPage: true, isFetchingNextPage: true },
 };
@@ -119,6 +157,22 @@ export const RowActionsOpen: Story = {
 				name: `Open chat actions for ${chats[0].title}`,
 			}),
 		);
+	},
+};
+
+export const RowContextMenuOpen: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = canvas.getByRole("link", {
+			name: new RegExp(chats[0].title),
+		});
+		const { left, top, height } = link.getBoundingClientRect();
+		// Without coordinates the menu opens at the viewport's corner.
+		await userEvent.pointer({
+			target: link,
+			keys: "[MouseRight]",
+			coords: { clientX: left + 160, clientY: top + height / 2 },
+		});
 	},
 };
 

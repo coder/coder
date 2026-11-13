@@ -202,8 +202,8 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 	},
 ];
 
-export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-	...MockWorkspaceProxies.reduce(
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> =
+	MockWorkspaceProxies.reduce(
 		(acc, proxy) => {
 			if (!proxy.healthy) {
 				return acc;
@@ -234,8 +234,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 			return acc;
 		},
 		{} as Record<string, ProxyLatencyReport>,
-	),
-};
+	);
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
@@ -595,6 +594,22 @@ export const MockUserMember: TypesGen.User = {
 	login_type: "oidc",
 	has_ai_seat: false,
 	name: "Mock User The Second",
+};
+
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -1900,13 +1915,12 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockWorkspace,
-		id: "test-outdated-workspace-require-active-version",
-		outdated: true,
-		template_require_active_version: true,
-	};
+const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-outdated-workspace-require-active-version",
+	outdated: true,
+	template_require_active_version: true,
+};
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
 	{
@@ -3193,7 +3207,7 @@ export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
-export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockConnectedSSHConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3215,10 +3229,11 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: undefined,
 		disconnect_time: undefined,
 		exit_code: undefined,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
-export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockDisconnectedSSHConnectionLog = {
 	id: "893e75e0-1518-4ac8-9629-35923a39533a",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3240,8 +3255,9 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: "server shut down",
 		disconnect_time: "2022-05-19T16:49:57.122Z",
 		exit_code: 0,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
@@ -3416,6 +3432,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 		{ ...MockGroup, role: "read" },
 		{ ...MockEveryoneGroup, role: "read" },
 	],
+};
+
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
 };
 
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
@@ -5576,6 +5598,15 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
+		cost_micros: 15_325,
+		has_unpriced_usage: false,
+	},
+	priced_model: {
+		model: "claude-opus-4-6",
+		input_price: 5_000_000,
+		output_price: 25_000_000,
+		cache_read_price: 500_000,
+		cache_write_price: 6_250_000,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
@@ -5593,6 +5624,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 				cache_read_input_tokens: 450,
 				cache_write_input_tokens: 70,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [

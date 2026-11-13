@@ -88,7 +88,12 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge asChild variant="info" onClick={stopPropagation}>
+								<Badge
+									asChild
+									size="sm"
+									variant="info"
+									onClick={stopPropagation}
+								>
 									<button type="button">Not supported in Agents</button>
 								</Badge>
 							</TooltipTrigger>
@@ -101,7 +106,12 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{provider.status?.warnings && provider.status.warnings.length > 0 && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge asChild variant="warning" onClick={stopPropagation}>
+								<Badge
+									asChild
+									size="sm"
+									variant="warning"
+									onClick={stopPropagation}
+								>
 									<button
 										type="button"
 										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
@@ -112,7 +122,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
 								{provider.status.warnings.map((warning) => (
-									<p key={warning} className="break-words">
+									<p key={warning} className="wrap-break-word">
 										{warning}
 									</p>
 								))}
