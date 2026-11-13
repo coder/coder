@@ -119,8 +119,15 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 		),
 	]);
 
-const serializeTemplateIds = (templates: readonly Template[] | undefined) =>
-	JSON.stringify((templates ?? []).map(({ id }) => id).sort());
+/** Covers what the request depends on: eligibility and active versions. */
+const serializeEligibleTemplates = (
+	templates: readonly Template[] | undefined,
+) =>
+	JSON.stringify(
+		(templates ?? [])
+			.map(({ id, active_version_id }) => `${id}:${active_version_id}`)
+			.sort(),
+	);
 
 const serializeValues = (values: ChatProjectTemplatesValues) =>
 	JSON.stringify({
@@ -151,6 +158,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// moment cannot cancel that check's request and save unchecked.
 	const isSubmittingRef = useRef(false);
 	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
+	// Save keeps focus while the dialog closes after a successful save, so
+	// a repeated Enter must not send the same save again. Only a failed save
+	// allows another.
+	const [isSaveSent, setIsSaveSent] = useState(false);
 	// Outcomes of a save or refresh that leaves the dialog open: focus moves
 	// to what explains it (the conflict warning, Retry, or Save), but only
 	// when focus was lost, such as inputs disabled during a save.
@@ -165,6 +176,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// templates, so its error is hidden.
 	const [dismissedError, setDismissedError] = useState<unknown>();
 	const shownError = error === dismissedError ? undefined : error;
+	if (isSaveSent && shownError) {
+		setIsSaveSent(false);
+	}
 	// Templates are shared by every editor of the project, so refresh them
 	// on open and when the tab regains focus to detect changes made elsewhere.
 	const projectsQuery = useQuery({
@@ -302,6 +316,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!hasConflict &&
 		!refreshFailed &&
 		!isRefreshing &&
+		!isSaveSent &&
 		!isSaving;
 	useEffect(() => {
 		const pending = pendingFocusRef.current;
@@ -373,8 +388,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}
 				// A changed list rebuilds the request; the user saves again.
 				if (
-					serializeTemplateIds(refreshedTemplates.data) !==
-					serializeTemplateIds(eligibleTemplates)
+					serializeEligibleTemplates(refreshedTemplates.data) !==
+					serializeEligibleTemplates(eligibleTemplates)
 				) {
 					return;
 				}
@@ -392,6 +407,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}
 				// A rejected save leaves the dialog open, so focus returns to Save.
 				pendingFocusRef.current = "save";
+				setIsSaveSent(true);
 				onSave(request);
 			}}
 		>

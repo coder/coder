@@ -526,14 +526,13 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
-	it("saves nothing when the eligible templates change during the check", async () => {
+	it("saves nothing when an eligible template changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		vi.mocked(API.getTemplates).mockResolvedValue([
-			MockTemplate,
-			{ ...MockTemplate, id: "newly-eligible" },
+			{ ...MockTemplate, active_version_id: "new-active-version" },
 		]);
 
 		await user.click(save);
@@ -541,5 +540,20 @@ describe("ProjectTemplatesDialog", () => {
 		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(props.onSave).not.toHaveBeenCalled();
+	});
+
+	it("sends a save once even when Save is pressed again before the dialog closes", async () => {
+		const { user, props } = renderDialog();
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+
+		await user.click(save);
+		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
+		await user.click(save);
+		await user.keyboard("{Enter}");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(props.onSave).toHaveBeenCalledTimes(1);
 	});
 });
