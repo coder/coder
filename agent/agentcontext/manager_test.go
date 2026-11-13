@@ -502,6 +502,31 @@ func TestManager_CloseIsIdempotent(t *testing.T) {
 	require.NoError(t, m.Close())
 }
 
+func TestManager_RunOnce(t *testing.T) {
+	t.Parallel()
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return t.TempDir() },
+	})
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	defer cancel()
+	go func() { _ = m.Run(ctx) }()
+
+	// Wait for Run to claim the running flag, then verify the
+	// second call rejects with a deterministic error rather than
+	// racing the scheduler.
+	select {
+	case <-m.Started():
+	case <-ctx.Done():
+		t.Fatalf("manager never started: %v", ctx.Err())
+	}
+
+	err := m.Run(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "more than once")
+	cancel()
+	_ = m.Close()
+}
+
 func TestManager_SubscribeBroadcastOnChange(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()

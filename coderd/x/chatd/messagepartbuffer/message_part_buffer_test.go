@@ -433,6 +433,25 @@ func TestBuffer_SubscribeCanceledBeforeCreateCanCreateEpisode(t *testing.T) {
 	require.NoError(t, buffer.CreateEpisode(key))
 }
 
+func TestBuffer_SubscribeCanceledWithoutCreateReclaimsEpisode(t *testing.T) {
+	t.Parallel()
+
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
+	key := testEpisodeKey()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ch, cancelSub, err := buffer.SubscribeToEpisode(ctx, key)
+	require.NoError(t, err)
+	cancelSub()
+	// The subscriber goroutine removes itself from the episode before closing
+	// the output channel, so cleanup is complete once the channel is closed.
+	drainUntilClosed(t, ch)
+
+	_, err = buffer.GetParts(key)
+	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
+	require.Equal(t, 0, buffer.EpisodeCount())
+}
+
 func TestBuffer_CloseClosesPendingSubscriptionAndRejectsOperations(t *testing.T) {
 	t.Parallel()
 
