@@ -139,6 +139,14 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 // chat routes that were not promoted to /api/v2; r must already extract the
 // organization parameter.
 func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
+	r.Route("/chats/automations", func(r chi.Router) {
+		r.Use(api.requireChatAutomationsExperiment)
+		r.Get("/", api.listChatAutomations)
+		r.Route("/{automation}", func(r chi.Router) {
+			r.Get("/", api.getChatAutomation)
+			r.Delete("/", api.deleteChatAutomation)
+		})
+	})
 	r.Route("/chats/projects", func(r chi.Router) {
 		r.Post("/", api.postChatProject)
 		r.Route("/{project}", func(r chi.Router) {

@@ -3216,6 +3216,14 @@ func (m queryMetricsStore) GetQuotaConsumedForUser(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetReadableChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetReadableChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetReadableChatsByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetRegularWorkspaceCreateMetrics(ctx)

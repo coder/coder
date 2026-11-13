@@ -631,6 +631,57 @@ func Test_diff(t *testing.T) {
 	})
 }
 
+// A changed webhook secret or prompt must show in the diff as a change
+// without a value. An ignored field would also hide the value, so the test
+// asserts the entries, not only that the values are absent.
+func Test_chatAutomationSecretsMasked(t *testing.T) {
+	t.Parallel()
+
+	//nolint:gosec // test fixture, not real credentials
+	const (
+		oldSecret = "old-webhook-secret"
+		newSecret = "new-webhook-secret"
+		oldPrompt = "old confidential prompt"
+		newPrompt = "new confidential prompt"
+	)
+	now := time.Now()
+	before := database.ChatAutomation{
+		ID:                   uuid.UUID{1},
+		OrganizationID:       uuid.UUID{2},
+		OwnerID:              uuid.UUID{3},
+		Name:                 "ci-failures",
+		Kind:                 database.ChatAutomationKindWebhook,
+		Prompt:               oldPrompt,
+		TargetMode:           database.ChatAutomationTargetModeExistingChat,
+		WebhookAuth:          database.NullChatAutomationWebhookAuth{ChatAutomationWebhookAuth: database.ChatAutomationWebhookAuthBearer, Valid: true},
+		WebhookSecret:        sql.NullString{String: oldSecret, Valid: true},
+		WebhookSecretKeyID:   sql.NullString{String: "old-key-digest", Valid: true},
+		WebhookSecretVersion: 1,
+		ScheduleRevision:     1,
+	}
+	after := before
+	after.Prompt = newPrompt
+	after.WebhookSecret = sql.NullString{String: newSecret, Valid: true}
+	after.WebhookSecretKeyID = sql.NullString{String: "new-key-digest", Valid: true}
+	after.WebhookSecretVersion = 2
+	// Operational fields change on every run and are not part of the diff.
+	after.ScheduleRevision = 2
+	after.ScheduleNextRunAt = sql.NullTime{Time: now, Valid: true}
+	after.LastRunAt = sql.NullTime{Time: now, Valid: true}
+	after.LastRunOutcome = database.NullChatAutomationRunOutcome{ChatAutomationRunOutcome: database.ChatAutomationRunOutcomeSkipped, Valid: true}
+	after.LastRunReason = sql.NullString{String: "chat_busy", Valid: true}
+	after.LastRunChatID = uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true}
+	after.LastRunUnacceptedCount = 3
+	after.UpdatedAt = now
+
+	rotated := diffValues(before, after, AuditableResources)
+	require.Equal(t, audit.Map{
+		"prompt":                 audit.OldNew{Old: "", New: "", Secret: true},
+		"webhook_secret":         audit.OldNew{Old: "", New: "", Secret: true},
+		"webhook_secret_version": audit.OldNew{Old: int64(1), New: int64(2)},
+	}, rotated)
+}
+
 func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 	t.Parallel()
 

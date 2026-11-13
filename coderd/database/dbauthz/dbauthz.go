@@ -5094,6 +5094,10 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, params database.G
 	return q.db.GetQuotaConsumedForUser(ctx, params)
 }
 
+func (q *querier) GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetReadableChatsByIDs)(ctx, ids)
+}
+
 func (q *querier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err

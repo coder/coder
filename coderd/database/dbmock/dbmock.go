@@ -6052,6 +6052,21 @@ func (mr *MockStoreMockRecorder) GetQuotaConsumedForUser(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQuotaConsumedForUser", reflect.TypeOf((*MockStore)(nil).GetQuotaConsumedForUser), ctx, arg)
 }
 
+// GetReadableChatsByIDs mocks base method.
+func (m *MockStore) GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReadableChatsByIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReadableChatsByIDs indicates an expected call of GetReadableChatsByIDs.
+func (mr *MockStoreMockRecorder) GetReadableChatsByIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReadableChatsByIDs", reflect.TypeOf((*MockStore)(nil).GetReadableChatsByIDs), ctx, ids)
+}
+
 // GetRegularWorkspaceCreateMetrics mocks base method.
 func (m *MockStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
 	m.ctrl.T.Helper()

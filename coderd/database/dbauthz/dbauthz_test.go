@@ -1491,6 +1491,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
 	}))
+	s.Run("GetReadableChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetReadableChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
+	}))
 	s.Run("CountChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatProjectsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()

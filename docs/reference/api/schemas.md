@@ -2878,6 +2878,231 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |---------------------|---------|----------|--------------|-------------|
 | `auto_archive_days` | integer | false    |              |             |
 
+## codersdk.ChatAutomation
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by_chat": {
+    "archived": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "title": "string"
+  },
+  "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "webhook",
+  "last_run": {
+    "at": "2019-08-24T14:15:22Z",
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "outcome": "accepted",
+    "reason": "string"
+  },
+  "name": "string",
+  "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "next_run_times": [
+    "2019-08-24T14:15:22Z"
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "paused_reasons": [
+    "owner_inactive"
+  ],
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "prompt": "string",
+  "reasoning_effort": "string",
+  "schedule_cron": "string",
+  "schedule_next_run_at": "2019-08-24T14:15:22Z",
+  "schedule_time_zone": "string",
+  "target_chat": {
+    "archived": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "title": "string"
+  },
+  "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+  "target_mode": "existing_chat",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "webhook_auth": "bearer",
+  "webhook_secret_version": 0,
+  "when_busy": "queue"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                                | Required | Restrictions | Description                                                                                                  |
+|----------------------------|-------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string                                                                              | false    |              |                                                                                                              |
+| `created_by_chat`          | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)                          | false    |              |                                                                                                              |
+| `created_by_chat_id`       | string                                                                              | false    |              |                                                                                                              |
+| `enabled`                  | boolean                                                                             | false    |              |                                                                                                              |
+| `id`                       | string                                                                              | false    |              |                                                                                                              |
+| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)                          | false    |              |                                                                                                              |
+| `last_run`                 | [codersdk.ChatAutomationLastRun](#codersdkchatautomationlastrun)                    | false    |              | Last run is null until the first run.                                                                        |
+| `name`                     | string                                                                              | false    |              |                                                                                                              |
+| `new_chat_model_config_id` | string                                                                              | false    |              | New chat model config ID ProjectID and ReasoningEffort apply to new_chat automations.                        |
+| `next_run_times`           | array of string                                                                     | false    |              | Next run times lists up to five upcoming runs of an enabled schedule.                                        |
+| `organization_id`          | string                                                                              | false    |              |                                                                                                              |
+| `owner`                    | [codersdk.MinimalUser](#codersdkminimaluser)                                        | false    |              |                                                                                                              |
+| `owner_id`                 | string                                                                              | false    |              |                                                                                                              |
+| `paused_reasons`           | array of [codersdk.ChatAutomationPausedReason](#codersdkchatautomationpausedreason) | false    |              | Paused reasons lists what stops the automation from running. It is empty until the run path reports reasons. |
+| `project_id`               | string                                                                              | false    |              |                                                                                                              |
+| `prompt`                   | string                                                                              | false    |              |                                                                                                              |
+| `reasoning_effort`         | string                                                                              | false    |              |                                                                                                              |
+| `schedule_cron`            | string                                                                              | false    |              |                                                                                                              |
+| `schedule_next_run_at`     | string                                                                              | false    |              | Schedule next run at is the next occurrence that the scheduler publishes.                                    |
+| `schedule_time_zone`       | string                                                                              | false    |              |                                                                                                              |
+| `target_chat`              | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)                          | false    |              |                                                                                                              |
+| `target_chat_id`           | string                                                                              | false    |              |                                                                                                              |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode)              | false    |              | Target mode is existing_chat or new_chat.                                                                    |
+| `updated_at`               | string                                                                              | false    |              |                                                                                                              |
+| `webhook_auth`             | [codersdk.ChatAutomationWebhookAuth](#codersdkchatautomationwebhookauth)            | false    |              |                                                                                                              |
+| `webhook_secret_version`   | integer                                                                             | false    |              | Webhook secret version changes when the secret is rotated.                                                   |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)                  | false    |              |                                                                                                              |
+
+#### Enumerated Values
+
+| Property       | Value(s)                                |
+|----------------|-----------------------------------------|
+| `kind`         | `schedule`, `webhook`                   |
+| `target_mode`  | `existing_chat`, `new_chat`             |
+| `webhook_auth` | `bearer`, `github`, `standard_webhooks` |
+| `when_busy`    | `queue`, `skip`                         |
+
+## codersdk.ChatAutomationChat
+
+```json
+{
+  "archived": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+|------------|---------|----------|--------------|-------------|
+| `archived` | boolean | false    |              |             |
+| `id`       | string  | false    |              |             |
+| `title`    | string  | false    |              |             |
+
+## codersdk.ChatAutomationKind
+
+```json
+"webhook"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `schedule`, `webhook` |
+
+## codersdk.ChatAutomationLastRun
+
+```json
+{
+  "at": "2019-08-24T14:15:22Z",
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "outcome": "accepted",
+  "reason": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                                                                   | Required | Restrictions | Description                                 |
+|-----------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------|
+| `at`      | string                                                                 | false    |              |                                             |
+| `chat_id` | string                                                                 | false    |              |                                             |
+| `outcome` | [codersdk.ChatAutomationRunOutcome](#codersdkchatautomationrunoutcome) | false    |              |                                             |
+| `reason`  | string                                                                 | false    |              | Reason is set for a skipped or refused run. |
+
+#### Enumerated Values
+
+| Property  | Value(s)                         |
+|-----------|----------------------------------|
+| `outcome` | `accepted`, `refused`, `skipped` |
+
+## codersdk.ChatAutomationPausedReason
+
+```json
+"owner_inactive"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                               |
+|--------------------------------------------------------------------------------------------------------|
+| `experiment_disabled`, `model_unavailable`, `owner_inactive`, `owner_not_member`, `target_unavailable` |
+
+## codersdk.ChatAutomationRunOutcome
+
+```json
+"accepted"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                         |
+|----------------------------------|
+| `accepted`, `refused`, `skipped` |
+
+## codersdk.ChatAutomationTargetMode
+
+```json
+"existing_chat"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                    |
+|-----------------------------|
+| `existing_chat`, `new_chat` |
+
+## codersdk.ChatAutomationWebhookAuth
+
+```json
+"bearer"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                |
+|-----------------------------------------|
+| `bearer`, `github`, `standard_webhooks` |
+
+## codersdk.ChatAutomationWhenBusy
+
+```json
+"queue"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `queue`, `skip` |
+
 ## codersdk.ChatBusyBehavior
 
 ```json

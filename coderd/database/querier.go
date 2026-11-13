@@ -900,6 +900,9 @@ type sqlcQuerier interface {
 	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
 	GetQuotaAllowanceForUser(ctx context.Context, arg GetQuotaAllowanceForUserParams) (int64, error)
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
+	// Returns the chats among ids that exist. dbauthz leaves out the chats that the
+	// caller cannot read, where GetChatsByIDs fails when one of them is unreadable.
+	GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Count regular workspaces: only those whose first successful 'start' build
 	// was not initiated by the prebuild system user.
 	GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error)

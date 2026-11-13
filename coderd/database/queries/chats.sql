@@ -2484,6 +2484,13 @@ WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
 
+-- name: GetReadableChatsByIDs :many
+-- Returns the chats among ids that exist. dbauthz leaves out the chats that the
+-- caller cannot read, where GetChatsByIDs fails when one of them is unreadable.
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
 FROM chats_expanded
