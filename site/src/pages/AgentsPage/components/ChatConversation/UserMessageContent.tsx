@@ -116,7 +116,7 @@ export const UserMessageContent: React.FC<{
 				className={cn(
 					"rounded-lg border bg-surface-secondary px-3 py-2 font-sans shadow-xs transition-shadow",
 					isEditing &&
-						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+						"border-surface-secondary shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-border-warning)_60%,transparent)]",
 				)}
 			>
 				<div className="flex flex-col gap-2">

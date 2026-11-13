@@ -238,7 +238,7 @@ const AttachmentFallbackTile: React.FC<{
 			)}
 		>
 			<AlertTriangleIcon
-				className="size-icon-sm shrink-0 text-content-warning"
+				className="size-icon-sm shrink-0 text-border-warning"
 				aria-hidden="true"
 			/>
 			<span className="leading-tight">{label}</span>

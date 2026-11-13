@@ -204,7 +204,7 @@ export const AttachmentPreview: React.FC<{
 											role="img"
 											aria-label="Upload error"
 										>
-											<AlertTriangleIcon className="size-5 text-content-warning" />
+											<AlertTriangleIcon className="size-5 text-border-warning" />
 										</div>
 									</TooltipTrigger>
 									<TooltipContent side="top">

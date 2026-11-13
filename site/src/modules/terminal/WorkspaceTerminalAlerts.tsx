@@ -158,7 +158,7 @@ const LoadedScriptsAlert: React.FC = () => {
 const severityBorderColors: Record<AlertColor, string> = {
 	info: "border-l-highlight-sky",
 	success: "border-l-content-success",
-	warning: "border-l-content-warning",
+	warning: "border-l-border-warning",
 	error: "border-l-content-destructive",
 };
 

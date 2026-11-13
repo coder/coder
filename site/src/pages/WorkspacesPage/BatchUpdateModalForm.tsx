@@ -172,7 +172,7 @@ const RunningWorkspacesWarning: React.FC<RunningWorkspacesWarningProps> = ({
 			className="rounded-md border-border-warning border p-4"
 		>
 			<h4 className="m-0 font-semibold flex items-center gap-2 text-content-primary">
-				<TriangleAlertIcon className="text-content-warning" size={16} />
+				<TriangleAlertIcon className="text-border-warning" size={16} />
 				Running workspaces detected
 			</h4>
 

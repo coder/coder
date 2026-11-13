@@ -1443,7 +1443,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingMessage || warning) &&
-						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+						"shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-border-warning)_60%,transparent)]",
 					isReadOnlyView && "border",
 				)}
 				onKeyDown={handleComposerKeyDown}
@@ -1486,7 +1486,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							}
 							onClick={onCancelEdit}
 							disabled={isLoading}
-							className="size-6 rounded text-content-warning hover:text-content-primary"
+							className="size-6 rounded text-border-warning hover:text-content-primary"
 						>
 							<XIcon className="size-3.5" />
 						</Button>

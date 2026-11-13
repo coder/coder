@@ -30,7 +30,7 @@ export const AutoCreateConsentDialog: React.FC<
 			>
 				<DialogHeader>
 					<DialogTitle>
-						<TriangleAlertIcon className="size-icon-lg text-content-warning inline-block align-text-bottom mr-2" />
+						<TriangleAlertIcon className="size-icon-lg text-border-warning inline-block align-text-bottom mr-2" />
 						Warning: Automatic Workspace Creation
 					</DialogTitle>
 					<DialogDescription>

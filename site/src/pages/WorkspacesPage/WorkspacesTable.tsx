@@ -877,7 +877,7 @@ const IconAppLink: React.FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 				) : (
 					<CircleAlertIcon
 						aria-hidden="true"
-						className="size-icon-sm text-content-warning"
+						className="size-icon-sm text-border-warning"
 					/>
 				)}
 			</BaseIconLink>

@@ -59,7 +59,7 @@ export const HealthIcon: React.FC<HealthIconProps> = ({ size, severity }) => {
 		<Icon
 			className={cn(
 				severity === "ok" && "text-content-success",
-				severity === "warning" && "text-content-warning",
+				severity === "warning" && "text-border-warning",
 				severity === "error" && "text-content-destructive",
 			)}
 			style={{ width: size, height: size }}
@@ -77,7 +77,7 @@ export const HealthyDot: React.FC<HealthyDotProps> = ({ severity }) => {
 			className={cn(
 				"size-2 rounded-full",
 				severity === "ok" && "bg-content-success",
-				severity === "warning" && "bg-content-warning",
+				severity === "warning" && "bg-border-warning",
 				severity === "error" && "bg-content-destructive",
 			)}
 		/>

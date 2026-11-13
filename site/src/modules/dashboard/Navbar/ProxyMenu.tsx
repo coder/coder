@@ -88,6 +88,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									proxyLatencyLoading(selectedProxy)
 										? undefined
 										: latencies?.[selectedProxy.id]?.latencyMS,
+									"icon",
 								)}
 							/>
 

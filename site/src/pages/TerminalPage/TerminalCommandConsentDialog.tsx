@@ -28,7 +28,7 @@ export const TerminalCommandConsentDialog: React.FC<
 			>
 				<DialogHeader>
 					<DialogTitle>
-						<TriangleAlertIcon className="size-icon-lg text-content-warning inline-block align-text-bottom mr-2" />
+						<TriangleAlertIcon className="size-icon-lg text-border-warning inline-block align-text-bottom mr-2" />
 						Warning: Terminal Command Execution
 					</DialogTitle>
 					<DialogDescription>

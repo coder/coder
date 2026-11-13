@@ -255,7 +255,10 @@ export const SessionSummaryTable = ({
 					</dt>
 					<dd className="ml-4 min-w-0 truncate text-content-primary">
 						{networkCalls.blocked > 0 ? (
-							<Badge svgSize="xs" className="gap-1 text-content-warning">
+							<Badge
+								svgSize="xs"
+								className="gap-1 text-content-warning [&_svg]:text-border-warning"
+							>
 								<BanIcon className="shrink-0" />
 								{networkCalls.blocked.toLocaleString("en-US")}
 							</Badge>

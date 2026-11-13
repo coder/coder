@@ -105,7 +105,7 @@ const ViewableFileCard: React.FC<ViewableFileCardProps> = ({
 						expired ? (
 							<AlertTriangleIcon
 								aria-hidden="true"
-								className="size-icon-sm text-content-warning"
+								className="size-icon-sm text-border-warning"
 							/>
 						) : (
 							tile
