@@ -4086,22 +4086,22 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return encoder.Encode(batch)
 	}
 
+	// drainChatStreamBatch adds the values that are already waiting to
+	// first, so that a burst of message parts takes few WebSocket messages.
+	// It never splits a value: a client relies on receiving the events of
+	// one read of the chat in one WebSocket message.
 	drainChatStreamBatch := func(
-		first codersdk.ChatStreamEvent,
+		first []codersdk.ChatStreamEvent,
 		maxBatchSize int,
 	) ([]codersdk.ChatStreamEvent, bool) {
-		batch := []codersdk.ChatStreamEvent{first}
-		if maxBatchSize <= 1 {
-			return batch, false
-		}
-
+		batch := first
 		for len(batch) < maxBatchSize {
 			select {
-			case event, ok := <-events:
+			case next, ok := <-events:
 				if !ok {
 					return batch, true
 				}
-				batch = append(batch, event)
+				batch = append(batch, next...)
 			default:
 				return batch, false
 			}
@@ -4110,8 +4110,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return batch, false
 	}
 
-	for start := 0; start < len(snapshot); start += chatStreamBatchSize {
-		end := start + chatStreamBatchSize
+	// Without snapshot_version, the first read can be the whole history, so
+	// it is sent in several WebSocket messages.
+	snapshotBatchSize := chatStreamBatchSize
+	if snapshotVersion > 0 {
+		snapshotBatchSize = len(snapshot)
+	}
+	for start := 0; start < len(snapshot); start += snapshotBatchSize {
+		end := start + snapshotBatchSize
 		if end > len(snapshot) {
 			end = len(snapshot)
 		}
@@ -4125,12 +4131,12 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case firstEvent, ok := <-events:
+		case first, ok := <-events:
 			if !ok {
 				return
 			}
 			batch, streamClosed := drainChatStreamBatch(
-				firstEvent,
+				first,
 				chatStreamBatchSize,
 			)
 			if err := sendChatStreamBatch(batch); err != nil {

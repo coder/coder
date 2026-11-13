@@ -27,7 +27,7 @@ func (p *Server) subscribeStreamLoop(
 	requestHeader http.Header,
 	afterMessageID int64,
 	snapshotVersion int64,
-) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), bool) {
+) ([]codersdk.ChatStreamEvent, <-chan []codersdk.ChatStreamEvent, func(), bool) {
 	if p == nil || p.db == nil || p.pubsub == nil {
 		return nil, nil, nil, false
 	}
@@ -36,7 +36,7 @@ func (p *Server) subscribeStreamLoop(
 	}
 	chatID := chat.ID
 	streamCtx, streamCancel := context.WithCancel(ctx)
-	events := make(chan codersdk.ChatStreamEvent, 128)
+	events := make(chan []codersdk.ChatStreamEvent, 128)
 	logger := p.logger.With(slog.F("chat_id", chatID))
 
 	updateCh := make(chan streamSyncHint, 32)
@@ -115,7 +115,7 @@ func (p *Server) subscribeStreamLoop(
 					return
 				}
 				if accepted {
-					sendStreamEvent(streamCtx, events, event)
+					sendStreamEvents(streamCtx, events, []codersdk.ChatStreamEvent{event})
 				}
 			}
 		}
@@ -133,7 +133,7 @@ func (p *Server) runStreamSync(
 	ctx context.Context,
 	loop *streamLoop,
 	relay *streamRelayForwarder,
-	events chan<- codersdk.ChatStreamEvent,
+	events chan<- []codersdk.ChatStreamEvent,
 	hint streamSyncHint,
 ) bool {
 	syncEvents, target, changed, err := p.syncStreamWithRetry(ctx, loop, hint)
@@ -141,10 +141,8 @@ func (p *Server) runStreamSync(
 		p.logger.Error(ctx, "failed to sync chat stream after retries", slog.Error(err))
 		return false
 	}
-	for _, event := range syncEvents {
-		if !sendStreamEvent(ctx, events, event) {
-			return false
-		}
+	if len(syncEvents) > 0 && !sendStreamEvents(ctx, events, syncEvents) {
+		return false
 	}
 	if changed {
 		relay.Configure(ctx, target)
@@ -202,9 +200,9 @@ func (p *Server) waitBeforeStreamSyncRetry(ctx context.Context, attempt int) boo
 	}
 }
 
-func sendStreamEvent(ctx context.Context, ch chan<- codersdk.ChatStreamEvent, event codersdk.ChatStreamEvent) bool {
+func sendStreamEvents(ctx context.Context, ch chan<- []codersdk.ChatStreamEvent, events []codersdk.ChatStreamEvent) bool {
 	select {
-	case ch <- event:
+	case ch <- events:
 		return true
 	case <-ctx.Done():
 		return false
@@ -221,7 +219,7 @@ func (p *Server) Subscribe(
 	snapshotVersion int64,
 ) (
 	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
+	<-chan []codersdk.ChatStreamEvent,
 	func(),
 	bool,
 ) {
@@ -248,6 +246,10 @@ func (p *Server) Subscribe(
 // afterMessageID. ok is false, and nothing was sent, when the server has no
 // database or pubsub, or when the pubsub subscription or the initial read
 // fails. Only the two failures are logged.
+//
+// Each value on the channel holds the events of one database read, or one
+// message part. One read returns every message and queue change of the
+// snapshot versions it covers.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
@@ -256,7 +258,7 @@ func (p *Server) SubscribeAuthorized(
 	snapshotVersion int64,
 ) (
 	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
+	<-chan []codersdk.ChatStreamEvent,
 	func(),
 	bool,
 ) {

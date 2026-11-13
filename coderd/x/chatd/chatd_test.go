@@ -14040,34 +14040,36 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			select {
 			case <-ctx.Done():
 				return
-			case event, eventsOK := <-liveEvents:
+			case batch, eventsOK := <-liveEvents:
 				if !eventsOK {
 					return
 				}
-				if event.Type != codersdk.ChatStreamEventTypeMessagePart ||
-					event.MessagePart == nil {
-					continue
+				for _, event := range batch {
+					if event.Type != codersdk.ChatStreamEventTypeMessagePart ||
+						event.MessagePart == nil {
+						continue
+					}
+					part := event.MessagePart.Part
+					livePartsMu.Lock()
+					if event.MessagePart.Role == codersdk.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeReasoning {
+						liveAssistantReasoning = append(liveAssistantReasoning, part.Text)
+					}
+					livePartsMu.Unlock()
+					if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
+						part.Type != codersdk.ChatMessagePartTypeToolResult ||
+						part.ToolName != chatadvisor.ToolName ||
+						part.ToolCallID != "advisor-happy-path-call" {
+						continue
+					}
+					livePartsMu.Lock()
+					if part.ResultDelta != "" {
+						liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+					}
+					if part.ReasoningDelta != "" {
+						liveAdvisorReasoning = append(liveAdvisorReasoning, part.ReasoningDelta)
+					}
+					livePartsMu.Unlock()
 				}
-				part := event.MessagePart.Part
-				livePartsMu.Lock()
-				if event.MessagePart.Role == codersdk.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeReasoning {
-					liveAssistantReasoning = append(liveAssistantReasoning, part.Text)
-				}
-				livePartsMu.Unlock()
-				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
-					part.Type != codersdk.ChatMessagePartTypeToolResult ||
-					part.ToolName != chatadvisor.ToolName ||
-					part.ToolCallID != "advisor-happy-path-call" {
-					continue
-				}
-				livePartsMu.Lock()
-				if part.ResultDelta != "" {
-					liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
-				}
-				if part.ReasoningDelta != "" {
-					liveAdvisorReasoning = append(liveAdvisorReasoning, part.ReasoningDelta)
-				}
-				livePartsMu.Unlock()
 			}
 		}
 	}()
