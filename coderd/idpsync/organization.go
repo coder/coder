@@ -185,6 +185,13 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		if err != nil {
 			return xerrors.Errorf("remove user from organization: %w", err)
 		}
+		_, err = tx.RemoveChatsFromUnusableChatProjects(ctx, database.RemoveChatsFromUnusableChatProjectsParams{
+			OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
+		})
+		if err != nil {
+			return xerrors.Errorf("remove chats from unusable chat projects: %w", err)
+		}
 	}
 
 	if len(notExists) > 0 {

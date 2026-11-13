@@ -1809,8 +1809,9 @@ func (api *API) createChatError(err error) error {
 			Detail:  err.Error(),
 		}, err)
 	}
-	// The project can be deleted between the access check and the insert.
-	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+	// The project can be deleted, or the owner's access removed, between
+	// the access check and the insert.
+	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) || errors.Is(err, chatstate.ErrChatProjectNotUsable) {
 		return httperror.WrapResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."}, err)
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
@@ -3059,8 +3060,9 @@ func (api *API) updateChat(
 					Detail:  err.Error(),
 				}, err)
 			}
-			// The project can be deleted between the check and the move.
-			if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+			// The project can be deleted, or the owner's access removed,
+			// between the check and the move.
+			if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) || errors.Is(err, chatstate.ErrChatProjectNotUsable) {
 				return database.Chat{}, httperror.WrapResponseError(http.StatusNotFound, codersdk.Response{
 					Message: "Chat project not found.",
 				}, err)

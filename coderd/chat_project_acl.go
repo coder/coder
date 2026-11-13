@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -150,6 +151,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var removedChatIDs []uuid.UUID
 	err := api.Database.InTx(func(tx database.Store) error {
 		// Lock granted users' memberships before the project row. A membership
 		// delete locks its row and then, through the 000629 trigger, the project
@@ -186,6 +188,13 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		}); err != nil {
 			return xerrors.Errorf("update chat project ACL: %w", err)
 		}
+		// Owners removed from the sharing list take their chats with them.
+		removedChatIDs, err = chatd.RemoveChatsFromUnusableProjects(ctx, tx, database.RemoveChatsFromUnusableChatProjectsParams{
+			ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
 		updated, err := tx.GetChatProjectByID(ctx, project.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated chat project: %w", err)
@@ -213,6 +222,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	chatd.PublishChatsLeftProject(ctx, api.Logger, api.Database, api.Pubsub, removedChatIDs)
 	rw.WriteHeader(http.StatusNoContent)
 }
 

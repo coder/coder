@@ -486,6 +486,64 @@ WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_ty
 	requireSDKError(t, err, http.StatusNotFound)
 }
 
+// A chat owner removed from a project takes their chats out of it at once,
+// while chats of owners who keep access stay.
+func TestChatProjectOwnerRemovedChatsLeaveProject(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		remove func(ctx context.Context, client *codersdk.ExperimentalClient, project codersdk.ChatProject, user codersdk.User) error
+	}{
+		{"SharingList", func(ctx context.Context, client *codersdk.ExperimentalClient, project codersdk.ChatProject, user codersdk.User) error {
+			return client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
+				UserRoles: map[string]codersdk.ChatProjectRole{user.ID.String(): codersdk.ChatProjectRoleDeleted},
+			})
+		}},
+		{"Organization", func(ctx context.Context, client *codersdk.ExperimentalClient, project codersdk.ChatProject, user codersdk.User) error {
+			return client.DeleteOrganizationMember(ctx, project.OrganizationID, user.ID.String())
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, _ := newChatProjectClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+			orgID := firstUser.OrganizationID
+			project := createChatProject(t, client, orgID, "Removal Project")
+			removed, removedUser := newChatProjectMember(t, client, orgID)
+			stays, staysUser := newChatProjectMember(t, client, orgID)
+			require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+				UserRoles: map[string]codersdk.ChatProjectRole{
+					removedUser.ID.String(): codersdk.ChatProjectRoleUse,
+					staysUser.ID.String():   codersdk.ChatProjectRoleUse,
+				},
+			}))
+			ownerChat := createChatInProject(t, client, orgID, &project.ID)
+			removedChat := createChatInProject(t, removed, orgID, &project.ID)
+			staysChat := createChatInProject(t, stays, orgID, &project.ID)
+
+			require.NoError(t, tc.remove(ctx, client, project, removedUser))
+
+			for _, want := range []struct {
+				chat      codersdk.Chat
+				inProject bool
+			}{{ownerChat, true}, {removedChat, false}, {staysChat, true}} {
+				// The owner can read every chat, including one whose owner left the organization.
+				got, err := client.GetChat(ctx, want.chat.ID)
+				require.NoError(t, err)
+				if want.inProject {
+					require.Equal(t, &project.ID, got.ProjectID)
+				} else {
+					require.Nil(t, got.ProjectID)
+				}
+			}
+		})
+	}
+}
+
 func newChatProjectMember(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID) (*codersdk.ExperimentalClient, codersdk.User) {
 	t.Helper()
 	raw, user := coderdtest.CreateAnotherUser(t, client.Client, organizationID)

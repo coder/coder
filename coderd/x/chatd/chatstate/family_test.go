@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -394,6 +395,80 @@ func TestSetFamilyProjectKeepsTheCurrentProject(t *testing.T) {
 	after, err := db.GetChatByID(ctx, root.ID)
 	require.NoError(t, err)
 	require.Equal(t, before, after)
+}
+
+// TestAttachChatProjectSerializesWithAccessRemoval removes the owner's only
+// group grant in an open transaction while a chat is attached to the project.
+// The attach must wait on the group membership and then fail, so a removal
+// that misses the attached chat cannot leave it in the project.
+func TestAttachChatProjectSerializesWithAccessRemoval(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		attach func(ctx context.Context, db database.Store, project database.ChatProject, user database.User, model database.ChatModelConfig) error
+	}{
+		{"Create", func(ctx context.Context, db database.Store, project database.ChatProject, user database.User, model database.ChatModelConfig) error {
+			_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
+				OrganizationID:    project.OrganizationID,
+				OwnerID:           user.ID,
+				ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+				LastModelConfigID: model.ID,
+				Title:             "attached",
+				ClientType:        database.ChatClientTypeApi,
+				InitialStatus:     database.ChatStatusWaiting,
+				InitialMessages:   []chatstate.Message{userTextMessage("hello", user.ID, model.ID)},
+			})
+			return err
+		}},
+		{"Move", func(ctx context.Context, db database.Store, project database.ChatProject, user database.User, model database.ChatModelConfig) error {
+			root := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    project.OrganizationID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Title:             "root",
+				Status:            database.ChatStatusWaiting,
+			})
+			_, err := chatstate.SetFamilyProject(ctx, db, newRecordingPubsub(), chatstate.SetFamilyProjectInput{
+				RootID:    root.ID,
+				ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
+			})
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedFamilyDeps(t, db)
+			projectOwner := dbgen.User(t, db, database.User{})
+			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+			dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+			project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner.ID})
+			require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+				ID:       project.ID,
+				UserACL:  database.ChatACL{},
+				GroupACL: database.ChatACL{group.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+			}))
+
+			removal, err := sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				if err := removal.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+					t.Errorf("roll back the removal: %v", err)
+				}
+			})
+			_, err = removal.ExecContext(ctx, `DELETE FROM group_members WHERE user_id = $1 AND group_id = $2`, user.ID, group.ID)
+			require.NoError(t, err)
+
+			attachErr := make(chan error, 1)
+			go func() { attachErr <- tc.attach(ctx, db, project, user, model) }()
+			waitForLockWaiter(ctx, t, sqlDB, "LockGroupMembersByUserIDForShare")
+			require.NoError(t, removal.Commit())
+
+			require.ErrorIs(t, testutil.RequireReceive(ctx, t, attachErr), chatstate.ErrChatProjectNotUsable)
+		})
+	}
 }
 
 // waitForLockWaiter waits until exactly one other session waits on a row

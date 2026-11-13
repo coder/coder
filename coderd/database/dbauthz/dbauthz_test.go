@@ -1399,6 +1399,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), arg).Return(true, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatProject, policy.ActionRead).Returns(true)
 	}))
+	s.Run("RemoveChatsFromUnusableChatProjects", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.RemoveChatsFromUnusableChatProjectsParams{OwnerID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().RemoveChatsFromUnusableChatProjects(gomock.Any(), arg).Return(ids, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(ids)
+	}))
+	s.Run("GetChatProjectByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByIDForShare(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
+	}))
+	s.Run("LockGroupMembersByUserIDForShare", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		userID := uuid.New()
+		groupIDs := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().LockGroupMembersByUserIDForShare(gomock.Any(), userID).Return(groupIDs, nil).AnyTimes()
+		check.Args(userID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(groupIDs)
+	}))
 	s.Run("GetChatProjectByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByIDForUpdate(gomock.Any(), project.ID).Return(project, nil).AnyTimes()

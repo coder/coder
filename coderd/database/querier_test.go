@@ -2156,6 +2156,94 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
+// RemoveChatsFromUnusableChatProjects must agree with
+// IsChatProjectUsableByUserID for every kind of grant, or it would move chats
+// out of projects their owners can still use, or leave them in ones they
+// cannot.
+func TestRemoveChatsFromUnusableChatProjects(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	projectOwner := dbgen.User(t, db, database.User{})
+	direct := dbgen.User(t, db, database.User{})
+	grouped := dbgen.User(t, db, database.User{})
+	everyone := dbgen.User(t, db, database.User{})
+	noGrant := dbgen.User(t, db, database.User{})
+	notMember := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{projectOwner, direct, grouped, everyone, noGrant} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: grouped.ID, GroupID: group.ID})
+
+	read := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	shared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner.ID})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       shared.ID,
+		UserACL:  database.ChatACL{direct.ID.String(): read},
+		GroupACL: database.ChatACL{group.ID.String(): read},
+	}))
+	orgWide := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner.ID})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       orgWide.ID,
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{org.ID.String(): read},
+	}))
+
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	chatIn := func(project database.ChatProject, owner database.User) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+	}
+	chats := []database.Chat{
+		chatIn(shared, projectOwner),
+		chatIn(shared, direct),
+		chatIn(shared, grouped),
+		chatIn(shared, noGrant),
+		chatIn(orgWide, everyone),
+		chatIn(orgWide, notMember),
+	}
+	wantRemoved := []uuid.UUID{chats[3].ID, chats[5].ID}
+
+	// Filters narrow the chats that are checked.
+	removed, err := db.RemoveChatsFromUnusableChatProjects(ctx, database.RemoveChatsFromUnusableChatProjectsParams{
+		OwnerID: uuid.NullUUID{UUID: direct.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Empty(t, removed)
+
+	removed, err = db.RemoveChatsFromUnusableChatProjects(ctx, database.RemoveChatsFromUnusableChatProjectsParams{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, wantRemoved, removed)
+
+	for _, chat := range chats {
+		usable, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{
+			ProjectID: chat.ProjectID.UUID,
+			UserID:    chat.OwnerID,
+		})
+		require.NoError(t, err)
+		got, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, usable, got.ProjectID.Valid, "chat %s", chat.ID)
+	}
+}
+
 func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
