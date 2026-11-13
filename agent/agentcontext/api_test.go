@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -100,6 +101,37 @@ func TestAPI_AddSourceRejected(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, status)
 }
 
+func TestAPI_AddAutomaticRoot(t *testing.T) {
+	t.Parallel()
+	wd := testutil.TempDirResolved(t)
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: "~/.coder"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
+				WorkingDir: func() string { return wd },
+			})
+			body, err := json.Marshal(agentcontext.SourceRequest{Path: tc.path})
+			require.NoError(t, err)
+			status, _ := doRequest(t, http.MethodPost, srv.URL+"/sources", bytes.NewReader(body))
+			require.Equal(t, http.StatusCreated, status)
+			status, _ = doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
+			require.Equal(t, http.StatusNoContent, status)
+			status, response := doRequest(t, http.MethodGet, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
+			require.Equal(t, http.StatusOK, status)
+			var source agentcontext.SourceResponse
+			require.NoError(t, json.Unmarshal(response, &source))
+			require.True(t, source.Excluded)
+			require.Contains(t, m.Sources(), agentcontext.Source{Path: source.Path, Excluded: true})
+		})
+	}
+}
+
 func TestAPI_GetAndDeleteSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
@@ -125,6 +157,18 @@ func TestAPI_GetAndDeleteSource(t *testing.T) {
 	require.Empty(t, m.Sources())
 }
 
+func TestAPI_DeleteSeededSource(t *testing.T) {
+	t.Parallel()
+	src := testutil.TempDirResolved(t)
+	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
+		InitialSources: []agentcontext.Source{{Path: src}},
+	})
+
+	status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(src), nil)
+	require.Equal(t, http.StatusNoContent, status)
+	require.Equal(t, []agentcontext.Source{{Path: src, Excluded: true}}, m.Sources())
+}
+
 func TestAPI_GetSourceNotFound(t *testing.T) {
 	t.Parallel()
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
@@ -137,12 +181,16 @@ func TestAPI_GetSourceNotFound(t *testing.T) {
 
 func TestAPI_DeleteSourceNotFound(t *testing.T) {
 	t.Parallel()
+	wd := testutil.TempDirResolved(t)
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
-		WorkingDir: func() string { return t.TempDir() },
+		WorkingDir: func() string { return wd },
 	})
 
-	status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape("/never-added"), nil)
+	status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape("/never-added"), nil)
 	require.Equal(t, http.StatusNotFound, status)
+	var response codersdk.Response
+	require.NoError(t, json.Unmarshal(body, &response))
+	require.Equal(t, "Context source not found.", response.Message)
 }
 
 func TestAPI_Resync(t *testing.T) {

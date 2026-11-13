@@ -70,11 +70,10 @@ message SyncListResponse {
   repeated UnitInfo units = 1;
 }
 
-// ContextSource is a user-declared scan root the agent watches for
-// workspace context (instruction files, skills, MCP configs) in
-// addition to its built-in defaults. Identity is the canonical path.
+// ContextSource is a registered or excluded workspace-context scan root.
 message ContextSource {
   string path = 1;
+  bool excluded = 2;
 }
 
 message ContextSourcesRequest {}

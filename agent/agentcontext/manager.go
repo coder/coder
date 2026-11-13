@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,9 +25,8 @@ type ManagerOptions struct {
 	// existing agent convention. The result is used as a
 	// scan root.
 	WorkingDir func() string
-	// InitialSources seeds the Manager's source list at boot
-	// time. Sources from CODER_AGENT_EXP_*_DIRS env vars or
-	// startup scripts are layered here.
+	// InitialSources registers seeded sources from agent configuration.
+	// Exclusions can suppress these sources without forgetting them.
 	InitialSources []Source
 	// AllowedRoots restricts which paths may be added as
 	// sources at runtime. When empty the package falls back
@@ -54,13 +54,18 @@ type ManagerOptions struct {
 	Debounce time.Duration
 }
 
-// Source is a user-declared scan root added to the agent's
-// in-memory list via the HTTP API or boot-time env seeding.
-// Identity is the canonical absolute path.
+// Source describes a registered or excluded workspace-context scan root.
+// Registered paths retain their lexical identity; implicit exclusions use
+// resolved paths.
 type Source struct {
-	// Path is the canonical absolute path (symlinks resolved,
-	// ~ expanded). Empty means the zero value.
-	Path string
+	Path     string
+	Excluded bool
+}
+
+type sourceEntry struct {
+	Path     string
+	Seeded   bool
+	Explicit bool
 }
 
 // Manager orchestrates source CRUD, resolution, watching, and
@@ -76,10 +81,12 @@ type Manager struct {
 	mcpReconnect func(context.Context) error
 
 	mu      sync.Mutex
-	sources []Source
-	// sourceIndex maps canonical path -> position in sources
-	// for O(1) lookups during AddSource / RemoveSource.
+	sources []sourceEntry
+	// sourceIndex maps lexical identities to positions in sources.
 	sourceIndex map[string]int
+	// excluded holds resolved roots for the Manager's lifetime. Automatic roots
+	// below an exclusion are skipped; explicitly added sources stay included.
+	excluded map[string]struct{}
 
 	// snapshot is the latest result of a resolver pass. It is
 	// replaced atomically under mu.
@@ -146,8 +153,9 @@ func NewManager(opts ManagerOptions) *Manager {
 		resolver:     resolver,
 		debounce:     debounce,
 		mcpReconnect: opts.MCPReconnect,
-		sources:      make([]Source, 0),
+		sources:      make([]sourceEntry, 0),
 		sourceIndex:  make(map[string]int),
+		excluded:     make(map[string]struct{}),
 		subscribers:  make(map[chan struct{}]struct{}),
 		trigger:      make(chan struct{}, 1),
 		closedCh:     make(chan struct{}),
@@ -183,7 +191,7 @@ func NewManager(opts ManagerOptions) *Manager {
 				slog.Error(err))
 			continue
 		}
-		m.addSourceLocked(identity)
+		m.seedSourceLocked(identity)
 	}
 
 	// Start gated: m.snapshot stays the zero value (version 0) until
@@ -278,84 +286,151 @@ func (m *Manager) Close() error {
 	return nil
 }
 
-// Sources returns a defensive copy of the current source list.
-// The returned slice is safe to mutate.
+// Sources returns registered sources and exclusions. Seeded descendants inherit
+// exclusions; explicitly added sources remain included.
 func (m *Manager) Sources() []Source {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make([]Source, len(m.sources))
-	copy(out, m.sources)
+	return m.sourcesLocked()
+}
+
+func (m *Manager) sourcesLocked() []Source {
+	out := make([]Source, 0, len(m.sources)+len(m.excluded))
+	listed := make(map[string]bool)
+	for _, entry := range m.sources {
+		resolved, err := CanonicalizePath(entry.Path)
+		excluded := !entry.Explicit && err == nil && m.isExcludedLocked(resolved)
+		out = append(out, Source{Path: entry.Path, Excluded: excluded})
+		if excluded {
+			listed[resolved] = true
+		}
+	}
+	paths := make([]string, 0, len(m.excluded))
+	for path := range m.excluded {
+		if !listed[path] {
+			paths = append(paths, path)
+		}
+	}
+	slices.Sort(paths)
+	for _, path := range paths {
+		out = append(out, Source{Path: path, Excluded: true})
+	}
 	return out
 }
 
-// HasSource reports whether path matches a registered source,
-// returning its lexical identity.
-func (m *Manager) HasSource(path string) (canonical string, ok bool) {
-	c, err := lexicalPath(path)
+// GetSource returns a registered or excluded source, matching resolved aliases.
+func (m *Manager) GetSource(path string) (Source, bool) {
+	identity, err := lexicalPath(path)
 	if err != nil {
-		return "", false
+		return Source{}, false
+	}
+	resolved, err := CanonicalizePath(identity)
+	if err != nil {
+		return Source{}, false
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_, ok = m.sourceIndex[c]
-	return c, ok
+	sources := m.sourcesLocked()
+	for _, source := range sources {
+		if source.Path == identity {
+			return source, true
+		}
+	}
+	for _, source := range sources {
+		canonical, err := CanonicalizePath(source.Path)
+		if err == nil && canonical == resolved {
+			return source, true
+		}
+	}
+	return Source{Path: identity}, false
 }
 
-// AddSource validates a new source against the AllowedRoots set
-// and registers it by its lexical identity. AddSource is
-// idempotent.
+// AddSource registers an explicit source and clears its exact exclusion.
+// Explicit sources remain included beneath other excluded roots. Always-scanned
+// roots use the same registration rule, so RemoveSource can undo the addition.
 func (m *Manager) AddSource(s Source) (Source, error) {
 	identity, err := lexicalPath(s.Path)
 	if err != nil {
 		return Source{}, xerrors.Errorf("canonicalize: %w", err)
 	}
-	// Validate the resolved path so symlinks can't escape the allowed roots.
-	resolved, err := CanonicalizePath(s.Path)
+	resolved, err := CanonicalizePath(identity)
 	if err != nil {
 		return Source{}, xerrors.Errorf("canonicalize: %w", err)
 	}
-	if err := ValidateSourcePath(resolved, m.effectiveAllowedRoots()); err != nil {
-		return Source{}, err
-	}
-
 	m.mu.Lock()
-	if idx, ok := m.sourceIndex[identity]; ok {
-		out := m.sources[idx]
-		m.mu.Unlock()
-		return out, nil
+	_, excluded := m.excluded[resolved]
+	if !excluded && !m.automaticRootLocked(resolved) {
+		if err := ValidateSourcePath(resolved, m.effectiveAllowedRoots()); err != nil {
+			m.mu.Unlock()
+			return Source{}, err
+		}
 	}
-	m.sourceIndex[identity] = len(m.sources)
-	m.sources = append(m.sources, Source{Path: identity})
+	delete(m.excluded, resolved)
+	changed := excluded
+	if idx, ok := m.sourceIndex[identity]; ok {
+		changed = changed || !m.sources[idx].Explicit
+		m.sources[idx].Explicit = true
+	} else {
+		m.sourceIndex[identity] = len(m.sources)
+		m.sources = append(m.sources, sourceEntry{Path: identity, Explicit: true})
+		changed = true
+	}
 	m.mu.Unlock()
-
-	m.signal()
+	if changed {
+		m.signal()
+	}
 	return Source{Path: identity}, nil
 }
 
-// SeedSources registers a batch of trusted sources without
-// AllowedRoots validation, the late-binding equivalent of
-// ManagerOptions.InitialSources for when the working directory
-// is only known after Run starts. Invalid paths are skipped and
-// duplicates are ignored.
-//
-// Untrusted callers must use AddSource; SeedSources exists only
-// for manifest-triggered seeding from CODER_AGENT_EXP_*_DIRS.
-func (m *Manager) SeedSources(sources []Source) {
-	if len(sources) == 0 {
-		return
+func (m *Manager) automaticRootLocked(resolved string) bool {
+	for _, root := range defaultBuiltinRoots() {
+		canonical, err := CanonicalizePath(root)
+		if err == nil && canonical == resolved {
+			return true
+		}
 	}
+	if m.workingDir != nil {
+		canonical, err := CanonicalizePath(m.workingDir())
+		if err == nil && canonical == resolved {
+			return true
+		}
+	}
+	for _, source := range m.sources {
+		if source.Seeded {
+			canonical, err := CanonicalizePath(source.Path)
+			if err == nil && canonical == resolved {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (m *Manager) isExcludedLocked(resolved string) bool {
+	for path := range m.excluded {
+		if pathHasPrefix(resolved, path) {
+			return true
+		}
+	}
+	return false
+}
+
+// SeedSources remembers trusted configuration sources without AllowedRoots
+// validation. Excluded sources stay inactive, including on reconnect. Retaining
+// their identities lets AddSource restore them without waiting for another seed.
+func (m *Manager) SeedSources(sources []Source) {
 	m.mu.Lock()
 	changed := false
-	for _, s := range sources {
-		identity, err := lexicalPath(s.Path)
+	for _, source := range sources {
+		identity, err := lexicalPath(source.Path)
 		if err != nil {
-			m.logger.Warn(context.Background(),
-				"skipping invalid seeded source",
-				slog.F("path", s.Path),
-				slog.Error(err))
+			m.logger.Warn(context.Background(), "skipping invalid seeded source",
+				slog.F("path", source.Path), slog.Error(err))
 			continue
 		}
-		if m.addSourceLocked(identity) {
+		added := m.seedSourceLocked(identity)
+		resolved, err := CanonicalizePath(identity)
+		if added && err == nil && !m.isExcludedLocked(resolved) {
 			changed = true
 		}
 	}
@@ -365,46 +440,59 @@ func (m *Manager) SeedSources(sources []Source) {
 	}
 }
 
-// RemoveSource removes the source matching path by its lexical
-// identity, returning ErrSourceNotFound if none matches.
-func (m *Manager) RemoveSource(path string) error {
-	identity, err := lexicalPath(path)
-	if err != nil {
-		// A path that does not canonicalize cannot match any
-		// existing source. Mirror HasSource semantics by
-		// reporting not-found rather than leaking the
-		// canonicalize error to API callers.
-		return ErrSourceNotFound
-	}
-
-	m.mu.Lock()
-	idx, ok := m.sourceIndex[identity]
-	if !ok {
-		m.mu.Unlock()
-		return ErrSourceNotFound
-	}
-	// O(n) compaction is fine for the typical handful of
-	// user-added sources.
-	m.sources = append(m.sources[:idx], m.sources[idx+1:]...)
-	delete(m.sourceIndex, identity)
-	for i := idx; i < len(m.sources); i++ {
-		m.sourceIndex[m.sources[i].Path] = i
-	}
-	m.mu.Unlock()
-
-	m.signal()
-	return nil
-}
-
-// addSourceLocked registers identity unless already present,
-// reporting whether it was added. m.mu must be held.
-func (m *Manager) addSourceLocked(identity string) bool {
-	if _, ok := m.sourceIndex[identity]; ok {
+func (m *Manager) seedSourceLocked(identity string) bool {
+	if idx, ok := m.sourceIndex[identity]; ok {
+		m.sources[idx].Seeded = true
 		return false
 	}
 	m.sourceIndex[identity] = len(m.sources)
-	m.sources = append(m.sources, Source{Path: identity})
+	m.sources = append(m.sources, sourceEntry{Path: identity, Seeded: true})
 	return true
+}
+
+// RemoveSource removes explicit registrations. For a working directory, built-in
+// root, or seeded source, it also excludes the resolved root and its automatic
+// descendants for the Manager's lifetime. Explicit descendants stay included.
+func (m *Manager) RemoveSource(path string) error {
+	identity, err := lexicalPath(path)
+	if err != nil {
+		return ErrSourceNotFound
+	}
+	resolved, err := CanonicalizePath(identity)
+	if err != nil {
+		return ErrSourceNotFound
+	}
+	m.mu.Lock()
+	_, excluded := m.excluded[resolved]
+	automatic := excluded || m.automaticRootLocked(resolved)
+	found := false
+	for i := 0; i < len(m.sources); {
+		canonical, err := CanonicalizePath(m.sources[i].Path)
+		if m.sources[i].Path != identity && (err != nil || canonical != resolved) {
+			i++
+			continue
+		}
+		found = true
+		if m.sources[i].Seeded {
+			m.sources[i].Explicit = false
+			i++
+			continue
+		}
+		delete(m.sourceIndex, m.sources[i].Path)
+		m.sources = append(m.sources[:i], m.sources[i+1:]...)
+		for j := i; j < len(m.sources); j++ {
+			m.sourceIndex[m.sources[j].Path] = j
+		}
+	}
+	if automatic {
+		m.excluded[resolved] = struct{}{}
+	}
+	m.mu.Unlock()
+	if !automatic && !found {
+		return ErrSourceNotFound
+	}
+	m.signal()
+	return nil
 }
 
 // Snapshot returns the latest Snapshot. The returned value is
@@ -592,14 +680,18 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 	builtinRoots := defaultBuiltinRoots()
 	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
 	for _, s := range m.sources {
-		out = append(out, ScanRoot{Path: s.Path, UserSource: s.Path})
+		resolved, err := CanonicalizePath(s.Path)
+		if err != nil || (!s.Explicit && m.isExcludedLocked(resolved)) {
+			continue
+		}
+		out = append(out, m.scanRootLocked(s, resolved))
 	}
 	for _, r := range builtinRoots {
 		canonical, err := CanonicalizePath(r)
-		if err != nil {
+		if err != nil || m.isExcludedLocked(canonical) {
 			continue
 		}
-		out = append(out, ScanRoot{Path: canonical})
+		out = append(out, m.scanRootLocked(sourceEntry{Path: canonical}, canonical))
 	}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
@@ -610,10 +702,27 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 			// to parent directories. Additional directories are
 			// added explicitly as Sources or via the seeding env
 			// vars.
-			out = append(out, ScanRoot{Path: wd})
+			canonical, err := CanonicalizePath(wd)
+			if err == nil && !m.isExcludedLocked(canonical) {
+				out = append(out, m.scanRootLocked(sourceEntry{Path: wd}, canonical))
+			}
 		}
 	}
 	return out
+}
+
+func (m *Manager) scanRootLocked(source sourceEntry, resolved string) ScanRoot {
+	root := ScanRoot{Path: source.Path}
+	if source.Seeded || source.Explicit {
+		root.UserSource = source.Path
+	}
+	for excluded := range m.excluded {
+		if source.Explicit && pathHasPrefix(resolved, excluded) {
+			continue
+		}
+		root.ExcludedPaths = append(root.ExcludedPaths, excluded)
+	}
+	return root
 }
 
 // effectiveAllowedRoots returns the AllowedRoots augmented
@@ -710,8 +819,8 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	}
 }
 
-// ErrSourceNotFound is returned by RemoveSource when the
-// requested path is not in the source list.
+// ErrSourceNotFound is returned when a path is neither a registered source
+// nor an automatic scan root or exclusion.
 var ErrSourceNotFound = xerrors.New("source not found")
 
 // ErrManagerClosed is returned by methods called after Close.

@@ -174,7 +174,7 @@ func (c *Client) ContextSources(ctx context.Context) ([]ContextSource, error) {
 	}
 	sources := make([]ContextSource, 0, len(resp.Sources))
 	for _, s := range resp.Sources {
-		sources = append(sources, ContextSource{Path: s.GetPath()})
+		sources = append(sources, ContextSource{Path: s.GetPath(), Excluded: s.GetExcluded()})
 	}
 	return sources, nil
 }
@@ -186,7 +186,7 @@ func (c *Client) GetContextSource(ctx context.Context, path string) (ContextSour
 	if err != nil {
 		return ContextSource{}, err
 	}
-	return ContextSource{Path: resp.GetSource().GetPath()}, nil
+	return ContextSource{Path: resp.GetSource().GetPath(), Excluded: resp.GetSource().GetExcluded()}, nil
 }
 
 // AddContextSource registers a new scan root on the agent.
@@ -195,7 +195,7 @@ func (c *Client) AddContextSource(ctx context.Context, path string) (ContextSour
 	if err != nil {
 		return ContextSource{}, err
 	}
-	return ContextSource{Path: resp.GetSource().GetPath()}, nil
+	return ContextSource{Path: resp.GetSource().GetPath(), Excluded: resp.GetSource().GetExcluded()}, nil
 }
 
 // RemoveContextSource removes a previously-registered scan root.
@@ -275,9 +275,10 @@ type DependencyInfo struct {
 	IsSatisfied    bool        `table:"satisfied" json:"is_satisfied"`
 }
 
-// ContextSource is a registered workspace-context scan root.
+// ContextSource is a registered or excluded workspace-context scan root.
 type ContextSource struct {
-	Path string `table:"path,default_sort" json:"path"`
+	Path     string `table:"path,default_sort" json:"path"`
+	Excluded bool   `table:"excluded" json:"excluded"`
 }
 
 // ContextResource is a resolved workspace-context resource. Payload bytes are
