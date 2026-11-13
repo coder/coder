@@ -156,6 +156,9 @@ describe("checkSource", () => {
 			'localStorage.setItem("Recent Items", value);',
 			'window.addEventListener("Custom Event", handler);',
 			'node.setAttribute("Some Name", value);',
+			'node.setAttribute("class", "Foo Bar");',
+			'const { "Task Events": handler } = handlers;',
+			'const r = value.replace("Task Events", x).startsWith("Some Prefix");',
 			'const v = Yup.string().matches(/^a$/, "Enter A Valid Name");',
 		].join("\n");
 		expect(

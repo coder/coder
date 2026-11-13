@@ -600,8 +600,8 @@ function isInCodeProperty(node) {
 }
 
 // Functions and constructors whose first argument, when a string, is
-// code: a pattern, selector, storage key, URL, event name, or attribute
-// name. Later arguments may be displayed text, such as the message in
+// code: a pattern, search string, selector, storage key, URL, event name,
+// or attribute name. Later arguments may be displayed text, such as the message in
 // Yup's `matches(pattern, message)`.
 const CODE_ARGUMENT_CALLS = new Set([
 	"CustomEvent",
@@ -612,6 +612,7 @@ const CODE_ARGUMENT_CALLS = new Set([
 	"addEventListener",
 	"closest",
 	"dispatchEvent",
+	"endsWith",
 	"fetch",
 	"getAttribute",
 	"getElementById",
@@ -619,15 +620,52 @@ const CODE_ARGUMENT_CALLS = new Set([
 	"getElementsByTagName",
 	"getItem",
 	"hasAttribute",
+	"includes",
+	"indexOf",
+	"lastIndexOf",
+	"match",
+	"matchAll",
 	"matches",
 	"querySelector",
 	"querySelectorAll",
 	"removeAttribute",
 	"removeEventListener",
 	"removeItem",
+	"replace",
+	"replaceAll",
+	"search",
 	"setAttribute",
 	"setItem",
+	"split",
+	"startsWith",
 ]);
+
+/**
+ * Returns true when `argument` of `call` is code: the first argument of
+ * a CODE_ARGUMENT_CALLS function, or the value in
+ * `setAttribute("class", value)` and other code attributes.
+ */
+function isCodeArgument(call, argument) {
+	const name = calleeName(call.expression);
+	const [first, second] = call.arguments ?? [];
+	if (argument === first) {
+		return CODE_ARGUMENT_CALLS.has(name);
+	}
+	if (argument === second && name === "setAttribute") {
+		const attribute = skipTransparent(first);
+		return (
+			ts.isStringLiteralLike(attribute) &&
+			isCodeAttribute({
+				name: HTML_ATTRIBUTE_NAMES[attribute.text] ?? attribute.text,
+				intrinsic: true,
+			})
+		);
+	}
+	return false;
+}
+
+// HTML attribute names whose JSX names differ.
+const HTML_ATTRIBUTE_NAMES = { class: "className", for: "htmlFor" };
 
 /** Returns the name a call invokes: `f` in `f()` and `a.f()`, or "". */
 function calleeName(expression) {
@@ -676,12 +714,14 @@ function isNonDisplayLiteral(literal) {
 	}
 	if (
 		(ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
-		parent.arguments?.[0] === node &&
-		CODE_ARGUMENT_CALLS.has(calleeName(parent.expression))
+		isCodeArgument(parent, node)
 	) {
 		return true;
 	}
-	if ("name" in parent && parent.name === node) {
+	if (
+		("name" in parent && parent.name === node) ||
+		("propertyName" in parent && parent.propertyName === node)
+	) {
 		return true;
 	}
 	if (ts.isBinaryExpression(parent)) {
