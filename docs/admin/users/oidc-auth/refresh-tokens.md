@@ -151,8 +151,14 @@ To verify refresh tokens are working correctly:
 1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1&nbsp;hour).
 
 1. Confirm that users do not receive either of these errors from the API or dashboard:
-   `You are signed out or your session has expired. Please sign in again to continue.` or `Could not refresh expired OpenID Connect token. Try re-authenticating to resolve this issue.`
-   These messages appear in the response, not in the Coder logs.
+
+   - The message `Could not refresh expired OpenID Connect token. Try re-authenticating to resolve this issue.`
+     Coder tried to use the refresh token and the identity provider rejected it.
+   - The detail `OpenID Connect session expired at "<time>". Try signing in again.`
+     Coder has no refresh token for the user.
+     This detail accompanies the message `You are signed out or your session has expired. Please sign in again to continue.`, which Coder also returns for other expired or invalid sessions, so match the detail.
+
+   These errors appear in the API response, not in the Coder logs.
 
 If all verification steps pass successfully, your refresh token configuration is working properly.
 

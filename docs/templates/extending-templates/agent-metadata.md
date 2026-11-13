@@ -119,9 +119,9 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 
 ## Manage the database load
 
-Agent metadata can generate a significant write load and overwhelm your Coder database if you're not careful.
+Agent metadata adds write load to your Coder database, and the load grows with the number of agents and metadata snippets.
 
-Coder collects metadata updates from all agents and writes them in batches.
+Each Coder server replica collects metadata updates from the agents connected to it and writes them in batches.
 Each metadata key for each agent takes one place in the batch, and a newer update replaces the value that is waiting.
 Coder writes the batch to the database every 5&nbsp;seconds, or sooner when 500 entries are waiting.
 Each write is a single statement that covers every entry in the batch.
@@ -133,7 +133,10 @@ For example, let's say you have
 - each with 6 metadata snippets
 
 In this example, at most 60 entries wait in the batch, which is under the 500-entry limit.
-The database therefore receives one batch statement every 5&nbsp;seconds, no matter how often each snippet runs.
+The database therefore receives one batch statement from each replica every 5&nbsp;seconds, no matter how often each snippet runs.
+
+When a replica has more than 500 entries waiting, it writes more often than every 5&nbsp;seconds.
+To lower the load, reduce the number of metadata snippets in the template.
 
 ## Next Steps
 

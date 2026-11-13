@@ -78,6 +78,9 @@ Workspace agents have a special token that can send logs, metrics, and workspace
 
   This script uses a user token, not the agent token.
   Create one with `coder tokens create`, and set it as `CODER_SESSION_TOKEN`.
+  The script needs `jq`.
+  It leaves the deadline alone when the workspace already has a later one.
+  If the API returns the deadline with a UTC offset other than `Z`, the script cannot compare the two values, and it sets the deadline to one hour from now on every pass.
 
   ```sh
   #!/bin/bash
@@ -87,13 +90,20 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   do
   if pgrep -f "my_training_script.py" > /dev/null
   then
-    # Set the deadline one hour from now. The first date form is GNU, the second is BSD.
+    # Aim for a deadline one hour from now. The first date form is GNU, the second is BSD.
     deadline=$(date -u -d '+1 hour' +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v+1H +'%Y-%m-%dT%H:%M:%SZ')
-    curl -X PUT "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID/extend" \
-    -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-    -d "{
-      \"deadline\": \"$deadline\"
-    }"
+    current=$(curl -fsS "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID" \
+    -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq -r '.latest_build.deadline')
+    # Skip the request when the current deadline is already later.
+    # The comparison is on text, so it applies only to a UTC timestamp, which ends in Z.
+    if [[ "$current" != *Z || "$current" < "$deadline" ]]
+    then
+      curl -fsS -X PUT "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID/extend" \
+      -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+      -d "{
+        \"deadline\": \"$deadline\"
+      }"
+    fi
 
     # Sleep for 30 minutes (1800 seconds) if the job is running
     sleep 1800

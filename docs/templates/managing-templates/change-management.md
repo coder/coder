@@ -68,7 +68,7 @@ curl -fsSL https://coder.com/install.sh | sh
 # To create API tokens, use `coder tokens create`.
 # Without `--lifetime`, the token gets the maximum token lifetime for your role.
 # By default, that is about 100 years for most users and 7 days for Owners.
-# Always pass `--lifetime` for CI tokens, for example `--lifetime 30d`.
+# Always pass `--lifetime` for CI tokens, for example `--lifetime 7d`.
 # These variables are consumed by Coder
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=*****

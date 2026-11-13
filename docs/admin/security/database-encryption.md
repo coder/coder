@@ -38,6 +38,18 @@ The following database fields are currently encrypted:
 
 Additional database fields might be encrypted in the future.
 
+### Fields that the dbcrypt commands skip
+
+The `coder server dbcrypt` commands `rotate`, `decrypt`, and `delete` do not process the following encrypted fields:
+
+- `crypto_keys.secret`
+- `mcp_server_configs.oauth2_client_secret`
+- `mcp_server_configs.api_key_value`
+- `mcp_server_configs.custom_headers`
+- `mcp_server_configs.signing_secret`
+- `mcp_server_user_tokens.access_token`
+- `mcp_server_user_tokens.refresh_token`
+
 ### Implementation notes
 
 Each encrypted database column `$C` has a corresponding `$C_key_id` column.
@@ -131,7 +143,7 @@ data:
   If you are using the built-in PostgreSQL database, you can run [`coder server postgres-builtin-url`](../../reference/cli/server/postgres-builtin-url.md) to get the connection URL.
 
   > [!NOTE]
-  > This command does not re-encrypt `crypto_keys.secret`, the `mcp_server_configs` columns `oauth2_client_secret`, `api_key_value`, `custom_headers`, and `signing_secret`, or the `mcp_server_user_tokens` columns `access_token` and `refresh_token`.
+  > This command does not re-encrypt the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
   > These values keep referencing the key that encrypted them.
   > For a known issue that affects revoking keys, see [Troubleshooting](#troubleshooting).
 
@@ -154,7 +166,7 @@ To disable encryption, perform the following actions:
   This command will decrypt all encrypted user tokens and revoke all active encryption keys.
 
   > [!NOTE]
-  > This command does not decrypt `crypto_keys.secret`, the `mcp_server_configs` columns `oauth2_client_secret`, `api_key_value`, `custom_headers`, and `signing_secret`, or the `mcp_server_user_tokens` columns `access_token` and `refresh_token`.
+  > This command does not decrypt the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
   > For a known issue that affects revoking keys, see [Troubleshooting](#troubleshooting).
   >
   > for `decrypt` command, the equivalent environment variable for `--keys` is `CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS` and not `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`.
@@ -184,7 +196,7 @@ To delete all encrypted data from your database, perform the following actions:
   This command will delete all encrypted user tokens and revoke all active encryption keys.
 
   > [!NOTE]
-  > This command does not delete `crypto_keys.secret`, the `mcp_server_configs` columns `oauth2_client_secret`, `api_key_value`, `custom_headers`, and `signing_secret`, or the `mcp_server_user_tokens` columns `access_token` and `refresh_token`.
+  > This command does not delete the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).
   > For a known issue that affects revoking keys, see [Troubleshooting](#troubleshooting).
 
 - Remove all [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys) from Coder's configuration.

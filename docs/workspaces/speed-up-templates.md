@@ -80,7 +80,6 @@ coder:
     requests:
       cpu: "0.25"
       memory: "1Gi"
-…
 ```
 
 Visit the [validated architecture documentation](../install/plan/sizing/index.md#workspace-nodes) for more information.

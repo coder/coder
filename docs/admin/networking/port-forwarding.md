@@ -197,10 +197,12 @@ Credentials are allowed and the allowed methods and headers will echo whatever t
 
 #### Configuration
 
-Template admins set the CORS behavior for all shared ports in the template's **Settings** page.
-The setting has two values:
+Template admins set the **CORS Behavior** in the template's **Settings** page.
+The setting applies to every app and port in the template's workspaces.
+It has two values:
 
 - `Simple` (recommended): Coder applies its built-in CORS handling, as described in this section.
+  If an application sets any of the headers above, Coder strips them from the response, except for `Vary` headers that are set to a value other than the ones listed above.
 - `Passthru`: Coder bypasses its built-in CORS protection and passes the application's own CORS headers through to the browser.
 
 Passthru reduces protection against cross-origin requests, so only use it for applications that handle CORS correctly.

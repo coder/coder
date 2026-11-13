@@ -27,12 +27,12 @@ You can define multiple `coder_env` resources targeting the same agent.
 
 When multiple `coder_env` resources define the same variable name, use the `merge_strategy` attribute to control how values are combined:
 
-| Strategy              | Behavior                                                   |
-|-----------------------|------------------------------------------------------------|
-| `replace` _(default)_ | Last value wins. Backward compatible.                      |
-| `append`              | Appends to the existing value with `:` separator.          |
-| `prepend`             | Prepends to the existing value with `:` separator.         |
-| `error`               | Fails the build if the variable is defined more than once. |
+| Strategy              | Behavior                                                                                                     |
+|-----------------------|--------------------------------------------------------------------------------------------------------------|
+| `replace` _(default)_ | Last value wins. Backward compatible.                                                                        |
+| `append`              | Appends to the existing value with `:` separator.                                                            |
+| `prepend`             | Prepends to the existing value with `:` separator.                                                           |
+| `error`               | Fails the build if an earlier `coder_env` resource already set the variable. Refer to [Ordering](#ordering). |
 
 The `append` and `prepend` strategies use `:` as a separator, which matches the convention for `PATH`-style variables on Unix systems.
 
@@ -95,11 +95,14 @@ resource "coder_env" "editor" {
 }
 ```
 
-If another `coder_env` resource also sets `EDITOR`, the build fails with a clear error message.
+If a `coder_env` resource that is processed earlier also sets `EDITOR`, the build fails with a `duplicate env var` error.
+The check runs only when Coder processes the resource that has `merge_strategy = "error"`.
+If another `coder_env` resource for `EDITOR` is processed later, its own merge strategy applies and the build does not fail.
+To catch every duplicate, set `merge_strategy = "error"` on each `coder_env` resource for that variable.
 
 ## Ordering
 
-When multiple `coder_env` resources append or prepend to the same variable, they are processed in alphabetical order by their [Terraform resource address](https://developer.hashicorp.com/terraform/cli/state/resource-addressing).
+When multiple `coder_env` resources set the same variable, they are processed in alphabetical order by their [Terraform resource address](https://developer.hashicorp.com/terraform/cli/state/resource-addressing).
 In the previous `PATH` example, `coder_env.path_cuda` is processed first, then `coder_env.path_go`, then `coder_env.path_rust_cargo`, because that is their alphabetical order.
 This is why only one resource in the chain needs the `$PATH` reference: the merged value is built as one string before it's expanded, so the reference works no matter where in the chain it appears.
 

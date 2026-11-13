@@ -26,6 +26,7 @@ When supported, you can specify options using one or more `option` blocks in you
 | `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                                                              |
 | `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                                                 |
 | `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. <br />Default for `bool` parameters without options.                                                               |
+| `switch`       | `bool`                                     | No      | A toggle switch for boolean parameters.                                                                                                                      |
 
 ## Styling options
 
