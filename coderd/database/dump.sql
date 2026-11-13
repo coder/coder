@@ -2384,6 +2384,7 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    archived_at timestamp with time zone,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
@@ -2399,6 +2400,8 @@ COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the pro
 COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+COMMENT ON COLUMN chat_projects.archived_at IS 'When the project was archived. NULL for an active project. An archived project is read-only and every chat in it is archived.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2519,6 +2522,7 @@ CREATE TABLE chats (
     project_id uuid,
     title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
     title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    archived_with_project boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2549,6 +2553,8 @@ COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
 COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
+
+COMMENT ON COLUMN chats.archived_with_project IS 'True when the chat was archived by archiving its project; unarchiving the project restores only these chats.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2651,7 +2657,8 @@ CREATE VIEW chats_expanded AS
     c.context_error,
     c.compaction_requested_at,
     c.title_source,
-    c.title_updated_at
+    c.title_updated_at,
+    c.archived_with_project
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

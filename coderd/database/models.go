@@ -5492,6 +5492,7 @@ type Chat struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
+	ArchivedWithProject      bool                    `db:"archived_with_project" json:"archived_with_project"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5706,6 +5707,8 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+	// When the project was archived. NULL for an active project. An archived project is read-only and every chat in it is archived.
+	ArchivedAt sql.NullTime `db:"archived_at" json:"archived_at"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5818,6 +5821,8 @@ type ChatTable struct {
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
 	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
 	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
+	// True when the chat was archived by archiving its project; unarchiving the project restores only these chats.
+	ArchivedWithProject bool `db:"archived_with_project" json:"archived_with_project"`
 }
 
 type ChatUsageLimitConfig struct {

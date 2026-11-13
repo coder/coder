@@ -264,6 +264,7 @@ Actions: `create`, `write`
 <tbody>
 <tr><td><code>agent_id</code></td><td>No</td></tr>
 <tr><td><code>archived</code></td><td>Yes</td></tr>
+<tr><td><code>archived_with_project</code></td><td>Yes</td></tr>
 <tr><td><code>build_id</code></td><td>No</td></tr>
 <tr><td><code>client_type</code></td><td>No</td></tr>
 <tr><td><code>compaction_requested_at</code></td><td>No</td></tr>
@@ -397,6 +398,7 @@ Actions: `create`, `write`, `delete`
 <table width="100%">
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
 <tbody>
+<tr><td><code>archived_at</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
