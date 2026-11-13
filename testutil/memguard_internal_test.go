@@ -1,4 +1,4 @@
-package testutil_test
+package testutil
 
 import (
 	"math"
@@ -12,8 +12,6 @@ import (
 
 	"github.com/google/pprof/profile"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/testutil"
 )
 
 func TestStartMemoryGuard(t *testing.T) {
@@ -23,7 +21,7 @@ func TestStartMemoryGuard(t *testing.T) {
 		t.Parallel()
 
 		exceeded := make(chan uint64, 1)
-		stop := testutil.WatchMemory(1, func(total uint64) {
+		stop := watchMemory(1, func(total uint64) {
 			exceeded <- total
 		})
 		defer stop()
@@ -31,7 +29,7 @@ func TestStartMemoryGuard(t *testing.T) {
 		select {
 		case total := <-exceeded:
 			require.NotZero(t, total)
-		case <-time.After(testutil.WaitShort):
+		case <-time.After(WaitShort):
 			t.Fatal("memory guard did not trip")
 		}
 	})
@@ -39,7 +37,7 @@ func TestStartMemoryGuard(t *testing.T) {
 	t.Run("Stops", func(t *testing.T) {
 		t.Parallel()
 
-		stop := testutil.WatchMemory(math.MaxUint64, func(uint64) {
+		stop := watchMemory(math.MaxUint64, func(uint64) {
 			t.Error("memory guard tripped below the limit")
 		})
 		stopped := make(chan struct{})
@@ -49,7 +47,7 @@ func TestStartMemoryGuard(t *testing.T) {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(testutil.WaitShort):
+		case <-time.After(WaitShort):
 			t.Fatal("memory guard did not stop")
 		}
 	})
@@ -57,15 +55,15 @@ func TestStartMemoryGuard(t *testing.T) {
 
 func TestStartMemoryGuardFromEnv(t *testing.T) {
 	t.Run("Unset", func(t *testing.T) {
-		t.Setenv(testutil.MemoryLimitEnv, "")
-		stop := testutil.StartMemoryGuardFromEnv()
+		t.Setenv(MemoryLimitEnv, "")
+		stop := StartMemoryGuardFromEnv()
 		stop()
 	})
 
 	t.Run("InvalidValue", func(t *testing.T) {
-		t.Setenv(testutil.MemoryLimitEnv, "not-a-number")
+		t.Setenv(MemoryLimitEnv, "not-a-number")
 		require.Panics(t, func() {
-			testutil.StartMemoryGuardFromEnv()
+			StartMemoryGuardFromEnv()
 		})
 	})
 }
@@ -76,18 +74,18 @@ const memoryGuardFromEnvSubprocessEnv = "CODER_TEST_MEMORY_GUARD_FROM_ENV_SUBPRO
 
 func TestStartMemoryGuardFromEnvTrips(t *testing.T) {
 	if os.Getenv(memoryGuardFromEnvSubprocessEnv) == "1" {
-		testutil.StartMemoryGuardFromEnv()
-		<-time.After(testutil.WaitLong)
+		StartMemoryGuardFromEnv()
+		<-time.After(WaitLong)
 		t.Fatal("memory guard did not trip")
 	}
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := Context(t, WaitLong)
 	//nolint:gosec // Test-controlled arguments.
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+t.Name()+"$", "-test.v")
 	cmd.Env = append(os.Environ(),
 		memoryGuardFromEnvSubprocessEnv+"=1",
-		testutil.MemoryLimitEnv+"=0",
+		MemoryLimitEnv+"=0",
 		"RUNNER_TEMP="+t.TempDir())
 	out, err := cmd.CombinedOutput()
 	t.Logf("subprocess output:\n%s", out)
@@ -105,14 +103,14 @@ const memoryGuardSubprocessEnv = "CODER_TEST_MEMORY_GUARD_SUBPROCESS"
 
 func TestStartMemoryGuardTrips(t *testing.T) {
 	if os.Getenv(memoryGuardSubprocessEnv) == "1" {
-		testutil.StartMemoryGuard(1)
-		<-time.After(testutil.WaitLong)
+		StartMemoryGuard(1)
+		<-time.After(WaitLong)
 		t.Fatal("memory guard did not trip")
 	}
 	t.Parallel()
 
 	dir := t.TempDir()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := Context(t, WaitLong)
 	//nolint:gosec // Test-controlled arguments.
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+t.Name()+"$", "-test.v")
 	cmd.Env = append(os.Environ(), memoryGuardSubprocessEnv+"=1", "RUNNER_TEMP="+dir)
@@ -146,7 +144,7 @@ func TestWriteHeapProfile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	path, err := testutil.WriteHeapProfile(dir, "")
+	path, err := writeHeapProfile(dir, "")
 	require.NoError(t, err)
 	info, err := os.Stat(path)
 	require.NoError(t, err)
@@ -165,7 +163,7 @@ func TestWriteHeapProfiles(t *testing.T) {
 	runtime.GC() //nolint:revive // See above.
 	burst := allocateBurst()
 
-	immediate, collected, err := testutil.WriteHeapProfiles(t.TempDir(), testutil.WaitLong)
+	immediate, collected, err := writeHeapProfiles(t.TempDir(), WaitLong)
 	require.NoError(t, err)
 	require.FileExists(t, immediate)
 	require.NotEmpty(t, collected, "collection did not finish")

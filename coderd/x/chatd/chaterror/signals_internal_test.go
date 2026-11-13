@@ -1,12 +1,10 @@
-package chaterror_test
+package chaterror
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
 func TestExtractStatusCode(t *testing.T) {
@@ -40,7 +38,7 @@ func TestExtractStatusCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, chaterror.ExtractStatusCodeForTest(strings.ToLower(tt.input)))
+			require.Equal(t, tt.want, extractStatusCode(strings.ToLower(tt.input)))
 		})
 	}
 }
@@ -66,7 +64,7 @@ func TestDetectProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, chaterror.DetectProviderForTest(strings.ToLower(tt.input)))
+			require.Equal(t, tt.want, detectProvider(strings.ToLower(tt.input)))
 		})
 	}
 }

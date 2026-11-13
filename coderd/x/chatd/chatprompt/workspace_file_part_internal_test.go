@@ -1,4 +1,4 @@
-package chatprompt_test
+package chatprompt
 
 import (
 	"strings"
@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -58,7 +57,7 @@ func TestWorkspaceFilePartToText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprompt.WorkspaceFilePartToTextForTest(tt.part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
+			got := workspaceFilePartToText(tt.part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
 			require.True(t, strings.HasPrefix(got, "[workspace file: "), "expected prefix, got %q", got)
 			require.True(t, strings.HasSuffix(got, "]"), "expected closing bracket, got %q", got)
 			for _, sub := range tt.wantSub {
@@ -84,7 +83,7 @@ func TestWorkspaceFilePartToTextStaleWorkspace(t *testing.T) {
 
 	t.Run("ReboundWorkspace", func(t *testing.T) {
 		t.Parallel()
-		got := chatprompt.WorkspaceFilePartToTextForTest(part, uuid.NullUUID{UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Valid: true})
+		got := workspaceFilePartToText(part, uuid.NullUUID{UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Valid: true})
 		require.Contains(t, got, "archive.zip")
 		require.Contains(t, got, "2.0 KiB")
 		require.Contains(t, got, "no longer accessible")
@@ -93,14 +92,14 @@ func TestWorkspaceFilePartToTextStaleWorkspace(t *testing.T) {
 
 	t.Run("UnboundChat", func(t *testing.T) {
 		t.Parallel()
-		got := chatprompt.WorkspaceFilePartToTextForTest(part, uuid.NullUUID{})
+		got := workspaceFilePartToText(part, uuid.NullUUID{})
 		require.Contains(t, got, "no longer accessible")
 		require.NotContains(t, got, "/home/coder/.coder/chats")
 	})
 
 	t.Run("MatchingWorkspaceKeepsPath", func(t *testing.T) {
 		t.Parallel()
-		got := chatprompt.WorkspaceFilePartToTextForTest(part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
+		got := workspaceFilePartToText(part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
 		require.Contains(t, got, "/home/coder/.coder/chats/abcd1234/files/archive.zip")
 		require.NotContains(t, got, "no longer accessible")
 	})
