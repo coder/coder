@@ -690,8 +690,9 @@ func TestGitHubStatusIssueErrors(t *testing.T) {
 			rateLimited: true,
 		},
 		{
-			name:   "TooManyRequestsWithoutLimitSignal",
-			status: http.StatusTooManyRequests,
+			name:        "TooManyRequestsWithReset",
+			status:      http.StatusTooManyRequests,
+			rateLimited: true,
 		},
 		{
 			name:   "ExhaustedWithoutRetryTime",

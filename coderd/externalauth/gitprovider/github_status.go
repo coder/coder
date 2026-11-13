@@ -223,7 +223,10 @@ func pullMatchesIssue(pull githubPullRequest, issue githubIssueState) bool {
 }
 
 func issueRateLimited(resp *http.Response) bool {
-	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if resp.StatusCode != http.StatusForbidden {
 		return false
 	}
 	retryAfter := resp.Header.Get("Retry-After")
