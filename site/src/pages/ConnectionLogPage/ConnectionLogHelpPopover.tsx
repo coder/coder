@@ -12,7 +12,12 @@ export const ConnectionLogHelpPopover: React.FC = () => {
 				are reported by workspace agents, and receipt of these events by the
 				server is not guaranteed.
 				<br />
-				<Link size="sm" href={docs("/admin/monitoring/connection-logs")}>
+				<Link
+					size="sm"
+					href={docs("/admin/monitoring/connection-logs")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Connection log documentation
 				</Link>
 			</TooltipMessage>

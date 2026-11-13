@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -44,6 +51,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import { MockOrganizationSkillPreferences } from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -2895,6 +2903,10 @@ export const SlashCompactCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2944,6 +2956,10 @@ export const SlashClearCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2994,6 +3010,10 @@ export const SlashClearCommandConflictShowsError: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3061,6 +3081,10 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			},
 		]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3125,9 +3149,26 @@ const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
 
 export const QueuedSendPromotesPreviousHead: Story = {
 	parameters: {
-		queries: buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
-			diffUrl: undefined,
-		}),
+		queries: [
+			...buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
+				diffUrl: undefined,
+			}),
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: promotedQueueHeadChat.owner_id,
+								organization_id: promotedQueueHeadChat.organization_id,
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
@@ -3141,6 +3182,7 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			role: "user",
 			created_at: "2024-01-01T00:01:00Z",
 			content: [{ type: "text", text: "Queued head prompt" }],
+			queued_message_id: 41,
 		};
 		const followUp: TypesGen.ChatQueuedMessage = {
 			...MockChatQueuedMessage,
@@ -3426,9 +3468,12 @@ export const RemoveLastMCPServer: Story = {
 			"createChatMessage",
 		).mockResolvedValue({ queued: false });
 
+		await userEvent.click(await canvas.findByRole("button", { name: "1 MCP" }));
+		const menu = await screen.findByRole("dialog");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+			within(menu).getByRole("switch", { name: "Disable MCP Server" }),
 		);
+		await userEvent.keyboard("{Escape}");
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Send without MCP tools");
@@ -3495,6 +3540,9 @@ export const EditAppliesMCPServerSelection: Story = {
 			await canvas.findByRole("button", { name: "Edit message" }),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		await userEvent.click(
 			await body.findByRole("switch", {
 				name: `Enable ${MockMCPServerConfig.display_name}`,

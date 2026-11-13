@@ -998,7 +998,11 @@ SELECT
 	wbp.value,
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
-JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
+	-- Each build ID appears at most once per group (one parameter row per version
+	-- and name, one latest build per workspace), so unnest cannot double count.
+	-- The equality join lets Postgres use the (workspace_build_id, name) index.
+CROSS JOIN LATERAL unnest(utp.workspace_build_ids) AS b(id)
+JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
 
 -- name: GetUserStatusCounts :many

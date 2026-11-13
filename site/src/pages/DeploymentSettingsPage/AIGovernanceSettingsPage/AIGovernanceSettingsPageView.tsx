@@ -34,7 +34,7 @@ export const AIGovernanceSettingsPageView: React.FC<
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Monitor and manage AI requests across your deployment.{" "}
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
+						<SettingsHeaderDocsLink href={docs("/ai-governance")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -48,7 +48,10 @@ export const AIGovernanceSettingsPageView: React.FC<
 								<AlertDescription>
 									You have access to AI Governance, but it still needs to be
 									setup. Check out the{" "}
-									<Link href={docs("/ai-coder/ai-gateway")} target="_blank">
+									<Link
+										href={docs("/ai-governance/ai-gateway")}
+										target="_blank"
+									>
 										AI Gateway
 									</Link>{" "}
 									documentation to get started.

@@ -48,7 +48,7 @@ helm install postgresql bitnami/postgresql \
     --set primary.persistence.size=10Gi
 ```
 
-The cluster-internal DB URL for the above database is:
+The cluster-internal database (DB) URL for the above database is:
 
 ```sh
 postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
@@ -123,10 +123,10 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.38.0
+        --version 2.39.0
     ```
 
-  - **OCI Registry**
+  - **Open Container Initiative (OCI) Registry**
 
     <!-- autoversion(mainline): "--version [version]" -->
 
@@ -134,7 +134,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.38.0
+        --version 2.39.0
     ```
 
 - **Stable** Coder release:
@@ -147,7 +147,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.37.5
+        --version 2.38.6
     ```
 
   - **OCI Registry**
@@ -158,7 +158,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.37.5
+        --version 2.38.6
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`.
@@ -185,9 +185,9 @@ helm upgrade coder coder-v2/coder \
 
 ## Standalone AI gateway chart
 
-Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../../ai-coder/ai-gateway/index.md) as its own Deployment alongside the control plane.
+Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../../ai-governance/ai-gateway/index.md) as its own Deployment alongside the control plane.
 Use it when you want to scale AI traffic independently of `coderd`.
-For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../../ai-coder/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
+For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../../ai-governance/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
 ## Coder Observability Chart
 
@@ -200,7 +200,7 @@ For installation instructions, visit the [observability repository](https://gith
 ## Kubernetes Security Reference
 
 Below are common requirements we see from our enterprise customers when deploying an application in Kubernetes.
-This is intended to serve as a reference, and not all security requirements may apply to your business.
+This is intended to serve as a reference, and some security requirements might not apply to your business.
 
 1. **All container images must be sourced from an internal container registry.**
 
@@ -211,7 +211,7 @@ This is intended to serve as a reference, and not all security requirements may 
 2. **All containers must run as non-root user**
 
    - Control plane - Our control plane pod [runs as non-root by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L124-L127).
-   - Workspaces - Workspace pod UID is [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276), and are not required to run as `root`.
+   - Workspaces - Workspace pod user ID (UID) is [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276), and are not required to run as `root`.
 
 3. **Containers cannot run privileged**
 
@@ -237,7 +237,7 @@ This is intended to serve as a reference, and not all security requirements may 
 
 ### AWS
 
-If you are deploying Coder on AWS EKS and service is set to `LoadBalancer`, AWS will default to the Classic load balancer.
+If you are deploying Coder on AWS Elastic Kubernetes Service (EKS) and service is set to `LoadBalancer`, AWS will default to the Classic load balancer.
 The load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
 
 ```yaml
@@ -288,12 +288,12 @@ You can also view these logs in your Cloud's log management system if you are us
 
 ### Kubernetes-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart.
+Make sure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart.
 If you do not have a domain set up, this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../../../admin/templates/troubleshooting.md) for more steps.
+See [troubleshooting templates](../../../templates/troubleshooting.md) for more steps.
 
 ## Next steps
 
-- [Create your first template](../../../tutorials/template-from-scratch.md)
+- [Create your first template](../../../templates/template-from-scratch.md)
 - [Control plane configuration](../../../admin/setup/index.md)

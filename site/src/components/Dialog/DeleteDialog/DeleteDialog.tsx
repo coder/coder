@@ -73,7 +73,7 @@ export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 							{info}
 						</Alert>
 					)}
-					<p className="m-0 text-sm text-content-secondary font-medium">
+					<p className="m-0 text-sm text-content-secondary">
 						Type <strong className="text-content-primary">{name}</strong> below
 						to confirm.
 					</p>

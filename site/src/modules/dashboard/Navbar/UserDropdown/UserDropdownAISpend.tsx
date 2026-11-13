@@ -30,12 +30,16 @@ export const UserDropdownAISpend: React.FC<UserDropdownAISpendProps> = ({
 				</span>
 			</div>
 			{spendLimit !== null && (
-				<UsageBar
-					ariaLabel="AI spend usage"
-					percent={usageProgressPercentage(currentSpend, spendLimit)}
-					severity={getSeverity(currentSpend, spendLimit)}
-					className="mt-2 h-2.5"
-				/>
+				// A menu cannot own a progressbar, and the text above already states
+				// the spend and limit, so the bar is hidden from assistive tech.
+				<div aria-hidden>
+					<UsageBar
+						ariaLabel="AI spend usage"
+						percent={usageProgressPercentage(currentSpend, spendLimit)}
+						severity={getSeverity(currentSpend, spendLimit)}
+						className="mt-2 h-2.5"
+					/>
+				</div>
 			)}
 			<div className="mt-1 text-xs text-content-secondary">
 				Approximate AI spend{" "}

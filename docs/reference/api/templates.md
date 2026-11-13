@@ -1489,12 +1489,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                          |
+|------------------------------|-----------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                         |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown`   |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1772,12 +1772,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                          |
+|------------------------------|-----------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                         |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown`   |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2655,7 +2655,7 @@ Status Code **200**
 | `»» directory`                       | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» disconnected_at`                 | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» display_apps`                    | array                                                                                                              | false    |              |                                                                                                                                                                                                                                                                        |
-| `»» environment_variables`           | object                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» environment_variables`           | object                                                                                                             | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | `»»» [any property]`                 | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» expanded_directory`              | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» first_connected_at`              | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
@@ -3362,7 +3362,7 @@ Status Code **200**
 | `»» directory`                       | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» disconnected_at`                 | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» display_apps`                    | array                                                                                                              | false    |              |                                                                                                                                                                                                                                                                        |
-| `»» environment_variables`           | object                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» environment_variables`           | object                                                                                                             | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | `»»» [any property]`                 | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» expanded_directory`              | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» first_connected_at`              | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |

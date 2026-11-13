@@ -23,13 +23,13 @@ const newSecurityFormValues = {
 };
 
 const fillAndSubmitSecurityForm = () => {
-	fireEvent.change(screen.getByLabelText("Old Password"), {
+	fireEvent.change(screen.getByLabelText("Old password"), {
 		target: { value: newSecurityFormValues.old_password },
 	});
-	fireEvent.change(screen.getByLabelText("New Password"), {
+	fireEvent.change(screen.getByLabelText("New password"), {
 		target: { value: newSecurityFormValues.password },
 	});
-	fireEvent.change(screen.getByLabelText("Confirm Password"), {
+	fireEvent.change(screen.getByLabelText("Confirm password"), {
 		target: { value: newSecurityFormValues.confirm_password },
 	});
 	fireEvent.click(screen.getByText("Update password"));
@@ -45,6 +45,13 @@ beforeEach(() => {
 test("sets a page title that identifies the page", async () => {
 	await renderPage();
 	expect(document.title).toBe("Security - Settings - Coder");
+});
+
+test("nests section headings under the page heading", async () => {
+	await renderPage();
+	expect(
+		screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+	).toEqual(["Password", "Single Sign On"]);
 });
 
 test("update password successfully", async () => {

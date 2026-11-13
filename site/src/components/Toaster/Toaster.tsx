@@ -9,14 +9,44 @@ import {
 import { Toaster as Sonner, type ToasterProps as SonnerProps } from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
 
+type SeverityIconProps = { icon: React.ReactNode; label: string };
+
+// Lucide icons are aria-hidden, so the severity needs its own text.
+const SeverityIcon = ({ icon, label }: SeverityIconProps) => (
+	<>
+		{icon}
+		<span className="sr-only">{label}: </span>
+	</>
+);
+
 export const Toaster = ({ ...props }: SonnerProps) => {
 	return (
 		<Sonner
 			icons={{
-				success: <CheckIcon className="text-content-success" />,
-				info: <InfoIcon className="text-content-primary" />,
-				warning: <TriangleAlertIcon className="text-content-warning" />,
-				error: <OctagonXIcon className="text-content-destructive" />,
+				success: (
+					<SeverityIcon
+						icon={<CheckIcon className="text-content-success" />}
+						label="Success"
+					/>
+				),
+				info: (
+					<SeverityIcon
+						icon={<InfoIcon className="text-content-primary" />}
+						label="Info"
+					/>
+				),
+				warning: (
+					<SeverityIcon
+						icon={<TriangleAlertIcon className="text-content-warning" />}
+						label="Warning"
+					/>
+				),
+				error: (
+					<SeverityIcon
+						icon={<OctagonXIcon className="text-content-destructive" />}
+						label="Error"
+					/>
+				),
 				loading: <Spinner size="sm" loading />,
 				close: <XIcon className="size-icon-sm" />,
 			}}
@@ -25,7 +55,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 				closeButton: true,
 				classNames: {
 					toast: cn(
-						"bg-surface-secondary text-content-secondary border border-solid text-sm p-3 pr-12",
+						"bg-surface-secondary text-content-secondary border text-sm p-3 pr-12",
 						"shadow-sm rounded-md grid grid-cols-[auto_1fr] w-96 gap-2",
 						"data-[expanded=false]:data-[front=false]:overflow-hidden",
 						"[&[data-expanded=false][data-front=false]>*]:opacity-0",
@@ -34,7 +64,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 					description: "mt-1",
 					icon: "pt-1 [&_svg]:size-icon-sm flex flex-col",
 					actionButton: cn(
-						"border border-solid bg-transparent text-xs rounded-md cursor-pointer",
+						"border bg-transparent text-xs rounded-md cursor-pointer",
 						"flex items-center gap-2 mt-1 py-1.5 px-2 col-start-2 justify-self-start",
 						"[&_svg]:size-icon-xs [&_span]:text-xs text-content-primary",
 					),
