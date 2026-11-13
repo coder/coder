@@ -299,7 +299,7 @@ export const FilterComboboxFlyoutContent: React.FC<
 			// one. Focus returning to the input must not close the flyout.
 			onInteractOutside={(event) => event.preventDefault()}
 			className={cn(
-				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden border-border p-2",
+				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden p-2",
 				className,
 			)}
 			{...props}
@@ -493,7 +493,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 					data-slot="combobox-chip-remove"
 					aria-label={resolvedRemoveLabel}
 					className={cn(
-						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+						"inline-flex shrink-0 items-center justify-center rounded-sm bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
@@ -534,7 +534,7 @@ export const FilterComboboxChipsInput: React.FC<
 			size={1}
 			className={cn(
 				chipRowItemHeightClassName,
-				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				"min-w-1 flex-auto field-sizing-content bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

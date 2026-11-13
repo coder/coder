@@ -150,8 +150,7 @@ export const CustomPlaceholder: Story = {
 export const InputBorderTreatment: Story = {
 	args: {
 		value: "openai/gpt-4o-mini",
-		className:
-			"h-10 border border-border border-solid bg-transparent px-3 shadow-xs",
+		className: "h-10 border border-solid bg-transparent px-3 shadow-xs",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -182,7 +181,7 @@ export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 		options: allModels,
 		value: "anthropic/claude-sonnet-4",
 		className:
-			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]",
+			"h-10 w-full justify-between rounded-md border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]",
 	},
 	decorators: [
 		(Story) => (
@@ -201,7 +200,7 @@ export const FormFieldTriggerTruncatesLongModelName: Story = {
 		options: [longNameModel],
 		value: longNameModel.id,
 		className:
-			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]",
+			"h-10 w-full justify-between rounded-md border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]",
 	},
 	decorators: [
 		(Story) => (

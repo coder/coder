@@ -31,7 +31,7 @@ type TemplateVersion struct {
 	CreatedBy      MinimalUser    `json:"created_by"`
 	Archived       bool           `json:"archived"`
 
-	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
+	Warnings            []TemplateVersionWarning `json:"warnings,omitempty"`
 	MatchedProvisioners *MatchedProvisioners     `json:"matched_provisioners,omitempty"`
 
 	HasExternalAgent bool `json:"has_external_agent"`
@@ -72,7 +72,7 @@ type TemplateVersionParameter struct {
 	ValidationRegex     string                           `json:"validation_regex,omitempty"`
 	ValidationMin       *int32                           `json:"validation_min,omitempty"`
 	ValidationMax       *int32                           `json:"validation_max,omitempty"`
-	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty"`
 	Required            bool                             `json:"required"`
 	Ephemeral           bool                             `json:"ephemeral"`
 }

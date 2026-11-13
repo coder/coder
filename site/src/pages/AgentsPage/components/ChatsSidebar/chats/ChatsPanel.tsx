@@ -729,7 +729,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 												/>
 											)}
 											{isShowingEmptyState ? (
-												<div className="not-first:mt-3 rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+												<div className="not-first:mt-3 rounded-lg border border-dashed bg-surface-primary p-4 text-center text-xs text-content-secondary">
 													<p className="m-0">{emptyStateMessage}</p>
 													{hasAppliedResultFilters && (
 														<button
