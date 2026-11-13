@@ -264,7 +264,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				"GIT_ASKPASS": executablePath,
 			}
 
-			// The variable counts as enabled when it is set, even if its value is empty.
+			// Presence enables it, even with an empty value. Must match agentexec.NewExecer.
 			value, enabled := os.LookupEnv(agentexec.EnvProcPrioMgmt)
 			if enabled && runtime.GOOS == "linux" {
 				logger.Info(ctx, "process priority management enabled",
