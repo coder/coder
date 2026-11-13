@@ -42,6 +42,9 @@ const (
 	CodeProvisionerDaemonVersionMismatch           Code = `EPD02`
 	CodeProvisionerDaemonAPIMajorVersionDeprecated Code = `EPD03`
 
+	CodePubsubNotConnected     Code = `EPS01`
+	CodePubsubServerNotRunning Code = `EPS02`
+
 	CodeInterfaceSmallMTU = `EIF01`
 )
 

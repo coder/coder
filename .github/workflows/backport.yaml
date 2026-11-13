@@ -112,6 +112,7 @@ jobs:
       contents: read
     if: needs.detect.outputs.branches != '[]'
     runs-on: ubuntu-latest
+    environment: main
     strategy:
       matrix:
         branch: ${{ fromJson(needs.detect.outputs.branches) }}

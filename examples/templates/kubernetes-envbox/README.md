@@ -54,6 +54,9 @@ coder templates push envbox --var namespace="mynamespace" --var max_cpus=2 --var
 
 The template sets the image tag as `latest`. We highly recommend pinning the image to a specific release of envbox, as the `latest` tag may change.
 
+If you pin envbox, use release `0.6.6` or later.
+The default inner image ships Docker 29, and earlier envbox releases bundle a Sysbox version that can't start nested containers with it.
+
 ## Contributions
 
 Contributions are welcome and can be made against the [envbox repo](https://github.com/coder/envbox).

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatStatus } from "#/api/typesGenerated";
 import {
 	_resetForTesting,
 	getChimeEnabled,
@@ -106,8 +107,8 @@ describe("maybePlayChime", () => {
 	// queue so the async navigator.locks.request() callback
 	// runs, then advance past the LOCK_HOLD_MS hold period.
 	async function triggerAndSettle(
-		prev: string | undefined,
-		next: string,
+		prev: ChatStatus | undefined,
+		next: ChatStatus,
 		chatID: string,
 		activeChatID: string | undefined,
 	): Promise<void> {
@@ -133,6 +134,12 @@ describe("maybePlayChime", () => {
 	it("chimes on running → waiting when tab is hidden (no active chat)", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		await triggerAndSettle("running", "waiting", "chat-1", undefined);
+		expect(playSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("chimes on running → paused (turn completed with the queue head under edit)", async () => {
+		vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+		await triggerAndSettle("running", "paused", "chat-1", "chat-2");
 		expect(playSpy).toHaveBeenCalledTimes(1);
 	});
 

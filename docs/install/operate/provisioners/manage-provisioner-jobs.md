@@ -37,7 +37,7 @@ View more information about and manage your provisioner jobs from the Coder dash
 
 1. To delete a job, select the 🚫 at the end of the entry's row.
 
-   If your user doesn't have the correct permissions, this option is greyed out.
+   If your user doesn't have the correct permissions, this option is grayed out.
 
 ## Provisioner job status
 
@@ -57,7 +57,7 @@ The following diagram shows how a provisioner job transitions between lifecycle 
 
 ## When to cancel provisioner jobs
 
-A job might need to be cancelled when:
+A job might need to be canceled when:
 
 - It has been stuck in **Pending** for too long.
   This can be due to misconfigured tags or unavailable provisioners.
@@ -65,7 +65,7 @@ A job might need to be cancelled when:
 - An admin wants to abort a failed attempt, fix the root cause, and retry provisioning.
 - A workspace was deleted in the UI but the underlying cloud resource wasn’t cleaned up, causing a hanging delete job.
 
-Cancelling a job does not automatically retry the operation.
+Canceling a job does not automatically retry the operation.
 It clears the stuck state and allows the admin or user to trigger the action again if needed.
 
 ## Troubleshoot provisioner jobs

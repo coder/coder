@@ -19,12 +19,9 @@ import (
 
 // resolveProjectMemory returns the durable-memory store and project name for
 // a chat. Only root chats inside a project have memory; chats outside a
-// project, subagents, chats whose owner cannot use the project, the disabled
-// experiment, and transient lookup failures all report ok=false.
+// project, subagents, chats whose owner cannot use the project, and transient
+// lookup failures all report ok=false.
 func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (store chattool.MemoryStore, projectName string, ok bool) {
-	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
-		return nil, "", false
-	}
 	if chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return nil, "", false
 	}
@@ -88,7 +85,7 @@ func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 // so it reads the prompt only at a turn start, which history (the chat's
 // user-visible messages) shows without a query.
 func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat, history []database.ChatMessage) (chatstate.Message, bool, error) {
-	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) || chat.ParentChatID.Valid {
+	if chat.ParentChatID.Valid {
 		return chatstate.Message{}, false, nil
 	}
 	var store chattool.MemoryStore
