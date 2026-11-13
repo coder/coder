@@ -34,7 +34,7 @@ test catches.
   A regression test for a review fix is usually one new row.
 - Check that each new test can fail: break the code it protects and run
   it. If another test also fails and the new test adds no other case,
-  delete the new one.
+  keep the test at the narrowest layer and delete or trim the other one.
 - Do not add tests that only restate constants, log output, or the
   expected value that the code under test computed.
 
