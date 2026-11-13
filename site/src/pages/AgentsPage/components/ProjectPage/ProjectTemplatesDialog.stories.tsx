@@ -399,3 +399,17 @@ export const RefreshingProject: Story = {
 		);
 	},
 };
+
+export const RetryInProgress: Story = {
+	parameters: { queries: [{ key: chatProjectsKey, data: [MockChatProject] }] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates")
+			.mockRejectedValueOnce(
+				mockApiError({ message: "Failed to load templates." }),
+			)
+			.mockReturnValue(new Promise(() => {}));
+	},
+	play: async () => {
+		await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+	},
+};

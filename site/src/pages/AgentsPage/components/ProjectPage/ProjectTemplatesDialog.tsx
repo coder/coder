@@ -4,6 +4,7 @@ import { isApiValidationError } from "#/api/errors";
 import { chatProjects, chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	agentTemplates,
+	agentTemplatesKey,
 	richParameters,
 	templateVersionPresets,
 } from "#/api/queries/templates";
@@ -70,11 +71,16 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 		}
 		checkIdRef.current += 1;
 		// A hung check would otherwise keep the next open dialog waiting.
-		// Other views share the list, so a fresh request replaces it.
-		const listKey = { queryKey: chatProjectsKey, exact: true };
-		void queryClient
-			.cancelQueries(listKey)
-			.then(() => queryClient.invalidateQueries(listKey));
+		// Other views share these lists, so fresh requests replace them.
+		for (const queryKey of [
+			chatProjectsKey,
+			agentTemplatesKey(formProps.project.organization_id),
+		]) {
+			const filters = { queryKey, exact: true };
+			void queryClient
+				.cancelQueries(filters)
+				.then(() => queryClient.invalidateQueries(filters));
+		}
 		onOpenChange(false);
 	};
 
@@ -125,7 +131,7 @@ const serializeTemplates = (templates: ChatProjectTemplates) =>
 
 /**
  * Covers what a request for the draft's templates depends on: which of them
- * are eligible, and their active versions.
+ * are eligible, their active versions, and their parameter mode.
  */
 const serializeEligibleTemplates = (
 	templates: readonly Template[] | undefined,
@@ -134,7 +140,10 @@ const serializeEligibleTemplates = (
 	JSON.stringify(
 		(templates ?? [])
 			.filter(({ id }) => draftTemplateIds.includes(id))
-			.map(({ id, active_version_id }) => `${id}:${active_version_id}`)
+			.map(
+				({ id, active_version_id, use_classic_parameter_flow }) =>
+					`${id}:${active_version_id}:${use_classic_parameter_flow}`,
+			)
 			.sort(),
 	);
 
