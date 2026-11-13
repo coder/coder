@@ -2198,9 +2198,8 @@ func TestExperimentsSafeAreKnown(t *testing.T) {
 }
 
 // TestPackagedCoderEnvKeepsDefaults checks that the coder.env shipped in the
-// Linux packages leaves every server option at its default. An empty
-// variable counts as set, so a line such as CODER_HTTP_ADDRESS= replaces the
-// 127.0.0.1:3000 default, and with TLS off the server then exits at startup.
+// Linux packages changes no server option from its default. An empty
+// CODER_HTTP_ADDRESS= makes a server with TLS off exit at startup.
 func TestPackagedCoderEnvKeepsDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -2223,7 +2222,7 @@ func TestPackagedCoderEnvKeepsDefaults(t *testing.T) {
 
 	matched := 0
 	for i, opt := range packagedOpts {
-		if _, ok := env[opt.Env]; !ok || opt.Value == nil {
+		if _, ok := env[opt.Env]; !ok {
 			continue
 		}
 		matched++
