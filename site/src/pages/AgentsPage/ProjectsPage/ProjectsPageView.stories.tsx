@@ -165,6 +165,10 @@ export const Archived: Story = {
 	},
 };
 
+export const YourProjectsWithArchived: Story = {
+	args: { showArchivedTab: true, archivedProjects: mockArchivedProjects },
+};
+
 export const ArchivedActionsMenuOpen: Story = {
 	args: Archived.args,
 	play: async ({ canvasElement }) => {

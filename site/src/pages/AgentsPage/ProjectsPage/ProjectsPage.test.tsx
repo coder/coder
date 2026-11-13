@@ -169,7 +169,7 @@ describe("ProjectsPage", () => {
 		);
 	});
 
-	it("unarchives once from the Archived tab and moves focus to New project", async () => {
+	it("unarchives once from the Archived tab, then leaves the emptied tab", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
 			summary("Kilo"),
@@ -187,7 +187,9 @@ describe("ProjectsPage", () => {
 		const unarchive = vi
 			.spyOn(API.experimental, "unarchiveChatProject")
 			.mockReturnValue(unarchived.promise);
-		renderWithAuth(<ProjectsPage />, { route: "/?tab=archived" });
+		const { router } = renderWithAuth(<ProjectsPage />, {
+			route: "/?tab=archived",
+		});
 		const pickUnarchive = async () => {
 			await user.click(
 				await screen.findByRole("button", {
@@ -209,6 +211,9 @@ describe("ProjectsPage", () => {
 			expect(screen.getByRole("button", { name: "New project" })).toHaveFocus(),
 		);
 		expect(unarchive).toHaveBeenCalledOnce();
+		// The emptied tab's link is replaced, so a later archive cannot
+		// reopen it.
+		await waitFor(() => expect(router.state.location.search).toBe(""));
 	});
 
 	it("moves focus to New project when Retry loads the projects", async () => {

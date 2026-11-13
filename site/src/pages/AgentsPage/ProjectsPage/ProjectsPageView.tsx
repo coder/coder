@@ -55,7 +55,7 @@ type ProjectsPageViewProps = {
 	readonly archivedError: unknown;
 	readonly onRetryArchived: () => void;
 	/** Runs once a project is unarchived and has left the archived list. */
-	readonly onUnarchived: (project: ChatProject) => void;
+	readonly onUnarchived: () => void;
 };
 
 /**
@@ -100,7 +100,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 							key={project.id}
 							project={project}
 							to={projectPath(project)}
-							onUnarchived={() => onUnarchived(project)}
+							onUnarchived={onUnarchived}
 							onDelete={(returnFocusTo) => onDelete(project, returnFocusTo)}
 						/>
 					))}
