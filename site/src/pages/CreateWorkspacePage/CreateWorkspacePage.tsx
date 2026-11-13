@@ -57,6 +57,9 @@ const CreateWorkspacePage: React.FC = () => {
 	// The current expected response ID.  Starts at -1 because the backend sends
 	// an initial message when the web socket is connected with -1.
 	const wsResponseId = useRef<number>(-1);
+	// Mirrors wsResponseId for rendering, so the form can tell when the latest
+	// request has not been answered yet.
+	const [latestRequestId, setLatestRequestId] = useState(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 	const [isConnecting, setIsConnecting] = useState(false);
@@ -184,6 +187,7 @@ const CreateWorkspacePage: React.FC = () => {
 		};
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 			wsResponseId.current = wsResponseId.current + 1;
+			setLatestRequestId(wsResponseId.current);
 			ws.current.send(JSON.stringify(request));
 			return true;
 		}
@@ -399,6 +403,9 @@ const CreateWorkspacePage: React.FC = () => {
 		return [...parameters].sort((a, b) => a.order - b.order);
 	}, [parameters]);
 
+	const isEvaluatingParameters =
+		latestResponse !== null && latestResponse.id < latestRequestId;
+
 	const isInitializing =
 		!latestResponse ||
 		Number.isNaN(initId) ||
@@ -474,6 +481,7 @@ const CreateWorkspacePage: React.FC = () => {
 						}
 						hasIgnoredUrlParams={hasIgnoredUrlParams}
 						creatingWorkspace={createWorkspaceMutation.isPending}
+						isEvaluatingParameters={isEvaluatingParameters}
 						sendMessage={sendMessage}
 						onCancel={() => {
 							navigate(-1);

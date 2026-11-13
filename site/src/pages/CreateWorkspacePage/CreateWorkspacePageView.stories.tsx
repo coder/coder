@@ -31,6 +31,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		},
 		presets: [],
 		sendMessage: () => {},
+		isEvaluatingParameters: false,
 		template: MockTemplate,
 	},
 };
