@@ -41,6 +41,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		activate             bool
 		displayName          string
 		icon                 string
+		disableEveryone      bool
 		orgContext           = NewOrganizationContext()
 	)
 	cmd := &serpent.Command{
@@ -211,11 +212,12 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			// Create the template now that an initial template version exists
 			case createTemplate:
 				_, err := client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
-					Name:        name,
-					VersionID:   job.ID,
-					DisplayName: displayName,
-					Description: description,
-					Icon:        icon,
+					Name:                       name,
+					VersionID:                  job.ID,
+					DisplayName:                displayName,
+					Description:                description,
+					Icon:                       icon,
+					DisableEveryoneGroupAccess: disableEveryone,
 				})
 				if err != nil {
 					return err
@@ -260,6 +262,20 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				if err != nil {
 					return err
 				}
+			}
+
+			// Access control is independent of --activate, so apply it to
+			// existing templates even when the new version stays inactive.
+			// The server only acts on true, which is why this flag can
+			// remove the 'everyone' group but never restore it.
+			if !createTemplate && disableEveryone {
+				_, err := client.UpdateTemplateMeta(inv.Context(), template.ID, codersdk.UpdateTemplateMeta{
+					DisableEveryoneGroupAccess: &disableEveryone,
+				})
+				if err != nil {
+					return xerrors.Errorf("remove 'everyone' group access from template: %w", err)
+				}
+				cliui.Info(inv.Stderr, "Removed 'everyone' group access from the template.")
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
@@ -329,6 +345,13 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			Flag:        "icon",
 			Description: "Specify an icon path or external URL for the template. Takes precedence over icon in README.md front matter, if present.",
 			Value:       serpent.StringOf(&icon),
+		},
+		{
+			Flag: "private",
+			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
+				"For an existing template, this removes the 'everyone' group's access; omitting the flag never restores it. " +
+				"The template permissions must be updated to allow non-admin users to use this template.",
+			Value: serpent.BoolOf(&disableEveryone),
 		},
 		cliui.SkipPromptOption(),
 	}
