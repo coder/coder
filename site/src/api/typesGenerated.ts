@@ -803,6 +803,11 @@ export type APIKeyScope =
 	| "boundary_usage:read"
 	| "boundary_usage:update"
 	| "chat:*"
+	| "chat_automation:*"
+	| "chat_automation:create"
+	| "chat_automation:delete"
+	| "chat_automation:read"
+	| "chat_automation:update"
 	| "chat:create"
 	| "chat:delete"
 	| "chat_model_config:*"
@@ -1071,6 +1076,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"boundary_usage:read",
 	"boundary_usage:update",
 	"chat:*",
+	"chat_automation:*",
+	"chat_automation:create",
+	"chat_automation:delete",
+	"chat_automation:read",
+	"chat_automation:update",
 	"chat:create",
 	"chat:delete",
 	"chat_model_config:*",
@@ -9174,6 +9184,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_automation"
 	| "chat_model_config"
 	| "chat_project"
 	| "chat_project_memory"
@@ -9232,6 +9243,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_automation",
 	"chat_model_config",
 	"chat_project",
 	"chat_project_memory",

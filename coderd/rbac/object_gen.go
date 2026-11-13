@@ -128,6 +128,16 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatAutomation
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat automation
+	//  - "ActionDelete" :: delete a chat automation
+	//  - "ActionRead" :: read chat automations
+	//  - "ActionUpdate" :: update, enable, disable, run, or rotate the secret of a chat automation
+	ResourceChatAutomation = Object{
+		Type: "chat_automation",
+	}
+
 	// ResourceChatModelConfig
 	// Valid Actions
 	//  - "ActionCreate" :: create a new chat model config
@@ -565,6 +575,7 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatAutomation,
 		ResourceChatModelConfig,
 		ResourceChatProject,
 		ResourceChatProjectMemory,

@@ -28,6 +28,12 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck           CheckConstraint = "aibridge_token_usages_output_price_micros_check"           // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
+	CheckChatAutomationsKindShape                            CheckConstraint = "chat_automations_kind_shape"                               // chat_automations
+	CheckChatAutomationsLastRunShape                         CheckConstraint = "chat_automations_last_run_shape"                           // chat_automations
+	CheckChatAutomationsLastRunUnacceptedCountCheck          CheckConstraint = "chat_automations_last_run_unaccepted_count_check"          // chat_automations
+	CheckChatAutomationsNameCheck                            CheckConstraint = "chat_automations_name_check"                               // chat_automations
+	CheckChatAutomationsProjectTargetMode                    CheckConstraint = "chat_automations_project_target_mode"                      // chat_automations
+	CheckChatAutomationsTargetShape                          CheckConstraint = "chat_automations_target_shape"                             // chat_automations
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs
@@ -44,6 +50,7 @@ const (
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects
 	CheckChatProjectsNameNotBlank                            CheckConstraint = "chat_projects_name_not_blank"                              // chat_projects
 	CheckChatProjectsUserAclIsObject                         CheckConstraint = "chat_projects_user_acl_is_object"                          // chat_projects
+	CheckChatQueuedMessagesAutomationInputCheck              CheckConstraint = "chat_queued_messages_automation_input_check"               // chat_queued_messages
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck                     CheckConstraint = "chat_usage_limit_config_period_check"                      // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck                  CheckConstraint = "chat_usage_limit_config_singleton_check"                   // chat_usage_limit_config

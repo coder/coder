@@ -344,6 +344,14 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatAutomationsByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("CountChatAutomationsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatAutomationsByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountChatCapacityActiveByPool(ctx, arg)
@@ -533,6 +541,14 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	r0 := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("DeleteApplicationConnectAPIKeysByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteApplicationConnectAPIKeysByUserID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatAutomationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteChatAutomationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatAutomationByID").Inc()
 	return r0
 }
 
@@ -1557,6 +1573,22 @@ func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAu
 	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
 	m.queryLatencies.WithLabelValues("GetChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutoArchiveDays").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutomationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatAutomationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams) ([]database.GetChatAutomationsByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutomationsByOrganizationID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatAutomationsByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationsByOrganizationID").Inc()
 	return r0, r1
 }
 
@@ -4480,6 +4512,14 @@ func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertCh
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatAutomation(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatAutomation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatAutomation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatDebugRun(ctx, arg)
@@ -7366,6 +7406,14 @@ func (m queryMetricsStore) GetAuthorizedChatsByChatFileID(ctx context.Context, f
 	r0, r1 := m.s.GetAuthorizedChatsByChatFileID(ctx, fileID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedChatsByChatFileID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChatsByChatFileID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]database.GetChatAutomationsByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedChatAutomationsByOrganizationID(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedChatAutomationsByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChatAutomationsByOrganizationID").Inc()
 	return r0, r1
 }
 

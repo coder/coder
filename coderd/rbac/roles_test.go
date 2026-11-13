@@ -279,6 +279,7 @@ func TestAgentsAccessRole(t *testing.T) {
 		rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
 		rbac.ResourceChatProject.Type:       rbac.ResourceChatProject.AvailableActions(),
 		rbac.ResourceChatProjectMemory.Type: rbac.ResourceChatProjectMemory.AvailableActions(),
+		rbac.ResourceChatAutomation.Type:    rbac.ResourceChatAutomation.AvailableActions(),
 	}), role.ByOrgID[orgID.String()].Member)
 
 	// The role is organization scoped only.
@@ -1591,6 +1592,44 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Only the owner of an automation creates it, through
+			// agents-access. Administrators have no create.
+			Name:     "ChatAutomationCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {orgAgentsAccessUser},
+				false: {setOtherOrg, owner, orgAdmin, memberMe, orgMemberMe, auditor, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationReadUpdateDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, auditor, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationOfAnotherMemberCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {},
+				false: {setOtherOrg, owner, orgAdmin, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationOfAnotherMemberReadUpdateDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			Name:     "ChatModelConfigRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
@@ -2012,4 +2051,38 @@ func TestDBPurgeBoundaryLogDelete(t *testing.T) {
 	err = auth.Authorize(context.Background(), dbPurge, policy.ActionRead,
 		rbac.ResourceBoundaryLog)
 	require.Error(t, err, "DBPurge must not read boundary logs")
+}
+
+// A request must pass both the role grants and the scope of its API key. No
+// scope that a user can request covers chat automations, so a scoped key
+// cannot reach them, not even the owner's own.
+func TestExternalScopesCannotReachChatAutomations(t *testing.T) {
+	t.Parallel()
+
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+	userID, orgID := uuid.New(), uuid.New()
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+	agentsAccessRole, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+	require.NoError(t, err)
+	automation := rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(userID.String())
+
+	subject := func(scope rbac.ExpandableScope) rbac.Subject {
+		return rbac.Subject{
+			ID:    userID.String(),
+			Roles: rbac.Roles{memberRole, agentsAccessRole},
+			Scope: scope,
+		}
+	}
+	for action := range policy.RBACPermissions[rbac.ResourceChatAutomation.Type].Actions {
+		require.NoError(t, auth.Authorize(context.Background(), subject(rbac.ScopeAll), action, automation),
+			"the full-access scope must allow %s", action)
+		for _, name := range rbac.ExternalScopeNames() {
+			if name == string(rbac.ScopeAll) {
+				continue
+			}
+			err := auth.Authorize(context.Background(), subject(rbac.ScopeName(name)), action, automation)
+			require.Errorf(t, err, "scope %q must not allow %s on a chat automation", name, action)
+		}
+	}
 }

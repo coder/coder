@@ -80,6 +80,13 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var chatAutomationActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat automation",
+	ActionRead:   "read chat automations",
+	ActionUpdate: "update, enable, disable, run, or rotate the secret of a chat automation",
+	ActionDelete: "delete a chat automation",
+}
+
 var chatProjectActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new chat project",
 	ActionRead:   "read chat projects",
@@ -143,6 +150,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat": {
 		Actions: chatActions,
+	},
+	"chat_automation": {
+		Actions: chatAutomationActions,
 	},
 	"chat_project": {
 		Actions: chatProjectActions,

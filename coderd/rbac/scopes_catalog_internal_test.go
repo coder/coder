@@ -70,6 +70,24 @@ func TestIsExternalScope(t *testing.T) {
 	require.False(t, IsExternalScope("unknown:read"))
 }
 
+// Chat automation scopes are internal-only: a user cannot request them for
+// an API key or an OAuth2 grant.
+func TestChatAutomationScopesAreInternal(t *testing.T) {
+	t.Parallel()
+
+	external := ExternalScopeNames()
+	for _, name := range []string{
+		"chat_automation:*",
+		string(ScopeChatAutomationCreate),
+		string(ScopeChatAutomationRead),
+		string(ScopeChatAutomationUpdate),
+		string(ScopeChatAutomationDelete),
+	} {
+		require.Falsef(t, IsExternalScope(ScopeName(name)), "%s must not be an external scope", name)
+		require.NotContainsf(t, external, name, "%s must not be listed as an external scope", name)
+	}
+}
+
 func TestRetiredScopesAreNotExternal(t *testing.T) {
 	t.Parallel()
 	for name := range retiredScopes {

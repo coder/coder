@@ -264,6 +264,7 @@ Actions: `create`, `write`
 <tbody>
 <tr><td><code>agent_id</code></td><td>No</td></tr>
 <tr><td><code>archived</code></td><td>Yes</td></tr>
+<tr><td><code>automation_id</code></td><td>Yes</td></tr>
 <tr><td><code>build_id</code></td><td>No</td></tr>
 <tr><td><code>client_type</code></td><td>No</td></tr>
 <tr><td><code>compaction_requested_at</code></td><td>No</td></tr>
@@ -284,6 +285,7 @@ Actions: `create`, `write`
 <tr><td><code>last_read_message_id</code></td><td>No</td></tr>
 <tr><td><code>last_reasoning_effort</code></td><td>No</td></tr>
 <tr><td><code>last_turn_summary</code></td><td>No</td></tr>
+<tr><td><code>manage_automations_enabled</code></td><td>Yes</td></tr>
 <tr><td><code>mcp_server_ids</code></td><td>Yes</td></tr>
 <tr><td><code>mode</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
