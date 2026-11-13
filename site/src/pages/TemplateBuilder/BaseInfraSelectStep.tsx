@@ -2,6 +2,7 @@ import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
@@ -42,7 +43,7 @@ export const BaseInfraSelectStep: React.FC<BaseInfraSelectStepProps> = ({
 	const bases = sortByPriority(data?.bases ?? [], BASE_PRIORITY);
 
 	return (
-		<div role="radiogroup" aria-label="Base infrastructure templates">
+		<div>
 			<TemplateBuilderTitle>Pick a base template</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Select your infrastructure foundation.
@@ -51,11 +52,16 @@ export const BaseInfraSelectStep: React.FC<BaseInfraSelectStepProps> = ({
 			{/* Show three rows of cards (sized to the common 214px card height plus
 			    the row gaps) and let any extra rows scroll, so the Continue button
 			    stays high and is easy to discover. */}
-			<div className="max-h-[682px] overflow-y-auto p-1 -m-1">
-				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+			<div className="max-h-170.5 overflow-y-auto p-1 -m-1">
+				<RadioGroup
+					value={selectedBaseId ?? ""}
+					aria-label="Base infrastructure templates"
+					className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+				>
 					{bases.map((base) => (
 						<TemplateCard
 							key={base.id}
+							value={base.id}
 							name={base.name}
 							description={base.description}
 							iconUrl={base.icon}
@@ -64,7 +70,7 @@ export const BaseInfraSelectStep: React.FC<BaseInfraSelectStepProps> = ({
 							onSelect={() => onSelectBase(toSelectedBaseMeta(base))}
 						/>
 					))}
-				</div>
+				</RadioGroup>
 			</div>
 		</div>
 	);

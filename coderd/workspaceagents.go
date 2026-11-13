@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -983,9 +984,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to fetch containers from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1077,9 +1076,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to delete devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1168,9 +1165,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to recreate devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1181,6 +1176,35 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 
 	httpapi.Write(ctx, rw, http.StatusAccepted, m)
+}
+
+// writeAgentError writes err if it is a *codersdk.Error and reports
+// whether it did. Pass only errors from workspace agent requests.
+// Workspace code can impersonate the agent API, so coderd does not relay
+// an authentication challenge (401 or 407) or a status outside 4xx and
+// 5xx; for example, a relayed 401 would make the frontend sign the user
+// out. Those statuses become 502 Bad Gateway with message and the agent's
+// text in a truncated Detail. Every other status and its response pass
+// through unchanged.
+func writeAgentError(ctx context.Context, rw http.ResponseWriter, err error, message string) bool {
+	var agentErr *codersdk.Error
+	if !errors.As(err, &agentErr) {
+		return false
+	}
+	status := agentErr.StatusCode()
+	if status >= 400 && status < 600 && status != http.StatusUnauthorized && status != http.StatusProxyAuthRequired {
+		httpapi.Write(ctx, rw, status, agentErr.Response)
+		return true
+	}
+	detail := agentErr.Message
+	if agentErr.Detail != "" {
+		detail = strings.TrimSuffix(detail, ".") + ": " + agentErr.Detail
+	}
+	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+		Message: message,
+		Detail:  fmt.Sprintf("The workspace agent responded with status %d: %s", status, stringutil.Truncate(detail, 512, stringutil.TruncateWithEllipsis)),
+	})
+	return true
 }
 
 // @Summary Get connection info for workspace agent

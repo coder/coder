@@ -53,7 +53,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
 	);
 };
 
-const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
+const dotVariants = cva("rounded-full inline-block border-4", {
 	variants: {
 		variant: {
 			success: "bg-content-success border-surface-green",

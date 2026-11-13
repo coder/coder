@@ -1,7 +1,7 @@
 import type { TerminalFontName } from "#/api/typesGenerated";
 
 const MONOSPACE_DEFAULT_FONT = "Geist Mono Variable";
-const TERMINAL_SYMBOL_FONT = "'Coder Terminal Symbols'";
+const TERMINAL_SYMBOL_FONT = "'Terminal Symbols'";
 export const MONOSPACE_FONT_FAMILY =
 	"'Geist Mono Variable', 'IBM Plex Mono', 'Lucida Console', 'Lucida Sans Typewriter', 'Liberation Mono', 'Monaco', 'Courier New', Courier, monospace";
 

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	Navigate,
 	Link as RouterLink,
 	useLocation,
 	useNavigate,
@@ -9,6 +8,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
@@ -49,6 +49,7 @@ import {
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
 import {
@@ -95,10 +96,6 @@ const isConflictError = (error: unknown) =>
 
 const AgentCreatePage: React.FC = () => {
 	const { projectId } = useParams<{ projectId?: string }>();
-	const { experiments } = useDashboard();
-	if (projectId !== undefined && !experiments.includes("chat-projects")) {
-		return <Navigate to="/agents" replace />;
-	}
 	// Remount per project so the create mutation's pending and error state do
 	// not carry over. A create still in flight opens its chat on success, as
 	// from /agents; if it fails after the page unmounts, its error and the
@@ -174,6 +171,16 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
+	// The highlight state persists on its history entry, so only a location
+	// key that differs from the one at mount is a fresh New chat click.
+	// Mounting on that entry (a reload, or Back to it) must not replay it.
+	const [mountLocationKey] = useState(location.key);
+	const composerHighlightKey =
+		hasHighlightComposerState(location.state) &&
+		location.key !== mountLocationKey
+			? location.key
+			: undefined;
+
 	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
 	const debugLinkValue = debugLinkParam ?? linkState.debugWorkspaceBuildId;
@@ -188,15 +195,19 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	// The debug link wins when both are present.
 	const linkPrompt =
 		debugBuildId === null && promptValue?.trim() ? promptValue : undefined;
+	// Navigations from this page forward this, not location.search: the
+	// router commits the replace below in a transition, so the user can act
+	// while location.search still holds the link parameters.
+	const forwardedSearchParams = new URLSearchParams(searchParams);
+	forwardedSearchParams.delete(debugWorkspaceBuildSearchParam);
+	forwardedSearchParams.delete(promptSearchParam);
+	const forwardedSearch = forwardedSearchParams.toString();
 	// One navigation removes both parameters: separate navigations would each
 	// rebuild the URL from the same snapshot and restore the other parameter.
 	useEffect(() => {
 		if (debugLinkParam === null && promptParam === null) {
 			return;
 		}
-		const search = new URLSearchParams(searchParams);
-		search.delete(debugWorkspaceBuildSearchParam);
-		search.delete(promptSearchParam);
 		const state: DeepLinkState | undefined =
 			debugBuildId !== null
 				? { debugWorkspaceBuildId: debugBuildId }
@@ -204,7 +215,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 					? { prompt: linkPrompt }
 					: undefined;
 		navigate(
-			{ pathname: location.pathname, search: search.toString() },
+			{ pathname: location.pathname, search: forwardedSearch },
 			{ replace: true, state },
 		);
 	}, [
@@ -214,7 +225,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		linkPrompt,
 		location.pathname,
 		navigate,
-		searchParams,
+		forwardedSearch,
 	]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
@@ -261,7 +272,21 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
-	const handleCreateChat = async ({
+	const handleCreateChat = async (options: CreateChatOptions) => {
+		try {
+			await createChatAndNavigate(options);
+		} catch (error) {
+			// The request may have invoked a project skill removed elsewhere.
+			if (options.projectId) {
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSkillsKey(options.projectId),
+				});
+			}
+			throw error;
+		}
+	};
+
+	const createChatAndNavigate = async ({
 		message,
 		composerParts,
 		fileIDs,
@@ -375,7 +400,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search: location.search,
+			search: forwardedSearch,
 		});
 	};
 
@@ -420,6 +445,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}
 			prefill={prefill}
+			highlightKey={composerHighlightKey}
 		/>
 	);
 

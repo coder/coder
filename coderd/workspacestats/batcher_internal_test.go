@@ -175,8 +175,8 @@ func TestBatchStatsSessionCountFold(t *testing.T) {
 
 	const extra = 6
 	st := randStats(t, func(s *agentproto.Stats) {
-		s.SessionCounts = make(map[string]int64, maxSessionCountEntries+extra)
-		for i := range maxSessionCountEntries + extra {
+		s.SessionCounts = make(map[string]int64, codersdk.TemplateInsightsMaxUnregisteredApps+extra)
+		for i := range codersdk.TemplateInsightsMaxUnregisteredApps + extra {
 			s.SessionCounts[fmt.Sprintf("app_%d", i)] = 1
 		}
 	})

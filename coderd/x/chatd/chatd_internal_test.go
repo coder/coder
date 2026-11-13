@@ -30,6 +30,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -423,112 +424,31 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	require.True(t, fetched.Summary.Valid)
 }
 
-func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
+func TestRequireResponsesAPI(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		rawProvider  string
-		wantProvider codersdk.ChatComputerUseProvider
-		wantErr      string
-	}{
-		{
-			name:         "DefaultAnthropic",
-			rawProvider:  "",
-			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
-		},
-		{
-			name:         "OpenAI",
-			rawProvider:  " openai ",
-			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
-		},
-		{
-			name:        "Unknown",
-			rawProvider: "bogus",
-			wantErr:     `unknown computer-use provider "bogus" configured in agents_computer_use_provider`,
-		},
-	}
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+		got, err := requireResponsesAPI(nil, "gpt-test")
+		require.NoError(t, err)
+		require.True(t, *got.UseResponsesAPI)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	t.Run("KeepsOtherFieldsWithoutMutating", func(t *testing.T) {
+		t.Parallel()
+		config := &codersdk.ChatModelOpenAIConfig{ReasoningModel: ptr.Ref(true)}
+		got, err := requireResponsesAPI(config, "gpt-test")
+		require.NoError(t, err)
+		require.True(t, *got.UseResponsesAPI)
+		require.True(t, *got.ReasoningModel)
+		require.Nil(t, config.UseResponsesAPI)
+	})
 
-			ctrl := gomock.NewController(t)
-			db := dbmock.NewMockStore(ctrl)
-			server := &Server{db: db}
-
-			db.EXPECT().GetChatComputerUseProvider(gomock.Any()).DoAndReturn(
-				func(ctx context.Context) (string, error) {
-					_, ok := dbauthz.ActorFromContext(ctx)
-					require.True(t, ok, "config reads must have an actor")
-					return tt.rawProvider, nil
-				},
-			)
-
-			provider, modelProvider, modelName, err := server.computerUseProviderAndModelFromConfig(context.Background())
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.wantProvider, provider)
-
-			wantModelProvider, wantModelName, ok := chattool.DefaultComputerUseModel(tt.wantProvider)
-			require.True(t, ok)
-			require.Equal(t, wantModelProvider, modelProvider)
-			require.Equal(t, wantModelName, modelName)
-		})
-	}
-}
-
-func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ownerID := uuid.New()
-	providerID := uuid.New()
-
-	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
-		{ID: uuid.New(), Type: database.AIProviderTypeAnthropic, Enabled: true},
-		{ID: providerID, Type: database.AIProviderTypeOpenai, Enabled: true},
-	}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
-		ProviderID: providerID,
-		APIKey:     "test-key",
-	}}, nil)
-
-	server := &Server{db: db}
-	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
-		ctx,
-		ownerID,
-		string(codersdk.ChatComputerUseProviderOpenAI),
-	)
-	require.NoError(t, err)
-	require.Equal(t, "test-key", keys.APIKey(string(codersdk.ChatComputerUseProviderOpenAI)))
-	require.NotNil(t, aiProvider)
-	require.Equal(t, providerID, aiProvider.ID)
-	require.Equal(t, database.AIProviderTypeOpenai, aiProvider.Type)
-}
-
-func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-
-	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
-
-	server := &Server{db: db}
-	_, err := server.resolveModelRouteForProviderType(
-		ctx,
-		uuid.New(),
-		string(codersdk.ChatComputerUseProviderOpenAI),
-	)
-	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
+	t.Run("ExplicitlyDisabled", func(t *testing.T) {
+		t.Parallel()
+		_, err := requireResponsesAPI(&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: ptr.Ref(false)}, "gpt-test")
+		require.ErrorContains(t, err, `model "gpt-test" disables the OpenAI Responses API, which computer use requires`)
+	})
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {
@@ -599,21 +519,34 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 	}
 }
 
-func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T) {
+// Only the OpenAI flavor needs result metadata on the tool result. The Anthropic
+// toolset and the OpenAI-compatible function tool send the screenshot as an
+// ordinary image result.
+func TestAppendComputerUseProviderTool_HasNoResultMetadata(t *testing.T) {
 	t.Parallel()
 
-	providerTools, err := appendComputerUseProviderTool(
-		nil,
-		computerUseProviderToolOptions{
-			provider:      codersdk.ChatComputerUseProviderAnthropic,
-			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, providerTools, 1)
-	require.Equal(t, "computer", providerTools[0].Definition.GetName())
-	require.Nil(t, providerTools[0].ResultProviderMetadata)
+	for _, provider := range []codersdk.ChatComputerUseProvider{
+		codersdk.ChatComputerUseProviderAnthropic,
+		codersdk.ChatComputerUseProviderOpenAICompat,
+	} {
+		t.Run(string(provider), func(t *testing.T) {
+			t.Parallel()
+
+			providerTools, err := appendComputerUseProviderTool(
+				nil,
+				computerUseProviderToolOptions{
+					provider:      provider,
+					isComputerUse: true,
+					logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, providerTools, 1)
+			require.Equal(t, "computer", providerTools[0].Definition.GetName())
+			require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
+			require.Nil(t, providerTools[0].ResultProviderMetadata)
+		})
+	}
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
@@ -1894,14 +1827,14 @@ func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, dbauthz.NotAuthorizedError{Err: xerrors.New("not authorized")})
 
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0, 0)
 	require.False(t, ok)
 	require.Nil(t, snapshot)
 	require.Nil(t, events)
 	require.Nil(t, cancel)
 }
 
-func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
+func TestSubscribeFailsOnTransientLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -1913,16 +1846,11 @@ func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, xerrors.New("transient lookup failure"))
 
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
-	require.True(t, ok)
-	require.NotNil(t, cancel)
-	require.Len(t, snapshot, 1)
-	require.Equal(t, codersdk.ChatStreamEventTypeError, snapshot[0].Type)
-	require.Equal(t, chatID, snapshot[0].ChatID)
-	require.Equal(t, "failed to load initial snapshot", snapshot[0].Error.Message)
-
-	_, open := <-events
-	require.False(t, open)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0, 0)
+	require.False(t, ok)
+	require.Nil(t, snapshot)
+	require.Nil(t, events)
+	require.Nil(t, cancel)
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
@@ -2152,6 +2080,55 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	require.ErrorContains(t, err, "workspace/deploy")
 }
 
+func TestModelHiddenWorkspaceSkillsLeftOutOfModelSkills(t *testing.T) {
+	t.Parallel()
+
+	hiddenSkill := func(name string) chattool.SkillMeta {
+		return chattool.SkillMeta{
+			Name:        name,
+			Description: "Manual " + name,
+			Dir:         "/skills/" + name,
+			Meta:        []byte("---\nname: " + name + "\ndescription: Manual " + name + "\ndisable-model-invocation: true\n---\nManual body.\n"),
+		}
+	}
+	workspaceSkills := []chattool.SkillMeta{hiddenSkill("deploy"), hiddenSkill("release")}
+	resolved := mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		nil,
+		nil,
+		workspaceSkills,
+	)
+
+	text := systemPromptText(t, buildSystemPrompt(nil, "", "", resolved, "", "", "", systemPromptBehaviorContext{}))
+	// The hidden workspace deploy skill must not force a qualified alias on
+	// the personal one, and the header lines describe only listed skills.
+	require.Contains(t, text, "\n- deploy: Personal deployment process\n")
+	require.NotContains(t, text, "Manual")
+	require.NotContains(t, text, "read_skill_file")
+	require.NotContains(t, text, "source prefix")
+
+	readSkill := chattool.ReadSkill(chattool.ReadSkillOptions{
+		GetSkills: func() []chattool.SkillMeta { return workspaceSkills },
+		ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
+			return skillspkg.Lookup(resolved, alias)
+		},
+	})
+	for _, name := range []string{"release", "workspace/release", "workspace/deploy"} {
+		resp, err := readSkill.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-" + name,
+			Name:  "read_skill",
+			Input: `{"name":"` + name + `"}`,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, name)
+		require.Equal(t, `skill "`+name+`" not found`, resp.Content)
+	}
+}
+
 func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid.UUID) {
 	t.Helper()
 	actor, ok := dbauthz.ActorFromContext(ctx)
@@ -2177,10 +2154,11 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, userID, gotUserID)
 				return []database.ListUserSkillMetadataByUserIDRow{{
-					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
-					Name:        "personal-review",
-					Description: "Personal review process",
-					Enabled:     true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "personal-review",
+					Description:    "Personal review process",
+					Enabled:        true,
+					ModelInvocable: true,
 				}}, nil
 			},
 		)
@@ -2210,19 +2188,43 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 	})
 }
 
-func TestFetchOrganizationSkillMetadataListFailure(t *testing.T) {
+func TestFetchOrganizationSkillMetadataFailure(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
-	organizationID := uuid.New()
-	listErr := xerrors.New("boom")
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
 
-	db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, listErr)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		organizationID := uuid.New()
+		listErr := xerrors.New("boom")
 
-	_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: uuid.NewString()}, organizationID)
-	require.ErrorIs(t, err, listErr)
+		db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, listErr)
+
+		_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: uuid.NewString()}, uuid.New(), organizationID)
+		require.ErrorIs(t, err, listErr)
+	})
+
+	t.Run("MemberPreferences", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		organizationID := uuid.New()
+		ownerID := uuid.New()
+		prefsErr := xerrors.New("boom")
+
+		db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, nil)
+		db.EXPECT().GetOrganizationSkillMemberPreferences(gomock.Any(), database.GetOrganizationSkillMemberPreferencesParams{
+			OrganizationID: organizationID,
+			UserID:         ownerID,
+		}).Return(database.GetOrganizationSkillMemberPreferencesRow{}, prefsErr)
+
+		_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: ownerID.String()}, ownerID, organizationID)
+		require.ErrorIs(t, err, prefsErr)
+	})
 }
 
 func TestLoadPersonalSkillBody(t *testing.T) {
@@ -2245,15 +2247,16 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
 				return database.Skill{
-					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
-					Name:    "personal-review",
-					Content: "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
-					Enabled: true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "personal-review",
+					Content:        "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
+					Enabled:        true,
+					ModelInvocable: true,
 				}, nil
 			},
 		)
 
-		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review")
+		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review", skillLoaderModel)
 		require.NoError(t, err)
 		require.Equal(t, "personal-review", got.Name)
 		require.Equal(t, "Personal review process", got.Description)
@@ -2281,7 +2284,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill", skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2299,7 +2302,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			Content: "---\nname: disabled-skill\ndescription: Disabled\n---\n\nInstructions.\n",
 		}, nil)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill", skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2325,7 +2328,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill", skillLoaderModel)
 
 		require.ErrorContains(t, err, "load personal skill body")
 		require.ErrorIs(t, err, dbErr)
@@ -2354,15 +2357,16 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
 				return database.Skill{
-					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
-					Name:    "broken-skill",
-					Content: "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
-					Enabled: true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "broken-skill",
+					Content:        "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
+					Enabled:        true,
+					ModelInvocable: true,
 				}, nil
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill", skillLoaderModel)
 
 		require.ErrorContains(t, err, "parse personal skill body")
 		require.ErrorIs(t, err, skillspkg.ErrSkillBodyRequired)
@@ -2417,6 +2421,25 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		Name:           "disabled-review",
 	})
 	require.NoError(t, err)
+	// The member turned off opted-out-review, and the organization lets
+	// members turn off organization skills.
+	optedOut := dbgen.OrganizationSkill(t, db, database.Skill{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Name:           "opted-out-review",
+		GroupACL:       database.ChatACL{org.ID.String(): {Permissions: read}},
+		UserACL:        database.ChatACL{},
+	})
+	require.NoError(t, db.InsertOrganizationMemberDisabledSkill(ctx, database.InsertOrganizationMemberDisabledSkillParams{
+		OrganizationID: org.ID,
+		UserID:         member.ID,
+		SkillID:        optedOut.ID,
+	}))
+	_, err = db.UpdateOrganizationMembersCanDisableSkills(ctx, database.UpdateOrganizationMembersCanDisableSkillsParams{
+		ID:                      org.ID,
+		MembersCanDisableSkills: true,
+		UpdatedAt:               dbtime.Now(),
+	})
+	require.NoError(t, err)
 
 	subject := func(userID uuid.UUID) rbac.Subject {
 		t.Helper()
@@ -2425,10 +2448,12 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		return got
 	}
 
-	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review")
+	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), member.ID, org.ID, "team-review", skillLoaderModel)
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceOrganization, got.Source)
 	require.Equal(t, "Team instructions.", got.Body)
+	_, err = server.loadOrganizationSkillBody(ctx, subject(outsider.ID), outsider.ID, org.ID, "opted-out-review", skillLoaderModel)
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		name   string
@@ -2438,8 +2463,9 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		{name: "NotShared", reader: outsider.ID, skill: "team-review"},
 		{name: "Disabled", reader: member.ID, skill: "disabled-review"},
 		{name: "Missing", reader: member.ID, skill: "missing-review"},
+		{name: "OptedOut", reader: member.ID, skill: "opted-out-review"},
 	} {
-		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill)
+		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), tc.reader, org.ID, tc.skill, skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
@@ -2462,12 +2488,13 @@ func TestLoadProjectSkillBody(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
-	for _, name := range []string{"project-review", "disabled-review"} {
+	for _, name := range []string{"project-review", "disabled-review", "manual-review"} {
 		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID:        uuid.New(),
-			ProjectID: project.ID,
-			Name:      name,
-			Content:   "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+			ID:             uuid.New(),
+			ProjectID:      project.ID,
+			Name:           name,
+			Content:        "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+			ModelInvocable: sql.NullBool{Bool: name != "manual-review", Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -2479,9 +2506,16 @@ func TestLoadProjectSkillBody(t *testing.T) {
 	require.NoError(t, err)
 
 	chatdCtx := dbauthz.AsChatd(ctx)
-	got, err := server.loadProjectSkillBody(chatdCtx, project.ID, "project-review")
+	got, err := server.loadProjectSkillBody(chatdCtx, project.ID, "project-review", skillLoaderModel)
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceProject, got.Source)
+	require.Equal(t, "Project instructions.", got.Body)
+
+	// A skill that is not model-invocable loads only for user invocations.
+	_, err = server.loadProjectSkillBody(chatdCtx, project.ID, "manual-review", skillLoaderModel)
+	require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+	got, err = server.loadProjectSkillBody(chatdCtx, project.ID, "manual-review", skillLoaderUser)
+	require.NoError(t, err)
 	require.Equal(t, "Project instructions.", got.Body)
 
 	for _, tc := range []struct {
@@ -2493,7 +2527,7 @@ func TestLoadProjectSkillBody(t *testing.T) {
 		{name: "Missing", projectID: project.ID, skill: "missing-review"},
 		{name: "MissingProject", projectID: uuid.New(), skill: "project-review"},
 	} {
-		_, err := server.loadProjectSkillBody(chatdCtx, tc.projectID, tc.skill)
+		_, err := server.loadProjectSkillBody(chatdCtx, tc.projectID, tc.skill, skillLoaderUser)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
@@ -4008,9 +4042,9 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, orgID, provider.ID, false)
 
-		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		resolved, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.NoError(t, err)
-		require.Equal(t, model.ID, resolved)
+		require.Equal(t, uuid.NullUUID{UUID: model.ID, Valid: true}, resolved)
 	})
 
 	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
@@ -4023,12 +4057,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, defaultOrg.ID, provider.ID, false)
 
-		_, err = resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
+		_, err = validateModelConfigOverride(ctx, db, chatOrgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
@@ -4041,12 +4070,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, unrelatedOrgID, provider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
+		_, err := validateModelConfigOverride(ctx, db, chatOrgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
@@ -4060,7 +4084,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		disabledProvider := newProvider(t, db, false)
 		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		_, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 

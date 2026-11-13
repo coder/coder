@@ -83,12 +83,12 @@ export const OrganizationSidebarView: React.FC<
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
-					<Command loop>
+					<Command loop label="Find organization">
 						<CommandInput placeholder="Find organization" />
 						<CommandList>
 							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
-								<div className="flex flex-col max-h-[260px] overflow-y-auto">
+								<div className="flex flex-col max-h-65 overflow-y-auto">
 									{sortedOrganizations.map((organization) => (
 										<CommandItem
 											key={organization.id}

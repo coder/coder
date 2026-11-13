@@ -77,13 +77,15 @@ func (api *API) postChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer commitAudit()
 
-	skill, ok := createSkill(ctx, rw, r, chatProjectSkillCreateErrors, func(parsed skills.ParsedSkill, content string) (database.Skill, error) {
+	skill, ok := createSkill(ctx, rw, r, chatProjectSkillCreateErrors, skillOwnerProject, func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error) {
 		return api.Database.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID:          uuid.New(),
-			ProjectID:   project.ID,
-			Name:        parsed.Name,
-			Description: parsed.Description,
-			Content:     content,
+			ID:             uuid.New(),
+			ProjectID:      project.ID,
+			Name:           parsed.Name,
+			Description:    parsed.Description,
+			Content:        create.Content,
+			Action:         create.Action,
+			ModelInvocable: create.ModelInvocable,
 		})
 	})
 	if !ok {
@@ -150,7 +152,7 @@ func (api *API) patchChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer commitAudit()
 
-	oldSkill, skill, ok := api.updateSkill(ctx, rw, r, name, skillWriteErrors{}, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
+	oldSkill, skill, ok := api.updateSkill(ctx, rw, r, name, skillWriteErrors{}, skillOwnerProject, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
 		// Update on the project was checked above and the update below
 		// rechecks it, so reads use a system context for update-only roles.
 		//nolint:gocritic // See above.
@@ -168,11 +170,13 @@ func (api *API) patchChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 			return database.Skill{}, database.Skill{}, xerrors.Errorf("lock project skill: %w", err)
 		}
 		updated, err := tx.UpdateProjectSkillByProjectIDAndName(ctx, database.UpdateProjectSkillByProjectIDAndNameParams{
-			Description: update.Description,
-			Content:     update.Content,
-			Enabled:     update.Enabled,
-			ProjectID:   project.ID,
-			Name:        locked.Name,
+			Description:    update.Description,
+			Content:        update.Content,
+			Enabled:        update.Enabled,
+			Action:         update.Action,
+			ModelInvocable: update.ModelInvocable,
+			ProjectID:      project.ID,
+			Name:           locked.Name,
 		})
 		if err != nil {
 			return database.Skill{}, database.Skill{}, xerrors.Errorf("update project skill: %w", err)

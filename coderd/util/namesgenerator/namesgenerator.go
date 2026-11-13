@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/brianvoe/gofakeit/v7"
+	"github.com/brianvoe/gofakeit/v7/data"
 )
 
 // maxNameLen is the maximum length for names. Many places in Coder have a 32
@@ -27,11 +27,16 @@ var counter atomic.Int64
 
 // NameWith returns a random name with a custom delimiter.
 // Names are not guaranteed to be unique.
+//
+// The word lists come from gofakeit's data package. Importing the gofakeit
+// package itself would link every faker into the binary.
 func NameWith(delim string) string {
-	const seed = 0 // gofakeit will use a random crypto seed.
-	faker := gofakeit.New(seed)
-	adjective := strings.ToLower(faker.AdjectiveDescriptive())
-	last := strings.ToLower(faker.LastName())
+	adjectives := data.Word["adjective_descriptive"]
+	lastNames := data.Person["last"]
+	//nolint:gosec // The names don't need to be cryptographically secure.
+	adjective := strings.ToLower(adjectives[rand.IntN(len(adjectives))])
+	//nolint:gosec // The names don't need to be cryptographically secure.
+	last := strings.ToLower(lastNames[rand.IntN(len(lastNames))])
 	return adjective + delim + last
 }
 

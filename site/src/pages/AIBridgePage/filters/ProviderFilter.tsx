@@ -1,4 +1,5 @@
-import { API } from "#/api/api";
+import { useQueryClient } from "react-query";
+import { aiBridgeProviders } from "#/api/queries/aiBridge";
 import type { AIBridgeProvider } from "#/api/typesGenerated";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
@@ -10,32 +11,48 @@ import {
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { getProviderDisplayName } from "../utils";
 
-const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => ({
-	value: provider.name,
-	label: provider.display_name || provider.name,
-	startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
-});
+const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => {
+	const label = provider.display_name || provider.name;
+	const typeLabel = getProviderDisplayName(provider.type);
+	// The default icon identifies the provider type, which a custom name may
+	// omit. A custom icon's meaning is unknown, so it stays decorative.
+	const alt =
+		provider.icon || label.toLowerCase().includes(typeLabel.toLowerCase())
+			? ""
+			: typeLabel;
+	return {
+		value: provider.name,
+		label,
+		startIcon: (
+			<ProviderIcon provider={provider.type} icon={provider.icon} alt={alt} />
+		),
+	};
+};
 
 export const useProviderFilterMenu = ({
 	value,
 	onChange,
 	enabled,
 }: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
+	// Share the provider list cache with other consumers on the page.
+	const queryClient = useQueryClient();
+	const fetchProviders = () => queryClient.fetchQuery(aiBridgeProviders());
 	return useFilterMenu({
 		id: "provider_name",
 		getSelectedOption: async () => {
 			if (!value) {
 				return null;
 			}
-			const providers = await API.getAIBridgeProviders();
+			const providers = await fetchProviders();
 			const match = providers.find((p) => p.name === value);
 			return match ? toFilterOption(match) : null;
 		},
 		// The provider list is small and useFilterMenu filters options
 		// client-side by label and value, so the query is not sent upstream.
 		getOptions: async () => {
-			const providers = await API.getAIBridgeProviders();
+			const providers = await fetchProviders();
 			return providers.map(toFilterOption);
 		},
 		value,
@@ -64,6 +81,7 @@ export const ProviderFilter: React.FC<ProviderFilterProps> = ({
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			searchLabel="Search provider"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search provider..."

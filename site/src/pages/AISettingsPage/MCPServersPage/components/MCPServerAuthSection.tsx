@@ -14,6 +14,7 @@ import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	AUTH_TYPE_OPTIONS,
 	type MCPServerFormValues,
+	OAUTH2_CLIENT_REGISTRATION_OPTIONS,
 	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
@@ -82,94 +83,178 @@ export const MCPServerAuthSection: React.FC<MCPServerAuthSectionProps> = ({
 	);
 };
 
+const DISCOVERED_VALUE_DESCRIPTION =
+	"Coder sets this when it registers the client. Enter a value to override it.";
+
 const OAuth2Fields: React.FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
-}) => (
-	<div className="space-y-5">
-		<p className="m-0 text-sm text-content-secondary">
-			Register a client with the external MCP server's OAuth2 provider and enter
-			the credentials below. Coder will handle the per-user authorization flow.
-		</p>
-		<div className="grid items-start gap-4 sm:grid-cols-2">
-			<Field label="Client ID" htmlFor={`${formId}-oauth-id`}>
-				<Input
-					id={`${formId}-oauth-id`}
-					className="shadow-none"
-					{...form.getFieldProps("oauth2ClientID")}
-					disabled={disabled}
-				/>
-			</Field>
-			<Field label="Client secret" htmlFor={`${formId}-oauth-secret`}>
-				<SecretInput
-					id={`${formId}-oauth-secret`}
-					value={form.values.oauth2ClientSecret}
-					touched={form.values.oauth2SecretTouched}
-					onTouch={() => void form.setFieldValue("oauth2SecretTouched", true)}
-					onValueChange={(value) =>
-						void form.setFieldValue("oauth2ClientSecret", value)
-					}
-					onReset={() => void form.setFieldValue("oauth2SecretTouched", false)}
-					disabled={disabled}
-				/>
-			</Field>
-		</div>
-		<div className="grid items-start gap-4 sm:grid-cols-2">
-			<Field label="Authorization URL" htmlFor={`${formId}-oauth-auth-url`}>
-				<Input
-					id={`${formId}-oauth-auth-url`}
-					className="placeholder:text-content-disabled shadow-none"
-					{...form.getFieldProps("oauth2AuthURL")}
-					placeholder="https://"
-					disabled={disabled}
-				/>
-			</Field>
-			<Field label="Token URL" htmlFor={`${formId}-oauth-token-url`}>
-				<Input
-					id={`${formId}-oauth-token-url`}
-					className="placeholder:text-content-disabled shadow-none"
-					{...form.getFieldProps("oauth2TokenURL")}
-					disabled={disabled}
-				/>
-			</Field>
-		</div>
-		<div className="grid items-start gap-4 sm:grid-cols-2">
-			<Field label="Revocation URL" htmlFor={`${formId}-oauth-revocation-url`}>
-				<Input
-					id={`${formId}-oauth-revocation-url`}
-					className="placeholder:text-content-disabled shadow-none"
-					{...form.getFieldProps("oauth2RevocationURL")}
-					placeholder="https://"
-					disabled={disabled}
-				/>
-			</Field>
-			<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
-				<Input
-					id={`${formId}-oauth-scopes`}
-					className="shadow-none"
-					{...form.getFieldProps("oauth2Scopes")}
-					disabled={disabled}
-				/>
-			</Field>
-		</div>
-		<div className="grid gap-4 sm:grid-cols-2">
+}) => {
+	const isDynamic = form.values.oauth2ClientRegistration === "dynamic";
+	const { initialValues } = form;
+	const registeredClientID =
+		initialValues.authType === "oauth2" &&
+		initialValues.oauth2ClientRegistration === "dynamic"
+			? initialValues.oauth2ClientID
+			: "";
+
+	return (
+		<div className="space-y-5">
 			<Field
-				label="Resource URL"
-				htmlFor={`${formId}-oauth-resource`}
-				description="Sent to the OAuth2 provider as the RFC 8707 resource parameter. When empty, none is sent unless auto-discovery fills it in while registering the client."
+				label="Client registration"
+				htmlFor={`${formId}-oauth-registration`}
+				className="max-w-md"
 			>
-				<Input
-					id={`${formId}-oauth-resource`}
-					className="placeholder:text-content-disabled shadow-none"
-					{...form.getFieldProps("oauth2Resource")}
-					placeholder="https://"
+				<Select
+					value={form.values.oauth2ClientRegistration}
+					onValueChange={(value) =>
+						void form.setFieldValue("oauth2ClientRegistration", value)
+					}
 					disabled={disabled}
-				/>
+				>
+					<SelectTrigger
+						id={`${formId}-oauth-registration`}
+						className="shadow-none"
+					>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{OAUTH2_CLIENT_REGISTRATION_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</Field>
+			{isDynamic ? (
+				<>
+					<p className="m-0 text-sm text-content-secondary">
+						{registeredClientID
+							? "Coder registered a client with the OAuth2 provider of the server URL. When you save a different server URL, Coder registers a new client."
+							: "When you save, Coder discovers the OAuth2 provider of the server URL and registers a client."}{" "}
+						Coder will handle the per-user authorization flow.
+					</p>
+					{registeredClientID && (
+						<p className="m-0 text-sm text-content-secondary">
+							Registered client ID:{" "}
+							<code className="wrap-anywhere">{registeredClientID}</code>
+						</p>
+					)}
+				</>
+			) : (
+				<>
+					<p className="m-0 text-sm text-content-secondary">
+						Register a client with the external MCP server's OAuth2 provider and
+						enter the credentials below. Coder will handle the per-user
+						authorization flow.
+					</p>
+					<div className="grid items-start gap-4 sm:grid-cols-2">
+						<Field label="Client ID" htmlFor={`${formId}-oauth-id`} required>
+							<Input
+								id={`${formId}-oauth-id`}
+								className="shadow-none"
+								{...form.getFieldProps("oauth2ClientID")}
+								disabled={disabled}
+							/>
+						</Field>
+						<Field label="Client secret" htmlFor={`${formId}-oauth-secret`}>
+							<SecretInput
+								id={`${formId}-oauth-secret`}
+								value={form.values.oauth2ClientSecret}
+								touched={form.values.oauth2SecretTouched}
+								onTouch={() =>
+									void form.setFieldValue("oauth2SecretTouched", true)
+								}
+								onValueChange={(value) =>
+									void form.setFieldValue("oauth2ClientSecret", value)
+								}
+								onReset={() =>
+									void form.setFieldValue("oauth2SecretTouched", false)
+								}
+								disabled={disabled}
+							/>
+						</Field>
+					</div>
+					<div className="grid items-start gap-4 sm:grid-cols-2">
+						<Field
+							label="Authorization URL"
+							htmlFor={`${formId}-oauth-auth-url`}
+							required
+						>
+							<Input
+								id={`${formId}-oauth-auth-url`}
+								className="placeholder:text-content-disabled shadow-none"
+								{...form.getFieldProps("oauth2AuthURL")}
+								placeholder="https://"
+								disabled={disabled}
+							/>
+						</Field>
+						<Field
+							label="Token URL"
+							htmlFor={`${formId}-oauth-token-url`}
+							required
+						>
+							<Input
+								id={`${formId}-oauth-token-url`}
+								className="placeholder:text-content-disabled shadow-none"
+								{...form.getFieldProps("oauth2TokenURL")}
+								disabled={disabled}
+							/>
+						</Field>
+					</div>
+				</>
+			)}
+			<div className="grid items-start gap-4 sm:grid-cols-2">
+				<Field
+					label="Revocation URL"
+					htmlFor={`${formId}-oauth-revocation-url`}
+					description={isDynamic ? DISCOVERED_VALUE_DESCRIPTION : undefined}
+				>
+					<Input
+						id={`${formId}-oauth-revocation-url`}
+						className="placeholder:text-content-disabled shadow-none"
+						{...form.getFieldProps("oauth2RevocationURL")}
+						placeholder="https://"
+						disabled={disabled}
+					/>
+				</Field>
+				<Field
+					label="Scopes"
+					htmlFor={`${formId}-oauth-scopes`}
+					description={isDynamic ? DISCOVERED_VALUE_DESCRIPTION : undefined}
+				>
+					<Input
+						id={`${formId}-oauth-scopes`}
+						className="shadow-none"
+						{...form.getFieldProps("oauth2Scopes")}
+						disabled={disabled}
+					/>
+				</Field>
+			</div>
+			<div className="grid gap-4 sm:grid-cols-2">
+				<Field
+					label="Resource URL"
+					htmlFor={`${formId}-oauth-resource`}
+					description={`Sent to the OAuth2 provider as the RFC 8707 resource parameter. ${
+						isDynamic
+							? DISCOVERED_VALUE_DESCRIPTION
+							: "When empty, none is sent."
+					}`}
+				>
+					<Input
+						id={`${formId}-oauth-resource`}
+						className="placeholder:text-content-disabled shadow-none"
+						{...form.getFieldProps("oauth2Resource")}
+						placeholder="https://"
+						disabled={disabled}
+					/>
+				</Field>
+			</div>
 		</div>
-	</div>
-);
+	);
+};
 
 const APIKeyFields: React.FC<MCPServerAuthFieldsProps> = ({
 	form,

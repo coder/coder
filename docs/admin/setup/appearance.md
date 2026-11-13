@@ -27,7 +27,7 @@ The default is the Coder logo.
 ![announcement banner](../../images/admin/setup/appearance/announcement_banner_settings.png)
 
 Announcement Banners let admins post important messages to all site users.
-Only Site Owners may set the announcement banners.
+Only Site Owners can set the announcement banners.
 
 Example: Use multiple announcement banners for concurrent deployment-wide updates, such as maintenance or new feature rollout.
 
@@ -39,7 +39,7 @@ Example: Adhere to government network classification requirements and notify use
 
 ## OIDC Login Button Customization
 
-[Use environment variables to customize](../users/oidc-auth/index.md#oidc-login-customization) the text and icon on the OIDC button on the Sign In page.
+[Use environment variables to customize](../users/oidc-auth/index.md#oidc-login-customization) the text and icon on the OpenID Connect (OIDC) button on the Sign In page.
 
 ## Support Links
 
@@ -50,7 +50,7 @@ The menu section replaces the original menu positions: documentation, report a b
 
 ### Icons
 
-The link icons are optional, and can be set to any url or [builtin icon](../templates/extending-templates/icons.md#bundled-icons), additionally `bug`, `chat`, `docs`, and `star` are available as special icons.
+The link icons are optional, and can be set to any url or [builtin icon](../../templates/extending-templates/icons.md#bundled-icons), additionally `bug`, `chat`, `docs`, and `star` are available as special icons.
 
 ### Location
 

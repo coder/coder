@@ -1,5 +1,4 @@
 import { MoonIcon, RefreshCwOffIcon } from "lucide-react";
-import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
 import { users } from "#/api/queries/users";
@@ -8,13 +7,11 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import { variantByStatusType } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import type { OptionsQueryClient } from "#/utils/filters";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 // User suggestions are capped; the picker is a prefix search, not a full list.
 const USER_SUGGESTIONS_LIMIT = 25;
-
-/** The slice of `QueryClient` the option loaders depend on. */
-export type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
 
 const STATUS_OPTIONS: WorkspaceStatus[] = [
 	"running",
@@ -119,7 +116,10 @@ export const getUserFilterOptions = async (
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const usersRes = await queryClient.fetchQuery(
-		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
+		users({
+			q: `${query} include_system:true`,
+			limit: USER_SUGGESTIONS_LIMIT,
+		}),
 	);
 	// The users API also matches name and email, so a result for the current
 	// user keeps its option even when the query is not in its label.
