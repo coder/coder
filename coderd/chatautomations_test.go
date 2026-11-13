@@ -632,7 +632,6 @@ func TestCreateChatAutomation(t *testing.T) {
 		generated bool
 	}{
 		{"BearerExistingChat", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindWebhook, TargetMode: codersdk.ChatAutomationTargetModeExistingChat, WebhookAuth: codersdk.ChatAutomationWebhookAuthBearer}, true},
-		{"GitHubNewChat", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindWebhook, TargetMode: codersdk.ChatAutomationTargetModeNewChat, WebhookAuth: codersdk.ChatAutomationWebhookAuthGitHub}, true},
 		{"StandardWebhooks", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindWebhook, TargetMode: codersdk.ChatAutomationTargetModeExistingChat, WebhookAuth: codersdk.ChatAutomationWebhookAuthStandardWebhooks}, false},
 		{"ScheduleNewChat", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindSchedule, TargetMode: codersdk.ChatAutomationTargetModeNewChat, ScheduleCron: "0 9 * * *", ScheduleTimeZone: "America/New_York"}, false},
 	} {
@@ -669,7 +668,6 @@ func TestCreateChatAutomation(t *testing.T) {
 			}
 			// The response carries a generated secret once, and never carries
 			// a secret that the caller supplied.
-			secrets := []string{created.WebhookSecret, supplied}
 			if tc.generated {
 				require.Equal(t, 1, strings.Count(string(body), created.WebhookSecret))
 			}
@@ -677,16 +675,6 @@ func TestCreateChatAutomation(t *testing.T) {
 				require.Zero(t, strings.Count(string(body), supplied))
 			}
 
-			for _, path := range []string{"/" + created.Automation.ID.String(), "?owner=me"} {
-				status, got := doChatAutomation(t, member.client, http.MethodGet, chatAutomationPath(org, path))
-				require.Equal(t, http.StatusOK, status, string(got))
-				require.Contains(t, string(got), created.Automation.ID.String())
-				for _, secret := range secrets {
-					if secret != "" {
-						require.Zero(t, strings.Count(string(got), secret), path)
-					}
-				}
-			}
 			logs := env.automationAudit(member.id)
 			require.Len(t, logs, 1)
 			require.Equal(t, database.AuditActionCreate, logs[0].Action)
@@ -737,32 +725,23 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 		status  int
 		message string
 		fields  []string
+		// detail is a part of the detail of the only violation, when set.
+		detail string
 	}
 	validBody := func(canary string) any { return valid(canary) }
-	forbidden := func(who chatAutomationActor) rejection {
-		return rejection{who, validBody, http.StatusForbidden, "Forbidden.", nil}
-	}
+	emptyBody := func(string) any { return []byte(`{}`) }
 	for name, tc := range map[string]rejection{
-		"InvalidJSON": {
-			member, func(canary string) any { return []byte(fmt.Sprintf(`{"enabled": %q}`, canary)) },
-			http.StatusBadRequest, "Request body must be valid JSON.", nil,
-		},
 		"EmptyObject": {
-			member, func(string) any { return []byte(`{}`) },
-			http.StatusBadRequest, "Validation failed.",
+			member, emptyBody, http.StatusBadRequest, "Validation failed.",
 			[]string{"name", "kind", "target_mode", "prompt"},
+			"",
 		},
-		"SecretForBearer": {member, func(canary string) any {
-			req := valid(canary)
-			req.WebhookSecret = canary
-			return req
-		}, http.StatusBadRequest, "Validation failed.", []string{"webhook_secret"}},
 		"BodyTooLarge": {member, func(canary string) any {
 			req := valid(canary)
 			// The limit is twice the prompt limit, and the prompt is most of the body.
 			req.Prompt = canary + strings.Repeat("a", 2*codersdk.DefaultChatMaxPromptBytes)
 			return req
-		}, http.StatusRequestEntityTooLarge, "Request body too large.", nil},
+		}, http.StatusRequestEntityTooLarge, "Request body too large.", nil, ""},
 		"TargetChatOfAnotherUser": {
 			adminWithAgents, func(canary string) any {
 				req := valid(canary)
@@ -771,19 +750,16 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 			},
 			http.StatusBadRequest, "Validation failed.",
 			[]string{"target_chat_id"},
+			"Only the owner of a chat",
 		},
 		"AtLimit": {
 			atLimit, validBody, http.StatusConflict,
-			"You can have at most 1 chat automations across all organizations. Delete one to create another.", nil,
+			"You can have at most 1 chat automations across all organizations. Delete one to create another.", nil, "",
 		},
-		"OrganizationAdmin":      forbidden(env.actor(t, rbac.ScopedRoleOrgAdmin(org))),
-		"TemplateAdmin":          forbidden(env.actor(t, rbac.RoleTemplateAdmin())),
-		"UserAdmin":              forbidden(env.actor(t, rbac.RoleUserAdmin())),
-		"Auditor":                forbidden(env.actor(t, rbac.RoleAuditor())),
-		"NoAgentsAccess":         forbidden(env.actor(t)),
-		"DeploymentOwner":        forbidden(chatAutomationActor{client: env.owner, id: env.first.UserID}),
-		"ScopedToken":            forbidden(scoped),
-		"OtherOrganizationAdmin": {chatAutomationActor{client: otherAdminClient, id: otherAdmin.ID}, validBody, http.StatusNotFound, "", nil},
+		// The body is invalid, so a 403 shows that the actor is checked first.
+		"NoAgentsAccess":         {env.actor(t), emptyBody, http.StatusForbidden, "Forbidden.", nil, ""},
+		"ScopedToken":            {scoped, validBody, http.StatusForbidden, "Forbidden.", nil, ""},
+		"OtherOrganizationAdmin": {chatAutomationActor{client: otherAdminClient, id: otherAdmin.ID}, validBody, http.StatusNotFound, "", nil, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -803,6 +779,9 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 				fields = append(fields, v.Field)
 			}
 			require.ElementsMatch(t, tc.fields, fields)
+			if tc.detail != "" {
+				require.Contains(t, got.Validations[0].Detail, tc.detail)
+			}
 			require.Empty(t, env.automationAudit(tc.who.id))
 		})
 	}

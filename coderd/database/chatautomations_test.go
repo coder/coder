@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -681,6 +682,16 @@ func TestChatAutomationQueries(t *testing.T) {
 		count, err = db.CountChatAutomationsByOwnerID(ctx, uuid.New())
 		require.NoError(t, err)
 		require.Zero(t, count)
+
+		// The last member of a deleted organization can still create there,
+		// so its automations count.
+		member := dbgen.User(t, db, database.User{})
+		gone := newChatAutomationOrg(t, db, member)
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: gone.org.ID, OwnerID: member.ID})
+		require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{ID: gone.org.ID, UpdatedAt: dbtime.Now()}))
+		count, err = db.CountChatAutomationsByOwnerID(ctx, member.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
 	})
 
 	t.Run("GetReturnsTheInsertedRow", func(t *testing.T) {
