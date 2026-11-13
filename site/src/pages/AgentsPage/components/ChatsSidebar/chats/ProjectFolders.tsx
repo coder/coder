@@ -49,10 +49,14 @@ import { getOrganizationLabels } from "./projectGrouping";
 
 /** Acts on one project, such as editing or deleting it. */
 export type ProjectAction = (project: ChatProject) => void;
-/** `trigger` is the folder's actions button, to refocus if it remains. */
+/**
+ * `trigger` is the folder's actions button, to refocus if it remains.
+ * Archiving removes the folder, so focusAfterRemoval then moves focus on.
+ */
 export type ArchiveProject = (
 	project: ChatProject,
 	trigger: HTMLButtonElement | null,
+	focusAfterRemoval: () => void,
 ) => void;
 
 export type ProjectFoldersProps = {
@@ -198,7 +202,16 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					locationSearch={location.search}
 					onToggle={() => onToggle(project.id)}
 					onEdit={() => onEdit(project)}
-					onArchive={(trigger) => onArchive(project, trigger)}
+					onArchive={(trigger) =>
+						onArchive(project, trigger, () =>
+							focusNextFolder(
+								sortedPinnedProjects,
+								project.id,
+								toggleRefs.current,
+								focusUnpinFallback,
+							),
+						)
+					}
 					onDelete={() => onDelete(project)}
 					onUnpin={() => unpinMutation.mutate(project)}
 					focusAfterUnpin={() =>

@@ -632,7 +632,9 @@ describe("ChatsSidebar projects", () => {
 		const archiveRequests: unknown[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
+				HttpResponse.json(
+					archiveRequests.length === 0 ? [MockChatProject] : [],
+				),
 			),
 			http.get(
 				"/api/experimental/organizations/:organization/chats/projects/:project/archive-preview",
@@ -668,6 +670,11 @@ describe("ChatsSidebar projects", () => {
 			expect(archiveRequests).toEqual([
 				[MockChatProject.id, { stop_active_chats: false }],
 			]),
+		);
+		// The folder and its actions button leave the sidebar, so focus moves
+		// to the Projects link.
+		await waitFor(() =>
+			expect(screen.getByRole("link", { name: "Projects" })).toHaveFocus(),
 		);
 	});
 
