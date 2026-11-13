@@ -586,13 +586,16 @@ function isInCodeProperty(node) {
 		!ts.isSourceFile(parent);
 		parent = parent.parent
 	) {
-		if (
-			ts.isPropertyAssignment(parent) &&
-			isCodeAttribute({
-				name: staticPropertyName(parent.name),
-				intrinsic: false,
-			})
-		) {
+		if (!ts.isPropertyAssignment(parent)) {
+			continue;
+		}
+		const name = staticPropertyName(parent.name);
+		// An object of headers, as in fetch options, maps header names to
+		// protocol values. An array of headers is usually table labels.
+		const isHeaderMap =
+			name === "headers" &&
+			ts.isObjectLiteralExpression(skipTransparent(parent.initializer));
+		if (isHeaderMap || isCodeAttribute({ name, intrinsic: false })) {
 			return true;
 		}
 	}
@@ -773,6 +776,7 @@ const SUBSTITUTION = "\uE000";
 const NAMED_ENTITIES = new Map(
 	[
 		"quot 34 amp 38 apos 39 lt 60 gt 62 nbsp 160 iexcl 161 cent 162",
+		// spellchecker:ignore-next-line
 		"pound 163 curren 164 yen 165 brvbar 166 sect 167 uml 168 copy 169",
 		"ordf 170 laquo 171 not 172 shy 173 reg 174 macr 175 deg 176",
 		"plusmn 177 sup2 178 sup3 179 acute 180 micro 181 para 182",

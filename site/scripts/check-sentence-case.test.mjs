@@ -159,6 +159,7 @@ describe("checkSource", () => {
 			'node.setAttribute("class", "Foo Bar");',
 			'el.classList.add("Foo-Bar", "Baz Qux");',
 			'el.classList.replace("Old Class", "New Class");',
+			'fetch(url, { headers: { "X-Mode": "Fast Path" } });',
 			'const { "Task Events": handler } = handlers;',
 			'const r = value.replace("Task Events", x).startsWith("Some Prefix");',
 			'const v = Yup.string().matches(/^a$/, "Enter A Valid Name");',
@@ -256,6 +257,12 @@ describe("checkSource", () => {
 			"Old",
 			"Template",
 		]);
+	});
+
+	it("checks header labels passed as arrays", () => {
+		const source = 'const a = <Table headers={["Name", "Created At"]} />;';
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ word }) => word)).toEqual(["At"]);
 	});
 
 	it("checks fallback values rendered in JSX in place", () => {
