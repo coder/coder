@@ -110,36 +110,33 @@ func (h *Handler) gitAvailable() bool {
 	return err == nil
 }
 
-// Subscribe processes a subscribe message, resolving paths to git repo
-// roots and adding new repos to the watch set. Returns true if any new
-// repo roots were added.
-func (h *Handler) Subscribe(paths []string) bool {
+// SetPaths replaces the watch set with the repo roots that paths
+// resolve to, so the watched roots match what a new connection would
+// resolve from the same paths. Relative and non-git paths are
+// ignored. Roots that no path resolves to anymore are reported as
+// removed by the next Scan. Calls must be serialized; the last call
+// wins.
+func (h *Handler) SetPaths(ctx context.Context, paths []string) {
 	if !h.gitAvailable() {
-		return false
+		return
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	added := false
+	// Resolve outside the lock so scans are not blocked on git.
+	repoRoots := make(map[string]struct{})
 	for _, p := range paths {
 		if !filepath.IsAbs(p) {
 			continue
 		}
-		p = filepath.Clean(p)
-
-		root, err := findRepoRoot(h.execer, h.gitBin, p)
+		root, err := findRepoRoot(ctx, h.execer, h.gitBin, filepath.Clean(p))
 		if err != nil {
-			// Not a git path — silently ignore.
 			continue
 		}
-		if _, ok := h.repoRoots[root]; ok {
-			continue
-		}
-		h.repoRoots[root] = struct{}{}
-		added = true
+		repoRoots[root] = struct{}{}
 	}
-	return added
+
+	h.mu.Lock()
+	h.repoRoots = repoRoots
+	h.mu.Unlock()
 }
 
 // RequestScan pokes the scan trigger so the run loop performs a scan.
@@ -154,8 +151,9 @@ func (h *Handler) RequestScan() {
 // Scan performs a scan of all subscribed repos and computes deltas
 // against the previously emitted snapshots. The first scan always
 // returns a message, even with no repos, so a new connection starts
-// from a known state. Later scans return nil while no repos are
-// subscribed.
+// from a known state. Repos the client was sent that are no longer
+// watched are reported as removed. Later scans return nil while no
+// repos are watched and none are left to report as removed.
 func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMessage {
 	if !h.gitAvailable() {
 		return nil
@@ -167,9 +165,12 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		roots = append(roots, r)
 	}
 	scanned := h.scanned
+	// With no roots watched, every remaining snapshot is a removal
+	// still to report.
+	hasRemovals := len(h.lastSnapshots) > 0
 	h.mu.Unlock()
 
-	if len(roots) == 0 && scanned {
+	if len(roots) == 0 && scanned && !hasRemovals {
 		return nil
 	}
 
@@ -177,7 +178,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	var repos []codersdk.WorkspaceAgentRepoChanges
 
 	// Perform all I/O outside the lock to avoid blocking
-	// AddPaths/GetPaths/Subscribe callers during disk-heavy scans.
+	// SetPaths callers during disk-heavy scans.
 	type scanResult struct {
 		root    string
 		changes codersdk.WorkspaceAgentRepoChanges
@@ -194,6 +195,11 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	defer h.mu.Unlock()
 
 	for _, res := range results {
+		// SetPaths dropped this root during the scan. Its removal, if
+		// the client was sent it, is reported below.
+		if _, ok := h.repoRoots[res.root]; !ok {
+			continue
+		}
 		if res.err != nil {
 			if isRepoDeleted(h.execer, h.gitBin, res.root) {
 				// Repo root or .git directory was removed.
@@ -234,11 +240,21 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 
 		repos = append(repos, res.changes)
 	}
+	for root := range h.lastSnapshots {
+		if _, ok := h.repoRoots[root]; ok {
+			continue
+		}
+		repos = append(repos, codersdk.WorkspaceAgentRepoChanges{
+			RepoRoot: root,
+			Removed:  true,
+		})
+		delete(h.lastSnapshots, root)
+	}
 
 	h.lastScanAt = now
 	h.scanned = true
 
-	// Always emit when any root is subscribed. A no-delta scan sends
+	// Always emit when any root is watched. A no-delta scan sends
 	// ScannedAt + empty Repositories (omitted via omitempty) so the
 	// client's "checked Ns ago" label stays honest on idle repos.
 	return &codersdk.WorkspaceAgentGitServerMessage{
@@ -337,13 +353,21 @@ func isRepoDeleted(execer agentexec.Execer, gitBin string, repoRoot string) bool
 
 // findRepoRoot uses `git rev-parse --show-toplevel` to find the
 // repository root for the given path.
-func findRepoRoot(execer agentexec.Execer, gitBin string, p string) (string, error) {
-	// If p is a file, start from its parent directory.
+func findRepoRoot(ctx context.Context, execer agentexec.Execer, gitBin string, p string) (string, error) {
+	// Start from the nearest existing directory, so a path whose file
+	// or directories were deleted still resolves to its repo.
 	dir := p
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		dir = filepath.Dir(dir)
+	for {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
-	cmd := execer.CommandContext(context.Background(), gitBin, "rev-parse", "--show-toplevel")
+	cmd := execer.CommandContext(ctx, gitBin, "rev-parse", "--show-toplevel")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
