@@ -9,15 +9,9 @@ const meta: Meta<typeof CollapsibleSummary> = {
 		label: "Advanced options",
 		children: (
 			<>
-				<div className="p-2 border border-border rounded-md border-solid">
-					Option 1
-				</div>
-				<div className="p-2 border border-border rounded-md border-solid">
-					Option 2
-				</div>
-				<div className="p-2 border border-border rounded-md border-solid">
-					Option 3
-				</div>
+				<div className="p-2 border rounded-md">Option 1</div>
+				<div className="p-2 border rounded-md">Option 2</div>
+				<div className="p-2 border rounded-md">Option 3</div>
 			</>
 		),
 	},
@@ -58,10 +52,7 @@ export const ManyChildren: Story = {
 		children: (
 			<>
 				{Array.from({ length: 10 }).map((_, i) => (
-					<div
-						key={`option-${i + 1}`}
-						className="p-2 border border-border rounded-md border-solid"
-					>
+					<div key={`option-${i + 1}`} className="p-2 border rounded-md">
 						Option {i + 1}
 					</div>
 				))}
@@ -75,20 +66,12 @@ export const NestedCollapsible: Story = {
 		defaultOpen: true,
 		children: (
 			<>
-				<div className="p-2 border border-border rounded-md border-solid">
-					Option 1
-				</div>
+				<div className="p-2 border rounded-md">Option 1</div>
 				<CollapsibleSummary label="Nested options" size="sm">
-					<div className="p-2 border border-border rounded-md border-solid">
-						Nested Option 1
-					</div>
-					<div className="p-2 border border-border rounded-md border-solid">
-						Nested Option 2
-					</div>
+					<div className="p-2 border rounded-md">Nested Option 1</div>
+					<div className="p-2 border rounded-md">Nested Option 2</div>
 				</CollapsibleSummary>
-				<div className="p-2 border border-border rounded-md border-solid">
-					Option 3
-				</div>
+				<div className="p-2 border rounded-md">Option 3</div>
 			</>
 		),
 	},
@@ -98,7 +81,7 @@ export const ComplexContent: Story = {
 	args: {
 		defaultOpen: true,
 		children: (
-			<div className="p-4 border border-border rounded-md bg-surface-secondary">
+			<div className="p-4 border rounded-md bg-surface-secondary">
 				<h3 className="text-lg font-bold mb-2">Complex Content</h3>
 				<p className="mb-4">
 					This is a more complex content example with various elements.
