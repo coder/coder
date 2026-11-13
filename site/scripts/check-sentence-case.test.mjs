@@ -393,6 +393,9 @@ describe("checkSource", () => {
 			'const n = <div {...(ok ? { className: "Foo Bar" } : {})} />;',
 			'const o = <div {...(ok && { "data-x": "Is On" })} />;',
 			'const p = <div {...{ ["className"]: "Foo Bar" }} />;',
+			'const props = { className: "Foo Bar", style: { gridArea: "Main Header" } };',
+			"const q = <div dangerouslySetInnerHTML={{ __html: \"<b class='Foo Bar'>x</b>\" }} />;",
+			'const options = [{ value: "Last Week", label: "Last Week" }];',
 			'const l = <input name="Plan Name" />;',
 			'const m = <ModuleCard name="New Workspace" />;',
 		].join("\n");
@@ -401,7 +404,8 @@ describe("checkSource", () => {
 			[4, "Workspaces"],
 			[4, "File"],
 			[5, "Template"],
-			[16, "Workspace"],
+			[17, "Week"],
+			[19, "Workspace"],
 		]);
 	});
 

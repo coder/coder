@@ -370,6 +370,7 @@ const CODE_ATTRIBUTES = new Set([
 	"charSet",
 	"className",
 	"crossOrigin",
+	"dangerouslySetInnerHTML",
 	"d",
 	"decoding",
 	"defaultValue",
@@ -447,6 +448,7 @@ const ARIA_TEXT_ATTRIBUTES = new Set([
 // CODE_ATTRIBUTES, such as `name`, are often displayed text on components.
 const COMPONENT_CODE_ATTRIBUTES = new Set([
 	"className",
+	"dangerouslySetInnerHTML",
 	"defaultValue",
 	"href",
 	"htmlFor",
@@ -557,10 +559,40 @@ function isCodeAttribute({ name, intrinsic }) {
 	);
 }
 
+/**
+ * Returns true when `node` is inside the value of an object property
+ * whose key names code, such as `{ className: "a" }` or
+ * `{ value: "a", label: "A" }`, so props built before a JSX spread are
+ * handled like attributes. Stops at functions and JSX.
+ */
+function isInCodeProperty(node) {
+	for (
+		let parent = node.parent;
+		parent &&
+		!ts.isFunctionLike(parent) &&
+		!ts.isJsxElement(parent) &&
+		!ts.isJsxSelfClosingElement(parent) &&
+		!ts.isJsxFragment(parent) &&
+		!ts.isSourceFile(parent);
+		parent = parent.parent
+	) {
+		if (
+			ts.isPropertyAssignment(parent) &&
+			isCodeAttribute({
+				name: staticPropertyName(parent.name),
+				intrinsic: false,
+			})
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /** Returns true when the literal is code rather than displayed text. */
 function isNonDisplayLiteral(literal) {
 	const attribute = enclosingJsxAttribute(literal);
-	if (attribute && isCodeAttribute(attribute)) {
+	if ((attribute && isCodeAttribute(attribute)) || isInCodeProperty(literal)) {
 		return true;
 	}
 	// Look through wrappers such as `("Task Events" as const)` to the node
