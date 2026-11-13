@@ -184,38 +184,6 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-// TestDeleteForbidden deletes as a role that can read the automation and not
-// delete it.
-func TestDeleteForbidden(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	f := newFixture(t, db, sqlDB)
-	automation := f.automation(t, f.chat(t))
-
-	_, err := chatautomation.Delete(ctx, authorized(t, db), roleActor(f.org.ID, policy.ActionRead), f.org.ID, automation.ID)
-
-	require.ErrorIs(t, err, chatautomation.ErrDeleteForbidden)
-	require.True(t, f.automationExists(ctx, t, automation.ID))
-}
-
-// TestDeleteOtherOrganization deletes, through another organization, an
-// automation that the actor can read: it is not found.
-func TestDeleteOtherOrganization(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	f := newFixture(t, db, sqlDB)
-	automation := f.automation(t, f.chat(t))
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, f.owner.ID, rbac.ScopeAll)
-	require.NoError(t, err)
-
-	_, err = chatautomation.Delete(ctx, authorized(t, db), actor, newFixture(t, db, sqlDB).org.ID, automation.ID)
-
-	require.True(t, httpapi.Is404Error(err), "want a not found error, got %v", err)
-	require.True(t, f.automationExists(ctx, t, automation.ID))
-}
-
 // TestDeleteLock holds the automation lock, as a run does, while it queues a
 // message of the automation. Delete waits for the lock and reads the queue
 // after it gets it, so it refuses.

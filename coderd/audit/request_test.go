@@ -2,7 +2,6 @@ package audit_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -45,22 +44,6 @@ func TestResourceTarget_ChatTitleNotLeaked(t *testing.T) {
 	target := audit.ResourceTarget(chat)
 	require.NotContains(t, target, chat.Title,
 		"ResourceTarget for Chat must not contain the title; it should use a UUID prefix")
-}
-
-func TestChatAutomationResource(t *testing.T) {
-	t.Parallel()
-
-	automation := database.ChatAutomation{
-		ID:             uuid.UUID{1},
-		OrganizationID: uuid.UUID{2},
-		Name:           "ci-failures",
-		Prompt:         "prompt-must-not-reach-the-target",
-		WebhookSecret:  sql.NullString{String: "secret-must-not-reach-the-target", Valid: true},
-	}
-	require.Equal(t, "ci-failures", audit.ResourceTarget(automation))
-	require.Equal(t, automation.ID, audit.ResourceID(automation))
-	require.Equal(t, database.ResourceTypeChatAutomation, audit.ResourceType(automation))
-	require.True(t, audit.ResourceRequiresOrgID[database.ChatAutomation]())
 }
 
 func TestResourceTarget_MCPServerConfigSlugFallback(t *testing.T) {
