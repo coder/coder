@@ -169,6 +169,9 @@ Had the two templates tied (for example, both plain substring matches with simil
 The agent calls it only when needed, typically when a template has required parameters or when a preset should be applied.
 For templates that work with defaults, the agent skips straight to `create_workspace`.
 
+In a [project](./projects.md#templates) chat, `read_template` refuses templates outside the project.
+For the project's default template, it also returns `project_defaults` with the default `parameters`, and the default `preset_id` when that preset is in the template's active version.
+
 ### create_workspace
 
 `create_workspace` provisions a workspace from a template and waits for it to become ready, then attaches it to the chat.
