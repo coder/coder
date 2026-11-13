@@ -185,6 +185,40 @@ function capitalizedSegments(word, start = 0) {
 	return results;
 }
 
+// Words that follow a single-letter name, such as a key in "press A to
+// rotate" or an option in "plan A or B", rather than the article "a".
+const AFTER_LETTER_NAME = new Set([
+	"and",
+	"as",
+	"at",
+	"by",
+	"for",
+	"from",
+	"in",
+	"is",
+	"key",
+	"of",
+	"on",
+	"or",
+	"to",
+	"with",
+]);
+
+/**
+ * Returns true when `token` is the article "A" mid-phrase: a bare "A"
+ * followed directly by a lowercase word that does not suggest a name.
+ */
+function isArticleA(token, next) {
+	return (
+		token.word === "A" &&
+		token.raw === "A" &&
+		next !== undefined &&
+		!next.startsPhrase &&
+		/^\p{Ll}+$/u.test(next.word) &&
+		!AFTER_LETTER_NAME.has(next.word)
+	);
+}
+
 // Brackets and quotes that open or close an aside. The phrase around an
 // aside resumes after it closes: "Create a (temporary) workspace".
 const OPENING_MARK = /[([{“‘"']/;
@@ -292,7 +326,10 @@ export function findTitleCaseWords(text) {
 			reportSegments(token, properNounSuffixes.get(i));
 		} else if (properNounTokens.has(i)) {
 			// Proper nouns keep their capitalization.
-		} else if (capitalized && CAPITALIZED_WORD.test(token.word)) {
+		} else if (
+			(capitalized && CAPITALIZED_WORD.test(token.word)) ||
+			isArticleA(token, tokens[i + 1])
+		) {
 			results.push({ offset: token.offset, word: token.word });
 		} else {
 			reportSegments(token, 0);
@@ -447,7 +484,8 @@ function enclosingJsxAttribute(node) {
 	} else if (
 		parent &&
 		ts.isJsxSpreadAttribute(parent) &&
-		property?.parent === skipTransparent(parent.expression)
+		property &&
+		isSpreadObject(property.parent, parent)
 	) {
 		// The outermost property of the spread object names the attribute.
 		name = ts.isStringLiteral(property.name)
@@ -459,6 +497,28 @@ function enclosingJsxAttribute(node) {
 	const tagName = parent.parent.parent.tagName;
 	const intrinsic = ts.isIdentifier(tagName) && /^[a-z]/.test(tagName.text);
 	return { name, intrinsic };
+}
+
+/**
+ * Returns true when `object` is what `spread` spreads: the object itself
+ * or a branch of a conditional or logical expression, such as
+ * `{...(ok ? { className: "a" } : {})}`.
+ */
+function isSpreadObject(object, spread) {
+	let node = object;
+	while (
+		isTransparent(node.parent) ||
+		ts.isConditionalExpression(node.parent) ||
+		(ts.isBinaryExpression(node.parent) &&
+			[
+				ts.SyntaxKind.AmpersandAmpersandToken,
+				ts.SyntaxKind.BarBarToken,
+				ts.SyntaxKind.QuestionQuestionToken,
+			].includes(node.parent.operatorToken.kind))
+	) {
+		node = node.parent;
+	}
+	return ts.isObjectLiteralExpression(object) && node.parent === spread;
 }
 
 /**

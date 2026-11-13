@@ -33,6 +33,13 @@ describe("findTitleCaseWords", () => {
 		expect(words("Édit café settings")).toEqual([]);
 	});
 
+	it("reports the article A but not single-letter names", () => {
+		expect(words("Create A workspace")).toEqual(["A"]);
+		expect(words("Press the left arrow or A to rotate")).toEqual([]);
+		expect(words("Use plan A or B")).toEqual([]);
+		expect(words("Choose option A")).toEqual([]);
+	});
+
 	it("reports regular words that follow an acronym", () => {
 		expect(words("SSH Keys")).toEqual(["Keys"]);
 	});
@@ -371,6 +378,8 @@ describe("checkSource", () => {
 			'const i = <td headers="Plan Name" />;',
 			'const j = <div {...{ className: "Foo Bar", "data-x": "Is On" }} />;',
 			'const k = <Card className="Foo Bar" value="Some Value" />;',
+			'const n = <div {...(ok ? { className: "Foo Bar" } : {})} />;',
+			'const o = <div {...(ok && { "data-x": "Is On" })} />;',
 			'const l = <input name="Plan Name" />;',
 			'const m = <ModuleCard name="New Workspace" />;',
 		].join("\n");
@@ -379,7 +388,7 @@ describe("checkSource", () => {
 			[4, "Workspaces"],
 			[4, "File"],
 			[5, "Template"],
-			[13, "Workspace"],
+			[15, "Workspace"],
 		]);
 	});
 
