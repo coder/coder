@@ -31547,9 +31547,21 @@
 					]
 				},
 				"effective_group_id": {
-					"description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
+					"description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null when the user has no\norganization membership, or when the group's organization is one the\ncaller cannot read.",
 					"type": "string",
 					"format": "uuid"
+				},
+				"organization_id": {
+					"description": "OrganizationID is the organization the top-level effective group\nbelongs to. Null when EffectiveGroupID is null.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"organizations": {
+					"description": "Organizations is the spend per organization the user is a member of\nand the caller can read, ordered by organization name.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.UserOrganizationAISpend"
+					}
 				},
 				"period_end": {
 					"description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
@@ -31781,6 +31793,31 @@
 			"properties": {
 				"login_type": {
 					"$ref": "#/definitions/codersdk.LoginType"
+				}
+			}
+		},
+		"codersdk.UserOrganizationAISpend": {
+			"type": "object",
+			"properties": {
+				"current_spend_micros": {
+					"description": "CurrentSpendMicros is the spend on EffectiveGroupID over the current\nbudget period, the same value the budget check compares.",
+					"type": "integer"
+				},
+				"effective_budget": {
+					"description": "EffectiveBudget is null when no budget applies in Organization.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIBudgetLimit"
+						}
+					]
+				},
+				"effective_group_id": {
+					"description": "EffectiveGroupID is the user's effective group inside Organization,\nfalling back to its Everyone group.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"organization": {
+					"$ref": "#/definitions/codersdk.MinimalOrganization"
 				}
 			}
 		},

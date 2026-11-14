@@ -4355,6 +4355,23 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
     "spend_limit_micros": 0
   },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organizations": [
+    {
+      "current_spend_micros": 0,
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      }
+    }
+  ],
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"

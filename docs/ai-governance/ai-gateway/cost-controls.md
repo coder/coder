@@ -124,7 +124,9 @@ AI Gateway resolves a single effective group for each request, in this order:
 > [!NOTE]
 > Groups with identical budgets are ranked by the organization membership the user joined first, then by group ID.
 > To see the effective group currently assigned to a user, see [Monitor spend](#monitor-spend).
-> The effective group is deployment-wide, so it can be a group in a different organization.
+> The top-level effective group that the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint reports is resolved across all of the user's organizations, so it can be a group in a different organization.
+> The same endpoint also reports the user's effective group, budget, and spend in each of their organizations that you can read.
+> If the top-level effective group is in an organization you can't read, the endpoint leaves it empty.
 
 Recorded spend is immutable.
 Changing which budget applies to a user affects future requests only: spend that Coder has already recorded stays with the group it was attributed to, so a user's history can span several groups.

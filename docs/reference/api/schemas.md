@@ -18407,6 +18407,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "spend_limit_micros": 0
   },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organizations": [
+    {
+      "current_spend_micros": 0,
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      }
+    }
+  ],
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -18415,14 +18432,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                                            |
-|------------------------|--------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
-| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
-| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
-| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
-| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
-| `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
+| Name                   | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|------------------------|-------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                                       | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                                                                         |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit)                              | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited.                                                    |
+| `effective_group_id`   | string                                                                        | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null when the user has no organization membership, or when the group's organization is one the caller cannot read. |
+| `organization_id`      | string                                                                        | false    |              | Organization ID is the organization the top-level effective group belongs to. Null when EffectiveGroupID is null.                                                                                                                         |
+| `organizations`        | array of [codersdk.UserOrganizationAISpend](#codersdkuserorganizationaispend) | false    |              | Organizations is the spend per organization the user is a member of and the caller can read, ordered by organization name.                                                                                                                |
+| `period_end`           | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                     |
+| `period_start`         | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                   |
+| `user_id`              | string                                                                        | false    |              |                                                                                                                                                                                                                                           |
 
 ## codersdk.UserActivity
 
@@ -18760,6 +18779,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name         | Type                                     | Required | Restrictions | Description |
 |--------------|------------------------------------------|----------|--------------|-------------|
 | `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+
+## codersdk.UserOrganizationAISpend
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                     |
+|------------------------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the spend on EffectiveGroupID over the current budget period, the same value the budget check compares. |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit)             | false    |              | Effective budget is null when no budget applies in Organization.                                                                |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the user's effective group inside Organization, falling back to its Everyone group.                       |
+| `organization`         | [codersdk.MinimalOrganization](#codersdkminimalorganization) | false    |              |                                                                                                                                 |
 
 ## codersdk.UserPreferenceSettings
 

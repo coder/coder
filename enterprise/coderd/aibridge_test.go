@@ -4295,6 +4295,209 @@ func TestUserAISpendStatus(t *testing.T) {
 		require.Nil(t, got.EffectiveGroupID)
 		require.Nil(t, got.EffectiveBudget)
 		require.Equal(t, int64(0), got.CurrentSpendMicros)
+		require.Nil(t, got.OrganizationID)
+		require.NotNil(t, got.Organizations, "organizations must be an empty list, not null")
+		require.Empty(t, got.Organizations)
+	})
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+
+		// The subtests share one deployment. Each one creates its own user,
+		// organizations and groups, so none of them reads another's rows.
+		clock := quartz.NewMock(t)
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		db, ps := dbtestutil.NewDB(t)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps, Clock: clock},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureAIBridge:              1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Reading the default organization's details needs no specific role.
+		defaultOrg, err := ownerClient.Organization(setupCtx, owner.OrganizationID)
+		require.NoError(t, err)
+
+		// The current period is March 2026.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock.Set(now)
+
+		// budgetedGroup creates a group in orgID whose only member is userID
+		// and gives it a budget of limit.
+		budgetedGroup := func(t *testing.T, orgID, userID uuid.UUID, limit int64) codersdk.Group {
+			t.Helper()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			group, err := userAdminClient.CreateGroup(ctx, orgID, codersdk.CreateGroupRequest{
+				Name: "budget-" + uuid.NewString()[:8],
+			})
+			require.NoError(t, err)
+			_, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+				AddUsers: []string{userID.String()},
+			})
+			require.NoError(t, err)
+			_, err = userAdminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+				SpendLimitMicros: limit,
+			})
+			require.NoError(t, err)
+			return group
+		}
+		addSpend := func(t *testing.T, userID, groupID uuid.UUID, day time.Time, micros int64) {
+			t.Helper()
+			_, err := db.IncrementUserAIDailySpend(testutil.Context(t, testutil.WaitLong), database.IncrementUserAIDailySpendParams{
+				UserID:           userID,
+				EffectiveGroupID: groupID,
+				Day:              day,
+				CostMicros:       micros,
+			})
+			require.NoError(t, err)
+		}
+		// otherOrgWithMember creates an organization whose name sorts before
+		// the default organization's name and adds userID to it.
+		otherOrgWithMember := func(t *testing.T, userID uuid.UUID) codersdk.Organization {
+			t.Helper()
+			org := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{}, func(r *codersdk.CreateOrganizationRequest) {
+				r.Name = "a-" + uuid.NewString()[:8]
+			})
+			require.Less(t, org.Name, defaultOrg.Name)
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userID, OrganizationID: org.ID})
+			return org
+		}
+		groupLimit := func(micros int64) *codersdk.AIBudgetLimit {
+			return &codersdk.AIBudgetLimit{SpendLimitMicros: micros, LimitSource: codersdk.AIBudgetLimitSourceGroup}
+		}
+
+		t.Run("SingleOrg", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			_, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			group := budgetedGroup(t, owner.OrganizationID, user.ID, 1_000_000_000)
+			addSpend(t, user.ID, group.ID, now, 250_000_000)
+
+			got, err := userAdminClient.UserAISpendStatus(ctx, user.ID)
+			require.NoError(t, err)
+
+			// The only entry matches the top-level fields.
+			require.Equal(t, &defaultOrg.ID, got.OrganizationID)
+			require.Equal(t, []codersdk.UserOrganizationAISpend{{
+				Organization:       defaultOrg.MinimalOrganization,
+				EffectiveGroupID:   *got.EffectiveGroupID,
+				EffectiveBudget:    got.EffectiveBudget,
+				CurrentSpendMicros: got.CurrentSpendMicros,
+			}}, got.Organizations)
+			require.Equal(t, group.ID, got.Organizations[0].EffectiveGroupID)
+			require.Equal(t, groupLimit(1_000_000_000), got.Organizations[0].EffectiveBudget)
+			require.Equal(t, int64(250_000_000), got.Organizations[0].CurrentSpendMicros)
+		})
+
+		t.Run("TwoOrgs", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Given: a user with a budget and spend in the default organization
+			// and a larger budget and spend in a second organization.
+			userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			otherOrg := otherOrgWithMember(t, user.ID)
+			defaultGroup := budgetedGroup(t, owner.OrganizationID, user.ID, 1_000_000_000)
+			otherGroup := budgetedGroup(t, otherOrg.ID, user.ID, 5_000_000_000)
+			addSpend(t, user.ID, defaultGroup.ID, now, 100_000_000)
+			addSpend(t, user.ID, otherGroup.ID, now, 300_000_000)
+
+			// An organization user admin of the default organization can read
+			// the user but not the user's other organization.
+			orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+
+			want := []codersdk.UserOrganizationAISpend{
+				{
+					Organization:       otherOrg.MinimalOrganization,
+					EffectiveGroupID:   otherGroup.ID,
+					EffectiveBudget:    groupLimit(5_000_000_000),
+					CurrentSpendMicros: 300_000_000,
+				},
+				{
+					Organization:       defaultOrg.MinimalOrganization,
+					EffectiveGroupID:   defaultGroup.ID,
+					EffectiveBudget:    groupLimit(1_000_000_000),
+					CurrentSpendMicros: 100_000_000,
+				},
+			}
+			readers := map[string]func() (codersdk.UserAISpendStatus, error){
+				"Self":      func() (codersdk.UserAISpendStatus, error) { return userClient.UserAISpendStatus(ctx, user.ID) },
+				"UserAdmin": func() (codersdk.UserAISpendStatus, error) { return userAdminClient.UserAISpendStatus(ctx, user.ID) },
+			}
+			for name, read := range readers {
+				got, err := read()
+				require.NoError(t, err, name)
+
+				// The highest budget wins site-wide, so the top-level group is
+				// the one in the second organization.
+				require.Equal(t, &otherGroup.ID, got.EffectiveGroupID, name)
+				require.Equal(t, &otherOrg.ID, got.OrganizationID, name)
+				require.Equal(t, int64(300_000_000), got.CurrentSpendMicros, name)
+				require.Equal(t, want, got.Organizations, name)
+			}
+
+			// An organization-scoped admin never sees the budget or spend of
+			// the user's other organizations: the breakdown only includes
+			// organizations the caller can read, and the top-level group is
+			// left empty because it is in the other organization.
+			got, err := orgUserAdminClient.UserAISpendStatus(ctx, user.ID)
+			require.NoError(t, err)
+			require.Equal(t, want[1:], got.Organizations)
+			require.Nil(t, got.EffectiveGroupID)
+			require.Nil(t, got.OrganizationID)
+			require.Nil(t, got.EffectiveBudget)
+			require.Zero(t, got.CurrentSpendMicros)
+		})
+
+		t.Run("OrgWithoutBudget", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Given: a budget in the default organization and none in the
+			// second organization, with spend on its Everyone group.
+			_, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			otherOrg := otherOrgWithMember(t, user.ID)
+			budgetedGroup(t, owner.OrganizationID, user.ID, 1_000_000_000)
+			// The Everyone group's ID equals its organization's ID.
+			addSpend(t, user.ID, otherOrg.ID, now, 40_000_000)
+
+			got, err := userAdminClient.UserAISpendStatus(ctx, user.ID)
+			require.NoError(t, err)
+			require.Len(t, got.Organizations, 2)
+			require.Equal(t, codersdk.UserOrganizationAISpend{
+				Organization:       otherOrg.MinimalOrganization,
+				EffectiveGroupID:   otherOrg.ID,
+				EffectiveBudget:    nil,
+				CurrentSpendMicros: 40_000_000,
+			}, got.Organizations[0])
+		})
+
+		t.Run("PreviousPeriodSpendExcluded", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Given: spend on the same group on the last day of the previous
+			// period and on the first day of the current period.
+			_, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			otherOrg := otherOrgWithMember(t, user.ID)
+			group := budgetedGroup(t, otherOrg.ID, user.ID, 1_000_000_000)
+			addSpend(t, user.ID, group.ID, time.Date(2026, time.February, 28, 12, 0, 0, 0, time.UTC), 70_000_000)
+			addSpend(t, user.ID, group.ID, time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC), 20_000_000)
+
+			got, err := userAdminClient.UserAISpendStatus(ctx, user.ID)
+			require.NoError(t, err)
+			require.Len(t, got.Organizations, 2)
+			require.Equal(t, otherOrg.ID, got.Organizations[0].Organization.ID)
+			require.Equal(t, int64(20_000_000), got.Organizations[0].CurrentSpendMicros)
+		})
 	})
 }
 

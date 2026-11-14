@@ -3959,6 +3959,55 @@ func (q *sqlQuerier) GetUserAIBudgetOverrideWithOrganization(ctx context.Context
 	return i, err
 }
 
+const getUserAISpendByEffectiveGroupsSince = `-- name: GetUserAISpendByEffectiveGroupsSince :many
+SELECT
+	g.id::uuid AS effective_group_id,
+	COALESCE(SUM(s.spend_micros), 0)::BIGINT AS spend_micros
+FROM UNNEST($1::uuid[]) AS g(id)
+LEFT JOIN ai_user_daily_spend s
+	ON s.effective_group_id = g.id
+	AND s.user_id = $2
+	AND s.day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
+GROUP BY g.id
+`
+
+type GetUserAISpendByEffectiveGroupsSinceParams struct {
+	EffectiveGroupIds []uuid.UUID `db:"effective_group_ids" json:"effective_group_ids"`
+	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
+	PeriodStart       time.Time   `db:"period_start" json:"period_start"`
+}
+
+type GetUserAISpendByEffectiveGroupsSinceRow struct {
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	SpendMicros      int64     `db:"spend_micros" json:"spend_micros"`
+}
+
+// Total spend for user_id per effective group in @effective_group_ids on or
+// after period_start until NOW. Groups with no spend return 0. The
+// period_start parameter is normalized to its UTC calendar day.
+func (q *sqlQuerier) GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg GetUserAISpendByEffectiveGroupsSinceParams) ([]GetUserAISpendByEffectiveGroupsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserAISpendByEffectiveGroupsSince, pq.Array(arg.EffectiveGroupIds), arg.UserID, arg.PeriodStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserAISpendByEffectiveGroupsSinceRow
+	for rows.Next() {
+		var i GetUserAISpendByEffectiveGroupsSinceRow
+		if err := rows.Scan(&i.EffectiveGroupID, &i.SpendMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAISpendSince = `-- name: GetUserAISpendSince :one
 SELECT
 	$1::uuid AS user_id,
