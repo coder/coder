@@ -486,10 +486,8 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.isCustomInputMode = true
 				return m, nil
 			}
-			if len(m.options) != 0 {
-				m.selected = true
-				return m, tea.Quit
-			}
+			m.selected = true
+			return m, tea.Quit
 
 		case tea.KeySpace:
 			options := m.filteredOptions()
@@ -653,7 +651,7 @@ func (m multiSelectModel) View() string {
 	}
 
 	_, _ = s.WriteString(fmt.Sprintf(
-		"%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n",
+		"%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter, <enter> to finish, <ctrl+c> to cancel]\n",
 		msg,
 		m.search.View(),
 	))
