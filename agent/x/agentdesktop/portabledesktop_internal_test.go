@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -318,6 +319,74 @@ func TestPortableDesktop_MouseMethods(t *testing.T) {
 			}
 			assert.True(t, found,
 				"no recorded command matched %v; got %v", tt.wantArgs, cmds)
+		})
+	}
+}
+
+// cancelingExecer cancels a context when it builds a command whose
+// arguments include cancelOn.
+type cancelingExecer struct {
+	*recordedExecer
+	cancelOn string
+	cancel   context.CancelFunc
+}
+
+func (e *cancelingExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
+	if slices.Contains(args, e.cancelOn) {
+		e.cancel()
+	}
+	return e.recordedExecer.CommandContext(ctx, cmd, args...)
+}
+
+func TestPortableDesktop_Drag_ReleasesButtonAfterFailedMove(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// moveScript runs for the move to the end coordinate.
+		moveScript string
+		// cancelOnMove cancels the drag's context as that move starts.
+		cancelOnMove bool
+	}{
+		{name: "MoveFails", moveScript: "exit 1"},
+		{name: "ContextCanceled", moveScript: "true", cancelOnMove: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			released := filepath.Join(t.TempDir(), "released")
+			rec := &recordedExecer{
+				scripts: map[string]string{
+					// Only the move to the end coordinate has "30" in
+					// its arguments.
+					"30": tt.moveScript,
+					"up": "touch '" + filepath.ToSlash(released) + "'",
+				},
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var execer agentexec.Execer = rec
+			if tt.cancelOnMove {
+				execer = &cancelingExecer{recordedExecer: rec, cancelOn: "30", cancel: cancel}
+			}
+
+			pd := &portableDesktop{
+				logger:       slogtest.Make(t, nil),
+				execer:       execer,
+				scriptBinDir: t.TempDir(),
+				binPath:      "portabledesktop",
+				clock:        quartz.NewReal(),
+			}
+
+			err := pd.Drag(ctx, 10, 20, 30, 40)
+			require.Error(t, err)
+
+			cmds := rec.allCommands()
+			require.NotEmpty(t, cmds)
+			assert.Equal(t, []string{"portabledesktop", "mouse", "up", "left"}, cmds[len(cmds)-1])
+			assert.FileExists(t, released, "mouse up must run even after the move fails")
 		})
 	}
 }
