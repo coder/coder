@@ -974,262 +974,314 @@ func (api *API) Close() error {
 }
 
 func (api *API) updateEntitlements(ctx context.Context) error {
-	return api.Entitlements.Update(ctx, func(ctx context.Context) (codersdk.Entitlements, error) {
-		replicas := api.replicaManager.AllPrimary()
-		agedReplicas := make([]database.Replica, 0, len(replicas))
-		for _, replica := range replicas {
-			// If a replica is less than the update interval old, we don't
-			// want to display a warning. In the open-source version of Coder,
-			// Kubernetes Pods will start up before shutting down the other,
-			// and we don't want to display a warning in that case.
-			//
-			// Only display warnings for long-lived replicas!
-			if dbtime.Now().Sub(replica.StartedAt) < api.ReplicaErrorGracePeriod {
-				continue
-			}
-			agedReplicas = append(agedReplicas, replica)
+	return api.Entitlements.Update(ctx, api.reloadEntitlements)
+}
+
+func (api *API) reloadEntitlements(ctx context.Context) (codersdk.Entitlements, error) {
+	reloaded, err := license.Entitlements(
+		ctx, api.Logger, api.Database,
+		api.agedReplicaCount(), len(api.ExternalAuthConfigs), api.LicenseKeys, api.enablements(),
+		api.AGPL.HTTPAuth.Authorizer,
+		api.AGPL.Experiments,
+	)
+	if err != nil {
+		return codersdk.Entitlements{}, err
+	}
+	if reloaded.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
+		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return codersdk.Entitlements{}, entitlements.ErrLicenseRequiresTelemetry
+	}
+
+	for _, fa := range api.featureAppliers() {
+		feature := reloaded.Features[fa.feature]
+		initial, changed, enabled := api.Entitlements.FeatureChanged(fa.feature, feature)
+		// Avoid an initial tick on startup unless the feature is enabled.
+		if changed || (initial && enabled) {
+			fa.apply(ctx, feature)
 		}
+	}
 
-		reloadedEntitlements, err := license.Entitlements(
-			ctx, api.Logger, api.Database,
-			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
-				codersdk.FeatureAuditLog:                   api.AuditLogging,
-				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
-				codersdk.FeatureBrowserOnly:                api.BrowserOnly,
-				codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
-				codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
-				codersdk.FeatureTemplateRBAC:               api.RBAC,
-				codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
-				codersdk.FeatureExternalProvisionerDaemons: true,
-				codersdk.FeatureAdvancedTemplateScheduling: true,
-				codersdk.FeatureWorkspaceProxy:             true,
-				codersdk.FeatureUserRoleManagement:         true,
-				codersdk.FeatureAccessControl:              true,
-				codersdk.FeatureControlSharedPorts:         true,
-				codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
-			},
-			api.AGPL.HTTPAuth.Authorizer,
-			api.AGPL.Experiments,
-		)
-		if err != nil {
-			return codersdk.Entitlements{}, err
+	api.softEnforceExternalTokenEncryption(ctx, &reloaded)
+
+	// Always use the enterprise usage checker.
+	var checker wsbuilder.UsageChecker = api
+	api.AGPL.BuildUsageChecker.Store(&checker)
+	return reloaded, nil
+}
+
+// featureApplier swaps an implementation in or out when a feature's
+// enabled state changes.
+type featureApplier struct {
+	feature codersdk.FeatureName
+	apply   func(ctx context.Context, feature codersdk.Feature)
+}
+
+// featureAppliers returns the handlers in the order they must run.
+func (api *API) featureAppliers() []featureApplier {
+	return []featureApplier{
+		{codersdk.FeatureAuditLog, api.applyAuditLog},
+		{codersdk.FeatureConnectionLog, api.applyConnectionLog},
+		{codersdk.FeatureBrowserOnly, api.applyBrowserOnly},
+		{codersdk.FeatureTemplateRBAC, api.applyTemplateRBAC},
+		{codersdk.FeatureAdvancedTemplateScheduling, api.applyAdvancedTemplateScheduling},
+		{codersdk.FeatureHighAvailability, api.applyHighAvailability},
+		{codersdk.FeatureWorkspaceProxy, api.applyWorkspaceProxy},
+		{codersdk.FeatureAccessControl, api.applyAccessControl},
+		{codersdk.FeatureAppearance, api.applyAppearance},
+		{codersdk.FeatureControlSharedPorts, api.applyControlSharedPorts},
+		{codersdk.FeatureWorkspacePrebuilds, api.applyWorkspacePrebuilds},
+	}
+}
+
+// agedReplicaCount counts replicas older than the grace period. In
+// Kubernetes, new pods start before old ones stop, so only long-lived
+// replicas should produce warnings.
+func (api *API) agedReplicaCount() int {
+	n := 0
+	for _, replica := range api.replicaManager.AllPrimary() {
+		if dbtime.Now().Sub(replica.StartedAt) >= api.ReplicaErrorGracePeriod {
+			n++
 		}
+	}
+	return n
+}
 
-		if reloadedEntitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
-			api.Logger.Error(ctx, "license requires telemetry enabled")
-			return codersdk.Entitlements{}, entitlements.ErrLicenseRequiresTelemetry
-		}
+func (api *API) enablements() map[codersdk.FeatureName]bool {
+	return map[codersdk.FeatureName]bool{
+		codersdk.FeatureAuditLog:                   api.AuditLogging,
+		codersdk.FeatureConnectionLog:              api.ConnectionLogging,
+		codersdk.FeatureBrowserOnly:                api.BrowserOnly,
+		codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
+		codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
+		codersdk.FeatureTemplateRBAC:               api.RBAC,
+		codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
+		codersdk.FeatureExternalProvisionerDaemons: true,
+		codersdk.FeatureAdvancedTemplateScheduling: true,
+		codersdk.FeatureWorkspaceProxy:             true,
+		codersdk.FeatureUserRoleManagement:         true,
+		codersdk.FeatureAccessControl:              true,
+		codersdk.FeatureControlSharedPorts:         true,
+		codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+	}
+}
 
-		featureChanged := func(featureName codersdk.FeatureName) (initial, changed, enabled bool) {
-			return api.Entitlements.FeatureChanged(featureName, reloadedEntitlements.Features[featureName])
-		}
+func (api *API) applyAuditLog(_ context.Context, feature codersdk.Feature) {
+	auditor := agplaudit.NewNop()
+	if feature.Enabled {
+		auditor = api.AGPL.Options.Auditor
+	}
+	api.AGPL.Auditor.Store(&auditor)
+}
 
-		shouldUpdate := func(initial, changed, enabled bool) bool {
-			// Avoid an initial tick on startup unless the feature is enabled.
-			return changed || (initial && enabled)
-		}
+func (api *API) applyConnectionLog(_ context.Context, feature codersdk.Feature) {
+	connectionLogger := agplconnectionlog.NewNop()
+	if feature.Enabled {
+		connectionLogger = api.AGPL.Options.ConnectionLogger
+	}
+	api.AGPL.ConnectionLogger.Store(&connectionLogger)
+}
 
-		if initial, changed, enabled := featureChanged(codersdk.FeatureAuditLog); shouldUpdate(initial, changed, enabled) {
-			auditor := agplaudit.NewNop()
-			if enabled {
-				auditor = api.AGPL.Options.Auditor
-			}
-			api.AGPL.Auditor.Store(&auditor)
-		}
+func (api *API) applyBrowserOnly(_ context.Context, feature codersdk.Feature) {
+	var handler func(rw http.ResponseWriter) bool
+	if feature.Enabled {
+		handler = api.shouldBlockNonBrowserConnections
+	}
+	api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
+}
 
-		if initial, changed, enabled := featureChanged(codersdk.FeatureConnectionLog); shouldUpdate(initial, changed, enabled) {
-			connectionLogger := agplconnectionlog.NewNop()
-			if enabled {
-				connectionLogger = api.AGPL.Options.ConnectionLogger
-			}
-			api.AGPL.ConnectionLogger.Store(&connectionLogger)
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); shouldUpdate(initial, changed, enabled) {
-			var handler func(rw http.ResponseWriter) bool
-			if enabled {
-				handler = api.shouldBlockNonBrowserConnections
-			}
-			api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
-			if enabled {
-				committer := committer{
-					Log:      api.Logger.Named("quota_committer"),
-					Database: api.Database,
-					Clock:    api.Clock,
-				}
-				qcPtr := proto.QuotaCommitter(&committer)
-				api.AGPL.QuotaCommitter.Store(&qcPtr)
-			} else {
-				api.AGPL.QuotaCommitter.Store(nil)
-			}
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
-			if enabled {
-				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"), api.Clock)
-				templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
-				api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
-
-				if api.DefaultQuietHoursSchedule == "" {
-					api.Logger.Warn(ctx, "template autostop requirement will default to UTC midnight as the default user quiet hours schedule. Set a custom default quiet hours schedule using CODER_QUIET_HOURS_DEFAULT_SCHEDULE to avoid this warning")
-					api.DefaultQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *"
-				}
-				quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.DeploymentValues.UserQuietHoursSchedule.AllowUserCustom.Value())
-				if err != nil {
-					api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template autostop requirements will not be applied to workspace builds", slog.Error(err))
-				} else {
-					api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
-				}
-			} else {
-				templateStore := agplschedule.NewAGPLTemplateScheduleStore()
-				api.AGPL.TemplateScheduleStore.Store(&templateStore)
-				quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
-				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
-			}
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
-			var coordinator agpltailnet.Coordinator
-			if enabled {
-				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
-				if err != nil {
-					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
-					// If we try to setup the HA coordinator and it fails, nothing
-					// is actually changing.
-				} else {
-					coordinator = haCoordinator
-				}
-
-				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
-					// Swap the real nats_ca CA cache and the replica peer fetcher
-					// in so the first route handshake can negotiate mTLS.
-					natsPubsub.SetCACache(api.AGPL.NATSCACache)
-					natsPubsub.SetPeerFetcher(api.replicaManager)
-					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
-				}
-
-				api.replicaManager.SetCallback("derp", func() {
-					// Only update DERP mesh if the built-in server is enabled.
-					if api.DeploymentValues.DERP.Server.Enable {
-						addresses := make([]string, 0)
-						for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
-							// Don't add replicas with an empty relay address.
-							if replica.RelayAddress == "" {
-								continue
-							}
-							addresses = append(addresses, replica.RelayAddress)
-						}
-						api.derpMesh.SetAddresses(addresses, false)
-					}
-					_ = api.updateEntitlements(api.ctx)
-				})
-			} else {
-				coordinator = agpltailnet.NewCoordinator(api.Logger)
-				if api.DeploymentValues.DERP.Server.Enable {
-					api.derpMesh.SetAddresses([]string{}, false)
-				}
-				api.replicaManager.SetCallback("derp", func() {
-					// If the amount of replicas change, so should our entitlements.
-					// This is to display a warning in the UI if the user is unlicensed.
-					_ = api.updateEntitlements(api.ctx)
-				})
-
-				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
-					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
-					// Revert to the noop CA cache: new route handshakes can no
-					// longer mint a leaf, so the cluster mesh stops forming.
-					natsPubsub.SetCACache(cryptokeys.NoopSigningKeycache{})
-					api.replicaManager.SetCallback("nats", nil)
-				}
-			}
-
-			// Recheck changed in case the HA coordinator failed to set up.
-			if coordinator != nil {
-				oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
-				err := oldCoordinator.Close()
-				if err != nil {
-					api.Logger.Error(ctx, "close old tailnet coordinator", slog.Error(err))
-				}
-			}
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
-			if enabled {
-				fn := derpMapper(api.Logger, api.ProxyHealth)
-				api.AGPL.DERPMapper.Store(&fn)
-			} else {
-				api.AGPL.DERPMapper.Store(nil)
-			}
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureAccessControl); shouldUpdate(initial, changed, enabled) {
-			var acs agpldbauthz.AccessControlStore = agpldbauthz.AGPLTemplateAccessControlStore{}
-			if enabled {
-				acs = dbauthz.EnterpriseTemplateAccessControlStore{}
-			}
-			api.AGPL.AccessControlStore.Store(&acs)
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureAppearance); shouldUpdate(initial, changed, enabled) {
-			if enabled {
-				f := newAppearanceFetcher(
-					api.Database,
-					api.DeploymentValues.Support.Links.Value,
-					api.DeploymentValues.DocsURL.String(),
-					buildinfo.Version(),
-				)
-				api.AGPL.AppearanceFetcher.Store(&f)
-			} else {
-				f := appearance.NewDefaultFetcher(api.Database, api.DeploymentValues.DocsURL.String())
-				api.AGPL.AppearanceFetcher.Store(&f)
-			}
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
-			ps := agplportsharing.DefaultPortSharer
-			if enabled {
-				ps = portsharing.NewEnterprisePortSharer()
-			}
-			api.AGPL.PortSharer.Store(&ps)
-		}
-
-		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
-			// Stop the old reconciler first to unregister its metrics before
-			// creating a new one. This prevents duplicate metric registration panics.
-			if current := api.AGPL.PrebuildsReconciler.Load(); current != nil {
-				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
-				defer giveUp()
-				(*current).Stop(stopCtx, xerrors.New("entitlements change"))
-			}
-
-			reconciler, claimer := api.setupPrebuilds(enabled)
-			api.AGPL.PrebuildsReconciler.Store(&reconciler)
-			// TODO: Should this context be the api.ctx context? To cancel when
-			// 	the API (and entire app) is closed via shutdown?
-			pproflabel.Go(context.Background(), pproflabel.Service(pproflabel.ServicePrebuildReconciler), reconciler.Run)
-
-			api.AGPL.PrebuildsClaimer.Store(&claimer)
-		}
-
-		// External token encryption is soft-enforced
-		featureExternalTokenEncryption := reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption]
-		featureExternalTokenEncryption.Enabled = len(api.ExternalTokenEncryption) > 0
-		if featureExternalTokenEncryption.Enabled && featureExternalTokenEncryption.Entitlement != codersdk.EntitlementEntitled {
-			msg := fmt.Sprintf("%s is enabled (due to setting external token encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
-			api.Logger.Warn(ctx, msg)
-			reloadedEntitlements.Warnings = append(reloadedEntitlements.Warnings, msg)
-		}
-		reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
-
-		// Always use the enterprise usage checker
-		var checker wsbuilder.UsageChecker = api
-		api.AGPL.BuildUsageChecker.Store(&checker)
-
-		return reloadedEntitlements, nil
+func (api *API) applyTemplateRBAC(_ context.Context, feature codersdk.Feature) {
+	if !feature.Enabled {
+		api.AGPL.QuotaCommitter.Store(nil)
+		return
+	}
+	qc := proto.QuotaCommitter(&committer{
+		Log:      api.Logger.Named("quota_committer"),
+		Database: api.Database,
+		Clock:    api.Clock,
 	})
+	api.AGPL.QuotaCommitter.Store(&qc)
+}
+
+func (api *API) applyAdvancedTemplateScheduling(ctx context.Context, feature codersdk.Feature) {
+	if !feature.Enabled {
+		templateStore := agplschedule.NewAGPLTemplateScheduleStore()
+		api.AGPL.TemplateScheduleStore.Store(&templateStore)
+		quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
+		api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
+		return
+	}
+
+	templateStore := agplschedule.TemplateScheduleStore(schedule.NewEnterpriseTemplateScheduleStore(
+		api.AGPL.UserQuietHoursScheduleStore,
+		api.NotificationsEnqueuer,
+		api.Logger.Named("template.schedule-store"),
+		api.Clock,
+	))
+	api.AGPL.TemplateScheduleStore.Store(&templateStore)
+
+	if api.DefaultQuietHoursSchedule == "" {
+		api.Logger.Warn(ctx, "template autostop requirement will default to UTC midnight as the default user quiet hours schedule. Set a custom default quiet hours schedule using CODER_QUIET_HOURS_DEFAULT_SCHEDULE to avoid this warning")
+		api.DefaultQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *"
+	}
+	quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(
+		api.DefaultQuietHoursSchedule,
+		api.DeploymentValues.UserQuietHoursSchedule.AllowUserCustom.Value(),
+	)
+	if err != nil {
+		api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template autostop requirements will not be applied to workspace builds", slog.Error(err))
+		return
+	}
+	api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
+}
+
+func (api *API) applyHighAvailability(ctx context.Context, feature codersdk.Feature) {
+	var coordinator agpltailnet.Coordinator
+	if feature.Enabled {
+		coordinator = api.enableHighAvailability(ctx)
+	} else {
+		coordinator = api.disableHighAvailability()
+	}
+	// If the HA coordinator failed to set up, nothing is actually changing.
+	if coordinator == nil {
+		return
+	}
+	oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
+	if err := oldCoordinator.Close(); err != nil {
+		api.Logger.Error(ctx, "close old tailnet coordinator", slog.Error(err))
+	}
+}
+
+// enableHighAvailability returns the PG coordinator, or nil if it could not
+// be created.
+func (api *API) enableHighAvailability(ctx context.Context) agpltailnet.Coordinator {
+	var coordinator agpltailnet.Coordinator
+	haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+	if err != nil {
+		api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
+	} else {
+		coordinator = haCoordinator
+	}
+
+	if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+		// Swap the real nats_ca CA cache and the replica peer fetcher
+		// in so the first route handshake can negotiate mTLS.
+		natsPubsub.SetCACache(api.AGPL.NATSCACache)
+		natsPubsub.SetPeerFetcher(api.replicaManager)
+		api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
+	}
+
+	api.replicaManager.SetCallback("derp", func() {
+		api.updateDERPMeshAddresses()
+		//nolint:errcheck // Best effort: the periodic entitlements loop retries.
+		_ = api.updateEntitlements(api.ctx)
+	})
+	return coordinator
+}
+
+// updateDERPMeshAddresses points the built-in DERP server at the other
+// replicas in this region.
+func (api *API) updateDERPMeshAddresses() {
+	if !api.DeploymentValues.DERP.Server.Enable {
+		return
+	}
+	addresses := make([]string, 0)
+	for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
+		// Don't add replicas with an empty relay address.
+		if replica.RelayAddress != "" {
+			addresses = append(addresses, replica.RelayAddress)
+		}
+	}
+	api.derpMesh.SetAddresses(addresses, false)
+}
+
+func (api *API) disableHighAvailability() agpltailnet.Coordinator {
+	coordinator := agpltailnet.NewCoordinator(api.Logger)
+	if api.DeploymentValues.DERP.Server.Enable {
+		api.derpMesh.SetAddresses([]string{}, false)
+	}
+	api.replicaManager.SetCallback("derp", func() {
+		// If the amount of replicas change, so should our entitlements.
+		// This is to display a warning in the UI if the user is unlicensed.
+		//nolint:errcheck // Best effort: the periodic entitlements loop retries.
+		_ = api.updateEntitlements(api.ctx)
+	})
+
+	if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+		natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+		// Revert to the noop CA cache: new route handshakes can no
+		// longer mint a leaf, so the cluster mesh stops forming.
+		natsPubsub.SetCACache(cryptokeys.NoopSigningKeycache{})
+		api.replicaManager.SetCallback("nats", nil)
+	}
+	return coordinator
+}
+
+func (api *API) applyWorkspaceProxy(_ context.Context, feature codersdk.Feature) {
+	if !feature.Enabled {
+		api.AGPL.DERPMapper.Store(nil)
+		return
+	}
+	fn := derpMapper(api.Logger, api.ProxyHealth)
+	api.AGPL.DERPMapper.Store(&fn)
+}
+
+func (api *API) applyAccessControl(_ context.Context, feature codersdk.Feature) {
+	var acs agpldbauthz.AccessControlStore = agpldbauthz.AGPLTemplateAccessControlStore{}
+	if feature.Enabled {
+		acs = dbauthz.EnterpriseTemplateAccessControlStore{}
+	}
+	api.AGPL.AccessControlStore.Store(&acs)
+}
+
+func (api *API) applyAppearance(_ context.Context, feature codersdk.Feature) {
+	f := appearance.NewDefaultFetcher(api.Database, api.DeploymentValues.DocsURL.String())
+	if feature.Enabled {
+		f = newAppearanceFetcher(
+			api.Database,
+			api.DeploymentValues.Support.Links.Value,
+			api.DeploymentValues.DocsURL.String(),
+			buildinfo.Version(),
+		)
+	}
+	api.AGPL.AppearanceFetcher.Store(&f)
+}
+
+func (api *API) applyControlSharedPorts(_ context.Context, feature codersdk.Feature) {
+	ps := agplportsharing.DefaultPortSharer
+	if feature.Enabled {
+		ps = portsharing.NewEnterprisePortSharer()
+	}
+	api.AGPL.PortSharer.Store(&ps)
+}
+
+func (api *API) applyWorkspacePrebuilds(_ context.Context, feature codersdk.Feature) {
+	// Stop the old reconciler first to unregister its metrics before
+	// creating a new one. This prevents duplicate metric registration panics.
+	if current := api.AGPL.PrebuildsReconciler.Load(); current != nil {
+		stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
+		defer giveUp()
+		(*current).Stop(stopCtx, xerrors.New("entitlements change"))
+	}
+
+	reconciler, claimer := api.setupPrebuilds(feature.Enabled)
+	api.AGPL.PrebuildsReconciler.Store(&reconciler)
+	// TODO: Should this context be the api.ctx context? To cancel when
+	// 	the API (and entire app) is closed via shutdown?
+	pproflabel.Go(context.Background(), pproflabel.Service(pproflabel.ServicePrebuildReconciler), reconciler.Run)
+	api.AGPL.PrebuildsClaimer.Store(&claimer)
+}
+
+// softEnforceExternalTokenEncryption reports the feature as enabled when keys
+// are configured, and warns if the license does not cover it.
+func (api *API) softEnforceExternalTokenEncryption(ctx context.Context, ents *codersdk.Entitlements) {
+	f := ents.Features[codersdk.FeatureExternalTokenEncryption]
+	f.Enabled = len(api.ExternalTokenEncryption) > 0
+	if f.Enabled && f.Entitlement != codersdk.EntitlementEntitled {
+		msg := fmt.Sprintf("%s is enabled (due to setting external token encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
+		api.Logger.Warn(ctx, msg)
+		ents.Warnings = append(ents.Warnings, msg)
+	}
+	ents.Features[codersdk.FeatureExternalTokenEncryption] = f
 }
 
 var _ wsbuilder.UsageChecker = &API{}
