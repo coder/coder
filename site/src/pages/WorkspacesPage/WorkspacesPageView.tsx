@@ -98,11 +98,8 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 					)
 				}
 			>
-				<PageHeaderTitle>
-					<div className="flex gap-2 items-center">
-						<span>Workspaces</span>
-						<WorkspaceHelpPopover />
-					</div>
+				<PageHeaderTitle tooltip={<WorkspaceHelpPopover />}>
+					Workspaces
 				</PageHeaderTitle>
 			</PageHeader>
 
@@ -194,7 +191,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 
 			{pageNumberIsInvalid ? (
 				<EmptyState
-					className="border border-solid border-border rounded-lg"
+					className="border rounded-lg"
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={

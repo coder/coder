@@ -80,7 +80,7 @@ If you do keep path-based apps enabled:
 PostgreSQL is the persistent datastore underlying the entire Coder deployment.
 If the database is compromised, it might leave every other part of your deployment vulnerable.
 
-Coder session tokens and API keys are salted and hashed, so a read-only compromise of the database is unlikely to allow an attacker to log into Coder.
+Coder session tokens and API keys are stored only as SHA-256 hashes of random secrets, so a read-only compromise of the database is unlikely to allow an attacker to log into Coder.
 However, the database contains the Terraform state for all workspaces, OIDC tokens, and agent tokens, so it is possible that a read-only attack could enable lateral movement to other systems.
 
 A successful attack that modifies database state could be escalated to a full takeover of an owner account in Coder which could lead to a complete compromise of the Coder deployment.

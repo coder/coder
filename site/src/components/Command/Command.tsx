@@ -1,15 +1,44 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
+import {
+	keyboardHighlightRingClassName,
+	useHighlightSource,
+} from "./useHighlightSource";
+
+/**
+ * Returns an event handler that runs the component's internal handler and then
+ * the consumer's handler from props, if any, so consumers can still observe
+ * the event without replacing the internal behavior.
+ */
+const composeEventHandlers =
+	<E,>(
+		internalHandler: (event: E) => void,
+		externalHandler: ((event: E) => void) | undefined,
+	) =>
+	(event: E) => {
+		internalHandler(event);
+		externalHandler?.(event);
+	};
 
 export const Command: React.FC<
 	React.ComponentProps<typeof CommandPrimitive>
-> = ({ className, ...props }) => {
+> = ({ className, onFocus, onPointerMove, ...props }) => {
+	const highlightSource = useHighlightSource();
 	return (
 		<CommandPrimitive
 			className={cn(
 				"flex size-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
 				className,
+			)}
+			data-highlight-source={highlightSource.source}
+			onFocus={composeEventHandlers(
+				highlightSource.setToLastPageInput,
+				onFocus,
+			)}
+			onPointerMove={composeEventHandlers(
+				highlightSource.setToPointer,
+				onPointerMove,
 			)}
 			{...props}
 		/>
@@ -97,8 +126,8 @@ export const CommandItem: React.FC<
 				"relative flex cursor-default gap-2 select-none text-content-secondary items-center rounded-sm px-2 py-2 text-sm font-medium outline-hidden",
 				"data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
 				"data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary",
-				"data-[selected=true]:ring-2 data-[selected=true]:ring-inset data-[selected=true]:ring-content-link",
 				"[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+				keyboardHighlightRingClassName,
 				className,
 			)}
 			{...props}

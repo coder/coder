@@ -146,15 +146,15 @@ They do not require a workspace connection.
 Platform and orchestration tools are only available to root chats.
 Sub-agents spawned by `spawn_agent` do not have access to them and cannot create workspaces or spawn further sub-agents.
 
-| Tool                | What it does                                                                                      |
-|---------------------|---------------------------------------------------------------------------------------------------|
-| `list_templates`    | Browses available workspace templates, sorted by popularity.                                      |
-| `read_template`     | Gets template details and configurable parameters.                                                |
-| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                                 |
-| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.            |
-| `stop_workspace`    | Stops the chat's workspace and waits for the stop build to finish. Idempotent if already stopped. |
-| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation.           |
-| `ask_user_question` | Asks the user structured clarification questions during plan mode.                                |
+| Tool                | What it does                                                                                                                                                                                               |
+|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `list_templates`    | Browses workspace templates, ordered by your recent use and organization-wide popularity. With a query, returns only matching templates, ranked by match first. For details, refer to [Tools](./tools.md). |
+| `read_template`     | Gets template details and configurable parameters.                                                                                                                                                         |
+| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                                                                                                                                          |
+| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.                                                                                                                     |
+| `stop_workspace`    | Stops the chat's workspace and waits for the stop build to finish. Idempotent if already stopped.                                                                                                          |
+| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation.                                                                                                                    |
+| `ask_user_question` | Asks the user structured clarification questions during plan mode.                                                                                                                                         |
 
 `propose_plan` and `ask_user_question` are only exposed while plan mode is active.
 In that mode, `write_file` and `edit_files` are restricted to the chat-specific plan file, while `execute` and `process_output` remain available for exploration such as cloning repositories, searching code, and running inspection commands.
@@ -189,10 +189,10 @@ They are conditionally available based on the model configuration set by an admi
 
 These tools are conditionally available based on the workspace contents.
 
-| Tool              | What it does                                                                                                                   |
-|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `read_skill`      | Reads the instructions for a workspace skill by name. Available when the workspace has skills discovered in `.agents/skills/`. |
-| `read_skill_file` | Reads a supporting file from a skill's directory.                                                                              |
+| Tool              | What it does                                                                                                           |
+|-------------------|------------------------------------------------------------------------------------------------------------------------|
+| `read_skill`      | Reads the instructions for a skill by name. Available when personal, organization, project, or workspace skills exist. |
+| `read_skill_file` | Reads a supporting file from a skill's directory. Available when the workspace has skills.                             |
 
 ### MCP tool search
 

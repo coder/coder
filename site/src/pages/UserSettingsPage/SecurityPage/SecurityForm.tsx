@@ -70,16 +70,21 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
 	return (
 		<>
 			<SettingsHeader>
-				<SettingsHeaderTitle hierarchy="secondary">
+				<SettingsHeaderTitle level="h2" hierarchy="secondary">
 					Password
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Update your account password.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+			{/* Stays mounted so screen readers announce each new update error. */}
+			<div role="alert">
+				{Boolean(error) && (
+					<ErrorAlert error={error} role="none" className="mb-6" />
+				)}
+			</div>
 			<Form onSubmit={form.handleSubmit}>
 				<FormFields>
-					{Boolean(error) && <ErrorAlert error={error} />}
 					<FormField
 						field={getFieldHelpers("old_password")}
 						label="Old password"

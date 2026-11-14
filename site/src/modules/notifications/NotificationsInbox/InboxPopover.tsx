@@ -56,6 +56,8 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283
 				 */}
 				<ScrollArea
+					// Keep focused items clear of the sticky header.
+					viewportClassName="scroll-pt-15"
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
@@ -64,12 +66,12 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 				>
 					<div
 						className={cn([
-							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"flex items-center justify-between p-3 border-b",
 							"sticky top-0 bg-surface-primary z-10 rounded-t",
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<span className="text-xl font-semibold">Inbox</span>
+							<h2 className="m-0 text-xl font-semibold">Inbox</h2>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 
@@ -101,10 +103,8 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 									role="list"
 									aria-label="Notifications"
 									className={cn([
-										"*:[[role=listitem]]:border-0 [&>[role=listitem]:not(:last-child)]:border-b",
-										"*:[[role=listitem]]:border-solid *:[[role=listitem]]:border-border",
-										hasMoreNotifications &&
-											"border-0 border-b border-solid border-border",
+										"[&>[role=listitem]:not(:last-child)]:border-b",
+										hasMoreNotifications && "border-b",
 									])}
 								>
 									{notifications.map((notification) => (

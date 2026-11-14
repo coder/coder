@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -357,4 +362,94 @@ func TestTokensListExpiredFiltering(t *testing.T) {
 		require.Contains(t, res, expiredToken.ID)
 		require.Contains(t, res, "expired-token")
 	})
+}
+
+func TestTokenCreateJSON(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	allowWorkspaceID := uuid.New()
+	allowSpec := fmt.Sprintf("workspace:%s", allowWorkspaceID.String())
+
+	inv, root := clitest.New(t, "tokens", "create",
+		"--name", "json-token",
+		"--scope", string(codersdk.APIKeyScopeWorkspaceRead),
+		"--allow", allowSpec,
+		"--output", "json",
+	)
+	clitest.SetupConfig(t, client, root)
+	buf := new(bytes.Buffer)
+	inv.Stdout = buf
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+
+	var createRes struct {
+		codersdk.APIKey
+		Key string `json:"key"`
+	}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &createRes))
+	require.NotEmpty(t, createRes.Key)
+	require.Equal(t, "json-token", createRes.TokenName)
+	require.NotEmpty(t, createRes.ID)
+	require.Contains(t, createRes.Key, createRes.ID)
+	require.False(t, createRes.ExpiresAt.IsZero())
+	require.Contains(t, createRes.Scopes, codersdk.APIKeyScopeWorkspaceRead)
+	require.Len(t, createRes.AllowList, 1)
+	require.Equal(t, allowSpec, createRes.AllowList[0].String())
+
+	inv, root = clitest.New(t, "tokens", "create", "--name", "text-token")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	textRes := buf.String()
+	require.True(t, strings.HasSuffix(textRes, "\n"))
+	require.NotContains(t, strings.TrimSuffix(textRes, "\n"), "\n")
+}
+
+// TestTokenCreateMalformedKey verifies that the one-time secret is still
+// printed when the server returns a key that is not "<id>-<secret>".
+func TestTokenCreateMalformedKey(t *testing.T) {
+	t.Parallel()
+
+	const malformedKey = "malformedkey"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/keys/tokens/tokenconfig"):
+			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.TokenConfig{MaxTokenLifetime: time.Hour})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/keys/tokens"):
+			httpapi.Write(r.Context(), w, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: malformedKey})
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	srvURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client := codersdk.New(srvURL)
+	client.SetSessionToken("test-token")
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	inv, root := clitest.New(t, "tokens", "create", "--output", "json")
+	clitest.SetupConfig(t, client, root)
+	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+	inv.Stdout = stdout
+	inv.Stderr = stderr
+	require.NoError(t, inv.WithContext(ctx).Run())
+
+	var res struct {
+		codersdk.APIKey
+		Key string `json:"key"`
+	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &res))
+	require.Equal(t, malformedKey, res.Key)
+	require.Empty(t, res.ID)
+	require.Contains(t, stderr.String(), "Could not parse the token ID")
 }

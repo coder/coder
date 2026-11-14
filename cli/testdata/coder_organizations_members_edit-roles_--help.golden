@@ -1,11 +1,18 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder organizations members edit-roles <username | user_id> [roles...]
+  coder organizations members edit-roles [flags] <username | user_id> [roles...]
 
   Edit organization member's roles
 
   Aliases: edit-role
+
+OPTIONS:
+  -c, --column [username|name|last seen at|user created at|user updated at|user id|organization id|created at|updated at|organization roles] (default: username,organization roles)
+          Columns to display in table output.
+
+  -o, --output text|table|json (default: text)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

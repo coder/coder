@@ -229,7 +229,7 @@ Coder also notifies Owners weekly about models used in the past week that have n
 ### Configure model prices
 
 Use the experimental `coder exp ai-model-prices` command to set model prices for your deployment.
-It requires AI Governance, which is included with a Premium license, and the Owner [role](../../admin/users/groups-roles.md) or a custom role granting `ai_model_price:update`.
+It requires AI Governance, which is included with a Premium license, and the Owner [role](../../admin/users/groups-roles.md).
 Run `coder exp ai-model-prices --help` for the full reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or model.

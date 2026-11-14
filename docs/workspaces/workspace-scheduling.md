@@ -137,4 +137,6 @@ Dormancy automatically deletes workspaces that remain unused for long durations.
 Template admins configure a dormancy threshold that determines how long a workspace can be inactive before it is marked as `dormant`.
 A separate setting determines how long workspaces will remain in the dormant state before automatic deletion.
 
-Licensed admins can also configure failure cleanup, which will automatically delete workspaces that remain in a `failed` state for too long.
+Licensed admins can also configure failure cleanup, which stops workspaces that remain in a `failed` state for too long.
+Failure cleanup does not delete workspaces.
+Refer to [failure cleanup](../templates/managing-templates/schedule.md#failure-cleanup) for details.

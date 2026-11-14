@@ -379,10 +379,10 @@ You can upload the template through the CLI, or through the Coder dashboard:
    - On Mac or Windows, highlight the files and then right click.
      A "compress" option is available through the right-click context menu.
 
-   - To zip the files through the command line:
+   - To zip the files through the command line, run this from the `template-tour` directory:
 
      ```sh
-     zip templates.zip Dockerfile main.tf
+     zip -r templates.zip main.tf build
      ```
 
 1. Select **Templates** from the top of the Coder dashboard, then **Create Template**.

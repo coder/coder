@@ -46,6 +46,21 @@ These findings never need a style-guide rule. Only consistency, audience, struct
 
 A behavior that needs a tutorial, lab, or training track beyond the reference and how-to docs is `adjacent`.
 
+## Also in CI review
+
+The Architect does not run in a CI review.
+Run these three of its checks, which find broken docs.
+In every other mode, leave them to the Architect.
+
+1. Check that every link and anchor the change adds resolves at the head of the change.
+   One that does not is `broken`.
+2. Check that every HTML element and class, alert, table, and code block in the changed text is one the docs renderer supports, with the blank lines it needs to render.
+   A wrong component class, such as `tab` where the component needs `tabs`, is `broken`.
+3. Check that a staged or Premium feature the change documents carries its `state:` on its highest route in `docs/manifest/`.
+   A missing state is `broken`.
+
+Say in your result which of these checks you ran.
+
 ## Classes you return
 
 `missing`, `wrong` for docs describing behavior that doesn't exist, `broken` for missing redirects or manifest entries, and `adjacent`.

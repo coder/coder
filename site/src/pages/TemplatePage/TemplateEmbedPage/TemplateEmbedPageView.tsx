@@ -254,7 +254,7 @@ const ButtonPreview: React.FC<ButtonPreviewProps> = ({
 			<div
 				className={cn(
 					"flex flex-col items-center justify-center p-6",
-					"rounded-lg border border-border border-solid bg-surface-secondary",
+					"rounded-lg border bg-surface-secondary",
 				)}
 			>
 				<img src="/open-in-coder.svg" alt="Open in Coder button" />

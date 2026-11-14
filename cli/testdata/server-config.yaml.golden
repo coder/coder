@@ -242,6 +242,9 @@ introspection:
     # set to false, a reduced set of database metrics are still collected.
     # (default: false, type: bool)
     collect_db_metrics: false
+    # Collect per-workspace stats (may increase charges for metrics storage).
+    # (default: false, type: bool)
+    collect_workspace_stats: false
   pprof:
     # Serve pprof metrics on the address defined by pprof address.
     # (default: <unset>, type: bool)
@@ -510,8 +513,8 @@ provisioning:
 # (default: false, type: bool)
 dynamicParametersFullEvaluation: false
 # Enable one or more experiments. These are not ready for production. Separate
-# multiple experiments with commas, or enter '*' to opt-in to all available
-# experiments.
+# multiple experiments with commas, or enter '*' to opt-in to the experiments that
+# are marked safe.
 # (default: <unset>, type: string-array)
 experiments: []
 # Periodically check for new releases of Coder and inform the owner. The check is
@@ -655,11 +658,12 @@ wgtunnelHost: ""
 userQuietHoursSchedule:
   # The default daily cron schedule applied to users that haven't set a custom quiet
   # hours schedule themselves. The quiet hours schedule determines when workspaces
-  # will be force stopped due to the template's autostop requirement, and will round
-  # the max deadline up to be within the user's quiet hours window (or default). The
-  # format is the same as the standard cron format, but the day-of-month, month and
-  # day-of-week must be *. Only one hour and minute can be specified (ranges or
-  # comma separated values are not supported).
+  # will be force stopped due to the template's autostop requirement, and will set
+  # the max deadline to the start of the user's quiet hours window on the next day
+  # that the template's autostop requirement applies (or default). The format is the
+  # same as the standard cron format, but the day-of-month, month and day-of-week
+  # must be *. Only one hour and minute can be specified (ranges or comma separated
+  # values are not supported).
   # (default: CRON_TZ=UTC 0 0 * * *, type: string)
   defaultQuietHoursSchedule: CRON_TZ=UTC 0 0 * * *
   # Allow users to set their own quiet hours schedule for workspaces to stop in
@@ -973,9 +977,16 @@ aibridge:
   # (default: 3, type: int)
   circuit_breaker_max_requests: 3
 ai_gateway:
-  # Whether to start an in-memory AI Gateway instance.
+  # Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control
+  # whether coderd also starts an in-memory AI Gateway instance.
   # (default: true, type: bool)
   enabled: true
+  # Whether to start an in-memory AI Gateway instance inside coderd. Has no effect
+  # unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is
+  # served by standalone AI Gateway instances. Coder Agents requires this option to
+  # be set to true.
+  # (default: true, type: bool)
+  embedded_enabled: true
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
   # future release. Whether to inject Coder's MCP tools into intercepted AI Gateway
   # requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the "mcp-server-http"

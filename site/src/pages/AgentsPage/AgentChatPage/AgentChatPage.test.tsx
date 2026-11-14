@@ -343,50 +343,71 @@ describe("AgentChatPage", () => {
 
 		// The row was queued with another model than the one the picker shows.
 		it.each([
-			["keeps the row's model when the picker is untouched", undefined],
-			["sends the model picked during the edit", "model-c"],
-		])("saving a queued edit %s", async (_name, pickedModel) => {
-			const page = renderQueuedChat({
-				queuedMessages: [{ ...row, model_config_id: "model-b" }],
-				models: [
-					{
-						...MockChatModel,
-						id: MockChat.last_model_config_id,
-						display_name: "Model A",
-					},
-					{ ...MockChatModel, id: "model-b", display_name: "Model B" },
-					{ ...MockChatModel, id: "model-c", display_name: "Model C" },
-				],
-			});
-			await page.rowAction("Edit");
-			await waitFor(() =>
-				expect(page.composer().textContent).toBe("queued text"),
-			);
-			if (pickedModel) {
-				await page.user.click(
-					screen.getByRole("combobox", { name: "Model A" }),
+			[
+				"keeps the row's model when the picker is untouched",
+				"model-b",
+				undefined,
+				undefined,
+			],
+			[
+				"sends the model picked during the edit",
+				"model-b",
+				"Model C",
+				"model-c",
+			],
+			[
+				"sends the picker's model when the row's model is no longer available",
+				"model-deleted",
+				undefined,
+				MockChat.last_model_config_id,
+			],
+		])(
+			"saving a queued edit %s",
+			async (_name, rowModel, pickModelName, wantModelConfigID) => {
+				const page = renderQueuedChat({
+					queuedMessages: [{ ...row, model_config_id: rowModel }],
+					models: [
+						{
+							...MockChatModel,
+							id: MockChat.last_model_config_id,
+							display_name: "Model A",
+						},
+						{ ...MockChatModel, id: "model-b", display_name: "Model B" },
+						{ ...MockChatModel, id: "model-c", display_name: "Model C" },
+					],
+				});
+				await page.rowAction("Edit");
+				await waitFor(() =>
+					expect(page.composer().textContent).toBe("queued text"),
 				);
+				if (pickModelName) {
+					await page.user.click(
+						screen.getByRole("combobox", { name: "Model A" }),
+					);
+					await page.user.click(
+						within(await screen.findByRole("listbox")).getByRole("option", {
+							name: new RegExp(pickModelName),
+						}),
+					);
+				}
+				await page.type(" edit");
 				await page.user.click(
-					within(await screen.findByRole("listbox")).getByRole("option", {
-						name: /Model C/,
-					}),
+					screen.getByRole("button", { name: "Save Edit" }),
 				);
-			}
-			await page.type(" edit");
-			await page.user.click(screen.getByRole("button", { name: "Save Edit" }));
 
-			await waitFor(() =>
-				expect(page.editChatQueuedMessage).toHaveBeenCalledWith(
-					MockChat.id,
-					row.id,
-					expect.objectContaining({
-						content: expect.anything(),
-						model_config_id: pickedModel,
-					}),
-				),
-			);
-			expect(localStorage.getItem(savedEditKey)).toBeNull();
-		});
+				await waitFor(() =>
+					expect(page.editChatQueuedMessage).toHaveBeenCalledWith(
+						MockChat.id,
+						row.id,
+						expect.objectContaining({
+							content: expect.anything(),
+							model_config_id: wantModelConfigID,
+						}),
+					),
+				);
+				expect(localStorage.getItem(savedEditKey)).toBeNull();
+			},
+		);
 
 		// react-query delivers the failed request's state to the page on a
 		// scheduler it owns, which may run before the request's own error

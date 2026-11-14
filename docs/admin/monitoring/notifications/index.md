@@ -70,7 +70,7 @@ See the [Preferences](#delivery-preferences) section for more details.
 
 ## Configuration
 
-You can modify the notification delivery behavior in your Coder deployment's `https://coder.example.com/settings/notifications`, or with the following server flags:
+You can modify the notification delivery behavior in your Coder deployment's `https://coder.example.com/deployment/notifications?tab=settings`, or with the following server flags:
 
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
 |:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
@@ -173,11 +173,12 @@ Here is an example payload for Coder's webhook notification:
 
 ```json
 {
-    "_version": "1.0",
+    "_version": "1.1",
     "msg_id": "88750cad-77d4-4663-8bc0-f46855f5019b",
     "payload": {
-        "_version": "1.0",
+        "_version": "1.2",
         "notification_name": "Workspace Deleted",
+        "notification_template_id": "f517da0b-cdc9-410f-ab89-a86107c420ed",
         "user_id": "4ac34fcb-8155-44d5-8301-e3cd46e88b35",
         "user_email": "danny@coder.com",
         "user_name": "danny",
@@ -196,10 +197,14 @@ Here is an example payload for Coder's webhook notification:
             "initiator": "danny",
             "name": "my-workspace",
             "reason": "initiated by user"
-        }
+        },
+        "data": null,
+        "targets": null
     },
     "title": "Workspace \"my-workspace\" deleted",
-    "body": "Hi danny\n\nYour workspace my-workspace was deleted.\nThe specified reason was \"initiated by user (danny)\"."
+    "title_markdown": "Workspace \"my-workspace\" deleted",
+    "body": "Hi danny\n\nYour workspace my-workspace was deleted.\nThe specified reason was \"initiated by user (danny)\".",
+    "body_markdown": "Hi danny\n\nYour workspace **my-workspace** was deleted.\nThe specified reason was \"initiated by user (danny)\"."
 }
 ```
 
@@ -209,12 +214,15 @@ The top-level object has these keys:
 - `msg_id`: the universally unique identifier (UUID) of the notification (matches the ID in the `notification_messages` table)
 - `payload`: contains the specific details of the notification (described below)
 - `title`: the title of the notification message (equivalent to a subject in SMTP delivery)
+- `title_markdown`: the title of the notification message with Markdown formatting
 - `body`: the body of the notification message (equivalent to the message body in SMTP delivery)
+- `body_markdown`: the body of the notification message with Markdown formatting
 
 The `payload` object has these keys:
 
 - `_version`: describes the version of this inner schema and follows semantic versioning
 - `notification_name`: name of the event which triggered the notification
+- `notification_template_id`: ID of the notification template that the event used (UUID)
 - `user_id`: Coder internal user identifier of the target user (UUID)
 - `user_email`: email address of the target user
 - `user_name`: name of the target user
@@ -223,6 +231,8 @@ The `payload` object has these keys:
   These are mainly relevant for SMTP delivery in which they're shown as buttons
 - `labels`: dynamic map of zero or more string key-value pairs.
   These vary from event to event
+- `data`: structured data that the event passed with the notification, or `null` when the event passed none
+- `targets`: list of UUIDs that the event passed with the notification, or `null` when the event passed none
 
 ## User Preferences
 

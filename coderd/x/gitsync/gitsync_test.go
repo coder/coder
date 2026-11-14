@@ -499,58 +499,89 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 		"TokenResolver should be called once per (owner, origin) group")
 }
 
-func TestRefresher_UsesInjectedClock(t *testing.T) {
+func TestRefresher_StaleAtByPRState(t *testing.T) {
 	t.Parallel()
 
-	mClock := quartz.NewMock(t)
-	fixedTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
-	mClock.Set(fixedTime)
-
-	mp := &mockProvider{
-		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
-			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
+	tests := []struct {
+		name string
+		// The fetched PR state determines the TTL, not the stored PR state.
+		storedState  gitprovider.PRState
+		fetchedState gitprovider.PRState
+		wantTTL      time.Duration
+	}{
+		{
+			name:         "open",
+			storedState:  gitprovider.PRStateClosed,
+			fetchedState: gitprovider.PRStateOpen,
+			wantTTL:      gitsync.DiffStatusTTL,
 		},
-		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			return &gitprovider.PRStatus{
-				State: gitprovider.PRStateOpen,
-				DiffStats: gitprovider.DiffStats{
-					Additions:    10,
-					Deletions:    5,
-					ChangedFiles: 3,
+		{
+			name:         "open after merged",
+			storedState:  gitprovider.PRStateMerged,
+			fetchedState: gitprovider.PRStateOpen,
+			wantTTL:      gitsync.DiffStatusTTL,
+		},
+		{
+			name:         "closed",
+			storedState:  gitprovider.PRStateClosed,
+			fetchedState: gitprovider.PRStateClosed,
+			wantTTL:      gitsync.DiffStatusTTL,
+		},
+		{
+			name:         "merged",
+			storedState:  gitprovider.PRStateOpen,
+			fetchedState: gitprovider.PRStateMerged,
+			wantTTL:      gitsync.MergedDiffStatusTTL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mClock := quartz.NewMock(t)
+			fixedTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+			mClock.Set(fixedTime)
+
+			mp := &mockProvider{
+				parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
+					return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
 				},
-			}, nil
-		},
+				fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+					return &gitprovider.PRStatus{State: tt.fetchedState}, nil
+				},
+			}
+
+			providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
+			tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+				return new("test-token"), nil
+			}
+
+			r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
+
+			row := database.ChatDiffStatus{
+				ChatID:           uuid.New(),
+				Url:              sql.NullString{String: "https://github.com/org/repo/pull/42", Valid: true},
+				GitRemoteOrigin:  "https://github.com/org/repo",
+				GitBranch:        "feature",
+				PullRequestState: sql.NullString{String: string(tt.storedState), Valid: true},
+			}
+
+			results, err := r.Refresh(context.Background(), []gitsync.RefreshRequest{
+				{Row: row, OwnerID: uuid.New()},
+			})
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			res := results[0]
+
+			require.NoError(t, res.Error)
+			require.NotNil(t, res.Params)
+
+			assert.Equal(t, string(tt.fetchedState), res.Params.PullRequestState.String)
+			assert.Equal(t, fixedTime, res.Params.RefreshedAt)
+			assert.Equal(t, fixedTime.Add(tt.wantTTL), res.Params.StaleAt)
+		})
 	}
-
-	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return new("test-token"), nil
-	}
-
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
-
-	chatID := uuid.New()
-	row := database.ChatDiffStatus{
-		ChatID:          chatID,
-		Url:             sql.NullString{String: "https://github.com/org/repo/pull/42", Valid: true},
-		GitRemoteOrigin: "https://github.com/org/repo",
-		GitBranch:       "feature",
-	}
-
-	ownerID := uuid.New()
-	results, err := r.Refresh(context.Background(), []gitsync.RefreshRequest{
-		{Row: row, OwnerID: ownerID},
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 1)
-	res := results[0]
-
-	require.NoError(t, res.Error)
-	require.NotNil(t, res.Params)
-
-	// The mock clock is deterministic, so times must be exact.
-	assert.Equal(t, fixedTime, res.Params.RefreshedAt)
-	assert.Equal(t, fixedTime.Add(gitsync.DiffStatusTTL), res.Params.StaleAt)
 }
 
 func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
@@ -825,6 +856,8 @@ func TestRefresher_ConcurrentProcessing(t *testing.T) {
 func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 	t.Parallel()
 
+	// PR 42 at the stored URL is merged; branch lookup returns open PR 43.
+	// wantTTL distinguishes their fetched PR states.
 	tests := []struct {
 		name        string
 		headBranch  string
@@ -832,6 +865,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 		wantURL     string
 		wantCleared bool
 		wantResolve bool
+		wantTTL     time.Duration
 	}{
 		{
 			name:        "branch mismatch resolves current branch",
@@ -839,6 +873,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			resolveTo:   &gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 43},
 			wantURL:     "https://github.com/org/repo/pull/43",
 			wantResolve: true,
+			wantTTL:     gitsync.DiffStatusTTL,
 		},
 		{
 			name:        "branch mismatch without PR clears stale URL",
@@ -853,12 +888,14 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			headBranch:  "feature-b",
 			wantURL:     "https://github.com/org/repo/pull/42",
 			wantResolve: false,
+			wantTTL:     gitsync.MergedDiffStatusTTL,
 		},
 		{
 			name:        "empty head branch keeps stored URL",
 			headBranch:  "",
 			wantURL:     "https://github.com/org/repo/pull/42",
 			wantResolve: false,
+			wantTTL:     gitsync.MergedDiffStatusTTL,
 		},
 	}
 
@@ -883,7 +920,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 					switch ref.Number {
 					case 42:
 						return &gitprovider.PRStatus{
-							State:      gitprovider.PRStateOpen,
+							State:      gitprovider.PRStateMerged,
 							HeadBranch: tt.headBranch,
 							Title:      "Old PR",
 						}, nil
@@ -936,6 +973,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			require.NotNil(t, res.Params)
 			require.True(t, res.Params.Url.Valid)
 			assert.Equal(t, tt.wantURL, res.Params.Url.String)
+			assert.Equal(t, clock.Now().Add(tt.wantTTL), res.Params.StaleAt)
 		})
 	}
 }

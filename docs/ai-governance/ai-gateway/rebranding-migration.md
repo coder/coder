@@ -134,10 +134,12 @@ The metric prefixes have been renamed:
 | `coder_aibridged_*`      | `coder_ai_gateway_*`       |
 | `coder_aibridgeproxyd_*` | `coder_ai_gateway_proxy_*` |
 
-**Both the old and new metric names are emitted simultaneously today.**
-Every series is exported under both prefixes from the same underlying collector, so existing dashboards, alerts, and recording rules keep working immediately after upgrade with no changes.
+**For the embedded gateway and AI Gateway Proxy, both the old and new metric names are emitted simultaneously today.**
+Their series are exported under both prefixes from the same underlying collector, so existing dashboards, alerts, and recording rules keep working immediately after upgrade with no changes.
+Cost control and standalone gateway metrics use only the new prefix.
+Refer to [Metric name migration](monitoring.md#metric-name-migration) for the exceptions.
 
-The old prefixes are retained for backward compatibility with no planned removal date.
+The old prefixes are deprecated and will be removed in a future release.
 To keep your observability aligned with the new names:
 
 1. Update Grafana dashboards, Prometheus alerting rules, and recording rules to reference the new `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*` names.

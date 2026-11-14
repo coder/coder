@@ -264,17 +264,18 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				"GIT_ASKPASS": executablePath,
 			}
 
-			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
-			if enabled != "" && runtime.GOOS == "linux" {
+			// Presence enables it, even with an empty value. Must match agentexec.NewExecer.
+			value, enabled := os.LookupEnv(agentexec.EnvProcPrioMgmt)
+			if enabled && runtime.GOOS == "linux" {
 				logger.Info(ctx, "process priority management enabled",
 					slog.F("env_var", agentexec.EnvProcPrioMgmt),
-					slog.F("enabled", enabled),
+					slog.F("enabled", value),
 					slog.F("os", runtime.GOOS),
 				)
 			} else {
-				logger.Info(ctx, "process priority management not enabled (linux-only) ",
+				logger.Info(ctx, "process priority management not enabled (linux-only)",
 					slog.F("env_var", agentexec.EnvProcPrioMgmt),
-					slog.F("enabled", enabled),
+					slog.F("enabled", value),
 					slog.F("os", runtime.GOOS),
 				)
 			}

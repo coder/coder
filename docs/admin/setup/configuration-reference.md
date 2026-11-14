@@ -147,7 +147,7 @@ Expose the swagger endpoint via /swagger.
 
 Enable one or more experiments.
 These are not ready for production.
-Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.
 
 - Type: `string-array`
 - Environment variable: `CODER_EXPERIMENTS`
@@ -404,9 +404,23 @@ Combine with --ai-gateway-structured-logging-source=gateway to keep exporting th
 - YAML key: `ai_gateway.disable_content_recording`
 - Default value: `false`
 
+### Embedded enabled
+
+Whether to start an in-memory AI Gateway instance inside coderd.
+Has no effect unless --ai-gateway-enabled is true.
+Set to false when all AI Gateway traffic is served by standalone AI Gateway instances.
+Coder Agents requires this option to be set to true.
+
+- Type: `bool`
+- Environment variable: `CODER_AI_GATEWAY_EMBEDDED_ENABLED`
+- CLI flag: [`--ai-gateway-embedded-enabled`](../../reference/cli/server/index.md#--ai-gateway-embedded-enabled)
+- YAML key: `ai_gateway.embedded_enabled`
+- Default value: `true`
+
 ### Enabled
 
-Whether to start an in-memory AI Gateway instance.
+Whether to enable AI Gateway.
+Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`
@@ -1023,6 +1037,16 @@ If set to false, a reduced set of database metrics are still collected.
 - Environment variable: `CODER_PROMETHEUS_COLLECT_DB_METRICS`
 - CLI flag: [`--prometheus-collect-db-metrics`](../../reference/cli/server/index.md#--prometheus-collect-db-metrics)
 - YAML key: `introspection.prometheus.collect_db_metrics`
+- Default value: `false`
+
+#### Collect workspace stats
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
+- Type: `bool`
+- Environment variable: `CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS`
+- CLI flag: [`--prometheus-collect-workspace-stats`](../../reference/cli/server/index.md#--prometheus-collect-workspace-stats)
+- YAML key: `introspection.prometheus.collect_workspace_stats`
 - Default value: `false`
 
 #### Enable
@@ -2330,7 +2354,7 @@ If false, users can't change their quiet hours schedule and the site default is 
 ### Default quiet hours schedule
 
 The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves.
-The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default).
+The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default).
 The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *.
 Only one hour and minute can be specified (ranges or comma separated values are not supported).
 

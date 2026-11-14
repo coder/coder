@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -53,6 +54,8 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
 		codersdk.ExperimentChatACPSubagents:          "Chat ACP Subagents",
+		codersdk.ExperimentChatAutomations:           "Chat Automations",
+		codersdk.ExperimentAgentPlugins:              "Agent Plugins",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))
@@ -2193,4 +2196,38 @@ func TestExperimentsSafeAreKnown(t *testing.T) {
 	for _, ex := range codersdk.ExperimentsSafe {
 		require.Contains(t, codersdk.ExperimentsKnown, ex)
 	}
+}
+
+// TestPackagedCoderEnvKeepsDefaults checks that the coder.env shipped in the
+// Linux packages changes no server option from its default. An empty
+// CODER_HTTP_ADDRESS= makes a server with TLS off exit at startup.
+func TestPackagedCoderEnvKeepsDefaults(t *testing.T) {
+	t.Parallel()
+
+	env, err := godotenv.Read(filepath.Join("..", "coder.env"))
+	require.NoError(t, err)
+	require.NotEmpty(t, env)
+
+	envVars := make([]serpent.EnvVar, 0, len(env))
+	for name, value := range env {
+		envVars = append(envVars, serpent.EnvVar{Name: name, Value: value})
+	}
+
+	var packaged, defaults codersdk.DeploymentValues
+	packagedOpts := packaged.Options()
+	// SetDefaults skips the options that ParseEnv set, as in a real invocation.
+	require.NoError(t, packagedOpts.ParseEnv(envVars))
+	require.NoError(t, packagedOpts.SetDefaults())
+	defaultOpts := defaults.Options()
+	require.NoError(t, defaultOpts.SetDefaults())
+
+	for i, opt := range packagedOpts {
+		if _, ok := env[opt.Env]; !ok {
+			continue
+		}
+		delete(env, opt.Env)
+		assert.Equal(t, defaultOpts[i].Value.String(), opt.Value.String(),
+			"%s in coder.env replaces the default", opt.Env)
+	}
+	assert.Empty(t, env, "coder.env sets variables that are not server options")
 }

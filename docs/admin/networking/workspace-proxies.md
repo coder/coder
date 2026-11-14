@@ -54,7 +54,7 @@ If the proxy deployment is successful, `coder wsproxy ls` will show an `ok` stat
 ```sh
 $ coder wsproxy ls
 NAME              URL                         STATUS STATUS
-primary           https://dev.coder.com        ok
+primary           https://coder.example.com   ok
 brazil-saopaulo   https://brazil.example.com   ok
 europe-frankfurt  https://europe.example.com   ok
 sydney            https://sydney.example.com   ok
