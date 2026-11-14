@@ -977,9 +977,18 @@ function rendersSpace(whitespace) {
 	return whitespace.length > 0 && !whitespace.includes("\n");
 }
 
-// Elements whose text is code or keyboard input rather than prose. They
-// are read as unknown text inside the surrounding phrase.
-const CODE_ELEMENTS = new Set(["code", "kbd", "pre", "samp"]);
+// Elements whose content is code or keyboard input rather than prose.
+// Inline ones are read as unknown text inside the surrounding phrase;
+// BLOCK_CODE_ELEMENTS end it.
+const CODE_ELEMENTS = new Set([
+	"code",
+	"kbd",
+	"pre",
+	"samp",
+	"script",
+	"style",
+]);
+const BLOCK_CODE_ELEMENTS = new Set(["pre", "script", "style"]);
 
 // Inline HTML elements: the phrasing content that renders text, except
 // form controls such as button, whose text is a label of its own.
@@ -1287,9 +1296,8 @@ function createPieceBuilder(sourceFile, consumed) {
 				}
 			};
 			consume(node);
-			// A pre element renders as a block; the others are inline.
 			pieces.push(
-				intrinsicTagName(node) === "pre"
+				BLOCK_CODE_ELEMENTS.has(intrinsicTagName(node))
 					? { kind: "break" }
 					: { kind: "substitution", inline },
 			);

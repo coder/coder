@@ -483,6 +483,8 @@ describe("checkSource", () => {
 			'const d = <code aria-label="New Workspace">value</code>;',
 			'const e = <pre title="Delete File">{"Some Code"}</pre>;',
 			"const f = <div>Run <pre>cmd</pre>Next Steps</div>;",
+			"const s = <style>{`.Foo-Bar { color: red; }`}</style>;",
+			'const t = <div>Run <script>{"Some Code"}</script>Next Steps</div>;',
 			'const g = <pre><button aria-label="New Workspace">Copy Code</button></pre>;',
 			'const h = <pre>{ok && <span title="Show Details">Some Code</span>}</pre>;',
 		].join("\n");
@@ -491,8 +493,9 @@ describe("checkSource", () => {
 			[4, "Workspace"],
 			[5, "File"],
 			[6, "Steps"],
-			[7, "Workspace"],
-			[8, "Details"],
+			[8, "Steps"],
+			[9, "Workspace"],
+			[10, "Details"],
 		]);
 	});
 
