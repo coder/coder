@@ -17,6 +17,13 @@ import {
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
 import TemplateSchedulePage from "./TemplateSchedulePage";
 
+beforeEach(() => {
+	vi.spyOn(API, "getInboxNotifications").mockResolvedValue({
+		notifications: [],
+		unread_count: 0,
+	});
+});
+
 const validFormValues: TemplateScheduleFormValues = {
 	default_ttl_ms: 1,
 	activity_bump_ms: 1,
