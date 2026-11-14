@@ -121,18 +121,17 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 				defer w.trackChannel(false)
 			}
 			endSession()
-			detail := "normal close"
+			reason := codersdk.DisconnectReasonGraceful
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
 			if w.isClosing() {
-				detail = string(codersdk.DisconnectReasonServerShutdown)
+				reason = codersdk.DisconnectReasonServerShutdown
 				fields = append(fields, serverShutdownFields()...)
 			} else {
-				reason := codersdk.DisconnectReasonGraceful
 				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 			}
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:    0,
-				Reason:  detail,
+				Reason:  string(reason),
 				RxBytes: rxbytes,
 				TxBytes: txbytes,
 			})
@@ -140,6 +139,9 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 			w.logger.Debug(context.Background(), "JetBrains channel closed",
 				fields...,
 			)
+			if !reason.Expected() {
+				w.logger.Flush(context.Background())
+			}
 		},
 	}, r, err
 }

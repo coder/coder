@@ -563,7 +563,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
 				proto.DisconnectEvent{
-					Reason:  "normal close",
+					Reason:  string(codersdk.DisconnectReasonGraceful),
 					RxBytes: int64(written),
 					TxBytes: int64(written),
 				},

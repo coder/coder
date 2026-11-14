@@ -266,6 +266,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					}
 				}
 			}
+			s.logger.Flush(ctx)
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
@@ -596,6 +597,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				RxBytes: st.RxBytes(),
 				TxBytes: st.TxBytes(),
 			})
+			if !reason.Expected() {
+				logger.Flush(ctx)
+			}
 		}()
 	}
 
