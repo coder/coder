@@ -1872,4 +1872,16 @@ func TestAIBridgeSessions(t *testing.T) {
 	filter, errs := searchquery.AIBridgeSessions(context.Background(), db, `provider_name:acme-openai`, page, uuid.Nil, "")
 	require.Empty(t, errs)
 	require.Equal(t, "acme-openai", filter.ProviderName)
+
+	// organization accepts a name or an ID, like the workspaces and
+	// templates search.
+	org := dbgen.Organization(t, db, database.Organization{Name: "acme-org"})
+
+	filter, errs = searchquery.AIBridgeSessions(context.Background(), db, `organization:acme-org`, page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, org.ID, filter.OrganizationID)
+
+	filter, errs = searchquery.AIBridgeSessions(context.Background(), db, "organization:"+org.ID.String(), page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, org.ID, filter.OrganizationID)
 }

@@ -476,28 +476,39 @@ func TestAIBridgeListSessions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
 
 		now := dbtime.Now()
 
 		// Session from user1 with provider "anthropic" and client "claude-code".
 		s1EndedAt := now.Add(time.Minute)
 		s1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  firstUser.UserID,
-			Provider:     "anthropic",
-			ProviderName: "anthropic-prod",
-			Model:        "claude-4",
-			StartedAt:    now,
-			Client:       sql.NullString{String: "claude-code", Valid: true},
+			InitiatorID:    firstUser.UserID,
+			Provider:       "anthropic",
+			ProviderName:   "anthropic-prod",
+			Model:          "claude-4",
+			StartedAt:      now,
+			Client:         sql.NullString{String: "claude-code", Valid: true},
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
 		}, &s1EndedAt)
 
 		// Session from user2 with provider "openai".
 		s2EndedAt := now.Add(-time.Hour + time.Minute)
 		s2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  user2.ID,
-			Provider:     "openai",
-			ProviderName: "openai-prod",
-			Model:        "gpt-4",
-			StartedAt:    now.Add(-time.Hour),
+			InitiatorID:    user2.ID,
+			Provider:       "openai",
+			ProviderName:   "openai-prod",
+			Model:          "gpt-4",
+			StartedAt:      now.Add(-time.Hour),
+			OrganizationID: uuid.NullUUID{UUID: otherOrg.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
 		}, &s2EndedAt)
 
 		// Filter by initiator.
@@ -566,6 +577,24 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Len(t, res.Sessions, 1)
 		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
 
+		// Filter by organization name.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Organization: otherOrg.Name,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by organization ID.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Organization: firstUser.OrganizationID.String(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
 		// Filter by session_id with no match.
 		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			SessionID: "nonexistent-session-id",
@@ -597,6 +626,79 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res.Count)
 		require.Empty(t, res.Sessions)
+	})
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		orgA := dbgen.Organization(t, db, database.Organization{Name: "aaa-org"})
+		orgB := dbgen.Organization(t, db, database.Organization{Name: "bbb-org"})
+
+		orgSource := func(s database.AIBridgeInterceptionOrganizationSource) database.NullAIBridgeInterceptionOrganizationSource {
+			return database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: s, Valid: true}
+		}
+		intercept := func(sessionID string, orgID uuid.NullUUID, source database.NullAIBridgeInterceptionOrganizationSource) {
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:        firstUser.UserID,
+				Provider:           "anthropic",
+				Model:              "claude-4",
+				StartedAt:          now,
+				ClientSessionID:    sql.NullString{String: sessionID, Valid: true},
+				OrganizationID:     orgID,
+				OrganizationSource: source,
+			}, &endedAt)
+		}
+
+		// One session across two orgs. aaa-org is reached through two sources.
+		intercept("multi-org", uuid.NullUUID{UUID: orgA.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceWorkspace))
+		intercept("multi-org", uuid.NullUUID{UUID: orgA.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceChatd))
+		intercept("multi-org", uuid.NullUUID{UUID: orgB.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceEffectiveGroup))
+		// One session with no stored org.
+		intercept("no-org", uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{})
+
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+
+		sessions := make(map[string]codersdk.AIBridgeSession, len(res.Sessions))
+		for _, s := range res.Sessions {
+			sessions[s.ID] = s
+		}
+
+		// Ordered by name, with distinct sources in enum order.
+		multi := sessions["multi-org"].Organizations
+		require.Len(t, multi, 2)
+		require.Equal(t, orgA.ID, multi[0].ID)
+		require.Equal(t, orgA.Name, multi[0].Name)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceWorkspace,
+			codersdk.AIBridgeInterceptionOrganizationSourceChatd,
+		}, multi[0].Sources)
+		require.Equal(t, orgB.ID, multi[1].ID)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceEffectiveGroup,
+		}, multi[1].Sources)
+
+		// No stored org returns an empty list, not null.
+		noOrg := sessions["no-org"].Organizations
+		require.NotNil(t, noOrg)
+		require.Empty(t, noOrg)
+
+		// Filtering by either org returns the multi-org session, because it has
+		// at least one interception in each. The no-org session never matches.
+		for _, org := range []database.Organization{orgA, orgB} {
+			res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+				Organization: org.Name,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, res.Count)
+			require.Len(t, res.Sessions, 1)
+			require.Equal(t, "multi-org", res.Sessions[0].ID)
+		}
 	})
 
 	t.Run("Authorized", func(t *testing.T) {
@@ -777,6 +879,16 @@ func TestAIBridgeListSessions(t *testing.T) {
 					{
 						Field:  "started_before",
 						Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+					},
+				},
+			},
+			{
+				name: "UnknownOrganization",
+				q:    "organization:unknown",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "organization",
+						Detail: `Query param "organization" has invalid value: organization "unknown" either does not exist, or you are unauthorized to view it`,
 					},
 				},
 			},
@@ -2101,6 +2213,88 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, "byok", res.Threads[0].CredentialKind)
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
+	})
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		orgA := dbgen.Organization(t, db, database.Organization{
+			Name:        "acme",
+			DisplayName: "Acme Corp",
+			Icon:        "/emojis/1f3e2.png",
+		})
+
+		now := dbtime.Now()
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-sonnet-4-20250514",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "org-session", Valid: true},
+			OrganizationID:  uuid.NullUUID{UUID: orgA.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
+		}, &rootEndedAt)
+
+		// child1 is in the same org as the root, reached through chatd.
+		child1EndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-sonnet-4-20250514",
+			StartedAt:                  now.Add(time.Minute),
+			ClientSessionID:            sql.NullString{String: "org-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+			OrganizationID:             uuid.NullUUID{UUID: orgA.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceChatd,
+				Valid:                                  true,
+			},
+		}, &child1EndedAt)
+
+		// child2 has no stored org.
+		child2EndedAt := now.Add(3 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-sonnet-4-20250514",
+			StartedAt:                  now.Add(2 * time.Minute),
+			ClientSessionID:            sql.NullString{String: "org-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		}, &child2EndedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "org-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "org-session", res.ID)
+		require.Len(t, res.Threads, 1)
+		require.NotNil(t, res.Threads[0].Organization)
+		require.Equal(t, codersdk.AIBridgeInterceptionOrganizationSourceWorkspace, res.Threads[0].Organization.Source)
+		require.Equal(t, orgA.ID, res.Threads[0].Organization.ID)
+		require.Equal(t, orgA.Name, res.Threads[0].Organization.Name)
+		require.Equal(t, orgA.DisplayName, res.Threads[0].Organization.DisplayName)
+		require.Equal(t, orgA.Icon, res.Threads[0].Organization.Icon)
+		// Each child is an agentic action with its own interception's org.
+		actions := res.Threads[0].AgenticActions
+		require.Len(t, actions, 2)
+		require.NotNil(t, actions[0].Organization)
+		require.Equal(t, orgA.ID, actions[0].Organization.ID)
+		require.Equal(t, codersdk.AIBridgeInterceptionOrganizationSourceChatd, actions[0].Organization.Source)
+		require.Nil(t, actions[1].Organization)
+
+		// The session lists the org once, with both sources.
+		require.Len(t, res.Organizations, 1)
+		require.Equal(t, orgA.ID, res.Organizations[0].ID)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceWorkspace,
+			codersdk.AIBridgeInterceptionOrganizationSourceChatd,
+		}, res.Organizations[0].Sources)
 	})
 
 	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {

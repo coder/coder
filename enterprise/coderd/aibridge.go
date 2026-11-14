@@ -160,7 +160,7 @@ func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Han
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, organization, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
@@ -235,14 +235,15 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.InTx(func(db database.Store) error {
 		var err error
 		count, err = db.CountAIBridgeSessions(ctx, database.CountAIBridgeSessionsParams{
-			StartedAfter:  filter.StartedAfter,
-			StartedBefore: filter.StartedBefore,
-			InitiatorID:   filter.InitiatorID,
-			Provider:      filter.Provider,
-			ProviderName:  filter.ProviderName,
-			Model:         filter.Model,
-			Client:        filter.Client,
-			SessionID:     filter.SessionID,
+			StartedAfter:   filter.StartedAfter,
+			StartedBefore:  filter.StartedBefore,
+			InitiatorID:    filter.InitiatorID,
+			Provider:       filter.Provider,
+			ProviderName:   filter.ProviderName,
+			Model:          filter.Model,
+			Client:         filter.Client,
+			SessionID:      filter.SessionID,
+			OrganizationID: filter.OrganizationID,
 		})
 		if err != nil {
 			return xerrors.Errorf("count authorized aibridge sessions: %w", err)
