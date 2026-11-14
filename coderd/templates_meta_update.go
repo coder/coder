@@ -35,6 +35,7 @@ type templateMetaUpdate struct {
 	useClassicTemplateFlow               bool
 	disableModuleCache                   bool
 	allowWorkspaceRenames                bool
+	browserOnly                          bool
 	corsBehavior                         database.CorsBehavior
 	autostopRequirementDaysOfWeekParsed  uint8
 	autostartRequirementDaysOfWeekParsed uint8
@@ -99,6 +100,7 @@ func resolveTemplateMetaUpdate(
 		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
 		disableModuleCache:             disableModuleCache,
 		allowWorkspaceRenames:          ptr.NilToDefault(req.AllowWorkspaceRenames, template.AllowWorkspaceRenames),
+		browserOnly:                    ptr.NilToDefault(req.BrowserOnly, template.BrowserOnly),
 		groupACL:                       template.GroupACL,
 
 		// Default to the original values
