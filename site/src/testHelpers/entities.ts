@@ -5853,6 +5853,85 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 		],
 	};
 
+const toMinimalOrganization = (
+	org: TypesGen.Organization,
+): TypesGen.MinimalOrganization => ({
+	id: org.id,
+	name: org.name,
+	display_name: org.display_name,
+	icon: org.icon,
+});
+
+/** A user's spend in MockOrganization, below the warning threshold. */
+export const MockUserOrganizationAISpend: TypesGen.UserOrganizationAISpend = {
+	organization: toMinimalOrganization(MockOrganization),
+	effective_group_id: "grp-789",
+	effective_budget: {
+		spend_limit_micros: 1_200_000_000,
+		limit_source: "group",
+	},
+	current_spend_micros: 819_000_000,
+};
+
+const mockUserOrganization2AISpend: TypesGen.UserOrganizationAISpend = {
+	organization: toMinimalOrganization(MockOrganization2),
+	effective_group_id: "grp-790",
+	effective_budget: {
+		spend_limit_micros: 1_200_000_000,
+		limit_source: "group",
+	},
+	current_spend_micros: 1_250_000_000,
+};
+
+const mockUserOrganization3AISpend: TypesGen.UserOrganizationAISpend = {
+	organization: { ...toMinimalOrganization(MockOrganization3), icon: "" },
+	effective_group_id: "grp-791",
+	effective_budget: {
+		spend_limit_micros: 500_000_000,
+		limit_source: "group",
+	},
+	current_spend_micros: 450_000_000,
+};
+
+/** A single-organization user whose spend is below the warning threshold. */
+export const MockUserAISpendStatus: TypesGen.UserAISpendStatus = {
+	user_id: MockUserOwner.id,
+	effective_group_id: MockUserOrganizationAISpend.effective_group_id,
+	effective_budget: MockUserOrganizationAISpend.effective_budget,
+	current_spend_micros: MockUserOrganizationAISpend.current_spend_micros,
+	period_start: "2026-06-01T00:00:00Z",
+	period_end: "2026-07-01T00:00:00Z",
+	organization_id: MockOrganization.id,
+	organizations: [MockUserOrganizationAISpend],
+};
+
+/**
+ * A user in three organizations: normal spend in the first, which the
+ * top-level fields resolve to, exceeded in the second and warning in the
+ * third.
+ */
+export const MockMultiOrgUserAISpendStatus: TypesGen.UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	organizations: [
+		MockUserOrganizationAISpend,
+		mockUserOrganization2AISpend,
+		mockUserOrganization3AISpend,
+	],
+};
+
+/**
+ * The same user when the top-level fields resolve to the second organization,
+ * where spend exceeds the budget.
+ */
+export const MockMultiOrgExceededUserAISpendStatus: TypesGen.UserAISpendStatus =
+	{
+		...MockMultiOrgUserAISpendStatus,
+		organization_id: MockOrganization2.id,
+		effective_group_id: mockUserOrganization2AISpend.effective_group_id,
+		effective_budget: mockUserOrganization2AISpend.effective_budget,
+		current_spend_micros: mockUserOrganization2AISpend.current_spend_micros,
+	};
+
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,
