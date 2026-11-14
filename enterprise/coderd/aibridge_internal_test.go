@@ -201,3 +201,80 @@ func TestAISpendRetainedPeriod(t *testing.T) {
 		},
 	})
 }
+
+func TestParseOrganizationAISpendPage(t *testing.T) {
+	t.Parallel()
+
+	limitRange := codersdk.ValidationError{Field: "limit", Detail: `Query param "limit" must be in range [1, 100].`}
+
+	cases := []struct {
+		name   string
+		params map[string]string
+		want   codersdk.OrganizationAISpendPage
+		// wantErrors is every validation error, in order.
+		wantErrors []codersdk.ValidationError
+	}{
+		{
+			name:       "Default",
+			want:       codersdk.OrganizationAISpendPage{Limit: 10},
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "LimitAndOffset",
+			params:     map[string]string{"limit": "25", "offset": "50"},
+			want:       codersdk.OrganizationAISpendPage{Limit: 25, Offset: 50},
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "LimitMax",
+			params:     map[string]string{"limit": "100"},
+			want:       codersdk.OrganizationAISpendPage{Limit: 100},
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "LimitAboveMax",
+			params:     map[string]string{"limit": "101"},
+			want:       codersdk.OrganizationAISpendPage{Limit: 101},
+			wantErrors: []codersdk.ValidationError{limitRange},
+		},
+		{
+			name:       "LimitZero",
+			params:     map[string]string{"limit": "0"},
+			want:       codersdk.OrganizationAISpendPage{},
+			wantErrors: []codersdk.ValidationError{limitRange},
+		},
+		{
+			name:   "NegativeOffset",
+			params: map[string]string{"offset": "-1"},
+			want:   codersdk.OrganizationAISpendPage{Limit: 10},
+			wantErrors: []codersdk.ValidationError{
+				{Field: "offset", Detail: `Query param "offset" must be a valid 32-bit positive integer: value is negative`},
+			},
+		},
+		{
+			// An unparsable limit is read as zero, so it also fails the range.
+			name:   "InvalidLimit",
+			params: map[string]string{"limit": "ten"},
+			want:   codersdk.OrganizationAISpendPage{},
+			wantErrors: []codersdk.ValidationError{
+				{Field: "limit", Detail: `Query param "limit" must be a valid 32-bit positive integer: strconv.ParseInt: parsing "ten": invalid syntax`},
+				limitRange,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			query := url.Values{}
+			for k, v := range tc.params {
+				query.Set(k, v)
+			}
+			parser := httpapi.NewQueryParamParser()
+
+			got := parseOrganizationAISpendPage(parser, query)
+
+			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.wantErrors, parser.Errors)
+		})
+	}
+}

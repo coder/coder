@@ -4692,13 +4692,6 @@ func requestAISpendExport(ctx context.Context, t *testing.T, client *codersdk.Cl
 	return requestAISpend(ctx, t, client, fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", orgID), params)
 }
 
-// requestAISpendUsers issues a raw per-user spend request so callers can
-// inspect the status code and error body directly.
-func requestAISpendUsers(ctx context.Context, t *testing.T, client *codersdk.Client, orgID uuid.UUID, params map[string]string) *http.Response {
-	t.Helper()
-	return requestAISpend(ctx, t, client, fmt.Sprintf("/api/experimental/organizations/%s/ai/spend/users", orgID), params)
-}
-
 func requestAISpend(ctx context.Context, t *testing.T, client *codersdk.Client, path string, params map[string]string) *http.Response {
 	t.Helper()
 	res, err := client.Request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
@@ -5468,44 +5461,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 	// setupAICostControlTest keeps the default 60d retention.
 	defaultRetentionStart := now.Add(-60 * 24 * time.Hour)
 
-	t.Run("PaginationValidation", func(t *testing.T) {
-		t.Parallel()
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "spend-pagination-validation-group",
-			Clock:     clock,
-		})
-
-		cases := []struct {
-			name       string
-			params     map[string]string
-			wantStatus int
-		}{
-			{name: "LimitZero", params: map[string]string{"limit": "0"}, wantStatus: http.StatusBadRequest},
-			{name: "LimitAboveMax", params: map[string]string{"limit": "101"}, wantStatus: http.StatusBadRequest},
-			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
-			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest},
-			{name: "OffsetBeyondEnd", params: map[string]string{"offset": "1000"}, wantStatus: http.StatusOK},
-			{name: "UnknownParameter", params: map[string]string{"sort": "cost"}, wantStatus: http.StatusBadRequest},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				res := requestAISpendUsers(ctx, t, adminClient, group.OrganizationID, tc.params)
-				defer res.Body.Close()
-				require.Equal(t, tc.wantStatus, res.StatusCode)
-				if tc.wantStatus != http.StatusOK {
-					var sdkErr *codersdk.Error
-					require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
-					require.Contains(t, sdkErr.Message, "have invalid values")
-				}
-			})
-		}
-	})
-
 	t.Run("Report", func(t *testing.T) {
 		t.Parallel()
 		clock := quartz.NewMock(t)
@@ -5773,10 +5728,6 @@ func TestOrganizationAISpend(t *testing.T) {
 			wantMessage     string
 			wantValidations []codersdk.ValidationError
 		}{
-			{name: "LimitZero", params: map[string]string{"limit": "0"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
-			{name: "LimitAboveMax", params: map[string]string{"limit": "101"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
-			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
-			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
 			{name: "UnknownParameter", params: map[string]string{"provider_name": "openai"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
 			{name: "OnlyStart", params: map[string]string{"period_start": monthStart.Format(time.RFC3339)}, wantStatus: http.StatusBadRequest, wantMessage: "provided together"},
 			{
