@@ -7890,6 +7890,22 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
+	s.Run("GetUserAISpendByEffectiveGroupsSince", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.GetUserAISpendByEffectiveGroupsSinceParams{
+			UserID:            user.ID,
+			EffectiveGroupIds: []uuid.UUID{uuid.New(), uuid.New()},
+			PeriodStart:       time.Now().UTC().Truncate(24 * time.Hour),
+		}
+		rows := []database.GetUserAISpendByEffectiveGroupsSinceRow{
+			{EffectiveGroupID: arg.EffectiveGroupIds[0], SpendMicros: 100},
+			{EffectiveGroupID: arg.EffectiveGroupIds[1]},
+		}
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetUserAISpendByEffectiveGroupsSince(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(rows)
+	}))
+
 	s.Run("GetOverBudgetUsersPerGroup", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		periodStart := time.Now().UTC().Truncate(24 * time.Hour)
 		dbm.EXPECT().GetOverBudgetUsersPerGroup(gomock.Any(), periodStart).

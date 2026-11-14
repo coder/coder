@@ -5540,6 +5540,13 @@ func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) 
 	return q.db.GetUserAISeatStates(ctx, userIDs)
 }
 
+func (q *querier) GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg database.GetUserAISpendByEffectiveGroupsSinceParams) ([]database.GetUserAISpendByEffectiveGroupsSinceRow, error) {
+	if _, err := q.GetUserByID(ctx, arg.UserID); err != nil { // AuthZ check
+		return nil, err
+	}
+	return q.db.GetUserAISpendByEffectiveGroupsSince(ctx, arg)
+}
+
 func (q *querier) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
 	if _, err := q.GetUserByID(ctx, arg.UserID); err != nil { // AuthZ check
 		return database.GetUserAISpendSinceRow{}, err

@@ -34123,6 +34123,18 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "organization_id": {
+                    "description": "OrganizationID is the organization the top-level effective group\nbelongs to. Null when no effective group was resolved.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organizations": {
+                    "description": "Organizations is the spend per organization the user is a member of,\nordered by organization name.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserOrganizationAISpend"
+                    }
+                },
                 "period_end": {
                     "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
                     "type": "string",
@@ -34353,6 +34365,31 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
+        "codersdk.UserOrganizationAISpend": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the spend on EffectiveGroupID over the current\nbudget period, the same value the budget check compares.",
+                    "type": "integer"
+                },
+                "effective_budget": {
+                    "description": "EffectiveBudget is null when no budget applies in Organization.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the user's effective group inside Organization,\nfalling back to its Everyone group.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization": {
+                    "$ref": "#/definitions/codersdk.MinimalOrganization"
                 }
             }
         },

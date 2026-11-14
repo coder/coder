@@ -77,6 +77,26 @@ type UserAISpendStatus struct {
 	// CurrentSpendMicros is the user's spend on their effective group over
 	// the current budget period.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
+	// OrganizationID is the organization the top-level effective group
+	// belongs to. Null when no effective group was resolved.
+	OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
+	// Organizations is the spend per organization the user is a member of,
+	// ordered by organization name.
+	Organizations []UserOrganizationAISpend `json:"organizations"`
+}
+
+// UserOrganizationAISpend is a user's AI spend inside one organization in
+// the active budget period.
+type UserOrganizationAISpend struct {
+	Organization MinimalOrganization `json:"organization"`
+	// EffectiveGroupID is the user's effective group inside Organization,
+	// falling back to its Everyone group.
+	EffectiveGroupID uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// EffectiveBudget is null when no budget applies in Organization.
+	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
+	// CurrentSpendMicros is the spend on EffectiveGroupID over the current
+	// budget period, the same value the budget check compares.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
 // OrganizationGroupsAISpend reports AI spend for a set of groups in the

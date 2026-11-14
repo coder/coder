@@ -6715,6 +6715,21 @@ func (mr *MockStoreMockRecorder) GetUserAISeatStates(ctx, userIds any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAISeatStates", reflect.TypeOf((*MockStore)(nil).GetUserAISeatStates), ctx, userIds)
 }
 
+// GetUserAISpendByEffectiveGroupsSince mocks base method.
+func (m *MockStore) GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg database.GetUserAISpendByEffectiveGroupsSinceParams) ([]database.GetUserAISpendByEffectiveGroupsSinceRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAISpendByEffectiveGroupsSince", ctx, arg)
+	ret0, _ := ret[0].([]database.GetUserAISpendByEffectiveGroupsSinceRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAISpendByEffectiveGroupsSince indicates an expected call of GetUserAISpendByEffectiveGroupsSince.
+func (mr *MockStoreMockRecorder) GetUserAISpendByEffectiveGroupsSince(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAISpendByEffectiveGroupsSince", reflect.TypeOf((*MockStore)(nil).GetUserAISpendByEffectiveGroupsSince), ctx, arg)
+}
+
 // GetUserAISpendSince mocks base method.
 func (m *MockStore) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
 	m.ctrl.T.Helper()

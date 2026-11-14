@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1076,12 +1077,8 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 
 	if ok {
 		resp.EffectiveGroupID = &effectiveGroup.GroupID
-		if effectiveGroup.Limit != nil {
-			resp.EffectiveBudget = &codersdk.AIBudgetLimit{
-				SpendLimitMicros: effectiveGroup.Limit.SpendLimitMicros,
-				LimitSource:      effectiveGroup.Limit.Source,
-			}
-		}
+		resp.OrganizationID = &effectiveGroup.OrganizationID
+		resp.EffectiveBudget = aiBudgetLimitToSDK(effectiveGroup.Limit)
 		logger = logger.With(slog.F("effective_group_id", effectiveGroup.GroupID))
 
 		spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
@@ -1097,7 +1094,85 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 		resp.CurrentSpendMicros = spend.SpendMicros
 	}
 
+	resp.Organizations, err = api.userOrganizationsAISpend(ctx, user.ID, periodWindow.Start, budgetPolicy)
+	if err != nil {
+		logger.Error(ctx, "failed to get user AI spend per organization", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// userOrganizationsAISpend returns the user's effective group, budget and
+// spend since periodStart in each live organization they are a member of,
+// ordered by organization name. Organizations where no effective group
+// resolves are omitted. The result is never nil.
+func (api *API) userOrganizationsAISpend(ctx context.Context, userID uuid.UUID, periodStart time.Time, budgetPolicy codersdk.AIBudgetPolicy) ([]codersdk.UserOrganizationAISpend, error) {
+	// The caller is already authorized to read the user, which is what every
+	// budget and spend query below checks. Listing organizations as the caller
+	// would drop the ones the caller cannot read, such as the user's other
+	// organizations when the caller is an organization user admin, and the
+	// breakdown would then omit organizations that the top-level spend,
+	// resolved across all of the user's organizations, can come from.
+	//nolint:gocritic // Authorization is on the user, see above.
+	orgs, err := api.Database.GetOrganizationsByUserID(dbauthz.AsSystemRestricted(ctx), database.GetOrganizationsByUserIDParams{
+		UserID:  userID,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user organizations: %w", err)
+	}
+	slices.SortFunc(orgs, func(a, b database.Organization) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	entries := make([]codersdk.UserOrganizationAISpend, 0, len(orgs))
+	groupIDs := make([]uuid.UUID, 0, len(orgs))
+	for _, org := range orgs {
+		group, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, userID, uuid.NullUUID{UUID: org.ID, Valid: true}, budgetPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve effective group in organization %s: %w", org.ID, err)
+		}
+		if !ok {
+			continue
+		}
+		entries = append(entries, codersdk.UserOrganizationAISpend{
+			Organization:     db2sdk.Organization(org).MinimalOrganization,
+			EffectiveGroupID: group.GroupID,
+			EffectiveBudget:  aiBudgetLimitToSDK(group.Limit),
+		})
+		groupIDs = append(groupIDs, group.GroupID)
+	}
+
+	spends, err := api.Database.GetUserAISpendByEffectiveGroupsSince(ctx, database.GetUserAISpendByEffectiveGroupsSinceParams{
+		UserID:            userID,
+		EffectiveGroupIds: groupIDs,
+		PeriodStart:       periodStart,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user AI spend by effective groups: %w", err)
+	}
+	spendByGroup := make(map[uuid.UUID]int64, len(spends))
+	for _, spend := range spends {
+		spendByGroup[spend.EffectiveGroupID] = spend.SpendMicros
+	}
+	for i := range entries {
+		entries[i].CurrentSpendMicros = spendByGroup[entries[i].EffectiveGroupID]
+	}
+	return entries, nil
+}
+
+// aiBudgetLimitToSDK converts a resolved budget limit, returning nil when no
+// limit applies.
+func aiBudgetLimitToSDK(limit *budget.Limit) *codersdk.AIBudgetLimit {
+	if limit == nil {
+		return nil
+	}
+	return &codersdk.AIBudgetLimit{
+		SpendLimitMicros: limit.SpendLimitMicros,
+		LimitSource:      limit.Source,
+	}
 }
 
 // @Summary Get organization groups AI spend
