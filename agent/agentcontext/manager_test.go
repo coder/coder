@@ -515,7 +515,7 @@ func TestManager_RunOnce(t *testing.T) {
 	// second call rejects with a deterministic error rather than
 	// racing the scheduler.
 	select {
-	case <-agentcontext.ManagerStarted(m):
+	case <-m.Started():
 	case <-ctx.Done():
 		t.Fatalf("manager never started: %v", ctx.Err())
 	}

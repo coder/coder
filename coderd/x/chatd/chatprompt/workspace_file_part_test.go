@@ -1,12 +1,16 @@
 package chatprompt_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -58,7 +62,7 @@ func TestWorkspaceFilePartToText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprompt.WorkspaceFilePartToTextForTest(tt.part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
+			got := workspaceFilePromptText(t, tt.part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
 			require.True(t, strings.HasPrefix(got, "[workspace file: "), "expected prefix, got %q", got)
 			require.True(t, strings.HasSuffix(got, "]"), "expected closing bracket, got %q", got)
 			for _, sub := range tt.wantSub {
@@ -84,7 +88,7 @@ func TestWorkspaceFilePartToTextStaleWorkspace(t *testing.T) {
 
 	t.Run("ReboundWorkspace", func(t *testing.T) {
 		t.Parallel()
-		got := chatprompt.WorkspaceFilePartToTextForTest(part, uuid.NullUUID{UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Valid: true})
+		got := workspaceFilePromptText(t, part, uuid.NullUUID{UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Valid: true})
 		require.Contains(t, got, "archive.zip")
 		require.Contains(t, got, "2.0 KiB")
 		require.Contains(t, got, "no longer accessible")
@@ -93,15 +97,39 @@ func TestWorkspaceFilePartToTextStaleWorkspace(t *testing.T) {
 
 	t.Run("UnboundChat", func(t *testing.T) {
 		t.Parallel()
-		got := chatprompt.WorkspaceFilePartToTextForTest(part, uuid.NullUUID{})
+		got := workspaceFilePromptText(t, part, uuid.NullUUID{})
 		require.Contains(t, got, "no longer accessible")
 		require.NotContains(t, got, "/home/coder/.coder/chats")
 	})
 
 	t.Run("MatchingWorkspaceKeepsPath", func(t *testing.T) {
 		t.Parallel()
-		got := chatprompt.WorkspaceFilePartToTextForTest(part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
+		got := workspaceFilePromptText(t, part, uuid.NullUUID{UUID: testChatWorkspaceID, Valid: true})
 		require.Contains(t, got, "/home/coder/.coder/chats/abcd1234/files/archive.zip")
 		require.NotContains(t, got, "no longer accessible")
 	})
+}
+
+func workspaceFilePromptText(t *testing.T, part codersdk.ChatMessagePart, chatWorkspaceID uuid.NullUUID) string {
+	t.Helper()
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:           database.ChatMessageRoleUser,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        mustMarshalParts(t, part),
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+		nil,
+		chatWorkspaceID,
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok)
+	return textPart.Text
 }

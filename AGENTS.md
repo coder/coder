@@ -78,6 +78,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
+- **Go test packages:** default to `package foo_test` and test through the exported API. Only as a last resort, put a test that needs unexported symbols in a `*_internal_test.go` file with `package foo`. Never add an `export_test.go` shim or a `//nolint:testpackage` directive.
 - **Frontend:** reuse shared UI primitives. Prefer Vitest and `userEvent` tests that assert the non-visual outcome of the interaction (callback, request, state); extend existing coverage instead of adding a new test when equivalent coverage already exists. Use Storybook stories only for visual components that should be covered by the visual regression tool, which Pixel screenshots in CI.
 - **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
 

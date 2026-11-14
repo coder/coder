@@ -9,6 +9,28 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// allRunKinds contains every RunKind value for SDK parity checks.
+var allRunKinds = []chatdebug.RunKind{
+	chatdebug.KindChatTurn,
+	chatdebug.KindTitleGeneration,
+	chatdebug.KindQuickgen,
+	chatdebug.KindCompaction,
+}
+
+// allStatuses contains every Status value for SDK parity checks.
+var allStatuses = []chatdebug.Status{
+	chatdebug.StatusInProgress,
+	chatdebug.StatusCompleted,
+	chatdebug.StatusError,
+	chatdebug.StatusInterrupted,
+}
+
+// allOperations contains every Operation value for SDK parity checks.
+var allOperations = []chatdebug.Operation{
+	chatdebug.OperationStream,
+	chatdebug.OperationGenerate,
+}
+
 // toStrings converts a typed string slice to []string for comparison.
 func toStrings[T ~string](values []T) []string {
 	out := make([]string, len(values))
@@ -28,27 +50,27 @@ func TestTypesMatchSDK(t *testing.T) {
 	t.Run("RunKind", func(t *testing.T) {
 		t.Parallel()
 		require.ElementsMatch(t,
-			toStrings(chatdebug.AllRunKinds),
+			toStrings(allRunKinds),
 			toStrings(codersdk.AllChatDebugRunKinds),
-			"chatdebug.AllRunKinds and codersdk.AllChatDebugRunKinds have diverged",
+			"allRunKinds and codersdk.AllChatDebugRunKinds have diverged",
 		)
 	})
 
 	t.Run("Status", func(t *testing.T) {
 		t.Parallel()
 		require.ElementsMatch(t,
-			toStrings(chatdebug.AllStatuses),
+			toStrings(allStatuses),
 			toStrings(codersdk.AllChatDebugStatuses),
-			"chatdebug.AllStatuses and codersdk.AllChatDebugStatuses have diverged",
+			"allStatuses and codersdk.AllChatDebugStatuses have diverged",
 		)
 	})
 
 	t.Run("Operation", func(t *testing.T) {
 		t.Parallel()
 		require.ElementsMatch(t,
-			toStrings(chatdebug.AllOperations),
+			toStrings(allOperations),
 			toStrings(codersdk.AllChatDebugStepOperations),
-			"chatdebug.AllOperations and codersdk.AllChatDebugStepOperations have diverged",
+			"allOperations and codersdk.AllChatDebugStepOperations have diverged",
 		)
 	})
 }
