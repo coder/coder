@@ -29,6 +29,7 @@ func (r *RootCmd) start() *serpent.Command {
 		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
+		Long:        "Parameter values from --parameter, --rich-parameter-file and --ephemeral-parameter apply only when start creates a build. If the workspace is already running or starting, start fails; use \"coder restart\" to apply them.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -67,6 +68,12 @@ func (r *RootCmd) start() *serpent.Command {
 				return xerrors.Errorf("cannot start with a template version while the workspace is %s; wait for the current build to finish", workspace.LatestBuild.Status)
 			}
 			var build codersdk.WorkspaceBuild
+			// Parameter values only reach a new build, so an existing
+			// or in-progress build would silently drop them.
+			notApplied := func(state string) error {
+				return xerrors.Errorf("workspace %q is already %s, so parameter values were not applied; use \"coder restart %s\" to apply them", workspace.Name, state, inv.Args[0])
+			}
+			hasParameterValues := parameterFlags.hasRichParameterValues() || len(parameterFlags.ephemeralParameters) > 0
 			switch {
 			case workspace.LatestBuild.Status == codersdk.WorkspaceStatusPending:
 				// The above check is technically duplicated in cliutil.WarnmatchedProvisioners
@@ -86,12 +93,18 @@ func (r *RootCmd) start() *serpent.Command {
 					return err
 				}
 			case workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning && versionID == uuid.Nil:
+				if hasParameterValues {
+					return notApplied("running")
+				}
 				_, _ = fmt.Fprintf(
 					inv.Stdout, "\nThe %s workspace is already running!\n",
 					cliui.Keyword(workspace.Name),
 				)
 				return nil
 			case workspace.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
+				if hasParameterValues {
+					return notApplied("starting")
+				}
 				_, _ = fmt.Fprintf(
 					inv.Stdout, "\nThe %s workspace is already starting.\n",
 					cliui.Keyword(workspace.Name),

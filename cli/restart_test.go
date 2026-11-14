@@ -2,6 +2,8 @@ package cli_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -300,6 +302,20 @@ func TestRestart(t *testing.T) {
 
 func TestRestartWithParameters(t *testing.T) {
 	t.Parallel()
+
+	t.Run("ParameterFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, member, workspace := newMutableParameterWorkspace(t)
+		parameterFile := filepath.Join(t.TempDir(), "params.yaml")
+		require.NoError(t, os.WriteFile(parameterFile, []byte(mutableParameterName+": xyz\n"), 0o600))
+
+		inv, root := clitest.New(t, "restart", workspace.Name, "-y", "--rich-parameter-file", parameterFile)
+		clitest.SetupConfig(t, member, root)
+		require.NoError(t, inv.Run())
+
+		requireLatestBuildParameter(t, client, workspace, "xyz")
+	})
 
 	echoResponses := func() *echo.Responses {
 		return &echo.Responses{

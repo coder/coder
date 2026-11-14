@@ -27,6 +27,12 @@ type workspaceParameterFlags struct {
 	useParameterDefaults bool
 }
 
+// hasRichParameterValues reports whether --parameter or
+// --rich-parameter-file was set.
+func (wpf *workspaceParameterFlags) hasRichParameterValues() bool {
+	return len(wpf.richParameters) > 0 || wpf.richParameterFile != ""
+}
+
 func (wpf *workspaceParameterFlags) allOptions() []serpent.Option {
 	options := append(wpf.cliEphemeralParameters(), wpf.cliParameters()...)
 	options = append(options, wpf.cliParameterDefaults()...)
