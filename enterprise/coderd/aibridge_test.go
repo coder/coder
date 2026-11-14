@@ -4552,6 +4552,196 @@ func TestUserAISpendStatusRoleAccess(t *testing.T) {
 	}
 }
 
+func TestOrganizationMemberAISpendStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.OrganizationMemberAISpendStatus(ctx, owner.OrganizationID, codersdk.Me)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	// One deployment is shared by the read-only subtests below. The target
+	// user belongs to two organizations: in the first, a group budget applies;
+	// in the second, no budget applies and spend falls back to the Everyone
+	// group. Each organization has different seeded spend.
+	clock := quartz.NewMock(t)
+	clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+	wantPeriod := codersdk.AISpendPeriodWindow{
+		PeriodStart: time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
+		PeriodEnd:   time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC),
+	}
+	db, ps := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+			Clock:            clock,
+			Database:         db,
+			Pubsub:           ps,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureAIBridge:              1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	budgetedOrgID := owner.OrganizationID
+	unbudgetedOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID, rbac.RoleUserAdmin())
+	// Organization admins can read every user, so only the organization and
+	// membership checks keep them out of organizations they don't administer.
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID, rbac.ScopedRoleOrgAdmin(budgetedOrgID))
+	targetClient, target := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID)
+	otherMemberClient, otherMember := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := adminClient.PostOrganizationMember(ctx, unbudgetedOrg.ID, target.ID.String())
+	require.NoError(t, err)
+
+	group, err := adminClient.CreateGroup(ctx, budgetedOrgID, codersdk.CreateGroupRequest{
+		Name: "org-member-spend-group",
+	})
+	require.NoError(t, err)
+	_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		AddUsers: []string{target.ID.String()},
+	})
+	require.NoError(t, err)
+	_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+		SpendLimitMicros: 1_000_000_000,
+	})
+	require.NoError(t, err)
+
+	// The Everyone group's ID equals its organization's ID.
+	unbudgetedEveryoneGroupID := unbudgetedOrg.ID
+	for groupID, spend := range map[uuid.UUID]int64{
+		group.ID:                  250_000_000,
+		unbudgetedEveryoneGroupID: 700_000_000,
+	} {
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           target.ID,
+			EffectiveGroupID: groupID,
+			Day:              clock.Now(),
+			CostMicros:       spend,
+		})
+		require.NoError(t, err)
+	}
+
+	wantBudgeted := codersdk.OrganizationMemberAISpendStatus{
+		OrganizationID:   budgetedOrgID,
+		UserID:           target.ID,
+		EffectiveGroupID: group.ID,
+		EffectiveBudget: &codersdk.AIBudgetLimit{
+			SpendLimitMicros: 1_000_000_000,
+			LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+		},
+		AISpendPeriodWindow: wantPeriod,
+		CurrentSpendMicros:  250_000_000,
+	}
+	wantUnbudgeted := codersdk.OrganizationMemberAISpendStatus{
+		OrganizationID:      unbudgetedOrg.ID,
+		UserID:              target.ID,
+		EffectiveGroupID:    unbudgetedEveryoneGroupID,
+		AISpendPeriodWindow: wantPeriod,
+		CurrentSpendMicros:  700_000_000,
+	}
+
+	cases := []struct {
+		name     string
+		client   *codersdk.Client
+		orgID    uuid.UUID
+		user     string
+		wantCode int
+		want     codersdk.OrganizationMemberAISpendStatus
+	}{
+		{
+			name:     "MemberReadsSelf",
+			client:   targetClient,
+			orgID:    budgetedOrgID,
+			user:     codersdk.Me,
+			wantCode: http.StatusOK,
+			want:     wantBudgeted,
+		},
+		{
+			name:     "AdminReadsMember",
+			client:   adminClient,
+			orgID:    budgetedOrgID,
+			user:     target.ID.String(),
+			wantCode: http.StatusOK,
+			want:     wantBudgeted,
+		},
+		{
+			name:     "AdminReadsMemberInOtherOrganization",
+			client:   adminClient,
+			orgID:    unbudgetedOrg.ID,
+			user:     target.Username,
+			wantCode: http.StatusOK,
+			want:     wantUnbudgeted,
+		},
+		{
+			name:     "OrgAdminReadsMember",
+			client:   orgAdminClient,
+			orgID:    budgetedOrgID,
+			user:     target.ID.String(),
+			wantCode: http.StatusOK,
+			want:     wantBudgeted,
+		},
+		{
+			name:     "OrgAdminReadsMemberInOtherOrganization",
+			client:   orgAdminClient,
+			orgID:    unbudgetedOrg.ID,
+			user:     target.ID.String(),
+			wantCode: http.StatusNotFound,
+		},
+		{
+			name:     "MemberReadsOther",
+			client:   otherMemberClient,
+			orgID:    budgetedOrgID,
+			user:     target.ID.String(),
+			wantCode: http.StatusNotFound,
+		},
+		{
+			name:     "NonMember",
+			client:   adminClient,
+			orgID:    unbudgetedOrg.ID,
+			user:     otherMember.ID.String(),
+			wantCode: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			got, err := tc.client.OrganizationMemberAISpendStatus(ctx, tc.orgID, tc.user)
+			if tc.wantCode != http.StatusOK {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.wantCode, sdkErr.StatusCode())
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestOrganizationGroupsAISpend(t *testing.T) {
 	t.Parallel()
 
