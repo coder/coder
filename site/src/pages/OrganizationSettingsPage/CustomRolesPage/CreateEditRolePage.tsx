@@ -102,7 +102,7 @@ const CreateEditRolePage: React.FC = () => {
 		>
 			<title>
 				{pageTitle(
-					isEditing ? "Edit Custom Role" : "New Custom Role",
+					isEditing ? "Edit custom role" : "New custom role",
 					isEditing ? role.display_name || role.name : undefined,
 				)}
 			</title>

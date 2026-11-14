@@ -106,7 +106,7 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 
 			<Button size="lg" disabled={isSigningIn} className="w-full" type="submit">
 				<Spinner loading={isSigningIn} />
-				Sign In
+				Sign in
 			</Button>
 
 			<Link

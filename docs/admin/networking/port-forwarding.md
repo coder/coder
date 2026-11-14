@@ -197,7 +197,7 @@ Credentials are allowed and the allowed methods and headers will echo whatever t
 
 #### Configuration
 
-Template admins set the **CORS Behavior** in the template's **Settings** page.
+Template admins set the **CORS behavior** in the template's **Settings** page.
 The setting applies to every app and port in the template's workspaces.
 It has two values:
 

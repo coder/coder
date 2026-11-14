@@ -45,7 +45,7 @@ export const Entitled: Story = {
 			canvas.getByRole("form", { name: "Appearance settings" }),
 		).toBeVisible();
 		await expect(
-			canvas.getByRole("heading", { name: "Announcement Banners" }),
+			canvas.getByRole("heading", { name: "Announcement banners" }),
 		).toBeVisible();
 		await expect(
 			canvas.queryByRole("link", { name: "Start trial for free" }),
@@ -66,7 +66,7 @@ export const NotEntitled: Story = {
 			canvas.queryByRole("form", { name: "Appearance settings" }),
 		).not.toBeInTheDocument();
 		await expect(
-			canvas.queryByRole("heading", { name: "Announcement Banners" }),
+			canvas.queryByRole("heading", { name: "Announcement banners" }),
 		).not.toBeInTheDocument();
 	},
 };

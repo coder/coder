@@ -67,7 +67,7 @@ const UpdateProviderPageView: React.FC = () => {
 		<title>
 			{pageTitle(
 				(provider?.display_name || provider?.name) ?? "Loading...",
-				"AI Providers",
+				"AI providers",
 			)}
 		</title>
 	);

@@ -631,7 +631,7 @@ export const ContextUsageIndicator: React.FC<{
 								<ContextResourceAccordionTrigger
 									detail={`${mcpServerItems.filter((server) => server.connected).length} of ${mcpServerItems.length} connected`}
 								>
-									MCP Servers
+									MCP servers
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent className="gap-2">
 									{hasMcp && (

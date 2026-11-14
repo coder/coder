@@ -3,7 +3,7 @@ import type { ConnectionLogMethod } from "#/api/typesGenerated";
 export const connectionLogMethodLabels: Record<ConnectionLogMethod, string> = {
 	ssh: "SSH",
 	reconnecting_pty: "Web Terminal",
-	workspace_app: "Workspace App",
-	port_forwarding: "Port Forwarding",
+	workspace_app: "Workspace app",
+	port_forwarding: "Port forwarding",
 	tunnel: "Tunnel",
 };

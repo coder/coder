@@ -93,11 +93,11 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 				<Table className="text-sm font-normal">
 					<TableHeader>
 						<TableRow>
-							<TableHead className="text-nowrap">Last Prompt</TableHead>
+							<TableHead className="text-nowrap">Last prompt</TableHead>
 							<TableHead className="text-nowrap">User</TableHead>
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
-							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
+							<TableHead className="text-nowrap">In/Out tokens</TableHead>
 							<TableHead className="text-nowrap">Network</TableHead>
 							<TableHead>
 								<div className="flex items-center flex-nowrap gap-1">

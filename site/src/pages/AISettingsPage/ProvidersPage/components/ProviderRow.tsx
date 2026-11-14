@@ -94,6 +94,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 									variant="info"
 									onClick={stopPropagation}
 								>
+									{/* sentence-case-expect: Agents is the product name. */}
 									<button type="button">Not supported in Agents</button>
 								</Badge>
 							</TooltipTrigger>

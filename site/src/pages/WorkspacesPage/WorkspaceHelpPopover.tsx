@@ -17,7 +17,7 @@ export const WorkspaceHelpPopover: React.FC = () => {
 					target="_blank"
 					rel="noreferrer"
 				>
-					Create Workspaces
+					Create workspaces
 				</Link>
 				<br />
 				<Link

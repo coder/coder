@@ -272,7 +272,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 				{license.claims.nbf && (
 					<div className="flex flex-col items-center">
-						<span className="text-content-secondary">Valid From</span>
+						<span className="text-content-secondary">Valid from</span>
 						<span
 							className={cn("license-valid-from", {
 								"text-content-warning": statusText === "Not started",
@@ -284,7 +284,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 					</div>
 				)}
 				<div className="flex flex-col items-center">
-					<span className="text-content-secondary">Valid Until</span>
+					<span className="text-content-secondary">Valid until</span>
 					<span className="text-content-primary license-expires">
 						{dayjs.unix(license.claims.license_expires).format("MMMM D, YYYY")}
 					</span>

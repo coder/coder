@@ -475,9 +475,9 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 							<StackLabel>
 								Allow users to customize autostop duration for workspaces.
 								<StackLabelHelperText>
-									By default, workspaces will inherit the Autostop timer from
+									By default, workspaces will inherit the autostop timer from
 									this template. Enabling this option allows users to set custom
-									Autostop timers on their workspaces or turn off the timer.
+									autostop timers on their workspaces or turn off the timer.
 								</StackLabelHelperText>
 							</StackLabel>
 						</Label>
@@ -543,7 +543,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 									onCheckedChange={handleToggleInactivityCleanup}
 								/>
 								<Label htmlFor="dormancyThreshold">
-									<StackLabel>Enable Dormancy Threshold</StackLabel>
+									<StackLabel>Enable dormancy threshold</StackLabel>
 								</Label>
 							</div>
 
@@ -572,7 +572,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 								/>
 								<Label htmlFor="dormancyAutoDeletion">
 									<StackLabel>
-										Enable Dormancy Auto-Deletion
+										Enable dormancy auto-deletion
 										<StackLabelHelperText>
 											When enabled, Coder will permanently delete dormant
 											workspaces after a period of time.{" "}
@@ -611,7 +611,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 								/>
 								<Label htmlFor="failureCleanupEnabled">
 									<StackLabel>
-										Enable Failure Cleanup
+										Enable failure cleanup
 										<StackLabelHelperText>
 											When enabled, Coder will attempt to stop workspaces that
 											are in a failed state after a period of time.
@@ -664,7 +664,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 					onClose={() => {
 						setIsScheduleDialogOpen(false);
 					}}
-					title="Workspace Scheduling"
+					title="Workspace scheduling"
 					updateDormantWorkspaces={(update: boolean) =>
 						form.setFieldValue("update_workspace_dormant_at", update)
 					}

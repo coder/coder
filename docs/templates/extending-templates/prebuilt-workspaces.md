@@ -278,7 +278,7 @@ Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can
 When prebuilt workspaces are configured for an organization, Coder creates a group named `coderprebuiltworkspaces` (the **Prebuilt Workspaces** group) in that organization and adds the `prebuilds` user to it.
 This group has a default quota allowance of 0, which you should adjust based on your needs:
 
-- **Set a Quota Allowance** on the `coderprebuiltworkspaces` group to control how many prebuilt workspaces can be provisioned.
+- **Set a quota allowance** on the `coderprebuiltworkspaces` group to control how many prebuilt workspaces can be provisioned.
 - **Monitor usage** to make sure the quota is appropriate for your desired number of prebuilt instances.
 - **Adjust as needed** based on your template costs and desired prebuilt workspace pool size.
 
@@ -475,7 +475,7 @@ Because the condition evaluates based on the workspace owner, provisioning or de
 
 #### Validation
 
-To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner Jobs dashboard or the [`coder provisioner jobs list`](../../reference/cli/provisioner/jobs/list.md) CLI command to inspect job metadata and tags.
+To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the **Provisioner jobs** page or the [`coder provisioner jobs list`](../../reference/cli/provisioner/jobs/list.md) CLI command to inspect job metadata and tags.
 Follow these steps:
 
 1. Publish the new template version.

@@ -72,14 +72,14 @@ export const TemplateSettingsLayout: React.FC = () => {
 	return (
 		<>
 			<title>
-				{pageTitle(template?.display_name ?? templateName, "Template Settings")}
+				{pageTitle(template?.display_name ?? templateName, "Template settings")}
 			</title>
 
 			<div>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<BreadcrumbPage>Template Settings</BreadcrumbPage>
+							<BreadcrumbPage>Template settings</BreadcrumbPage>
 						</BreadcrumbItem>
 						{template && (
 							<>

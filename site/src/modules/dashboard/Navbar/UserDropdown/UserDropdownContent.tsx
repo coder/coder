@@ -108,7 +108,7 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 			</DropdownMenuItem>
 			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
-				<span>Sign Out</span>
+				<span>Sign out</span>
 			</DropdownMenuItem>
 			{supportLinks && supportLinks.length > 0 && (
 				<>

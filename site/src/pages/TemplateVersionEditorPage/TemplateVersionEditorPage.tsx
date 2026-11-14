@@ -128,7 +128,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle(templateName, "Template Editor")}</title>
+			<title>{pageTitle(templateName, "Template editor")}</title>
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
 				<Loader fullscreen />

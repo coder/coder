@@ -670,7 +670,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByText(/URL Autofill/i)).toBeInTheDocument();
+			expect(screen.getByText(/URL autofill/i)).toBeInTheDocument();
 		});
 
 		it("shows ephemeral indicator for ephemeral parameters", () => {

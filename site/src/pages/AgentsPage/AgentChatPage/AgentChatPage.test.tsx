@@ -392,7 +392,7 @@ describe("AgentChatPage", () => {
 				}
 				await page.type(" edit");
 				await page.user.click(
-					screen.getByRole("button", { name: "Save Edit" }),
+					screen.getByRole("button", { name: "Save edit" }),
 				);
 
 				await waitFor(() =>

@@ -385,7 +385,7 @@ You can upload the template through the CLI, or through the Coder dashboard:
      zip -r templates.zip main.tf build
      ```
 
-1. Select **Templates** from the top of the Coder dashboard, then **Create Template**.
+1. Select **Templates** from the top of the Coder dashboard, then **New template**.
 1. Select **Upload template**:
 
    ![Upload your first template](../images/templates/upload-create-your-first-template.png)

@@ -29,8 +29,8 @@ export const AgentOutdatedTooltip: React.FC<AgentOutdatedTooltipProps> = ({
 
 	const title =
 		status === agentVersionStatus.Outdated
-			? "Agent Outdated"
-			: "Agent Deprecated";
+			? "Agent outdated"
+			: "Agent deprecated";
 	const opener =
 		status === agentVersionStatus.Outdated
 			? "This agent is an older version than the Coder server."

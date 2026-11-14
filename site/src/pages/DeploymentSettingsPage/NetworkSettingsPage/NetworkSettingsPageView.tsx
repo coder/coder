@@ -96,7 +96,7 @@ export const NetworkSettingsPageView: React.FC<
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
-						Port Forwarding
+						Port forwarding
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Port forwarding lets developers securely access processes on their
@@ -109,7 +109,7 @@ export const NetworkSettingsPageView: React.FC<
 				</SettingsHeader>
 
 				<BadgeGroup>
-					{useDeploymentOptions(options, "Wildcard Access URL")[0].value !==
+					{useDeploymentOptions(options, "wildcard-access-url")[0].value !==
 					"" ? (
 						<EnabledBadge />
 					) : (

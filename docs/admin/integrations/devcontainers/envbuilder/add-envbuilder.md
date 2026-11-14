@@ -72,7 +72,7 @@ You can create template files through the Coder dashboard, CLI, or you can choos
         ```
 
    1. Select **Templates**.
-   1. Select **Create Template**, then **Upload template**:
+   1. Select **New template**, then **Upload template**:
 
       ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
 

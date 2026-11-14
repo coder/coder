@@ -133,7 +133,7 @@ export const StatusNotRegisteredIndicator: React.FC = () => {
 				</StatusIndicator>
 			</TooltipTrigger>
 			<TooltipContent>
-				Workspace Proxy has never come online and needs to be started.
+				Workspace proxy has never come online and needs to be started.
 			</TooltipContent>
 		</Tooltip>
 	);
@@ -149,7 +149,7 @@ export const StatusNotReachableIndicator: React.FC = () => {
 				</StatusIndicator>
 			</TooltipTrigger>
 			<TooltipContent>
-				Workspace Proxy not responding to http(s) requests.
+				Workspace proxy not responding to http(s) requests.
 			</TooltipContent>
 		</Tooltip>
 	);

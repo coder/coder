@@ -11,7 +11,7 @@ const ObservabilitySettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Observability Settings")}</title>
+			<title>{pageTitle("Observability settings")}</title>
 
 			<ObservabilitySettingsPageView
 				options={deploymentConfig.options}

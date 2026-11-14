@@ -108,7 +108,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 									<StatusBadge
 										code={code}
 										isHttpCode={isWeb}
-										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
+										label={isWeb ? "HTTP status code" : "SSH exit code"}
 									/>
 								)}
 								<ConnectionLogDetailsPopover connectionLog={connectionLog} />

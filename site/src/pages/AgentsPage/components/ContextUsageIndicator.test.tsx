@@ -18,7 +18,7 @@ describe("ContextUsageIndicator", () => {
 			/>,
 		);
 		await user.click(screen.getByRole("button", { name: /Context usage/ }));
-		await user.click(screen.getByRole("button", { name: /MCP Servers/ }));
+		await user.click(screen.getByRole("button", { name: /MCP servers/ }));
 		await user.click(screen.getByRole("button", { name: "Manage servers" }));
 		expect(onManageServers).toHaveBeenCalledTimes(1);
 	});

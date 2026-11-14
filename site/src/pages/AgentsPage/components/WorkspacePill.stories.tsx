@@ -317,8 +317,8 @@ export const WithStoppedWorkspace: Story = {
 			expect(cursorItem).toHaveAttribute("aria-disabled", "true");
 			expect(cursorItem).not.toHaveAttribute("href");
 
-			// View Workspace link should still be accessible.
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
+			// View workspace link should still be accessible.
+			expect(body.getByText("View workspace")).toBeInTheDocument();
 
 			// Ports sub-trigger should be disabled when workspace is stopped.
 			const portsItem = body.getByText("Ports").closest("[role=menuitem]");
@@ -353,7 +353,7 @@ export const WithListeningPorts: Story = {
 
 		const body = within(document.body);
 		await userEvent.hover(await body.findByText(/Ports \(\d+\)/));
-		await body.findByText("Listening Ports");
+		await body.findByText("Listening ports");
 	},
 };
 
@@ -386,7 +386,7 @@ export const WithSharedPorts: Story = {
 
 		const body = within(document.body);
 		await userEvent.hover(await body.findByText(/Ports/));
-		await body.findByText("Listening Ports");
+		await body.findByText("Listening ports");
 	},
 };
 
@@ -471,14 +471,14 @@ export const MobilePortsInlinePanel: Story = {
 		const { body, pill } = await openMobilePortsPanel(canvasElement);
 
 		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
-			expect(body.getByText("Shared Ports")).toBeInTheDocument();
+			expect(body.getByText("Listening ports")).toBeInTheDocument();
+			expect(body.getByText("Shared ports")).toBeInTheDocument();
 			expect(body.getByText("Manage sharing")).toBeInTheDocument();
 			expect(body.getByRole("menuitem", { name: /Back/ })).toHaveFocus();
-			expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
+			expect(body.queryByText("View workspace")).not.toBeInTheDocument();
 		});
 
-		const portsHeader = body.getByText("Listening Ports");
+		const portsHeader = body.getByText("Listening ports");
 		const dropdown: HTMLElement | null = portsHeader.closest(
 			"[data-radix-popper-content-wrapper]",
 		);
@@ -492,26 +492,26 @@ export const MobilePortsInlinePanel: Story = {
 
 		await userEvent.click(body.getByRole("menuitem", { name: /Back/ }));
 		await waitFor(() => {
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
+			expect(body.getByText("View workspace")).toBeInTheDocument();
 			expect(body.getByRole("menuitem", { name: /Ports/ })).toHaveFocus();
-			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+			expect(body.queryByText("Listening ports")).not.toBeInTheDocument();
 		});
 
 		await userEvent.click(body.getByText(/Ports \(\d+\)/));
 		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByText("Listening ports")).toBeInTheDocument();
 			expect(body.getByRole("menuitem", { name: /Back/ })).toHaveFocus();
 		});
 
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => {
-			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+			expect(body.queryByText("Listening ports")).not.toBeInTheDocument();
 		});
 
 		await userEvent.click(pill);
 		await waitFor(() => {
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+			expect(body.getByText("View workspace")).toBeInTheDocument();
+			expect(body.queryByText("Listening ports")).not.toBeInTheDocument();
 		});
 	},
 };
@@ -520,6 +520,6 @@ export const MobilePortsInlinePanelOpen: Story = {
 	...mobilePortsStoryConfig,
 	play: async ({ canvasElement }) => {
 		const { body } = await openMobilePortsPanel(canvasElement);
-		await body.findByText("Listening Ports");
+		await body.findByText("Listening ports");
 	},
 };

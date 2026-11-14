@@ -34,7 +34,7 @@ const SessionThreadsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Session Threads", "AI Gateway")}</title>
+			<title>{pageTitle("Session threads", "AI Gateway")}</title>
 
 			<SessionThreadsPageView
 				session={firstPage}

@@ -157,7 +157,7 @@ const PortsList: React.FC<{
 			{privateListeningPorts.length > 0 && (
 				<div className="px-2 pb-1.5 pt-1">
 					<span className="text-xs font-semibold text-content-secondary">
-						Listening Ports
+						Listening ports
 					</span>
 				</div>
 			)}
@@ -189,7 +189,7 @@ const PortsList: React.FC<{
 					<DropdownMenuSeparator className="my-1" />
 					<div className="px-2 pb-1.5 pt-1">
 						<span className="text-xs font-semibold text-content-secondary">
-							Shared Ports
+							Shared ports
 						</span>
 					</div>
 					{(sharedPorts ?? []).map((share) => (

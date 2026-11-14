@@ -59,7 +59,7 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({
 						 */}
 						{shouldDisplayStackTrace && (
 							<details className="max-w-full">
-								<summary>Stack Trace</summary>
+								<summary>Stack trace</summary>
 								<div className="mt-2 max-w-full overflow-x-auto">
 									<pre className="m-0 w-max min-w-full">{error.stack}</pre>
 								</div>

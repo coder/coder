@@ -163,7 +163,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 					}}
 				>
 					<Spinner loading={externalAuthPollingState === "polling"} />
-					{authenticated ? "Authenticated" : "Click to Login"}
+					{authenticated ? "Authenticated" : "Click to login"}
 				</Button>
 			</TableCell>
 			<TableCell>
@@ -185,7 +185,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 								await refetch();
 							}}
 						>
-							Test Validate&hellip;
+							Test validate&hellip;
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							className="text-content-destructive focus:text-content-destructive"

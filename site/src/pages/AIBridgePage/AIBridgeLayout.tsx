@@ -12,7 +12,7 @@ const AIBridgeLayout: React.FC<React.PropsWithChildren> = () => {
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle tooltip={<AIBridgeHelpPopover />}>
-					AI Gateway Logs
+					AI Gateway logs
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Centralized auditing for LLM usage across your organization.

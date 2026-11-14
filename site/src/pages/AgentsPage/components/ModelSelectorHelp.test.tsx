@@ -50,9 +50,9 @@ describe("getModelSelectorHelp", () => {
 		);
 
 		expect(document.body).toHaveTextContent(
-			"Configure your API keys in Settings to enable models.",
+			"Configure your API keys in settings to enable models.",
 		);
-		expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "settings" })).toHaveAttribute(
 			"href",
 			"/agents/settings/api-keys",
 		);

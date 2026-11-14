@@ -68,7 +68,7 @@ export const WorkspaceNotifications: React.FC<WorkspaceNotificationsProps> = ({
 				title: "Autostart has been disabled for your workspace.",
 				severity: "warning",
 				detail:
-					"Autostart is unable to automatically update your workspace. Manually update your workspace to reenable Autostart.",
+					"Autostart is unable to automatically update your workspace. Manually update your workspace to reenable autostart.",
 
 				actions,
 			});

@@ -14,14 +14,14 @@ export type NormalizedAttempt = {
 };
 
 const RUN_KIND_LABELS: Record<string, string> = {
-	chat_turn: "Chat Turn",
-	title_generation: "Title Generation",
+	chat_turn: "Chat turn",
+	title_generation: "Title generation",
 	compaction: "Compaction",
-	quickgen: "Quick Gen",
-	quick_gen: "Quick Gen",
-	llm_call: "LLM Call",
+	quickgen: "Quick gen",
+	quick_gen: "Quick gen",
+	llm_call: "LLM call",
 	post_process: "Post-process",
-	tool_call: "Tool Call",
+	tool_call: "Tool call",
 };
 
 export const SUCCESS_STATUSES = new Set([

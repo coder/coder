@@ -28,7 +28,7 @@ export const AdminChatDebugLoggingSettings: React.FC<
 
 	const description = forcedByDeployment
 		? "Debug logging is already enabled deployment-wide, so this per-user setting has no effect right now."
-		: "Lets users turn on debug logging for their own chats from their General settings. When on, Coder saves each chat turn along with the raw API requests and responses sent to the model provider.";
+		: "Lets users turn on debug logging for their own chats from their general settings. When on, Coder saves each chat turn along with the raw API requests and responses sent to the model provider.";
 
 	return (
 		<div className="flex items-start gap-3">

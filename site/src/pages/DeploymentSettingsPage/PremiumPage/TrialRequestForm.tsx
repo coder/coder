@@ -134,7 +134,7 @@ export const TrialRequestForm: React.FC<TrialRequestFormProps> = ({
 					/>
 					<FormField
 						label="Job title"
-						placeholder="Platform Engineer"
+						placeholder="Platform engineer"
 						required
 						field={getFieldHelpers("job_title", {
 							maxLength: MAX_JOB_TITLE_LENGTH,

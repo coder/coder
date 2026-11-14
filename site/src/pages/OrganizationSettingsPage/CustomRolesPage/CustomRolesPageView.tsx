@@ -72,7 +72,7 @@ export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 			{!isCustomRolesEnabled && (
 				<PremiumPaywallSmall
 					source="custom_roles"
-					message="Custom Roles"
+					message="Custom roles"
 					description="Build roles with the exact permissions your team needs."
 					features={[
 						"Configure roles per organization",
@@ -107,7 +107,7 @@ export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 					}
 				>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
-						Custom Roles
+						Custom roles
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Create custom roles to grant users a tailored set of granular
@@ -127,7 +127,7 @@ export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
-						Built-In Roles
+						Built-in roles
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Built-in roles have predefined permissions. You cannot edit or
@@ -188,7 +188,7 @@ const DefaultRolesSection: React.FC<DefaultRolesSectionProps> = ({
 				}
 			>
 				<SettingsHeaderTitle level="h2" hierarchy="secondary">
-					Default Roles
+					Default roles
 					{!defaultRolesEntitled && <PremiumBadge />}
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

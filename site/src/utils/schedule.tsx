@@ -129,7 +129,7 @@ export const autostopDisplay = (
 			};
 		}
 		let title = (
-			<HelpPopoverTitle>Template Autostop requirement</HelpPopoverTitle>
+			<HelpPopoverTitle>Template autostop requirement</HelpPopoverTitle>
 		);
 		let reason: React.ReactNode = ` because the ${template.display_name} template has an autostop requirement.`;
 		if (template.autostop_requirement && template.allow_user_autostop) {

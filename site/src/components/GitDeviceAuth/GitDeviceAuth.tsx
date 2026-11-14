@@ -154,7 +154,7 @@ export const GitDeviceAuth: React.FC<GitDeviceAuthProps> = ({
 					showExternalIcon={false}
 				>
 					<ExternalLinkIcon className="size-icon-xs" />
-					Open and Paste
+					Open and paste
 				</Link>
 			</div>
 

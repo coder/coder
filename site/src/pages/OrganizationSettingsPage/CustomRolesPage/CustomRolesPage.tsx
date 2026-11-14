@@ -74,7 +74,7 @@ const CustomRolesPage: React.FC = () => {
 		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<title>
 				{pageTitle(
-					"Custom Roles",
+					"Custom roles",
 					organization.display_name || organization.name,
 				)}
 			</title>

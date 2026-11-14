@@ -847,7 +847,7 @@ describe("AgentChatInput", () => {
 
 	it.each([
 		["history", "Stop", "onInterrupt"],
-		["queued", "Save Edit", "onSend"],
+		["queued", "Save edit", "onSend"],
 	] as const)(
 		"a %s edit while streaming puts %s in the footer slot",
 		async (editingKind, buttonName, calledHandler) => {
@@ -1468,7 +1468,7 @@ describe("AgentChatInput", () => {
 		// Plain Enter sends only once the shortcut preference has loaded.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
+				screen.getByRole("button", { name: /^(Send|Queue|Save edit)$/ }),
 			).toHaveAttribute("aria-keyshortcuts", "Enter");
 		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));

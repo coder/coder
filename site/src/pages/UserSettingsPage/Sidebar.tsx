@@ -18,11 +18,11 @@ export const Sidebar: React.FC = () => {
 					Appearance
 				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="external-auth">
-					External Authentication
+					External authentication
 				</SettingsSidebarNavItem>
 				{showOAuth2Page && (
 					<SettingsSidebarNavItem href="oauth2-provider">
-						OAuth2 Applications
+						OAuth2 applications
 					</SettingsSidebarNavItem>
 				)}
 				{showSchedulePage && (
@@ -34,7 +34,7 @@ export const Sidebar: React.FC = () => {
 					Security
 				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="ssh-keys">
-					SSH Keys
+					SSH keys
 				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="secrets">Secrets</SettingsSidebarNavItem>

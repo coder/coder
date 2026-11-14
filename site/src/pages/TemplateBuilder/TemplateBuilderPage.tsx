@@ -137,7 +137,7 @@ const TemplateBuilderPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Create Template")}</title>
+			<title>{pageTitle("Create template")}</title>
 			<TemplateBuilderPageView
 				error={error}
 				basesData={basesQuery.data}

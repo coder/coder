@@ -57,7 +57,7 @@ const LifecyclePage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<title>{pageTitle("Lifecycle", "AI Settings")}</title>
+			<title>{pageTitle("Lifecycle", "AI settings")}</title>
 			<LifecyclePageView
 				workspaceTTLData={workspaceTTLQuery.data}
 				isWorkspaceTTLLoading={workspaceTTLQuery.isLoading}

@@ -118,7 +118,7 @@ test("change quota settings", async ({ page }) => {
 	);
 
 	// Update Quota
-	await page.getByLabel("Quota Allowance").fill("100");
+	await page.getByLabel("Quota allowance").fill("100");
 	await page.getByRole("button", { name: /save/i }).click();
 
 	// We should get sent back to the group page afterwards
@@ -128,5 +128,5 @@ test("change quota settings", async ({ page }) => {
 
 	// ...and that setting should persist if we go back
 	await page.getByRole("link", { name: "Group settings" }).click();
-	await expect(page.getByLabel("Quota Allowance")).toHaveValue("100");
+	await expect(page.getByLabel("Quota allowance")).toHaveValue("100");
 });

@@ -32,7 +32,7 @@ export const Default: Story = {
 					Security
 				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="ssh-keys">
-					SSH Keys
+					SSH keys
 				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
 			</div>
@@ -62,7 +62,7 @@ export const Default: Story = {
 						},
 						{
 							path: "ssh-keys",
-							element: <>SSH Keys</>,
+							element: <>SSH keys</>,
 						},
 						{
 							path: "tokens",

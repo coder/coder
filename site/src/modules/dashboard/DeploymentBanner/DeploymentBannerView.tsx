@@ -362,7 +362,7 @@ const ActiveConnections = memo(
 
 		return (
 			<div className="flex items-center">
-				<div className="mr-4 text-content-primary">Active Connections</div>
+				<div className="mr-4 text-content-primary">Active connections</div>
 				<div className="flex gap-2 text-content-secondary">
 					{FAMILY_SLOTS.map(({ key, name, icon }, index) => {
 						const apps = groups.get(key) ?? [];
