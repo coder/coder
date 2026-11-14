@@ -2443,6 +2443,53 @@ User IDs that are not members of the group, or that the caller has no read acces
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organization member AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/ai/spend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/members/{user}/ai/spend`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description              |
+|----------------|------|--------|----------|--------------------------|
+| `organization` | path | string | true     | Organization ID or name  |
+| `user`         | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMemberAISpendStatus](schemas.md#codersdkorganizationmemberaispendstatus) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace quota by user
 
 ### Code samples

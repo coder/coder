@@ -130,6 +130,26 @@ type GroupAISpend struct {
 	OrganizationGroupAISpend
 }
 
+// OrganizationMemberAISpendStatus is a user's AI spend snapshot inside a
+// single organization, resolved the same way AI Gateway resolves a request
+// made in that organization.
+type OrganizationMemberAISpendStatus struct {
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	UserID         uuid.UUID `json:"user_id" format:"uuid"`
+	// EffectiveGroupID is the group inside this organization that the spend
+	// is attributed to, falling back to the organization's Everyone group
+	// when no budget applies.
+	EffectiveGroupID uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// EffectiveBudget is the spend limit that applies to the user in this
+	// organization. Null when no budget applies, leaving the user's spend
+	// unlimited.
+	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
+	AISpendPeriodWindow
+	// CurrentSpendMicros is the user's spend on their effective group over
+	// the current budget period.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
+}
+
 // GroupMembersAISpend reports per-member AI spend attributed to a specific
 // group in the active budget period.
 type GroupMembersAISpend struct {
@@ -999,6 +1019,26 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OrganizationMemberAISpendStatus returns the current AI spend snapshot for
+// the given user within the organization for the active budget period. The
+// user may be a user ID, a username, or "me".
+func (c *Client) OrganizationMemberAISpendStatus(ctx context.Context, organization uuid.UUID, user string) (OrganizationMemberAISpendStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/members/%s/ai/spend", organization.String(), user),
+		nil,
+	)
+	if err != nil {
+		return OrganizationMemberAISpendStatus{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMemberAISpendStatus{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationMemberAISpendStatus
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
