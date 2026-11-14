@@ -82,6 +82,24 @@ describe("UserDropdown AI spend", () => {
 		).toHaveAccessibleName(/User menu$/);
 	});
 
+	it("lets keyboard users pick an organization without leaving the menu", async () => {
+		const user = userEvent.setup();
+		const { menu, orgTrigger } = await renderOpenMenu(user);
+
+		orgTrigger.focus();
+		await user.keyboard("{Enter}");
+		await user.keyboard("{ArrowDown}");
+		expect(
+			screen.getByRole("menuitemradio", {
+				name: MockOrganization.display_name,
+			}),
+		).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(menu).toHaveTextContent("$819 / $1,200 USD");
+		expect(orgTrigger).toHaveFocus();
+	});
+
 	it("keeps the spend and the open selector when a refetch fails", async () => {
 		const user = userEvent.setup();
 		const { menu, orgTrigger, queryClient } = await renderOpenMenu(user);

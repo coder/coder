@@ -327,11 +327,12 @@ export const AISpendZeroLimit: Story = {
 		],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("shows a zero limit without exceeding", async () => {
+		await step("shows a zero limit as exceeded", async () => {
 			await openDropdown(canvasElement);
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$0 / $0 USD"),
 			);
+			expect(document.body).toHaveTextContent("Limit exceeded");
 			expect(
 				screen.getByRole("progressbar", {
 					hidden: true,
