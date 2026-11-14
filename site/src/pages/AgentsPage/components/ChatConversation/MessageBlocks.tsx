@@ -12,7 +12,6 @@ import {
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
-import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -272,12 +271,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 							/>
 						);
 					case "sources":
-						return (
-							<WebSearchSources
-								key={`${keyPrefix}-sources-${index}`}
-								sources={block.sources}
-							/>
-						);
+						return null;
 					// These render through the user message display state instead.
 					case "workspace-file-reference":
 					case "skill-invocation":

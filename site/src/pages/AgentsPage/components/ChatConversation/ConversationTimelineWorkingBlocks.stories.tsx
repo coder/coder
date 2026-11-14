@@ -11,6 +11,7 @@ import {
 import { defaultUrlTransform } from "streamdown";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	MockChatFileMetadata,
@@ -592,5 +593,128 @@ export const EditingBeforeAnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
 		editingMessageId: 1,
+	},
+};
+
+const mockSourcesAndAttachmentsMessages = MockMixedAttachmentMessages.map(
+	(message) =>
+		message.id === 23
+			? {
+					...message,
+					content: [
+						...(message.content ?? []),
+						...Array.from(
+							{ length: 5 },
+							(_, index): TypesGen.ChatSourcePart => ({
+								type: "source",
+								url: `https://example.com/docs/page-${index + 1}`,
+								title: `Reference page ${index + 1}`,
+							}),
+						),
+					],
+				}
+			: message,
+);
+
+export const SourcesAndAttachments: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			mockSourcesAndAttachmentsMessages,
+		),
+	},
+};
+
+export const SourcesAndAttachmentsOpen: Story = {
+	...SourcesAndAttachments,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Sources (5)" }),
+		);
+	},
+};
+
+export const SourcesAndAttachmentsOpenMobile: Story = {
+	...SourcesAndAttachmentsOpen,
+	globals: { viewport: { value: "mobile1", isRotated: false } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
+};
+
+const mockCitationsBeforeAnswerMessages = MockWebSearchAnswerMessages.flatMap(
+	(message) =>
+		message.id !== 6
+			? [message]
+			: [
+					{
+						...message,
+						content: (message.content ?? []).slice(0, -1),
+					},
+					{ ...message, id: 7, content: (message.content ?? []).slice(-1) },
+				],
+);
+
+export const CitationsBeforeAnswer: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			mockCitationsBeforeAnswerMessages,
+		),
+	},
+};
+
+export const CitationsBeforeAnswerOpen: Story = {
+	...CitationsBeforeAnswer,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Sources (2)" }),
+		);
+	},
+};
+
+export const CitationsBeforeAnswerWithoutFolding: Story = {
+	...CitationsBeforeAnswer,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockCollapsedStepsPreferences,
+					collapse_assistant_steps: false,
+				},
+			},
+		],
+	},
+};
+
+export const SourcesWithMissingTitleAndNonWebUrl: Story = {
+	...SourcesAndAttachmentsOpen,
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			mockSourcesAndAttachmentsMessages.map((message) =>
+				message.id === 23
+					? {
+							...message,
+							content: [
+								...(message.content ?? []).filter(
+									(part) => part.type !== "source",
+								),
+								{
+									type: "source",
+									url: "https://example.com/reference",
+									title: "",
+								},
+								{
+									type: "source",
+									url: "ftp://example.com/archive",
+									title: "Archived reference",
+								},
+							],
+						}
+					: message,
+			),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Sources (2)" }),
+		);
 	},
 };

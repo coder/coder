@@ -11,9 +11,11 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import type { RenderBlock } from "./types";
 import {
 	type GroupWorkingBlocksOptions,
+	getBlockSources,
 	getBlockTurnAttachments,
 	getSliceContent,
 	getTurnAttachmentsByRow,
+	getTurnSourcesByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
@@ -1913,5 +1915,134 @@ describe("getTurnAttachmentsByRow", () => {
 		]);
 
 		expect(pills(rows, { isChatActive: true, isCompacting: true })).toEqual([]);
+	});
+});
+
+describe("getBlockSources", () => {
+	it("assigns citations to the block only when the message ends inside it", () => {
+		const sourcesOnly = group([
+			user("Sources?"),
+			message("assistant", [citation]),
+		]);
+		expect(
+			sourcesOnly.blocks.flatMap((block) =>
+				getBlockSources(
+					block,
+					sourcesOnly.rows,
+					getTurnSourcesByRow(sourcesOnly.rows, {
+						hidesAttachmentRows: true,
+						isChatActive: false,
+						isCompacting: false,
+					}),
+				),
+			),
+		).toEqual([{ url: "https://go.example.com", title: "Go" }]);
+
+		const withAnswer = group([
+			user("Sources?"),
+			message("assistant", [citation, text("See the Go docs.")]),
+		]);
+		expect(
+			withAnswer.blocks.flatMap((block) =>
+				getBlockSources(
+					block,
+					withAnswer.rows,
+					getTurnSourcesByRow(withAnswer.rows, {
+						hidesAttachmentRows: true,
+						isChatActive: false,
+						isCompacting: false,
+					}),
+				),
+			),
+		).toEqual([]);
+	});
+});
+
+describe("getTurnSourcesByRow", () => {
+	const options = {
+		hidesAttachmentRows: true,
+		isChatActive: false,
+		isCompacting: false,
+	};
+	const mockPage = { url: "https://go.example.com", title: "Go" };
+	const search = (
+		id: string,
+		source = mockPage,
+	): TypesGen.ChatMessagePart[] => [
+		{
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: id,
+			provider_executed: true,
+			args: { query: "Go" },
+		},
+		{ type: "source", tool_call_id: id, ...source },
+		{
+			type: "tool-result",
+			tool_name: "web_search",
+			tool_call_id: id,
+			provider_executed: true,
+			result: {},
+		},
+	];
+
+	it("attaches deduplicated citations from earlier messages to the final answer", () => {
+		const { rows } = group([
+			user("Research Go"),
+			message("assistant", search("search-1")),
+			message("assistant", [{ type: "source", ...mockPage }]),
+			message("assistant", [
+				{ type: "source", ...mockPage },
+				text("Here is the answer."),
+			]),
+		]);
+		expect([...getTurnSourcesByRow(rows, options)]).toEqual([
+			[rows[rows.length - 1].key, [mockPage]],
+		]);
+	});
+
+	it("keeps uncited search results in the search row without adding a footer", () => {
+		const { rows } = group([
+			user("Research Go"),
+			message("assistant", search("search-1")),
+			message("assistant", [text("Here is the answer.")]),
+		]);
+		expect([...getTurnSourcesByRow(rows, options)]).toEqual([]);
+		expect([
+			...getTurnSourcesByRow(rows, { ...options, hidesAttachmentRows: false }),
+		]).toEqual([]);
+		const searchRow = rows.find(
+			(row) => row.type === "message" && row.entry.parsed.tools.length > 0,
+		);
+		expect(
+			searchRow?.type === "message"
+				? searchRow.entry.parsed.tools[0].foundPages
+				: [],
+		).toEqual([mockPage]);
+	});
+
+	it("keeps sources within their user turn and waits for the active turn to finish", () => {
+		const { rows } = group([
+			user("Research Go"),
+			message("assistant", [{ type: "source", ...mockPage }]),
+			message("assistant", [text("Go answer.")]),
+			user("Research Rust"),
+			message(
+				"assistant",
+				search("search-2", { url: "https://rust.example.com", title: "Rust" }),
+			),
+			message("assistant", [
+				{ type: "source", url: "https://rust.example.com", title: "Rust" },
+				text("Rust answer."),
+			]),
+		]);
+		const completed = [...getTurnSourcesByRow(rows, options)];
+		expect(completed.map(([, sources]) => sources)).toEqual([
+			[mockPage],
+			[{ url: "https://rust.example.com", title: "Rust" }],
+		]);
+		expect([
+			...getTurnSourcesByRow(rows, { ...options, isChatActive: true }),
+		]).toEqual(completed.slice(0, 1));
 	});
 });

@@ -8,8 +8,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import type { MessageAttachment } from "./messageHelpers";
 import { TurnAttachments } from "./TurnAttachments";
+import type { SourceLink } from "./types";
 
 type MessageActionBarProps = {
 	className?: string;
@@ -137,6 +139,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 type AssistantMessageActionsProps = {
 	copyText?: string;
 	turnAttachments?: readonly MessageAttachment[];
+	sources?: SourceLink[];
 	keepsSpacing: boolean;
 };
 
@@ -146,8 +149,12 @@ type AssistantMessageActionsProps = {
  */
 export const AssistantMessageActions: React.FC<
 	AssistantMessageActionsProps
-> = ({ copyText, turnAttachments, keepsSpacing }) => {
-	if (copyText === undefined && turnAttachments === undefined) {
+> = ({ copyText, turnAttachments, sources, keepsSpacing }) => {
+	if (
+		copyText === undefined &&
+		turnAttachments === undefined &&
+		!sources?.length
+	) {
 		return keepsSpacing ? (
 			<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 		) : null;
@@ -164,6 +171,7 @@ export const AssistantMessageActions: React.FC<
 				/>
 			)}
 			{turnAttachments && <TurnAttachments attachments={turnAttachments} />}
+			{sources && <WebSearchSources sources={sources} />}
 		</MessageActionBar>
 	);
 };
