@@ -4869,6 +4869,9 @@ func TestOrganizationMemberAISpendStatus(t *testing.T) {
 	unbudgetedOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
 
 	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID, rbac.RoleUserAdmin())
+	// Organization admins can read every user, so only the organization and
+	// membership checks keep them out of organizations they don't administer.
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID, rbac.ScopedRoleOrgAdmin(budgetedOrgID))
 	targetClient, target := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID)
 	otherMemberClient, otherMember := coderdtest.CreateAnotherUser(t, ownerClient, budgetedOrgID)
 
@@ -4954,6 +4957,21 @@ func TestOrganizationMemberAISpendStatus(t *testing.T) {
 			user:     target.Username,
 			wantCode: http.StatusOK,
 			want:     wantUnbudgeted,
+		},
+		{
+			name:     "OrgAdminReadsMember",
+			client:   orgAdminClient,
+			orgID:    budgetedOrgID,
+			user:     target.ID.String(),
+			wantCode: http.StatusOK,
+			want:     wantBudgeted,
+		},
+		{
+			name:     "OrgAdminReadsMemberInOtherOrganization",
+			client:   orgAdminClient,
+			orgID:    unbudgetedOrg.ID,
+			user:     target.ID.String(),
+			wantCode: http.StatusNotFound,
 		},
 		{
 			name:     "MemberReadsOther",
