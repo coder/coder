@@ -309,6 +309,8 @@ Visibility follows the viewer's role:
   If the effective group is in a different organization, the row shows a dash and explains that the group is not visible there.
   Because the organization's `Everyone` group includes every member, its **Members** tab is a quick way to look up any user's effective group.
 - The avatar menu reports the signed-in user's own spend for the budget period as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget applies.
+  A user in more than one organization can choose an organization in the menu to see their spend and budget there, and the badge on their avatar follows that choice.
+  Once spend reaches the budget, the menu shows `Limit exceeded` and the date the budget period ends, when AI requests resume.
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
 To see the budget and spend that apply to a user in one organization, use the [Get organization member AI spend](../../reference/api/enterprise.md#get-organization-member-ai-spend) API endpoint.

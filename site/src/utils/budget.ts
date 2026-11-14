@@ -14,8 +14,15 @@ export function formatSpendPeriodLabel(
 	periodEnd: string,
 ): string {
 	const start = dayjs.utc(periodStart).format("MMMM D");
-	const end = dayjs.utc(periodEnd).format("MMMM D, YYYY");
-	return `${start} - ${end}`;
+	return `${start} - ${formatSpendPeriodEnd(periodEnd)}`;
+}
+
+/**
+ * Formats the exclusive end of an AI budget window in UTC, e.g.
+ * "July 1, 2026", the day spend resets.
+ */
+export function formatSpendPeriodEnd(periodEnd: string): string {
+	return dayjs.utc(periodEnd).format("MMMM D, YYYY");
 }
 
 /**
