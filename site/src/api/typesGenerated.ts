@@ -6397,6 +6397,53 @@ export type GroupSource = "oidc" | "user";
 
 export const GroupSources: GroupSource[] = ["oidc", "user"];
 
+// From codersdk/idpsync_wellformed.go
+/**
+ * GroupSyncFinding is one violation found in group sync settings.
+ */
+export interface GroupSyncFinding {
+	/**
+	 * Code names the condition violated.
+	 */
+	readonly code: GroupSyncFindingCode;
+	/**
+	 * Path is a JSON Pointer (RFC 6901) to the offending element of the
+	 * settings text. Array indexes refer to positions in the settings as
+	 * given. The empty path refers to the whole text.
+	 */
+	readonly path: string;
+}
+
+// From codersdk/idpsync_warning.go
+export type GroupSyncFindingCode =
+	| "empty_mapping_key"
+	| "everyone_group"
+	| "field_empty"
+	| "filter_excluded_key"
+	| "legacy_mapping"
+	| "missing_group"
+	| "nil_uuid"
+	| "null_array"
+	| "organization_absent"
+	| "organization_deleted"
+	| "outside_group"
+	| "repeated_uuid";
+
+export const GroupSyncFindingCodes: GroupSyncFindingCode[] = [
+	"empty_mapping_key",
+	"everyone_group",
+	"field_empty",
+	"filter_excluded_key",
+	"legacy_mapping",
+	"missing_group",
+	"nil_uuid",
+	"null_array",
+	"organization_absent",
+	"organization_deleted",
+	"outside_group",
+	"repeated_uuid",
+];
+
 // From codersdk/idpsync.go
 export interface GroupSyncSettings {
 	/**
@@ -6427,6 +6474,63 @@ export interface GroupSyncSettings {
 	 * @deprecated Use Mapping instead.
 	 */
 	readonly legacy_group_name_mapping?: Record<string, string>;
+}
+
+// From codersdk/idpsync_warning.go
+/**
+ * GroupSyncSettingsResponse is what the group sync settings endpoints
+ * return: the settings as saved or returned, and a warning for each finding
+ * the server accepted. The settings are embedded, so the response has the
+ * same members as GroupSyncSettings plus `warnings` and `received_settings`,
+ * and a client that decodes it as GroupSyncSettings reads the settings
+ * unchanged.
+ */
+export interface GroupSyncSettingsResponse extends GroupSyncSettings {
+	/**
+	 * Warnings holds one warning for each finding the server accepted. Their
+	 * paths point into ReceivedSettings.
+	 */
+	readonly warnings: readonly GroupSyncWarning[];
+	/**
+	 * ReceivedSettings is the settings the warnings refer to: the request for
+	 * the full-replace endpoint, the merged settings before rewriting for the
+	 * config and mapping-diff endpoints, and the stored settings as read for
+	 * GET. It is present exactly when there are warnings.
+	 */
+	readonly received_settings?: GroupSyncSettings;
+}
+
+// From codersdk/idpsync_warning.go
+/**
+ * GroupSyncWarning reports one finding in group sync settings that the server
+ * accepted, and what it did about it. Warnings accompany the settings in API
+ * responses, so that a client can compare what it sent with what was saved.
+ */
+export interface GroupSyncWarning {
+	/**
+	 * Code names the condition violated.
+	 */
+	readonly code: GroupSyncFindingCode;
+	/**
+	 * Path is a JSON Pointer (RFC 6901) to the element concerned, in the
+	 * settings as received. The empty path refers to the whole text.
+	 */
+	readonly path: string;
+	/**
+	 * Received is the JSON text of the element at Path, as received. Its
+	 * kind follows from the element Path names: a UUID string for an element
+	 * of a mapping array, an array or null for a mapping value, the member's
+	 * value for a top-level member, and the whole settings object for the
+	 * empty path.
+	 */
+	readonly received: unknown;
+	/**
+	 * Accepted is the JSON text of the element in the settings as saved or
+	 * returned, of the same kind as Received. It is absent when the element
+	 * was removed, and equal to Received when the settings were not
+	 * rewritten.
+	 */
+	readonly accepted?: unknown;
 }
 
 // From codersdk/deployment.go

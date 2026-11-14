@@ -194,6 +194,20 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// Settings can name groups that are in another organization or
 			// that do not exist. Only groups in this organization are synced;
 			// the rest are reported and dropped.
+			//
+			// Settings that were valid when saved can become invalid later,
+			// because Coder does not keep them valid when other data changes:
+			// deleting a group, for example, leaves its UUID in every mapping
+			// that names it. See "Sources of misbehavior with group sync" in
+			// SYNC_SETTINGS.md, the case where the settings were valid
+			// previously but then the database changed. This partition is the
+			// guard against that decay, on the path that grants membership,
+			// and it must stay even though the rewriter (group_rewrite.go)
+			// removes the same UUIDs when settings are saved or fetched.
+			//
+			// It can be removed only once Coder keeps group sync settings
+			// valid through every operation that affects them, such as group
+			// removal.
 			expectedGroups, outside, missing, err := partitionOutInvalidSettings(ctx, tx, orgID, expectedGroups)
 			if err != nil {
 				return xerrors.Errorf("partition expected groups: %w", err)

@@ -76,7 +76,7 @@ For deployments with multiple [organizations](./organizations.md), configure gro
    ```json
    {
        "field": "",
-       "mapping": null,
+       "mapping": {},
        "regex_filter": null,
        "auto_create_missing_groups": false
    }
@@ -176,6 +176,52 @@ Visit the Coder UI to confirm these changes:
    From this example, users that belong to the `myOIDCGroupID` group in your OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
 </div>
+
+### How Coder checks group sync settings
+
+Coder checks group sync settings against the organization each time you save them from the dashboard, the CLI, or the API.
+Each group ID in `mapping` must name a group that belongs to the organization.
+
+Coder rejects settings that name a group it can't use, and does not save anything:
+
+| Condition                                        | Code            |
+|--------------------------------------------------|-----------------|
+| A group ID names a group in another organization | `outside_group` |
+| A group ID names no group                        | `missing_group` |
+
+The API responds with status 400 and one validation error for each rejected group ID.
+Each validation error's `field` is a [JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the group ID, such as `/mapping/coder-admins/0`, and its `detail` names the code.
+
+Coder corrects the following conditions, saves the corrected settings, and reports a warning for each:
+
+| Condition                                      | Correction                | Code                  |
+|------------------------------------------------|---------------------------|-----------------------|
+| The all-zero group ID                          | Removes it                | `nil_uuid`            |
+| A group ID listed twice for the same IdP group | Keeps only one occurrence | `repeated_uuid`       |
+| `null` in place of a list of group IDs         | Saves an empty list       | `null_array`          |
+| An IdP group name that `regex_filter` excludes | Removes the entry         | `filter_excluded_key` |
+| The organization's Everyone group              | Removes it                | `everyone_group`      |
+
+Coder saves the following conditions as given and reports a warning for each:
+
+| Condition                              | Code                |
+|----------------------------------------|---------------------|
+| An empty `field`, so group sync is off | `field_empty`       |
+| An empty IdP group name                | `empty_mapping_key` |
+
+When there are warnings, the API response includes two members besides the settings.
+`warnings` lists each warning's code, the JSON Pointer to the element it concerns, and the element's value as received and as saved.
+`received_settings` holds the settings the pointers refer to.
+For the endpoints that change only the configuration or only the mapping, those are the settings after your change and before any correction.
+
+#### Settings that stop being valid
+
+Settings that were valid when saved can stop being valid, for example when someone deletes a group that `mapping` names.
+When you view the settings, or change only the configuration or only the mapping, Coder first applies the corrections in the table above to the stored settings.
+It also removes group IDs that name a group in another organization or no group, and saves the result.
+The audit log records each such correction as a separate entry under the user whose request caused it, with `automatic_actor` set to `coder` in its additional fields.
+
+At login, Coder ignores any group ID in `mapping` that doesn't name a group in the organization.
 
 ### Group allowlist
 
