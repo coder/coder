@@ -180,7 +180,7 @@ describe("checkSource", () => {
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
 			[1, "Provider"],
 		]);
-		expect(fixedText.split("\n")[0]).toBe("const a = `New ${label} provider`;");
+		expect(fixedText).toBe(source);
 	});
 
 	it("checks JSX text across inline elements as one phrase", () => {
@@ -285,9 +285,9 @@ describe("checkSource", () => {
 	it("lowercases title-cased segments of hyphenated words", () => {
 		const { fixedText } = checkSource(
 			"file.tsx",
-			'const a = "Configure Role-Based Access";',
+			"const a = <p>Configure Role-Based Access</p>;",
 		);
-		expect(fixedText).toBe('const a = "Configure role-based access";');
+		expect(fixedText).toBe("const a = <p>Configure role-based access</p>;");
 	});
 
 	it("checks template literals rendered in JSX in place", () => {
@@ -354,9 +354,9 @@ describe("checkSource", () => {
 
 	it("decodes escapes in string and template literals", () => {
 		const source = [
-			'const a = "Create\\nNew Workspace";',
-			"const b = `Create\\tNew ${kind}`;",
-			'const c = "Create \\u0057orkspace";',
+			'const a = <p>{"Create\\nNew Workspace"}</p>;',
+			"const b = <p>{`Create\\tNew ${kind}`}</p>;",
+			'const c = <p>{"Create \\u0057orkspace"}</p>;',
 			'const d = <Button title="Delete\\nFile" />;',
 		].join("\n");
 		const { issues, fixedText } = checkSource("file.tsx", source);
@@ -367,18 +367,20 @@ describe("checkSource", () => {
 			[3, "Workspace"],
 		]);
 		expect(fixedText.split("\n").slice(0, 3)).toEqual([
-			'const a = "Create\\nnew workspace";',
-			"const b = `Create\\tnew ${kind}`;",
-			'const c = "Create workspace";',
+			'const a = <p>{"Create\\nnew workspace"}</p>;',
+			"const b = <p>{`Create\\tnew ${kind}`}</p>;",
+			'const c = <p>{"Create workspace"}</p>;',
 		]);
 	});
 
 	it("lowercases capitals outside the Basic Multilingual Plane", () => {
 		const { fixedText } = checkSource(
-			"file.ts",
-			'const a = "Open 𐐀est";\nconst b = "Open \\uD801\\uDC00est";',
+			"file.tsx",
+			'const a = <p>Open 𐐀est</p>;\nconst b = <p>{"Open \\uD801\\uDC00est"}</p>;',
 		);
-		expect(fixedText).toBe('const a = "Open 𐐨est";\nconst b = "Open 𐐨est";');
+		expect(fixedText).toBe(
+			'const a = <p>Open 𐐨est</p>;\nconst b = <p>{"Open 𐐨est"}</p>;',
+		);
 	});
 
 	it("fixes words that start with an HTML entity", () => {
@@ -512,9 +514,43 @@ describe("checkSource", () => {
 	it("lowercases reported words in the fixed text", () => {
 		const { fixedText } = checkSource(
 			"file.tsx",
-			'const a = "Create New Workspace";',
+			"const a = <p>Create New Workspace</p>;",
 		);
-		expect(fixedText).toBe('const a = "Create new workspace";');
+		expect(fixedText).toBe("const a = <p>Create new workspace</p>;");
+	});
+
+	it("fixes only displayed JSX text and display attributes", () => {
+		const source = [
+			'const a = <p>Create {"New Workspace"}</p>;',
+			'const b = <Button title="Delete File" aria-label="Delete File" />;',
+			'const c = <Dialog confirmText={ok ? "Delete File" : "Keep File"} />;',
+			'const d = "Create New Workspace";',
+			'const e = <Foo status="Delete File" />;',
+			'const f = <p title={format("Delete File")} />;',
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(
+			issues.map(({ line, word, fixable }) => [line, word, fixable]),
+		).toEqual([
+			[1, "New", true],
+			[1, "Workspace", true],
+			[2, "File", true],
+			[2, "File", true],
+			[3, "File", true],
+			[3, "File", true],
+			[4, "New", false],
+			[4, "Workspace", false],
+			[5, "File", false],
+			[6, "File", false],
+		]);
+		expect(fixedText.split("\n")).toEqual([
+			'const a = <p>Create {"new workspace"}</p>;',
+			'const b = <Button title="Delete file" aria-label="Delete file" />;',
+			'const c = <Dialog confirmText={ok ? "Delete file" : "Keep file"} />;',
+			'const d = "Create New Workspace";',
+			'const e = <Foo status="Delete File" />;',
+			'const f = <p title={format("Delete File")} />;',
+		]);
 	});
 
 	it("honors expect comments on the previous line", () => {

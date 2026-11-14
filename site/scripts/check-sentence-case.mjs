@@ -19,6 +19,13 @@
  * "Browse other Templates" are reported. Acronyms ("SSH") and mixed-case
  * names ("GitHub") are never reported.
  *
+ * --fix lowercases reported words only in text that is plainly
+ * displayed: JSX text, strings rendered as JSX children, and values of
+ * display attributes such as title, aria-label, placeholder, and props
+ * named like confirmText or emptyMessage. Other strings are reported but
+ * left for a person to fix, because they may be machine values that
+ * only look like prose.
+ *
  * For deliberate exceptions, put a comment containing
  * "sentence-case-expect" on the line above the text. Like
  * @ts-expect-error, the check fails when that line has nothing to report,
@@ -1485,6 +1492,64 @@ function joinJsxPieces(pieces, sourceText) {
 	return texts;
 }
 
+// Attributes whose values are displayed text that --fix may rewrite,
+// plus component props named like DISPLAY_ATTRIBUTE_SUFFIX.
+const DISPLAY_ATTRIBUTES = new Set([
+	"alt",
+	"aria-description",
+	"aria-label",
+	"aria-placeholder",
+	"aria-roledescription",
+	"aria-valuetext",
+	"caption",
+	"description",
+	"heading",
+	"hint",
+	"label",
+	"message",
+	"placeholder",
+	"subtitle",
+	"title",
+	"tooltip",
+]);
+
+// Component props such as confirmText, emptyMessage, and ariaLabel.
+const DISPLAY_ATTRIBUTE_SUFFIX =
+	/[a-z](?:Caption|Description|Heading|Label|Message|Placeholder|Text|Title|Tooltip)$/;
+
+/**
+ * Returns true when `node` is the value of a display attribute, directly
+ * or through wrappers, `{}`, conditionals, fallbacks, and concatenation,
+ * so --fix may rewrite it. A value passed through a call, such as
+ * `title={format("...")}`, may be transformed, so it is not.
+ */
+function isDisplayAttributeValue(node) {
+	let parent = node.parent;
+	while (
+		parent &&
+		(isTransparent(parent) ||
+			ts.isJsxExpression(parent) ||
+			ts.isTemplateSpan(parent) ||
+			ts.isTemplateExpression(parent) ||
+			(ts.isConditionalExpression(parent) && parent.condition !== node) ||
+			(ts.isBinaryExpression(parent) &&
+				[
+					ts.SyntaxKind.AmpersandAmpersandToken,
+					ts.SyntaxKind.BarBarToken,
+					ts.SyntaxKind.QuestionQuestionToken,
+					ts.SyntaxKind.PlusToken,
+				].includes(parent.operatorToken.kind)))
+	) {
+		node = parent;
+		parent = parent.parent;
+	}
+	if (!parent || !ts.isJsxAttribute(parent)) {
+		return false;
+	}
+	const name = parent.name.getText();
+	return DISPLAY_ATTRIBUTES.has(name) || DISPLAY_ATTRIBUTE_SUFFIX.test(name);
+}
+
 /**
  * Collects every displayed text node as its text plus the source position
  * of each character. Substitutions in template literals and JSX map to -1.
@@ -1494,8 +1559,8 @@ function collectTexts(sourceFile) {
 	const texts = [];
 	// JSX nodes already read as part of an enclosing element's text.
 	const consumed = new Set();
-	const addRange = (start, end, encoding) => {
-		const text = { text: "", positions: [] };
+	const addRange = (start, end, encoding, fixable) => {
+		const text = { text: "", positions: [], fixable };
 		appendSource(text, sourceText, start, end, encoding);
 		texts.push(text);
 	};
@@ -1504,7 +1569,9 @@ function collectTexts(sourceFile) {
 			case ts.SyntaxKind.JsxElement:
 			case ts.SyntaxKind.JsxFragment:
 				if (!consumed.has(node)) {
-					texts.push(...collectJsxTexts(node, sourceFile, consumed));
+					for (const text of collectJsxTexts(node, sourceFile, consumed)) {
+						texts.push({ ...text, fixable: true });
+					}
 				}
 				break;
 			case ts.SyntaxKind.StringLiteral:
@@ -1515,6 +1582,7 @@ function collectTexts(sourceFile) {
 						node.getStart(sourceFile),
 						node.end,
 						ts.isJsxAttribute(node.parent) ? "jsx" : "js",
+						isDisplayAttributeValue(node),
 					);
 				}
 				break;
@@ -1529,7 +1597,10 @@ function collectTexts(sourceFile) {
 					// Skip the whole value, including the strings inside it.
 					return;
 				}
-				texts.push(...collectStringTexts(node, sourceFile, consumed));
+				const fixable = isDisplayAttributeValue(node);
+				for (const text of collectStringTexts(node, sourceFile, consumed)) {
+					texts.push({ ...text, fixable });
+				}
 				break;
 			}
 		}
@@ -1540,9 +1611,9 @@ function collectTexts(sourceFile) {
 }
 
 /**
- * Checks one file's source text. Returns the reported words, the
- * line numbers of unused expect comments, and the source with every
- * reported word lowercased.
+ * Checks one file's source text. Returns the reported words, each marked
+ * `fixable` when --fix may rewrite it, the line numbers of unused expect
+ * comments, and the source with every fixable word lowercased.
  */
 export function checkSource(fileName, sourceText) {
 	const sourceFile = ts.createSourceFile(
@@ -1567,7 +1638,7 @@ export function checkSource(fileName, sourceText) {
 	// Conditional JSX is checked once per rendered variant, so the same
 	// word can be reported more than once.
 	const reportedPositions = new Set();
-	for (const { text, positions } of collectTexts(sourceFile)) {
+	for (const { text, positions, fixable } of collectTexts(sourceFile)) {
 		for (const { offset, word } of findTitleCaseWords(text)) {
 			const position = positions[offset];
 			if (reportedPositions.has(position)) {
@@ -1580,13 +1651,19 @@ export function checkSource(fileName, sourceText) {
 				usedExpectations.add(line);
 				continue;
 			}
-			issues.push({ position, line: line + 1, column: character + 1, word });
+			issues.push({
+				position,
+				line: line + 1,
+				column: character + 1,
+				word,
+				fixable,
+			});
 		}
 	}
 	issues.sort((a, b) => a.position - b.position);
 
 	let fixedText = sourceText;
-	for (const { position } of [...issues].reverse()) {
+	for (const { position } of issues.filter((i) => i.fixable).reverse()) {
 		// A word that starts with an entity or escape, such as
 		// "&#87;orkspace" or "\\u0057orkspace", maps to its first character;
 		// replace the whole encoding with the lowercase letter.
@@ -1637,7 +1714,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 		.map((path) => relative(siteDir, path))
 		.filter((path) => !isExcluded(path));
 
-	let issueCount = 0;
+	let fixedCount = 0;
+	let remainingCount = 0;
 	let unusedCount = 0;
 	for (const file of files) {
 		const sourceText = readFileSync(join(siteDir, file), "utf8");
@@ -1645,9 +1723,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 			file,
 			sourceText,
 		);
-		for (const { line, column, word } of issues) {
+		for (const { line, column, word, fixable } of issues) {
+			if (fix && fixable) {
+				continue;
+			}
+			const note = fixable ? "" : " (fix by hand)";
 			console.log(
-				`${file}:${line}:${column}: "${word}" should be lowercase in sentence case`,
+				`${file}:${line}:${column}: "${word}" should be lowercase in sentence case${note}`,
 			);
 		}
 		for (const line of unusedExpectations) {
@@ -1655,22 +1737,25 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 				`${file}:${line}: unused "${EXPECT_COMMENT}" comment, the next line has no title case text`,
 			);
 		}
-		issueCount += issues.length;
+		const fixable = fix ? issues.filter((i) => i.fixable).length : 0;
+		fixedCount += fixable;
+		remainingCount += issues.length - fixable;
 		unusedCount += unusedExpectations.length;
-		if (fix && issues.length > 0) {
+		if (fixable > 0) {
 			writeFileSync(join(siteDir, file), fixedText);
 		}
 	}
 
-	if (fix && issueCount > 0) {
-		console.log(`\nLowercased ${issueCount} word(s). Review the changes.`);
+	if (fixedCount > 0) {
+		console.log(`\nLowercased ${fixedCount} word(s). Review the changes.`);
 	}
-	if ((!fix && issueCount > 0) || unusedCount > 0) {
+	if (remainingCount > 0 || unusedCount > 0) {
 		console.log(
 			[
 				"",
 				"Use sentence case for UI text: capitalize only the first word and proper nouns.",
-				"To fix automatically: pnpm run lint:sentence-case --fix",
+				"To fix displayed text automatically: pnpm run lint:sentence-case --fix",
+				"Words marked (fix by hand) are in strings that may be machine values.",
 				"For proper nouns: add them to PROPER_NOUNS in scripts/check-sentence-case.mjs.",
 				`For other exceptions: add a "${EXPECT_COMMENT}" comment on the line above.`,
 			].join("\n"),
