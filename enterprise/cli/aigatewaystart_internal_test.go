@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // mockReloader returns err for the first failUntil Reload calls, then nil.
@@ -87,6 +88,13 @@ func (p *controlledShutdownPool) Shutdown(ctx context.Context) error {
 // testGatewayOption mutates the default standaloneGatewayParams before the
 // gateway is constructed.
 type testGatewayOption func(*standaloneGatewayParams)
+
+// withClock sets the clock the gateway uses for its shutdown timeouts.
+func withClock(clock quartz.Clock) testGatewayOption {
+	return func(p *standaloneGatewayParams) {
+		p.clock = clock
+	}
+}
 
 // newTestStandaloneGateway constructs a standalone gateway for
 // testing, with a controllable shutdown pool and optional customizations.
@@ -296,13 +304,14 @@ func TestRunStandaloneGateway_DaemonExited(t *testing.T) {
 
 func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	t.Parallel()
+	mClock := quartz.NewMock(t)
 
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	modifyTLS := func(p *standaloneGatewayParams) {
 		p.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
 		p.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
 	}
-	gateway, pool := newTestStandaloneGateway(t, modifyTLS)
+	gateway, pool := newTestStandaloneGateway(t, modifyTLS, withClock(mClock))
 	shutdownErr := xerrors.New("pool shutdown failed")
 	shutdownStarted := make(chan struct{}, 1)
 	shutdownRelease := make(chan struct{})
@@ -310,13 +319,22 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	pool.started = shutdownStarted
 	pool.release = shutdownRelease
 
+	daemonShutdownTrap := mClock.Trap().AfterFunc("aigateway", "daemon_shutdown")
+	defer daemonShutdownTrap.Close()
+
 	runDone := make(chan error, 1)
 	go func() {
 		runDone <- gateway.run(testCtx)
 	}()
-	testutil.RequireReceive(testCtx, t, shutdownStarted)
+
+	// Daemon shutdown is about to start: HTTP serving has fully stopped.
+	daemonShutdownCall := daemonShutdownTrap.MustWait(testCtx)
 	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before daemon shutdown")
 	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must close before daemon shutdown")
+	require.Empty(t, shutdownStarted, "daemon shutdown must start only after its timeout is armed")
+	daemonShutdownCall.MustRelease(testCtx)
+
+	testutil.RequireReceive(testCtx, t, shutdownStarted)
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until daemon shutdown completes")
 	close(shutdownRelease)
 
@@ -325,6 +343,42 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	require.ErrorContains(t, err, "serve:")
 	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
 	require.ErrorContains(t, err, shutdownErr.Error())
+}
+
+func TestRunStandaloneGateway_DaemonShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+	modifyTLS := func(p *standaloneGatewayParams) {
+		p.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
+		p.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
+	}
+	gateway, pool := newTestStandaloneGateway(t, modifyTLS, withClock(mClock))
+	// The pool shutdown blocks until its context is done, so daemon shutdown
+	// cannot finish before its timeout.
+	shutdownStarted := make(chan struct{}, 1)
+	pool.started = shutdownStarted
+	pool.release = make(chan struct{})
+
+	// Only the daemon timer is trapped. The missing TLS files make serve fail
+	// straight away, and serve stops its own timers before it returns.
+	daemonShutdownTrap := mClock.Trap().AfterFunc("aigateway", "daemon_shutdown")
+	defer daemonShutdownTrap.Close()
+
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- gateway.run(testCtx)
+	}()
+	daemonShutdownCall := daemonShutdownTrap.MustWait(testCtx)
+	daemonShutdownCall.MustRelease(testCtx)
+	testutil.RequireReceive(testCtx, t, shutdownStarted)
+
+	mClock.Advance(daemonShutdownTimeout).MustWait(testCtx)
+	err := testutil.RequireReceive(testCtx, t, runDone)
+	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must not be marked closed after a daemon shutdown timeout")
 }
 
 func TestRunStandaloneGateway_ListenAndShutdownErrors(t *testing.T) {
@@ -355,6 +409,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 
 	// Set up a running daemon, provider reloader, and blocked HTTP request.
 	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
 
 	// inFlightPath scopes the blocking handler to the request this test keeps in
 	// flight. Another test may probe a port the OS later assigns to this
@@ -364,7 +419,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	handlerStarted := make(chan struct{}, 1)
 	httpShutdownStarted := make(chan struct{}, 1)
 	releaseHandler := make(chan struct{})
-	gateway, _ := newTestStandaloneGateway(t)
+	gateway, _ := newTestStandaloneGateway(t, withClock(mClock))
 	gateway.reloader = reloader
 	// The gateway mux is replaced with a handler this test can block, so an
 	// in-flight request is observable during shutdown.
@@ -411,10 +466,30 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	}()
 	testutil.RequireReceive(testCtx, t, handlerStarted)
 
+	// Trap each shutdown timer so the test can inspect the gateway while serve
+	// is paused at the start of that phase.
+	provReloadTrap := mClock.Trap().AfterFunc("aigateway", "provider_reload_shutdown")
+	defer provReloadTrap.Close()
+	httpShutdownTrap := mClock.Trap().AfterFunc("aigateway", "http_shutdown")
+	defer httpShutdownTrap.Close()
+
 	// Trigger shutdown after the initial load enters the provider watch loop.
 	cancelServe()
-	testutil.RequireReceive(testCtx, t, httpShutdownStarted)
+
+	// Phase 1: provider reload is stopping. HTTP draining has not started.
+	provReloadCall := provReloadTrap.MustWait(testCtx)
+	require.Empty(t, httpShutdownStarted, "HTTP draining must not start before provider reload stops")
+	require.False(t, gateway.listenerClosed.Load(), "HTTP listener must remain open while provider reload stops")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open while provider reload stops")
+	provReloadCall.MustRelease(testCtx)
+
+	// Phase 2: provider reload has stopped and HTTP draining is about to start.
+	httpShutdownCall := httpShutdownTrap.MustWait(testCtx)
 	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before HTTP draining")
+	require.Empty(t, httpShutdownStarted, "HTTP draining must start only after its timeout is armed")
+	httpShutdownCall.MustRelease(testCtx)
+
+	testutil.RequireReceive(testCtx, t, httpShutdownStarted)
 	require.False(t, gateway.listenerClosed.Load(), "HTTP listener must remain open while requests drain")
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open while requests drain")
 
@@ -429,6 +504,116 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	// Expect the runtime owner to shut down the daemon after HTTP serving stops.
 	require.NoError(t, gateway.shutdownDaemon())
 	require.True(t, gateway.drpcClosed.Load(), "DRPC connection must close during daemon shutdown")
+}
+
+func TestStandaloneGatewayServe_ProviderReloadShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+
+	// The reloader blocks in its first Reload call and ignores cancellation,
+	// so provider reload cannot stop before its shutdown timeout.
+	reloadStarted := make(chan struct{}, 1)
+	releaseReload := make(chan struct{})
+	defer close(releaseReload)
+	reloader := &mockReloader{onReload: func() {
+		reloadStarted <- struct{}{}
+		<-releaseReload
+	}}
+	gateway, _ := newTestStandaloneGateway(t, withClock(mClock))
+	gateway.reloader = reloader
+
+	providerReloadShutdownTrap := mClock.Trap().AfterFunc("aigateway", "provider_reload_shutdown")
+	defer providerReloadShutdownTrap.Close()
+
+	serveCtx, cancelServe := context.WithCancel(testCtx)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- gateway.serve(serveCtx)
+	}()
+	requireListening(testCtx, t, gateway, serveDone)
+	testutil.RequireReceive(testCtx, t, reloadStarted)
+
+	cancelServe()
+	providerReloadShutdownCall := providerReloadShutdownTrap.MustWait(testCtx)
+	providerReloadShutdownCall.MustRelease(testCtx)
+
+	// Advance past the provider reload timeout. Serve must give up waiting
+	// for provider reload and still drain and close the HTTP server.
+	mClock.Advance(providerReloadShutdownTimeout).MustWait(testCtx)
+	err := testutil.RequireReceive(testCtx, t, serveDone)
+	require.ErrorContains(t, err, "provider reload did not stop within")
+	require.False(t, gateway.providerRefreshStopped.Load(), "provider refresh must not be marked stopped after a timeout")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed after serve returns")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until its runtime owner shuts it down")
+}
+
+func TestStandaloneGatewayServe_HTTPShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+
+	// The in-flight request blocks until the test ends, so HTTP draining
+	// cannot finish before its shutdown timeout.
+	const inFlightPath = "/in-flight"
+	handlerStarted := make(chan struct{}, 1)
+	releaseHandler := make(chan struct{})
+	defer close(releaseHandler)
+	gateway, _ := newTestStandaloneGateway(t, withClock(mClock))
+	gateway.reloader = &mockReloader{}
+	gateway.httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != inFlightPath {
+			http.NotFound(w, r)
+			return
+		}
+		select {
+		case handlerStarted <- struct{}{}:
+		default:
+		}
+		<-releaseHandler
+	})
+
+	httpShutdownTrap := mClock.Trap().AfterFunc("aigateway", "http_shutdown")
+	defer httpShutdownTrap.Close()
+
+	serveCtx, cancelServe := context.WithCancel(testCtx)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- gateway.serve(serveCtx)
+	}()
+	listenAddress := requireListening(testCtx, t, gateway, serveDone)
+	require.Eventually(t, gateway.providersLoaded.Load, testutil.WaitShort, testutil.IntervalFast)
+
+	requestDone := make(chan error, 1)
+	go func() {
+		req, err := http.NewRequestWithContext(testCtx, http.MethodGet, "http://"+listenAddress+inFlightPath, nil)
+		if err != nil {
+			requestDone <- err
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		requestDone <- err
+	}()
+	testutil.RequireReceive(testCtx, t, handlerStarted)
+
+	cancelServe()
+
+	httpShutdownTrap.MustWait(testCtx).MustRelease(testCtx)
+
+	mClock.Advance(httpShutdownTimeout).MustWait(testCtx)
+
+	err := testutil.RequireReceive(testCtx, t, serveDone)
+	require.ErrorContains(t, err, "shutdown http server:")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Error(t, testutil.RequireReceive(testCtx, t, requestDone), "the in-flight request must be cut off by the forced close")
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before HTTP draining")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed after the HTTP shutdown timeout")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until its runtime owner shuts it down")
 }
 
 // requireListening waits until the gateway's HTTP listener is bound and returns

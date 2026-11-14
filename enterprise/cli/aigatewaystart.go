@@ -33,6 +33,7 @@ import (
 	coderdtracing "github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
@@ -263,6 +264,7 @@ type standaloneGatewayParams struct {
 
 	// Runtime dependencies.
 	dialer aibridged.Dialer
+	clock  quartz.Clock
 
 	// Observability.
 	// logger is the gateway-scoped logger; derived loggers (daemon,
@@ -284,6 +286,9 @@ type standaloneGateway struct {
 	httpAddress string
 	tlsCertFile string
 	tlsKeyFile  string
+
+	// Runtime dependencies.
+	clock quartz.Clock
 
 	// State.
 	drpcClosed             atomic.Bool
@@ -332,6 +337,10 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 	}
 
 	providerLogger := params.logger.Named("providers")
+	clock := params.clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
 	gateway := &standaloneGateway{
 		daemon:   daemon,
 		reloader: agpl.NewProviderRPCReloader(daemon.ReplaceProviders, daemon.Client, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
@@ -340,6 +349,8 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 		httpAddress: params.httpAddress,
 		tlsCertFile: params.tlsCertFile,
 		tlsKeyFile:  params.tlsKeyFile,
+
+		clock: clock,
 
 		logger:         params.logger,
 		providerLogger: providerLogger,
@@ -360,7 +371,9 @@ func (s *standaloneGateway) run(ctx context.Context) error {
 }
 
 func (s *standaloneGateway) shutdownDaemon() error {
-	if err := shutdownWithTimeout(s.daemon.Shutdown, daemonShutdownTimeout); err != nil {
+	shutdownCtx, shutdownCancel := clockTimeout(context.Background(), s.clock, daemonShutdownTimeout, "aigateway", "daemon_shutdown")
+	defer shutdownCancel()
+	if err := s.daemon.Shutdown(shutdownCtx); err != nil {
 		return xerrors.Errorf("shutdown AI Gateway daemon: %w", err)
 	}
 	s.drpcClosed.Store(true)
@@ -435,7 +448,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	s.logger.Info(ctx, "shutting down standalone AI Gateway")
 
 	provReloadCancel()
-	provReloadShutdownCtx, provReloadShutdownCancel := context.WithTimeout(context.Background(), providerReloadShutdownTimeout)
+	provReloadShutdownCtx, provReloadShutdownCancel := clockTimeout(context.Background(), s.clock, providerReloadShutdownTimeout, "aigateway", "provider_reload_shutdown")
 	defer provReloadShutdownCancel()
 
 	var provReloadStopErr error
@@ -446,11 +459,14 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 		provReloadStopErr = xerrors.Errorf("provider reload did not stop within %s, continuing gateway shutdown", providerReloadShutdownTimeout)
 	}
 
+	// Stop the provider reload timer now rather than when serve returns.
+	provReloadShutdownCancel()
+
 	// Provider reload normally stops before HTTP draining so it cannot clear the
 	// bridge cache while requests are draining. If it does not stop within its
 	// timeout, continue with best-effort graceful HTTP shutdown.
 	// The daemon remains connected so in-flight requests retain their DRPC connection.
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+	shutdownCtx, shutdownCancel := clockTimeout(context.Background(), s.clock, httpShutdownTimeout, "aigateway", "http_shutdown")
 	defer shutdownCancel()
 	var httpShutdownErr error
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
@@ -565,4 +581,31 @@ func resolveAIGatewayKey(key string, keyFile string) (string, error) {
 		return "", xerrors.Errorf("read AI Gateway key file %q: %w", keyFile, err)
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+// clockTimeout returns a context that is canceled when d elapses on clock.
+// Like context.WithTimeout, its Err reports context.DeadlineExceeded once the
+// timeout fires. Contexts derived from it report context.Canceled instead.
+// The tags identify the timer so tests can trap it on a mock clock.
+func clockTimeout(ctx context.Context, clock quartz.Clock, d time.Duration, tags ...string) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	timer := clock.AfterFunc(d, func() { cancel(context.DeadlineExceeded) }, tags...)
+	return timeoutContext{ctx}, func() {
+		timer.Stop()
+		cancel(context.Canceled)
+	}
+}
+
+// timeoutContext reports the context.DeadlineExceeded cause set by
+// clockTimeout from Err.
+type timeoutContext struct {
+	context.Context
+}
+
+func (c timeoutContext) Err() error {
+	err := c.Context.Err()
+	if err != nil && errors.Is(context.Cause(c.Context), context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return err
 }
