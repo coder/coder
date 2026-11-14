@@ -326,6 +326,8 @@ export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
+			// Several filter values can be applied at once.
+			aria-multiselectable
 			className={cn(
 				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
@@ -341,7 +343,9 @@ type FilterComboboxItemProps = React.ComponentProps<
 
 /**
  * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
- * click and on Enter for the highlighted row.
+ * click and on Enter for the highlighted row. `aria-selected` reports whether
+ * the row's value is applied, since `aria-activedescendant` already conveys
+ * the highlight.
  */
 export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,
@@ -350,6 +354,7 @@ export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	return (
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
+			aria-selected={false}
 			className={cn(
 				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				keyboardHighlightRingClassName,

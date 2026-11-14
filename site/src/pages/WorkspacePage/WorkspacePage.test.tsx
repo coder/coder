@@ -27,6 +27,8 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
+	MockWorkspaceResource,
+	MockWorkspaceVolumeResource,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -443,6 +445,60 @@ describe("WorkspacePage", () => {
 			expect(
 				await screen.findByText(`Parameters for ${MockTemplateVersion2.id}`),
 			).toBeInTheDocument();
+		});
+	});
+
+	describe("Current state", () => {
+		it("conveys which sidebar panel is open", async () => {
+			const user = userEvent.setup();
+			await renderWorkspacePage(MockWorkspace);
+
+			await user.click(
+				screen.getByRole("button", { name: "Resources", pressed: false }),
+			);
+			await screen.findByRole("button", { name: "Resources", pressed: true });
+			screen.getByRole("button", { name: "History", pressed: false });
+
+			await user.click(screen.getByRole("button", { name: "History" }));
+			await screen.findByRole("button", { name: "History", pressed: true });
+			screen.getByRole("button", { name: "Resources", pressed: false });
+		});
+
+		it("marks only the selected resource as current", async () => {
+			const user = userEvent.setup();
+			// Unit tests load no Tailwind CSS, so the stacked name and type spans
+			// stay inline and join without the space a browser shows.
+			const agentResourceName = new RegExp(`^${MockWorkspaceResource.name}`);
+			const volumeResourceName = new RegExp(
+				`^${MockWorkspaceVolumeResource.name}`,
+			);
+			await renderWorkspacePage({
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
+				},
+			});
+			await user.click(screen.getByRole("button", { name: "Resources" }));
+
+			await user.click(
+				await screen.findByRole("button", { name: agentResourceName }),
+			);
+			await screen.findByRole("button", {
+				name: agentResourceName,
+				current: true,
+			});
+			await user.click(
+				screen.getByRole("button", {
+					name: volumeResourceName,
+					current: false,
+				}),
+			);
+			await screen.findByRole("button", {
+				name: volumeResourceName,
+				current: true,
+			});
+			screen.getByRole("button", { name: agentResourceName, current: false });
 		});
 	});
 

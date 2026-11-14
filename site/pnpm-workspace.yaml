@@ -24,4 +24,5 @@ allowBuilds:
   storybook-addon-remix-react-router: false
 
 patchedDependencies:
+  cmdk@1.1.1: patches/cmdk@1.1.1.patch
   frimousse@0.4.0: patches/frimousse@0.4.0.patch

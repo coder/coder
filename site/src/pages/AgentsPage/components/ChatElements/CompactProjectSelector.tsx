@@ -122,6 +122,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 								className="text-xs font-normal"
 								value="no-project"
 								keywords={[noProjectLabel]}
+								aria-selected={value === null}
 								onSelect={() => select(null)}
 							>
 								<MessageCircleIcon />
@@ -165,6 +166,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 											className="text-xs font-normal"
 											value={project.id}
 											keywords={[project.name]}
+											aria-selected={value?.id === project.id}
 											onSelect={() => select(project)}
 										>
 											<ChatProjectIcon project={project} className="size-4" />

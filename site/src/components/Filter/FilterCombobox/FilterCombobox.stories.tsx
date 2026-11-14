@@ -574,7 +574,7 @@ export const EnterCommitsHighlightedCategory: Story = {
 		await userEvent.keyboard("{ArrowDown}");
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /Template/i })).toHaveAttribute(
-				"aria-selected",
+				"data-selected",
 				"true",
 			),
 		);

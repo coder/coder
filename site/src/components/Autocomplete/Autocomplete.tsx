@@ -345,7 +345,7 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
-													aria-selected={index === highlightedIndex}
+													aria-selected={isSelected(option)}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}
@@ -464,6 +464,7 @@ export function Autocomplete<TOption>({
 												key={optionValue}
 												value={optionValue}
 												keywords={[optionLabel]}
+												aria-selected={selected}
 												onSelect={() => handleSelect(option)}
 												className="cursor-pointer"
 											>
