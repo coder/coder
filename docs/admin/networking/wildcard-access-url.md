@@ -137,6 +137,39 @@ Each proxy's wildcard domain must have corresponding DNS records:
 *.london.coder.example.com    A    <london-proxy-ip>
 ```
 
+### Apps in the dashboard
+
+The right panel of [Coder Agents](../../coder-agents/index.md) shows workspace apps and port previews in a frame.
+The browser loads a frame only if the Content Security Policy (CSP) of the dashboard page allows the origin of the app in its `frame-src` directive.
+Coder adds every host that serves workspace apps to the `frame-src` directive of its policy: the access URL, the wildcard access URL, and the URL and the wildcard access URL of each workspace proxy.
+
+Browsers enforce every policy that a page gets, so a second policy can only remove access.
+If a reverse proxy, load balancer, or ingress in front of Coder adds its own `Content-Security-Policy` header to dashboard pages, remove that header or change its `frame-src` directive.
+That directive must allow `'self'`, the wildcard access URL, and the URL and the wildcard access URL of each workspace proxy, for example:
+
+```text
+frame-src 'self' *.coder.example.com https://london.coder.example.com *.london.coder.example.com
+```
+
+If the header has no `frame-src` directive, the browser uses its `default-src` directive for frames, so add a `frame-src` directive.
+If a URL uses a port other than the default port of its scheme, include the port, for example `*.coder.example.com:8443`.
+`CODER_ADDITIONAL_CSP_POLICY` doesn't change that header, because it changes only the policy that Coder sends.
+
+If an app redirects to another origin in the frame, for example an external sign-in page, every policy on the dashboard page must allow that origin, including a header that a reverse proxy adds.
+To add the origin to the policy that Coder sends, set `CODER_ADDITIONAL_CSP_POLICY`:
+
+```sh
+export CODER_ADDITIONAL_CSP_POLICY="frame-src https://sso.example.com"
+```
+
+An app can't load in a frame if the app, or a proxy in front of the wildcard access URL, sends an `X-Frame-Options` header or a CSP `frame-ancestors` directive that doesn't allow the dashboard.
+
+The browser keeps the policy that it got when the page loaded.
+After you add a workspace proxy, users must reload the dashboard to load apps from it.
+
+When a policy on the dashboard page blocks the origin of the app, the right panel tells the user why and shows an **Open app in new tab** button.
+The block doesn't apply to a new tab, because `frame-src` applies only to frames.
+
 ## Template Configuration
 
 In your Coder templates, enable subdomain applications using the `subdomain` parameter:
