@@ -201,7 +201,8 @@ type ProxyStatus struct {
 	CheckedAt time.Time
 }
 
-// ProxyHosts returns the host:port and wildcard host of all healthy proxies.
+// ProxyHosts returns the host:port and CSP app host (see
+// appurl.ConvertAppHostForCSP) of every registered proxy, in any health state.
 // This can be computed from HealthStatus, but is cached to avoid the caller
 // needing to loop over all proxies to compute this on all static web requests.
 func (p *ProxyHealth) ProxyHosts() []*agplproxyhealth.ProxyHost {
