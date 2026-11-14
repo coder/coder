@@ -41,6 +41,7 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
@@ -2521,17 +2522,25 @@ func TestConnectToPostgres(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
 
-		log := testutil.Logger(t)
+		sink := testutil.NewFakeSink(t)
 
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
+		sqlDB, err := cli.ConnectToPostgres(ctx, sink.Logger(), "postgres", dbURL, migrations.Up)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
 		require.NoError(t, sqlDB.PingContext(ctx))
+
+		// The test database is already migrated, so the migrations report
+		// that, under the "migrations" logger name operators filter on.
+		upToDate := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "database schema is up to date"
+		})
+		require.Len(t, upToDate, 1)
+		require.Equal(t, []string{"migrations"}, upToDate[0].LoggerNames)
 	})
 
 	t.Run("NoMigrate", func(t *testing.T) {
