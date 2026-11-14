@@ -1,0 +1,265 @@
+{
+ "prs": 6326,
+ "since": "2025-11-14T06:57:23Z",
+ "until": "2026-11-14T00:00:24Z",
+ "prs_touching_go": 6326,
+ "cognitive": {
+  "start": 44373,
+  "end": 98147,
+  "start_prod": 33109,
+  "end_prod": 67020,
+  "start_test": 11264,
+  "end_test": 31127,
+  "growth_pct": 121.2,
+  "tracked_by_prs": 53703,
+  "untracked": 71,
+  "flows": {
+   "new_funcs": 63172,
+   "existing_up": 16482,
+   "existing_down": -8499,
+   "removed_funcs": -17452
+  },
+  "top_increase_prs": [
+   [
+    3022,
+    22290
+   ],
+   [
+    1943,
+    24190
+   ],
+   [
+    1348,
+    24150
+   ],
+   [
+    878,
+    27429
+   ],
+   [
+    604,
+    22453
+   ],
+   [
+    463,
+    25983
+   ],
+   [
+    455,
+    28225
+   ],
+   [
+    418,
+    29299
+   ],
+   [
+    389,
+    24819
+   ],
+   [
+    383,
+    24105
+   ]
+  ],
+  "top_decrease_prs": [
+   [
+    -1550,
+    25190
+   ],
+   [
+    -1144,
+    30412
+   ],
+   [
+    -791,
+    28789
+   ],
+   [
+    -655,
+    26585
+   ],
+   [
+    -527,
+    28788
+   ],
+   [
+    -309,
+    27421
+   ],
+   [
+    -226,
+    29053
+   ],
+   [
+    -215,
+    27329
+   ],
+   [
+    -214,
+    30742
+   ],
+   [
+    -176,
+    26980
+   ]
+  ],
+  "prs_increasing": 1775,
+  "prs_decreasing": 293
+ },
+ "cyclo": {
+  "start": 37472,
+  "end": 87723,
+  "start_prod": 29057,
+  "end_prod": 61589,
+  "start_test": 8415,
+  "end_test": 26134,
+  "growth_pct": 134.1,
+  "tracked_by_prs": 50179,
+  "untracked": 72,
+  "flows": {
+   "new_funcs": 61671,
+   "existing_up": 8885,
+   "existing_down": -4596,
+   "removed_funcs": -15781
+  },
+  "top_increase_prs": [
+   [
+    2481,
+    22290
+   ],
+   [
+    1699,
+    24190
+   ],
+   [
+    1364,
+    26270
+   ],
+   [
+    1036,
+    24150
+   ],
+   [
+    706,
+    27429
+   ],
+   [
+    544,
+    25983
+   ],
+   [
+    502,
+    22453
+   ],
+   [
+    376,
+    29299
+   ],
+   [
+    350,
+    27401
+   ],
+   [
+    343,
+    23005
+   ]
+  ],
+  "top_decrease_prs": [
+   [
+    -1201,
+    25190
+   ],
+   [
+    -1050,
+    30412
+   ],
+   [
+    -542,
+    26585
+   ],
+   [
+    -540,
+    28789
+   ],
+   [
+    -391,
+    28788
+   ],
+   [
+    -330,
+    27421
+   ],
+   [
+    -226,
+    27329
+   ],
+   [
+    -197,
+    26980
+   ],
+   [
+    -160,
+    25512
+   ],
+   [
+    -158,
+    25416
+   ]
+  ],
+  "prs_increasing": 1903,
+  "prs_decreasing": 269
+ },
+ "function_counts": {
+  "new": 19075,
+  "touched": 16238,
+  "removed": 4388,
+  "changed": 5264,
+  "moved_to": 235,
+  "moved_from": 235
+ },
+ "directory_growth_top": [
+  [
+   "coderd/x/chatd",
+   4580
+  ],
+  [
+   "coderd",
+   3723
+  ],
+  [
+   "cli",
+   1710
+  ],
+  [
+   "coderd/x/chatd/chattool",
+   1364
+  ],
+  [
+   "codersdk",
+   865
+  ],
+  [
+   "coderd/x/chatd/chatloop",
+   589
+  ],
+  [
+   "coderd/database/dbauthz",
+   568
+  ],
+  [
+   "aibridge/intercept/messages",
+   562
+  ],
+  [
+   "coderd/x/chatd/chatstate",
+   534
+  ],
+  [
+   "agent/agentfiles",
+   494
+  ]
+ ],
+ "top20_file_score_share_pct": 75.3,
+ "hot_files": 1181,
+ "hot_funcs": 6932
+}
