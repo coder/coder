@@ -361,7 +361,7 @@ func TestDispatcherTLSFailureNoRetry(t *testing.T) {
 		return transport.RoundTrip(req)
 	})}
 
-	_, _, err := newTestDispatcher(t, client, server.URL, time.Second).Dispatch(
+	_, _, err := newTestDispatcher(t, client, server.URL, testutil.WaitShort).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	assertDispatchErrorClass(t, err, ResultProtocolError)

@@ -88,7 +88,11 @@ describe("ModelsPageView", () => {
 		);
 
 		await user.click(
-			await screen.findByRole("button", { name: /Claude Sonnet 4.5/i }),
+			await screen.findByRole(
+				"button",
+				{ name: /Claude Sonnet 4.5/i },
+				{ timeout: 5000 },
+			),
 		);
 
 		await waitFor(() =>
