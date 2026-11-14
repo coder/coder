@@ -62,6 +62,7 @@ type WorkspaceTerminalProps = {
 	renderer?: string;
 	backgroundColor?: string;
 	onOpenLink?: (uri: string) => void;
+	onTitleChange?: (title: string) => void;
 	loading?: boolean;
 	errorMessage?: string;
 	testId?: string;
@@ -94,6 +95,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	renderer,
 	backgroundColor,
 	onOpenLink,
+	onTitleChange,
 	loading = false,
 	errorMessage,
 	testId,
@@ -111,6 +113,9 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	});
 	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
 		onStatusChange?.(status);
+	});
+	const handleTitleChange = useEffectEvent((title: string) => {
+		onTitleChange?.(title);
 	});
 	const handleContentReady = useEffectEvent(() => {
 		onContentReady?.();
@@ -270,6 +275,10 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 				return false;
 			}
 			return true;
+		});
+
+		nextTerminal.onTitleChange((title) => {
+			handleTitleChange(title);
 		});
 
 		const copySelection = () => {
