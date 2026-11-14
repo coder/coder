@@ -23,19 +23,24 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button
-					size="icon"
-					variant="subtle"
-					aria-label={label}
-					onClick={() => copyToClipboard(text)}
-					{...buttonProps}
-				>
-					{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent side={tooltipSide}>{label}</TooltipContent>
-		</Tooltip>
+		<>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						size="icon"
+						variant="subtle"
+						aria-label={label}
+						onClick={() => copyToClipboard(text)}
+						{...buttonProps}
+					>
+						{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent side={tooltipSide}>{label}</TooltipContent>
+			</Tooltip>
+			<span role="status" className="sr-only">
+				{showCopiedSuccess && "Copied"}
+			</span>
+		</>
 	);
 };

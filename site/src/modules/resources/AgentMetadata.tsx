@@ -227,11 +227,9 @@ const StaticWidth: React.FC<Omit<React.ComponentProps<"div">, "ref">> = ({
 			return;
 		}
 
-		const currentWidth = ref.current.getBoundingClientRect().width;
-		ref.current.style.width = "auto";
-		const autoWidth = ref.current.getBoundingClientRect().width;
-		ref.current.style.width =
-			autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`;
+		// A min width keeps values from jittering as they change while still
+		// letting user text spacing overrides widen the text.
+		ref.current.style.minWidth = `${ref.current.getBoundingClientRect().width}px`;
 	}, [children]);
 
 	return (

@@ -298,6 +298,8 @@ data "coder_parameter" "force_rebuild" {
 
 ## Autofill parameters from a URL
 
-When the template doesn't specify default values, Coder looks for URL query parameters with the form `param.<name>=<value>` to autofill parameters.
+When a URL query parameter `param.<name>=<value>` matches a parameter that is not ephemeral, the workspace creation form fills in that value, even when the template sets a default.
+For dropdown and radio parameters, the value must match one of the options, or the form uses the template default.
+Ephemeral parameters always use the template default.
 
 This feature enables platform teams to create pre-filled workspace creation links.

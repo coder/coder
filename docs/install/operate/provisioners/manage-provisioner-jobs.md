@@ -25,7 +25,7 @@ Use the dashboard, CLI, or API:
 - **CLI**:
   `coder provisioner jobs list`
 - **API**:
-  `/api/v2/provisioner/jobs`
+  `/api/v2/organizations/{organization}/provisionerjobs`
 
 ## Manage provisioner jobs from the dashboard
 

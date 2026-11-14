@@ -245,6 +245,13 @@ export function Autocomplete<TOption>({
 		inlineInputRef.current !== null &&
 		inlineInputRef.current.contains(target);
 
+	// Mounted outside the popover so it exists before the results load.
+	const loadingStatus = (
+		<span role="status" className="sr-only">
+			{isOpen && loading && "Loading"}
+		</span>
+	);
+
 	if (inlineSearch) {
 		const inlineInputValue = isOpen ? inputValue : displayValue;
 		const hasResults = loading || options.length > 0;
@@ -252,6 +259,7 @@ export function Autocomplete<TOption>({
 
 		return (
 			<Popover open={showPopover} onOpenChange={handleOpenChange}>
+				{loadingStatus}
 				<PopoverAnchor asChild>
 					<input
 						ref={inlineInputRef}
@@ -361,6 +369,7 @@ export function Autocomplete<TOption>({
 	return (
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<div className={cn("relative w-full", className)}>
+				{loadingStatus}
 				<PopoverTrigger asChild disabled={disabled}>
 					<button
 						type="button"

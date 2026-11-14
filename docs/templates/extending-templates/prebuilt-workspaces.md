@@ -33,7 +33,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 
 - [**Premium license**](../../install/prepare/licensing.md)
 - **Compatible Terraform provider**:
-  Use `coder/coder` Terraform provider `>= 2.4.1`.
+  Use `coder/coder` Terraform provider `>= 2.6.0`.
 
 ## Enable prebuilt workspaces for template presets
 
@@ -203,7 +203,7 @@ schedule {
   instances = 10
 }
 schedule {
-  cron = "* 19-23,0-7 * * 1,5"  # Evenings and nights (7PM-11:59PM, 12AM-7:59AM, Mon-Fri)
+  cron = "* 19-23,0-7 * * 1-5"  # Evenings and nights (7PM-11:59PM, 12AM-7:59AM, Mon-Fri)
   instances = 2
 }
 schedule {

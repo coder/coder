@@ -351,6 +351,8 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	const shouldExpandLogs =
 		showLogs || (!hasStartupFeatures && hasConnectivityIssues);
 	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
+	const isLoadingLogs =
+		shouldExpandLogs && !(hasConnectivityIssues || shouldShowLogsTabs);
 	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
@@ -577,18 +579,21 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 							</Button>
 						</CollapsibleTrigger>
 					</div>
+					{/* Outside the collapsible content so it is mounted before logs load. */}
+					<span role="status" className="sr-only">
+						{isLoadingLogs && "Loading logs"}
+					</span>
 					<CollapsibleContent>
 						<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
 							{/*
 								Gate the spinner on `shouldExpandLogs` so it does not flash while
 								CollapsibleContent is closing.
 							*/}
-							{shouldExpandLogs &&
-								!(hasConnectivityIssues || shouldShowLogsTabs) && (
-									<div className="h-75 flex items-center justify-center">
-										<Spinner size="lg" loading className="block mx-auto" />
-									</div>
-								)}
+							{isLoadingLogs && (
+								<div className="h-75 flex items-center justify-center">
+									<Spinner size="lg" loading className="block mx-auto" />
+								</div>
+							)}
 							{hasConnectivityIssues && (
 								<div className="mb-4 flex flex-col gap-3">
 									{connectivityIssues.map((issue) => (
@@ -718,6 +723,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
 													</TooltipContent>
 												</Tooltip>
+												<span role="status" className="sr-only">
+													{showCopiedSuccess && "Copied"}
+												</span>
 
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}

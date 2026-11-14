@@ -47,6 +47,7 @@ export const HealthLayout: React.FC = () => {
 		access_url: "Access URL",
 		websocket: "Websocket",
 		database: "Database",
+		pubsub: "Pubsub",
 		workspace_proxy: "Workspace Proxy",
 		provisioner_daemons: "Provisioner daemons",
 	} as const;

@@ -50,7 +50,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See ../../provisioner/terraform/install.go#L27-L28
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.17.1
+ARG TERRAFORM_VERSION=1.17.2
 RUN apk update && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -68,12 +68,12 @@ ENV PATH=/opt/terraform:${PATH}
 #  https://developer.hashicorp.com/terraform/cli/config/config-file#filesystem_mirror
 #  Be sure to add all the providers you use in your templates to /opt/terraform/plugins
 
-RUN mkdir -p /home/coder/.terraform.d/plugins/registry.terraform.io
+RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
 ADD filesystem-mirror-example.tfrc /home/coder/.terraformrc
 
 # Optionally, we can "seed" the filesystem mirror with common providers.
 # Comment out lines 40-49 if you plan on only using a volume or network mirror:
-WORKDIR /home/coder/.terraform.d/plugins/registry.terraform.io
+WORKDIR /opt/terraform/plugins/registry.terraform.io
 ARG CODER_PROVIDER_VERSION=2.2.0
 RUN echo "Adding coder/coder v${CODER_PROVIDER_VERSION}" \
     && mkdir -p coder/coder && cd coder/coder \
@@ -115,7 +115,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 # filesystem-mirror-example.tfrc
 provider_installation {
   filesystem_mirror {
-    path = "/home/coder/.terraform.d/plugins"
+    path = "/opt/terraform/plugins"
   }
 }
 ```
@@ -156,11 +156,11 @@ services:
     volumes:
       - ./plugins:/opt/terraform/plugins
     # ...
-  environment:
-    CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
-    CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
-    CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
-    CODER_UPDATE_CHECK: "false" # Disable automatic update checks
+    environment:
+      CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
+      CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
+      CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
+      CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:17
     # ...

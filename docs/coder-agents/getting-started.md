@@ -232,11 +232,15 @@ This is useful for building automations such as:
 
 **Quick example — create a Coder Agent via the API:**
 
+Replace `<your-org-id>` with the ID of an organization you belong to.
+To find the ID, run `coder organizations list` and copy the value in the `id` column.
+
 ```sh
 curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [
       {"type": "text", "text": "Fix the failing tests in the auth service"}
     ]

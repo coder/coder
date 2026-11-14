@@ -16,7 +16,8 @@ The template builder is the recommended way to create templates in Coder.
 It guides you through selecting a base infrastructure template, adding modules (IDEs, tools, integrations), and configuring your template, all without writing Terraform.
 
 The template builder is enabled by default.
-When you select **New Template** on the **Templates** page, the builder opens automatically.
+When you select **New template** on the **Templates** page, the builder opens automatically for users with the Owner role.
+Users with the Template Admin role, and not the Owner role, get the starter templates page instead, where selecting a starter template opens that template in the builder.
 
 The builder guides you through up to five steps:
 
@@ -51,7 +52,7 @@ The builder guides you through up to five steps:
 
    ![Set template display name, description, and other metadata](../images/templatebuilder_04_customizations.png)
 
-After you select **Create template**, Coder composes the Terraform configuration server-side, validates it with `terraform init` and `terraform validate`, and creates the template.
+After you select **Create template**, Coder composes the Terraform configuration server-side, checks it by parsing it and running `terraform init` and `terraform plan`, and creates the template.
 The generated template is standard Terraform HashiCorp Configuration Language (HCL) that you can edit later through the dashboard or CLI.
 
 > [!NOTE]
@@ -66,7 +67,7 @@ Module conflicts do not block template creation, but you should review the warni
 #### Turn off the template builder
 
 Operators can disable the template builder by setting the `CODER_DISABLE_TEMPLATE_BUILDER` environment variable or the `--disable-template-builder` server flag.
-When disabled, the **New Template** button links to the starter templates page instead, and the `/api/v2/templatebuilder/*` endpoints return 404.
+When disabled, the **New template** button links to the starter templates page instead, and the `/api/v2/templatebuilder/*` endpoints return 404.
 
 Deployments using a self-hosted module registry mirror can set `CODER_TEMPLATE_BUILDER_REGISTRY_URL` to point generated module source paths at the mirror instead of `registry.coder.com`.
 The value is a bare host, optionally with a port (for example `mirror.internal:8443`).

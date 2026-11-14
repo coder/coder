@@ -257,7 +257,7 @@ An integration that relied on that error to catch a misspelled optional paramete
 
 `resource` must be an absolute URI without a fragment (RFC 8707).
 A value that is not redirects to your registered callback with `error=invalid_target`, an `error_description` naming the field, and the `state` you sent.
-`POST /oauth2/token` already answered `invalid_target` for the same value.
+`POST /oauth2/tokens` already answered `invalid_target` for the same value.
 
 If anything else in the request also failed, the answer is `invalid_request` instead, naming every failing field.
 Correct them all before retrying: a retry that fixes only `resource` fails again.

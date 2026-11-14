@@ -1459,7 +1459,7 @@
 					"children": [
 						{
 							"title": "Logs",
-							"description": "Learn how Coder services write logs to standard output and how to collect them.",
+							"description": "Learn how Coder services write logs to standard error and how to collect them.",
 							"path": "./admin/monitoring/logs.md"
 						},
 						{

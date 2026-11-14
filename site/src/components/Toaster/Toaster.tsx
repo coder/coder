@@ -6,7 +6,11 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { Toaster as Sonner, type ToasterProps as SonnerProps } from "sonner";
+import {
+	Toaster as Sonner,
+	type ToasterProps as SonnerProps,
+	useSonner,
+} from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
 
 type SeverityIconProps = { icon: React.ReactNode; label: string };
@@ -20,8 +24,12 @@ const SeverityIcon = ({ icon, label }: SeverityIconProps) => (
 );
 
 export const Toaster = ({ ...props }: SonnerProps) => {
+	const { toasts } = useSonner();
 	return (
 		<Sonner
+			// Without toasts, an unnamed section stays a live region and exposes
+			// no landmark for screen readers to land on.
+			customAriaLabel={toasts.length === 0 ? "" : undefined}
 			icons={{
 				success: (
 					<SeverityIcon

@@ -39,7 +39,7 @@ If you plan to activate an early access feature, we suggest that you use a stagi
 
 Use the [Coder CLI](./cli/server/index.md#--experiments) `--experiments` flag to enable early access features:
 
-- Enable all early access features:
+- Enable every early access feature that Coder marks as safe to opt in to:
 
   ```sh
   coder server --experiments=*
@@ -50,6 +50,12 @@ Use the [Coder CLI](./cli/server/index.md#--experiments) `--experiments` flag to
   ```sh
   coder server --experiments=feature1,feature2
   ```
+
+The `*` value does not enable every experiment.
+It enables only the experiments that Coder marks as safe to opt in to.
+To enable any other experiment, name it in the `--experiments` value.
+To list the experiments that `*` enables, call the [Get safe experiments](./api/general.md#get-safe-experiments) endpoint.
+The response is an object that holds the names in its `safe` array.
 
 You can also use the `CODER_EXPERIMENTS` [environment variable](../admin/setup/index.md).
 

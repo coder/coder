@@ -55,4 +55,26 @@ describe(Autocomplete.name, () => {
 		);
 		expect(onInputChange).toHaveBeenCalledWith("m");
 	});
+
+	it("announces while options are loading", async () => {
+		const user = userEvent.setup();
+		render(
+			<Autocomplete
+				value={null}
+				onChange={vi.fn()}
+				options={[]}
+				getOptionValue={(option: string) => option}
+				getOptionLabel={(option: string) => option}
+				placeholder="Search for user or group"
+				loading
+			/>,
+		);
+
+		const status = screen.getByRole("status");
+		expect(status).toBeEmptyDOMElement();
+		await user.click(
+			screen.getByRole("button", { name: /^Search for user or group/ }),
+		);
+		expect(status).toHaveTextContent("Loading");
+	});
 });
