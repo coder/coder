@@ -22,6 +22,7 @@ import {
 	visibleSingletonTabsStorageKeyPrefix,
 } from "./rightPanelTabStorage";
 import {
+	setTerminalTabSessionEnded,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./rightPanelTabs";
@@ -198,6 +199,37 @@ function buildApp(
 	};
 }
 
+describe("terminal tab session ended flag", () => {
+	const mockPortTab: UserRightPanelTab = {
+		id: "port-3000",
+		kind: "port",
+		label: "Port 3000",
+		agentId: MockWorkspaceAgent.id,
+		port: 3000,
+		protocol: "http",
+	};
+
+	it("is recorded on the matching terminal tab only", () => {
+		const mockCommandTab = terminalTab({
+			id: "terminal-3",
+			initialCommand: "./deploy.sh",
+		});
+		const tabs = [terminalTab(), mockCommandTab, mockPortTab];
+
+		expect(setTerminalTabSessionEnded(tabs, mockCommandTab.id, true)).toEqual([
+			terminalTab(),
+			{ ...mockCommandTab, sessionEnded: true },
+			mockPortTab,
+		]);
+	});
+
+	it("is not recorded on a tab that is not a terminal", () => {
+		expect(
+			setTerminalTabSessionEnded([mockPortTab], mockPortTab.id, true),
+		).toEqual([mockPortTab]);
+	});
+});
+
 describe("right-panel tab storage", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -284,6 +316,25 @@ describe("right-panel tab storage", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
 			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
+		);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
+	});
+
+	it("persists that a command tab's session ended", () => {
+		const tabs: UserRightPanelTab[] = [
+			terminalTab({ initialCommand: "./deploy.sh", sessionEnded: true }),
+		];
+
+		savePersistedRightPanelTabs("chat-1", tabs);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
+	it("ignores terminal tabs with a malformed session ended flag", () => {
+		localStorage.setItem(
+			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			JSON.stringify([{ ...terminalTab(), sessionEnded: "yes" }]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);

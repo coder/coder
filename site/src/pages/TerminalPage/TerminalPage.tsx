@@ -17,6 +17,7 @@ import {
 	type WorkspaceTerminalHandle,
 } from "#/modules/terminal/WorkspaceTerminal";
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
+import { useDialogFocusReturn } from "#/pages/AgentsPage/components/useDialogFocusReturn";
 import themes from "#/theme";
 import { pageTitle } from "#/utils/page";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
@@ -37,6 +38,9 @@ const TerminalPage: React.FC = () => {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [commandConfirmed, setCommandConfirmed] = useState(false);
+	const [runAgainPendingConfirmation, setRunAgainPendingConfirmation] =
+		useState(false);
+	const { rememberTrigger, restoreFocus } = useDialogFocusReturn();
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -78,7 +82,9 @@ const TerminalPage: React.FC = () => {
 
 	// Raw ?command= params require explicit user confirmation.
 	// Trusted ?app= commands bypass the dialog.
-	const commandPendingConfirmation = !!command && !appSlug && !commandConfirmed;
+	const commandRequiresConfirmation = command !== undefined && !appSlug;
+	const commandPendingConfirmation =
+		commandRequiresConfirmation && !commandConfirmed;
 	const initialCommand = appCommand
 		? appCommand
 		: command && commandConfirmed
@@ -120,6 +126,16 @@ const TerminalPage: React.FC = () => {
 		},
 		[sessionId],
 	);
+	// A confirmation covers a single run, so running a raw ?command= again
+	// asks for it again.
+	const handleRunAgain = (event: React.MouseEvent<HTMLButtonElement>) => {
+		if (commandRequiresConfirmation) {
+			rememberTrigger(event);
+			setRunAgainPendingConfirmation(true);
+			return;
+		}
+		terminalRef.current?.runAgain();
+	};
 
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
@@ -196,6 +212,7 @@ const TerminalPage: React.FC = () => {
 					onAlertChange={() => {
 						terminalRef.current?.refit();
 					}}
+					onRunAgain={handleRunAgain}
 				/>
 				<WorkspaceTerminal
 					ref={terminalRef}
@@ -229,16 +246,25 @@ const TerminalPage: React.FC = () => {
 				</span>
 			)}
 
-			{command && !appSlug && (
+			{commandRequiresConfirmation && (
 				<TerminalCommandConsentDialog
-					open={!commandConfirmed}
+					open={!commandConfirmed || runAgainPendingConfirmation}
 					command={command}
 					onConfirm={() => {
 						setCommandConfirmed(true);
+						if (runAgainPendingConfirmation) {
+							setRunAgainPendingConfirmation(false);
+							terminalRef.current?.runAgain();
+						}
 					}}
 					onDeny={() => {
+						if (runAgainPendingConfirmation) {
+							setRunAgainPendingConfirmation(false);
+							return;
+						}
 						window.close();
 					}}
+					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
 		</ThemeOverride>

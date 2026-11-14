@@ -21,13 +21,20 @@ import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 const READY_FALLBACK_MS = 100;
 
 /** Keeps a recently hidden terminal attached long enough for quick tab toggles. */
-const TERMINAL_IDLE_DETACH_MS = 30_000;
+export const TERMINAL_IDLE_DETACH_MS = 30_000;
 
 type TerminalPanelProps = {
 	chatId: string;
 	reconnectionToken?: string;
 	/** Command run when the PTY session is first created, such as a command app. */
 	initialCommand?: string;
+	/**
+	 * Whether the command's session already ended. The caller keeps this
+	 * across remounts, so a terminal that mounts again does not reconnect and
+	 * run the command again.
+	 */
+	sessionEnded: boolean | undefined;
+	onSessionEndedChange: (ended: boolean) => void;
 	/**
 	 * Whether the tab is waiting for this terminal to be ready before it
 	 * switches to it. A pending terminal holds live resources while hidden.
@@ -46,6 +53,8 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 	chatId,
 	reconnectionToken = chatId,
 	initialCommand,
+	sessionEnded,
+	onSessionEndedChange,
 	isPending,
 	onReady,
 	workspace,
@@ -71,18 +80,21 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		setConnectionStatus("initializing");
 	});
 
+	// An ended session holds no connection, and detaching it would discard the
+	// command's output.
+	const hasEnded = connectionStatus === "ended";
 	useEffect(() => {
 		if (isHot) {
 			setIsWarm(true);
 			return;
 		}
-		if (!isWarm) {
+		if (!isWarm || hasEnded) {
 			return;
 		}
 
 		const timer = setTimeout(detachTerminal, TERMINAL_IDLE_DETACH_MS);
 		return () => clearTimeout(timer);
-	}, [isHot, isWarm]);
+	}, [isHot, isWarm, hasEnded]);
 
 	const shouldMountTerminal = isHot || isWarm;
 	const hasSignaledReadyRef = useRef(false);
@@ -99,6 +111,9 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		// the terminal alerts instead of waiting on the fallback timer.
 		if (status === "disconnected") {
 			signalReady();
+		}
+		if (status === "ended" && !sessionEnded) {
+			onSessionEndedChange(true);
 		}
 	};
 	const signalReadyFallback = useEffectEvent(signalReady);
@@ -147,12 +162,18 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		terminalRef.current?.refit();
 	};
 
+	const handleRunAgain = () => {
+		onSessionEndedChange(false);
+		terminalRef.current?.runAgain();
+	};
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<WorkspaceTerminalAlerts
 				agent={workspaceAgent}
 				status={connectionStatus}
 				onAlertChange={handleAlertChange}
+				onRunAgain={handleRunAgain}
 			/>
 			<div className="min-h-0 flex-1">
 				{shouldMountTerminal && (
@@ -170,6 +191,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 						reconnectionToken={reconnectionToken}
 						sessionId={sessionId}
 						initialCommand={initialCommand}
+						defaultEnded={sessionEnded}
 						baseUrl={terminalConfig.baseUrl}
 						terminalFontFamily={terminalConfig.fontFamily}
 						renderer={terminalConfig.renderer}

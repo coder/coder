@@ -14,6 +14,7 @@ type UserTabPanelProps = {
 	wildcardHostname: string;
 	isPending: boolean;
 	onTerminalReady: (tabId: string) => void;
+	onTerminalEndedChange: (tabId: string, ended: boolean) => void;
 };
 
 /**
@@ -28,6 +29,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	wildcardHostname,
 	isPending,
 	onTerminalReady,
+	onTerminalEndedChange,
 }) => {
 	switch (tab.kind) {
 		case "terminal":
@@ -36,6 +38,8 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 					chatId={chatId}
 					reconnectionToken={tab.reconnectionToken}
 					initialCommand={tab.initialCommand}
+					sessionEnded={tab.sessionEnded}
+					onSessionEndedChange={(ended) => onTerminalEndedChange(tab.id, ended)}
 					isPending={isPending}
 					onReady={() => onTerminalReady(tab.id)}
 					workspace={workspace}

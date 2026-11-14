@@ -59,6 +59,7 @@ import {
 	isSingletonRightPanelTabId,
 	type PortSelection,
 	type SingletonRightPanelTabId,
+	setTerminalTabSessionEnded,
 	singletonRightPanelTabIds,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
@@ -401,6 +402,15 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
+	};
+
+	const handleTerminalTabEndedChange = (
+		tabId: string,
+		sessionEnded: boolean,
+	) => {
+		setUserRightPanelTabsState((currentTabs) =>
+			setTerminalTabSessionEnded(currentTabs, tabId, sessionEnded),
+		);
 	};
 
 	const handleActiveTabChange = (tabId: string) => {
@@ -831,6 +841,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										wildcardHostname={wildcardHostname}
 										isPending={pendingTabId === tab.id}
 										onTerminalReady={handleTerminalTabReady}
+										onTerminalEndedChange={handleTerminalTabEndedChange}
 									/>
 								</SidebarTab>
 							))}
