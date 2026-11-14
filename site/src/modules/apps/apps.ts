@@ -4,6 +4,7 @@ import type {
 	WorkspaceApp,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { parseURL } from "#/utils/uri";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.
@@ -284,9 +285,7 @@ const isThisDeployment = (
 	const { origin } = new URL(url);
 	return (
 		origin === location.origin ||
-		(accessUrl !== undefined &&
-			URL.canParse(accessUrl) &&
-			origin === new URL(accessUrl).origin)
+		(accessUrl !== undefined && parseURL(accessUrl)?.origin === origin)
 	);
 };
 
@@ -297,7 +296,8 @@ const isThisDeployment = (
  * since parsing normalizes `/.` and drops an empty `?`.
  */
 export const isBareOrigin = (url: string): boolean =>
-	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) && URL.canParse(url);
+	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) &&
+	parseURL(url) !== undefined;
 
 /**
  * True for apps that can be rendered inside a dashboard iframe. Command apps
@@ -336,7 +336,7 @@ export const isAppUrlValid = (app: WorkspaceApp): boolean => {
 	if (!isExternalApp(app)) {
 		return true;
 	}
-	return URL.canParse(app.url);
+	return parseURL(app.url) !== undefined;
 };
 
 /**

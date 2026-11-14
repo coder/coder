@@ -5,6 +5,7 @@ import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { relativeTime } from "#/utils/time";
+import { parseURL } from "#/utils/uri";
 import { InboxAvatar } from "./InboxAvatar";
 
 type InboxItemProps = {
@@ -35,7 +36,7 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 							// absolute URLs; only other origins open a new tab.
 							const isExternal =
 								props.href?.startsWith("http") &&
-								URL.parse(props.href)?.origin !== location.origin;
+								parseURL(props.href)?.origin !== location.origin;
 							return (
 								<Link
 									{...props}

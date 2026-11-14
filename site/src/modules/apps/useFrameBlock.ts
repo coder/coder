@@ -1,4 +1,5 @@
 import { useLayoutEffect, useState } from "react";
+import { parseURL } from "#/utils/uri";
 
 /**
  * A frame that a Content-Security-Policy `frame-src` directive on the
@@ -27,7 +28,7 @@ export const useFrameBlock = (
 		if (src === undefined) {
 			return;
 		}
-		const origin = URL.parse(src, location.href)?.origin;
+		const origin = parseURL(src, location.href)?.origin;
 		if (origin === undefined) {
 			return;
 		}
@@ -37,7 +38,7 @@ export const useFrameBlock = (
 			if (
 				event.effectiveDirective !== "frame-src" ||
 				event.disposition !== "enforce" ||
-				URL.parse(event.blockedURI)?.origin !== origin
+				parseURL(event.blockedURI)?.origin !== origin
 			) {
 				return;
 			}
