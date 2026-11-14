@@ -22,7 +22,9 @@ export type DiffStats = {
 };
 
 /** Line counts of a repo's uncommitted diff, zero when it has none. */
-const countRepoChanges = (repo: WorkspaceAgentRepoChanges): DiffStats => {
+export const countRepoChanges = (
+	repo: WorkspaceAgentRepoChanges,
+): DiffStats => {
 	let additions = 0;
 	let deletions = 0;
 	for (const line of (repo.unified_diff ?? "").split("\n")) {
