@@ -89,6 +89,8 @@ const aiSpendStatus = (
 	current_spend_micros: 12_500_000,
 	period_start: "2026-07-01T00:00:00Z",
 	period_end: "2026-08-01T00:00:00Z",
+	organization_id: MockDefaultOrganization.id,
+	organizations: [],
 	...overrides,
 });
 
@@ -96,6 +98,7 @@ const noBudgetStatus = aiSpendStatus({
 	effective_group_id: null,
 	effective_budget: null,
 	current_spend_micros: 0,
+	organization_id: null,
 });
 
 const userWorkspacesRequest = {

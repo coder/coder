@@ -115,6 +115,8 @@ const mockUserAISpend: UserAISpendStatus = {
 	current_spend_micros: 1_345_000_000,
 	period_start: "2026-06-01T00:00:00Z",
 	period_end: "2026-07-01T00:00:00Z",
+	organization_id: MockDefaultOrganization.id,
+	organizations: [],
 };
 
 export default meta;
