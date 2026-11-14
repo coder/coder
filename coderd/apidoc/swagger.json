@@ -31557,7 +31557,7 @@
 					"format": "uuid"
 				},
 				"organizations": {
-					"description": "Organizations is the spend per organization the user is a member of,\nordered by organization name.",
+					"description": "Organizations is the spend per organization the user is a member of\nand the caller can read, ordered by organization name.",
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.UserOrganizationAISpend"

@@ -80,8 +80,8 @@ type UserAISpendStatus struct {
 	// OrganizationID is the organization the top-level effective group
 	// belongs to. Null when no effective group was resolved.
 	OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
-	// Organizations is the spend per organization the user is a member of,
-	// ordered by organization name.
+	// Organizations is the spend per organization the user is a member of
+	// and the caller can read, ordered by organization name.
 	Organizations []UserOrganizationAISpend `json:"organizations"`
 }
 

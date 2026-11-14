@@ -12055,8 +12055,8 @@ export interface UserAISpendStatus
 	 */
 	readonly organization_id: string | null;
 	/**
-	 * Organizations is the spend per organization the user is a member of,
-	 * ordered by organization name.
+	 * Organizations is the spend per organization the user is a member of
+	 * and the caller can read, ordered by organization name.
 	 */
 	readonly organizations: readonly UserOrganizationAISpend[];
 }

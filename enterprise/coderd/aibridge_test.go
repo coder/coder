@@ -4429,9 +4429,8 @@ func TestUserAISpendStatus(t *testing.T) {
 				},
 			}
 			readers := map[string]func() (codersdk.UserAISpendStatus, error){
-				"Self":         func() (codersdk.UserAISpendStatus, error) { return userClient.UserAISpendStatus(ctx, user.ID) },
-				"UserAdmin":    func() (codersdk.UserAISpendStatus, error) { return userAdminClient.UserAISpendStatus(ctx, user.ID) },
-				"OrgUserAdmin": func() (codersdk.UserAISpendStatus, error) { return orgUserAdminClient.UserAISpendStatus(ctx, user.ID) },
+				"Self":      func() (codersdk.UserAISpendStatus, error) { return userClient.UserAISpendStatus(ctx, user.ID) },
+				"UserAdmin": func() (codersdk.UserAISpendStatus, error) { return userAdminClient.UserAISpendStatus(ctx, user.ID) },
 			}
 			for name, read := range readers {
 				got, err := read()
@@ -4444,6 +4443,13 @@ func TestUserAISpendStatus(t *testing.T) {
 				require.Equal(t, int64(300_000_000), got.CurrentSpendMicros, name)
 				require.Equal(t, want, got.Organizations, name)
 			}
+
+			// The breakdown only includes organizations the caller can read,
+			// so an organization-scoped admin never sees the budget or spend
+			// of the user's other organizations.
+			got, err := orgUserAdminClient.UserAISpendStatus(ctx, user.ID)
+			require.NoError(t, err)
+			require.Equal(t, want[1:], got.Organizations)
 		})
 
 		t.Run("OrgWithoutBudget", func(t *testing.T) {

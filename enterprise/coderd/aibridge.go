@@ -1109,14 +1109,11 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 // ordered by organization name. Organizations where no effective group
 // resolves are omitted. The result is never nil.
 func (api *API) userOrganizationsAISpend(ctx context.Context, userID uuid.UUID, periodStart time.Time, budgetPolicy codersdk.AIBudgetPolicy) ([]codersdk.UserOrganizationAISpend, error) {
-	// The caller is already authorized to read the user, which is what every
-	// budget and spend query below checks. Listing organizations as the caller
-	// would drop the ones the caller cannot read, such as the user's other
-	// organizations when the caller is an organization user admin, and the
-	// breakdown would then omit organizations that the top-level spend,
-	// resolved across all of the user's organizations, can come from.
-	//nolint:gocritic // Authorization is on the user, see above.
-	orgs, err := api.Database.GetOrganizationsByUserID(dbauthz.AsSystemRestricted(ctx), database.GetOrganizationsByUserIDParams{
+	// The budget and spend queries below only check that the caller can read
+	// the user. Listing organizations as the caller is what keeps an
+	// organization-scoped admin from seeing the budget and spend of the user's
+	// other organizations.
+	orgs, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
 		UserID:  userID,
 		Deleted: sql.NullBool{Bool: false, Valid: true},
 	})
