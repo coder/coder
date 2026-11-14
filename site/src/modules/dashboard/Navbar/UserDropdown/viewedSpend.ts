@@ -32,10 +32,17 @@ export function toViewedSpend(fields: SpendFields): ViewedSpend | null {
 	return { currentSpend: fields.current_spend_micros, spendLimit: limit };
 }
 
-/** Classifies spend against its limit. Missing or unlimited spend is normal. */
+/**
+ * Classifies spend against its limit. Missing or unlimited spend is normal. A
+ * limit of 0 is exceeded even with no spend, because AI Gateway blocks requests
+ * once spend reaches the limit.
+ */
 export function getSpendSeverity(spend: ViewedSpend | null): UsageSeverity {
 	if (!spend || spend.spendLimit === null) {
 		return "normal";
+	}
+	if (spend.spendLimit === 0) {
+		return "exceeded";
 	}
 	return getSeverity(spend.currentSpend, spend.spendLimit);
 }

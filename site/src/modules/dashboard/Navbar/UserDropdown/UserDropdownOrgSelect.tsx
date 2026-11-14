@@ -44,6 +44,8 @@ export const UserDropdownOrgSelect: React.FC<UserDropdownOrgSelectProps> = ({
 		<>
 			<DropdownMenuItem
 				ref={triggerRef}
+				// The avatar fallback initials would otherwise prefix typeahead.
+				textValue={orgName(selected)}
 				aria-expanded={open}
 				aria-label={`Organization: ${orgName(selected)}`}
 				onSelect={(event) => {
@@ -78,6 +80,7 @@ export const UserDropdownOrgSelect: React.FC<UserDropdownOrgSelectProps> = ({
 							<DropdownMenuRadioItem
 								key={entry.organization.id}
 								value={entry.organization.id}
+								textValue={orgName(entry.organization)}
 								className="gap-2 font-normal"
 								onSelect={(event) => event.preventDefault()}
 							>

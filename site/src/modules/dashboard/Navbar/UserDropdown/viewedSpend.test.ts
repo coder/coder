@@ -28,7 +28,13 @@ describe("getViewedSpend", () => {
 
 	it("falls back to the first entry when organization_id matches none", () => {
 		const { shownOrgSpend } = getViewedSpend(
-			{ ...multiOrg, organization_id: null },
+			{
+				...multiOrg,
+				organization_id: null,
+				effective_group_id: null,
+				effective_budget: null,
+				current_spend_micros: 0,
+			},
 			undefined,
 		);
 		expect(shownOrgSpend?.organization.id).toBe(MockOrganization.id);
