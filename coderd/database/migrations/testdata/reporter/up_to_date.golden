@@ -1,0 +1,5 @@
+[debu]  acquiring database migration lock  phase=setup
+[debu]  acquired database migration lock  phase=setup  waited_ms=0
+[debu]  acquiring database migration lock  phase=batch
+[debu]  acquired database migration lock  phase=batch  waited_ms=0
+[debu]  database schema is up to date  version=1

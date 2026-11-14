@@ -25,6 +25,11 @@ type pgTxnDriver struct {
 	ctx context.Context
 	db  *sql.DB
 	tx  *sql.Tx
+
+	reporter *reporter
+	// phase is phaseSetup while creating schema_migrations and phaseBatch
+	// otherwise. Only used for reporting.
+	phase string
 }
 
 func (*pgTxnDriver) Open(string) (database.Driver, error) {
@@ -38,22 +43,39 @@ func (*pgTxnDriver) Close() error {
 func (d *pgTxnDriver) Lock() error {
 	var err error
 
+	d.reporter.lockStarted()
 	d.tx, err = d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return err
 	}
-	const q = `
-SELECT pg_advisory_xact_lock($1)
-`
+	// Name the connection and identify the transaction before waiting, so the
+	// heartbeat can find the migration backend in pg_stat_activity.
+	if _, err := d.tx.ExecContext(d.ctx, `SELECT set_config('application_name', $1, true)`, d.reporter.appName); err != nil {
+		return xerrors.Errorf("set application name: %w", err)
+	}
+	var (
+		pid int
+		xid string
+	)
+	if err := d.tx.QueryRowContext(d.ctx, `SELECT pg_backend_pid(), pg_current_xact_id()::text`).Scan(&pid, &xid); err != nil {
+		return xerrors.Errorf("identify migration transaction: %w", err)
+	}
+	d.reporter.setBackend(pid, xid)
 
-	_, err = d.tx.ExecContext(d.ctx, q, lockID)
+	since, stop := d.reporter.lockWaitStarted(d.phase)
+	_, err = d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
+	stop()
 	if err != nil {
 		return xerrors.Errorf("exec select: %w", err)
 	}
+	d.reporter.lockAcquired(d.phase, since)
 	return nil
 }
 
 func (d *pgTxnDriver) Unlock() error {
+	// Lock stops its own lock wait heartbeat, so only a step that failed
+	// before it was applied can still have one running.
+	d.reporter.stopStepHeartbeat()
 	err := d.tx.Commit()
 	d.tx = nil
 	if err != nil {
@@ -109,6 +131,11 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 		}
 	}
 
+	if dirty {
+		d.reporter.stepStarted(version)
+	} else {
+		d.reporter.stepApplied(version)
+	}
 	return nil
 }
 
@@ -128,20 +155,20 @@ func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {
 	err = q.QueryRowContext(context.Background(), query).Scan(&version, &dirty)
 	switch {
 	case err == sql.ErrNoRows:
-		return database.NilVersion, false, nil
+		version, dirty = database.NilVersion, false
 
 	case err != nil:
 		var pgErr *pq.Error
-		if xerrors.As(err, &pgErr) {
-			if pgErr.Code.Name() == "undefined_table" {
-				return database.NilVersion, false, nil
-			}
+		if !xerrors.As(err, &pgErr) || pgErr.Code.Name() != "undefined_table" {
+			return 0, false, &database.Error{OrigErr: err, Query: []byte(query)}
 		}
-		return 0, false, &database.Error{OrigErr: err, Query: []byte(query)}
-
-	default:
-		return version, dirty, nil
+		version, dirty = database.NilVersion, false
 	}
+
+	if d.tx != nil && !dirty {
+		d.reporter.versionRead(version)
+	}
+	return version, dirty, nil
 }
 
 func (*pgTxnDriver) Drop() error {
@@ -149,6 +176,9 @@ func (*pgTxnDriver) Drop() error {
 }
 
 func (d *pgTxnDriver) ensureVersionTable() error {
+	d.phase = phaseSetup
+	defer func() { d.phase = phaseBatch }()
+
 	err := d.Lock()
 	if err != nil {
 		return xerrors.Errorf("acquire migration lock: %w", err)

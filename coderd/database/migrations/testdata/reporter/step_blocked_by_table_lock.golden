@@ -1,0 +1,10 @@
+[debu]  acquiring database migration lock  phase=setup
+[debu]  acquired database migration lock  phase=setup  waited_ms=0
+[debu]  acquiring database migration lock  phase=batch
+[debu]  acquired database migration lock  phase=batch  waited_ms=0
+[info]  database migration required  from_version=1  target_version=3  pending=2
+[info]  applying database migration  version=2  name=step_2  position=1  total=2
+[info]  database migration applied, pending commit  version=2  name=step_2  position=1  total=2  duration_ms=0
+[info]  applying database migration  version=3  name=step_3  position=2  total=2
+[info]  still applying database migration  elapsed_ms=1000  state=waiting_on_lock  wait_event=relation  blocked_by=[blocker]  version=3  name=step_3  position=2  total=2
+[info]  database migration applied, pending commit  version=3  name=step_3  position=2  total=2  duration_ms=1000

@@ -80,13 +80,13 @@ func main() {
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Init database at version %q\n", migrateFromVersion)
-	if err := migrations.UpWithFS(conn, migrateFromFS); err != nil {
+	if err := migrations.Up(conn, migrations.WithFS(migrateFromFS)); err != nil {
 		friendlyError(os.Stderr, err, migrateFromVersion, migrateToVersion)
 		panic("")
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Migrate to version %q\n", migrateToVersion)
-	if err := migrations.UpWithFS(conn, migrateToFS); err != nil {
+	if err := migrations.Up(conn, migrations.WithFS(migrateToFS)); err != nil {
 		friendlyError(os.Stderr, err, migrateFromVersion, migrateToVersion)
 		panic("")
 	}
