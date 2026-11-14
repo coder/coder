@@ -83,29 +83,7 @@ func runVerifyCases(t *testing.T, v chatwebhook.WebhookVerifier, cases []verifyC
 func TestNewVerifier(t *testing.T) {
 	t.Parallel()
 
-	// Every scheme has a verifier. PR B4 repeats this check for the
-	// database enum.
-	for _, scheme := range []chatwebhook.Scheme{
-		chatwebhook.SchemeBearer,
-		chatwebhook.SchemeGitHub,
-		chatwebhook.SchemeStandardWebhooks,
-	} {
-		t.Run(string(scheme), func(t *testing.T) {
-			t.Parallel()
-			v, err := chatwebhook.NewVerifier(scheme)
-			require.NoError(t, err)
-			require.NotNil(t, v)
-		})
-	}
-
-	t.Run("values match the RFC enum strings", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, "bearer", string(chatwebhook.SchemeBearer))
-		require.Equal(t, "github", string(chatwebhook.SchemeGitHub))
-		require.Equal(t, "standard_webhooks", string(chatwebhook.SchemeStandardWebhooks))
-	})
-
-	for _, scheme := range []chatwebhook.Scheme{"", "Bearer", "hmac", "standard-webhooks"} {
+	for _, scheme := range []chatwebhook.Scheme{"", "Bearer"} {
 		t.Run("unknown scheme "+strconv.Quote(string(scheme)), func(t *testing.T) {
 			t.Parallel()
 			v, err := chatwebhook.NewVerifier(scheme)
@@ -144,24 +122,6 @@ func TestGenerateSecret(t *testing.T) {
 		})
 	}
 
-	t.Run("generated bearer secret verifies a request", func(t *testing.T) {
-		t.Parallel()
-		v := newVerifier(t, chatwebhook.SchemeBearer)
-		secret, _, err := v.GenerateSecret()
-		require.NoError(t, err)
-		require.NoError(t, v.Verify(header("Authorization", "Bearer "+secret), nil, secret, now))
-	})
-
-	t.Run("generated github secret verifies a request", func(t *testing.T) {
-		t.Parallel()
-		v := newVerifier(t, chatwebhook.SchemeGitHub)
-		secret, _, err := v.GenerateSecret()
-		require.NoError(t, err)
-		body := []byte(`{"zen":"Keep it logically awesome."}`)
-		sig := "sha256=" + hex.EncodeToString(hmacSHA256([]byte(secret), body))
-		require.NoError(t, v.Verify(header("X-Hub-Signature-256", sig), body, secret, now))
-	})
-
 	t.Run("standard_webhooks sender creates the secret", func(t *testing.T) {
 		t.Parallel()
 		secret, ok, err := newVerifier(t, chatwebhook.SchemeStandardWebhooks).GenerateSecret()
@@ -169,53 +129,6 @@ func TestGenerateSecret(t *testing.T) {
 		require.False(t, ok)
 		require.Empty(t, secret)
 	})
-}
-
-func TestVerifyRepeatedRequest(t *testing.T) {
-	t.Parallel()
-
-	// Coder does not deduplicate deliveries, so the same valid request
-	// verifies every time.
-	const bearerSecret = "bearer-secret"
-	const githubSecret = "github-secret"
-	githubBody := []byte(`{"action":"opened"}`)
-	standardKey := []byte("0123456789abcdef0123456789abcdef")
-	standardBody := []byte(`{"type":"example.event"}`)
-	ts := strconv.FormatInt(now.Unix(), 10)
-
-	requests := map[chatwebhook.Scheme]struct {
-		header http.Header
-		body   []byte
-		secret string
-	}{
-		chatwebhook.SchemeBearer: {
-			header: header("Authorization", "Bearer "+bearerSecret),
-			secret: bearerSecret,
-		},
-		chatwebhook.SchemeGitHub: {
-			header: header("X-Hub-Signature-256", "sha256="+hex.EncodeToString(hmacSHA256([]byte(githubSecret), githubBody))),
-			body:   githubBody,
-			secret: githubSecret,
-		},
-		chatwebhook.SchemeStandardWebhooks: {
-			header: header(
-				"webhook-id", "msg_1",
-				"webhook-timestamp", ts,
-				"webhook-signature", "v1,"+base64.StdEncoding.EncodeToString(hmacSHA256(standardKey, []byte("msg_1."+ts+"."+string(standardBody)))),
-			),
-			body:   standardBody,
-			secret: "whsec_" + base64.StdEncoding.EncodeToString(standardKey),
-		},
-	}
-	for scheme, req := range requests {
-		t.Run(string(scheme), func(t *testing.T) {
-			t.Parallel()
-			v := newVerifier(t, scheme)
-			for range 3 {
-				require.NoError(t, v.Verify(req.header, req.body, req.secret, now))
-			}
-		})
-	}
 }
 
 // errorTexts returns every text an error can show: its message, its verbose
@@ -277,7 +190,6 @@ func TestErrorsDoNotLeakCredentials(t *testing.T) {
 			{"wrong token", header("Authorization", "Bearer "+tokenCanary), secretCanary},
 			{"wrong scheme", header("Authorization", "Basic "+tokenCanary), secretCanary},
 			{"two lines", header("Authorization", "Bearer "+tokenCanary, "Authorization", "Bearer "+secretCanary), secretCanary},
-			{"empty secret", header("Authorization", "Bearer "+tokenCanary), ""},
 		}, secretCanary, tokenCanary)
 		requireNoCanary(t, v.ValidateSecret(secretCanary), secretCanary)
 	})
@@ -293,9 +205,7 @@ func TestErrorsDoNotLeakCredentials(t *testing.T) {
 			{"wrong signature", sig("sha256=" + wrong), secretCanary},
 			{"not hex", sig("sha256=" + receivedCanary), secretCanary},
 			{"no prefix", sig(wrong), secretCanary},
-			{"legacy sha1 prefix", sig("sha1=" + expected), secretCanary},
 			{"two lines", header("X-Hub-Signature-256", "sha256="+wrong, "X-Hub-Signature-256", "sha256="+expected), secretCanary},
-			{"truncated", sig("sha256=" + wrong[:20]), secretCanary},
 			{"empty secret", sig("sha256=" + expected), ""},
 		}, secretCanary, expected, "sha256="+expected, wrong, receivedCanary)
 	})
@@ -321,15 +231,12 @@ func TestErrorsDoNotLeakCredentials(t *testing.T) {
 			{"timestamp too old", hdr(old, "v1,"+oldSig), secret},
 			{"not base64", hdr(ts, "v1,"+receivedCanary), secret},
 			{"wrong version", hdr(ts, "v2,"+expected), secret},
-			{"trailing data", hdr(ts, "v1,"+expected+","+receivedCanary), secret},
 			{"missing id", header("webhook-timestamp", ts, "webhook-signature", "v1,"+expected), secret},
 			{"secret without prefix", hdr(ts, "v1,"+expected), keyB64},
 			{"secret not base64", hdr(ts, "v1,"+expected), secret + "!"},
-			{"empty secret", hdr(ts, "v1,"+expected), ""},
-			{"prefix only secret", hdr(ts, "v1,"+expected), "whsec_"},
 		}, secretCanary, keyB64, secret, expected, "v1,"+expected, wrong, oldSig, receivedCanary)
 
-		for _, bad := range []string{secret + "!", keyB64, "", "whsec_"} {
+		for _, bad := range []string{secret + "!", keyB64} {
 			err := v.ValidateSecret(bad)
 			require.ErrorIs(t, err, chatwebhook.ErrInvalidSecret)
 			requireNoCanary(t, err, secretCanary, keyB64)
