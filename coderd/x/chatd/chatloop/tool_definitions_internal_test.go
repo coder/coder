@@ -94,3 +94,68 @@ func TestBuildToolDefinitionsPreservesFunctionToolOptions(t *testing.T) {
 	require.Equal(t, "test_tool", function.Name)
 	require.Equal(t, providerOptions, function.ProviderOptions)
 }
+
+type customSchemaTool struct {
+	staticParametersTool
+	schema map[string]any
+}
+
+func (t customSchemaTool) InputSchema() map[string]any {
+	return t.schema
+}
+
+func TestBuildToolDefinitionsPreservesCustomInputSchemaWithDraftAndDefs(t *testing.T) {
+	t.Parallel()
+
+	originalSchema := map[string]any{
+		"$schema": "http://json-schema.org/draft-07/schema#",
+		"$defs": map[string]any{
+			"Coordinate": map[string]any{
+				"type": "number",
+			},
+		},
+		"type": "object",
+		"properties": map[string]any{
+			"range": map[string]any{
+				"type": "array",
+				"items": []any{
+					map[string]any{"type": "number"},
+					map[string]any{"type": "number"},
+				},
+			},
+		},
+		"required": []string{"range"},
+	}
+
+	tool := customSchemaTool{
+		staticParametersTool: staticParametersTool{
+			info: fantasy.ToolInfo{
+				Name:        "geo_range",
+				Description: "Query a coordinate range",
+			},
+		},
+		schema: originalSchema,
+	}
+
+	defs := BuildToolDefinitions([]fantasy.AgentTool{tool}, nil, nil)
+	require.Len(t, defs, 1)
+
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	require.Equal(t, "geo_range", ft.Name)
+	require.Equal(t, "http://json-schema.org/draft-07/schema#", ft.InputSchema["$schema"])
+	require.NotNil(t, ft.InputSchema["$defs"])
+	require.Equal(t, "object", ft.InputSchema["type"])
+
+	props, ok := ft.InputSchema["properties"].(map[string]any)
+	require.True(t, ok)
+	rangeProp, ok := props["range"].(map[string]any)
+	require.True(t, ok)
+	items, ok := rangeProp["items"].([]any)
+	require.True(t, ok)
+	require.Len(t, items, 2)
+
+	// Verify deep clone prevents mutating original schema
+	ft.InputSchema["$schema"] = "mutated"
+	require.Equal(t, "http://json-schema.org/draft-07/schema#", originalSchema["$schema"])
+}
