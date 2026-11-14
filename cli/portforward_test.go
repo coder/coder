@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -46,18 +45,12 @@ func TestPortForward_None(t *testing.T) {
 	require.ErrorContains(t, err, "no port-forwards")
 }
 
-func listenLocalUDPWithPrefix(t *testing.T, prefix []byte) net.Listener {
+func listenLocalUDP(t *testing.T) net.Listener {
 	addr := net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: 0,
 	}
-	cfg := udp.ListenConfig{AcceptFilter: func(bytes []byte) bool {
-		if len(bytes) < len(prefix) {
-			return false
-		}
-		return slices.Equal(prefix, bytes[:len(prefix)])
-	}}
-	l, err := cfg.Listen("udp", &addr)
+	l, err := udp.Listen("udp", &addr)
 	require.NoError(t, err, "create UDP listener")
 	return l
 }
@@ -71,9 +64,8 @@ func TestPortForward(t *testing.T) {
 		// of connection. Has one format arg (string) for the remote address.
 		flag []string
 		// setupRemote creates a "remote" listener to emulate a service in the
-		// workspace. The prefix is generated per test case and can be used to
-		// filter connections.
-		setupRemote func(t *testing.T, prefix []byte) net.Listener
+		// workspace.
+		setupRemote func(t *testing.T) net.Listener
 		// the local address(es) to "dial"
 		localAddress []string
 	}{
@@ -81,7 +73,7 @@ func TestPortForward(t *testing.T) {
 			name:    "TCP",
 			network: "tcp",
 			flag:    []string{"--tcp=5555:%v", "--tcp=6666:%v"},
-			setupRemote: func(t *testing.T, _ []byte) net.Listener {
+			setupRemote: func(t *testing.T) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -92,7 +84,7 @@ func TestPortForward(t *testing.T) {
 			name:    "TCP-opportunistic-ipv6",
 			network: "tcp",
 			flag:    []string{"--tcp=5566:%v", "--tcp=6655:%v"},
-			setupRemote: func(t *testing.T, _ []byte) net.Listener {
+			setupRemote: func(t *testing.T) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -103,20 +95,20 @@ func TestPortForward(t *testing.T) {
 			name:         "UDP",
 			network:      "udp",
 			flag:         []string{"--udp=7777:%v", "--udp=8888:%v"},
-			setupRemote:  listenLocalUDPWithPrefix,
+			setupRemote:  listenLocalUDP,
 			localAddress: []string{"127.0.0.1:7777", "127.0.0.1:8888"},
 		},
 		{
 			name:         "UDP-opportunistic-ipv6",
 			network:      "udp",
 			flag:         []string{"--udp=7788:%v", "--udp=8877:%v"},
-			setupRemote:  listenLocalUDPWithPrefix,
+			setupRemote:  listenLocalUDP,
 			localAddress: []string{"[::1]:7788", "[::1]:8877"},
 		},
 		{
 			name:    "TCPWithAddress",
 			network: "tcp", flag: []string{"--tcp=10.10.10.99:9999:%v", "--tcp=10.10.10.10:1010:%v"},
-			setupRemote: func(t *testing.T, _ []byte) net.Listener {
+			setupRemote: func(t *testing.T) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -126,7 +118,7 @@ func TestPortForward(t *testing.T) {
 		{
 			name:    "TCP-IPv6",
 			network: "tcp", flag: []string{"--tcp=[fe80::99]:9999:%v", "--tcp=[fe80::10]:1010:%v"},
-			setupRemote: func(t *testing.T, _ []byte) net.Listener {
+			setupRemote: func(t *testing.T) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -153,7 +145,7 @@ func TestPortForward(t *testing.T) {
 		t.Run(c.name+"_OnePort", func(t *testing.T) {
 			t.Parallel()
 			prefix := generateRandomPrefix(t)
-			p1 := setupTestListener(t, c.setupRemote(t, prefix), prefix)
+			p1 := setupTestListener(t, c.setupRemote(t))
 
 			// Create a flag that forwards from local to listener 1.
 			flag := fmt.Sprintf(c.flag[0], p1)
@@ -204,8 +196,8 @@ func TestPortForward(t *testing.T) {
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
 			t.Parallel()
 			prefix := generateRandomPrefix(t)
-			p1 := setupTestListener(t, c.setupRemote(t, prefix), prefix)
-			p2 := setupTestListener(t, c.setupRemote(t, prefix), prefix)
+			p1 := setupTestListener(t, c.setupRemote(t))
+			p2 := setupTestListener(t, c.setupRemote(t))
 
 			// Create a flags for listener 1 and listener 2.
 			flag1 := fmt.Sprintf(c.flag[0], p1)
@@ -263,7 +255,7 @@ func TestPortForward(t *testing.T) {
 		prefix := generateRandomPrefix(t)
 		// Start listeners and populate arrays with the cases.
 		for _, c := range cases {
-			p := setupTestListener(t, c.setupRemote(t, prefix), prefix)
+			p := setupTestListener(t, c.setupRemote(t))
 
 			dials = append(dials, testutil.NewAddr(c.network, c.localAddress[0]))
 			flags = append(flags, fmt.Sprintf(c.flag[0], p))
@@ -324,7 +316,7 @@ func TestPortForward(t *testing.T) {
 
 		remoteLis, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err, "create TCP listener")
-		p1 := setupTestListener(t, remoteLis, prefix)
+		p1 := setupTestListener(t, remoteLis)
 
 		// Create a flag that forwards from local 5555 to remote listener port.
 		flag := fmt.Sprintf("--tcp=5555:%v", p1)
@@ -409,7 +401,7 @@ func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db databas
 
 // setupTestListener starts accepting connections and echoing a single packet.
 // Returns the listen port.
-func setupTestListener(t *testing.T, l net.Listener, prefix []byte) string {
+func setupTestListener(t *testing.T, l net.Listener) string {
 	t.Helper()
 
 	// Wait for listener to completely exit before releasing.
@@ -430,9 +422,14 @@ func setupTestListener(t *testing.T, l net.Listener, prefix []byte) string {
 				_ = l.Close()
 				return
 			}
+			// echo runs until the connection is closed, so when the test is over, kill any connections
+			// so they don't block.
+			t.Cleanup(func() {
+				_ = c.Close()
+			})
 
 			wg.Go(func() {
-				echoIfPrefixed(t, c, prefix)
+				echoMessages(t, c)
 			})
 		}
 	}()
@@ -459,38 +456,43 @@ func testDial(t *testing.T, c net.Conn, prefix []byte) {
 	assertReadPayload(t, c, prefix)
 }
 
-func echoIfPrefixed(t *testing.T, c net.Conn, prefix []byte) {
+func echoMessages(t *testing.T, c net.Conn) {
 	t.Helper()
 	defer c.Close()
 
 	// here we don't want to assert anything, because the listener is exposed to the OS, so who knows what might
-	// connect. If we get the expected prefix to our message, echo it back.
-	b := make([]byte, 2048)
-	n, err := c.Read(b)
-	if err != nil {
-		t.Logf("read failed (could be crosstalk): %v", err)
-		return
-	}
-	if n < len(prefix) {
-		t.Logf("short read (could be crosstalk): read %x", b[:n])
-		return
-	}
-	if !bytes.HasPrefix(b, prefix) {
-		t.Logf("missing prefix (could be crosstalk), wanted %x got %x", prefix, b[:n])
-		return
-	}
-	_, err = c.Write(b[:n])
-	if err != nil {
-		t.Logf("write failed: %v", err)
+	// connect. Just echo the data back, and let the test function on the other side filter out the noise by prefix.
+	for {
+		b := make([]byte, 2048)
+		n, err := c.Read(b)
+		if err != nil {
+			t.Logf("echo read failed (could be crosstalk): %v", err)
+			return
+		}
+		_, err = c.Write(b[:n])
+		if err != nil {
+			t.Logf("echo write failed: %v", err)
+		}
 	}
 }
 
 func assertReadPayload(t *testing.T, r io.Reader, prefix []byte) {
 	t.Helper()
 	payload := newPayload(prefix)
-	b := make([]byte, len(payload)+16)
-	n, err := r.Read(b)
-	assert.NoError(t, err, "read payload")
+	var (
+		b   []byte
+		n   int
+		err error
+	)
+	for {
+		b = make([]byte, 2046)
+		n, err = r.Read(b)
+		assert.NoError(t, err, "read payload")
+		if bytes.HasPrefix(b, payload) {
+			break
+		}
+		t.Logf("read payload with bad prefix (could be crosstalk): %q", b[:n])
+	}
 	assert.Equal(t, len(payload), n, "read payload length does not match")
 	assert.Equal(t, payload, b[:n])
 }
@@ -534,7 +536,7 @@ func TestPortForward_UpdateUsage(t *testing.T) {
 	prefix := generateRandomPrefix(t)
 	remoteLis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err, "create TCP listener")
-	p1 := setupTestListener(t, remoteLis, prefix)
+	p1 := setupTestListener(t, remoteLis)
 
 	flag := fmt.Sprintf("--tcp=5555:%v", p1)
 	inv, root := clitest.New(t, "port-forward", workspace.Name, flag)
