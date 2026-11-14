@@ -31547,12 +31547,12 @@
 					]
 				},
 				"effective_group_id": {
-					"description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
+					"description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null when the user has no\norganization membership, or when the group's organization is one the\ncaller cannot read.",
 					"type": "string",
 					"format": "uuid"
 				},
 				"organization_id": {
-					"description": "OrganizationID is the organization the top-level effective group\nbelongs to. Null when no effective group was resolved.",
+					"description": "OrganizationID is the organization the top-level effective group\nbelongs to. Null when EffectiveGroupID is null.",
 					"type": "string",
 					"format": "uuid"
 				},

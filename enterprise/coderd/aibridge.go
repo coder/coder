@@ -1057,14 +1057,6 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 		slog.F("period_end", periodWindow.End),
 	)
 
-	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
-	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, uuid.NullUUID{}, budgetPolicy)
-	if err != nil {
-		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
 	resp := codersdk.UserAISpendStatus{
 		UserAIBudgetSummary: codersdk.UserAIBudgetSummary{
 			UserID: user.ID,
@@ -1075,25 +1067,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if ok {
-		resp.EffectiveGroupID = &effectiveGroup.GroupID
-		resp.OrganizationID = &effectiveGroup.OrganizationID
-		resp.EffectiveBudget = aiBudgetLimitToSDK(effectiveGroup.Limit)
-		logger = logger.With(slog.F("effective_group_id", effectiveGroup.GroupID))
-
-		spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
-			UserID:           user.ID,
-			EffectiveGroupID: effectiveGroup.GroupID,
-			PeriodStart:      periodWindow.Start,
-		})
-		if err != nil {
-			logger.Error(ctx, "failed to get user AI spend", slog.Error(err))
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		resp.CurrentSpendMicros = spend.SpendMicros
-	}
-
+	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
 	resp.Organizations, err = api.userOrganizationsAISpend(ctx, user.ID, periodWindow.Start, budgetPolicy)
 	if err != nil {
 		logger.Error(ctx, "failed to get user AI spend per organization", slog.Error(err))
@@ -1101,7 +1075,37 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, uuid.NullUUID{}, budgetPolicy)
+	if err != nil {
+		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// The site-wide resolution only checks that the caller can read the user,
+	// so it can land in an organization the caller cannot read. Report it only
+	// when its group is in the caller-visible breakdown, which also already
+	// holds its spend for the period.
+	if entry, found := findOrganizationAISpendByGroup(resp.Organizations, effectiveGroup.GroupID); ok && found {
+		resp.EffectiveGroupID = &effectiveGroup.GroupID
+		resp.OrganizationID = &effectiveGroup.OrganizationID
+		resp.EffectiveBudget = aiBudgetLimitToSDK(effectiveGroup.Limit)
+		resp.CurrentSpendMicros = entry.CurrentSpendMicros
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// findOrganizationAISpendByGroup returns the entry whose effective group is
+// groupID.
+func findOrganizationAISpendByGroup(entries []codersdk.UserOrganizationAISpend, groupID uuid.UUID) (codersdk.UserOrganizationAISpend, bool) {
+	i := slices.IndexFunc(entries, func(entry codersdk.UserOrganizationAISpend) bool {
+		return entry.EffectiveGroupID == groupID
+	})
+	if i < 0 {
+		return codersdk.UserOrganizationAISpend{}, false
+	}
+	return entries[i], true
 }
 
 // userOrganizationsAISpend returns the user's effective group, budget and

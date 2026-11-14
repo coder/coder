@@ -49,8 +49,9 @@ type AIBudgetLimit struct {
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the group the spend is attributed to, falling back to
-	// the Everyone group when no budget applies. Null only when the user has no
-	// organization membership.
+	// the Everyone group when no budget applies. Null when the user has no
+	// organization membership, or when the group's organization is one the
+	// caller cannot read.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// EffectiveBudget is the spend limit that applies to the user, whether it
 	// came from a group budget or a user override. Null when no budget
@@ -78,7 +79,7 @@ type UserAISpendStatus struct {
 	// the current budget period.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 	// OrganizationID is the organization the top-level effective group
-	// belongs to. Null when no effective group was resolved.
+	// belongs to. Null when EffectiveGroupID is null.
 	OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
 	// Organizations is the spend per organization the user is a member of
 	// and the caller can read, ordered by organization name.

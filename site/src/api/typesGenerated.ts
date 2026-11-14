@@ -12012,8 +12012,9 @@ export interface UserAIBudgetSummary {
 	readonly user_id: string;
 	/**
 	 * EffectiveGroupID is the group the spend is attributed to, falling back to
-	 * the Everyone group when no budget applies. Null only when the user has no
-	 * organization membership.
+	 * the Everyone group when no budget applies. Null when the user has no
+	 * organization membership, or when the group's organization is one the
+	 * caller cannot read.
 	 */
 	readonly effective_group_id: string | null;
 	/**
@@ -12051,7 +12052,7 @@ export interface UserAISpendStatus
 	readonly current_spend_micros: number;
 	/**
 	 * OrganizationID is the organization the top-level effective group
-	 * belongs to. Null when no effective group was resolved.
+	 * belongs to. Null when EffectiveGroupID is null.
 	 */
 	readonly organization_id: string | null;
 	/**

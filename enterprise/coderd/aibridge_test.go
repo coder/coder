@@ -4444,12 +4444,17 @@ func TestUserAISpendStatus(t *testing.T) {
 				require.Equal(t, want, got.Organizations, name)
 			}
 
-			// The breakdown only includes organizations the caller can read,
-			// so an organization-scoped admin never sees the budget or spend
-			// of the user's other organizations.
+			// An organization-scoped admin never sees the budget or spend of
+			// the user's other organizations: the breakdown only includes
+			// organizations the caller can read, and the top-level group is
+			// left empty because it is in the other organization.
 			got, err := orgUserAdminClient.UserAISpendStatus(ctx, user.ID)
 			require.NoError(t, err)
 			require.Equal(t, want[1:], got.Organizations)
+			require.Nil(t, got.EffectiveGroupID)
+			require.Nil(t, got.OrganizationID)
+			require.Nil(t, got.EffectiveBudget)
+			require.Zero(t, got.CurrentSpendMicros)
 		})
 
 		t.Run("OrgWithoutBudget", func(t *testing.T) {
