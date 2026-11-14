@@ -19,6 +19,7 @@ jobs:
     name: Sync issues to next Linear release
     if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
+    environment: main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,6 +59,7 @@ jobs:
     name: Sync backports to Linear release
     if: github.event_name == 'push' && startsWith(github.ref_name, 'release/')
     runs-on: ubuntu-latest
+    environment: main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -88,6 +90,7 @@ jobs:
       startsWith(github.ref_name, 'release/') &&
       github.event.created == true
     runs-on: ubuntu-latest
+    environment: main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
