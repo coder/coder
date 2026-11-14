@@ -312,7 +312,7 @@ Visibility follows the viewer's role:
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
 To see the budget and spend that apply to a user in one organization, use the [Get organization member AI spend](../../reference/api/enterprise.md#get-organization-member-ai-spend) API endpoint.
-Users can read their own spend, and administrators who can read a user can read that user's spend.
+Users can read their own spend, and administrators can read the spend of a user whose membership in that organization they can read.
 
 ### Spend export
 
