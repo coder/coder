@@ -1361,6 +1361,9 @@ jobs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    # Gates access to the release signing identity: the GCP workload identity
+    # provider for release-signer only exchanges tokens for this workflow on a
+    # push to main or release/* with this environment claim.
     environment: ci-signing
     permissions:
       # Necessary to push docker images to ghcr.io.
@@ -1466,9 +1469,8 @@ jobs:
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 
-      # Setup GCloud for signing Windows and darwin binaries. The access
-      # token is used by jsign (Windows) and the exported Application Default
-      # Credentials are used by the Cloud KMS PKCS11 library (darwin).
+      # Setup GCloud for signing Windows binaries (jsign uses the access
+      # token).
       - name: Authenticate to Google Cloud
         id: gcloud_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -1490,11 +1492,13 @@ jobs:
         env:
           GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
 
-      # release-signer@ for the KMS GPG key. Not exported, so the job's default
-      # credentials stay on the EV code signing account.
-      - name: Authenticate to Google Cloud (GPG signing)
+      # release-signer@ for the KMS GPG key and the darwin signing key. Not
+      # exported, so the job's default credentials stay on the EV code signing
+      # account; GPG steps and the darwin PKCS11 library receive this
+      # credentials file explicitly. Unconditional because darwin signing
+      # always needs it, even when the optional KMS GPG signing is disabled.
+      - name: Authenticate to Google Cloud (release signing)
         id: gcloud_auth_gpg
-        if: steps.gpg_kms.outputs.enabled == 'true'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
@@ -1551,6 +1555,9 @@ jobs:
           AC_PKCS11_LIBRARY: /usr/local/lib/libkmsp11.so
           AC_PKCS11_KEY_LABEL: ${{ secrets.AC_KMS_KEY }}
           KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
+          # Credentials for the Cloud KMS PKCS11 library (darwin signing)
+          # only; jsign uses the ambient coder-ci credentials.
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           EV_KEY: ${{ secrets.EV_KEY }}
           EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
           EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
