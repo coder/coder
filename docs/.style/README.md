@@ -11,7 +11,7 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, and so on).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what to route elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
 The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide.
@@ -57,8 +57,8 @@ Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the de
   The guide deliberately contains the constructs the rules ban, such as Don't examples and banned terms named in headings and prose, so the repo-root `.vale.ini` clears `BasedOnStyles` for `docs/.style/style-guide/**`.
   Nothing else under `docs/.style/` is exempt: the landing page, `content-guidelines.md`, the annotation demo, and the Coder rule docs are all linted.
   Zero-baseline is therefore measured over `docs/` excluding `docs/.style/style-guide/`.
-  The exemption applies only when the path resolves to `docs/.style/style-guide/...` from the working directory, which is what `make lint/prose` and CI pass (repo-root-relative `docs/...`).
-  Other invocation forms bypass the glob and still flag the guide's intentional examples: absolute paths (what editors and LSP integrations pass) and subdirectory-relative paths (for example `vale .style/style-guide/...` run from `docs/`).
+  The exemption applies only when the path resolves to `docs/.style/style-guide/...` from the working directory, which is what `make lint/prose` and continuous integration (CI) pass (repo-root-relative `docs/...`).
+  Other invocation forms bypass the glob and still flag the guide's intentional examples: absolute paths (what editors and Language Server Protocol (LSP) integrations pass) and subdirectory-relative paths (for example `vale .style/style-guide/...` run from `docs/`).
   Treat those in-editor and subdirectory findings on the guide as expected.
 
 ## Edit the content guidelines
@@ -87,6 +87,8 @@ The skill finds a persona's rules by reading this field, not by file path, so pa
 When you add a rule page, add the field.
 When you move a rule to a different page, check that the new page lists every persona that applied it.
 The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
+The CI review of a PR runs only the `accuracy`, `coverage`, and `learner` personas, so it applies only the rule pages that list one of them.
+The other personas run when an author uses the skill on their own branch.
 
 ## Add a Vale rule
 

@@ -68,6 +68,8 @@ curl $CODER_AGENT_DEBUG_ADDRESS/debug/manifest
 `GET /debug/manifest`
 
 Get the manifest the agent fetched from `coderd` upon startup.
+Environment variable values are returned as `***REDACTED***`.
+Variables with empty values are returned unchanged.
 
 ### Responses
 

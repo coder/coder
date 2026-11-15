@@ -15,20 +15,96 @@ import {
 	menuSeparatorClass,
 } from "./menuClasses";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
+/**
+ * Non-modal by default: a modal menu sets `aria-hidden` on the rest of the
+ * page while its focusable controls stay in the tab order, which axe reports
+ * as aria-hidden-focus.
+ */
+export const DropdownMenu: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Root>
+> = ({ modal = false, ...props }) => {
+	return <DropdownMenuPrimitive.Root modal={modal} {...props} />;
+};
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
+const DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
+
+/**
+ * Stops the click that ends a press, so dismissing a non-modal menu does not
+ * also activate what is under the pointer, such as a clickable table row.
+ */
+const swallowNextClick = (doc: Document) => {
+	// A press that never becomes a click, such as a right click or a touch
+	// scroll, must not swallow a later click.
+	const endEvents = [
+		"pointerdown",
+		"pointercancel",
+		"contextmenu",
+		"keydown",
+	] as const;
+	const release = () => {
+		doc.removeEventListener("click", swallow, true);
+		for (const type of endEvents) {
+			doc.removeEventListener(type, release, true);
+		}
+	};
+	const swallow = (event: MouseEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+		release();
+	};
+	doc.addEventListener("click", swallow, true);
+	for (const type of endEvents) {
+		doc.addEventListener(type, release, true);
+	}
+};
+
 export const DropdownMenuContent: React.FC<
 	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
-> = ({ className, sideOffset = 4, ...props }) => {
+> = ({
+	className,
+	sideOffset = 4,
+	onFocusOutside,
+	onPointerDownOutside,
+	...props
+}) => {
 	return (
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Content
 				sideOffset={sideOffset}
 				className={cn(menuContentClass, className)}
+				onPointerDownOutside={(event) => {
+					onPointerDownOutside?.(event);
+					const { target } = event.detail.originalEvent;
+					const doc = target instanceof Node ? target.ownerDocument : null;
+					if (event.defaultPrevented || !(target instanceof Node) || !doc) {
+						return;
+					}
+					// A dialog or popover the press lands outside dismisses on the same
+					// click, and Radix keeps it open when that click is stopped.
+					if (
+						[...doc.querySelectorAll(DIALOG_SELECTOR)].every((dialog) =>
+							dialog.contains(target),
+						)
+					) {
+						swallowNextClick(doc);
+					}
+				}}
+				// An item that opens a dialog moves focus into it. Keep that from
+				// counting as an outside interaction, so focus returns to the
+				// trigger when the dialog closes.
+				onFocusOutside={(event) => {
+					onFocusOutside?.(event);
+					if (
+						event.target instanceof Element &&
+						event.target.closest(DIALOG_SELECTOR)
+					) {
+						event.preventDefault();
+					}
+				}}
 				{...props}
 			/>
 		</DropdownMenuPrimitive.Portal>
@@ -63,7 +139,7 @@ export const DropdownMenuCheckboxItem: React.FC<
 			{...props}
 		>
 			{children}
-			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+			<span className="absolute right-2 flex size-3.5 items-center justify-center">
 				<DropdownMenuPrimitive.ItemIndicator>
 					<CheckIcon className="size-4" />
 				</DropdownMenuPrimitive.ItemIndicator>
@@ -88,7 +164,7 @@ export const DropdownMenuRadioItem: React.FC<
 			{...props}
 		>
 			{children}
-			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+			<span className="absolute right-2 flex size-3.5 items-center justify-center">
 				<DropdownMenuPrimitive.ItemIndicator>
 					<CheckIcon className="size-4" />
 				</DropdownMenuPrimitive.ItemIndicator>

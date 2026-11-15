@@ -67,6 +67,7 @@ export const ModelFilter: React.FC<ModelFilterProps> = ({ menu, width }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			searchLabel="Search model"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search model..."

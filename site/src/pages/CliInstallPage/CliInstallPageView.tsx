@@ -13,7 +13,7 @@ export const CliInstallPageView: React.FC<CliInstallPageViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"mx-auto h-screen w-[600px] max-w-full px-4",
+				"mx-auto h-screen w-150 max-w-full px-4",
 				"flex flex-1 flex-col items-center justify-center",
 			)}
 		>

@@ -19,7 +19,7 @@ const meta: Meta<typeof ChatSummary> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="w-[400px] max-w-full p-4">
+			<div className="w-100 max-w-full p-4">
 				<Story />
 			</div>
 		),

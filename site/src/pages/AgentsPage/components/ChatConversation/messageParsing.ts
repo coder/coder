@@ -402,7 +402,7 @@ export const getEditableContentPayload = (
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
-	/** Restores skill chips in place; undefined when there are none. */
+	/** Restores skill and file-reference chips in place; undefined without chips. */
 	editorState: string | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
@@ -418,7 +418,8 @@ export const getEditableContentPayload = (
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
 		editorState: parsed.blocks.some(
-			(block) => block.type === "skill-invocation",
+			(block) =>
+				block.type === "skill-invocation" || block.type === "file-reference",
 		)
 			? serializeMessageDraft(content ?? [])
 			: undefined,

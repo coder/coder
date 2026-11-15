@@ -1,11 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MutationObserver } from "react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import type { ChatProjectRole } from "#/api/typesGenerated";
+import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
+	chatProjectACLKey,
+	chatProjectInstructionsKey,
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	setChatProjectRole,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -68,5 +74,69 @@ describe("chat project mutations", () => {
 		}
 		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+});
+
+type Principal = { kind: "user" | "group"; id: string };
+
+describe("setChatProjectRole", () => {
+	const refreshedKeys = [
+		chatProjectsKey,
+		chatProjectACLKey(MockChatProject.id),
+	];
+	const otherKeys = [
+		chatProjectInstructionsKey(MockChatProject.id),
+		chatProjectACLKey("other-project"),
+	];
+	const setup = () => {
+		const queryClient = createTestQueryClient();
+		for (const key of [...refreshedKeys, ...otherKeys]) {
+			queryClient.setQueryData(key, {});
+		}
+		const updateACL = vi
+			.spyOn(API.experimental, "updateChatProjectACL")
+			.mockResolvedValue();
+		const mutate = (principal: Principal, role: ChatProjectRole) =>
+			new MutationObserver(queryClient, setChatProjectRole(queryClient)).mutate(
+				{ project: MockChatProject, principal, role },
+			);
+		return { queryClient, updateACL, mutate };
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("sends user and group role changes", async () => {
+		const { updateACL, mutate } = setup();
+
+		await mutate({ kind: "user", id: "user-1" }, "admin");
+		await mutate({ kind: "group", id: "group-1" }, "");
+
+		const { organization_id, id } = MockChatProject;
+		expect(updateACL.mock.calls).toEqual([
+			[organization_id, id, { user_roles: { "user-1": "admin" } }],
+			[organization_id, id, { group_roles: { "group-1": "" } }],
+		]);
+	});
+
+	it("refreshes the project and its access after a change, even a forbidden one", async () => {
+		for (const forbidden of [false, true]) {
+			const { queryClient, updateACL, mutate } = setup();
+			if (forbidden) {
+				updateACL.mockRejectedValue({ ...mockApiError({}), status: 403 });
+			}
+
+			await mutate({ kind: "user", id: "user-1" }, "use").catch((error) =>
+				expect(error).toMatchObject({ status: 403 }),
+			);
+
+			for (const key of refreshedKeys) {
+				expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+			}
+			for (const key of otherKeys) {
+				expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+			}
+		}
 	});
 });

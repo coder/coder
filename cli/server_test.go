@@ -2326,6 +2326,55 @@ func TestServer_AIGatewayShutdownOrdering(t *testing.T) {
 			"likely not being closed before coderAPICloser.Close()")
 }
 
+// TestServer_AIGatewayEmbedded verifies that the in-memory AI Gateway starts
+// only when both --ai-gateway-enabled and --ai-gateway-embedded-enabled are
+// true.
+func TestServer_AIGatewayEmbedded(t *testing.T) {
+	t.Parallel()
+
+	const embeddedStartLog = "starting in-memory aibridge daemon"
+
+	for _, tc := range []struct {
+		name          string
+		enabled       string
+		embedded      string
+		expectStarted bool
+	}{
+		{name: "BothEnabled", enabled: "true", embedded: "true", expectStarted: true},
+		{name: "EmbeddedDisabled", enabled: "true", embedded: "false", expectStarted: false},
+		{name: "GatewayDisabled", enabled: "false", embedded: "true", expectStarted: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			inv, cfg := clitest.New(t,
+				"server",
+				dbArg(t),
+				"--http-address", "127.0.0.1:0",
+				"--access-url", "http://example.com",
+				"--cache-dir", t.TempDir(),
+				"--verbose",
+				"--ai-gateway-enabled="+tc.enabled,
+				"--ai-gateway-embedded-enabled="+tc.embedded,
+			)
+			out := testutil.NewWaitBuffer()
+			inv.Stdout = out
+			inv.Stderr = out
+			clitest.Start(t, inv)
+
+			// The embedded daemon is created synchronously before the access
+			// URL is written, so its startup log is present by then if it
+			// started at all.
+			_ = waitAccessURL(t, cfg)
+			if tc.expectStarted {
+				require.Contains(t, out.String(), embeddedStartLog)
+			} else {
+				require.NotContains(t, out.String(), embeddedStartLog)
+			}
+		})
+	}
+}
+
 func TestServer_GracefulShutdown(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

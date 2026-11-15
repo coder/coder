@@ -110,7 +110,7 @@ If Coder bundle collection fails, the plugin attempts to include the SSH logs in
 With earlier plugin versions, **Collect logs** includes only the Toolbox logs.
 These versions write `coder ssh` logs to the [`coder ssh` log directory](#coder-ssh), unless an SSH log directory is set in the plugin settings.
 Ask the user for those files separately and [generate a support bundle with the CLI](../../support/support-bundle.md#generate-with-the-cli).
-For details, refer to [Generate a support bundle](../../support/support-bundle.md) and [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
+For details, refer to [Generate a support bundle](../../support/support-bundle.md) and [JetBrains Toolbox troubleshooting](../../workspaces/workspace-access/jetbrains/toolbox.md#troubleshooting).
 
 ### Web terminal
 

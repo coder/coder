@@ -5,9 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { Theme } from "#/theme";
-import { useTheme } from "#/theme/context";
-import { Bar } from "./Chart/Bar";
+import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
 	ChartBreadcrumbs,
@@ -18,6 +16,11 @@ import {
 	ChartToolbar,
 } from "./Chart/Chart";
 import {
+	ChartTable,
+	ChartTableRow,
+	ChartTableSection,
+} from "./Chart/ChartTable";
+import {
 	calcDuration,
 	calcOffset,
 	formatTime,
@@ -25,14 +28,6 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
-import {
-	YAxis,
-	YAxisHeader,
-	YAxisLabel,
-	YAxisLabels,
-	YAxisSection,
-} from "./Chart/YAxis";
 import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {
@@ -58,8 +53,6 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
-	const theme = useTheme();
-	const legendsByStatus = getLegendsByStatus(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
 		(s) => legendsByStatus[s],
 	);
@@ -86,40 +79,22 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
-				<YAxis>
-					<YAxisSection>
-						<YAxisHeader>{stage.name} stage</YAxisHeader>
-						<YAxisLabels>
-							{visibleTimings.map((t) => (
-								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>
-									{t.name}
-								</YAxisLabel>
-							))}
-						</YAxisLabels>
-					</YAxisSection>
-				</YAxis>
-
-				<XAxis ticks={ticks} scale={scale}>
-					<XAxisSection>
+				<ChartTable caption={`Scripts in ${stage.name} stage`} ticks={ticks}>
+					<ChartTableSection label={`${stage.name} stage`} ticks={ticks}>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
 							const legend = legendsByStatus[t.status];
 
 							return (
-								<XAxisRow
-									key={t.name}
-									yAxisLabelId={encodeURIComponent(t.name)}
-								>
+								<ChartTableRow key={t.name} label={t.name}>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<Bar
-												role="img"
+											<FocusableBar
 												aria-label={`${t.name}: ${legend.label}`}
-												tabIndex={0}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legend.colors}
+												className={legend.className}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
@@ -131,11 +106,11 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 									</Tooltip>
 
 									{formatTime(duration)}
-								</XAxisRow>
+								</ChartTableRow>
 							);
 						})}
-					</XAxisSection>
-				</XAxis>
+					</ChartTableSection>
+				</ChartTable>
 			</ChartContent>
 		</Chart>
 	);
@@ -163,54 +138,31 @@ function tooltipContent(t: ScriptTiming): React.ReactNode {
 }
 
 // Keyed by the union so a status without a legend fails the type check
-// instead of throwing on .colors at runtime.
-function getLegendsByStatus(
-	theme: Theme,
-): Record<WorkspaceAgentScriptStatus, ChartLegend> {
-	return {
-		ok: {
-			label: "success",
-			colors: {
-				fill: theme.roles.success.background,
-				stroke: theme.roles.success.outline,
-			},
-		},
-		exit_failure: {
-			label: "failure",
-			colors: {
-				fill: theme.roles.error.background,
-				stroke: theme.roles.error.outline,
-			},
-		},
-		timed_out: {
-			label: "timed out",
-			colors: {
-				fill: theme.roles.warning.background,
-				stroke: theme.roles.warning.outline,
-			},
-		},
-		pipes_left_open: {
-			label: "output pipes left open",
-			colors: {
-				fill: theme.roles.warning.background,
-				stroke: theme.roles.warning.outline,
-			},
-		},
-		skipped: {
-			label: "skipped",
-			colors: {
-				fill: theme.roles.inactive.background,
-				stroke: theme.roles.inactive.outline,
-			},
-		},
-		// The notice role rather than info: info and inactive share the same
-		// fill in both themes, so canceled and skipped bars would look alike.
-		canceled: {
-			label: "canceled",
-			colors: {
-				fill: theme.roles.notice.background,
-				stroke: theme.roles.notice.outline,
-			},
-		},
-	};
-}
+// instead of omitting its label at runtime.
+const legendsByStatus: Record<WorkspaceAgentScriptStatus, ChartLegend> = {
+	ok: {
+		label: "success",
+		className: "bg-chart-success border-chart-success-border",
+	},
+	exit_failure: {
+		label: "failure",
+		className: "bg-chart-error border-chart-error-border",
+	},
+	timed_out: {
+		label: "timed out",
+		className: "bg-chart-warning border-chart-warning-border",
+	},
+	pipes_left_open: {
+		label: "output pipes left open",
+		className: "bg-chart-warning border-chart-warning-border",
+	},
+	skipped: {
+		label: "skipped",
+		className: "bg-chart-inactive border-chart-inactive-border",
+	},
+	// Use blue for canceled scripts to distinguish them from skipped scripts.
+	canceled: {
+		label: "canceled",
+		className: "bg-chart-notice border-chart-notice-border",
+	},
+};

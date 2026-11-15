@@ -60,7 +60,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -164,7 +163,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					</TableHead>
 				</TableRow>
 			</TableHeader>
-			<TableBody className="[&_td]:h-[72px]">
+			<TableBody className="[&_td]:h-18">
 				{isLoading && <TableLoader />}
 				{isEmpty && (
 					<TableRow>
@@ -191,7 +190,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 						>
-							<TableCell>
+							<TableHead scope="row">
 								<div className="flex items-center gap-5">
 									<SelectableTableCheckbox
 										data-testid={`checkbox-${workspace.id}`}
@@ -249,12 +248,12 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 										}
 									/>
 								</div>
-							</TableCell>
+							</TableHead>
 
 							<TableCell>
 								<AvatarData
 									title={
-										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+										<span className="truncate block max-w-52">
 											{getDisplayWorkspaceTemplateName(workspace)}
 										</span>
 									}
@@ -659,22 +658,20 @@ const PrimaryAction: React.FC<PrimaryActionProps> = ({
 	children,
 }) => {
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={onClick}
-						disabled={isLoading}
-					>
-						<Spinner loading={isLoading}>{children}</Spinner>
-						<span className="sr-only">{label}</span>
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="outline"
+					size="icon-lg"
+					onClick={onClick}
+					disabled={isLoading}
+				>
+					<Spinner loading={isLoading}>{children}</Spinner>
+					<span className="sr-only">{label}</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -955,47 +952,40 @@ const BaseIconLink: React.FC<BaseIconLinkProps> = ({
 	const loadingClass = isLoading ? "animate-pulse" : "";
 
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					{rest.href !== undefined ? (
-						<Button
-							variant="outline"
-							size="icon-lg"
-							asChild
-							disabled={isLoading}
-						>
-							<a
-								target={rest.target}
-								className={loadingClass}
-								href={rest.href}
-								onClick={(e) => {
-									e.stopPropagation();
-									rest.onClick?.(e);
-								}}
-							>
-								{children}
-								<span className="sr-only">{label}</span>
-							</a>
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							size="icon-lg"
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{rest.href !== undefined ? (
+					<Button variant="outline" size="icon-lg" asChild disabled={isLoading}>
+						<a
+							target={rest.target}
 							className={loadingClass}
+							href={rest.href}
 							onClick={(e) => {
 								e.stopPropagation();
-								rest.onClick(e);
+								rest.onClick?.(e);
 							}}
-							disabled={isLoading}
 						>
 							{children}
 							<span className="sr-only">{label}</span>
-						</Button>
-					)}
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+						</a>
+					</Button>
+				) : (
+					<Button
+						variant="outline"
+						size="icon-lg"
+						className={loadingClass}
+						onClick={(e) => {
+							e.stopPropagation();
+							rest.onClick(e);
+						}}
+						disabled={isLoading}
+					>
+						{children}
+						<span className="sr-only">{label}</span>
+					</Button>
+				)}
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };

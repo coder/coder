@@ -58,6 +58,7 @@ jobs:
     # Dormant until an operator flips the variable. See the header comment.
     if: vars.AUDIT_DOCS_PATHS_ENABLED == 'true'
     runs-on: ubuntu-latest
+    environment: main
     permissions:
       contents: read # checkout
       issues: write # open/update/close the tracked issue via GITHUB_TOKEN

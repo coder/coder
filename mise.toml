@@ -1,7 +1,7 @@
 # Keep in lockstep with .github/actions/setup-mise/action.yml,
 # .github/actions/setup-mise/checksums.toml, flake.nix,
 # dogfood/coder/ubuntu-*/Dockerfile.base, and scripts/dogfood/mise-oci-wrapper.sh.
-min_version = "2026.5.12"
+min_version = "2026.10.25"
 
 [settings]
 lockfile = true
@@ -11,7 +11,7 @@ lockfile = true
 bun = "1.2.15"
 go = "1.26.10"
 node = "22.23.4"
-pnpm = "10.33.2"
+pnpm = "12.16.1"
 
 # Codegen and proto toolchain.
 "go:go.uber.org/mock/mockgen" = "v0.6.0"
@@ -52,14 +52,15 @@ protoc-gen-go = "1.30.0"
 "go:github.com/rhysd/actionlint/cmd/actionlint" = "011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
-# crane is the registry client `mise oci push` shells out to. Sourced
-# here so it travels with the rest of the mise toolset (one source of
-# truth, deterministic version, no apt drift across CI / wrapper).
+# The dogfood workflow uses crane to load the `mise oci build` output
+# into Docker through a local registry. Sourced here so it travels with
+# the rest of the mise toolset (one source of truth, deterministic
+# version, no apt drift across CI).
 crane = "0.21.6"
 helm = "3.21.0"
 kubectx = "0.9.4"
 syft = "1.26.1"
-terraform = "1.16.7"
+terraform = "1.17.2"
 zizmor = "1.11.0"
 
 # Developer-environment niceties for the dogfood image. Non-dogfood

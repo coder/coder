@@ -9,7 +9,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { MessageAttachment } from "./messageHelpers";
-import { getEditableContentPayload } from "./messageParsing";
 import { TurnAttachments } from "./TurnAttachments";
 
 type MessageActionBarProps = {
@@ -63,12 +62,7 @@ const MessageActionButton: React.FC<MessageActionButtonProps> = ({
 type UserMessageActionsProps = {
 	message: TypesGen.ChatMessage;
 	copyText?: string;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage?: (messageKey: string) => void;
@@ -99,11 +93,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 						<MessageActionButton
 							label="Edit message"
 							icon={<PencilIcon />}
-							onClick={() => {
-								const { text, fileBlocks, editorState } =
-									getEditableContentPayload(message.content);
-								onEditUserMessage(message.id, text, fileBlocks, editorState);
-							}}
+							onClick={() => onEditUserMessage(message.id)}
 						/>
 					)}
 					{canJump && (

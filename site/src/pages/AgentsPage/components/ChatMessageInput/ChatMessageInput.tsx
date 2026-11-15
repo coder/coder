@@ -47,7 +47,8 @@ import {
 } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { coarsePointerMediaQuery } from "#/utils/mobile";
+import { enterSendsAgentChatMessage } from "../../utils/agentChatSendShortcut";
 import {
 	resolveSkillTriggers,
 	type SkillSource,
@@ -77,8 +78,11 @@ import {
 } from "./pasteHelpers";
 import {
 	$getSkillInvocationNodes,
+	$hasSkillInvocationNode,
 	$insertSkillInvocation,
+	MAX_SKILL_INVOCATIONS_PER_MESSAGE,
 	SkillInvocationNode,
+	warnSkillLimit,
 } from "./SkillInvocationNode";
 import {
 	createCommandMenuItem,
@@ -367,24 +371,34 @@ const LockedFilePastePlugin: React.FC<{
 	return null;
 };
 
-// Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
-// capability, not viewport width, keeps narrow desktop windows usable.
-// Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
 const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
+	onSendAfterTurn?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
-}> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
+}> = function EnterKeyPlugin({ onEnter, onSendAfterTurn, sendShortcut }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
 		return editor.registerCommand(
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
+				const hasCmdOrCtrl = event?.metaKey || event?.ctrlKey;
+				const enterSends = enterSendsAgentChatMessage(
+					sendShortcut,
+					window.matchMedia(coarsePointerMediaQuery).matches,
+				);
+				if (
+					onSendAfterTurn &&
+					event &&
+					!event.shiftKey &&
+					(enterSends ? hasCmdOrCtrl : event.altKey && !hasCmdOrCtrl)
+				) {
+					event.preventDefault();
+					onSendAfterTurn();
+					return true;
+				}
 				const shouldInsertLineBreak =
-					event?.shiftKey ||
-					(!(event?.metaKey || event?.ctrlKey) &&
-						(window.matchMedia("(pointer: coarse)").matches ||
-							sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT));
+					event?.shiftKey || (!hasCmdOrCtrl && !enterSends);
 				if (shouldInsertLineBreak) {
 					event?.preventDefault();
 					editor.update(() => {
@@ -407,13 +421,14 @@ const EnterKeyPlugin: React.FC<{
 			},
 			COMMAND_PRIORITY_HIGH,
 		);
-	}, [editor, onEnter, sendShortcut]);
+	}, [editor, onEnter, onSendAfterTurn, sendShortcut]);
 
 	return null;
 };
 
 // Fires the onChange callback with the editor's plain-text content
-// on every update.
+// on every update of the mounted editor. Registered in a layout effect so
+// it is in place before ValueSyncPlugin seeds the editor.
 const ContentChangePlugin: React.FC<{
 	onChange: (
 		content: string,
@@ -423,8 +438,15 @@ const ContentChangePlugin: React.FC<{
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		return editor.registerUpdateListener(({ editorState }) => {
+			// Unmounting the editor, as a remountKey change does, detaches its
+			// root and Lexical commits once more before this listener is
+			// removed. That update carries the outgoing editor's content and
+			// would overwrite what the parent tracks for the incoming editor.
+			if (editor.getRootElement() === null) {
+				return;
+			}
 			editorState.read(() => {
 				const root = $getRoot();
 				const content = root.getTextContent();
@@ -472,6 +494,12 @@ const getRestorableRootChildren = (
 // initialEditorState is provided (a serialized Lexical JSON string),
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
+//
+// A plain-text seed commits synchronously in the layout effect, so onChange
+// reports it before any parent layout effect runs, and a parent that loads
+// other text there never receives this seed after its load. A restored
+// state commits later (see below); by then a superseded editor has
+// unmounted and removed its onChange listener.
 const ValueSyncPlugin: React.FC<{
 	initialValue: string;
 	initialEditorState?: string;
@@ -479,14 +507,15 @@ const ValueSyncPlugin: React.FC<{
 	const [editor] = useLexicalComposerContext();
 	const hasInitialized = useRef(false);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (hasInitialized.current) {
 			return;
 		}
 		hasInitialized.current = true;
 
-		// Restore via editor.update, not setEditorState: a synchronous
-		// commit here makes chip decorators flushSync inside this effect.
+		// Restore via a deferred editor.update, not setEditorState or a
+		// discrete update: a synchronous commit here makes chip decorators
+		// flushSync inside this effect.
 		const restoredChildren = initialEditorState
 			? getRestorableRootChildren(editor, initialEditorState)
 			: null;
@@ -494,18 +523,25 @@ const ValueSyncPlugin: React.FC<{
 			return;
 		}
 
-		editor.update(() => {
-			const root = $getRoot();
-			root.clear();
-			if (restoredChildren) {
+		if (restoredChildren) {
+			editor.update(() => {
+				const root = $getRoot();
+				root.clear();
 				root.append(...restoredChildren.map($parseSerializedNode));
-				return;
-			}
-			const paragraph = $createParagraphNode();
-			const textNode = $createTextNode(initialValue);
-			paragraph.append(textNode);
-			root.append(paragraph);
-		});
+			});
+			return;
+		}
+		editor.update(
+			() => {
+				const root = $getRoot();
+				root.clear();
+				const paragraph = $createParagraphNode();
+				const textNode = $createTextNode(initialValue);
+				paragraph.append(textNode);
+				root.append(paragraph);
+			},
+			{ discrete: true },
+		);
 	}, [editor, initialValue, initialEditorState]);
 
 	return null;
@@ -618,6 +654,7 @@ type ChatMessageInputProps = Omit<
 	remountKey?: number;
 	rows?: number;
 	onEnter: () => void;
+	onSendAfterTurn?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
 	// Returns whether the file was routed anywhere (attachment or
 	// workspace upload). Refused files let the paste fall back to
@@ -703,8 +740,61 @@ const isSameSkillsTrigger = (
 	return (
 		a.nodeKey === b.nodeKey &&
 		a.slashOffset === b.slashOffset &&
-		a.query === b.query
+		a.query === b.query &&
+		a.nodeText === b.nodeText
 	);
+};
+
+/**
+ * Replaces a closed trigger's alias with the skill's chip when the edit that
+ * closed the trigger inserted whitespace right after the alias and left the
+ * caret just past it.
+ */
+const $replaceTypedSkillAlias = (
+	trigger: ActiveSkillsTrigger,
+	skill: SkillInvocationData,
+) => {
+	const alias = `/${trigger.query}`;
+	const aliasEnd = trigger.slashOffset + alias.length;
+	const selection = $getSelection();
+	if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+		return;
+	}
+
+	const { anchor, focus } = selection;
+	if (anchor.key !== trigger.nodeKey || anchor.offset !== aliasEnd + 1) {
+		return;
+	}
+
+	const node = $getNodeByKey(trigger.nodeKey);
+	if (!$isTextNode(node)) {
+		return;
+	}
+
+	// Moving the caret past whitespace that was already there also closes
+	// the trigger, so require the text to differ by exactly that insertion.
+	const text = node.getTextContent();
+	const inserted = text.charAt(aliasEnd);
+	const { nodeText } = trigger;
+	if (
+		!/\s/.test(inserted) ||
+		text !== nodeText.slice(0, aliasEnd) + inserted + nodeText.slice(aliasEnd)
+	) {
+		return;
+	}
+
+	// Unlike a menu pick, typed text is kept when no chip can replace it.
+	if ($hasSkillInvocationNode(skill.source, skill.name)) {
+		return;
+	}
+	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+		warnSkillLimit();
+		return;
+	}
+
+	anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
+	focus.set(trigger.nodeKey, aliasEnd, "text");
+	$insertSkillInvocation(selection, skill.source, skill.name);
 };
 
 /**
@@ -744,6 +834,7 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
+	onSendAfterTurn,
 	sendShortcut,
 	onFilePaste,
 	allowTextAttachmentPaste,
@@ -946,6 +1037,20 @@ const ChatMessageInput = ({
 			? -1
 			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
+	// Left as text, a typed alias never loads a manual-only skill.
+	const convertTypedSkillAlias = (closedTrigger: ActiveSkillsTrigger) => {
+		const alias = `/${closedTrigger.query}`;
+		const skill = skillTriggers.find(
+			(trigger) =>
+				trigger.triggerText === alias || trigger.altTriggerText === alias,
+		);
+		if (skill) {
+			editorRef.current?.update(() =>
+				$replaceTypedSkillAlias(closedTrigger, skill),
+			);
+		}
+	};
+
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
 			trigger &&
@@ -957,6 +1062,9 @@ const ChatMessageInput = ({
 		suppressedSkillsTriggerRef.current = null;
 		if (isSameSkillsTrigger(trigger, skillsTrigger)) {
 			return;
+		}
+		if (skillsTrigger && !trigger) {
+			convertTypedSkillAlias(skillsTrigger);
 		}
 		if (trigger?.query !== skillsTrigger?.query) {
 			setSkillsMenuSelectedIndex(0);
@@ -1245,7 +1353,7 @@ const ChatMessageInput = ({
 				<RichTextPlugin
 					contentEditable={
 						<ContentEditable
-							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
+							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 p-px"
 							data-testid="chat-message-input"
 							style={{ minHeight: "inherit" }}
 							aria-label={ariaLabel}
@@ -1254,7 +1362,7 @@ const ChatMessageInput = ({
 						/>
 					}
 					placeholder={
-						<div className="pointer-events-none text-content-secondary [&_p]:leading-normal">
+						<div className="pointer-events-none px-px text-content-secondary [&_p]:leading-normal">
 							{placeholder}
 						</div>
 					}
@@ -1269,6 +1377,7 @@ const ChatMessageInput = ({
 				/>
 				<EnterKeyPlugin
 					onEnter={disabled ? undefined : onEnter}
+					onSendAfterTurn={disabled ? undefined : onSendAfterTurn}
 					sendShortcut={sendShortcut}
 				/>
 				<IOSBackspacePlugin />
