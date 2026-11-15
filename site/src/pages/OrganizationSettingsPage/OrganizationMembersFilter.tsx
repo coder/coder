@@ -22,11 +22,11 @@ const categories: FilterCategory[] = [
 	{
 		key: "attribute",
 		optionsKey: "members.attribute",
-		label: "Attributes",
+		label: "User type",
 		icon: <TagIcon />,
 		chipKeys: ["service_account"],
 		inlineOptions: true,
-		inlineOptionsLabel: "Member is…",
+		inlineOptionsLabel: "User type is…",
 		chipLabelOnly: true,
 		getOptions: async () => [
 			{
