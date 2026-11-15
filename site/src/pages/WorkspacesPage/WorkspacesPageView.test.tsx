@@ -292,7 +292,11 @@ describe("WorkspacesPageView", () => {
 		).not.toBeInTheDocument();
 	});
 
-	describe("drag to select", () => {
+	describe("range selection", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
 		const mockAlpha = { ...MockWorkspace, id: "ws-alpha", name: "alpha" };
 		const mockBravo = {
 			...MockPendingWorkspace,
@@ -357,27 +361,27 @@ describe("WorkspacesPageView", () => {
 			};
 		};
 
-		const checkboxFor = (workspace: { name: string }) =>
+		const checkboxFor = (workspace: Workspace) =>
 			screen.getByRole("checkbox", {
 				name: `Select workspace ${workspace.name}`,
 			});
 
-		it("maps selected IDs to workspace objects while skipping ineligible statuses", async () => {
+		it("maps Shift-click selection to eligible workspaces without opening their pages", async () => {
 			const user = userEvent.setup();
-			const { onCheckChange } = renderWorkspaces();
+			const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
+			const { onCheckChange, router } = renderWorkspaces();
 			await screen.findByText(mockAlpha.name);
-			await user.pointer([
-				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
-				{ target: checkboxFor(mockBravo) },
-				{ target: checkboxFor(mockCharlie) },
-				{ target: checkboxFor(mockEcho) },
-				{ keys: "[/MouseLeft]", target: document.body },
-			]);
+			await user.click(checkboxFor(mockAlpha));
+			await user.keyboard("{Shift>}");
+			await user.click(checkboxFor(mockFoxtrot));
 			expect(onCheckChange).toHaveBeenLastCalledWith([
 				mockAlpha,
 				mockCharlie,
 				mockDelta,
+				mockFoxtrot,
 			]);
+			expect(router.state.location.pathname).toBe("/workspaces");
+			expect(openWindow).not.toHaveBeenCalled();
 		});
 
 		it("does not navigate when a drag ends on its starting row, but allows a subsequent click", async () => {
@@ -385,6 +389,7 @@ describe("WorkspacesPageView", () => {
 			const { onCheckChange, router } = renderWorkspaces();
 			const link = await screen.findByRole("link", { name: mockAlpha.name });
 
+			await user.keyboard("{Shift>}");
 			await user.pointer([
 				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
 				{ target: checkboxFor(mockDelta) },
@@ -394,6 +399,7 @@ describe("WorkspacesPageView", () => {
 			expect(onCheckChange).toHaveBeenLastCalledWith([mockAlpha]);
 			expect(router.state.location.pathname).toBe("/workspaces");
 
+			await user.keyboard("{/Shift}");
 			await user.click(link);
 			expect(router.state.location.pathname).toBe(
 				`/@${mockAlpha.owner_name}/${mockAlpha.name}`,
@@ -412,6 +418,7 @@ describe("WorkspacesPageView", () => {
 				[mockDelta, mockRefreshedAlpha, mockBravo, mockRefreshedCharlie],
 			);
 			await screen.findByText(mockAlpha.name);
+			await user.keyboard("{Shift>}");
 			await user.pointer({
 				keys: "[MouseLeft>]",
 				target: checkboxFor(mockAlpha),

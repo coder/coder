@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type React from "react";
 import { useState } from "react";
+import { userEvent, within } from "storybook/test";
 import {
 	SelectableTable,
 	SelectableTableCheckbox,
@@ -92,6 +93,17 @@ export const Default: Story = {};
 
 export const Selected: Story = {
 	args: { initialSelectedIds: ["inv-101", "inv-104"] },
+};
+
+export const KeyboardRangeSelected: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("checkbox", { name: "Select INV-101" }),
+		);
+		await userEvent.tab();
+		await userEvent.tab();
+		await userEvent.keyboard("{Shift>} {/Shift}");
+	},
 };
 
 export const Disabled: Story = {

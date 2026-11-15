@@ -26,13 +26,19 @@ type DragState = {
 	pointerId: number;
 	select: boolean;
 	initialIds: ReadonlySet<string>;
+	expectedIds: ReadonlySet<string>;
+	// Consecutive pointer events can arrive before a selection update renders.
+	renderedIds: ReadonlySet<string>;
 	moved: boolean;
+	canceled: boolean;
 };
 
 type SelectionContextValue = {
 	rows: ReadonlyMap<string, SelectableRow>;
 	selectedIds: ReadonlySet<string>;
 	onSelectionChange: (selectedIds: Set<string>) => void;
+	setRowChecked: (id: string, checked: boolean) => void;
+	extendSelection: (id: string) => boolean;
 	startDrag: (id: string, event: React.PointerEvent<HTMLButtonElement>) => void;
 	extendDrag: (
 		id: string,
@@ -54,9 +60,8 @@ function useTableSelection() {
 }
 
 /**
- * A controlled table composed with SelectableTableRow and SelectableTableCheckbox.
- * Dragging from a selected checkbox deselects; reversing restores selection
- * outside the range.
+ * Shift-click or Shift+Space applies the anchor checkbox's state to a range.
+ * Shift-dragging toggles a range; reversing restores selection outside it.
  */
 export const SelectableTable: React.FC<SelectableTableProps> = ({
 	rows,
@@ -67,6 +72,7 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 	...props
 }) => {
 	const rowsById = new Map(rows.map((row) => [row.id, row]));
+	const anchorRef = useRef<{ id: string; checked: boolean } | null>(null);
 	const dragRef = useRef<DragState | null>(null);
 	const suppressClickRef = useRef(false);
 	const clickTimeoutRef = useRef<number | undefined>(undefined);
@@ -110,11 +116,71 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 		};
 	}, [cancelDrag]);
 
+	const getRangeSelection = (
+		anchorId: string,
+		endId: string,
+		checked: boolean,
+		initialIds: ReadonlySet<string>,
+	) => {
+		const ids = new Set(initialIds);
+		const endpoints = new Set([anchorId, endId]);
+		let inRange = false;
+		for (const row of rows) {
+			if (endpoints.delete(row.id)) {
+				inRange = true;
+			}
+			if (inRange && !row.disabled) {
+				if (checked) {
+					ids.add(row.id);
+				} else {
+					ids.delete(row.id);
+				}
+			}
+			if (endpoints.size === 0) {
+				break;
+			}
+		}
+		return ids;
+	};
+
+	const setRowChecked: SelectionContextValue["setRowChecked"] = (
+		id,
+		checked,
+	) => {
+		anchorRef.current = { id, checked };
+		const ids = new Set(selectedIds);
+		if (checked) {
+			ids.add(id);
+		} else {
+			ids.delete(id);
+		}
+		onSelectionChange(ids);
+	};
+
+	const extendSelection: SelectionContextValue["extendSelection"] = (id) => {
+		const anchor = anchorRef.current;
+		const row = anchor && rowsById.get(anchor.id);
+		if (
+			!anchor ||
+			anchor.id === id ||
+			!row ||
+			row.disabled ||
+			selectedIds.has(anchor.id) !== anchor.checked
+		) {
+			return false;
+		}
+		onSelectionChange(
+			getRangeSelection(anchor.id, id, anchor.checked, selectedIds),
+		);
+		return true;
+	};
+
 	const startDrag: SelectionContextValue["startDrag"] = (id, event) => {
 		const row = rowsById.get(id);
 		if (
 			event.button !== 0 ||
 			event.pointerType !== "mouse" ||
+			!event.shiftKey ||
 			event.ctrlKey ||
 			!row ||
 			row.disabled
@@ -125,49 +191,56 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 		event.preventDefault();
 		event.currentTarget.focus({ preventScroll: true });
 		cancelDrag();
+		const initialIds = new Set(selectedIds);
 		dragRef.current = {
 			anchorId: id,
 			pointerId: event.pointerId,
 			select: !selectedIds.has(id),
-			initialIds: new Set(selectedIds),
+			initialIds,
+			expectedIds: initialIds,
+			renderedIds: selectedIds,
 			moved: false,
+			canceled: false,
 		};
 	};
 
 	const extendDrag: SelectionContextValue["extendDrag"] = (id, event) => {
 		const drag = dragRef.current;
-		if (!drag || event.pointerId !== drag.pointerId) {
+		if (!drag || event.pointerId !== drag.pointerId || drag.canceled) {
 			return;
 		}
-		if ((event.buttons & 1) === 0 || !rowsById.has(drag.anchorId)) {
+		if ((event.buttons & 1) === 0) {
 			cancelDrag();
 			return;
 		}
 		if (id !== drag.anchorId) {
 			drag.moved = true;
 		}
-		if (!drag.moved) {
+		const anchor = rowsById.get(drag.anchorId);
+		if (
+			!anchor ||
+			anchor.disabled ||
+			(selectedIds !== drag.renderedIds &&
+				(selectedIds.size !== drag.expectedIds.size ||
+					[...selectedIds].some((id) => !drag.expectedIds.has(id))))
+		) {
+			// Retain the gesture until pointerup to suppress its terminal click.
+			drag.canceled = true;
+			return;
+		}
+		if (!event.shiftKey || !drag.moved) {
 			return;
 		}
 
-		const ids = new Set(drag.initialIds);
-		const endpoints = new Set([drag.anchorId, id]);
-		let inRange = false;
-		for (const row of rows) {
-			if (endpoints.delete(row.id)) {
-				inRange = true;
-			}
-			if (inRange && !row.disabled) {
-				if (drag.select) {
-					ids.add(row.id);
-				} else {
-					ids.delete(row.id);
-				}
-			}
-			if (endpoints.size === 0) {
-				break;
-			}
-		}
+		anchorRef.current = { id: drag.anchorId, checked: drag.select };
+		const ids = getRangeSelection(
+			drag.anchorId,
+			id,
+			drag.select,
+			drag.initialIds,
+		);
+		drag.renderedIds = selectedIds;
+		drag.expectedIds = ids;
 		onSelectionChange(ids);
 	};
 
@@ -176,7 +249,13 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 			value={{
 				rows: rowsById,
 				selectedIds,
-				onSelectionChange,
+				onSelectionChange: (ids) => {
+					anchorRef.current = null;
+					cancelDrag();
+					onSelectionChange(ids);
+				},
+				setRowChecked,
+				extendSelection,
 				startDrag,
 				extendDrag,
 			}}
@@ -244,6 +323,7 @@ type SelectionCheckboxProps = Omit<
 /** A row checkbox that inherits identity and eligibility from its table. */
 export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 	onClick,
+	onKeyDown,
 	onPointerDown,
 	...props
 }) => {
@@ -263,6 +343,25 @@ export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 			onClick={(event) => {
 				event.stopPropagation();
 				onClick?.(event);
+				if (
+					!event.defaultPrevented &&
+					event.shiftKey &&
+					selection.extendSelection(rowId)
+				) {
+					event.preventDefault();
+				}
+			}}
+			onKeyDown={(event) => {
+				onKeyDown?.(event);
+				if (
+					!event.defaultPrevented &&
+					event.key === " " &&
+					event.shiftKey &&
+					selection.extendSelection(rowId)
+				) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
 			}}
 			onPointerDown={(event) => {
 				onPointerDown?.(event);
@@ -271,13 +370,7 @@ export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 				}
 			}}
 			onCheckedChange={(checked) => {
-				const ids = new Set(selection.selectedIds);
-				if (checked) {
-					ids.add(rowId);
-				} else {
-					ids.delete(rowId);
-				}
-				selection.onSelectionChange(ids);
+				selection.setRowChecked(rowId, checked === true);
 			}}
 		/>
 	);

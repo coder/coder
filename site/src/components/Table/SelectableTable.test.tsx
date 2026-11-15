@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useState } from "react";
 import { renderComponent } from "#/testHelpers/renderHelpers";
@@ -31,6 +31,7 @@ function renderSelection({
 	initialRows = rows,
 	initialIds = [],
 	refetchedRows,
+	refetchedIds,
 	onRowClick,
 	onCheckboxClick,
 	onCheckboxPointerDown,
@@ -39,6 +40,7 @@ function renderSelection({
 	initialRows?: readonly Row[];
 	initialIds?: readonly string[];
 	refetchedRows?: readonly Row[];
+	refetchedIds?: readonly string[];
 	onRowClick?: () => void;
 	onCheckboxClick?: () => void;
 	onCheckboxPointerDown?: () => void;
@@ -53,7 +55,15 @@ function renderSelection({
 		return (
 			<>
 				{refetchedRows && (
-					<button type="button" onClick={() => setDisplayRows(refetchedRows)}>
+					<button
+						type="button"
+						onClick={() => {
+							setDisplayRows(refetchedRows);
+							if (refetchedIds) {
+								setSelectedIds(new Set(refetchedIds));
+							}
+						}}
+					>
 						Refresh rows
 					</button>
 				)}
@@ -120,6 +130,105 @@ describe("SelectableTable", () => {
 		expect(onRowClick).not.toHaveBeenCalled();
 	});
 
+	it.each(["Shift-click", "Shift+Space"])(
+		"selects and deselects anchored ranges with %s without activating rows",
+		async (gesture) => {
+			const user = userEvent.setup();
+			const onRowClick = vi.fn();
+			const onSelectionChange = renderSelection({
+				initialIds: ["delta", "foxtrot", "stale"],
+				onRowClick,
+			});
+			await user.click(checkboxFor("alpha"));
+			if (gesture === "Shift-click") {
+				await user.keyboard("{Shift>}");
+				await user.click(checkboxFor("delta"));
+				await user.keyboard("{/Shift}");
+			} else {
+				await user.tab();
+				await user.tab();
+				await user.keyboard("{Shift>} {/Shift}");
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "charlie", "delta", "foxtrot", "stale"]),
+			);
+			await user.click(checkboxFor("delta"));
+			if (gesture === "Shift-click") {
+				await user.keyboard("{Shift>}");
+				await user.click(checkboxFor("alpha"));
+				await user.keyboard("{/Shift}");
+			} else {
+				await user.tab({ shift: true });
+				await user.tab({ shift: true });
+				await user.keyboard("{Shift>} {/Shift}");
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["foxtrot", "stale"]),
+			);
+			expect(onSelectionChange).toHaveBeenCalledTimes(4);
+			expect(onRowClick).not.toHaveBeenCalled();
+		},
+	);
+
+	it("toggles a single row when Shift-click has no anchor or targets the anchor", async () => {
+		const user = userEvent.setup();
+		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
+		await user.click(checkboxFor("alpha"));
+		expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
+			new Set(["alpha"]),
+		);
+		await user.click(checkboxFor("alpha"));
+		expect(onSelectionChange).toHaveBeenLastCalledWith(new Set());
+		expect(onSelectionChange).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		{ name: "removed", refetchedRows: rows.slice(1), refetchedIds: undefined },
+		{
+			name: "disabled",
+			refetchedRows: [{ ...rows[0], disabled: true }, ...rows.slice(1)],
+			refetchedIds: undefined,
+		},
+		{ name: "cleared externally", refetchedRows: rows, refetchedIds: [] },
+	])(
+		"toggles only the clicked row when the range anchor is $name",
+		async ({ refetchedRows, refetchedIds }) => {
+			const user = userEvent.setup();
+			const onSelectionChange = renderSelection({
+				refetchedRows,
+				refetchedIds,
+			});
+			await user.click(checkboxFor("alpha"));
+			await user.keyboard("{Shift>}");
+			await user.click(checkboxFor("delta"));
+			await user.keyboard("{/Shift}");
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "charlie", "delta"]),
+			);
+			await user.click(screen.getByRole("button", { name: "Refresh rows" }));
+			await user.keyboard("{Shift>}");
+			await user.click(checkboxFor("charlie"));
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(refetchedIds ? ["charlie"] : ["alpha", "delta"]),
+			);
+		},
+	);
+
+	it("resets the range anchor after selecting all rows", async () => {
+		const user = userEvent.setup();
+		const onSelectionChange = renderSelection();
+		await user.click(checkboxFor("alpha"));
+		await user.click(
+			screen.getByRole("checkbox", { name: "Select all examples" }),
+		);
+		await user.keyboard("{Shift>}");
+		await user.click(checkboxFor("charlie"));
+		expect(onSelectionChange).toHaveBeenLastCalledWith(
+			new Set(["alpha", "delta", "foxtrot"]),
+		);
+	});
+
 	it("clears disabled and stale selections when all eligible IDs are selected", async () => {
 		const user = userEvent.setup();
 		const onSelectionChange = renderSelection({
@@ -155,6 +264,7 @@ describe("SelectableTable", () => {
 		});
 		await user.click(checkboxFor("bravo"));
 		expect(onSelectionChange).not.toHaveBeenCalled();
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
 			{ target: checkboxFor("bravo") },
@@ -179,6 +289,7 @@ describe("SelectableTable", () => {
 		const onSelectionChange = renderSelection({
 			initialIds: ["alpha", "charlie", "delta", "foxtrot"],
 		});
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: checkboxFor("delta") },
 			{ target: checkboxFor("alpha") },
@@ -196,6 +307,7 @@ describe("SelectableTable", () => {
 	it("suppresses the terminal drag click but permits the next click", async () => {
 		const user = userEvent.setup();
 		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
 			{ target: checkboxFor("delta") },
@@ -204,22 +316,53 @@ describe("SelectableTable", () => {
 		]);
 		expect(onSelectionChange).toHaveBeenCalledTimes(2);
 		expect(onSelectionChange).toHaveBeenLastCalledWith(new Set(["alpha"]));
-		await user.click(checkboxFor("charlie"));
-		expect(onSelectionChange).toHaveBeenCalledTimes(3);
+		await user.click(checkboxFor("foxtrot"));
 		expect(onSelectionChange).toHaveBeenLastCalledWith(
+			new Set(["alpha", "charlie", "delta", "foxtrot"]),
+		);
+		await user.keyboard("{/Shift}");
+		await user.click(checkboxFor("charlie"));
+		expect(onSelectionChange).toHaveBeenCalledTimes(4);
+		expect(onSelectionChange).toHaveBeenLastCalledWith(
+			new Set(["alpha", "delta", "foxtrot"]),
+		);
+	});
+
+	it("stops extending without Shift while still suppressing the terminal drag click", async () => {
+		const user = userEvent.setup();
+		const onRowClick = vi.fn();
+		const onSelectionChange = renderSelection({ onRowClick });
+		await user.keyboard("{Shift>}");
+		await user.pointer([
+			{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
+			{ target: checkboxFor("charlie") },
+		]);
+		await user.keyboard("{/Shift}");
+		await user.pointer([
+			{ target: checkboxFor("delta") },
+			{ target: checkboxFor("alpha") },
+			{ keys: "[/MouseLeft]" },
+		]);
+		expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
 			new Set(["alpha", "charlie"]),
 		);
+		expect(onRowClick).not.toHaveBeenCalled();
 	});
 
 	it("ends a drag on pointerup outside the table", async () => {
 		const user = userEvent.setup();
 		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
 			{ target: checkboxFor("charlie") },
 			{ keys: "[/MouseLeft]", target: document.body },
 		]);
-		await user.hover(checkboxFor("delta"));
+		await user.pointer([
+			{ keys: "[MouseLeft>]", target: document.body },
+			{ target: checkboxFor("delta") },
+			{ keys: "[/MouseLeft]" },
+		]);
 		expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
 			new Set(["alpha", "charlie"]),
 		);
@@ -228,6 +371,7 @@ describe("SelectableTable", () => {
 	it.each(["pointercancel", "blur"])("ends a drag on %s", async (event) => {
 		const user = userEvent.setup();
 		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
 			{ target: checkboxFor("charlie") },
@@ -249,6 +393,7 @@ describe("SelectableTable", () => {
 	it("ignores a gesture if the mouse button is no longer held", async () => {
 		const user = userEvent.setup();
 		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
 		await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor("alpha") });
 		const releasedPointer = userEvent.setup();
 		await releasedPointer.hover(checkboxFor("charlie"));
@@ -259,11 +404,19 @@ describe("SelectableTable", () => {
 		);
 	});
 
-	it.each(["MouseRight", "MouseMiddle", "TouchA"])(
-		"does not start a drag with %s",
-		async (pointerName) => {
+	it.each([
+		{ pointerName: "MouseLeft", shift: false },
+		{ pointerName: "MouseRight", shift: true },
+		{ pointerName: "MouseMiddle", shift: true },
+		{ pointerName: "TouchA", shift: true },
+	])(
+		"does not start a drag with $pointerName and Shift=$shift",
+		async ({ pointerName, shift }) => {
 			const user = userEvent.setup();
 			const onSelectionChange = renderSelection();
+			if (shift) {
+				await user.keyboard("{Shift>}");
+			}
 			await user.pointer([
 				{ keys: `[${pointerName}>]`, target: checkboxFor("alpha") },
 				{
@@ -279,6 +432,7 @@ describe("SelectableTable", () => {
 	it("does not start a drag from elsewhere in the row", async () => {
 		const user = userEvent.setup();
 		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: screen.getByText("alpha") },
 			{ target: checkboxFor("delta") },
@@ -287,34 +441,107 @@ describe("SelectableTable", () => {
 		expect(onSelectionChange).not.toHaveBeenCalled();
 	});
 
-	it("tracks the anchor by ID when rows reorder during a drag", async () => {
-		const user = userEvent.setup();
-		const onSelectionChange = renderSelection({
-			refetchedRows: [rows[3], rows[0], rows[1], rows[2]],
-		});
-		await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor("alpha") });
-		fireEvent.click(screen.getByRole("button", { name: "Refresh rows" }));
-		await user.pointer([
-			{ target: checkboxFor("charlie") },
-			{ keys: "[/MouseLeft]" },
-		]);
-		expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
-			new Set(["alpha", "charlie"]),
-		);
-	});
+	it.each(["Shift-click", "Shift-drag"])(
+		"tracks the anchor by ID when rows reorder before extending with %s",
+		async (gesture) => {
+			const user = userEvent.setup();
+			const onSelectionChange = renderSelection({
+				refetchedRows: [rows[3], rows[0], rows[1], rows[2], rows[5]],
+			});
+			if (gesture === "Shift-click") {
+				await user.click(checkboxFor("alpha"));
+				await user.keyboard("{Shift>}");
+			} else {
+				await user.keyboard("{Shift>}");
+				await user.pointer({
+					keys: "[MouseLeft>]",
+					target: checkboxFor("alpha"),
+				});
+			}
+			fireEvent.click(screen.getByRole("button", { name: "Refresh rows" }));
+			if (gesture === "Shift-click") {
+				await user.click(checkboxFor("foxtrot"));
+			} else {
+				await user.pointer([
+					{ target: checkboxFor("foxtrot") },
+					{ keys: "[/MouseLeft]" },
+				]);
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "charlie", "foxtrot"]),
+			);
+		},
+	);
 
-	it("cancels a drag when refetch removes its anchor", async () => {
+	it.each([
+		{
+			name: "removes its anchor",
+			refetchedRows: rows.slice(1),
+			refetchedIds: undefined,
+		},
+		{
+			name: "disables its anchor",
+			refetchedRows: [{ ...rows[0], disabled: true }, ...rows.slice(1)],
+			refetchedIds: undefined,
+		},
+		{ name: "clears selection", refetchedRows: rows, refetchedIds: [] },
+		{
+			name: "replaces selection",
+			refetchedRows: rows,
+			refetchedIds: ["delta", "foxtrot"],
+		},
+	])(
+		"cancels a drag when refetch $name",
+		async ({ refetchedRows, refetchedIds }) => {
+			const user = userEvent.setup();
+			const onRowClick = vi.fn();
+			const onSelectionChange = renderSelection({
+				refetchedRows,
+				refetchedIds,
+				onRowClick,
+			});
+			await user.keyboard("{Shift>}");
+			await user.pointer([
+				{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
+				{ target: checkboxFor("charlie") },
+			]);
+			fireEvent.click(screen.getByRole("button", { name: "Refresh rows" }));
+			await user.pointer([
+				{ target: checkboxFor("delta") },
+				{
+					target: refetchedRows.some((row) => row.id === "alpha")
+						? screen.getByText("alpha")
+						: checkboxFor("charlie"),
+				},
+				{ keys: "[/MouseLeft]" },
+			]);
+			expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith(
+				new Set(["alpha", "charlie"]),
+			);
+			expect(onRowClick).not.toHaveBeenCalled();
+		},
+	);
+
+	it("keeps extending before the parent commits a selection update", async () => {
 		const user = userEvent.setup();
-		const onSelectionChange = renderSelection({
-			refetchedRows: [rows[1], rows[2], rows[3]],
-		});
+		const onSelectionChange = renderSelection();
+		await user.keyboard("{Shift>}");
 		await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor("alpha") });
-		fireEvent.click(screen.getByRole("button", { name: "Refresh rows" }));
-		await user.pointer([
-			{ target: checkboxFor("charlie") },
-			{ keys: "[/MouseLeft]" },
-		]);
-		expect(onSelectionChange).not.toHaveBeenCalled();
+		act(() => {
+			for (const id of ["charlie", "delta"]) {
+				fireEvent.pointerOver(checkboxFor(id), {
+					pointerId: 1,
+					pointerType: "mouse",
+					buttons: 1,
+					shiftKey: true,
+				});
+			}
+		});
+		await user.pointer({ keys: "[/MouseLeft]", target: document.body });
+		expect(onSelectionChange).toHaveBeenCalledTimes(2);
+		expect(onSelectionChange).toHaveBeenLastCalledWith(
+			new Set(["alpha", "charlie", "delta"]),
+		);
 	});
 
 	it("keeps selection and gestures isolated across two tables", async () => {
@@ -367,6 +594,7 @@ describe("SelectableTable", () => {
 			);
 		}
 		renderComponent(<TwoTables />);
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{
 				keys: "[MouseLeft>]",
@@ -377,6 +605,7 @@ describe("SelectableTable", () => {
 		]);
 		expect(onFirstChange).not.toHaveBeenCalled();
 		expect(onSecondChange).not.toHaveBeenCalled();
+		await user.keyboard("{/Shift}");
 		await user.click(
 			screen.getByRole("checkbox", { name: "Select Second same" }),
 		);
@@ -446,6 +675,7 @@ describe("SelectableTable", () => {
 			onCheckboxPointerDown,
 			onRowPointerEnter,
 		});
+		await user.keyboard("{Shift>}");
 		await user.pointer([
 			{ keys: "[MouseLeft>]", target: checkboxFor("alpha") },
 			{ target: checkboxFor("charlie") },
@@ -456,6 +686,7 @@ describe("SelectableTable", () => {
 		expect(onSelectionChange).toHaveBeenLastCalledWith(
 			new Set(["alpha", "charlie"]),
 		);
+		await user.keyboard("{/Shift}");
 		await user.click(checkboxFor("delta"));
 		expect(onCheckboxClick).toHaveBeenCalled();
 		expect(onSelectionChange).toHaveBeenLastCalledWith(
