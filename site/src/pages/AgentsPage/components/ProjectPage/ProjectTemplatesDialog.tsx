@@ -209,6 +209,43 @@ const serializeValues = (values: ChatProjectTemplatesValues) =>
 		),
 	});
 
+/**
+ * Applies the draft's changes since `base` to `latest`. The result keeps the
+ * user's edits and everything saved elsewhere, so saving it never undoes a
+ * template that someone else attached or detached.
+ */
+const rebaseValues = (
+	draft: ChatProjectTemplatesValues,
+	base: ChatProjectTemplatesValues,
+	latest: ChatProjectTemplatesValues,
+): ChatProjectTemplatesValues => {
+	const templateIds = [
+		...latest.templateIds.filter(
+			(id) => draft.templateIds.includes(id) || !base.templateIds.includes(id),
+		),
+		...draft.templateIds.filter(
+			(id) =>
+				!base.templateIds.includes(id) && !latest.templateIds.includes(id),
+		),
+	];
+	const serializeDefaults = (values: ChatProjectTemplatesValues) =>
+		serializeValues({ ...values, limitTemplates: false, templateIds: [] });
+	// The default template is saved as a whole, so the draft's wins when the
+	// user changed any part of it.
+	const defaults =
+		serializeDefaults(draft) === serializeDefaults(base) ? latest : draft;
+	return {
+		...(templateIds.includes(defaults.defaultTemplateId)
+			? defaults
+			: chatProjectTemplatesValues(undefined)),
+		limitTemplates:
+			draft.limitTemplates === base.limitTemplates
+				? latest.limitTemplates
+				: draft.limitTemplates,
+		templateIds,
+	};
+};
+
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onBeginCheck,
 	isCheckCurrent,
@@ -225,10 +262,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// templates saved at that time and a project refetch does not reset it.
 	// Saving sends only what the draft changes about them.
 	const [baseTemplates, setBaseTemplates] = useState(latestTemplates);
-	// Newer templates that are not a conflict: the user kept the draft over
-	// them, or this dialog's own save produced them. The draft's changes
-	// still count from baseTemplates, so what was saved elsewhere is kept.
-	const [acknowledgedTemplates, setAcknowledgedTemplates] = useState<string>();
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
 	// Set before the pre-save check renders, so a second submit in the same
@@ -265,17 +298,22 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const isDraftUntouched =
 		serializeValues(value) === serializeValues(initialValue);
 	const serializedLatest = serializeTemplates(latestTemplates);
-	const isLatestNew =
-		serializedLatest !== serializeTemplates(baseTemplates) &&
-		serializedLatest !== acknowledgedTemplates;
-	if (isDraftUntouched && isLatestNew) {
-		setDismissedError(error);
+	const isLatestNew = serializedLatest !== serializeTemplates(baseTemplates);
+	// An untouched draft follows newer templates. So does a draft after its
+	// own save changed the project, even when that save failed partway: it
+	// keeps its edits, and saving again sends what is left of them.
+	if (isLatestNew && (isDraftUntouched || isSaveSent)) {
+		if (isDraftUntouched) {
+			setDismissedError(error);
+		}
 		setBaseTemplates(latestTemplates);
-		setValue(chatProjectTemplatesValues(latestTemplates));
-	} else if (isSaveSent && isLatestNew) {
-		// This dialog's own save changed the project, even if it then failed
-		// partway. Saving again repeats the steps that already succeeded.
-		setAcknowledgedTemplates(serializedLatest);
+		setValue(
+			rebaseValues(
+				value,
+				initialValue,
+				chatProjectTemplatesValues(latestTemplates),
+			),
+		);
 	}
 	// The default template's active version decides which saved defaults
 	// are stale, so the list refreshes with the project.
@@ -469,7 +507,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}
 				if (
 					serializedLatest !== serializeTemplates(baseTemplates) &&
-					serializedLatest !== acknowledgedTemplates &&
 					serializedLatest !== serializeTemplates(request)
 				) {
 					pendingFocusRef.current = "conflict";
@@ -560,7 +597,15 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 						disabled={isSaving}
 						// The warning unmounts once resolved, so focus moves to Save.
 						onKeepDraft={() => {
-							setAcknowledgedTemplates(serializedLatest);
+							draftVersionRef.current += 1;
+							setBaseTemplates(latestTemplates);
+							setValue(
+								rebaseValues(
+									value,
+									initialValue,
+									chatProjectTemplatesValues(latestTemplates),
+								),
+							);
 							saveButtonRef.current?.focus();
 						}}
 						onLoadLatest={() => {
@@ -574,8 +619,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 						}}
 					>
 						Someone else changed these templates while you were editing. Load
-						the latest templates, or keep your draft to save only your own
-						changes.
+						the latest templates, or keep your draft to apply your changes to
+						them.
 					</ProjectEditConflictAlert>
 				</div>
 			)}

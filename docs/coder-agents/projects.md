@@ -162,6 +162,7 @@ The dialog lists the templates in the project's organization that you can access
 When you save, the dialog attaches the templates you added and detaches the templates you removed.
 It doesn't change what someone else attached or detached while you edited.
 If a save fails partway, the dialog shows the error and the changes made before the failure stay saved.
+Select **Save** again to save the rest.
 
 While an attached template is deleted, deprecated, or doesn't allow Coder Agents, the project doesn't show it and its chats can't use it.
 Attaching a template never overrides the administrator setting: the agent can't use a template that doesn't allow Coder Agents.
@@ -170,7 +171,7 @@ For that setting, refer to [Template routing](./platform-controls/index.md#templ
 The dialog checks for template changes made elsewhere, such as in another browser tab, when it opens, when you return to its browser tab, and again just before it saves.
 If you haven't edited anything, the dialog switches to the newer templates.
 If you have unsaved edits, it shows a warning and you can't save until you choose.
-Select **Load latest** to start over from the newer templates, or **Keep my draft** to save only your own changes.
+Select **Load latest** to start over from the newer templates, or **Keep my draft** to apply your changes to them.
 The dialog also reloads the list of templates you can attach when you return to its tab.
 If the check fails, or the list of templates or the default template's presets don't load, saving is paused until you select **Retry**.
 The same applies to parameters of a template in compatibility mode.

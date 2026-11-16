@@ -817,7 +817,7 @@ describe("ProjectDetailsPanel templates", () => {
 	);
 
 	it("saves again after a save failed partway, without asking to resolve a conflict", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
+		const { user, attach, updateProject, rerenderWithProject } = setup();
 		let failUpdate: (error: unknown) => void = () => {};
 		updateProject.mockReturnValueOnce(
 			new Promise((_, reject) => {
@@ -843,6 +843,8 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(save);
 
 		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(2));
+		// The retry sends only what the first save left unsaved.
+		expect(attach).toHaveBeenCalledTimes(2);
 	});
 
 	it("sends one save when Save is double clicked", async () => {
@@ -896,7 +898,7 @@ describe("ProjectDetailsPanel templates", () => {
 		await waitFor(() => expect(editButton).toHaveFocus());
 	});
 
-	it("blocks Save when the templates change while editing, then saves only the draft's own change", async () => {
+	it("blocks Save when the templates change while editing, then saves only the draft's own changes", async () => {
 		const { user, attach, detach, updateProject, rerenderWithProject } =
 			setup();
 
@@ -908,6 +910,8 @@ describe("ProjectDetailsPanel templates", () => {
 				name: "Limit chats to these templates",
 			}),
 		);
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
 		rerenderWithProject({
 			...MockChatProject,
 			templates: [mockKubernetesTemplate],
@@ -923,9 +927,11 @@ describe("ProjectDetailsPanel templates", () => {
 				[...projectArgs, { limit_templates: true }],
 			]),
 		);
+		expect(attach.mock.calls).toEqual([
+			[...projectArgs, mockDockerTemplate.id],
+		]);
 		// The template attached elsewhere stays attached.
 		expect(detach).not.toHaveBeenCalled();
-		expect(attach).not.toHaveBeenCalled();
 	});
 
 	it("replaces the draft with templates saved elsewhere on Load latest", async () => {
