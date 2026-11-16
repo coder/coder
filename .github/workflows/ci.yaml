@@ -1089,8 +1089,33 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        working-directory: site/
+
+      # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
+      # has been flakey historically.
+      - name: Restore Chromium cache
+        id: playwright-chromium-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - run: pnpm exec playwright install chromium
-        working-directory: site
+        working-directory: site/
+        name: Install Chromium
+        timeout-minutes: 5
+
+      # Only the default branch is trusted to write to the cache to avoid
+      # poisoning.
+      - name: Save Chromium cache
+        if: github.ref == 'refs/heads/main' && steps.playwright-chromium-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-chromium-cache.outputs.cache-primary-key }}
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
       # outdatedAgent e2e tests so most runs skip the flaky GitHub release
@@ -1191,9 +1216,37 @@ jobs:
           run_install: true
           cache: true
 
+      - run: pnpm storybook:build
+        working-directory: site/
+        name: Build Storybook
+
+      - run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        working-directory: site/
+        name: Get Playwright version
+        id: playwright-version
+
+      # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
+      # has been flakey historically.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        name: Restore Chromium cache
+        id: playwright-chromium-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
+        timeout-minutes: 5
+
+      # Only the default branch is trusted to write to the cache to avoid
+      # poisoning.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        name: Save Chromium cache
+        if: github.ref == 'refs/heads/main' && steps.playwright-chromium-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-chromium-cache.outputs.cache-primary-key }}
 
       - run: pnpm storybook:build
         working-directory: site/
