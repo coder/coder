@@ -790,7 +790,7 @@ jobs:
           path: ./coder_latest_sbom.spdx.json
           retention-days: 7
 
-  # The coder-publisher App (installed on coder/packages and coder/homebrew-coder) has its key only in
+  # The coder-package-publisher App (installed on coder/packages and coder/homebrew-coder) has its key only in
   # the release-publish environment, so the packages dispatch runs here rather than in the release job.
   publish-packages:
     name: Publish to coder/packages
@@ -804,12 +804,12 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Generate coder-publisher App token
+      - name: Generate coder-package-publisher App token
         id: publisher_token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.CODER_PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.CODER_PUBLISHER_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
           owner: coder
           repositories: packages
           # repository_dispatch needs contents: write on the target repository.
@@ -836,12 +836,12 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Generate coder-publisher App token
+      - name: Generate coder-package-publisher App token
         id: publisher_token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.CODER_PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.CODER_PUBLISHER_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
           owner: coder
           repositories: homebrew-coder
           permission-contents: write
@@ -896,7 +896,7 @@ jobs:
             exit 0
           fi
 
-          # Set up coder-publisher credentials for pushing to homebrew-coder
+          # Set up coder-package-publisher credentials for pushing to homebrew-coder
           echo "https://x-access-token:$GH_TOKEN@github.com" >> ~/.git-credentials
           # Update the formulae and push
           git checkout -b "$brew_branch"
