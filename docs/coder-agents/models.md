@@ -241,6 +241,11 @@ These options apply to all providers:
 | Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
 | Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
 
+Each model has two reasoning effort settings.
+**Default Reasoning Effort** applies when the user has not selected a level.
+**Max Reasoning Effort** is the highest level a user can select.
+Both accept `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`.
+
 ### Provider-specific options
 
 Each provider type exposes additional options relevant to its models.
@@ -251,14 +256,12 @@ These fields appear dynamically in the admin UI when you select a provider.
 | Option                 | Description                                                                                                                                                                                                                      |
 |------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                                                                                                                                                                                  |
-| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`).                                                                                                                                                                 |
 | 1M Context Window      | Sends the `anthropic-beta: context-1m-2025-08-07` header to unlock the 1M token context window on supported Claude models. Pair it with a raised Context Limit, which still controls compaction. Long-context pricing can apply. |
 
 #### OpenAI
 
 | Option                | Description                                                                                                                                                                                                                                                                                                                                          |
 |-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Reasoning Effort      | How much effort the model spends reasoning (`minimal`, `low`, `medium`, `high`, `xhigh`).                                                                                                                                                                                                                                                            |
 | Max Completion Tokens | Cap on completion tokens for Chat Completions requests.                                                                                                                                                                                                                                                                                              |
 | Parallel Tool Calls   | Whether the model can call multiple tools at once.                                                                                                                                                                                                                                                                                                   |
 | Reasoning Mode        | Set to `pro` to use OpenAI's Pro reasoning mode. Supported from the GPT-5.6 Sol generation; requests fail on models that do not support it. Pro increases model work, latency, and token usage. It requires the Responses API and a reasoning model, so it is rejected when the **Use Responses API** or **Reasoning Model** override is set to Off. |
@@ -272,21 +275,19 @@ These fields appear dynamically in the admin UI when you select a provider.
 
 #### OpenRouter
 
-| Option            | Description                                       |
-|-------------------|---------------------------------------------------|
-| Reasoning Enabled | Enable extended reasoning mode.                   |
-| Reasoning Effort  | Reasoning effort level (`low`, `medium`, `high`). |
+| Option            | Description                     |
+|-------------------|---------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode. |
 
 #### Vercel AI Gateway
 
 | Option            | Description                     |
 |-------------------|---------------------------------|
 | Reasoning Enabled | Enable extended reasoning mode. |
-| Reasoning Effort  | Reasoning effort level.         |
 
 > [!NOTE]
 > Azure OpenAI uses the same options as OpenAI except Reasoning Mode.
-> AWS Bedrock uses the same model configuration options as Anthropic (thinking budget, reasoning effort).
+> AWS Bedrock uses the same model configuration options as Anthropic (thinking budget).
 
 ### Prompt caching
 

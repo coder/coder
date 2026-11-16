@@ -68,6 +68,25 @@ export const TabbableOptions: Story = {
 	},
 };
 
+// The selected org's check icon keeps its color when another option is
+// highlighted.
+export const SelectedOptionNotHighlighted: Story = {
+	args: {
+		value: MockOrganization,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await screen.findAllByRole("option");
+		await userEvent.keyboard("{ArrowDown}");
+		await waitFor(() => {
+			expect(
+				screen.getByRole("option", { name: MockOrganization2.display_name }),
+			).toHaveAttribute("aria-selected", "true");
+		});
+	},
+};
+
 export const WithValue: Story = {
 	args: {
 		value: MockOrganization2,
