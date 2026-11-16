@@ -14,9 +14,8 @@
 # KMS (see scripts/gpgkms). Both signatures go in the same .asc file, with the
 # $CODER_GPG_RELEASE_KEY_BASE64 signature first. Set both of these to enable it:
 #  - $CODER_GPG_KMS_KEY: The Cloud KMS CryptoKeyVersion resource name.
-#  - $CODER_GPG_KMS_KEY_CREATED: The OpenPGP key creation time (Unix seconds).
-#    It is part of the key's fingerprint and must never change.
-# Cloud KMS credentials come from Application Default Credentials.
+#  - $CODER_GPG_KMS_CREDENTIALS_FILE: Google credentials for the KMS signer.
+#    Only gpgkms sees them, so they don't replace the job's default credentials.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -54,10 +53,13 @@ echo "${fingerprint}:6:" | gpg --homedir "$gnupg_home_temp" --import-ownertrust 
 
 kms_key="${CODER_GPG_KMS_KEY:-}"
 if [[ "$kms_key" != "" ]]; then
-	requiredenvs CODER_GPG_KMS_KEY_CREATED
-	gpgkms="$gnupg_home_temp/gpgkms"
-	(cd "$PROJECT_ROOT" && go build -o "$gpgkms" ./scripts/gpgkms)
-	kms_args=(-key "$kms_key" -created "$CODER_GPG_KMS_KEY_CREATED")
+	requiredenvs CODER_GPG_KMS_CREDENTIALS_FILE
+	gpgkms_bin="$gnupg_home_temp/gpgkms"
+	(cd "$PROJECT_ROOT" && go build -o "$gpgkms_bin" ./scripts/gpgkms)
+	gpgkms() {
+		GOOGLE_APPLICATION_CREDENTIALS="$CODER_GPG_KMS_CREDENTIALS_FILE" "$gpgkms_bin" "$@"
+	}
+	kms_args=(-key "$kms_key")
 fi
 
 # Sign the binary. This generates a file in the same directory and
@@ -73,11 +75,11 @@ else
 	# The old key's signature must stay first: released VS Code extensions
 	# only verify the first signature in the file.
 	true | gpg --homedir "$gnupg_home_temp" --batch --yes --detach-sign --output "${FILE_TO_SIGN}.sig" "$FILE_TO_SIGN" 1>&2
-	"$gpgkms" sign "${kms_args[@]}" -prepend "${FILE_TO_SIGN}.sig" -out "${FILE_TO_SIGN}.asc" "$FILE_TO_SIGN" 1>&2
+	gpgkms sign "${kms_args[@]}" -prepend "${FILE_TO_SIGN}.sig" -out "${FILE_TO_SIGN}.asc" "$FILE_TO_SIGN" 1>&2
 	rm -f "${FILE_TO_SIGN}.sig"
 
 	# Import the KMS public key so both signatures can be verified below.
-	"$gpgkms" public-key "${kms_args[@]}" | gpg --homedir "$gnupg_home_temp" --import 1>&2
+	gpgkms public-key "${kms_args[@]}" | gpg --homedir "$gnupg_home_temp" --import 1>&2
 	expected_signatures=2
 fi
 

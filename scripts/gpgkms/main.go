@@ -1,16 +1,16 @@
 // Command gpgkms creates OpenPGP signatures with an RSA key held in Google
 // Cloud KMS, so the release signing private key never leaves KMS.
 //
-// The OpenPGP key is derived from the KMS public key and a fixed creation
-// time. The creation time is part of the OpenPGP fingerprint, so it must stay
-// the same for the lifetime of the key. RSA PKCS#1 v1.5 signatures are
+// The OpenPGP key is derived from the KMS public key and keyCreated. The
+// creation time is part of the OpenPGP fingerprint, so it is pinned below and
+// must stay the same for the lifetime of the key. RSA PKCS#1 v1.5 signatures are
 // deterministic, so the exported public key (including its self-signature) is
 // identical every time it is generated.
 //
 // Usage:
 //
-//	gpgkms public-key -key <version> -created <unix>
-//	gpgkms sign -key <version> -created <unix> [-prepend <sig>] -out <file.asc> <file>
+//	gpgkms public-key -key <version>
+//	gpgkms sign -key <version> [-prepend <sig>] -out <file.asc> <file>
 //
 // <version> is a CryptoKeyVersion resource name with the algorithm
 // RSA_SIGN_PKCS1_4096_SHA256, e.g.
@@ -56,6 +56,10 @@ const (
 	kmsAlgorithm = "RSA_SIGN_PKCS1_4096_SHA256"
 )
 
+// keyCreated is the OpenPGP creation time of the release key (2026-11-16
+// 00:00:00 UTC). It is part of the fingerprint: never change it.
+var keyCreated = time.Unix(1794787200, 0)
+
 func main() {
 	if len(os.Args) < 2 {
 		usage()
@@ -80,32 +84,27 @@ func main() {
 }
 
 func usage() {
-	_, _ = fmt.Fprintln(os.Stderr, "usage: gpgkms public-key -key <version> -created <unix>")
-	_, _ = fmt.Fprintln(os.Stderr, "       gpgkms sign -key <version> -created <unix> [-prepend <sig>] -out <file.asc> <file>")
+	_, _ = fmt.Fprintln(os.Stderr, "usage: gpgkms public-key -key <version>")
+	_, _ = fmt.Fprintln(os.Stderr, "       gpgkms sign -key <version> [-prepend <sig>] -out <file.asc> <file>")
 }
 
 type commonFlags struct {
-	key     string
-	created int64
+	key string
 }
 
 func (c *commonFlags) register(fs *flag.FlagSet) {
 	fs.StringVar(&c.key, "key", "", "Cloud KMS CryptoKeyVersion resource name")
-	fs.Int64Var(&c.created, "created", 0, "OpenPGP key creation time as a Unix timestamp (part of the fingerprint)")
 }
 
 func (c *commonFlags) entity(ctx context.Context) (*openpgp.Entity, error) {
 	if c.key == "" {
 		return nil, xerrors.New("-key is required")
 	}
-	if c.created <= 0 {
-		return nil, xerrors.New("-created is required")
-	}
 	signer, err := newKMSSigner(ctx, c.key)
 	if err != nil {
 		return nil, err
 	}
-	return newEntity(signer, time.Unix(c.created, 0))
+	return newEntity(signer, keyCreated)
 }
 
 func runPublicKey(ctx context.Context, args []string) error {

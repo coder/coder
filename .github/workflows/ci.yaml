@@ -1459,8 +1459,39 @@ jobs:
           service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
+      # release-signer@ for the Cloud KMS GPG key. Its credentials are only
+      # passed to sign_with_gpg.sh, so the job's default credentials stay on
+      # the EV code signing account.
+      - name: Authenticate to Google Cloud (GPG signing)
+        id: gcloud_auth_gpg
+        if: vars.GPG_KMS_KEY != ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GPG_KMS_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GPG_KMS_SERVICE_ACCOUNT }}
+          export_environment_variables: false
+
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      # The KMS key's OpenPGP form can only be made by CI. Publish it from main
+      # builds so its fingerprint can be checked and added to release.key.
+      - name: Print GPG KMS public key
+        if: github.ref == 'refs/heads/main' && vars.GPG_KMS_KEY != ''
+        run: |
+          set -euo pipefail
+          go run ./scripts/gpgkms public-key -key "$GPG_KMS_KEY" > /tmp/gpg-kms-public.key
+          gpg --show-keys --with-fingerprint /tmp/gpg-kms-public.key
+          {
+            echo "### Cloud KMS release signing key"
+            echo '```'
+            gpg --show-keys --with-fingerprint /tmp/gpg-kms-public.key
+            cat /tmp/gpg-kms-public.key
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GPG_KMS_KEY: ${{ vars.GPG_KMS_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
 
       - name: Build
         run: |
@@ -1483,6 +1514,8 @@ jobs:
           CODER_WINDOWS_RESOURCES: "1"
           CODER_SIGN_GPG: "1"
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_GPG_KMS_KEY: ${{ vars.GPG_KMS_KEY }}
+          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           CODER_SIGN_DARWIN: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
