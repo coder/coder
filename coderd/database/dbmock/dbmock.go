@@ -11796,6 +11796,20 @@ func (mr *MockStoreMockRecorder) UpdateTemplateVersionTerraformValuesCachedPlan(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionTerraformValuesCachedPlan", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionTerraformValuesCachedPlan), ctx, arg)
 }
 
+// UpdateTemplateVersionVariableValue mocks base method.
+func (m *MockStore) UpdateTemplateVersionVariableValue(ctx context.Context, arg database.UpdateTemplateVersionVariableValueParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionVariableValue", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionVariableValue indicates an expected call of UpdateTemplateVersionVariableValue.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionVariableValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionVariableValue", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionVariableValue), ctx, arg)
+}
+
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.
 func (m *MockStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
 	m.ctrl.T.Helper()

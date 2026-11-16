@@ -1723,6 +1723,7 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 		Description:       takeFirst(orig.Description, testutil.GetRandomName(t)),
 		Type:              takeFirst(orig.Type, "string"),
 		Value:             takeFirst(orig.Value, ""),
+		ValueKeyID:        takeFirst(orig.ValueKeyID, sql.NullString{}),
 		DefaultValue:      takeFirst(orig.DefaultValue, testutil.GetRandomName(t)),
 		Required:          takeFirst(orig.Required, false),
 		Sensitive:         takeFirst(orig.Sensitive, false),

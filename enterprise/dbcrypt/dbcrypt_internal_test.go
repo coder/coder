@@ -920,6 +920,61 @@ func initCipher(t *testing.T) *aes256 {
 	return c
 }
 
+// TestTemplateVersionVariables verifies that only values of variables marked
+// sensitive are encrypted, and that reads decrypt them.
+func TestTemplateVersionVariables(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, crypt, ciphers := setup(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionID := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Do().Build.TemplateVersionID
+	sensitive := dbgen.TemplateVersionVariable(t, crypt, database.TemplateVersionVariable{
+		TemplateVersionID: versionID,
+		Name:              "token",
+		Value:             "hunter2",
+		Sensitive:         true,
+	})
+	require.Equal(t, "hunter2", sensitive.Value, "insert must return the decrypted value")
+	plain := dbgen.TemplateVersionVariable(t, crypt, database.TemplateVersionVariable{
+		TemplateVersionID: versionID,
+		Name:              "region",
+		Value:             "us-east-1",
+		Sensitive:         false,
+	})
+	require.Equal(t, "us-east-1", plain.Value)
+
+	// Raw rows: sensitive is ciphertext, non-sensitive is plaintext.
+	raw, err := db.GetTemplateVersionVariables(ctx, versionID)
+	require.NoError(t, err)
+	for _, variable := range raw {
+		switch variable.Name {
+		case "token":
+			require.True(t, variable.ValueKeyID.Valid, "sensitive value must have an encryption key ID")
+			requireEncryptedEquals(t, ciphers[0], variable.Value, "hunter2")
+		case "region":
+			require.False(t, variable.ValueKeyID.Valid, "non-sensitive value must not be encrypted")
+			require.Equal(t, "us-east-1", variable.Value)
+		}
+	}
+
+	// The wrapper decrypts on read.
+	decrypted, err := crypt.GetTemplateVersionVariables(ctx, versionID)
+	require.NoError(t, err)
+	for _, variable := range decrypted {
+		switch variable.Name {
+		case "token":
+			require.Equal(t, "hunter2", variable.Value)
+		case "region":
+			require.Equal(t, "us-east-1", variable.Value)
+		}
+	}
+}
+
 // TestWorkspaceBuildProvisionerState verifies wrapper semantics for the
 // provisioner (Terraform) state blob: ciphertext bytes at rest, decrypted
 // reads, and plaintext passthrough for empty or pre-encryption rows.

@@ -1750,6 +1750,9 @@ type sqlcQuerier interface {
 	// Rewrites a cached plan in place. Used by `coder server dbcrypt`
 	// maintenance commands to re-encrypt or decrypt the plan at rest.
 	UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg UpdateTemplateVersionTerraformValuesCachedPlanParams) error
+	// Rewrites a variable value in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+	UpdateTemplateVersionVariableValue(ctx context.Context, arg UpdateTemplateVersionVariableValueParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAIProviderKey, error)

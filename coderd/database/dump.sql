@@ -3568,7 +3568,8 @@ CREATE TABLE template_version_variables (
     value text NOT NULL,
     default_value text NOT NULL,
     required boolean NOT NULL,
-    sensitive boolean NOT NULL
+    sensitive boolean NOT NULL,
+    value_key_id text
 );
 
 COMMENT ON COLUMN template_version_variables.name IS 'Variable name';
@@ -3584,6 +3585,8 @@ COMMENT ON COLUMN template_version_variables.default_value IS 'Variable default 
 COMMENT ON COLUMN template_version_variables.required IS 'Required variables needs a default value or a value provided by template admin';
 
 COMMENT ON COLUMN template_version_variables.sensitive IS 'Sensitive variables have their values redacted in logs or site UI';
+
+COMMENT ON COLUMN template_version_variables.value_key_id IS 'The ID of the key used to encrypt the value. If this is NULL, the value is not encrypted. Only values of variables marked sensitive are encrypted (SEC-1491).';
 
 CREATE TABLE template_versions (
     id uuid NOT NULL,
@@ -5923,6 +5926,9 @@ ALTER TABLE ONLY template_version_terraform_values
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY template_version_workspace_tags
     ADD CONSTRAINT template_version_workspace_tags_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

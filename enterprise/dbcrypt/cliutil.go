@@ -313,6 +313,36 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting sensitive template version variables")
+	err = forEachTemplateVersionWithSensitiveVariables(ctx, sqlDB, func(versionID uuid.UUID) error {
+		variables, err := cryptDB.GetTemplateVersionVariables(ctx, versionID)
+		if err != nil {
+			return xerrors.Errorf("get variables for template version %s: %w", versionID, err)
+		}
+		for _, variable := range variables {
+			if !variable.Sensitive || variable.Value == "" {
+				continue
+			}
+			if variable.ValueKeyID.Valid && variable.ValueKeyID.String == ciphers[0].HexDigest() {
+				log.Debug(ctx, "skipping template version variable", slog.F("template_version_id", versionID), slog.F("name", variable.Name), slog.F("cipher", ciphers[0].HexDigest()))
+				continue
+			}
+			if err := cryptDB.UpdateTemplateVersionVariableValue(ctx, database.UpdateTemplateVersionVariableValueParams{
+				TemplateVersionID: versionID,
+				Name:              variable.Name,
+				Value:             variable.Value,
+				ValueKeyID:        sql.NullString{}, // dbcrypt will re-encrypt
+			}); err != nil {
+				return xerrors.Errorf("rotate variable %s of template version %s: %w", variable.Name, versionID, err)
+			}
+			log.Debug(ctx, "rotated template version variable", slog.F("template_version_id", versionID), slog.F("name", variable.Name), slog.F("cipher", ciphers[0].HexDigest()))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -608,6 +638,32 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting sensitive template version variables")
+	err = forEachTemplateVersionWithSensitiveVariables(ctx, sqlDB, func(versionID uuid.UUID) error {
+		variables, err := cryptDB.GetTemplateVersionVariables(ctx, versionID)
+		if err != nil {
+			return xerrors.Errorf("get variables for template version %s: %w", versionID, err)
+		}
+		for _, variable := range variables {
+			if !variable.ValueKeyID.Valid {
+				continue
+			}
+			if err := cryptDB.UpdateTemplateVersionVariableValue(ctx, database.UpdateTemplateVersionVariableValueParams{
+				TemplateVersionID: versionID,
+				Name:              variable.Name,
+				Value:             variable.Value,
+				ValueKeyID:        sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+			}); err != nil {
+				return xerrors.Errorf("decrypt variable %s of template version %s: %w", variable.Name, versionID, err)
+			}
+			log.Debug(ctx, "decrypted template version variable", slog.F("template_version_id", versionID), slog.F("name", variable.Name))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -703,6 +759,52 @@ func forEachSecretRow(ctx context.Context, sqlDB *sql.DB, scan secretRowScan, fn
 	}
 }
 
+// forEachTemplateVersionWithSensitiveVariables calls fn for every template
+// version that has at least one sensitive variable with a non-empty value,
+// one ID-ordered page at a time. The variables table has a composite primary
+// key, so pagination runs over the version ID.
+func forEachTemplateVersionWithSensitiveVariables(ctx context.Context, sqlDB *sql.DB, fn func(versionID uuid.UUID) error) error {
+	afterID := uuid.Nil
+	for {
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT template_version_id
+			FROM template_version_variables
+			WHERE sensitive
+				AND value != ''
+				AND template_version_id > $1
+			GROUP BY template_version_id
+			ORDER BY template_version_id
+			LIMIT $2`, afterID, secretRowPageSize)
+		if err != nil {
+			return xerrors.Errorf("list template versions with sensitive variables after id=%s: %w", afterID, err)
+		}
+		var page []uuid.UUID
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return xerrors.Errorf("scan template version id: %w", err)
+			}
+			page = append(page, id)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return xerrors.Errorf("iterate template versions: %w", err)
+		}
+		_ = rows.Close()
+
+		for _, id := range page {
+			if err := fn(id); err != nil {
+				return err
+			}
+		}
+		if len(page) < secretRowPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1]
+	}
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -771,6 +873,13 @@ UPDATE workspace_builds
 -- or dynamic-parameter render; callers already handle a missing row.
 DELETE FROM template_version_terraform_values
 	WHERE cached_plan_key_id IS NOT NULL;
+-- Sensitive template variable values cannot be recovered without the keys.
+-- Clear them; affected templates need a new version push that re-provides
+-- the variable values.
+UPDATE template_version_variables
+	SET value = '',
+		value_key_id = NULL
+	WHERE value_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
@@ -838,6 +947,7 @@ var auditTargets = []auditTarget{
 	{table: "gitsshkeys", column: "private_key", keyIDColumn: "private_key_key_id"},
 	{table: "workspace_builds", column: "provisioner_state", keyIDColumn: "provisioner_state_key_id", nonEmptyPredicate: "provisioner_state IS NOT NULL AND provisioner_state != ''::bytea"},
 	{table: "template_version_terraform_values", column: "cached_plan", keyIDColumn: "cached_plan_key_id", nonEmptyPredicate: "cached_plan IS NOT NULL AND cached_plan != 'null'::jsonb AND cached_plan != '{}'::jsonb"},
+	{table: "template_version_variables", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},

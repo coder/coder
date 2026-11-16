@@ -1318,6 +1318,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 				Required:          templateVariable.Required,
 				Sensitive:         templateVariable.Sensitive,
 				Value:             value,
+				ValueKeyID:        sql.NullString{}, // dbcrypt will set as required
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter schema: %w", err)

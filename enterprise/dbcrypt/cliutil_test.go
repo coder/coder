@@ -647,6 +647,71 @@ func TestRotateTemplateVersionCachedPlan(t *testing.T) {
 	}
 }
 
+// TestRotateTemplateVersionVariables covers
+// template_version_variables.value for variables marked sensitive (template
+// provider credentials and similar secrets; SEC-1491). One rotation sweeps a
+// plaintext sensitive row and a cipher-A sensitive row while leaving
+// non-sensitive values in plaintext; a follow-up Decrypt returns the
+// sensitive values to plaintext.
+func TestRotateTemplateVersionVariables(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	resp := seedWorkspaceBuild(t, f.rawDB)
+	versionID := resp.Build.TemplateVersionID
+
+	// Written raw, bypassing dbcrypt: plaintext sensitive value.
+	dbgen.TemplateVersionVariable(t, f.rawDB, database.TemplateVersionVariable{
+		TemplateVersionID: versionID,
+		Name:              "plain_secret",
+		Value:             "hunter2",
+		Sensitive:         true,
+	})
+	// Written through dbcrypt under cipher A.
+	dbgen.TemplateVersionVariable(t, f.cryptDBA, database.TemplateVersionVariable{
+		TemplateVersionID: versionID,
+		Name:              "enc_secret",
+		Value:             "hunter3",
+		Sensitive:         true,
+	})
+	// Non-sensitive values stay plaintext.
+	dbgen.TemplateVersionVariable(t, f.cryptDBA, database.TemplateVersionVariable{
+		TemplateVersionID: versionID,
+		Name:              "region",
+		Value:             "us-east-1",
+		Sensitive:         false,
+	})
+
+	f.rotate(t)
+
+	byName := func(t *testing.T) map[string]database.TemplateVersionVariable {
+		t.Helper()
+		variables, err := f.rawDB.GetTemplateVersionVariables(f.ctx, versionID)
+		require.NoError(t, err)
+		out := make(map[string]database.TemplateVersionVariable, len(variables))
+		for _, v := range variables {
+			out[v.Name] = v
+		}
+		return out
+	}
+
+	rows := byName(t)
+	for name, want := range map[string]string{"plain_secret": "hunter2", "enc_secret": "hunter3"} {
+		require.Equal(t, f.cipherB.HexDigest(), rows[name].ValueKeyID.String, "variable %s", name)
+		require.Equal(t, want, decryptRawString(t, f.cipherB, rows[name].Value), "variable %s", name)
+	}
+	require.False(t, rows["region"].ValueKeyID.Valid, "non-sensitive variable must stay plaintext")
+	require.Equal(t, "us-east-1", rows["region"].Value)
+
+	// Decrypt returns sensitive values to plaintext and clears the key IDs.
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	rows = byName(t)
+	for name, want := range map[string]string{"plain_secret": "hunter2", "enc_secret": "hunter3", "region": "us-east-1"} {
+		require.False(t, rows[name].ValueKeyID.Valid, "variable %s must be plaintext after decrypt", name)
+		require.Equal(t, want, rows[name].Value, "variable %s", name)
+	}
+}
+
 // TestRotateGitSSHKey covers the gitsshkeys table (per-user Git SSH private
 // keys). Simulates rotating keys on a deployment where a soft-deleted
 // user's SSH key row is still present, since gitsshkeys rows are preserved

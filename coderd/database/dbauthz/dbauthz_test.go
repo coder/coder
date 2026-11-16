@@ -3170,6 +3170,11 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().UpdateTemplateVersionTerraformValuesCachedPlan(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("UpdateTemplateVersionVariableValue", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateTemplateVersionVariableValueParams{TemplateVersionID: uuid.New(), Name: "var"}
+		dbm.EXPECT().UpdateTemplateVersionVariableValue(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("SoftDeleteTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()

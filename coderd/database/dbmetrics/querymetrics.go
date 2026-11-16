@@ -6241,6 +6241,14 @@ func (m queryMetricsStore) UpdateTemplateVersionTerraformValuesCachedPlan(ctx co
 	return r0
 }
 
+func (m queryMetricsStore) UpdateTemplateVersionVariableValue(ctx context.Context, arg database.UpdateTemplateVersionVariableValueParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionVariableValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionVariableValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionVariableValue").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateTemplateWorkspacesLastUsedAt(ctx, arg)

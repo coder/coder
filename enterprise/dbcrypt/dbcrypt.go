@@ -1333,6 +1333,51 @@ func (db *dbCrypt) GetTemplateVersionTerraformValues(ctx context.Context, templa
 	return row, nil
 }
 
+// InsertTemplateVersionVariable encrypts values of variables marked
+// sensitive. Non-sensitive values are stored in plaintext; sensitive values
+// are what templates use for provider credentials and similar secrets
+// (SEC-1491).
+func (db *dbCrypt) InsertTemplateVersionVariable(ctx context.Context, params database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+	if params.Sensitive && params.Value != "" {
+		if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+			return database.TemplateVersionVariable{}, err
+		}
+	}
+	variable, err := db.Store.InsertTemplateVersionVariable(ctx, params)
+	if err != nil {
+		return database.TemplateVersionVariable{}, err
+	}
+	if err := db.decryptField(&variable.Value, variable.ValueKeyID); err != nil {
+		return database.TemplateVersionVariable{}, err
+	}
+	return variable, nil
+}
+
+func (db *dbCrypt) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
+	variables, err := db.Store.GetTemplateVersionVariables(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range variables {
+		if err := db.decryptField(&variables[idx].Value, variables[idx].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return variables, nil
+}
+
+// UpdateTemplateVersionVariableValue is a maintenance-only query used by
+// `coder server dbcrypt` sweeps, which only pass values of sensitive
+// variables; non-empty values are therefore always encrypted here.
+func (db *dbCrypt) UpdateTemplateVersionVariableValue(ctx context.Context, params database.UpdateTemplateVersionVariableValueParams) error {
+	if params.Value != "" {
+		if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+			return err
+		}
+	}
+	return db.Store.UpdateTemplateVersionVariableValue(ctx, params)
+}
+
 // encryptRawMessage is encryptExtra for non-null jsonb columns held as a bare
 // json.RawMessage.
 func (db *dbCrypt) encryptRawMessage(m *json.RawMessage, digest *sql.NullString) error {

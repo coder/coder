@@ -6678,6 +6678,8 @@ type TemplateVersionVariable struct {
 	Required bool `db:"required" json:"required"`
 	// Sensitive variables have their values redacted in logs or site UI
 	Sensitive bool `db:"sensitive" json:"sensitive"`
+	// The ID of the key used to encrypt the value. If this is NULL, the value is not encrypted. Only values of variables marked sensitive are encrypted (SEC-1491).
+	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
 type TemplateVersionWorkspaceTag struct {
