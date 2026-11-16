@@ -7,7 +7,8 @@
  *
  * Text is read from the TypeScript AST: JSX text plus string and template
  * literals. Literals that are not displayed text are skipped: module
- * specifiers, type positions, property names, tagged templates, and
+ * specifiers, type positions, property names, tagged templates, values
+ * of JSX attributes that are not displayed (className, style, href), and
  * operands of equality checks or `case` clauses (those usually compare
  * against API values).
  *
@@ -38,7 +39,6 @@ const EXPECT_COMMENT = "sentence-case-expect";
 // as "SSH" or "GitHub" are already allowed.
 const PROPER_NOUNS = [
 	// Coder products, features, and built-in role names.
-	"Agent Hours",
 	"Agent hours",
 	"AI Gateway",
 	"AI Gateway Proxy",
@@ -214,8 +214,64 @@ export function findTitleCaseWords(text) {
 	return results;
 }
 
+// JSX attributes whose values are displayed. Values of other attributes,
+// such as className, style, or href, are code and are never checked.
+const DISPLAY_ATTRIBUTES = new Set([
+	"alt",
+	"aria-description",
+	"aria-label",
+	"aria-placeholder",
+	"aria-roledescription",
+	"aria-valuetext",
+	"caption",
+	"children",
+	"description",
+	"detail",
+	// PremiumPaywall bullet points.
+	"features",
+	// Shown as the title of TextPreviewDialog.
+	"fileName",
+	"heading",
+	"hint",
+	"label",
+	"legend",
+	"message",
+	"placeholder",
+	"subtitle",
+	"summary",
+	"text",
+	"title",
+	"tooltip",
+]);
+// Component props named like confirmText or emptyMessage.
+const DISPLAY_ATTRIBUTE_SUFFIX =
+	/(Caption|Content|Description|Detail|Heading|Hint|Label|Message|Placeholder|Summary|Text|Title|Tooltip)$/;
+
+/**
+ * Returns true when the node is part of the value of a JSX attribute that
+ * is not displayed. Function bodies end the search, so a toast message in
+ * an onClick handler is still checked.
+ */
+function isInCodeAttribute(node) {
+	for (let current = node.parent; current; current = current.parent) {
+		if (ts.isFunctionLike(current) || ts.isJsxElement(current)) {
+			return false;
+		}
+		if (ts.isJsxAttribute(current)) {
+			const name = current.name.getText();
+			return !(
+				DISPLAY_ATTRIBUTES.has(name) || DISPLAY_ATTRIBUTE_SUFFIX.test(name)
+			);
+		}
+	}
+	return false;
+}
+
 /** Returns true when the literal is code rather than displayed text. */
 function isNonDisplayLiteral(node) {
+	if (isInCodeAttribute(node)) {
+		return true;
+	}
 	const parent = node.parent;
 	if (
 		ts.isImportDeclaration(parent) ||

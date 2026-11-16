@@ -82,6 +82,21 @@ describe("checkSource", () => {
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
 	});
 
+	it("checks only displayed JSX attribute values", () => {
+		const source = [
+			'const a = <div className="Main Header" />;',
+			"const b = <div style={{ gridTemplateAreas: '\"Main Header\"' }} />;",
+			'const c = <div data-testid={id ?? "Main Header"} />;',
+			'const d = <Dialog confirmText="Delete File" />;',
+			'const e = <Button onClick={() => toast("Saved Changes")} />;',
+		].join("\n");
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[4, "File"],
+			[5, "Changes"],
+		]);
+	});
+
 	it("checks template literals as one phrase", () => {
 		const source = [
 			"const a = `New ${label} Provider`;",
