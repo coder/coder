@@ -8,6 +8,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { pageTitle } from "#/utils/page";
 import { useClientFilterMenu } from "../filters/ClientFilter";
 import { useModelFilterMenu } from "../filters/ModelFilter";
@@ -23,7 +24,7 @@ import {
 
 const AISessionListPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
 	const navigate = useNavigate();
 
 	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
@@ -113,6 +114,15 @@ const AISessionListPage: React.FC = () => {
 			}),
 	});
 
+	const organizationsMenu = useOrganizationsFilterMenu({
+		value: filter.values.organization,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				organization: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Gateway")}</title>
@@ -135,6 +145,7 @@ const AISessionListPage: React.FC = () => {
 						provider: providerMenu,
 						client: clientMenu,
 						model: modelMenu,
+						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 					timeRange: {
 						start: timeRange.start,

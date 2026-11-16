@@ -2943,6 +2943,14 @@ export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
 	}),
 };
 
+export const MockEntitlementsWithAIBridge: TypesGen.Entitlements = {
+	...MockEntitlements,
+	has_license: true,
+	features: withDefaultFeatures({
+		aibridge: { enabled: true, entitlement: "entitled" },
+	}),
+};
+
 export const MockExperiments: TypesGen.Experiment[] = [];
 
 /**
