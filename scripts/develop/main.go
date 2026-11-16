@@ -831,6 +831,7 @@ func (c *devConfig) serverArgs() []string {
 		"--swagger-enable",
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+		"--cluster-host=127.0.0.1",
 	}
 	if c.accessURL != "" {
 		// Setting access url to `""` enables a `try.coder.app` url
