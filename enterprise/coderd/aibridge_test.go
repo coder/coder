@@ -5931,6 +5931,282 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 	})
 }
 
+func TestOrganizationAISpend(t *testing.T) {
+	t.Parallel()
+
+	// Use fixed dates to keep every subtest deterministic.
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	monthStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	monthEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+	// days returns one interval per UTC day in [start, end), with the given
+	// spend by day.
+	days := func(start, end time.Time, spend map[time.Time]int64) []codersdk.OrganizationAISpendOverviewInterval {
+		intervals := []codersdk.OrganizationAISpendOverviewInterval{}
+		for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
+			intervals = append(intervals, codersdk.OrganizationAISpendOverviewInterval{StartTime: day, EndTime: day.AddDate(0, 0, 1), SpendMicros: spend[day]})
+		}
+		return intervals
+	}
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-overview-validation-group",
+			Clock:     clock,
+		})
+
+		invalidStart := monthStart.Add(time.Hour).Format(time.RFC3339)
+		invalidEnd := "2026-03-10T00:00:00+02:00"
+		cases := []struct {
+			name            string
+			params          map[string]string
+			wantStatus      int
+			wantMessage     string
+			wantValidations []codersdk.ValidationError
+		}{
+			{name: "LimitZero", params: map[string]string{"limit": "0"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "LimitAboveMax", params: map[string]string{"limit": "101"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
+			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "UnknownParameter", params: map[string]string{"provider_name": "openai"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "OnlyStart", params: map[string]string{"period_start": monthStart.Format(time.RFC3339)}, wantStatus: http.StatusBadRequest, wantMessage: "provided together"},
+			{
+				name:        "StartNotAtMidnight",
+				params:      map[string]string{"period_start": invalidStart, "period_end": monthEnd.Format(time.RFC3339)},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "have invalid values",
+				wantValidations: []codersdk.ValidationError{
+					{Field: "period_start", Detail: "Query param \"period_start\" must have the clock set to 00:00:00 UTC, got " + invalidStart},
+				},
+			},
+			{
+				name:        "EndNotAtUTCMidnight",
+				params:      map[string]string{"period_start": monthStart.Format(time.RFC3339), "period_end": invalidEnd},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "have invalid values",
+				wantValidations: []codersdk.ValidationError{
+					{Field: "period_end", Detail: "Query param \"period_end\" must have the clock set to 00:00:00 UTC, got " + invalidEnd},
+				},
+			},
+			{
+				// Both bounds are reported, not only the first.
+				name:        "BothNotAtMidnight",
+				params:      map[string]string{"period_start": invalidStart, "period_end": invalidEnd},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "have invalid values",
+				wantValidations: []codersdk.ValidationError{
+					{Field: "period_start", Detail: "Query param \"period_start\" must have the clock set to 00:00:00 UTC, got " + invalidStart},
+					{Field: "period_end", Detail: "Query param \"period_end\" must have the clock set to 00:00:00 UTC, got " + invalidEnd},
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				res := requestAISpend(ctx, t, adminClient, fmt.Sprintf("/api/experimental/organizations/%s/ai/spend", group.OrganizationID), tc.params)
+				defer res.Body.Close()
+				require.Equal(t, tc.wantStatus, res.StatusCode)
+				if tc.wantStatus != http.StatusOK {
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
+					require.Contains(t, sdkErr.Message, tc.wantMessage)
+					if tc.wantValidations != nil {
+						require.Equal(t, tc.wantValidations, sdkErr.Validations)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Overview", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, alice, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-overview-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		memberClient, bob := coderdtest.CreateAnotherUser(t, adminClient, group.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// otherGroup sorts before group by name, so a user's groups only come
+		// back in spend order if they are sorted by spend.
+		otherGroup, err := adminClient.CreateGroup(ctx, group.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "a-spend-overview-group",
+		})
+		require.NoError(t, err)
+
+		inMonth := monthStart.AddDate(0, 0, 1)
+		laterInMonth := monthStart.AddDate(0, 0, 9)
+		afterToday := monthStart.AddDate(0, 0, 19)
+		for _, seed := range []struct {
+			user  codersdk.User
+			group codersdk.Group
+			day   time.Time
+			spend int64
+		}{
+			// alice: 1500 over two days, split across two groups.
+			{user: alice, group: group, day: inMonth, spend: 1000},
+			{user: alice, group: otherGroup, day: laterInMonth, spend: 500},
+			// bob spends the most, on the same day as alice's second spend.
+			{user: bob, group: group, day: laterInMonth, spend: 3000},
+			// Excluded: after today.
+			{user: bob, group: group, day: afterToday, spend: 99_999},
+		} {
+			_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+				UserID: seed.user.ID, EffectiveGroupID: seed.group.ID, Day: seed.day, CostMicros: seed.spend,
+			})
+			require.NoError(t, err)
+		}
+
+		groupSpend := func(g codersdk.Group, spend int64) codersdk.OrganizationAISpendOverviewGroup {
+			return codersdk.OrganizationAISpendOverviewGroup{
+				GroupID: g.ID, GroupName: g.Name, GroupDisplayName: g.DisplayName, SpendMicros: spend,
+			}
+		}
+		user := func(u codersdk.User, groups ...codersdk.OrganizationAISpendOverviewGroup) codersdk.OrganizationAISpendOverviewUser {
+			var spend int64
+			for _, g := range groups {
+				spend += g.SpendMicros
+			}
+			return codersdk.OrganizationAISpendOverviewUser{
+				UserID: u.ID, Username: u.Username, Name: u.Name, AvatarURL: u.AvatarURL, SpendMicros: spend, Groups: groups,
+			}
+		}
+		// alice has one entry, with her groups sorted by spend, most first.
+		aliceSpend := user(alice, groupSpend(group, 1000), groupSpend(otherGroup, 500))
+		// bob 3000 and alice 1500: 2 users, 4500 in total, and a median of 2250.
+		// Users are sorted by spend, most first.
+		defaultOverview := codersdk.OrganizationAISpendOverview{
+			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
+			Count:               2,
+			Totals:              codersdk.OrganizationAISpendOverviewTotals{SpendMicros: 4500, MedianSpendMicros: 2250},
+			// Daily spend stops at today, March 15. laterInMonth sums both users.
+			Intervals: days(monthStart, monthStart.AddDate(0, 0, 15), map[time.Time]int64{inMonth: 1000, laterInMonth: 3500}),
+			Users:     []codersdk.OrganizationAISpendOverviewUser{user(bob, groupSpend(group, 3000)), aliceSpend},
+		}
+		// defaultOverviewPage is the default overview with one page of users.
+		// Count, totals, and daily spend describe the whole period on every page.
+		defaultOverviewPage := func(users []codersdk.OrganizationAISpendOverviewUser) codersdk.OrganizationAISpendOverview {
+			overview := defaultOverview
+			overview.Users = users
+			return overview
+		}
+		explicitWindow := codersdk.AISpendPeriodWindow{PeriodStart: inMonth, PeriodEnd: inMonth.AddDate(0, 0, 2)}
+		futureWindow := codersdk.AISpendPeriodWindow{PeriodStart: afterToday, PeriodEnd: afterToday.AddDate(0, 0, 2)}
+
+		for _, tc := range []struct {
+			name   string
+			window codersdk.AISpendPeriodWindow
+			page   codersdk.OrganizationAISpendPage
+			want   codersdk.OrganizationAISpendOverview
+		}{
+			{
+				name: "Default",
+				want: defaultOverview,
+			},
+			{
+				// With a limit of 1, the second page holds alice, second by spend.
+				name: "Pagination",
+				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1},
+				want: defaultOverviewPage([]codersdk.OrganizationAISpendOverviewUser{aliceSpend}),
+			},
+			{
+				// Offset 2 skips bob and alice, the only users with spend, so the
+				// page is empty.
+				name: "PaginationPastLastUser",
+				page: codersdk.OrganizationAISpendPage{Offset: 2},
+				want: defaultOverviewPage([]codersdk.OrganizationAISpendOverviewUser{}),
+			},
+			{
+				// The window holds inMonth but not laterInMonth, so only alice's
+				// 1000 counts.
+				name:   "ExplicitPeriod",
+				window: explicitWindow,
+				want: codersdk.OrganizationAISpendOverview{
+					AISpendPeriodWindow: explicitWindow,
+					Count:               1,
+					Totals:              codersdk.OrganizationAISpendOverviewTotals{SpendMicros: 1000, MedianSpendMicros: 1000},
+					Intervals:           days(explicitWindow.PeriodStart, explicitWindow.PeriodEnd, map[time.Time]int64{inMonth: 1000}),
+					Users:               []codersdk.OrganizationAISpendOverviewUser{user(alice, groupSpend(group, 1000))},
+				},
+			},
+			{
+				// A period after today echoes the applied period without any
+				// spend.
+				name:   "FuturePeriod",
+				window: futureWindow,
+				want: codersdk.OrganizationAISpendOverview{
+					AISpendPeriodWindow: futureWindow,
+					Intervals:           []codersdk.OrganizationAISpendOverviewInterval{},
+					Users:               []codersdk.OrganizationAISpendOverviewUser{},
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				overview, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, tc.window, tc.page)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, overview)
+			})
+		}
+
+		// The overview covers the whole organization, so a regular member is
+		// rejected.
+		t.Run("Member", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := codersdk.NewExperimentalClient(memberClient).OrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	})
+
+	// The daily spend aggregate is not purged, so retention limits neither
+	// the default period nor an explicit one.
+	t.Run("IgnoresRetention", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		db, ps := dbtestutil.NewDB(t)
+		retention := 7 * 24 * time.Hour
+		adminClient, alice, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-overview-retention-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+			Retention: &retention,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// March 2 is before the retention window, which starts at noon on
+		// March 8.
+		beforeRetention := monthStart.AddDate(0, 0, 1)
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: alice.ID, EffectiveGroupID: group.ID, Day: beforeRetention, CostMicros: 1000,
+		})
+		require.NoError(t, err)
+
+		overview, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
+		require.NoError(t, err)
+		require.Equal(t, monthStart, overview.PeriodStart)
+		require.EqualValues(t, 1000, overview.Totals.SpendMicros)
+
+		window := codersdk.AISpendPeriodWindow{PeriodStart: beforeRetention, PeriodEnd: beforeRetention.AddDate(0, 0, 1)}
+		overview, err = codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, window, codersdk.OrganizationAISpendPage{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1000, overview.Totals.SpendMicros)
+	})
+}
+
 func TestOrganizationAISpendUsersRoleAccess(t *testing.T) {
 	t.Parallel()
 

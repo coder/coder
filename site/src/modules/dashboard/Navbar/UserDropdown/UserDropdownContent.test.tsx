@@ -66,6 +66,21 @@ describe("UserDropdownContent", () => {
 		expect(item).toHaveFocus();
 	});
 
+	it("announces when the deployment ID is copied", async () => {
+		const user = userEvent.setup();
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const status = screen.getByRole("status");
+		expect(status).toBeEmptyDOMElement();
+		await user.click(
+			screen.getByRole("menuitem", {
+				name: new RegExp(MockBuildInfo.deployment_id),
+			}),
+		);
+		expect(status).toHaveTextContent("Copied");
+	});
+
 	it("calls the onSignOut function", async () => {
 		const onSignOut = vi.fn();
 		renderUserDropdownContent({ onSignOut });
