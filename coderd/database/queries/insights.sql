@@ -1002,7 +1002,10 @@ FROM unique_template_params utp
 	-- and name, one latest build per workspace), so unnest cannot double count.
 	-- The equality join lets Postgres use the (workspace_build_id, name) index.
 CROSS JOIN LATERAL unnest(utp.workspace_build_ids) AS b(id)
-JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name)
+-- Sensitive parameter values (e.g. values of ephemeral parameters) are
+-- excluded: they may be encrypted at rest and must not be aggregated into
+-- insights (SEC-1491).
+JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name AND NOT wbp.sensitive)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
 
 -- name: GetUserStatusCounts :many

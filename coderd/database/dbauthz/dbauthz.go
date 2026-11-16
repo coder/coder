@@ -9442,6 +9442,13 @@ func (q *querier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context
 	return q.db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceBuildParameterValue(ctx context.Context, arg database.UpdateWorkspaceBuildParameterValueParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildParameterValue(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

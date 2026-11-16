@@ -7216,6 +7216,10 @@ type WorkspaceBuildParameter struct {
 	Name string `db:"name" json:"name"`
 	// Parameter value
 	Value string `db:"value" json:"value"`
+	// Sensitive parameter values (currently the values of ephemeral parameters) are encrypted at rest when dbcrypt is enabled and are excluded from parameter insights and workspace search (SEC-1491).
+	Sensitive bool `db:"sensitive" json:"sensitive"`
+	// The ID of the key used to encrypt the value. If this is NULL, the value is not encrypted.
+	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
 type WorkspaceBuildTable struct {

@@ -6681,6 +6681,14 @@ func (m queryMetricsStore) UpdateWorkspaceBuildOrchestrationRetryByID(ctx contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateWorkspaceBuildParameterValue(ctx context.Context, arg database.UpdateWorkspaceBuildParameterValueParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildParameterValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildParameterValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildParameterValue").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceBuildProvisionerStateByID(ctx, arg)

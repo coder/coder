@@ -959,6 +959,9 @@ type sqlcQuerier interface {
 	// look for the latest workspace build (for every workspace) that has been
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
+	// Sensitive parameter values (e.g. values of ephemeral parameters) are
+	// excluded: they may be encrypted at rest and must not be aggregated into
+	// insights (SEC-1491).
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
 	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 	// It also returns the number of desired instances for each preset.
@@ -1819,6 +1822,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (WorkspaceBuildOrchestration, error)
 	UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationFailedByIDParams) (WorkspaceBuildOrchestration, error)
 	UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationRetryByIDParams) (WorkspaceBuildOrchestration, error)
+	// Rewrites a parameter value in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+	UpdateWorkspaceBuildParameterValue(ctx context.Context, arg UpdateWorkspaceBuildParameterValueParams) error
 	UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (WorkspaceTable, error)

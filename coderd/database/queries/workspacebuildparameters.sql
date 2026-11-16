@@ -1,11 +1,27 @@
 -- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
-    workspace_build_parameters (workspace_build_id, name, value)
+    workspace_build_parameters (workspace_build_id, name, value, sensitive, value_key_id)
 SELECT
     @workspace_build_id :: uuid AS workspace_build_id,
     unnest(@name :: text[]) AS name,
-    unnest(@value :: text[]) AS value
+    unnest(@value :: text[]) AS value,
+    unnest(@sensitive :: boolean[]) AS sensitive,
+    -- Empty string means not encrypted; the column has a foreign key to
+    -- dbcrypt_keys, so it must be NULL rather than ''.
+    NULLIF(unnest(@value_key_id :: text[]), '') AS value_key_id
 RETURNING *;
+
+-- name: UpdateWorkspaceBuildParameterValue :exec
+-- Rewrites a parameter value in place. Used by `coder server dbcrypt`
+-- maintenance commands to re-encrypt or decrypt sensitive values at rest.
+UPDATE
+    workspace_build_parameters
+SET
+    value = @value,
+    value_key_id = sqlc.narg('value_key_id')
+WHERE
+    workspace_build_id = @workspace_build_id
+    AND name = @name;
 
 -- name: GetWorkspaceBuildParameters :many
 SELECT

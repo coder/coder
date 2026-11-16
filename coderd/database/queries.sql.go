@@ -19321,7 +19321,7 @@ FROM unique_template_params utp
 	-- and name, one latest build per workspace), so unnest cannot double count.
 	-- The equality join lets Postgres use the (workspace_build_id, name) index.
 CROSS JOIN LATERAL unnest(utp.workspace_build_ids) AS b(id)
-JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name)
+JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name AND NOT wbp.sensitive)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 `
 
@@ -19347,6 +19347,9 @@ type GetTemplateParameterInsightsRow struct {
 // look for the latest workspace build (for every workspace) that has been
 // created in the timeframe and return the aggregate usage counts of parameter
 // values.
+// Sensitive parameter values (e.g. values of ephemeral parameters) are
+// excluded: they may be encrypted at rest and must not be aggregated into
+// insights (SEC-1491).
 func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateParameterInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
@@ -40990,7 +40993,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Cont
 
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
 SELECT
-    workspace_build_id, name, value
+    workspace_build_id, name, value, sensitive, value_key_id
 FROM
     workspace_build_parameters
 WHERE
@@ -41006,7 +41009,13 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 	var items []WorkspaceBuildParameter
 	for rows.Next() {
 		var i WorkspaceBuildParameter
-		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.Sensitive,
+			&i.ValueKeyID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -41022,7 +41031,7 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 
 const getWorkspaceBuildParametersByBuildIDsAndNames = `-- name: GetWorkspaceBuildParametersByBuildIDsAndNames :many
 SELECT
-    workspace_build_id, name, value
+    workspace_build_id, name, value, sensitive, value_key_id
 FROM
     workspace_build_parameters
 WHERE
@@ -41054,7 +41063,13 @@ func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.C
 	var items []WorkspaceBuildParameter
 	for rows.Next() {
 		var i WorkspaceBuildParameter
-		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.Sensitive,
+			&i.ValueKeyID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -41070,22 +41085,64 @@ func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.C
 
 const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
-    workspace_build_parameters (workspace_build_id, name, value)
+    workspace_build_parameters (workspace_build_id, name, value, sensitive, value_key_id)
 SELECT
     $1 :: uuid AS workspace_build_id,
     unnest($2 :: text[]) AS name,
-    unnest($3 :: text[]) AS value
-RETURNING workspace_build_id, name, value
+    unnest($3 :: text[]) AS value,
+    unnest($4 :: boolean[]) AS sensitive,
+    -- Empty string means not encrypted; the column has a foreign key to
+    -- dbcrypt_keys, so it must be NULL rather than ''.
+    NULLIF(unnest($5 :: text[]), '') AS value_key_id
+RETURNING workspace_build_id, name, value, sensitive, value_key_id
 `
 
 type InsertWorkspaceBuildParametersParams struct {
 	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 	Name             []string  `db:"name" json:"name"`
 	Value            []string  `db:"value" json:"value"`
+	Sensitive        []bool    `db:"sensitive" json:"sensitive"`
+	ValueKeyID       []string  `db:"value_key_id" json:"value_key_id"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error {
-	_, err := q.db.ExecContext(ctx, insertWorkspaceBuildParameters, arg.WorkspaceBuildID, pq.Array(arg.Name), pq.Array(arg.Value))
+	_, err := q.db.ExecContext(ctx, insertWorkspaceBuildParameters,
+		arg.WorkspaceBuildID,
+		pq.Array(arg.Name),
+		pq.Array(arg.Value),
+		pq.Array(arg.Sensitive),
+		pq.Array(arg.ValueKeyID),
+	)
+	return err
+}
+
+const updateWorkspaceBuildParameterValue = `-- name: UpdateWorkspaceBuildParameterValue :exec
+UPDATE
+    workspace_build_parameters
+SET
+    value = $1,
+    value_key_id = $2
+WHERE
+    workspace_build_id = $3
+    AND name = $4
+`
+
+type UpdateWorkspaceBuildParameterValueParams struct {
+	Value            string         `db:"value" json:"value"`
+	ValueKeyID       sql.NullString `db:"value_key_id" json:"value_key_id"`
+	WorkspaceBuildID uuid.UUID      `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string         `db:"name" json:"name"`
+}
+
+// Rewrites a parameter value in place. Used by `coder server dbcrypt`
+// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+func (q *sqlQuerier) UpdateWorkspaceBuildParameterValue(ctx context.Context, arg UpdateWorkspaceBuildParameterValueParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildParameterValue,
+		arg.Value,
+		arg.ValueKeyID,
+		arg.WorkspaceBuildID,
+		arg.Name,
+	)
 	return err
 }
 

@@ -343,6 +343,36 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting sensitive workspace build parameters")
+	err = forEachBuildWithSensitiveParameters(ctx, sqlDB, func(buildID uuid.UUID) error {
+		parameters, err := cryptDB.GetWorkspaceBuildParameters(ctx, buildID)
+		if err != nil {
+			return xerrors.Errorf("get parameters for workspace build %s: %w", buildID, err)
+		}
+		for _, parameter := range parameters {
+			if !parameter.Sensitive || parameter.Value == "" {
+				continue
+			}
+			if parameter.ValueKeyID.Valid && parameter.ValueKeyID.String == ciphers[0].HexDigest() {
+				log.Debug(ctx, "skipping workspace build parameter", slog.F("workspace_build_id", buildID), slog.F("name", parameter.Name), slog.F("cipher", ciphers[0].HexDigest()))
+				continue
+			}
+			if err := cryptDB.UpdateWorkspaceBuildParameterValue(ctx, database.UpdateWorkspaceBuildParameterValueParams{
+				WorkspaceBuildID: buildID,
+				Name:             parameter.Name,
+				Value:            parameter.Value,
+				ValueKeyID:       sql.NullString{}, // dbcrypt will re-encrypt
+			}); err != nil {
+				return xerrors.Errorf("rotate parameter %s of workspace build %s: %w", parameter.Name, buildID, err)
+			}
+			log.Debug(ctx, "rotated workspace build parameter", slog.F("workspace_build_id", buildID), slog.F("name", parameter.Name), slog.F("cipher", ciphers[0].HexDigest()))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -664,6 +694,32 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting sensitive workspace build parameters")
+	err = forEachBuildWithSensitiveParameters(ctx, sqlDB, func(buildID uuid.UUID) error {
+		parameters, err := cryptDB.GetWorkspaceBuildParameters(ctx, buildID)
+		if err != nil {
+			return xerrors.Errorf("get parameters for workspace build %s: %w", buildID, err)
+		}
+		for _, parameter := range parameters {
+			if !parameter.ValueKeyID.Valid {
+				continue
+			}
+			if err := cryptDB.UpdateWorkspaceBuildParameterValue(ctx, database.UpdateWorkspaceBuildParameterValueParams{
+				WorkspaceBuildID: buildID,
+				Name:             parameter.Name,
+				Value:            parameter.Value,
+				ValueKeyID:       sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+			}); err != nil {
+				return xerrors.Errorf("decrypt parameter %s of workspace build %s: %w", parameter.Name, buildID, err)
+			}
+			log.Debug(ctx, "decrypted workspace build parameter", slog.F("workspace_build_id", buildID), slog.F("name", parameter.Name))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -805,6 +861,52 @@ func forEachTemplateVersionWithSensitiveVariables(ctx context.Context, sqlDB *sq
 	}
 }
 
+// forEachBuildWithSensitiveParameters calls fn for every workspace build that
+// has at least one sensitive parameter with a non-empty value, one ID-ordered
+// page at a time. The parameters table has a composite primary key, so
+// pagination runs over the build ID.
+func forEachBuildWithSensitiveParameters(ctx context.Context, sqlDB *sql.DB, fn func(buildID uuid.UUID) error) error {
+	afterID := uuid.Nil
+	for {
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT workspace_build_id
+			FROM workspace_build_parameters
+			WHERE sensitive
+				AND value != ''
+				AND workspace_build_id > $1
+			GROUP BY workspace_build_id
+			ORDER BY workspace_build_id
+			LIMIT $2`, afterID, secretRowPageSize)
+		if err != nil {
+			return xerrors.Errorf("list workspace builds with sensitive parameters after id=%s: %w", afterID, err)
+		}
+		var page []uuid.UUID
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return xerrors.Errorf("scan workspace build id: %w", err)
+			}
+			page = append(page, id)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return xerrors.Errorf("iterate workspace builds: %w", err)
+		}
+		_ = rows.Close()
+
+		for _, id := range page {
+			if err := fn(id); err != nil {
+				return err
+			}
+		}
+		if len(page) < secretRowPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1]
+	}
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -880,6 +982,12 @@ UPDATE template_version_variables
 	SET value = '',
 		value_key_id = NULL
 	WHERE value_key_id IS NOT NULL;
+-- Sensitive workspace build parameter values (ephemeral parameters) are
+-- one-shot inputs; clear the unrecoverable ciphertext.
+UPDATE workspace_build_parameters
+	SET value = '',
+		value_key_id = NULL
+	WHERE value_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
@@ -948,6 +1056,7 @@ var auditTargets = []auditTarget{
 	{table: "workspace_builds", column: "provisioner_state", keyIDColumn: "provisioner_state_key_id", nonEmptyPredicate: "provisioner_state IS NOT NULL AND provisioner_state != ''::bytea"},
 	{table: "template_version_terraform_values", column: "cached_plan", keyIDColumn: "cached_plan_key_id", nonEmptyPredicate: "cached_plan IS NOT NULL AND cached_plan != 'null'::jsonb AND cached_plan != '{}'::jsonb"},
 	{table: "template_version_variables", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
+	{table: "workspace_build_parameters", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},

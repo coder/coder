@@ -4306,12 +4306,18 @@ COMMENT ON COLUMN workspace_build_orchestrations.next_retry_after IS 'When set, 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
     name text NOT NULL,
-    value text NOT NULL
+    value text NOT NULL,
+    sensitive boolean DEFAULT false NOT NULL,
+    value_key_id text
 );
 
 COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
 
 COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
+
+COMMENT ON COLUMN workspace_build_parameters.sensitive IS 'Sensitive parameter values (currently the values of ephemeral parameters) are encrypted at rest when dbcrypt is enabled and are excluded from parameter insights and workspace search (SEC-1491).';
+
+COMMENT ON COLUMN workspace_build_parameters.value_key_id IS 'The ID of the key used to encrypt the value. If this is NULL, the value is not encrypted.';
 
 CREATE TABLE workspace_builds (
     id uuid NOT NULL,
@@ -6070,6 +6076,9 @@ ALTER TABLE ONLY workspace_build_orchestrations
 
 ALTER TABLE ONLY workspace_build_orchestrations
     ADD CONSTRAINT workspace_build_orchestrations_parent_build_workspace_id_fkey FOREIGN KEY (parent_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_build_parameters
+    ADD CONSTRAINT workspace_build_parameters_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;

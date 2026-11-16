@@ -3180,6 +3180,11 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().DeleteTemplateVersionVariablesByTemplateVersionID(gomock.Any(), id).Return(nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("UpdateWorkspaceBuildParameterValue", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkspaceBuildParameterValueParams{WorkspaceBuildID: uuid.New(), Name: "param"}
+		dbm.EXPECT().UpdateWorkspaceBuildParameterValue(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("SoftDeleteTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()

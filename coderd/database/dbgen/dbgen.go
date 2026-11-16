@@ -1065,13 +1065,15 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 	}
 
 	var (
-		names  = make([]string, 0, len(orig))
-		values = make([]string, 0, len(orig))
-		params []database.WorkspaceBuildParameter
+		names     = make([]string, 0, len(orig))
+		values    = make([]string, 0, len(orig))
+		sensitive = make([]bool, 0, len(orig))
+		params    []database.WorkspaceBuildParameter
 	)
 	for _, param := range orig {
 		names = append(names, param.Name)
 		values = append(values, param.Value)
+		sensitive = append(sensitive, param.Sensitive)
 	}
 	err := db.InTx(func(tx database.Store) error {
 		id := takeFirst(orig[0].WorkspaceBuildID, uuid.New())
@@ -1079,6 +1081,8 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 			WorkspaceBuildID: id,
 			Name:             names,
 			Value:            values,
+			Sensitive:        sensitive,
+			ValueKeyID:       make([]string, len(names)), // dbcrypt will set as required
 		})
 		if err != nil {
 			return err
