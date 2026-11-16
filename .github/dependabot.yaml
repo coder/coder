@@ -26,6 +26,8 @@ updates:
       prefix: "chore"
     labels: []
     open-pull-requests-limit: 15
+    cooldown:
+      default-days: 7
     groups:
       x:
         patterns:

@@ -18,10 +18,12 @@ As a rule, we **do not collect** the following types of information:
 - Any data that could make your installation less secure
 - Any data that could identify individual users, except the administrator.
 
-For example, we do not collect parameters, environment variables, or user email addresses.
+For example, we do not collect environment variables, user email addresses, or parameter values, except the Agent Relay fields described below.
 We do collect the administrator email.
 
 Workspace agent statistics include session counts keyed by normalized application names, which can include custom IDE names that workspace agents report.
+
+For start builds of workspaces that Agent Relay creates, we read the `agent_relay_*` parameters that Agent Relay sets. We report the agent provider, the attempt number, and the client platform, lowercased and cut to 15 characters. We also report SHA-256 hashes of the session ID and pool name. The hashes let us count sessions and pools, but they do not hide common pool names such as `default`. We do not collect other parameter values.
 
 ## Why we collect
 

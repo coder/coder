@@ -49,18 +49,19 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey                = xerrors.New("invalid key")
-	ErrUnknownKey                = xerrors.New("unknown key")
-	ErrExpired                   = xerrors.New("expired")
-	ErrUnknownUser               = xerrors.New("unknown user")
-	ErrDeletedUser               = xerrors.New("deleted user")
-	ErrInactiveUser              = xerrors.New("inactive user")
-	ErrSystemUser                = xerrors.New("system user")
-	ErrAmbiguousAuth             = xerrors.New("both key and key_id set; exactly one required")
-	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
-	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
-	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
-	ErrNoOrganization            = xerrors.New("no organization could be resolved for the user")
+	ErrInvalidKey                   = xerrors.New("invalid key")
+	ErrUnknownKey                   = xerrors.New("unknown key")
+	ErrExpired                      = xerrors.New("expired")
+	ErrUnknownUser                  = xerrors.New("unknown user")
+	ErrDeletedUser                  = xerrors.New("deleted user")
+	ErrInactiveUser                 = xerrors.New("inactive user")
+	ErrSystemUser                   = xerrors.New("system user")
+	ErrAmbiguousAuth                = xerrors.New("direct and delegated authentication are mutually exclusive")
+	ErrInvalidDelegatedOrganization = xerrors.New("invalid delegated_organization_id")
+	ErrWorkspaceAttribution         = xerrors.New("invalid workspace attribution")
+	ErrUnknownWorkspace             = xerrors.New("unknown workspace")
+	ErrUnknownOrganizationMember    = xerrors.New("user is not a member of the request organization")
+	ErrNoOrganization               = xerrors.New("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -819,14 +820,24 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		// delegated requests skip the secret check: the caller never
 		// has the secret. Trust is established at the in-process
 		// transport boundary, not in this RPC.
-		delegated bool
+		delegated      bool
+		delegatedOrgID uuid.NullUUID
 	)
 	switch {
 	case in.GetKey() != "" && in.GetKeyId() != "":
 		return nil, ErrAmbiguousAuth
+	case in.GetKey() != "" && in.GetDelegatedOrganizationId() != "":
+		return nil, ErrAmbiguousAuth
 	case in.GetKeyId() != "":
 		keyID = in.GetKeyId()
 		delegated = true
+		if raw := in.GetDelegatedOrganizationId(); raw != "" {
+			id, err := uuid.Parse(raw)
+			if err != nil || id == uuid.Nil {
+				return nil, ErrInvalidDelegatedOrganization
+			}
+			delegatedOrgID = uuid.NullUUID{UUID: id, Valid: true}
+		}
 	default:
 		var err error
 		keyID, keySecret, err = httpmw.SplitAPIToken(in.GetKey())
@@ -889,7 +900,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		}
 	}
 
-	org, err := s.resolveOrganization(ctx, user.ID, orgResolverInput{WorkspaceID: workspaceID})
+	org, err := s.resolveOrganization(ctx, user.ID, orgResolverInput{WorkspaceID: workspaceID, DelegatedOrganizationID: delegatedOrgID})
 	if err != nil {
 		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
 		return nil, err

@@ -69,12 +69,12 @@ Coder ships the following organization roles:
 - **Organization Workspace Creation Ban**:
   blocks creating and deleting workspaces in the organization, and overrides any role that would otherwise allow it.
 - **Coder Agents User**:
-  uses [Coder Agents](../../ai-coder/agents/index.md) in the organization.
+  uses [Coder Agents](../../coder-agents/index.md) in the organization.
   Members other than service accounts hold this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
 
 Organization Admin doesn't include SSH, application, or terminal access to workspaces other members own.
 A user with that role can read, build, stop, and delete those workspaces.
-Connecting to one requires access granted through [workspace sharing](../../user-guides/shared-workspaces.md).
+Connecting to one requires access granted through [workspace sharing](../../workspaces/shared-workspaces.md).
 
 Every member of an organization also holds an implicit organization membership role that the dashboard doesn't display.
 That role carries the smallest permission set a member needs, such as reading the organization and their own membership record.
@@ -122,4 +122,4 @@ A malicious Template Admin could write a template that executes commands on the 
 To avoid this, run [external provisioners](../../install/operate/provisioners/index.md).
 
 In low-trust environments, we do not recommend giving users direct access to edit templates.
-Instead, use [CI/CD pipelines to update templates](../templates/managing-templates/change-management.md) with proper security scans and code reviews in place.
+Instead, use [continuous integration and continuous delivery (CI/CD) pipelines to update templates](../../templates/managing-templates/change-management.md) with proper security scans and code reviews in place.

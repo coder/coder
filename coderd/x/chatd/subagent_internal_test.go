@@ -2762,7 +2762,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, model.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
 		require.Nil(t, got.reasoningEffort)
 	})
 
@@ -2780,7 +2779,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, override.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, got.provider)
 		require.Equal(t, ptr.Ref("high"), got.reasoningEffort)
 	})
 
@@ -2798,7 +2796,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, model.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
 		require.Nil(t, got.reasoningEffort)
 	})
 
@@ -2812,7 +2809,55 @@ func TestResolveComputerUseModel(t *testing.T) {
 		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
 		require.NoError(t, err)
 		require.Contains(t, reason, `model "gemini-test" uses AI provider`)
-		require.Contains(t, reason, `of type "google"; computer use requires an Anthropic or OpenAI AI provider`)
+		require.Contains(t, reason, `of type "google"; computer use requires `+chatprovider.ComputerUseModelRequirement)
+	})
+
+	t.Run("BedrockClaudeDefaultModel", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		// Bedrock supports ambient credentials, so the provider has no key.
+		user, org, model := seedComputerUseDeps(t, db, database.AIProviderTypeBedrock, "", "us.anthropic.claude-opus-5-5")
+
+		ctx := chatdTestContext(t)
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+	})
+
+	t.Run("BedrockOverride", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			model        string
+			wantOverride bool
+		}{
+			{name: "Claude", model: "anthropic.claude-haiku-4-5-20251001-v1:0", wantOverride: true},
+			{name: "NonClaudeFallsBackToDefault", model: "openai.gpt-5.4"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				db, ps := dbtestutil.NewDB(t)
+				server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+				user, org, model := seedInternalChatDeps(t, db)
+				insertInternalAIProvider(t, db, database.AIProviderTypeBedrock, "", true)
+				override := insertInternalChatModelConfigForProvider(t, db, org.ID, "bedrock", tt.model, true)
+				upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String())
+
+				ctx := chatdTestContext(t)
+				got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+				require.NoError(t, err)
+				require.Empty(t, reason)
+				want := model.ID
+				if tt.wantOverride {
+					want = override.ID
+				}
+				require.Equal(t, want, got.config.ID)
+			})
+		}
 	})
 
 	t.Run("UnsupportedOverrideProviderTypeFallsBackToDefault", func(t *testing.T) {
@@ -2831,7 +2876,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, model.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
 		require.Nil(t, got.reasoningEffort)
 	})
 

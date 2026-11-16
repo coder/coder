@@ -200,11 +200,14 @@ jobs:
               return;
             }
 
-            // Verify all changed files fall under the scope.
+            // Verify all changed files fall under the scope. Docs changes
+            // can accompany a change in any scope.
+            const isDocsScope = scope === "docs" || scope.startsWith("docs/");
             const outsideFiles = changedPaths.filter(f => {
               if (isDir && f.startsWith(scope + "/")) return false;
               if (f === scope) return false;
               if (isStem && f.startsWith(scope + ".")) return false;
+              if (!isDocsScope && f.startsWith("docs/")) return false;
               return true;
             });
 

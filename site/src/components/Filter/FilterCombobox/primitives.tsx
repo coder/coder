@@ -291,8 +291,7 @@ export const FilterComboboxFlyoutContent: React.FC<
 			disablePortal
 			side="right"
 			align="start"
-			// Flush with the main panel, like `DropdownMenuSubContent`.
-			sideOffset={0}
+			sideOffset={4}
 			collisionPadding={0}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onCloseAutoFocus={(event) => event.preventDefault()}

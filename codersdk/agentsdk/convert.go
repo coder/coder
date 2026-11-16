@@ -44,12 +44,13 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace ID: %w", err)
 	}
-	workspaceBuildID := uuid.Nil
-	if bid := manifest.GetWorkspaceBuildId(); len(bid) > 0 {
-		workspaceBuildID, err = uuid.FromBytes(bid)
-		if err != nil {
-			return Manifest{}, xerrors.Errorf("error converting workspace build ID: %w", err)
-		}
+	workspaceBuildID, err := uuid.FromBytes(manifest.WorkspaceBuildId)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting workspace build ID: %w", err)
+	}
+	templateID, err := uuid.FromBytes(manifest.TemplateId)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting template ID: %w", err)
 	}
 	devcontainers, err := DevcontainersFromProto(manifest.Devcontainers)
 	if err != nil {
@@ -63,6 +64,8 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		WorkspaceID:              workspaceID,
 		WorkspaceName:            manifest.WorkspaceName,
 		WorkspaceBuildID:         workspaceBuildID,
+		TemplateID:               templateID,
+		TemplateName:             manifest.TemplateName,
 		Apps:                     apps,
 		Scripts:                  scripts,
 		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),
@@ -98,6 +101,8 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		WorkspaceId:      manifest.WorkspaceID[:],
 		WorkspaceName:    manifest.WorkspaceName,
 		WorkspaceBuildId: manifest.WorkspaceBuildID[:],
+		TemplateId:       manifest.TemplateID[:],
+		TemplateName:     manifest.TemplateName,
 		// #nosec G115 - Safe conversion for GitAuthConfigs which is expected to be small and positive
 		GitAuthConfigs:           uint32(manifest.GitAuthConfigs),
 		EnvironmentVariables:     manifest.EnvironmentVariables,

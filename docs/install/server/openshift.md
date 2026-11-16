@@ -44,7 +44,7 @@ coder:
     seccompProfile: RuntimeDefault # Unchanged from default
 ```
 
-- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project user ID (UID) and project group ID (GID) with the following command:
 
     ```console
     oc get project coder -o json | jq -r '.metadata.annotations'
@@ -166,7 +166,7 @@ helm install coder coder-v2/coder \
 ```
 
 > [!NOTE]
-> If the Helm installation fails with a Kubernetes RBAC error, check the permissions of your OpenShift user using the `oc auth can-i` command.
+> If the Helm installation fails with a Kubernetes role-based access control (RBAC) error, check the permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:
 >
@@ -312,5 +312,5 @@ This template should be ready to use straight away.
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

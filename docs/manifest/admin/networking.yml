@@ -20,6 +20,15 @@ children:
   - title: Wildcard access URLs
     description: Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.
     path: ./admin/networking/wildcard-access-url.md
+  - title: Apache reverse proxy
+    description: Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
+    path: ./admin/networking/reverse-proxy-apache.md
+  - title: Caddy
+    description: Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.
+    path: ./admin/networking/reverse-proxy-caddy.md
+  - title: NGINX reverse proxy
+    description: Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
+    path: ./admin/networking/reverse-proxy-nginx.md
   - title: Troubleshooting
     description: Diagnose and resolve Coder networking issues using coder ping and other built-in tools.
     path: ./admin/networking/troubleshooting.md

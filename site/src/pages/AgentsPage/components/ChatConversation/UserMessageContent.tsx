@@ -1,8 +1,12 @@
 import { cn } from "cn";
-import { Fragment } from "react";
+import type { UrlTransform } from "streamdown";
+import { getSkillAlias } from "../../utils/skillAliases";
+import type { InlineNode } from "../ChatElements/inlineNodes";
 import { Message, MessageContent } from "../ChatElements/Message";
+import { Response } from "../ChatElements/Response";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
+	getFileReferenceDisplay,
 	hasInlineContentAfter,
 	hasInlineContentBefore,
 	type InlinePart,
@@ -29,44 +33,52 @@ const getInlineParts = (
 	});
 };
 
-const renderUserInlineBlock = (
+const renderUserChip = (
 	inlineParts: readonly InlinePart[],
-	block: UserInlineRenderBlock,
+	block: Exclude<UserInlineRenderBlock, { type: "response" }>,
 	index: number,
-) => {
-	if (block.type === "response") {
-		return <Fragment key={index}>{block.text}</Fragment>;
-	}
+): InlineNode => {
 	const spacing = cn(
 		hasInlineContentBefore(inlineParts, index) && "ml-1",
 		hasInlineContentAfter(inlineParts, index) && "mr-1",
 	);
 	if (block.type === "skill-invocation") {
-		return (
-			<SkillChip
-				key={index}
-				source={block.skill_source}
-				name={block.skill_name}
-				className={spacing}
-			/>
-		);
+		return {
+			element: (
+				<SkillChip
+					source={block.skill_source}
+					name={block.skill_name}
+					className={spacing}
+				/>
+			),
+			text: getSkillAlias(block.skill_source, block.skill_name),
+		};
 	}
 
-	return (
-		<FileReferenceChip
-			key={index}
-			fileName={block.file_name}
-			startLine={block.start_line}
-			endLine={block.end_line}
-			className={spacing}
-		/>
-	);
+	const { title } = getFileReferenceDisplay({
+		fileName: block.file_name,
+		startLine: block.start_line,
+		endLine: block.end_line,
+	});
+	return {
+		element: (
+			<FileReferenceChip
+				fileName={block.file_name}
+				startLine={block.start_line}
+				endLine={block.end_line}
+				className={spacing}
+			/>
+		),
+		text: title,
+	};
 };
 
-const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
+const getUserMessageParts = (blocks: readonly UserInlineRenderBlock[]) => {
 	const inlineParts = getInlineParts(blocks);
 	return blocks.map((block, index) =>
-		renderUserInlineBlock(inlineParts, block, index),
+		block.type === "response"
+			? block.text
+			: renderUserChip(inlineParts, block, index),
 	);
 };
 
@@ -79,7 +91,15 @@ export const UserMessageContent: React.FC<{
 		attachment: PreviewTextAttachment,
 		trigger: HTMLButtonElement,
 	) => void;
-}> = ({ displayState, markdown, isEditing, onImageClick, onTextFileClick }) => {
+	urlTransform: UrlTransform;
+}> = ({
+	displayState,
+	markdown,
+	isEditing,
+	onImageClick,
+	onTextFileClick,
+	urlTransform,
+}) => {
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -93,11 +113,15 @@ export const UserMessageContent: React.FC<{
 					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (
-								<span className="min-w-0 flex-1">
+								<Response
+									className="min-w-0 flex-1 whitespace-normal"
+									preserveLineBreaks
+									urlTransform={urlTransform}
+								>
 									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(displayState.userInlineContent)
-										: markdown || ""}
-								</span>
+										? getUserMessageParts(displayState.userInlineContent)
+										: markdown}
+								</Response>
 							)}
 						</div>
 					)}

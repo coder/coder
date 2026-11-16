@@ -216,8 +216,6 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
-					{/* Spinner only: the leading icon shows failures, and a failed call
-					    keeps toolStatus "running" while its sub-agent still runs. */}
 					{toolStatus === "running" && !isError && !isTimeout && (
 						<ToolCall.Status />
 					)}

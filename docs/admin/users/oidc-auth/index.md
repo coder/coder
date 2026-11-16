@@ -6,10 +6,10 @@ The following steps through how to integrate any OpenID Connect provider (Okta, 
 
 ## Step 1: Set Redirect URI with your OIDC provider
 
-Your OIDC provider will ask you for the following parameter:
+Your OpenID Connect (OIDC) provider will ask you for the following parameter:
 
 - **Redirect URI**:
-  Set to `https://coder.domain.com/api/v2/users/oidc/callback`
+  Set to the Uniform Resource Identifier (URI) `https://coder.domain.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder with the OpenID Connect credentials
 
@@ -120,7 +120,7 @@ CODER_DISABLE_PASSWORD_AUTH=true
 ## SCIM
 
 > [!IMPORTANT]
-> SCIM is a Premium feature ([learn more](https://coder.com/pricing#compare-plans)).
+> System for Cross-domain Identity Management (SCIM) is a Premium feature ([learn more](https://coder.com/pricing#compare-plans)).
 >
 > Coder's SCIM 2.0 implementation is not a fully certified or guaranteed implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
 > It is intended to cover common user provisioning and deprovisioning flows with the major identity providers (Okta, Microsoft Entra ID, and so on).
@@ -138,7 +138,7 @@ CODER_SCIM_AUTH_HEADER="your-api-key"
 
 ### SCIM 2.0 handler
 
-Coder includes an opt-in SCIM 2.0 handler that follows [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been verified against an external SCIM 2.0 compliance suite.
+Coder includes an opt-in SCIM 2.0 handler that follows [Request for Comments (RFC) 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been verified against an external SCIM 2.0 compliance suite.
 It supports the following:
 
 - User provisioning and deprovisioning

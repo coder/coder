@@ -45,7 +45,7 @@ const TemplatePermissionsPage: React.FC = () => {
 					<SettingsHeaderDescription>
 						Manage which members and groups can use this template.{" "}
 						<SettingsHeaderDocsLink
-							href={docs("/admin/templates/template-permissions")}
+							href={docs("/templates/template-permissions")}
 						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>

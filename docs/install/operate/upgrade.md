@@ -63,7 +63,7 @@ See [Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-hel
 
 ### Windows
 
-Download the latest Windows installer or binary from [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade from Winget.
+Download the latest Windows installer or binary from the [Coder downloads page](https://coder.com/downloads), or upgrade from Winget.
 
 ```ps1
 winget install Coder.Coder

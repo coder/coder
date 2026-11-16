@@ -275,7 +275,6 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 			<PopoverContent
 				className="w-auto p-0 overflow-x-hidden overflow-y-auto"
 				align="end"
-				onOpenAutoFocus={(e) => e.preventDefault()}
 			>
 				<div className="flex">
 					{/* Quick picks. This list is the entire dropdown until the

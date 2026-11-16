@@ -33,7 +33,7 @@ Note that caching requires push access to a registry, and may require approval f
 
 Refer to the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md) for more information about Envbuilder and caching.
 
-Visit the [speed up templates](../../../../tutorials/best-practices/speed-up-templates.md) best practice documentation for more ways that you can speed up build times.
+Visit the [speed up templates](../../../../workspaces/speed-up-templates.md) best practice documentation for more ways that you can speed up build times.
 
 ### Image caching
 
@@ -53,4 +53,4 @@ You may also wish to consult a [documented example usage of the `envbuilder_cach
 ## Next steps
 
 - [Envbuilder releases and known issues](./envbuilder-releases-known-issues.md)
-- [Dotfiles](../../../../user-guides/workspace-dotfiles.md)
+- [Dotfiles](../../../../workspaces/workspace-dotfiles.md)

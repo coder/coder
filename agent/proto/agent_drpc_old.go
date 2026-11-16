@@ -129,3 +129,9 @@ type DRPCAgentClient214 interface {
 type DRPCAgentClient215 interface {
 	DRPCAgentClient214
 }
+
+// DRPCAgentClient216 is the Agent API at v2.16. It adds template_id and
+// template_name to the manifest. No new RPCs.
+type DRPCAgentClient216 interface {
+	DRPCAgentClient215
+}

@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
@@ -10,7 +9,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { UnsavedChangesDialog } from "#/components/Dialog/UnsavedChangesDialog/UnsavedChangesDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
@@ -743,7 +742,9 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 							environment (IAM role, instance profile, AWS_PROFILE).{" "}
 							<DocsLink
 								size="sm"
-								href={docs("/ai-coder/ai-gateway/providers#amazon-bedrock")}
+								href={docs(
+									"/ai-governance/ai-gateway/providers#amazon-bedrock",
+								)}
 								target="_blank"
 								rel="noreferrer"
 							>
@@ -789,22 +790,10 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 					</Button>
 				</div>
 			</FormFields>
-			<ConfirmDialog
-				type="info"
-				hideCancel={false}
+			<UnsavedChangesDialog
 				open={unsavedChanges.isOpen}
 				onClose={unsavedChanges.onCancel}
 				onConfirm={unsavedChanges.onConfirm}
-				title="Unsaved changes"
-				confirmText="Confirm"
-				description={
-					<div className="flex items-start gap-3">
-						<TriangleAlertIcon className="size-icon-sm mt-1 shrink-0" />
-						<p className="m-0">
-							Your updates haven't been saved. Leave anyway?
-						</p>
-					</div>
-				}
 			/>
 		</Form>
 	);

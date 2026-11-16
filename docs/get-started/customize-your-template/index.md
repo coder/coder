@@ -110,5 +110,5 @@ Start with [Add a programming language](./add-a-language.md), then work through 
 
 ## Learn more
 
-- [Extending templates](../../admin/templates/extending-templates/index.md) in the Coder documentation
+- [Extending templates](../../templates/extending-templates/index.md) in the Coder documentation
 - [Terraform documentation](https://developer.hashicorp.com/terraform) from HashiCorp

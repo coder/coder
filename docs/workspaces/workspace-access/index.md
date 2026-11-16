@@ -1,0 +1,247 @@
+---
+title: Access your workspace
+---
+
+There are many ways to connect to your workspace, the options are only limited by the template configuration.
+
+Deployment operators can learn more about different types of workspace connections and performance in our [networking docs](../../install/plan/index.md).
+
+You can see the primary methods of connecting to your workspace in the workspace dashboard.
+
+![Workspace View](../../images/user-guides/workspace-view-connection-annotated.png)
+
+## Web Terminal
+
+The Web Terminal is a browser-based terminal that provides instant access to your workspace's shell environment.
+It uses [xterm.js](https://xtermjs.org/) and WebSocket technology for a responsive terminal experience with features like persistent sessions, Unicode support, and clickable URLs.
+
+![Terminal Access](../../images/user-guides/terminal-access.png)
+
+Read the complete [Web Terminal documentation](./web-terminal.md) for customization options, keyboard shortcuts, and troubleshooting guides.
+
+## Install the CLI
+
+Download the `coder` CLI for your platform from the [Coder downloads page](https://coder.com/downloads).
+
+On macOS and Linux, you can also install the CLI from your Coder deployment.
+The install script downloads the CLI from your deployment, so it works in air-gapped deployments and installs the same version as your control plane.
+
+1. In the dashboard, open your user menu.
+1. Select **Install CLI**.
+1. Copy the command on the page.
+
+   ![Install Coder binary from your deployment](../../images/install/install_from_deployment.png)
+
+1. Run the command in your terminal.
+
+## SSH
+
+### Through the CLI
+
+Coder will use the optimal path for an SSH connection (determined by your deployment's [networking configuration](../../install/plan/index.md)) when using the CLI:
+
+```console
+coder ssh my-workspace
+```
+
+Or, you can configure plain SSH on your client below.
+
+> [!NOTE]
+> The `coder ssh` command does not have full parity with the standard SSH command.
+> For users who need the full functionality of SSH, use the configuration method below.
+
+<a id="running-remote-commands-with-quoting"></a>
+
+### Run remote commands with quoting
+
+Arguments after `--` are joined with spaces into a single command string before being sent to the workspace agent (per [Request for Comments (RFC) 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5), which defines the SSH exec request as a single string).
+Your local shell consumes outer quotes before the CLI ever sees the arguments, so inner quoting is not preserved on the wire.
+
+This means a common pattern from interactive shells does not behave as you might expect:
+
+```console
+# Surprising: prints an empty line, NOT "ready"
+coder ssh my-workspace -- bash -c 'echo ready'
+```
+
+The local shell strips the single-quotes, the CLI receives the argv `[bash, -c, echo, ready]`, and the remote agent runs `bash -c echo ready`.
+`echo` gets no arguments and `ready` is bound to `$0`.
+The same caveat applies to plain `ssh user@host -- bash -c '...'`.
+This is SSH protocol semantics, not a `coder ssh` limitation.
+
+For commands that need preserved quoting, use one of these patterns:
+
+**Heredoc via stdin** (recommended for multi-line scripts):
+
+```console
+coder ssh my-workspace -- bash <<'EOF'
+echo ready
+EOF
+```
+
+**A single-argument script payload**:
+
+```console
+coder ssh my-workspace -- /path/to/script.sh
+```
+
+**Exit-code-only probe** (when you only need to know if the command succeeded):
+
+```console
+coder ssh my-workspace -- true && echo "agent is reachable"
+```
+
+### Configure SSH
+
+Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for each user to simplify the setup process.
+
+1. Use your terminal to authenticate the CLI with Coder web UI and your workspaces:
+
+   ```sh
+   coder login <accessURL>
+   ```
+
+1. Access Coder via SSH:
+
+   ```sh
+   coder config-ssh
+   ```
+
+1. Run `coder config-ssh --dry-run` if you'd like to see the changes that will be before you proceed:
+
+   ```sh
+   coder config-ssh --dry-run
+   ```
+
+1. Confirm that you want to continue by typing **yes** and pressing enter.
+   If successful, you'll see the following message:
+
+   ```console
+   You should now be able to ssh into your workspace.
+   For example, try running:
+
+   $ ssh <workspace_name>.coder
+   ```
+
+Your workspace is now accessible via `ssh <workspace_name>.coder` (for example, `ssh myEnv.coder` if your workspace is named `myEnv`).
+If your workspace has more than one agent, include the agent and owner: `ssh <agent>.<workspace_name>.<owner>.coder`.
+The **Connect via SSH** button on the workspace page shows the exact command for each agent.
+
+`coder` is the default hostname suffix.
+Your administrator can change it with [`CODER_WORKSPACE_HOSTNAME_SUFFIX`](../../reference/cli/server/index.md#--workspace-hostname-suffix).
+
+> [!TIP]
+> If you use a third-party SSH client that discovers hosts by parsing `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that enumerate known hosts), run `coder config-ssh --no-wildcard` instead.
+> This generates an individual `Host` entry for each workspace and its known agents rather than a single wildcard block, making your workspaces visible to those tools.
+
+For a stopped workspace, Coder uses agent names from its most recent successful start.
+If that start is unavailable or used a different version from the workspace's current template version, Coder generates only the workspace entry.
+
+To populate missing agent entries:
+
+1. Start the workspace successfully.
+1. Run `coder config-ssh --no-wildcard` again to add the agent entries.
+
+## Visual Studio Code
+
+You can develop in your Coder workspace remotely with [VS Code](https://code.visualstudio.com/download).
+We support connecting with the desktop client and VS Code in the browser with [code-server](#code-server).
+
+![Demo](https://github.com/coder/vscode-coder/raw/main/media/demo.gif?raw=true)
+
+Read more details on [using VS Code in your workspace](./vscode.md).
+
+## Cursor
+
+[Cursor](https://cursor.sh/) is an IDE built on VS Code with enhanced AI capabilities.
+Cursor connects using the Coder extension.
+
+Read more about [using Cursor with your workspace](./cursor.md).
+
+## Devin Desktop
+
+[Devin Desktop](./devin-desktop.md) (formerly Windsurf, formerly Codeium) is Cognition's AI-powered code editor designed for AI-assisted development.
+Devin Desktop connects using the Coder extension.
+
+## Antigravity
+
+[Antigravity](https://antigravity.google/) is Google's desktop IDE.
+Antigravity connects using the Coder extension.
+
+Read more about [using Antigravity with your workspace](./antigravity.md).
+
+## Claude Desktop
+
+[Claude Desktop](https://claude.com/download) is Anthropic's desktop app for Claude.
+Once the Coder CLI is installed and logged in, your running workspaces appear in Claude Desktop.
+
+Read more about [using Claude Desktop with your workspace](./claude-desktop.md).
+
+## JetBrains IDEs
+
+We support JetBrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/).
+The following IDEs are supported for remote development:
+
+- IntelliJ IDEA
+- CLion
+- GoLand
+- PyCharm
+- Rider
+- RubyMine
+- WebStorm
+
+Read our [docs on JetBrains](./jetbrains/index.md) for more information on connecting your JetBrains IDEs.
+
+## code-server
+
+[code-server](https://github.com/coder/code-server) is our supported method of running VS Code in the web browser.
+Learn more about [what makes code-server different from VS Code web](./code-server.md) or visit the [documentation for code-server](https://coder.com/docs/code-server).
+
+![code-server in a workspace](../../images/code-server-ide.png)
+
+## Other Web IDEs
+
+We support a variety of other browser IDEs and tools to interact with your workspace.
+Each of these can be configured by your template admin using our [Web IDE guides](../../templates/extending-templates/web-ides.md).
+
+Supported IDEs:
+
+- VS Code Web
+- JupyterLab
+- RStudio
+- Airflow
+- File Browser
+
+Our [Module Registry](https://registry.coder.com/modules) also hosts a variety of tools for extending the capability of your workspace.
+If you have a request for a new IDE or tool, file an issue in our [Modules repo](https://github.com/coder/registry/issues).
+
+## Coder Desktop
+
+[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a virtual private network (VPN) tunnel.
+With Coder Desktop, you get:
+
+- **Automatic port forwarding**:
+  All workspace ports are available at `workspace-name.coder:PORT` with no manual setup
+- **SSH access**:
+  Connect with `ssh workspace-name.coder` using any SSH client, or `ssh agent-name.workspace-name.owner.coder` for workspaces with more than one agent.
+- **File sync**:
+  Bidirectional file synchronization between local and remote directories
+
+Coder Desktop is the recommended way to access workspace services for developers who want a seamless, native experience.
+
+## Ports and Port forwarding
+
+You can manage listening ports on your workspace page through the listening ports window in the dashboard.
+These ports are often used to run internal services or preview environments.
+
+> [!TIP]
+> For automatic access to all ports without manual configuration, use [Coder Desktop](../desktop/index.md).
+
+You can also [share ports](./port-forwarding.md#share-ports) with other users, or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through the CLI with `coder port-forward`.
+Read more in the [docs on workspace ports](./port-forwarding.md).
+
+![Open Ports window](../../images/networking/listeningports.png)
+
+## Remote Desktops
+
+Coder also supports connecting with a Remote Desktop Protocol (RDP) solution, see our [RDP guide](./remote-desktops.md) for details.

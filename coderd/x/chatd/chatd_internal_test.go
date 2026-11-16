@@ -424,33 +424,6 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	require.True(t, fetched.Summary.Valid)
 }
 
-func TestComputerUseProviderForAIProviderType(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		providerType database.AIProviderType
-		want         codersdk.ChatComputerUseProvider
-	}{
-		{providerType: database.AIProviderTypeAnthropic, want: codersdk.ChatComputerUseProviderAnthropic},
-		{providerType: database.AIProviderTypeOpenai, want: codersdk.ChatComputerUseProviderOpenAI},
-		{providerType: database.AIProviderTypeAzure},
-		{providerType: database.AIProviderTypeBedrock},
-		{providerType: database.AIProviderTypeGoogle},
-		{providerType: database.AIProviderTypeOpenaiCompat},
-		{providerType: database.AIProviderTypeOpenrouter},
-		{providerType: database.AIProviderTypeVercel},
-		{providerType: database.AIProviderTypeCopilot},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.providerType), func(t *testing.T) {
-			t.Parallel()
-			got, ok := computerUseProviderForAIProviderType(string(tt.providerType))
-			require.Equal(t, tt.want != "", ok)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestRequireResponsesAPI(t *testing.T) {
 	t.Parallel()
 

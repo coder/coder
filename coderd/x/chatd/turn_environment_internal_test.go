@@ -298,7 +298,8 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 }
 
 // Computer use chats run on their own model config; the tool flavor follows
-// that model's AI provider type.
+// that model's AI provider type and model ID, and the Anthropic tool version
+// follows the model on every platform.
 func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
@@ -328,25 +329,54 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			wantToolVersion: fantasyanthropic.ComputerUse20251124,
 		},
 		{
-			// Claude Platform on AWS has no toolset.
+			name:            "AnthropicUnknownModel",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "company-default-model",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			// The platform does not change the version.
 			name:         "ClaudePlatformAWS",
 			providerType: database.AIProviderTypeAnthropic,
 			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
 				Region:      "us-east-2",
 				WorkspaceID: "wrkspc_test",
 			}},
-			model:           "claude-opus-5",
+			model:           "claude-opus-5-5",
 			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
-			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
 		},
 		{
-			// Amazon Bedrock has no toolset.
 			name:            "AnthropicBedrock",
 			providerType:    database.AIProviderTypeAnthropic,
 			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
-			model:           "claude-opus-5-5",
+			model:           "us.anthropic.claude-opus-5-5",
 			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
-			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "BedrockClaude",
+			providerType:    database.AIProviderTypeBedrock,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "us.anthropic.claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "BedrockClaudeComputer20250124",
+			providerType:    database.AIProviderTypeBedrock,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "anthropic.claude-haiku-4-5-20251001-v1:0",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20250124,
+		},
+		{
+			name:         "BedrockNonClaude",
+			providerType: database.AIProviderTypeBedrock,
+			settings:     codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:        "openai.gpt-5.4",
+			wantErr:      "computer use requires " + chatprovider.ComputerUseModelRequirement,
 		},
 		{
 			// The model is absent from the SDK's known Responses models, so
@@ -367,7 +397,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			name:         "UnsupportedProvider",
 			providerType: database.AIProviderTypeOpenrouter,
 			model:        "openai/gpt-4o-mini",
-			wantErr:      "computer use requires a model from an Anthropic or OpenAI AI provider",
+			wantErr:      "computer use requires " + chatprovider.ComputerUseModelRequirement,
 		},
 	}
 	for _, tt := range tests {
@@ -1553,19 +1583,20 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
 		disabledCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			ID:             uuid.New(),
-			OrganizationID: chatOrg.ID,
-			DisplayName:    "Disabled MCP Server",
-			Slug:           testutil.GetRandomName(t),
-			Url:            "https://mcp.example.com",
-			Transport:      "streamable_http",
-			AuthType:       "none",
-			ToolAllowList:  []string{},
-			ToolDenyList:   []string{},
-			Availability:   "default_off",
-			Enabled:        false,
-			CreatedBy:      user.ID,
-			UpdatedBy:      user.ID,
+			ID:                       uuid.New(),
+			OrganizationID:           chatOrg.ID,
+			DisplayName:              "Disabled MCP Server",
+			Slug:                     testutil.GetRandomName(t),
+			Url:                      "https://mcp.example.com",
+			Transport:                "streamable_http",
+			AuthType:                 "none",
+			OAuth2ClientRegistration: "manual",
+			ToolAllowList:            []string{},
+			ToolDenyList:             []string{},
+			Availability:             "default_off",
+			Enabled:                  false,
+			CreatedBy:                user.ID,
+			UpdatedBy:                user.ID,
 		})
 		require.NoError(t, err)
 

@@ -1050,6 +1050,38 @@ func TestIsAnthropicFamilyModelID(t *testing.T) {
 	}
 }
 
+func TestComputerUseProvider(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		providerType database.AIProviderType
+		model        string
+		want         codersdk.ChatComputerUseProvider
+	}{
+		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+		{name: "AnthropicAnyModel", providerType: database.AIProviderTypeAnthropic, model: "custom-model", want: codersdk.ChatComputerUseProviderAnthropic},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "gpt-5.4", want: codersdk.ChatComputerUseProviderOpenAI},
+		{name: "BedrockClaude", providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+		{name: "BedrockClaudeFoundationModelARN", providerType: database.AIProviderTypeBedrock, model: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-5-5-v1:0", want: codersdk.ChatComputerUseProviderAnthropic},
+		{name: "BedrockOpenAI", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.4"},
+		{name: "OpenRouterClaude", providerType: database.AIProviderTypeOpenrouter, model: "anthropic/claude-opus-5-5"},
+		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-5.4"},
+		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash"},
+		{name: "Vercel", providerType: database.AIProviderTypeVercel, model: "anthropic/claude-opus-5-5"},
+		{name: "OpenAICompat", providerType: database.AIProviderTypeOpenaiCompat, model: "claude-opus-5-5"},
+		{name: "Copilot", providerType: database.AIProviderTypeCopilot, model: "claude-opus-5-5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := chatprovider.ComputerUseProvider(tt.providerType, tt.model)
+			require.Equal(t, tt.want != "", ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestResolveModelWithProviderHint(t *testing.T) {
 	t.Parallel()
 

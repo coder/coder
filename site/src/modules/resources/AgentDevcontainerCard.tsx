@@ -255,11 +255,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={subAgent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
+						<AgentSSHButton workspace={workspace} agentName={subAgent.name} />
 					)}
 					{showDevcontainerControls &&
 						displayApps.includes("port_forwarding_helper") &&

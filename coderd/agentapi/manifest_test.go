@@ -50,6 +50,8 @@ func TestGetManifest(t *testing.T) {
 			OwnerID:       owner.ID,
 			OwnerUsername: owner.Username,
 			Name:          "cool-workspace",
+			TemplateID:    uuid.New(),
+			TemplateName:  "cool-template",
 		}
 		// agentBuild is the build that created the agent; workspace secrets
 		// are looked up by its ID.
@@ -373,6 +375,8 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceId:              workspace.ID[:],
 			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
+			TemplateId:               workspace.TemplateID[:],
+			TemplateName:             workspace.TemplateName,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,
 			Directory:                agent.Directory,
@@ -443,6 +447,8 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceId:              workspace.ID[:],
 			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
+			TemplateId:               workspace.TemplateID[:],
+			TemplateName:             workspace.TemplateName,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     nil,
 			Directory:                childAgent.Directory,
@@ -748,6 +754,8 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceId:              workspace.ID[:],
 			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
+			TemplateId:               workspace.TemplateID[:],
+			TemplateName:             workspace.TemplateName,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,
 			Directory:                agent.Directory,

@@ -21107,3 +21107,44 @@ func TestGetWorkspaceSecretsPaginates(t *testing.T) {
 	require.Equal(t, want, got, "every live secret is listed once, in id order")
 	require.Equal(t, 3, pages)
 }
+
+func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newBuild := func(params ...database.WorkspaceBuildParameter) uuid.UUID {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Params(params...).Do().Build.ID
+	}
+	queried := newBuild(
+		database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "session"},
+		database.WorkspaceBuildParameter{Name: "agent_relay_cursor_pool_name", Value: "pool"},
+		// An underscore in a prefix must not match any character.
+		database.WorkspaceBuildParameter{Name: "agent_relayXcursor_pool_name", Value: "wildcard"},
+		database.WorkspaceBuildParameter{Name: "agent_relay_credential", Value: "token"},
+		database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
+	)
+	// A matching parameter on another build must not be returned.
+	_ = newBuild(database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "other"})
+
+	params, err := db.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams{
+		WorkspaceBuildIds: []uuid.UUID{queried},
+		Names:             []string{"agent_relay_session_id"},
+		NamePrefixes:      []string{"agent_relay_cursor_"},
+	})
+	require.NoError(t, err)
+	got := make(map[string]string, len(params))
+	for _, param := range params {
+		require.Equal(t, queried, param.WorkspaceBuildID)
+		got[param.Name] = param.Value
+	}
+	require.Equal(t, map[string]string{
+		"agent_relay_session_id":       "session",
+		"agent_relay_cursor_pool_name": "pool",
+	}, got)
+}

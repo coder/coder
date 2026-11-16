@@ -215,7 +215,8 @@ func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]by
 // UpdateWorkspaceBuildStateRequest is the request body for updating the
 // provisioner state of a workspace build.
 type UpdateWorkspaceBuildStateRequest struct {
-	State []byte `json:"state"`
+	// State is the provisioner state, which JSON carries as a base64 string.
+	State []byte `json:"state" swaggertype:"string" format:"byte"`
 }
 
 // UpdateWorkspaceBuildState updates the provisioner state of the build without

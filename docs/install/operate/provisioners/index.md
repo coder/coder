@@ -10,7 +10,7 @@ However, there are often benefits to running external provisioner daemons:
 
 - **Isolate APIs:**
   Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
-  See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
+  See [Provider Authentication](../../../templates/extending-templates/provider-authentication.md) for more details.
 
 - **Isolate secrets**:
   Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
@@ -22,7 +22,7 @@ However, there are often benefits to running external provisioner daemons:
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
+Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://coder.com/downloads).
 Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
@@ -95,7 +95,7 @@ Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners), 
 
 ## Global PSK (Not Recommended)
 
-We do not recommend using global PSK.
+We do not recommend using global pre-shared key (PSK).
 
 Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisioners.
 
@@ -146,7 +146,7 @@ This can also be done in the UI when building a template:
 ![template tags](../../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via [workspace tags](../../../../examples/workspace-tags) inside the Terraform.
-See the [workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md) for more information.
+See the [workspace tags documentation](../../../templates/extending-templates/workspace-tags.md) for more information.
 
 > [!NOTE]
 > Workspace tags defined with the `coder_workspace_tags` data source template **do not** automatically apply to the template import job!

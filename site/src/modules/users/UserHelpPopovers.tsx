@@ -11,7 +11,12 @@ export const RolesHelpPopover: React.FC = () => {
 				Coder role-based access control (RBAC) provides fine-grained access
 				management. View our docs on how to use the available roles.
 				<br />
-				<Link size="sm" href={docs("/admin/users/groups-roles")}>
+				<Link
+					size="sm"
+					href={docs("/admin/users/groups-roles")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					User Roles
 				</Link>
 			</TooltipMessage>
@@ -27,7 +32,12 @@ export const GroupsHelpPopover: React.FC = () => {
 				Groups can be used with template RBAC to give groups of users access to
 				specific templates. View our docs on how to use groups.
 				<br />
-				<Link size="sm" href={docs("/admin/users/groups-roles")}>
+				<Link
+					size="sm"
+					href={docs("/admin/users/groups-roles")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Groups
 				</Link>
 			</TooltipMessage>

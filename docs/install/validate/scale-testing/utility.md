@@ -7,7 +7,7 @@ For scale-testing Kubernetes clusters we recommend that you install and use the 
 
 Learn more about [Coder’s architecture](../../plan/architecture.md) and our [scale-testing methodology](../scale-testing.md).
 
-For more information about scaling, see our [Coder scaling best practices](../../../tutorials/best-practices/scale-coder.md).
+For more information about scaling, see our [Coder scaling best practices](../scale-coder.md).
 
 ## Recent scale tests
 

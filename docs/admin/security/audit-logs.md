@@ -543,6 +543,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>model_intent</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_auth_url</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_client_registration</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
 <tr><td><code>oauth2_resource</code></td><td>Yes</td></tr>

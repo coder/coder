@@ -2230,14 +2230,27 @@ func TestChatTurnStopsAtStepLimit(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			for i := range tt.preseededSteps {
-				callID := fmt.Sprintf("preseeded-%d", i)
-				insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
-					codersdk.ChatMessageToolCall(callID, "list_templates", json.RawMessage(`{}`)),
-				})
-				insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleTool, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
-					codersdk.ChatMessageToolResult(callID, "list_templates", json.RawMessage(`{"templates":[]}`), false, false),
-				})
+			if tt.preseededSteps > 0 {
+				// Insert every preseeded step in one statement. A round
+				// trip per message can take most of the context's budget
+				// on a loaded CI database.
+				preseeded := database.InsertChatMessagesParams{ChatID: chat.ID}
+				for i := range tt.preseededSteps {
+					callID := fmt.Sprintf("preseeded-%d", i)
+					toolCall, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+						codersdk.ChatMessageToolCall(callID, "list_templates", json.RawMessage(`{}`)),
+					})
+					require.NoError(t, err)
+					toolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+						codersdk.ChatMessageToolResult(callID, "list_templates", json.RawMessage(`{"templates":[]}`), false, false),
+					})
+					require.NoError(t, err)
+					appendChatMessageInsertParams(&preseeded, database.ChatMessageRoleAssistant, toolCall, model.ID, uuid.Nil)
+					appendChatMessageInsertParams(&preseeded, database.ChatMessageRoleTool, toolResult, model.ID, uuid.Nil)
+				}
+				inserted, err := db.InsertChatMessages(ctx, preseeded)
+				require.NoError(t, err)
+				require.Len(t, inserted, 2*tt.preseededSteps)
 			}
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -2883,7 +2896,7 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 			switch streamedCallCount.Add(1) {
 			case 1:
 				return chattest.OpenAIStreamingResponse(
-					chattest.OpenAIToolCallChunk("propose_plan", `{}`),
+					chattest.OpenAIToolCallChunk("propose_plan", `{"path":""}`),
 				)
 			default:
 				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("should not continue")...)
@@ -11907,7 +11920,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 			}
 			proposePlanReached.Store(true)
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("propose_plan", `{}`),
+				chattest.OpenAIToolCallChunk("propose_plan", `{"path":""}`),
 			)
 		default:
 			return chattest.OpenAIStreamingResponse(
