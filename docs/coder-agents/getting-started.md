@@ -197,9 +197,9 @@ Consider:
 
 Community and Premium licenses run up to 5 agents at once.
 Additional agents queue and start automatically when capacity frees.
-An AI Premium license, which includes Agent Hours, does not impose a concurrency limit unless the Agent Hours hard limit is reached.
-If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
-When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
+An AI Premium license, which includes Agent hours, does not impose a concurrency limit unless the Agent hours hard limit is reached.
+If the Agent hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
+When the Agent hours hard limit is reached, additional agents queue under the concurrency limit.
 Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
 
 ### Pilot with a small group
