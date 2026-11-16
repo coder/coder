@@ -2331,7 +2331,11 @@ func TestTemplateVersionVariables(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
+		// A template admin, not the owner: the placeholder variable rows are
+		// written with a system-restricted context, and this guards the
+		// authorization of that path for non-owner users.
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, user.OrganizationID,
 			createEchoResponses(templateVariables),
 			func(ctvr *codersdk.CreateTemplateVersionRequest) {
 				ctvr.UserVariableValues = []codersdk.VariableValue{

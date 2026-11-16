@@ -1784,8 +1784,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// treated as sensitive so it is encrypted at rest when dbcrypt is
 		// enabled. Import completion replaces these rows with the parsed
 		// variables.
+		//
+		// The variables store methods are system-scoped because they are
+		// otherwise only used by the provisioner daemon server. The caller
+		// was already authorized to create this template version above, and
+		// these rows only persist the values it supplied for it.
 		for _, variableValue := range req.UserVariableValues {
-			_, err = tx.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
+			//nolint:gocritic // See above.
+			_, err = tx.InsertTemplateVersionVariable(dbauthz.AsSystemRestricted(ctx), database.InsertTemplateVersionVariableParams{
 				TemplateVersionID: templateVersionID,
 				Name:              variableValue.Name,
 				Value:             variableValue.Value,
