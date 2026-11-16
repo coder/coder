@@ -20,13 +20,13 @@ Use `.claude/skills/code-review/` for focused single-domain changes or quick sin
 
 ## When NOT to use this skill
 
-- Docs-only or config-only PRs (no code to structurally review). Use `.claude/skills/doc-check/` instead.
+- Docs-only or config-only PRs (no code to structurally review).
 - Single-file changes under ~50 lines.
 - The PR author asked for a quick review.
 
 ## 0. Proportionality check
 
-Estimate scope before committing to a deep review. If the PR has fewer than 3 files and fewer than 100 lines changed, suggest code-review instead. If the PR is docs-only, suggest doc-check. Proceed only if the change warrants multi-reviewer analysis.
+Estimate scope before committing to a deep review. If the PR has fewer than 3 files and fewer than 100 lines changed, suggest code-review instead. Proceed only if the change warrants multi-reviewer analysis.
 
 ## 1. Scope the change
 

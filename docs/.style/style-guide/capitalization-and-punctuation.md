@@ -1,7 +1,3 @@
----
-review-personas: [language, structure]
----
-
 # Capitalization and punctuation
 
 Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, no semicolons in prose, and no em-dashes or en-dashes in prose.

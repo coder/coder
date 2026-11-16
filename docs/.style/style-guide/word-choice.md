@@ -1,7 +1,3 @@
----
-review-personas: [language, consistency, accuracy]
----
-
 # Word choice
 
 Coder documentation uses canonical brand and product names, plain language for product actions, and "refer to" or "visit" instead of "see" for navigational pointers.

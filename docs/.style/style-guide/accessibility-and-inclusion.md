@@ -1,7 +1,3 @@
----
-review-personas: [language, structure, audience]
----
-
 # Accessibility and inclusion
 
 The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA conformance wherever it doesn't sacrifice clarity.
