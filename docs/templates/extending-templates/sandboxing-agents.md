@@ -1,27 +1,30 @@
 ---
-title: Sandbox workspaces
+title: Sandboxing agents
 ---
 
-A sandbox is a workspace that limits what code inside it can reach, so you can run an AI agent or other untrusted code with less risk.
-This page is for template authors and platform engineers who build those workspaces.
-It describes the four properties a sandbox can combine, and which ones Coder provides and which come from a runtime, network plugin, or proxy you add to the template.
+An AI agent runs commands, installs packages, and reads files without a person checking each step.
+A prompt injection in a README, an issue, or a web page can change what the agent does.
+An agent sandbox is a workspace that limits what the agent can reach, so a mistake or an attack stays inside that workspace.
+
+This page is for template authors and platform engineers who build workspaces for agents, such as Claude Code, Codex, or [Coder Agents](../../coder-agents/index.md).
+It describes the four properties an agent sandbox can combine, and which ones Coder provides and which come from a runtime, network plugin, or proxy you add to the template.
 
 | Property                                | What it limits                                      | Coder provides                              | You add with the template                              |
 |-----------------------------------------|-----------------------------------------------------|---------------------------------------------|--------------------------------------------------------|
-| [Fast startup](#fast-startup)           | Nothing, but a slow sandbox doesn't get used        | Prebuilt workspaces and the build timeline  | A cluster warm pool, such as agent-sandbox             |
+| [Fast startup](#fast-startup)           | Nothing, but users skip a slow sandbox              | Prebuilt workspaces and the build timeline  | A cluster warm pool, such as agent-sandbox             |
 | [Kernel isolation](#kernel-isolation)   | Access to the host kernel and other workloads on it | VM-based templates                          | A container runtime such as gVisor, Kata, or Sysbox    |
-| [Network isolation](#network-isolation) | The hosts and ports the workspace can connect to    | Agent Firewall                              | A NetworkPolicy, an egress proxy, OpenShell, or Cilium |
-| [Secret isolation](#secret-isolation)   | The credentials that code in the workspace can read | Scoped tokens, AI Gateway, service accounts | Short-lived cloud credentials for each workspace       |
+| [Network isolation](#network-isolation) | The hosts and ports the agent can connect to        | Agent Firewall                              | A NetworkPolicy, an egress proxy, OpenShell, or Cilium |
+| [Secret isolation](#secret-isolation)   | The credentials that the agent can read             | Scoped tokens, AI Gateway, service accounts | Short-lived cloud credentials for each workspace       |
 
-Each property is independent, so you can pick the ones your workloads need.
+Each property is independent, so you can pick the ones your agents need.
 A template applies them per workspace, and [parameters](./parameters/index.md) or [presets](./parameters/workspace-presets.md) let users or groups pick a profile, such as a stricter network for one team.
 
 For a template that runs the AI agent in a separate Pod from the user, refer to [Network isolation](../../coder-agents/platform-controls/agent-isolation.md) in the Coder Agents docs.
 
 ## Fast startup
 
-Agents often start a new workspace for each task.
-If the sandbox takes minutes to start, users skip it.
+Agents often start a new workspace for each task, so they create many more workspaces than people do.
+If the sandbox takes minutes to start, users run the agent on their own machine instead.
 
 | Method                                                                       | Provided by        | Description                                                                                        |
 |------------------------------------------------------------------------------|--------------------|----------------------------------------------------------------------------------------------------|
@@ -35,8 +38,8 @@ To keep the claim fast, refer to [Prevent resource replacement](./prebuilt-works
 ## Kernel isolation
 
 A standard container shares the node's kernel with every other container on the node.
-A kernel bug or container escape in one workspace can reach the node and the other workloads on it.
-Kernel isolation gives each workspace its own kernel, or a kernel that runs in user space.
+If an agent runs an exploit for a kernel bug, it can escape the container and reach the node and the other workloads on it.
+Kernel isolation gives each agent workspace its own kernel, or a kernel that runs in user space.
 
 | Method                                                               | Provided by          | Description                                                                                                                        | Requirements                                                              |
 |----------------------------------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|
@@ -63,11 +66,11 @@ To let users pick a runtime, set `runtime_class_name` from a [parameter](./param
 
 ## Network isolation
 
-Network isolation works as a firewall for the workspace.
-It limits where an AI agent can send data, so a prompt injection can't send your code or credentials to an attacker's host.
+Network isolation works as a firewall for the agent.
+It limits where the agent can send data, so a prompt injection can't send your code or credentials to an attacker's host.
 
 The workspace always needs to reach the Coder server.
-The agent relays connections through it, so the workspace needs no inbound access.
+The Coder workspace agent relays connections through it, so the workspace needs no inbound access.
 For the connections Coder uses, refer to [Outbound network access](../../admin/security/security-best-practices.md#outbound-network-access).
 
 | Method                                                                                                | Provided by               | Rules by                                       | Description                                                                                                       |
@@ -80,18 +83,18 @@ For the connections Coder uses, refer to [Outbound network access](../../admin/s
 
 > [!WARNING]
 > Kubernetes accepts a NetworkPolicy even when the network plugin doesn't enforce it.
-> Test each rule from inside a workspace before you run untrusted code in it.
+> Test each rule from inside a workspace before you run an agent in it.
 
 Rules by host name still allow every path on an allowed host.
 If an allowed host stores user content, such as a code host or a file share, an agent can still send data to it.
 
 ## Secret isolation
 
-An AI agent can use any credential it can read.
+An agent can use any credential it can read, and a prompt injection can tell it to send that credential somewhere.
 Keep credentials that the task doesn't need out of the workspace, and give the rest the smallest scope that works.
 
-Every process that the Coder agent starts, such as a terminal, an app, or a startup script, gets the agent token in `CODER_AGENT_TOKEN`.
-Code that holds the agent token can read these:
+Every process that the Coder workspace agent starts, such as a terminal, an app, a startup script, or an AI agent, gets the workspace agent token in `CODER_AGENT_TOKEN`.
+An AI agent that reads this token can use it to get:
 
 - The workspace owner's Git SSH key.
 - The owner's tokens for each [external auth](../../admin/external-auth.md) provider that the owner has linked.
@@ -101,7 +104,7 @@ To limit what an agent can read:
 
 | Method                                                                | Provided by         | Description                                                                                                                         |
 |-----------------------------------------------------------------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| [API key scopes](../../admin/users/sessions-tokens.md#api-key-scopes) | Coder               | Give tools in the workspace a token with only the scopes they need, instead of the owner's session token.                           |
+| [API key scopes](../../admin/users/sessions-tokens.md#api-key-scopes) | Coder               | Give the agent a token with only the scopes it needs, instead of the owner's session token.                                         |
 | [AI Gateway](../../ai-governance/ai-gateway/index.md)                 | Coder Premium       | The agent calls model providers through Coder with a Coder token, so the provider API keys stay on the Coder server.                |
 | [Service accounts](../../admin/users/headless-auth.md)                | Coder Premium       | Run autonomous agents as a headless user with no linked external auth, no personal secrets, and only the template access they need. |
 | [Dynamic secrets](../../admin/security/secrets.md#dynamic-secrets)    | Your cloud provider | Create a short-lived credential or service account for each workspace in the template, tied to the workspace lifecycle.             |
@@ -111,7 +114,7 @@ It has the owner's full access to the Coder API.
 
 ## Registry templates
 
-These templates in the [Coder Registry](https://registry.coder.com/templates) combine several properties.
+These templates in the [Coder Registry](https://registry.coder.com/templates) build agent sandboxes that combine several properties.
 Each one is a starting point that you adapt to your cluster.
 
 | Template                                                                                               | Fast startup                          | Kernel isolation        | Network isolation                         |
