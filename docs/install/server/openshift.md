@@ -41,10 +41,11 @@ coder:
     runAsUser: <project-specific UID> # Default: 1000, replace this with the correct UID for your project.
     runAsGroup: <project-specific GID> # Default: 1000, replace this with the correct GID for your project.
     readOnlyRootFilesystem: true # Default: false, this is often required in OpenShift environments.
-    seccompProfile: RuntimeDefault # Unchanged from default
+    seccompProfile:
+      type: RuntimeDefault # Unchanged from default
 ```
 
-- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project user ID (UID) and project group ID (GID) with the following command:
 
     ```console
     oc get project coder -o json | jq -r '.metadata.annotations'
@@ -68,7 +69,7 @@ coder:
 
   If you are unsure, we recommend setting `readOnlyRootFilesystem` to `true` in an OpenShift environment.
 
-- For `seccompProfile`: in some environments, you may need to set this to `null` to allow OpenShift to pick its preferred value.
+- For `seccompProfile`: in some environments, you might need to set this to `null` to allow OpenShift to pick its preferred value.
 
 ### 3. Configure the Coder service, connection URLs, and cache values
 
@@ -84,7 +85,7 @@ In the below example, we mount this under `/tmp` and set the cache location to `
 This enables Coder to run with `readOnlyRootFilesystem: true`.
 
 > [!NOTE]
-> Depending on the number of templates and provisioners you use, you may need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
+> Depending on the number of templates and provisioners you use, you might need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
 
 Additionally, create the Coder service as a `ClusterIP`.
 In the next step, you will create an OpenShift route that points to the service HTTP target port.
@@ -166,7 +167,7 @@ helm install coder coder-v2/coder \
 ```
 
 > [!NOTE]
-> If the Helm installation fails with a Kubernetes RBAC error, check the permissions of your OpenShift user using the `oc auth can-i` command.
+> If the Helm installation fails with a Kubernetes role-based access control (RBAC) error, check the permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:
 >
@@ -227,7 +228,7 @@ These images can then be run without modifying the Security Context Constraints 
 
    This will automatically kick off a `Build` that will remain pending until step 3.
 
-   > For more information, consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
+   > For more information, consult the [OKD build configuration documentation](https://docs.okd.io/latest/cicd/builds/understanding-buildconfigs.html) or the [Red Hat OpenShift Container Platform build configuration documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
 
    ```sh
    oc create -f - <<EOF
@@ -292,7 +293,7 @@ These images can then be run without modifying the Security Context Constraints 
 Start from the default "Kubernetes" template:
 
 ```sh
-echo kubernetes | coderv2 templates init ./openshift-k8s
+coder templates init --id kubernetes ./openshift-k8s
 cd ./openshift-k8s
 ```
 
@@ -312,5 +313,5 @@ This template should be ready to use straight away.
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

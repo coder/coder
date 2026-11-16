@@ -22,8 +22,13 @@ type WorkspaceBuildDataProps = {
 export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 	build,
 }) => {
+	const buildReason =
+		!systemBuildReasons.includes(build.reason) && build.transition === "start"
+			? getBuildReasonLabel(build.reason)
+			: undefined;
+
 	return (
-		<div className="flex flex-row items-center gap-3 leading-normal">
+		<div className="flex items-center gap-3 leading-normal">
 			<BuildIcon transition={build.transition} jobStatus={build.job.status} />
 			<div className="overflow-hidden flex flex-col">
 				<div
@@ -36,17 +41,23 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 					<span className="font-medium">
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
-					{!systemBuildReasons.includes(build.reason) &&
-						build.transition === "start" && (
+					{buildReason && (
+						// This renders inside the build's sidebar link, so the reason
+						// joins the link's accessible name instead of becoming a nested
+						// focusable trigger.
+						<>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<InfoIcon className="text-content-secondary size-icon-xs -mt-px" />
+									<InfoIcon
+										aria-hidden
+										className="text-content-secondary size-icon-xs -mt-px"
+									/>
 								</TooltipTrigger>
-								<TooltipContent side="bottom">
-									{getBuildReasonLabel(build.reason)}
-								</TooltipContent>
+								<TooltipContent side="bottom">{buildReason}</TooltipContent>
 							</Tooltip>
-						)}
+							<span className="sr-only">, build reason: {buildReason}</span>
+						</>
+					)}
 				</div>
 				<div className="text-xs font-normal text-content-secondary">
 					{createDayString(build.created_at)}
@@ -58,7 +69,7 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 
 export const WorkspaceBuildDataSkeleton = () => {
 	return (
-		<div className="flex flex-row items-center gap-3 leading-normal">
+		<div className="flex items-center gap-3 leading-normal">
 			<Skeleton variant="circular" width={16} height={16} />
 			<div className="flex flex-col">
 				<Skeleton variant="text" width={94} height={10} />

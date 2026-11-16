@@ -2142,7 +2142,7 @@ func TestGetUsersFilter(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
 		res, err := client.Users(testCtx, req)
@@ -2152,6 +2152,20 @@ func TestGetUsersFilter(t *testing.T) {
 			reduced[i] = user.ReducedUser
 		}
 		return reduced
+	})
+
+	t.Run("IncludeSystem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{SearchQuery: "prebuilds"})
+		require.NoError(t, err)
+		require.Empty(t, res.Users)
+
+		res, err = client.Users(ctx, codersdk.UsersRequest{SearchQuery: "prebuilds include_system:true"})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, database.PrebuildsSystemUserID, res.Users[0].ID)
 	})
 }
 

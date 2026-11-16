@@ -44,6 +44,11 @@ export type AIBridgeAttribution = Record<string, string>;
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
+	 * EmbeddedEnabled controls whether coderd starts the in-memory AI
+	 * Gateway. It only takes effect when Enabled is true.
+	 */
+	readonly embedded_enabled: boolean;
+	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
@@ -2002,6 +2007,7 @@ export interface BuildInfoResponse {
 
 // From codersdk/workspacebuilds.go
 export type BuildReason =
+	| "autodelete"
 	| "autostart"
 	| "autostop"
 	| "cli"
@@ -2013,6 +2019,7 @@ export type BuildReason =
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
+	"autodelete",
 	"autostart",
 	"autostop",
 	"cli",
@@ -2283,9 +2290,9 @@ export interface ChatAutoArchiveDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatBusyBehavior = "interrupt" | "queue";
+export type ChatBusyBehavior = "queue" | "steer";
 
-export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["queue", "steer"];
 
 // From codersdk/chats.go
 export type ChatClientType = "api" | "ui";
@@ -2301,11 +2308,12 @@ export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
 
 // From codersdk/chats.go
-export type ChatComputerUseProvider = "anthropic" | "openai";
+export type ChatComputerUseProvider = "anthropic" | "openai" | "openai-compat";
 
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 	"anthropic",
 	"openai",
+	"openai-compat",
 ];
 
 // From codersdk/deployment.go
@@ -2787,6 +2795,9 @@ export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
 	readonly name?: string;
+	/**
+	 * Data holds an inline file's bytes, which JSON carries as a base64 string.
+	 */
 	readonly data?: string;
 	readonly file_id?: string;
 }
@@ -3087,6 +3098,10 @@ export interface ChatMessagesPaginationOptions {
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 	/**
@@ -3095,6 +3110,17 @@ export interface ChatMessagesResponse {
 	 * that message.
 	 */
 	readonly turn_start_id?: number;
+	/**
+	 * SnapshotVersion is the chat's snapshot version, a number that the
+	 * server increases each time it changes the chat's messages, queue or
+	 * status. The server sets it only when the request has neither
+	 * before_id nor after_id. Pass it as the stream's snapshot_version
+	 * parameter. The server reads this version before the page's messages
+	 * and queued messages, so the page can include changes made at a
+	 * higher version. The stream can send changes that are already in the
+	 * page.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3117,6 +3143,11 @@ export interface ChatModel {
 	 * maximum.
 	 */
 	readonly reasoning_efforts?: readonly string[];
+	/**
+	 * Names the computer use tool that Coder sends for this model. It is omitted
+	 * when computer use can't run on the model.
+	 */
+	readonly computer_use_provider?: ChatComputerUseProvider;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -3543,10 +3574,14 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
- * ChatProjectACL lists who a chat project is shared with. The Everyone
- * group's ID is the organization ID.
+ * ChatProjectACL lists who a chat project is shared with and who owns
+ * it. The Everyone group's ID is the organization ID.
  */
 export interface ChatProjectACL {
+	/**
+	 * Owner is the project owner, who is never listed in Users.
+	 */
+	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
 }
@@ -3684,12 +3719,19 @@ export interface ChatQueuedMessage {
 	readonly chat_id: string;
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
+	/**
+	 * BusyBehavior is the lane of the message. Steer messages go in
+	 * before the next model call, and queue messages go in after the
+	 * turn ends.
+	 */
+	readonly busy_behavior: ChatBusyBehavior;
 	readonly created_at: string;
 	readonly reasoning_effort?: string;
 	/**
 	 * EditingSince is set while the owner edits the message. A message
-	 * under edit and every message behind it wait until the edit ends; a
-	 * turn that ends at a message under edit pauses the chat.
+	 * under edit and every message behind it wait until the edit ends. A
+	 * steer message under edit also holds the steer messages ahead of
+	 * it. A turn that ends at a message under edit pauses the chat.
 	 */
 	readonly editing_since?: string;
 }
@@ -3811,8 +3853,25 @@ export interface ChatStreamEvent {
 	readonly status?: ChatStreamStatus;
 	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	/**
+	 * HistoryReset is set on history_reset events of streams opened with a
+	 * snapshot_version.
+	 */
+	readonly history_reset?: ChatStreamHistoryReset;
+	/**
+	 * SnapshotVersion is set on the message, queue_update and history_reset
+	 * events of streams opened with a snapshot_version. It is the chat's
+	 * snapshot version when the change that the event reports was made. To
+	 * reconnect, open the stream with the highest one received from the
+	 * messages page or from events.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3838,6 +3897,20 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"retry",
 	"status",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatStreamHistoryReset identifies the messages that an edit deleted.
+ */
+export interface ChatStreamHistoryReset {
+	/**
+	 * FromMessageID is the ID of a message that was edited. The edit deleted
+	 * that message and every message after it. When managing history state,
+	 * delete every message with this ID or higher. The messages that follow
+	 * were written by the edit or after it and should be kept.
+	 */
+	readonly from_message_id: number;
+}
 
 // From codersdk/chats.go
 /**
@@ -3979,6 +4052,9 @@ export interface ChatToolResultPart {
 	readonly tool_call_id?: string;
 	readonly tool_name?: string;
 	readonly mcp_server_config_id?: string;
+	/**
+	 * The tool output, which can be any JSON value.
+	 */
 	readonly result?: unknown;
 	readonly result_delta?: string;
 	readonly reasoning_delta?: string;
@@ -4339,6 +4415,11 @@ export interface CreateChatMessageRequest {
 	 * Replaces the inline MCP servers. nil: no change, empty: remove all.
 	 */
 	readonly inline_mcp_servers?: InlineMCPServerRequest[];
+	/**
+	 * Controls when the message reaches the agent if the chat is busy. "steer",
+	 * the default, delivers it before the next model call. "queue" delivers it
+	 * after the active turn ends.
+	 */
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * Switches the chat's persistent plan mode. nil: no change, ptr to "plan":
@@ -4356,8 +4437,10 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	/**
 	 * Contains all user-visible messages inserted by the send, in insertion order.
-	 * A queued send on an errored chat may promote the previous queue head, so
-	 * clients must upsert the full batch.
+	 * A send to an errored or paused chat can also insert queued messages: a
+	 * steer send inserts the queued steer messages before the new message, and a
+	 * queue send to an errored chat inserts the steer lane, or the first queue
+	 * message when that lane is empty. Clients must upsert the full batch.
 	 */
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
@@ -4530,6 +4613,15 @@ export interface CreateMCPServerConfigRequest {
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
 	readonly custom_headers?: Record<string, string>;
+	/**
+	 * OAuth2ClientRegistration selects how Coder gets the OAuth2 client.
+	 * With "dynamic", Coder discovers the authorization server of URL and
+	 * registers a client (RFC 7591), so the client ID, client secret, auth
+	 * URL, and token URL must be empty. With "manual", the client ID, auth
+	 * URL, and token URL are required. When empty, Coder uses "dynamic" if
+	 * those three fields are empty, and "manual" otherwise.
+	 */
+	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
@@ -4918,6 +5010,10 @@ export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
 	readonly transition: WorkspaceTransition;
 	readonly dry_run?: boolean;
+	/**
+	 * Overrides the provisioner state for this build. JSON carries it as a
+	 * base64 string.
+	 */
 	readonly state?: string;
 	/**
 	 * May be set for the Destroy transition.
@@ -5682,7 +5778,9 @@ export type Experiment =
 	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
+	| "agent-plugins"
 	| "chat-acp-subagents"
+	| "chat-automations"
 	| "chat-inline-mcp-servers"
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
@@ -5760,7 +5858,9 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
+	"agent-plugins",
 	"chat-acp-subagents",
+	"chat-automations",
 	"chat-inline-mcp-servers",
 	"chat-project-sharing",
 	"chat-stage-metrics",
@@ -6302,6 +6402,8 @@ export type HealthCode =
 	| "EWP02"
 	| "EWP04"
 	| "EWP01"
+	| "EPS01"
+	| "EPS02"
 	| "EUNKNOWN"
 	| "EWS01"
 	| "EWS02"
@@ -6332,6 +6434,8 @@ export const HealthCodes: HealthCode[] = [
 	"EWP02",
 	"EWP04",
 	"EWP01",
+	"EPS01",
+	"EPS02",
 	"EUNKNOWN",
 	"EWS01",
 	"EWS02",
@@ -6353,6 +6457,7 @@ export type HealthSection =
 	| "DERP"
 	| "Database"
 	| "ProvisionerDaemons"
+	| "Pubsub"
 	| "Websocket"
 	| "WorkspaceProxy";
 
@@ -6361,6 +6466,7 @@ export const HealthSections: HealthSection[] = [
 	"DERP",
 	"Database",
 	"ProvisionerDaemons",
+	"Pubsub",
 	"Websocket",
 	"WorkspaceProxy",
 ];
@@ -6426,6 +6532,7 @@ export interface HealthcheckReport {
 	readonly database: DatabaseReport;
 	readonly workspace_proxy: WorkspaceProxyReport;
 	readonly provisioner_daemons: ProvisionerDaemonsReport;
+	readonly pubsub: PubsubReport;
 	/**
 	 * The Coder version of the server that the report was generated on.
 	 */
@@ -6557,10 +6664,14 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode =
+	| "INSUFFICIENT_QUOTA"
+	| "MISSING_TEMPLATE_PARAMETER"
+	| "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = [
 	"INSUFFICIENT_QUOTA",
+	"MISSING_TEMPLATE_PARAMETER",
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
 
@@ -6706,11 +6817,19 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
+export type LoginType =
+	| "github"
+	| "none"
+	| "oauth2_provider_app"
+	| "oidc"
+	| "password"
+	| "token"
+	| "";
 
 export const LoginTypes: LoginType[] = [
 	"github",
 	"none",
+	"oauth2_provider_app",
 	"oidc",
 	"password",
 	"token",
@@ -6764,6 +6883,7 @@ export interface MCPServerConfig {
 	readonly oauth2_revocation_url?: string;
 	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
+	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	/**
 	 * API key fields (only populated for admins).
 	 */
@@ -6828,6 +6948,12 @@ export const MCPServerConfigRoles: MCPServerConfigRole[] = ["", "read"];
 export interface MCPServerConfigUser extends MinimalUser {
 	readonly role: MCPServerConfigRole;
 }
+
+// From codersdk/mcp.go
+export type MCPServerOAuth2ClientRegistration = "dynamic" | "manual";
+
+export const MCPServerOAuth2ClientRegistrations: MCPServerOAuth2ClientRegistration[] =
+	["dynamic", "manual"];
 
 // From codersdk/mcp.go
 /**
@@ -7919,6 +8045,96 @@ export interface OrganizationAISpendFilter {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendOverview is the AI spend of an organization over the
+ * applied period, read from the daily spend aggregate. Count, Totals, and
+ * Intervals cover every user with spend.
+ */
+export interface OrganizationAISpendOverview extends AISpendPeriodWindow {
+	/**
+	 * Count is the number of users with spend in the period.
+	 */
+	readonly count: number;
+	readonly totals: OrganizationAISpendOverviewTotals;
+	/**
+	 * Intervals holds the daily spend, one interval per UTC day in the period
+	 * (omitting days after the current day). Days without spend are zero. When
+	 * the period includes the current day, its interval only has the spend
+	 * recorded so far.
+	 */
+	readonly intervals: readonly OrganizationAISpendOverviewInterval[];
+	/**
+	 * Users is the requested page, most spend first.
+	 */
+	readonly users: readonly OrganizationAISpendOverviewUser[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewGroup is a group that a user's spend was
+ * attributed to in the period, and the amount attributed to it.
+ */
+export interface OrganizationAISpendOverviewGroup {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	/**
+	 * SpendMicros is the user's spend attributed to this group in the period.
+	 */
+	readonly spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewInterval is the spend of an organization over the
+ * [StartTime, EndTime) interval.
+ */
+export interface OrganizationAISpendOverviewInterval {
+	readonly start_time: string;
+	readonly end_time: string;
+	readonly spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewTotals summarizes the organization's spend in
+ * the period.
+ */
+export interface OrganizationAISpendOverviewTotals {
+	/**
+	 * SpendMicros is the total spend of all users in the period.
+	 */
+	readonly spend_micros: number;
+	/**
+	 * MedianSpendMicros is the median spend across users with spend in the
+	 * period. It is zero when no user has spend.
+	 */
+	readonly median_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewUser is one user's spend within an organization
+ * overview.
+ */
+export interface OrganizationAISpendOverviewUser {
+	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	/**
+	 * SpendMicros is the user's total spend in the period, across all of
+	 * their groups.
+	 */
+	readonly spend_micros: number;
+	/**
+	 * Groups are the groups the user's spend was attributed to, most spend
+	 * first.
+	 */
+	readonly groups: readonly OrganizationAISpendOverviewGroup[];
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendPage selects one page of the per-user report, which
  * pages by offset only. A zero Limit uses the server default.
  */
@@ -8630,6 +8846,7 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
+	readonly collect_workspace_stats: boolean;
 }
 
 // From codersdk/chats.go
@@ -8913,6 +9130,17 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unreachable",
 	"unregistered",
 ];
+
+// From healthsdk/healthsdk.go
+/**
+ * PubsubReport shows the health of the pubsub backend.
+ */
+export interface PubsubReport extends BaseReport {
+	/**
+	 * Backend is the pubsub implementation in use.
+	 */
+	readonly backend: string;
+}
 
 // From codersdk/experimentrules.go
 /**
@@ -9904,12 +10132,23 @@ export interface StatsCollectionConfig {
  */
 export interface StreamChatOptions {
 	/**
-	 * AfterID limits the initial snapshot to messages created
-	 * after the given ID. This is useful for relay connections
-	 * that only need live message_part events and can skip the
-	 * full message history.
+	 * AfterID is a message ID that selects the messages the stream sends
+	 * when it opens. The server uses it only when SnapshotVersion is unset.
+	 * When AfterID is the ID of a non-deleted message in the chat, the
+	 * stream sends only the non-deleted messages with a higher ID. When it
+	 * is unset or the ID of a deleted message in the chat, the stream sends
+	 * every non-deleted message, after a history_reset event if the chat
+	 * has a deleted message.
 	 */
 	readonly AfterID: number | null;
+	/**
+	 * SnapshotVersion is a snapshot version of the chat. When it is set,
+	 * the stream sends what changed at that version or later: each
+	 * non-deleted message written, a history_reset event for each edit,
+	 * and the queue if it changed. Set it to the highest one received in a
+	 * ChatMessagesResponse or a ChatStreamEvent.
+	 */
+	readonly SnapshotVersion: number;
 }
 
 // From codersdk/client.go
@@ -10391,6 +10630,10 @@ export interface TemplateBuilderModuleVariable {
 	readonly name: string;
 	readonly type: TemplateBuilderVariableType;
 	readonly description: string;
+	/**
+	 * Default is the variable's default as a JSON string, number, or boolean,
+	 * matching the variable's type.
+	 */
 	readonly default?: Record<string, string>;
 	readonly required: boolean;
 	readonly sensitive: boolean;
@@ -10734,6 +10977,9 @@ export interface TokensFilter {
  */
 export interface ToolResult {
 	readonly tool_call_id: string;
+	/**
+	 * Output is the tool output, which can be any JSON value.
+	 */
 	readonly output: Record<string, string>;
 	readonly is_error: boolean;
 }
@@ -11077,6 +11323,18 @@ export interface UpdateMCPServerConfigRequest {
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
 	readonly custom_headers?: Record<string, string>;
+	/**
+	 * OAuth2ClientRegistration changes how Coder gets the OAuth2 client.
+	 * When a request that sets the URL or an auth field omits it, Coder
+	 * uses "dynamic" if the resulting config has no client ID, auth URL,
+	 * and token URL, and keeps the stored value otherwise. Coder registers
+	 * a new client when the config becomes "dynamic" or when the URL of a
+	 * "dynamic" config changes. A new client deletes the stored user
+	 * tokens. A "dynamic" config ignores empty and unchanged values for
+	 * the client ID, client secret, auth URL, and token URL. Other values
+	 * fail unless the request also sets "manual".
+	 */
+	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	readonly tool_allow_list?: string[];
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;
@@ -11467,6 +11725,9 @@ export interface UpdateWorkspaceAutostartRequest {
  * provisioner state of a workspace build.
  */
 export interface UpdateWorkspaceBuildStateRequest {
+	/**
+	 * State is the provisioner state, which JSON carries as a base64 string.
+	 */
 	readonly state: string;
 }
 
@@ -12176,6 +12437,10 @@ export interface WorkspaceAgent {
 	readonly resource_id: string;
 	readonly instance_id?: string;
 	readonly architecture: string;
+	/**
+	 * Lists the variables set on the agent. Non-empty
+	 * values are redacted as "***REDACTED***" because they often hold credentials.
+	 */
 	readonly environment_variables: Record<string, string>;
 	readonly operating_system: string;
 	readonly logs_length: number;

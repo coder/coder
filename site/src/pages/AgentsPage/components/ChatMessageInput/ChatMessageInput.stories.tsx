@@ -48,7 +48,7 @@ const meta: Meta<typeof ChatMessageInput> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="w-[520px] space-y-3 rounded-md border border-border border-solid p-4">
+			<div className="w-130 space-y-3 rounded-md border p-4">
 				<button type="button" className="text-content-secondary text-sm">
 					Outside target
 				</button>

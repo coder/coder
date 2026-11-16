@@ -36,7 +36,7 @@ export const RedirectURIsField: React.FC<RedirectURIsFieldProps> = ({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-col gap-1">
-				<span className="text-sm font-medium">Redirect URIs</span>
+				<span className="text-sm">Redirect URIs</span>
 				<span className="text-xs text-content-secondary">
 					{isPublicClient
 						? "URIs this application may redirect to. This app has no client secret, so http is limited to a loopback address; https, a custom scheme, and the out-of-band URN are also accepted."

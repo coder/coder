@@ -27,7 +27,7 @@ type WorkspaceSharingSettings struct {
 	// Deprecated: use `shareable_workspace_owners` instead
 	SharingDisabled bool `json:"sharing_disabled"`
 	// Controls whose workspaces can be shared within the organization.
-	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners" enums:"none,everyone,service_accounts"`
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners"`
 }
 
 // UpdateWorkspaceSharingSettingsRequest represents workspace sharing settings
@@ -38,7 +38,7 @@ type UpdateWorkspaceSharingSettingsRequest struct {
 	// Deprecated: use `shareable_workspace_owners` instead
 	SharingDisabled bool `json:"sharing_disabled,omitempty"`
 	// Controls whose workspaces can be shared within the organization.
-	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners,omitempty" enums:"none,everyone,service_accounts"`
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners,omitempty"`
 }
 
 // WorkspaceSharingSettings retrieves the workspace sharing settings for an organization.

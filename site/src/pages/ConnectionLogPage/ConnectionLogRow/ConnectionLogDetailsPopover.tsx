@@ -69,7 +69,7 @@ export const ConnectionLogDetailsPopover: React.FC<
 					)}
 					{clientSessionId && (
 						<Detail title="Client session ID">
-							<div className="flex flex-row items-center gap-1">
+							<div className="flex items-center gap-1">
 								<span className="min-w-0 truncate">{clientSessionId}</span>
 								<CopyButton
 									text={clientSessionId}

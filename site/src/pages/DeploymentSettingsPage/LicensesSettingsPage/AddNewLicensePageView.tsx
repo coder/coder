@@ -50,7 +50,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 
 	return (
 		<>
-			<div className="flex flex-row gap-4 items-baseline justify-between">
+			<div className="flex gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add a license</SettingsHeaderTitle>
 					<SettingsHeaderDescription>

@@ -74,7 +74,7 @@ const encodeTerminalPayload = (payload: Record<string, number | string>) => {
 	return new TextEncoder().encode(JSON.stringify(payload));
 };
 
-export const WorkspaceTerminal = ({
+export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	ref,
 	agentId,
 	operatingSystem,
@@ -97,7 +97,7 @@ export const WorkspaceTerminal = ({
 	loading = false,
 	errorMessage,
 	testId,
-}: WorkspaceTerminalProps) => {
+}) => {
 	const scopeId = useId();
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
@@ -326,6 +326,13 @@ export const WorkspaceTerminal = ({
 		nextTerminal.open(mountNode);
 		refit();
 
+		// The canvas and WebGL renderers keep reusing the fallback glyph drawn
+		// before a lazily loaded font arrives, so rebuild their glyph cache.
+		const redrawWithLoadedFonts = () => {
+			nextTerminal.clearTextureAtlas();
+		};
+		document.fonts.addEventListener("loadingdone", redrawWithLoadedFonts);
+
 		window.addEventListener("resize", refit);
 
 		const resizeObserver = new ResizeObserver(() => {
@@ -336,6 +343,7 @@ export const WorkspaceTerminal = ({
 		setTerminal(nextTerminal);
 
 		return () => {
+			document.fonts.removeEventListener("loadingdone", redrawWithLoadedFonts);
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;
@@ -630,7 +638,7 @@ export const WorkspaceTerminal = ({
 				<ContextMenuTrigger asChild disabled={isMac()}>
 					<div
 						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+							"workspace-terminal size-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
 							className,
 						)}
 						ref={terminalWrapperRef}

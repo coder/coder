@@ -48,6 +48,12 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic // Project readers see the owner without user read permission.
+	owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), project.OwnerID)
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get project owner: %w", err))
+		return
+	}
 	users, err := api.chatProjectACLUsers(ctx, project)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -63,6 +69,7 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatProjectACL{
+		Owner:  db2sdk.MinimalUser(owner),
 		Users:  users,
 		Groups: groups,
 	})

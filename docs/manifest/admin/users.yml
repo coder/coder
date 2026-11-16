@@ -26,6 +26,9 @@ children:
     description: Segment and isolate resources by creating separate organizations for different teams or projects.
     path: ./admin/users/organizations.md
     state: [premium]
+  - title: Organizations - best practices
+    description: Best practices for structuring and using Coder organizations effectively.
+    path: ./admin/users/organizations-best-practices.md
   - title: Quotas
     description: Control resource usage by implementing workspace budgets and credit-based cost management.
     path: ./admin/users/quotas.md

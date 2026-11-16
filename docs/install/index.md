@@ -118,12 +118,12 @@ The following actors appear throughout this section, so you can anticipate which
 | Infrastructure team              | Clusters, virtual machines, networking, load balancers, and egress rules     | 1 to 4           |
 | DNS and TLS owner                | The Coder hostname, the wildcard record for workspace apps, and certificates | 2                |
 | Database administrator           | PostgreSQL provisioning, sizing, backups, and restore tests                  | 2, 4, 5          |
-| Identity provider administrator  | The OIDC application, claims, and group mappings                             | 2                |
+| Identity provider administrator  | The OpenID Connect (OIDC) application, claims, and group mappings            | 2                |
 | Security and compliance reviewer | Audit requirements, network policy, data handling, and sign-off              | 2, 4             |
 | Licensing contact                | Purchasing and renewing the Coder license                                    | 2                |
 | Template author                  | The workspace templates developers use once the deployment is running        | 4, 5             |
 
 These are roles, not people.
-One person may serve as several actors, which is common for a proof of concept run by a single platform engineer.
-Several people may also serve as one actor, which is common for an infrastructure team that splits networking and compute ownership.
+One person can serve as several actors, which is common for a proof of concept run by a single platform engineer.
+Several people can also serve as one actor, which is common for an infrastructure team that splits networking and compute ownership.
 Use the table to identify who has to agree, not to count headcount.

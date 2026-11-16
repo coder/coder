@@ -25,6 +25,7 @@ jobs:
     permissions:
       security-events: write
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: main
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -69,6 +70,7 @@ jobs:
     permissions:
       security-events: write
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: main
     env:
       IMAGE_REF: ghcr.io/coder/coder-preview:main
       OSV_SCANNER_VERSION: v2.3.5

@@ -7,7 +7,6 @@ import type {
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Link } from "#/components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -19,6 +18,7 @@ import {
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -109,9 +109,9 @@ const OrganizationProvisionerJobsPageView: React.FC<
 					<SettingsHeaderDescription>
 						Provisioner Jobs are the individual tasks assigned to Provisioners
 						when the workspaces are being built.{" "}
-						<Link href={docs("/admin/provisioners/manage-provisioner-jobs")}>
-							View docs
-						</Link>
+						<SettingsHeaderDocsLink
+							href={docs("/admin/provisioners/manage-provisioner-jobs")}
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -150,7 +150,7 @@ const OrganizationProvisionerJobsPageView: React.FC<
 							});
 						}}
 					>
-						<SelectTrigger className="w-[180px]" data-testid="status-filter">
+						<SelectTrigger className="w-45" data-testid="status-filter">
 							<SelectValue placeholder="All statuses" />
 						</SelectTrigger>
 						<SelectContent>

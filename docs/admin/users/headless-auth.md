@@ -6,7 +6,7 @@ title: Headless authentication
 > Creating service accounts requires a [Premium license](https://coder.com/pricing).
 
 Service accounts are headless user accounts that cannot use the web UI to log in to Coder.
-This is useful for creating accounts for automated systems, such as CI/CD pipelines or for users who only consume Coder via another client/API.
+This is useful for creating accounts for automated systems, such as continuous integration and continuous delivery (CI/CD) pipelines or for users who only consume Coder via another client/API.
 Service accounts do not have passwords or associated email addresses.
 
 You must have the User Admin role or above to create service accounts.

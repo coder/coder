@@ -24,7 +24,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
@@ -227,19 +226,15 @@ func (p *Server) buildTurnEnvironment(
 	var computerUseToolVersion anthropic.ComputerUseToolVersion
 	if isComputerUse {
 		var ok bool
-		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		computerUseProvider, ok = chatprovider.ComputerUseProvider(resolved.route.Provider.Type, modelConfig.Model)
 		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
-				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
+				"computer use requires %s, but model %q uses AI provider %q of type %q",
+				chatprovider.ComputerUseModelRequirement, modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
 		}
 		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
-			settings, err := db2sdk.AIProviderSettings(resolved.route.Provider.Settings)
-			if err != nil {
-				return turnEnvironment{}, xerrors.Errorf("decode settings of AI provider %q: %w", resolved.route.Provider.Name, err)
-			}
-			computerUseToolVersion = anthropicComputerUseToolVersion(modelConfig.Model, settings)
+			computerUseToolVersion = anthropic.ComputerUseToolVersionForModel(modelConfig.Model)
 		}
 	}
 	model := resolved.model
@@ -249,7 +244,6 @@ func (p *Server) buildTurnEnvironment(
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
-	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
@@ -503,23 +497,19 @@ func (p *Server) buildTurnEnvironment(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		// Key the file-part acceptance on model.Provider() (the fantasy
-		// transport identity), not the configured provider, because
-		// aibridge routing rewrites the provider (e.g. Bedrock to the
-		// Anthropic transport). The conversion that actually drops or
-		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
-		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		fileResolver := p.chatFileResolver(model)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
-		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
+		prompt = replaceUnsupportedMedia(ctx, logger, prompt, model)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
+			pendingPrompt = replaceUnsupportedMedia(ctx, logger, pendingPrompt, model)
 		}
 		return nil
 	})

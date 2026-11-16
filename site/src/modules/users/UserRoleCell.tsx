@@ -4,7 +4,6 @@ import { TableCell } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
@@ -28,7 +27,7 @@ export const UserRoleCell: React.FC<UserRoleCellProps> = ({
 
 	return (
 		<TableCell>
-			<div className="flex flex-row gap-1 items-center">
+			<div className="flex gap-1 items-center">
 				<RoleBadge role={mainDisplayRole} />
 
 				{extraRoles.length > 0 && <MoreRolePill roles={extraRoles} />}
@@ -43,26 +42,24 @@ type MoreRolePillProps = {
 
 const MoreRolePill: React.FC<MoreRolePillProps> = ({ roles }) => {
 	return (
-		<TooltipProvider>
-			<Tooltip delayDuration={0}>
-				<TooltipTrigger asChild>
-					<Badge asChild hover>
-						<button
-							type="button"
-							aria-label={`+${roles.length} more role${roles.length === 1 ? "" : "s"}`}
-						>
-							+{roles.length} more
-						</button>
-					</Badge>
-				</TooltipTrigger>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<Badge asChild hover>
+					<button
+						type="button"
+						aria-label={`+${roles.length} more role${roles.length === 1 ? "" : "s"}`}
+					>
+						+{roles.length} more
+					</button>
+				</Badge>
+			</TooltipTrigger>
 
-				<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
-					{roles.map((role) => (
-						<RoleBadge key={role.name} role={role} />
-					))}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+			<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
+				{roles.map((role) => (
+					<RoleBadge key={role.name} role={role} />
+				))}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 

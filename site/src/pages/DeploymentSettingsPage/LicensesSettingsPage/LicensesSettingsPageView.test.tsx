@@ -1,12 +1,14 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Confetti from "react-confetti";
 import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { mockApiError } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
+import { installThemeStyles } from "#/testHelpers/themeStyles";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 // jsdom has no canvas, which react-confetti requires.
-vi.mock("react-confetti", () => ({ default: () => null }));
+vi.mock("react-confetti", () => ({ default: vi.fn(() => null) }));
 
 const renderView = (
 	props: Partial<React.ComponentProps<typeof LicensesSettingsPageView>>,
@@ -28,6 +30,21 @@ const renderView = (
 	);
 
 describe("LicensesSettingsPageView", () => {
+	beforeAll(installThemeStyles);
+	beforeEach(() => vi.mocked(Confetti).mockClear());
+
+	it("only starts confetti with a populated palette when enabled on mount", () => {
+		renderView({ showConfetti: true });
+
+		expect(Confetti).toHaveBeenCalled();
+		for (const [props] of vi.mocked(Confetti).mock.calls) {
+			expect(props.colors).toHaveLength(2);
+			for (const color of props.colors ?? []) {
+				expect(color).toMatch(/\S/);
+			}
+		}
+	});
+
 	it("links to add a license, contact sales, and request a trial when there are no licenses", async () => {
 		renderView({ licenses: [] });
 

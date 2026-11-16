@@ -34,6 +34,7 @@ const (
 	HealthSectionDatabase           HealthSection = "Database"
 	HealthSectionWorkspaceProxy     HealthSection = "WorkspaceProxy"
 	HealthSectionProvisionerDaemons HealthSection = "ProvisionerDaemons"
+	HealthSectionPubsub             HealthSection = "Pubsub"
 )
 
 var HealthSections = []HealthSection{
@@ -43,6 +44,7 @@ var HealthSections = []HealthSection{
 	HealthSectionDatabase,
 	HealthSectionWorkspaceProxy,
 	HealthSectionProvisionerDaemons,
+	HealthSectionPubsub,
 }
 
 type HealthSettings struct {
@@ -104,7 +106,7 @@ type HealthcheckReport struct {
 	// Deprecated: use `severity` instead
 	Healthy bool `json:"healthy"`
 	// Indicates the status of Coder health.
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Severity health.Severity `json:"severity"`
 
 	DERP               DERPHealthReport         `json:"derp"`
 	AccessURL          AccessURLReport          `json:"access_url"`
@@ -112,6 +114,7 @@ type HealthcheckReport struct {
 	Database           DatabaseReport           `json:"database"`
 	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
 	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
+	Pubsub             PubsubReport             `json:"pubsub"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
@@ -124,6 +127,7 @@ func (r *HealthcheckReport) Summarize(docsURL string) []string {
 	msgs = append(msgs, r.Database.Summarize("Database:", docsURL)...)
 	msgs = append(msgs, r.DERP.Summarize("DERP:", docsURL)...)
 	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:", docsURL)...)
+	msgs = append(msgs, r.Pubsub.Summarize("Pubsub:", docsURL)...)
 	msgs = append(msgs, r.Websocket.Summarize("Websocket:", docsURL)...)
 	msgs = append(msgs, r.WorkspaceProxy.Summarize("Workspace Proxies:", docsURL)...)
 	return msgs
@@ -132,7 +136,7 @@ func (r *HealthcheckReport) Summarize(docsURL string) []string {
 // BaseReport holds fields common to various health reports.
 type BaseReport struct {
 	Error     *string          `json:"error,omitempty"`
-	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Severity  health.Severity  `json:"severity"`
 	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
 }
@@ -197,7 +201,7 @@ type DERPRegionReport struct {
 	// Deprecated and left for backward compatibility purposes. Use `severity`
 	// instead.
 	Healthy     bool                `json:"healthy"`
-	Severity    health.Severity     `json:"severity" enums:"ok,warning,error"`
+	Severity    health.Severity     `json:"severity"`
 	Warnings    []health.Message    `json:"warnings"`
 	Error       *string             `json:"error,omitempty"`
 	Region      *tailcfg.DERPRegion `json:"region"`
@@ -209,7 +213,7 @@ type DERPNodeReport struct {
 	// Deprecated and left for backward compatibility purposes. Use `severity`
 	// instead.
 	Healthy  bool             `json:"healthy"`
-	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Severity health.Severity  `json:"severity"`
 	Warnings []health.Message `json:"warnings"`
 	Error    *string          `json:"error,omitempty"`
 
@@ -254,6 +258,13 @@ type ProvisionerDaemonsReport struct {
 type ProvisionerDaemonsReportItem struct {
 	codersdk.ProvisionerDaemon `json:"provisioner_daemon"`
 	Warnings                   []health.Message `json:"warnings"`
+}
+
+// PubsubReport shows the health of the pubsub backend.
+type PubsubReport struct {
+	BaseReport
+	// Backend is the pubsub implementation in use.
+	Backend string `json:"backend"`
 }
 
 // WebsocketReport shows if the configured access URL allows establishing WebSocket connections.
