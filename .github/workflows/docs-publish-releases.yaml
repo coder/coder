@@ -1,15 +1,18 @@
 # Starts coder/docs-engine's publish-version.yml when a vX.Y.Z release is
 # published, so the release's docs version appears without waiting for the
-# daily reconciler there. A version that is already published ends there
-# without a build.
+# reconciler there. A version that is already published ends there without a
+# build.
 #
 # It follows published releases, not tags: `released` fires for a release that
 # is published as final or promoted from a prerelease, never for a draft or a
 # prerelease, so a release candidate's tag never publishes.
 #
-# Nothing is checked out. The token comes from the docs-engine GitHub App
-# (DOCS_ENGINE_APP_ID), installed only on coder/docs-engine, and is scoped here
-# to Actions: write on that repository alone.
+# Nothing is checked out. The token comes from the docs publish GitHub App,
+# installed only on coder/docs-engine with Actions: write alone. Its ID and key
+# live in the docs-publish environment, which admits only main, release/* and
+# v* tags; a release event runs on its tag's ref, which that rule admits. Only
+# the dispatch job names the environment, and only after check decides to
+# publish.
 name: docs-publish-releases
 
 on:
@@ -20,23 +23,23 @@ on:
 permissions: {}
 
 jobs:
-  dispatch:
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
-      - name: Check the release and the App secrets
-        id: check
+      - name: Check the release
+        id: release
         env:
           REF: ${{ github.event.release.tag_name }}
           PRERELEASE: ${{ github.event.release.prerelease }}
-          HAS_APP_ID: ${{ secrets.DOCS_ENGINE_APP_ID != '' }}
-          HAS_APP_KEY: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY != '' }}
         run: |
           set -euo pipefail
           if [[ "$PRERELEASE" == true ]]; then
@@ -49,25 +52,43 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ "$HAS_APP_ID" != true || "$HAS_APP_KEY" != true ]]; then
-            echo "::error::Set the repository secrets DOCS_ENGINE_APP_ID and DOCS_ENGINE_APP_PRIVATE_KEY for the docs-engine GitHub App." >&2
-            exit 1
-          fi
           echo "publish=true" >> "$GITHUB_OUTPUT"
 
+  dispatch:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: docs-publish
+    permissions: {}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Check the App secrets
+        env:
+          HAS_APP_ID: ${{ secrets.DOCS_PUBLISH_APP_ID != '' }}
+          HAS_APP_KEY: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$HAS_APP_ID" != true || "$HAS_APP_KEY" != true ]]; then
+            echo "::error::Set DOCS_PUBLISH_APP_ID and DOCS_PUBLISH_APP_PRIVATE_KEY in the docs-publish environment, never as repository secrets." >&2
+            exit 1
+          fi
+
       - name: Mint a docs-engine dispatch token
-        if: steps.check.outputs.publish == 'true'
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.DOCS_ENGINE_APP_ID }}
-          private-key: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.DOCS_PUBLISH_APP_ID }}
+          private-key: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY }}
           owner: coder
           repositories: docs-engine
           permission-actions: write
 
       - name: Start the docs-engine publish
-        if: steps.check.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REF: ${{ github.event.release.tag_name }}
