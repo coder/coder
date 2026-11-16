@@ -784,10 +784,23 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		successf(w, "Done! 🎉")
 		return nil
 	}
+	dispatchedAt := time.Now()
 	if err := executor.TriggerWorkflow(ctx, currentBranch, newVersion.String(), ref, channel, releaseNotes); err != nil {
 		return xerrors.Errorf("triggering workflow: %w", err)
 	}
-	successf(w, "Release workflow triggered! A second release manager must approve its release environment; it then creates tag %s.", newVersion)
+	successf(w, "Release workflow triggered!")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "Next step: another release manager approves the release."))
+	fmt.Fprintf(w, "  The run waits for its %q environment to be approved by a release manager\n", "release")
+	fmt.Fprintln(w, "  other than you (GitHub notifies them). After approval it creates tag "+newVersion.String()+",")
+	fmt.Fprintln(w, "  then builds and publishes; release-publish needs one more approval later.")
+	if !dryRun {
+		if url := ghFindDispatchedRun(currentBranch, dispatchedAt); url != "" {
+			fmt.Fprintf(w, "  Run: %s\n", url)
+		} else {
+			fmt.Fprintf(w, "  Run: https://github.com/%s/%s/actions/workflows/release.yaml?query=branch%%3A%s\n", owner, repo, currentBranch)
+		}
+	}
 
 	// --- Update release docs ---
 	// RC releases skip docs updates (calendar, helm versions, etc.)
