@@ -449,7 +449,6 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 
 	provReloadCancel()
 	provReloadShutdownCtx, provReloadShutdownCancel := clockTimeout(context.Background(), s.clock, providerReloadShutdownTimeout, "aigateway", "provider_reload_shutdown")
-	defer provReloadShutdownCancel()
 
 	var provReloadStopErr error
 	select {
@@ -459,7 +458,9 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 		provReloadStopErr = xerrors.Errorf("provider reload did not stop within %s, continuing gateway shutdown", providerReloadShutdownTimeout)
 	}
 
-	// Stop the provider reload timer now rather than when serve returns.
+	// Stop the provider reload timer before HTTP draining starts. A pending
+	// timer would stop a mock clock from advancing straight to the HTTP
+	// shutdown timeout.
 	provReloadShutdownCancel()
 
 	// Provider reload normally stops before HTTP draining so it cannot clear the
@@ -588,9 +589,10 @@ func resolveAIGatewayKey(key string, keyFile string) (string, error) {
 // timeout fires. Contexts derived from it report context.Canceled instead.
 // The tags identify the timer so tests can trap it on a mock clock.
 func clockTimeout(ctx context.Context, clock quartz.Clock, d time.Duration, tags ...string) (context.Context, context.CancelFunc) {
+	deadline := clock.Now().Add(d)
 	ctx, cancel := context.WithCancelCause(ctx)
 	timer := clock.AfterFunc(d, func() { cancel(context.DeadlineExceeded) }, tags...)
-	return timeoutContext{ctx}, func() {
+	return timeoutContext{Context: ctx, deadline: deadline}, func() {
 		timer.Stop()
 		cancel(context.Canceled)
 	}
@@ -600,6 +602,12 @@ func clockTimeout(ctx context.Context, clock quartz.Clock, d time.Duration, tags
 // clockTimeout from Err.
 type timeoutContext struct {
 	context.Context
+	deadline time.Time
+}
+
+// Deadline reports when the clock timer fires, like context.WithTimeout.
+func (c timeoutContext) Deadline() (time.Time, bool) {
+	return c.deadline, true
 }
 
 func (c timeoutContext) Err() error {

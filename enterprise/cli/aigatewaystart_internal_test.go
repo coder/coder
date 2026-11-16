@@ -826,3 +826,15 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 			"Check if option is applicable for standalone AI Gateway.\n"+
 			"If so, add it to aiGatewayInheritedEnvs, otherwise add it to the dropped set: %v", unclassified)
 }
+
+func TestClockTimeout_Deadline(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	ctx, cancel := clockTimeout(context.Background(), mClock, daemonShutdownTimeout)
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	require.Equal(t, mClock.Now().Add(daemonShutdownTimeout), deadline)
+}
