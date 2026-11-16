@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 )
 
-func TestParseConfig(t *testing.T) {
+func TestParseSource_Legacy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -213,21 +213,22 @@ func TestParseConfig(t *testing.T) {
 			err := os.WriteFile(path, []byte(tt.content), 0o600)
 			require.NoError(t, err)
 
-			got, err := agentmcp.ParseConfig(path)
+			got, entryErrs, err := agentmcp.ParseSource(agentmcp.ConfigSource{Path: path})
 			if tt.expectError {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
+			require.Nil(t, entryErrs)
 			require.Equal(t, tt.expected, got)
 		})
 	}
 }
 
-// TestParseConfig_EnvVarInterpolation verifies that ${VAR} references
+// TestParseSource_LegacyEnvVarInterpolation verifies that ${VAR} references
 // in env values are resolved from the process environment. This test
 // cannot be parallel because t.Setenv is incompatible with t.Parallel.
-func TestParseConfig_EnvVarInterpolation(t *testing.T) {
+func TestParseSource_LegacyEnvVarInterpolation(t *testing.T) {
 	t.Setenv("TEST_MCP_TOKEN", "secret123")
 
 	content := mustJSON(t, map[string]any{
@@ -244,8 +245,9 @@ func TestParseConfig_EnvVarInterpolation(t *testing.T) {
 	err := os.WriteFile(path, []byte(content), 0o600)
 	require.NoError(t, err)
 
-	got, err := agentmcp.ParseConfig(path)
+	got, entryErrs, err := agentmcp.ParseSource(agentmcp.ConfigSource{Path: path})
 	require.NoError(t, err)
+	require.Nil(t, entryErrs)
 	require.Equal(t, []agentmcp.ServerConfig{
 		{
 			Name:      "srv",
@@ -256,10 +258,10 @@ func TestParseConfig_EnvVarInterpolation(t *testing.T) {
 	}, got)
 }
 
-func TestParseConfig_FileNotFound(t *testing.T) {
+func TestParseSource_FileNotFound(t *testing.T) {
 	t.Parallel()
 
-	_, err := agentmcp.ParseConfig(filepath.Join(t.TempDir(), "nonexistent.json"))
+	_, _, err := agentmcp.ParseSource(agentmcp.ConfigSource{Path: filepath.Join(t.TempDir(), "nonexistent.json")})
 	require.Error(t, err)
 }
 
