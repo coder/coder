@@ -40,11 +40,11 @@ type CreateTrialLicenseRequest struct {
 	CompanyName string `json:"company_name" validate:"required,min=2,max=100"      example:"Acme Corp"              minLength:"2" maxLength:"100"`
 	Country     string `json:"country"      validate:"required"                    example:"United States"`
 	Developers  string `json:"developers"   validate:"required"`
-	// Source is the premium paywall the request came from, for telemetry. It
-	// is not forwarded to the licensor. Omit it to report "direct".
+	// The premium paywall the request came from, for telemetry. It is not
+	// forwarded to the licensor. Omit it to report "direct".
 	Source PremiumFunnelSource `json:"source,omitempty"`
-	// AttributionID is the ID of the cta_click funnel event that led here, so
-	// that a signup can be joined back to the paywall that produced it.
+	// The ID of the cta_click funnel event that led here, so that a signup can be
+	// joined back to the paywall that produced it.
 	AttributionID uuid.UUID `json:"attribution_id,omitempty" format:"uuid"`
 }
 
@@ -52,10 +52,9 @@ type License struct {
 	ID         int32     `json:"id"`
 	UUID       uuid.UUID `json:"uuid" format:"uuid"`
 	UploadedAt time.Time `json:"uploaded_at" format:"date-time"`
-	// Claims are the JWT claims asserted by the license.  Here we use
-	// a generic string map to ensure that all data from the server is
-	// parsed verbatim, not just the fields this version of Coder
-	// understands.
+	// The JWT claims asserted by the license. Here we use a generic string map to
+	// ensure that all data from the server is parsed verbatim, not just the fields
+	// this version of Coder understands.
 	Claims map[string]interface{} `json:"claims" table:"claims"`
 }
 

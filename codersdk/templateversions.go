@@ -61,8 +61,8 @@ type TemplateVersionParameter struct {
 	Description          string `json:"description"`
 	DescriptionPlaintext string `json:"description_plaintext"`
 	Type                 string `json:"type" enums:"string,number,bool,list(string)"`
-	// FormType has an enum value of empty string, `""`.
-	// Keep the leading comma in the enums struct tag.
+	// Has an enum value of empty string, `""`. Keep the leading comma in the enums
+	// struct tag.
 	FormType            string                           `json:"form_type" enums:",radio,dropdown,input,textarea,slider,checkbox,switch,tag-select,multi-select,error"`
 	Mutable             bool                             `json:"mutable"`
 	DefaultValue        string                           `json:"default_value"`

@@ -31,16 +31,16 @@ const (
 
 type IssueTokenRequest struct {
 	AppRequest Request `json:"app_request"`
-	// PathAppBaseURL is required.
+	// Required.
 	PathAppBaseURL string `json:"path_app_base_url"`
-	// AppHostname is the optional hostname for subdomain apps on the external
-	// proxy. It must start with an asterisk.
+	// The optional hostname for subdomain apps on the external proxy. It must
+	// start with an asterisk.
 	AppHostname string `json:"app_hostname"`
-	// AppPath is the path of the user underneath the app base path.
+	// The path of the user underneath the app base path.
 	AppPath string `json:"app_path"`
-	// AppQuery is the query parameters the user provided in the app request.
+	// The query parameters the user provided in the app request.
 	AppQuery string `json:"app_query"`
-	// SessionToken is the session token provided by the user.
+	// The session token provided by the user.
 	SessionToken string `json:"session_token"`
 }
 
@@ -82,22 +82,21 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 
 type Request struct {
 	AccessMethod AccessMethod `json:"access_method"`
-	// BasePath of the app. For path apps, this is the path prefix in the router
-	// for this particular app. For subdomain apps, this should be "/". This is
-	// used for setting the cookie path.
+	// The base path of the app. For path apps, this is the path prefix in the
+	// router for this particular app. For subdomain apps, this should be "/". This
+	// is used for setting the cookie path.
 	BasePath string `json:"base_path"`
-	// Prefix is the prefix of the subdomain app URL. Prefix should have a
-	// trailing "---" if set.
+	// The prefix of the subdomain app URL. It should have a trailing "---" if set.
 	Prefix string `json:"app_prefix"`
 
 	// For the following fields, if the AccessMethod is AccessMethodTerminal,
 	// then only AgentNameOrID may be set and it must be a UUID. The other
 	// fields must be left blank.
 	UsernameOrID string `json:"username_or_id"`
-	// WorkspaceAndAgent xor WorkspaceNameOrID are required.
+	// Exactly one of this field and `workspace_name_or_id` is required.
 	WorkspaceAndAgent string `json:"-"` // "workspace" or "workspace.agent"
 	WorkspaceNameOrID string `json:"workspace_name_or_id"`
-	// AgentNameOrID is not required if the workspace has only one agent.
+	// Not required if the workspace has only one agent.
 	AgentNameOrID string `json:"agent_name_or_id"`
 	AppSlugOrPort string `json:"app_slug_or_port"`
 }

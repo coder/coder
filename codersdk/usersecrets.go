@@ -17,10 +17,9 @@ type UserSecret struct {
 	Description string    `json:"description"`
 	EnvName     string    `json:"env_name"`
 	FilePath    string    `json:"file_path"`
-	// Enabled controls whether the secret is injected into workspaces.
-	// Disabled secrets remain visible and editable, but are not added
-	// to the agent manifest, so they are not exposed as environment
-	// variables or written to secret files.
+	// Whether the secret is injected into workspaces. Disabled secrets remain
+	// visible and editable, but are not added to the agent manifest, so they are
+	// not exposed as environment variables or written to secret files.
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
@@ -62,8 +61,8 @@ type UpdateUserSecretRequest struct {
 // deployment allows. Any authenticated user can read it, unlike the full
 // deployment configuration.
 type UserSecretsCapabilities struct {
-	// FilePathDeliveryEnabled reports whether Coder writes stored file paths
-	// into workspaces. Stored paths are preserved either way.
+	// Whether Coder writes stored file paths into workspaces. Stored paths are
+	// preserved either way.
 	FilePathDeliveryEnabled bool `json:"file_path_delivery_enabled"`
 }
 

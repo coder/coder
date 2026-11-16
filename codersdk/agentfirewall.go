@@ -56,13 +56,13 @@ type AgentFirewallSessionLogsResponse struct {
 // AgentFirewallSessionLogsParams are query parameters for listing
 // agent firewall session logs.
 type AgentFirewallSessionLogsParams struct {
-	// SeqAfter is an inclusive lower bound on sequence_number.
-	// Only logs with sequence_number >= SeqAfter are returned.
+	// An inclusive lower bound on sequence_number. Only logs with `sequence_number
+	// >= seq_after` are returned.
 	SeqAfter *int64 `json:"seq_after,omitempty"`
-	// SeqBefore is an exclusive upper bound on sequence_number.
-	// Only logs with sequence_number < SeqBefore are returned.
+	// An exclusive upper bound on sequence_number. Only logs with `sequence_number
+	// < seq_before` are returned.
 	SeqBefore *int64 `json:"seq_before,omitempty"`
-	// Limit caps the number of returned rows. Defaults to 100.
+	// The maximum number of rows returned. Defaults to 100.
 	Limit *int32 `json:"limit,omitempty"`
 }
 

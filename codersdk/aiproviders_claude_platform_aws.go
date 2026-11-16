@@ -16,11 +16,11 @@ const AIProviderClaudePlatformAWSSettingsVersion = 1
 // Requests use a client or provider API key when available, otherwise the
 // gateway signs with its ambient AWS credentials.
 type AIProviderClaudePlatformAWSSettings struct {
-	// Region selects the default regional endpoint and SigV4 signing scope.
-	// Required even when BaseURL points at a proxy.
+	// Selects the default regional endpoint and SigV4 signing scope. Required even
+	// when BaseURL points at a proxy.
 	Region string `json:"region"`
-	// WorkspaceID is sent as the anthropic-workspace-id header on every
-	// request. Required regardless of the credential used.
+	// Sent as the anthropic-workspace-id header on every request. Required
+	// regardless of the credential used.
 	WorkspaceID string `json:"workspace_id"`
 }
 

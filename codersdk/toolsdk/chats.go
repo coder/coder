@@ -559,7 +559,7 @@ type GetChatMessagesResponse struct {
 	// Cursors come from the raw page so filtered pages remain traversable.
 	NextBeforeID int64 `json:"next_before_id,omitempty"`
 	NextAfterID  int64 `json:"next_after_id,omitempty"`
-	// QueuedMessages is populated only on the initial page.
+	// Populated only on the initial page.
 	QueuedMessages []string `json:"queued_messages,omitempty"`
 }
 

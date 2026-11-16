@@ -161,11 +161,11 @@ type PreviewParameterValidation struct {
 }
 
 type DynamicParametersRequest struct {
-	// ID identifies the request. The response contains the same
-	// ID so that the client can match it to the request.
+	// Identifies the request. The response contains the same ID so that the client
+	// can match it to the request.
 	ID     int               `json:"id"`
 	Inputs map[string]string `json:"inputs"`
-	// OwnerID if uuid.Nil, it defaults to `codersdk.Me`
+	// If uuid.Nil, it defaults to `codersdk.Me`.
 	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 

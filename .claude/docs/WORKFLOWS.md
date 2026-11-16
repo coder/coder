@@ -113,6 +113,10 @@
 - For experimental or unstable API paths, skip public doc generation with
   `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
   keeps them out of the published API reference until they stabilize.
+- Write field comments on API types (`codersdk` and the other packages that
+  feed the API reference) so they describe the value without opening with the
+  Go field name. The API reference and TypeScript types show them under the
+  JSON name.
 
 ## Testing Workflows
 
