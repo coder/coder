@@ -32638,6 +32638,19 @@ func (q *sqlQuerier) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.
 	return err
 }
 
+const deleteTemplateVersionVariablesByTemplateVersionID = `-- name: DeleteTemplateVersionVariablesByTemplateVersionID :exec
+DELETE FROM template_version_variables WHERE template_version_id = $1
+`
+
+// Deletes all variables of a template version. Import jobs use this to
+// replace the placeholder rows that carried user-provided values (kept out
+// of the plaintext job input; SEC-1491) with the variables parsed from the
+// template.
+func (q *sqlQuerier) DeleteTemplateVersionVariablesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteTemplateVersionVariablesByTemplateVersionID, templateVersionID)
+	return err
+}
+
 const getTemplateVersionVariables = `-- name: GetTemplateVersionVariables :many
 SELECT template_version_id, name, description, type, value, default_value, required, sensitive, value_key_id FROM template_version_variables WHERE template_version_id = $1 ORDER BY name
 `

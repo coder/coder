@@ -970,7 +970,27 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
 
-		userVariableValues, err := s.includeLastVariableValues(ctx, input.TemplateVersionID, input.UserVariableValues)
+		// User-provided variable values are stored as placeholder rows in
+		// template_version_variables (encrypted at rest when dbcrypt is
+		// enabled) rather than in the plaintext job input (SEC-1491).
+		// input.UserVariableValues still carries values of jobs created
+		// before this change.
+		userVariableValues := input.UserVariableValues
+		versionVariables, err := s.Database.GetTemplateVersionVariables(ctx, input.TemplateVersionID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
+		}
+		for _, variable := range versionVariables {
+			if slices.ContainsFunc(userVariableValues, func(v codersdk.VariableValue) bool { return v.Name == variable.Name }) {
+				continue
+			}
+			userVariableValues = append(userVariableValues, codersdk.VariableValue{
+				Name:  variable.Name,
+				Value: variable.Value,
+			})
+		}
+
+		userVariableValues, err = s.includeLastVariableValues(ctx, input.TemplateVersionID, userVariableValues)
 		if err != nil {
 			return nil, failJob(err.Error())
 		}
@@ -1284,6 +1304,14 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		if err != nil {
 			s.Logger.Error(ctx, "failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("get template version by job id: %w", err)
+		}
+
+		// Version creation stored user-provided values as placeholder rows
+		// so they stay out of the plaintext job input (SEC-1491). Replace
+		// them with the variables parsed from the template.
+		err = s.Database.DeleteTemplateVersionVariablesByTemplateVersionID(ctx, templateVersion.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("delete placeholder template version variables: %w", err)
 		}
 
 		var variableValues []*sdkproto.VariableValue

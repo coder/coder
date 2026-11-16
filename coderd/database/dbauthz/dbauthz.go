@@ -2736,6 +2736,13 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
+func (q *querier) DeleteTemplateVersionVariablesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteTemplateVersionVariablesByTemplateVersionID(ctx, templateVersionID)
+}
+
 func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err

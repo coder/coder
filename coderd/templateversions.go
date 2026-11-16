@@ -1648,13 +1648,17 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		jobID := uuid.New()
 		templateVersionID := uuid.New()
 
+		// UserVariableValues are intentionally not embedded in the job
+		// input: they can contain secrets and provisioner_jobs.input is
+		// stored in plaintext. They are written to
+		// template_version_variables below, which is encrypted at rest when
+		// dbcrypt is enabled, and resolved at job acquisition (SEC-1491).
 		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
 			TemplateID: uuid.NullUUID{
 				UUID:  req.TemplateID,
 				Valid: req.TemplateID != uuid.Nil,
 			},
-			TemplateVersionID:  templateVersionID,
-			UserVariableValues: req.UserVariableValues,
+			TemplateVersionID: templateVersionID,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1772,6 +1776,33 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				Detail:  xerrors.Errorf("insert template version: %w", err).Error(),
 			})
 			return err
+		}
+
+		// Store user-provided variable values as placeholder rows so they
+		// stay out of the plaintext job input. The template has not been
+		// parsed yet, so the variables' metadata is unknown; every value is
+		// treated as sensitive so it is encrypted at rest when dbcrypt is
+		// enabled. Import completion replaces these rows with the parsed
+		// variables.
+		for _, variableValue := range req.UserVariableValues {
+			_, err = tx.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
+				TemplateVersionID: templateVersionID,
+				Name:              variableValue.Name,
+				Value:             variableValue.Value,
+				Description:       "",
+				Type:              "string",
+				DefaultValue:      "",
+				Required:          false,
+				Sensitive:         true,
+				ValueKeyID:        sql.NullString{}, // dbcrypt will set as required
+			})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error creating template version.",
+					Detail:  xerrors.Errorf("insert template version variable %q: %w", variableValue.Name, err).Error(),
+				})
+				return err
+			}
 		}
 
 		templateVersion, err = tx.GetTemplateVersionByID(ctx, templateVersionID)
