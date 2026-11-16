@@ -264,7 +264,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 	}
 
 	log.Info(ctx, "encrypting workspace build provisioner state")
-	err = forEachBuildWithProvisionerState(ctx, sqlDB, func(buildID uuid.UUID, keyID sql.NullString) error {
+	err = forEachSecretRow(ctx, sqlDB, workspaceBuildStateScan, func(buildID uuid.UUID, keyID sql.NullString) error {
 		if keyID.Valid && keyID.String == ciphers[0].HexDigest() {
 			log.Debug(ctx, "skipping workspace build provisioner state", slog.F("build_id", buildID), slog.F("cipher", ciphers[0].HexDigest()))
 			return nil
@@ -282,6 +282,31 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("rotate provisioner state for build %s: %w", buildID, err)
 		}
 		log.Debug(ctx, "rotated workspace build provisioner state", slog.F("build_id", buildID), slog.F("cipher", ciphers[0].HexDigest()))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "encrypting cached template version terraform plans")
+	err = forEachSecretRow(ctx, sqlDB, terraformValuesCachedPlanScan, func(templateVersionID uuid.UUID, keyID sql.NullString) error {
+		if keyID.Valid && keyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping cached plan", slog.F("template_version_id", templateVersionID), slog.F("cipher", ciphers[0].HexDigest()))
+			return nil
+		}
+		row, err := cryptDB.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+		if err != nil {
+			return xerrors.Errorf("get cached plan for template version %s: %w", templateVersionID, err)
+		}
+		if err := cryptDB.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, database.UpdateTemplateVersionTerraformValuesCachedPlanParams{
+			TemplateVersionID: templateVersionID,
+			CachedPlan:        row.CachedPlan,
+			CachedPlanKeyID:   sql.NullString{}, // dbcrypt will re-encrypt
+			UpdatedAt:         row.UpdatedAt,
+		}); err != nil {
+			return xerrors.Errorf("rotate cached plan for template version %s: %w", templateVersionID, err)
+		}
+		log.Debug(ctx, "rotated cached plan", slog.F("template_version_id", templateVersionID), slog.F("cipher", ciphers[0].HexDigest()))
 		return nil
 	})
 	if err != nil {
@@ -534,7 +559,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 	}
 
 	log.Info(ctx, "decrypting workspace build provisioner state")
-	err = forEachBuildWithProvisionerState(ctx, sqlDB, func(buildID uuid.UUID, keyID sql.NullString) error {
+	err = forEachSecretRow(ctx, sqlDB, workspaceBuildStateScan, func(buildID uuid.UUID, keyID sql.NullString) error {
 		if !keyID.Valid {
 			log.Debug(ctx, "skipping workspace build provisioner state", slog.F("build_id", buildID))
 			return nil
@@ -558,6 +583,31 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting cached template version terraform plans")
+	err = forEachSecretRow(ctx, sqlDB, terraformValuesCachedPlanScan, func(templateVersionID uuid.UUID, keyID sql.NullString) error {
+		if !keyID.Valid {
+			log.Debug(ctx, "skipping cached plan", slog.F("template_version_id", templateVersionID))
+			return nil
+		}
+		row, err := cryptDB.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+		if err != nil {
+			return xerrors.Errorf("get cached plan for template version %s: %w", templateVersionID, err)
+		}
+		if err := cryptDB.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, database.UpdateTemplateVersionTerraformValuesCachedPlanParams{
+			TemplateVersionID: templateVersionID,
+			CachedPlan:        row.CachedPlan,
+			CachedPlanKeyID:   sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+			UpdatedAt:         row.UpdatedAt,
+		}); err != nil {
+			return xerrors.Errorf("decrypt cached plan for template version %s: %w", templateVersionID, err)
+		}
+		log.Debug(ctx, "decrypted cached plan", slog.F("template_version_id", templateVersionID))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -573,48 +623,71 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 // Decrypt hold in memory at once.
 const workspaceSecretsPageSize = 1000
 
-// buildStatePageSize is the page size used when iterating workspace builds
-// that hold provisioner state.
-const buildStatePageSize = 100
+// secretRowPageSize is the page size used when iterating rows of tables whose
+// secret columns are excluded from the store's hot paths.
+const secretRowPageSize = 100
 
-// forEachBuildWithProvisionerState calls fn for every workspace build that
-// holds a non-empty provisioner state, one page at a time. Listing reads
-// through raw SQL because the column is intentionally excluded from the
-// store's hot paths; the actual state reads and writes go through the
-// dbcrypt-wrapped store.
-func forEachBuildWithProvisionerState(ctx context.Context, sqlDB *sql.DB, fn func(id uuid.UUID, keyID sql.NullString) error) error {
-	type buildRef struct {
+// secretRowScan describes a table whose secret-bearing rows are listed
+// through raw SQL for `coder server dbcrypt` maintenance sweeps. The actual
+// secret reads and writes still go through the dbcrypt-wrapped store.
+type secretRowScan struct {
+	table             string
+	idColumn          string
+	keyIDColumn       string
+	nonEmptyPredicate string
+}
+
+var workspaceBuildStateScan = secretRowScan{
+	table:             "workspace_builds",
+	idColumn:          "id",
+	keyIDColumn:       "provisioner_state_key_id",
+	nonEmptyPredicate: "provisioner_state IS NOT NULL AND provisioner_state != ''::bytea",
+}
+
+var terraformValuesCachedPlanScan = secretRowScan{
+	table:             "template_version_terraform_values",
+	idColumn:          "template_version_id",
+	keyIDColumn:       "cached_plan_key_id",
+	nonEmptyPredicate: "cached_plan IS NOT NULL AND cached_plan != 'null'::jsonb AND cached_plan != '{}'::jsonb",
+}
+
+// forEachSecretRow calls fn for every row of the scan's table that holds a
+// non-empty secret value, one ID-ordered page at a time.
+func forEachSecretRow(ctx context.Context, sqlDB *sql.DB, scan secretRowScan, fn func(id uuid.UUID, keyID sql.NullString) error) error {
+	type rowRef struct {
 		id    uuid.UUID
 		keyID sql.NullString
 	}
+	//nolint:gosec // Identifiers and predicates are compile-time constants; only values are parameterized.
+	query := fmt.Sprintf(`
+		SELECT %s, %s
+		FROM %s
+		WHERE %s
+			AND %s > $1
+		ORDER BY %s
+		LIMIT $2`,
+		scan.idColumn, scan.keyIDColumn, scan.table, scan.nonEmptyPredicate, scan.idColumn, scan.idColumn,
+	)
 	afterID := uuid.Nil
 	for {
-		//nolint:gosec // Constant query with parameterized values only.
-		rows, err := sqlDB.QueryContext(ctx, `
-			SELECT id, provisioner_state_key_id
-			FROM workspace_builds
-			WHERE provisioner_state IS NOT NULL
-				AND provisioner_state != ''::bytea
-				AND id > $1
-			ORDER BY id
-			LIMIT $2`, afterID, buildStatePageSize)
+		rows, err := sqlDB.QueryContext(ctx, query, afterID, secretRowPageSize)
 		if err != nil {
-			return xerrors.Errorf("list workspace builds with provisioner state after id=%s: %w", afterID, err)
+			return xerrors.Errorf("list %s rows after id=%s: %w", scan.table, afterID, err)
 		}
 		// Collect the page before calling fn so the connection is free for
 		// fn's own queries.
-		var page []buildRef
+		var page []rowRef
 		for rows.Next() {
-			var ref buildRef
+			var ref rowRef
 			if err := rows.Scan(&ref.id, &ref.keyID); err != nil {
 				_ = rows.Close()
-				return xerrors.Errorf("scan workspace build: %w", err)
+				return xerrors.Errorf("scan %s row: %w", scan.table, err)
 			}
 			page = append(page, ref)
 		}
 		if err := rows.Err(); err != nil {
 			_ = rows.Close()
-			return xerrors.Errorf("iterate workspace builds: %w", err)
+			return xerrors.Errorf("iterate %s rows: %w", scan.table, err)
 		}
 		_ = rows.Close()
 
@@ -623,7 +696,7 @@ func forEachBuildWithProvisionerState(ctx context.Context, sqlDB *sql.DB, fn fun
 				return err
 			}
 		}
-		if len(page) < buildStatePageSize {
+		if len(page) < secretRowPageSize {
 			return nil
 		}
 		afterID = page[len(page)-1].id
@@ -694,6 +767,10 @@ UPDATE workspace_builds
 	SET provisioner_state = NULL,
 		provisioner_state_key_id = NULL
 	WHERE provisioner_state_key_id IS NOT NULL;
+-- Cached Terraform plans are regenerated on the next template version import
+-- or dynamic-parameter render; callers already handle a missing row.
+DELETE FROM template_version_terraform_values
+	WHERE cached_plan_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
@@ -760,6 +837,7 @@ var auditTargets = []auditTarget{
 	{table: "external_auth_links", column: "oauth_extra", keyIDColumn: "oauth_extra_key_id", nonEmptyPredicate: "oauth_extra IS NOT NULL AND oauth_extra != 'null'::jsonb AND oauth_extra != '{}'::jsonb"},
 	{table: "gitsshkeys", column: "private_key", keyIDColumn: "private_key_key_id"},
 	{table: "workspace_builds", column: "provisioner_state", keyIDColumn: "provisioner_state_key_id", nonEmptyPredicate: "provisioner_state IS NOT NULL AND provisioner_state != ''::bytea"},
+	{table: "template_version_terraform_values", column: "cached_plan", keyIDColumn: "cached_plan_key_id", nonEmptyPredicate: "cached_plan IS NOT NULL AND cached_plan != 'null'::jsonb AND cached_plan != '{}'::jsonb"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},

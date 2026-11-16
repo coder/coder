@@ -8816,6 +8816,13 @@ func (q *querier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Conte
 	return q.db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg database.UpdateTemplateVersionTerraformValuesCachedPlanParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)

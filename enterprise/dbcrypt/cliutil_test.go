@@ -596,6 +596,57 @@ func TestRotateWorkspaceBuildProvisionerState(t *testing.T) {
 	}
 }
 
+// TestRotateTemplateVersionCachedPlan covers
+// template_version_terraform_values.cached_plan (cached Terraform plans,
+// which embed data source values such as owner credentials and template
+// variable values; SEC-1491). One rotation sweeps a plaintext row and a row
+// encrypted under the old cipher A; a follow-up Decrypt returns both to
+// plaintext.
+func TestRotateTemplateVersionCachedPlan(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	plan := json.RawMessage(`{"variables": {"secret": "hunter2"}}`)
+	seedPlan := func(t *testing.T, store database.Store) uuid.UUID {
+		t.Helper()
+		resp := seedWorkspaceBuild(t, f.rawDB)
+		version, err := f.rawDB.GetTemplateVersionByID(f.ctx, resp.Build.TemplateVersionID)
+		require.NoError(t, err)
+		require.NoError(t, store.InsertTemplateVersionTerraformValuesByJobID(f.ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID:               version.JobID,
+			CachedPlan:          plan,
+			CachedPlanKeyID:     sql.NullString{},
+			CachedModuleFiles:   uuid.NullUUID{},
+			UpdatedAt:           dbtime.Now(),
+			ProvisionerdVersion: "",
+		}))
+		return version.ID
+	}
+
+	plainVersion := seedPlan(t, f.rawDB)  // plaintext, as written before encryption was enabled
+	encVersion := seedPlan(t, f.cryptDBA) // encrypted under cipher A
+
+	f.rotate(t)
+
+	for _, id := range []uuid.UUID{plainVersion, encVersion} {
+		raw, err := f.rawDB.GetTemplateVersionTerraformValues(f.ctx, id)
+		require.NoError(t, err, "template version %s", id)
+		require.Equal(t, f.cipherB.HexDigest(), raw.CachedPlanKeyID.String, "template version %s", id)
+		var payload string
+		require.NoError(t, json.Unmarshal(raw.CachedPlan, &payload), "encrypted plan must be a JSON string")
+		require.JSONEq(t, string(plan), decryptRawString(t, f.cipherB, payload), "template version %s", id)
+	}
+
+	// Decrypt returns the plans to plaintext and clears the key IDs.
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	for _, id := range []uuid.UUID{plainVersion, encVersion} {
+		raw, err := f.rawDB.GetTemplateVersionTerraformValues(f.ctx, id)
+		require.NoError(t, err, "template version %s", id)
+		require.False(t, raw.CachedPlanKeyID.Valid, "template version %s must be plaintext after decrypt", id)
+		require.JSONEq(t, string(plan), string(raw.CachedPlan), "template version %s", id)
+	}
+}
+
 // TestRotateGitSSHKey covers the gitsshkeys table (per-user Git SSH private
 // keys). Simulates rotating keys on a deployment where a soft-deleted
 // user's SSH key row is still present, since gitsshkeys rows are preserved

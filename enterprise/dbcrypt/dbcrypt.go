@@ -1305,6 +1305,61 @@ func extraHoldsSecret(extra pqtype.NullRawMessage) bool {
 	return payload != "null" && payload != "{}"
 }
 
+// InsertTemplateVersionTerraformValuesByJobID encrypts the cached Terraform
+// plan before it is stored. Plans embed data source values such as workspace
+// owner credentials and template variable values (SEC-1491).
+func (db *dbCrypt) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, params database.InsertTemplateVersionTerraformValuesByJobIDParams) error {
+	if err := db.encryptRawMessage(&params.CachedPlan, &params.CachedPlanKeyID); err != nil {
+		return err
+	}
+	return db.Store.InsertTemplateVersionTerraformValuesByJobID(ctx, params)
+}
+
+func (db *dbCrypt) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, params database.UpdateTemplateVersionTerraformValuesCachedPlanParams) error {
+	if err := db.encryptRawMessage(&params.CachedPlan, &params.CachedPlanKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, params)
+}
+
+func (db *dbCrypt) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	row, err := db.Store.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+	if err != nil {
+		return database.TemplateVersionTerraformValue{}, err
+	}
+	if err := db.decryptRawMessage(&row.CachedPlan, row.CachedPlanKeyID); err != nil {
+		return database.TemplateVersionTerraformValue{}, err
+	}
+	return row, nil
+}
+
+// encryptRawMessage is encryptExtra for non-null jsonb columns held as a bare
+// json.RawMessage.
+func (db *dbCrypt) encryptRawMessage(m *json.RawMessage, digest *sql.NullString) error {
+	if m == nil || digest == nil {
+		return xerrors.Errorf("developer error: encryptRawMessage called with nil argument")
+	}
+	extra := pqtype.NullRawMessage{RawMessage: *m, Valid: len(*m) > 0}
+	if err := db.encryptExtra(&extra, digest); err != nil {
+		return err
+	}
+	*m = extra.RawMessage
+	return nil
+}
+
+// decryptRawMessage reverses encryptRawMessage.
+func (db *dbCrypt) decryptRawMessage(m *json.RawMessage, digest sql.NullString) error {
+	if m == nil {
+		return xerrors.Errorf("developer error: decryptRawMessage called with nil message")
+	}
+	extra := pqtype.NullRawMessage{RawMessage: *m, Valid: len(*m) > 0}
+	if err := db.decryptExtra(&extra, digest); err != nil {
+		return err
+	}
+	*m = extra.RawMessage
+	return nil
+}
+
 // encryptExtra encrypts a jsonb payload in place. The ciphertext is stored as
 // a JSON-encoded string so the column keeps its jsonb type; the digest column
 // marks the value as encrypted. JSON nulls and empty objects carry no secret

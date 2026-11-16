@@ -11,6 +11,7 @@ INSERT INTO
 	template_version_terraform_values (
 		template_version_id,
 		cached_plan,
+		cached_plan_key_id,
 		cached_module_files,
 		updated_at,
 	    provisionerd_version
@@ -19,10 +20,23 @@ VALUES
 	(
 		(select id from template_versions where job_id = @job_id),
 		@cached_plan,
+		sqlc.narg('cached_plan_key_id'),
 		@cached_module_files,
 		@updated_at,
 		@provisionerd_version
 	);
+
+-- name: UpdateTemplateVersionTerraformValuesCachedPlan :exec
+-- Rewrites a cached plan in place. Used by `coder server dbcrypt`
+-- maintenance commands to re-encrypt or decrypt the plan at rest.
+UPDATE
+	template_version_terraform_values
+SET
+	cached_plan = @cached_plan,
+	cached_plan_key_id = sqlc.narg('cached_plan_key_id'),
+	updated_at = @updated_at
+WHERE
+	template_version_id = @template_version_id;
 
 -- name: HasTemplateVersionsUsingCachedModuleFileInOrg :one
 -- Reports whether the given file is referenced as cached module files by any

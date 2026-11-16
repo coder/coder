@@ -3552,10 +3552,13 @@ CREATE TABLE template_version_terraform_values (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     cached_plan jsonb NOT NULL,
     cached_module_files uuid,
-    provisionerd_version text DEFAULT ''::text NOT NULL
+    provisionerd_version text DEFAULT ''::text NOT NULL,
+    cached_plan_key_id text
 );
 
 COMMENT ON COLUMN template_version_terraform_values.provisionerd_version IS 'What version of the provisioning engine was used to generate the cached plan and module files.';
+
+COMMENT ON COLUMN template_version_terraform_values.cached_plan_key_id IS 'The ID of the key used to encrypt the cached plan. If this is NULL, the plan is not encrypted. Cached Terraform plans embed data source values such as workspace owner credentials and template variable values (SEC-1491).';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -5911,6 +5914,9 @@ ALTER TABLE ONLY template_version_presets
 
 ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_cached_module_files_fkey FOREIGN KEY (cached_module_files) REFERENCES files(id);
+
+ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_cached_plan_key_id_fkey FOREIGN KEY (cached_plan_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY template_version_terraform_values
     ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
