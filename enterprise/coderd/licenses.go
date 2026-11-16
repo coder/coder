@@ -58,6 +58,10 @@ var key20220812 []byte
 
 var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220812)}
 
+// errLicenseAlreadyInstalled is returned by installLicense when the same
+// license JWT is already stored in the database.
+var errLicenseAlreadyInstalled = xerrors.New("license is already installed")
+
 // postLicense adds a new Enterprise license to the cluster.  We allow multiple different licenses
 // in the cluster at one time for several reasons:
 //
@@ -76,6 +80,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
+// @Failure 409 {object} codersdk.Response
 // @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -120,10 +125,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 
 	lic, err := api.installLicense(ctx, aReq, addLicense.License, claims)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to install license",
-			Detail:  err.Error(),
-		})
+		writeInstallLicenseError(ctx, rw, err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, lic)
@@ -137,6 +139,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param request body codersdk.CreateTrialLicenseRequest true "Trial license request"
 // @Success 201 {object} codersdk.License
+// @Failure 409 {object} codersdk.Response
 // @Router /api/v2/licenses/trial [post]
 func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -210,10 +213,7 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 
 	lic, err := api.installLicense(ctx, aReq, rawLicense, claims)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to install license",
-			Detail:  err.Error(),
-		})
+		writeInstallLicenseError(ctx, rw, err)
 		return
 	}
 
@@ -248,8 +248,9 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 // because that path is rate limited and would reject a refresh immediately after
 // a license lands.
 //
-// Every failure is a server-side fault; callers should map a non-nil error to a
-// 500.
+// It returns errLicenseAlreadyInstalled when the license is already stored.
+// Every other failure is a server-side fault. Callers should pass a non-nil
+// error to writeInstallLicenseError.
 func (api *API) installLicense(
 	ctx context.Context,
 	aReq *audit.Request[database.License],
@@ -268,6 +269,9 @@ func (api *API) installLicense(
 		Exp:        claims.ExpiresAt.Time,
 		UUID:       id,
 	})
+	if database.IsUniqueViolation(err, database.UniqueLicensesJWTKey) {
+		return codersdk.License{}, errLicenseAlreadyInstalled
+	}
 	if err != nil {
 		return codersdk.License{}, xerrors.Errorf("add license to database: %w", err)
 	}
@@ -289,6 +293,22 @@ func (api *API) installLicense(
 		return codersdk.License{}, xerrors.Errorf("decode database response: %w", err)
 	}
 	return convertLicense(dl, c), nil
+}
+
+// writeInstallLicenseError writes the HTTP response for an error returned by
+// installLicense.
+func writeInstallLicenseError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if errors.Is(err, errLicenseAlreadyInstalled) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "This license is already installed.",
+			Detail:  "No action is needed. To see installed licenses, run \"coder licenses list\" or open the Licenses page in the deployment settings.",
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to install license",
+		Detail:  err.Error(),
+	})
 }
 
 // postRefreshEntitlements forces an `updateEntitlements` call and publishes
