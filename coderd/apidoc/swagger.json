@@ -14818,6 +14818,72 @@
 				]
 			}
 		},
+		"/api/v2/workspaceagents/me/relay-lease": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Obtain a workspace relay lease (experimental)",
+				"operationId": "obtain-workspace-relay-lease",
+				"parameters": [
+					{
+						"description": "Lease request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/agentsdk.WorkspaceRelayLeaseRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/agentsdk.WorkspaceRelayLease"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			},
+			"delete": {
+				"consumes": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Release a workspace relay lease (experimental)",
+				"operationId": "release-workspace-relay-lease",
+				"parameters": [
+					{
+						"description": "Lease request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/agentsdk.WorkspaceRelayLeaseRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/workspaceagents/me/rpc": {
 			"get": {
 				"tags": ["Agents"],
@@ -17723,6 +17789,51 @@
 			"type": "string",
 			"enum": ["prebuild_claimed"],
 			"x-enum-varnames": ["ReinitializeReasonPrebuildClaimed"]
+		},
+		"agentsdk.WorkspaceRelayLease": {
+			"type": "object",
+			"properties": {
+				"enforced": {
+					"description": "Enforced is whether the control plane refuses a workspace session\ntoken that arrives without a lease.",
+					"type": "boolean"
+				},
+				"expires_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"generation": {
+					"description": "Generation is how many daemon instances have held the relay of this\nworkspace agent, this one included.",
+					"type": "integer"
+				},
+				"lease": {
+					"description": "Lease is attached to every relayed request.",
+					"type": "string"
+				}
+			}
+		},
+		"agentsdk.WorkspaceRelayLeaseRequest": {
+			"type": "object",
+			"properties": {
+				"public_key": {
+					"description": "PublicKey is the Ed25519 public key of this daemon instance.",
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"signature": {
+					"description": "Signature is over the timestamp, by the private half of PublicKey.",
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"timestamp": {
+					"description": "Timestamp is when the request was signed.",
+					"type": "string",
+					"format": "date-time"
+				}
+			}
 		},
 		"coderd.chatsByWorkspaceResponse": {
 			"type": "object",

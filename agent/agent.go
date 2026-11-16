@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentrelay"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -102,19 +103,22 @@ type Options struct {
 	IgnorePorts map[int]string
 	// ListeningPortsGetter is used to get the list of listening ports. Only
 	// tests should set this. If unset, a default that queries the OS will be used.
-	ListeningPortsGetter            ListeningPortsGetter
-	SSHMaxTimeout                   time.Duration
-	TailnetListenPort               uint16
-	Subsystems                      []codersdk.AgentSubsystem
-	PrometheusRegistry              *prometheus.Registry
-	ReportMetadataInterval          time.Duration
-	ServiceBannerRefreshInterval    time.Duration
-	BlockFileTransfer               bool
-	BlockReversePortForwarding      bool
-	BlockLocalPortForwarding        bool
-	Execer                          agentexec.Execer
-	Devcontainers                   bool
-	DevcontainerAPIOptions          []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	ListeningPortsGetter         ListeningPortsGetter
+	SSHMaxTimeout                time.Duration
+	TailnetListenPort            uint16
+	Subsystems                   []codersdk.AgentSubsystem
+	PrometheusRegistry           *prometheus.Registry
+	ReportMetadataInterval       time.Duration
+	ServiceBannerRefreshInterval time.Duration
+	BlockFileTransfer            bool
+	BlockReversePortForwarding   bool
+	BlockLocalPortForwarding     bool
+	Execer                       agentexec.Execer
+	Devcontainers                bool
+	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	// WorkspaceRelay lets what runs in the workspace reach the control
+	// plane through this daemon. Nil disables it.
+	WorkspaceRelay                  *agentrelay.Relay
 	GitAPIOptions                   []agentgit.Option
 	Clock                           quartz.Clock
 	SocketServerEnabled             bool
@@ -244,6 +248,7 @@ func New(options Options) Agent {
 
 		devcontainers:                   options.Devcontainers,
 		containerAPIOptions:             options.DevcontainerAPIOptions,
+		workspaceRelay:                  options.WorkspaceRelay,
 		gitAPIOptions:                   options.GitAPIOptions,
 		socketPath:                      options.SocketPath,
 		socketServerEnabled:             options.SocketServerEnabled,
@@ -339,6 +344,7 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+	workspaceRelay      *agentrelay.Relay
 	gitAPIOptions       []agentgit.Option
 
 	filesAPI         *agentfiles.API
@@ -1014,6 +1020,12 @@ func (a *agent) run() (retErr error) {
 		return xerrors.Errorf("refresh token: %w", err)
 	}
 
+	// Obtain the relay's lease before anything is started in the
+	// workspace, so that what is started is given the relay's address.
+	if a.workspaceRelay != nil {
+		a.workspaceRelay.Ensure(a.hardCtx)
+	}
+
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
@@ -1605,6 +1617,16 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// and GIT_ASKPASS.
 	for k, v := range a.environmentVariables {
 		envs[k] = v
+	}
+
+	// What runs in the workspace reaches the control plane through this
+	// daemon, once the daemon holds a lease to vouch for it. This wins over
+	// an address the template set: the control plane may refuse the
+	// workspace's session token anywhere else.
+	if a.workspaceRelay != nil {
+		if relayURL := a.workspaceRelay.URL(); relayURL != "" {
+			envs["CODER_URL"] = relayURL
+		}
 	}
 
 	// Prepend the agent script bin directory to the PATH

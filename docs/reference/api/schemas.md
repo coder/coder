@@ -245,6 +245,48 @@ title: Schemas
 |--------------------|
 | `prebuild_claimed` |
 
+## agentsdk.WorkspaceRelayLease
+
+```json
+{
+  "enforced": true,
+  "expires_at": "2019-08-24T14:15:22Z",
+  "generation": 0,
+  "lease": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description                                                                                             |
+|--------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------|
+| `enforced`   | boolean | false    |              | Enforced is whether the control plane refuses a workspace session token that arrives without a lease.   |
+| `expires_at` | string  | false    |              |                                                                                                         |
+| `generation` | integer | false    |              | Generation is how many daemon instances have held the relay of this workspace agent, this one included. |
+| `lease`      | string  | false    |              | Lease is attached to every relayed request.                                                             |
+
+## agentsdk.WorkspaceRelayLeaseRequest
+
+```json
+{
+  "public_key": [
+    0
+  ],
+  "signature": [
+    0
+  ],
+  "timestamp": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type             | Required | Restrictions | Description                                                        |
+|--------------|------------------|----------|--------------|--------------------------------------------------------------------|
+| `public_key` | array of integer | false    |              | Public key is the Ed25519 public key of this daemon instance.      |
+| `signature`  | array of integer | false    |              | Signature is over the timestamp, by the private half of PublicKey. |
+| `timestamp`  | string           | false    |              | Timestamp is when the request was signed.                          |
+
 ## coderd.chatsByWorkspaceResponse
 
 ```json

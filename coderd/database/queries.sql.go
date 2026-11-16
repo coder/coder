@@ -36928,6 +36928,109 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 	return i, err
 }
 
+const claimWorkspaceAgentRelay = `-- name: ClaimWorkspaceAgentRelay :one
+INSERT INTO workspace_agent_relays (
+	workspace_agent_id,
+	public_key,
+	generation,
+	created_at,
+	renewed_at
+)
+VALUES (
+	$1,
+	$2,
+	1,
+	$3,
+	$3
+)
+ON CONFLICT (workspace_agent_id) DO UPDATE SET
+	generation = CASE
+		WHEN workspace_agent_relays.public_key = EXCLUDED.public_key THEN workspace_agent_relays.generation
+		ELSE workspace_agent_relays.generation + 1
+	END,
+	public_key = EXCLUDED.public_key,
+	renewed_at = EXCLUDED.renewed_at
+WHERE
+	workspace_agent_relays.public_key = EXCLUDED.public_key
+	OR workspace_agent_relays.renewed_at < $4
+RETURNING workspace_agent_id, public_key, generation, created_at, renewed_at
+`
+
+type ClaimWorkspaceAgentRelayParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	PublicKey        []byte    `db:"public_key" json:"public_key"`
+	Now              time.Time `db:"now" json:"now"`
+	LapsedBefore     time.Time `db:"lapsed_before" json:"lapsed_before"`
+}
+
+// ClaimWorkspaceAgentRelay lets a daemon instance take or keep the relay of
+// its workspace agent. The instance that holds the relay renews it. Another
+// instance takes it over only when the holder has not renewed since
+// lapsed_before, and the generation goes up. It returns no row while another
+// instance holds the relay.
+func (q *sqlQuerier) ClaimWorkspaceAgentRelay(ctx context.Context, arg ClaimWorkspaceAgentRelayParams) (WorkspaceAgentRelay, error) {
+	row := q.db.QueryRowContext(ctx, claimWorkspaceAgentRelay,
+		arg.WorkspaceAgentID,
+		arg.PublicKey,
+		arg.Now,
+		arg.LapsedBefore,
+	)
+	var i WorkspaceAgentRelay
+	err := row.Scan(
+		&i.WorkspaceAgentID,
+		&i.PublicKey,
+		&i.Generation,
+		&i.CreatedAt,
+		&i.RenewedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentRelayByAgentID = `-- name: GetWorkspaceAgentRelayByAgentID :one
+SELECT
+	workspace_agent_id, public_key, generation, created_at, renewed_at
+FROM
+	workspace_agent_relays
+WHERE
+	workspace_agent_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentRelayByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentRelay, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentRelayByAgentID, workspaceAgentID)
+	var i WorkspaceAgentRelay
+	err := row.Scan(
+		&i.WorkspaceAgentID,
+		&i.PublicKey,
+		&i.Generation,
+		&i.CreatedAt,
+		&i.RenewedAt,
+	)
+	return i, err
+}
+
+const releaseWorkspaceAgentRelay = `-- name: ReleaseWorkspaceAgentRelay :exec
+UPDATE
+	workspace_agent_relays
+SET
+	renewed_at = to_timestamp(0)
+WHERE
+	workspace_agent_id = $1
+	AND public_key = $2
+`
+
+type ReleaseWorkspaceAgentRelayParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	PublicKey        []byte    `db:"public_key" json:"public_key"`
+}
+
+// ReleaseWorkspaceAgentRelay gives the relay up, so that the next daemon
+// instance does not have to wait for the lease to lapse. Only the holder
+// can release it. The row stays, so that the generation keeps counting.
+func (q *sqlQuerier) ReleaseWorkspaceAgentRelay(ctx context.Context, arg ReleaseWorkspaceAgentRelayParams) error {
+	_, err := q.db.ExecContext(ctx, releaseWorkspaceAgentRelay, arg.WorkspaceAgentID, arg.PublicKey)
+	return err
+}
+
 const fetchMemoryResourceMonitorsByAgentID = `-- name: FetchMemoryResourceMonitorsByAgentID :one
 SELECT
 	agent_id, enabled, threshold, created_at, updated_at, state, debounced_until

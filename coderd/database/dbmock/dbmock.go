@@ -352,6 +352,21 @@ func (mr *MockStoreMockRecorder) ClaimPrebuiltWorkspace(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPrebuiltWorkspace", reflect.TypeOf((*MockStore)(nil).ClaimPrebuiltWorkspace), ctx, arg)
 }
 
+// ClaimWorkspaceAgentRelay mocks base method.
+func (m *MockStore) ClaimWorkspaceAgentRelay(ctx context.Context, arg database.ClaimWorkspaceAgentRelayParams) (database.WorkspaceAgentRelay, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimWorkspaceAgentRelay", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentRelay)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimWorkspaceAgentRelay indicates an expected call of ClaimWorkspaceAgentRelay.
+func (mr *MockStoreMockRecorder) ClaimWorkspaceAgentRelay(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimWorkspaceAgentRelay", reflect.TypeOf((*MockStore)(nil).ClaimWorkspaceAgentRelay), ctx, arg)
+}
+
 // CleanTailnetCoordinators mocks base method.
 func (m *MockStore) CleanTailnetCoordinators(ctx context.Context) error {
 	m.ctrl.T.Helper()
@@ -7373,6 +7388,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), ctx, arg)
 }
 
+// GetWorkspaceAgentRelayByAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentRelayByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentRelay, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentRelayByAgentID", ctx, workspaceAgentID)
+	ret0, _ := ret[0].(database.WorkspaceAgentRelay)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentRelayByAgentID indicates an expected call of GetWorkspaceAgentRelayByAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentRelayByAgentID(ctx, workspaceAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentRelayByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentRelayByAgentID), ctx, workspaceAgentID)
+}
+
 // GetWorkspaceAgentScriptTimingsByBuildID mocks base method.
 func (m *MockStore) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	m.ctrl.T.Helper()
@@ -10409,6 +10439,20 @@ func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
+}
+
+// ReleaseWorkspaceAgentRelay mocks base method.
+func (m *MockStore) ReleaseWorkspaceAgentRelay(ctx context.Context, arg database.ReleaseWorkspaceAgentRelayParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseWorkspaceAgentRelay", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseWorkspaceAgentRelay indicates an expected call of ReleaseWorkspaceAgentRelay.
+func (mr *MockStoreMockRecorder) ReleaseWorkspaceAgentRelay(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseWorkspaceAgentRelay", reflect.TypeOf((*MockStore)(nil).ReleaseWorkspaceAgentRelay), ctx, arg)
 }
 
 // RemoveUserFromGroups mocks base method.

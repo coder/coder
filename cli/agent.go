@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentrelay"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/reaper"
@@ -65,6 +66,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		agentHeaderCommand              string
 		agentHeader                     []string
 		devcontainers                   bool
+		workspaceRelayAddress           string
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
 		socketServerEnabled             bool
@@ -290,6 +292,25 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
 			}
 
+			// What runs in the workspace reaches the control plane through
+			// this daemon. The relay serves once the control plane gives it
+			// a lease, which it does not while the relay is turned off
+			// there. It outlives a reinitialization: it is this process
+			// that vouches.
+			workspaceRelay, err := agentrelay.New(agentrelay.Options{
+				Logger:        logger.Named("workspace-relay"),
+				ControlPlane:  client.SDK.URL,
+				Transport:     client.SDK.HTTPClient.Transport,
+				Lease:         client.WorkspaceRelayLease,
+				Release:       client.ReleaseWorkspaceRelay,
+				ListenAddress: workspaceRelayAddress,
+			})
+			if err != nil {
+				return xerrors.Errorf("create workspace relay: %w", err)
+			}
+			go workspaceRelay.Run(ctx)
+			defer workspaceRelay.Close()
+
 			reinitCtx, reinitCancel := context.WithCancel(ctx)
 			defer reinitCancel()
 			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
@@ -330,10 +351,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				}
 
 				agnt := agent.New(agent.Options{
-					Client:        client,
-					Logger:        logger,
-					LogDir:        logDir,
-					ScriptDataDir: scriptDataDir,
+					WorkspaceRelay: workspaceRelay,
+					Client:         client,
+					Logger:         logger,
+					LogDir:         logDir,
+					ScriptDataDir:  scriptDataDir,
 					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
 					TailnetListenPort:    uint16(tailnetListenPort),
 					EnvironmentVariables: environmentVariables,
@@ -539,6 +561,14 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
+		},
+		{
+			Flag:        "workspace-relay-address",
+			Default:     agentrelay.DefaultListenAddress,
+			Env:         "CODER_AGENT_WORKSPACE_RELAY_ADDRESS",
+			Description: "The address inside the workspace where the agent relays requests to the control plane. Processes in the workspace are given it as CODER_URL once the control plane has the workspace relay turned on.",
+			Value:       serpent.StringOf(&workspaceRelayAddress),
+			Hidden:      true,
 		},
 		{
 			Flag:        "devcontainers-enable",

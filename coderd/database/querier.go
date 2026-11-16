@@ -88,6 +88,12 @@ type sqlcQuerier interface {
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
+	// ClaimWorkspaceAgentRelay lets a daemon instance take or keep the relay of
+	// its workspace agent. The instance that holds the relay renews it. Another
+	// instance takes it over only when the holder has not renewed since
+	// lapsed_before, and the generation goes up. It returns no row while another
+	// instance holds the relay.
+	ClaimWorkspaceAgentRelay(ctx context.Context, arg ClaimWorkspaceAgentRelayParams) (WorkspaceAgentRelay, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
@@ -1128,6 +1134,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWorkspaceAgentLogsAfterParams) ([]WorkspaceAgentLog, error)
 	GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorkspaceAgentMetadataParams) ([]WorkspaceAgentMetadatum, error)
 	GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
+	GetWorkspaceAgentRelayByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentRelay, error)
 	GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByBuildIDRow, error)
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
@@ -1520,6 +1527,10 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// ReleaseWorkspaceAgentRelay gives the relay up, so that the next daemon
+	// instance does not have to wait for the lease to lapse. Only the holder
+	// can release it. The row stays, so that the generation keeps counting.
+	ReleaseWorkspaceAgentRelay(ctx context.Context, arg ReleaseWorkspaceAgentRelayParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never

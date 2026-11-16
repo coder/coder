@@ -107,6 +107,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/coderd/x/podidentity"
+	"github.com/coder/coder/v2/coderd/x/workspacerelay"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -192,7 +193,10 @@ type Options struct {
 	PodIdentity *podidentity.Registry
 	// PodIdentityOperatorKey is what a cluster's operator presents to
 	// register its cluster.
-	PodIdentityOperatorKey     string
+	PodIdentityOperatorKey string
+	// WorkspaceRelayMode says whether a workspace's session token is only
+	// accepted through that workspace's daemon. Empty is off.
+	WorkspaceRelayMode         workspacerelay.Mode
 	GithubOAuth2Config         *GithubOAuth2Config
 	OIDCConfig                 *OIDCConfig
 	PrometheusRegistry         *prometheus.Registry
@@ -1090,6 +1094,10 @@ func New(options *Options) *API {
 	})
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
+	api.workspaceRelayMetrics = newWorkspaceRelayMetrics(options.PrometheusRegistry)
+	if api.WorkspaceRelayMode == "" {
+		api.WorkspaceRelayMode = workspacerelay.ModeOff
+	}
 
 	if api.PodIdentity != nil {
 		// An operator registers its cluster with one replica. The others
@@ -1206,6 +1214,9 @@ func New(options *Options) *API {
 		// the result in context. The rate limiter reads this to key
 		// by user ID, and downstream ExtractAPIKeyMW reuses it to
 		// avoid redundant DB lookups. Never rejects requests.
+		// Before any API key is validated: every validation asks the
+		// workspace relay about the key.
+		httpmw.WorkspaceRelay(api.workspaceRelayCheck),
 		httpmw.PrecheckAPIKey(httpmw.ValidateAPIKeyConfig{
 			DB:                          options.Database,
 			OAuth2Configs:               oauthConfigs,
@@ -1887,6 +1898,8 @@ func New(options *Options) *API {
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
+				r.Post("/relay-lease", api.workspaceAgentRelayLease)
+				r.Delete("/relay-lease", api.deleteWorkspaceAgentRelayLease)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
@@ -2411,6 +2424,7 @@ type API struct {
 	ProfileCollecting atomic.Bool
 
 	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
+	workspaceRelayMetrics      *workspaceRelayMetrics
 	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
 }
 

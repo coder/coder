@@ -7052,6 +7052,18 @@ type WorkspaceAgentPortShare struct {
 	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 
+// Which instance of a workspace daemon may relay requests to the control plane on behalf of what runs in its workspace. One instance holds the relay at a time, for as long as it keeps renewing its lease.
+type WorkspaceAgentRelay struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// The Ed25519 public key of the daemon instance that holds the relay. The instance made the key when it started and keeps the private half in memory, so a copy of the daemon's token is not enough to renew.
+	PublicKey []byte `db:"public_key" json:"public_key"`
+	// How many daemon instances have held the relay. It goes up when another instance takes over.
+	Generation int64     `db:"generation" json:"generation"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	// When the holder last obtained a lease. Another instance can take over once the holder has not renewed for longer than a lease lasts.
+	RenewedAt time.Time `db:"renewed_at" json:"renewed_at"`
+}
+
 type WorkspaceAgentScript struct {
 	WorkspaceAgentID uuid.UUID       `db:"workspace_agent_id" json:"workspace_agent_id"`
 	LogSourceID      uuid.UUID       `db:"log_source_id" json:"log_source_id"`

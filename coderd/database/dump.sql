@@ -4035,6 +4035,22 @@ CREATE TABLE workspace_agent_port_share (
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
+CREATE TABLE workspace_agent_relays (
+    workspace_agent_id uuid NOT NULL,
+    public_key bytea NOT NULL,
+    generation bigint DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    renewed_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_relays IS 'Which instance of a workspace daemon may relay requests to the control plane on behalf of what runs in its workspace. One instance holds the relay at a time, for as long as it keeps renewing its lease.';
+
+COMMENT ON COLUMN workspace_agent_relays.public_key IS 'The Ed25519 public key of the daemon instance that holds the relay. The instance made the key when it started and keeps the private half in memory, so a copy of the daemon''s token is not enough to renew.';
+
+COMMENT ON COLUMN workspace_agent_relays.generation IS 'How many daemon instances have held the relay. It goes up when another instance takes over.';
+
+COMMENT ON COLUMN workspace_agent_relays.renewed_at IS 'When the holder last obtained a lease. Another instance can take over once the holder has not renewed for longer than a lease lasts.';
+
 CREATE TABLE workspace_agent_script_timings (
     script_id uuid NOT NULL,
     started_at timestamp with time zone NOT NULL,
@@ -5023,6 +5039,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
+
+ALTER TABLE ONLY workspace_agent_relays
+    ADD CONSTRAINT workspace_agent_relays_pkey PRIMARY KEY (workspace_agent_id);
 
 ALTER TABLE ONLY workspace_agent_script_timings
     ADD CONSTRAINT workspace_agent_script_timings_script_id_started_at_key UNIQUE (script_id, started_at);
@@ -6042,6 +6061,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_relays
+    ADD CONSTRAINT workspace_agent_relays_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_script_timings
     ADD CONSTRAINT workspace_agent_script_timings_script_id_fkey FOREIGN KEY (script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;

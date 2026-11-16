@@ -105,6 +105,9 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 		// overload protection plus BYOK gating) to the aibridged handler.
 		r.Group(func(r chi.Router) {
 			r.Use(AIGatewayDataPlaneMiddleware(api.DeploymentValues.AI.BridgeConfig))
+			// AI Gateway authenticates Coder tokens by itself, so the
+			// workspace relay is applied to its routes here.
+			r.Use(api.AGPL.WorkspaceRelayAIGateway())
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {

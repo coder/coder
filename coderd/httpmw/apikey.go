@@ -67,6 +67,26 @@ type ValidateAPIKeyConfig struct {
 	Logger           slog.Logger
 }
 
+type workspaceRelayContextKey struct{}
+
+// WorkspaceRelayFunc decides whether a request may use an API key that is the
+// session token of a workspace. It returns why not, or nil when the request
+// may. It is asked about every key, and decides which ones are a workspace's.
+type WorkspaceRelayFunc func(ctx context.Context, r *http.Request, key database.APIKey) *codersdk.Response
+
+// WorkspaceRelay makes every validation of an API key further down ask check.
+// It is one place for all of them: routes validate keys with configurations
+// of their own, and a session token that is refused on one route must not
+// work on another.
+func WorkspaceRelay(check WorkspaceRelayFunc) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), workspaceRelayContextKey{}, check)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
 // ValidateAPIKeyResult is the outcome of successful validation.
 type ValidateAPIKeyResult struct {
 	Key        database.APIKey
@@ -512,6 +532,17 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 					Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
 				},
 				Hard: true,
+			}
+		}
+	}
+
+	// The session token of a workspace is only accepted through that
+	// workspace's daemon, where that is enforced.
+	if check, ok := ctx.Value(workspaceRelayContextKey{}).(WorkspaceRelayFunc); ok {
+		if refusal := check(ctx, r, *key); refusal != nil {
+			return nil, &ValidateAPIKeyError{
+				Code:     http.StatusUnauthorized,
+				Response: *refusal,
 			}
 		}
 	}

@@ -104,6 +104,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/podidentity"
+	"github.com/coder/coder/v2/coderd/x/workspacerelay"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -687,6 +688,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				podIdentity = podidentity.NewRegistry(audience)
 			}
 
+			// Whether a workspace's session token is only accepted through
+			// that workspace's daemon: off, log or enforce. This is not a
+			// deployment option yet.
+			workspaceRelayMode, err := workspacerelay.ParseMode(inv.Environ.Get("CODER_WORKSPACE_RELAY"))
+			if err != nil {
+				return err
+			}
+
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(vals.SSHKeygenAlgorithm.String())
 			if err != nil {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", vals.SSHKeygenAlgorithm, err)
@@ -780,6 +789,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				GoogleTokenValidator:        googleTokenValidator,
 				PodIdentity:                 podIdentity,
 				PodIdentityOperatorKey:      podIdentityOperatorKey,
+				WorkspaceRelayMode:          workspaceRelayMode,
 				ExternalAuthConfigs:         nil,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

@@ -95,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/podidentity"
+	"github.com/coder/coder/v2/coderd/x/workspacerelay"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -132,13 +133,16 @@ type Options struct {
 	// PodIdentityOperatorKey lets a cluster's operator register its
 	// cluster.
 	PodIdentityOperatorKey string
-	SSHKeygenAlgorithm     gitsshkey.Algorithm
-	AutobuildTicker        <-chan time.Time
-	AutobuildStats         chan<- autobuild.Stats
-	Auditor                audit.Auditor
-	TLSCertificates        []tls.Certificate
-	ExternalAuthConfigs    []*externalauth.Config
-	TrialGenerator         func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// WorkspaceRelayMode makes workspace session tokens only work through
+	// the workspace's daemon.
+	WorkspaceRelayMode  workspacerelay.Mode
+	SSHKeygenAlgorithm  gitsshkey.Algorithm
+	AutobuildTicker     <-chan time.Time
+	AutobuildStats      chan<- autobuild.Stats
+	Auditor             audit.Auditor
+	TLSCertificates     []tls.Certificate
+	ExternalAuthConfigs []*externalauth.Config
+	TrialGenerator      func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
 	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
 	// tests can serve mock MCP and authorization servers via httptest.
@@ -657,6 +661,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			GoogleTokenValidator:               options.GoogleTokenValidator,
 			PodIdentity:                        options.PodIdentity,
 			PodIdentityOperatorKey:             options.PodIdentityOperatorKey,
+			WorkspaceRelayMode:                 options.WorkspaceRelayMode,
 			SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,
 			DERPServer:                         derpServer,
 			APIRateLimit:                       options.APIRateLimit,

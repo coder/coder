@@ -643,3 +643,9 @@ coderd_workspace_creation_total{organization_name="",template_name="",preset_nam
 # HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner for all non-deleted workspaces.
 # TYPE coderd_workspace_latest_build_status gauge
 coderd_workspace_latest_build_status{status="",template_name="",template_version="",workspace_owner="",workspace_transition=""} 0
+# HELP coderd_workspace_relay_leases_total Leases that workspace daemons asked for: issued to a new holder (claimed), to the same holder (renewed), to another daemon instance after the holder lapsed (takeover), or refused.
+# TYPE coderd_workspace_relay_leases_total counter
+coderd_workspace_relay_leases_total{result=""} 0
+# HELP coderd_workspace_relay_requests_total Requests made with a workspace session token, by whether they came through the workspace's daemon (relayed), without a lease (bare) or with one that is not valid for the workspace (invalid_lease), and by whether they were allowed or refused.
+# TYPE coderd_workspace_relay_requests_total counter
+coderd_workspace_relay_requests_total{route="",outcome=""} 0

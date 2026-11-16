@@ -2015,6 +2015,17 @@ func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Claim
 	return q.db.ClaimPrebuiltWorkspace(ctx, arg)
 }
 
+// The relay of a workspace agent is claimed by its daemon, which the API
+// handler authenticates. The store only serves callers that act for the
+// system.
+
+func (q *querier) ClaimWorkspaceAgentRelay(ctx context.Context, arg database.ClaimWorkspaceAgentRelayParams) (database.WorkspaceAgentRelay, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgentRelay{}, err
+	}
+	return q.db.ClaimWorkspaceAgentRelay(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -5937,6 +5948,13 @@ func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.G
 	return q.db.GetWorkspaceAgentPortShare(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentRelayByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentRelay, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgentRelay{}, err
+	}
+	return q.db.GetWorkspaceAgentRelayByAgentID(ctx, workspaceAgentID)
+}
+
 func (q *querier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -7687,6 +7705,13 @@ func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg d
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseExternalAuthLinkRefreshLease)(ctx, arg)
+}
+
+func (q *querier) ReleaseWorkspaceAgentRelay(ctx context.Context, arg database.ReleaseWorkspaceAgentRelayParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.ReleaseWorkspaceAgentRelay(ctx, arg)
 }
 
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {

@@ -7255,6 +7255,26 @@ func (s *MethodTestSuite) TestProjectSkills() {
 	}))
 }
 
+func (s *MethodTestSuite) TestWorkspaceAgentRelays() {
+	s.Run("ClaimWorkspaceAgentRelay", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		relay := testutil.Fake(s.T(), faker, database.WorkspaceAgentRelay{})
+		arg := database.ClaimWorkspaceAgentRelayParams{WorkspaceAgentID: relay.WorkspaceAgentID, PublicKey: relay.PublicKey}
+		dbm.EXPECT().ClaimWorkspaceAgentRelay(gomock.Any(), arg).Return(relay, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(relay)
+	}))
+	s.Run("GetWorkspaceAgentRelayByAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		relay := testutil.Fake(s.T(), faker, database.WorkspaceAgentRelay{})
+		dbm.EXPECT().GetWorkspaceAgentRelayByAgentID(gomock.Any(), relay.WorkspaceAgentID).Return(relay, nil).AnyTimes()
+		check.Args(relay.WorkspaceAgentID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(relay)
+	}))
+	s.Run("ReleaseWorkspaceAgentRelay", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		relay := testutil.Fake(s.T(), faker, database.WorkspaceAgentRelay{})
+		arg := database.ReleaseWorkspaceAgentRelayParams{WorkspaceAgentID: relay.WorkspaceAgentID, PublicKey: relay.PublicKey}
+		dbm.EXPECT().ReleaseWorkspaceAgentRelay(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+}
+
 func (s *MethodTestSuite) TestDelegatedIdentities() {
 	s.Run("InsertDelegatedIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		identity := testutil.Fake(s.T(), faker, database.DelegatedIdentity{})

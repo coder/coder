@@ -272,6 +272,14 @@ func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) ClaimWorkspaceAgentRelay(ctx context.Context, arg database.ClaimWorkspaceAgentRelayParams) (database.WorkspaceAgentRelay, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimWorkspaceAgentRelay(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimWorkspaceAgentRelay").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimWorkspaceAgentRelay").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.CleanTailnetCoordinators(ctx)
@@ -3912,6 +3920,14 @@ func (m queryMetricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentRelayByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentRelay, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentRelayByAgentID(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentRelayByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentRelayByAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentScriptTimingsByBuildID(ctx, id)
@@ -5477,6 +5493,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	r0 := m.s.ReleaseExternalAuthLinkRefreshLease(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReleaseExternalAuthLinkRefreshLease").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseExternalAuthLinkRefreshLease").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) ReleaseWorkspaceAgentRelay(ctx context.Context, arg database.ReleaseWorkspaceAgentRelayParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseWorkspaceAgentRelay(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseWorkspaceAgentRelay").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseWorkspaceAgentRelay").Inc()
 	return r0
 }
 

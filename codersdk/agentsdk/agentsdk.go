@@ -1088,3 +1088,59 @@ func (c *Client) RefreshChatContext(ctx context.Context) (RefreshChatContextResp
 	var resp RefreshChatContextResponse
 	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }
+
+// WorkspaceRelayLeaseRequest asks for a lease to relay requests from the
+// workspace to the control plane. An instance of the daemon makes a key when
+// it starts, keeps the private half in memory, and signs every request with
+// it.
+type WorkspaceRelayLeaseRequest struct {
+	// PublicKey is the Ed25519 public key of this daemon instance.
+	PublicKey []byte `json:"public_key"`
+	// Timestamp is when the request was signed.
+	Timestamp time.Time `json:"timestamp" format:"date-time"`
+	// Signature is over the timestamp, by the private half of PublicKey.
+	Signature []byte `json:"signature"`
+}
+
+// WorkspaceRelayLease lets the daemon relay requests for a short while.
+type WorkspaceRelayLease struct {
+	// Lease is attached to every relayed request.
+	Lease     string    `json:"lease"`
+	ExpiresAt time.Time `json:"expires_at" format:"date-time"`
+	// Generation is how many daemon instances have held the relay of this
+	// workspace agent, this one included.
+	Generation int64 `json:"generation"`
+	// Enforced is whether the control plane refuses a workspace session
+	// token that arrives without a lease.
+	Enforced bool `json:"enforced"`
+}
+
+// WorkspaceRelayLease obtains or renews the lease of this daemon instance.
+// The control plane answers 404 when the relay is off, and 409 while another
+// daemon instance holds the relay.
+func (c *Client) WorkspaceRelayLease(ctx context.Context, req WorkspaceRelayLeaseRequest) (WorkspaceRelayLease, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/relay-lease", req)
+	if err != nil {
+		return WorkspaceRelayLease{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceRelayLease{}, codersdk.ReadBodyAsError(res)
+	}
+	var lease WorkspaceRelayLease
+	return lease, codersdk.ReadBodyAsJSON(res, &lease)
+}
+
+// ReleaseWorkspaceRelay gives the relay up when the daemon stops, so that
+// the next instance does not have to wait for the lease to lapse.
+func (c *Client) ReleaseWorkspaceRelay(ctx context.Context, req WorkspaceRelayLeaseRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodDelete, "/api/v2/workspaceagents/me/relay-lease", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
