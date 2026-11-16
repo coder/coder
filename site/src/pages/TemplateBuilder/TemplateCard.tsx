@@ -26,37 +26,49 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 	selected = false,
 	onSelect,
 }) => {
-	const nameId = useId();
+	const radioId = useId();
+	const descriptionId = useId();
 	return (
-		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Clicking the card is a mouse shortcut; keyboard users select the radio.
 		<div
 			className={cn(
-				"flex flex-col pt-4 px-4 pb-6 rounded",
+				"relative isolate flex flex-col pt-4 px-4 pb-6 rounded",
 				"bg-surface-secondary border",
-				"cursor-pointer",
 				selected && "border-border-pending",
 			)}
-			onClick={() => onSelect?.()}
 		>
 			<div className="flex items-start justify-between mb-3">
 				<Avatar src={iconUrl} size="lg" variant="icon" />
-				{/* No change handler: clicks, Space, and arrow keys bubble up to the card as clicks. */}
+				{/* Space (native button) and Radix arrow-key focus both fire click. */}
 				<RadioGroupItem
+					id={radioId}
 					value={value}
-					aria-labelledby={nameId}
-					className="mt-0.5 shrink-0 focus-visible:ring-offset-surface-secondary"
+					aria-describedby={descriptionId}
+					onClick={onSelect}
+					className="z-10 mt-0.5 shrink-0 focus-visible:ring-offset-surface-secondary"
 				/>
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<h3 id={nameId} className="my-0 text-sm font-bold text-content-primary">
-					{name}
-					{official && (
-						<BadgeCheckIcon className="relative bottom-0.5 inline size-4 ml-1 align-middle text-highlight-sky" />
-					)}
+				<h3 className="my-0 text-sm font-bold text-content-primary">
+					{/* The label stretches over the card so clicking anywhere selects it. */}
+					<label
+						htmlFor={radioId}
+						className="cursor-pointer after:absolute after:inset-0 after:content-['']"
+					>
+						{name}
+						{official && (
+							<>
+								<BadgeCheckIcon className="relative bottom-0.5 inline size-4 ml-1 align-middle text-highlight-sky" />
+								<span className="sr-only"> (official)</span>
+							</>
+						)}
+					</label>
 				</h3>
 				<div className="flex flex-col gap-2">
-					<p className="my-0 text-xs font-normal text-content-secondary">
+					<p
+						id={descriptionId}
+						className="my-0 text-xs font-normal text-content-secondary"
+					>
 						{description}
 					</p>
 
@@ -65,7 +77,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 						target="_blank"
 						className="text-xs font-normal"
 					>
-						View details
+						View details<span className="sr-only"> for {name}</span>
 					</Link>
 				</div>
 			</div>

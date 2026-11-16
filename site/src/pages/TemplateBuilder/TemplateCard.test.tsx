@@ -37,6 +37,28 @@ describe(TemplateCard.name, () => {
 		expect(onSelectDocker).toHaveBeenCalledTimes(1);
 	});
 
+	it("selects once when the card name is clicked", async () => {
+		const { onSelectDocker } = renderCards();
+		await userEvent.click(screen.getByText("Docker Containers"));
+		expect(onSelectDocker).toHaveBeenCalledTimes(1);
+	});
+
+	it("names the radio and details link after the card", () => {
+		renderCards();
+		const radio = screen.getByRole("radio", {
+			// jsdom drops the leading space of the sr-only text.
+			name: /^Docker Containers\s*\(official\)$/,
+		});
+		expect(radio).toHaveAccessibleDescription(
+			"Provision Docker containers as Coder workspaces.",
+		);
+		expect(
+			screen.getByRole("link", { name: /Docker Containers/ }),
+		).toHaveAccessibleName(
+			/^View details\s*for Docker Containers\s*\(opens in new tab\)$/,
+		);
+	});
+
 	it("selects once with Space and once per arrow key", async () => {
 		const { onSelectDocker, onSelectKubernetes } = renderCards();
 		await userEvent.tab();
