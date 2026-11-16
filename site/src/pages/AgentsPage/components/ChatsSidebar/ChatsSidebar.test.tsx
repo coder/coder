@@ -399,6 +399,8 @@ describe("ChatsSidebar projects", () => {
 					name: "New project name",
 					description: "Project description",
 					icon: "",
+					limit_templates: false,
+					template_ids: [],
 				});
 			});
 			await waitFor(() =>

@@ -5,11 +5,7 @@ import {
 	richParameters,
 	templateVersionPresets,
 } from "#/api/queries/templates";
-import type {
-	ChatProject,
-	CreateChatProjectRequest,
-	Template,
-} from "#/api/typesGenerated";
+import type { CreateChatProjectRequest, Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -47,25 +43,25 @@ export type ChatProjectTemplatesValues = {
 
 const noDefaultTemplate = "none";
 
-/** Returns the form state for a project, or an empty form for a new one. */
-export const chatProjectTemplatesValues = (
-	project:
-		| Pick<ChatProject, "limit_templates" | "templates" | "default_template">
-		| undefined,
-): ChatProjectTemplatesValues => ({
-	limitTemplates: project?.limit_templates ?? false,
-	templateIds: project?.templates.map(({ id }) => id) ?? [],
-	defaultTemplateId: project?.default_template?.template_id ?? "",
-	defaultsKind: project?.default_template?.parameters ? "parameters" : "preset",
-	defaultPresetId: project?.default_template?.preset_id ?? "",
-	defaultParameters: project?.default_template?.parameters ?? {},
-});
-
 /** The template fields of a create request, with the limit and list set. */
 type ChatProjectTemplatesRequest = Required<
 	Pick<CreateChatProjectRequest, "limit_templates" | "template_ids">
 > &
 	Pick<CreateChatProjectRequest, "default_template">;
+
+/** Returns the form state for saved templates, or an empty form when none. */
+export const chatProjectTemplatesValues = (
+	templates: ChatProjectTemplatesRequest | undefined,
+): ChatProjectTemplatesValues => ({
+	limitTemplates: templates?.limit_templates ?? false,
+	templateIds: templates?.template_ids ?? [],
+	defaultTemplateId: templates?.default_template?.template_id ?? "",
+	defaultsKind: templates?.default_template?.parameters
+		? "parameters"
+		: "preset",
+	defaultPresetId: templates?.default_template?.preset_id ?? "",
+	defaultParameters: templates?.default_template?.parameters ?? {},
+});
 
 /**
  * Builds the request from the form values. Templates that are no longer
