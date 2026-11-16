@@ -41,12 +41,27 @@ WHERE
 
 -- name: InsertWorkspaceResourceMetadata :many
 INSERT INTO
-	workspace_resource_metadata
+	workspace_resource_metadata (workspace_resource_id, key, value, sensitive, value_key_id)
 SELECT
 	@workspace_resource_id :: uuid AS workspace_resource_id,
 	unnest(@key :: text [ ]) AS key,
 	unnest(@value :: text [ ]) AS value,
-	unnest(@sensitive :: boolean [ ]) AS sensitive RETURNING *; 
+	unnest(@sensitive :: boolean [ ]) AS sensitive,
+	-- Empty string means not encrypted; the column has a foreign key to
+	-- dbcrypt_keys, so it must be NULL rather than ''.
+	NULLIF(unnest(@value_key_id :: text [ ]), '') AS value_key_id
+RETURNING *;
+
+-- name: UpdateWorkspaceResourceMetadatumValue :exec
+-- Rewrites a metadata value in place. Used by `coder server dbcrypt`
+-- maintenance commands to re-encrypt or decrypt sensitive values at rest.
+UPDATE
+	workspace_resource_metadata
+SET
+	value = sqlc.narg('value'),
+	value_key_id = sqlc.narg('value_key_id')
+WHERE
+	id = @id;
 
 -- name: GetWorkspaceResourceMetadataCreatedAfter :many
 SELECT * FROM workspace_resource_metadata WHERE workspace_resource_id = ANY(

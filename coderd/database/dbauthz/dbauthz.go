@@ -9239,6 +9239,13 @@ func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg d
 	return q.db.UpdateWorkspaceAgentDisplayAppsByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
@@ -9503,6 +9510,13 @@ func (q *querier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg database.
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
 	}
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxyDeleted)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceResourceMetadatumValue(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {

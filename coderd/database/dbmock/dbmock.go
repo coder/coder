@@ -12383,6 +12383,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentDisplayAppsByID(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentDisplayAppsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentDisplayAppsByID), ctx, arg)
 }
 
+// UpdateWorkspaceAgentEnvironmentVariablesByID mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentEnvironmentVariablesByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentEnvironmentVariablesByID indicates an expected call of UpdateWorkspaceAgentEnvironmentVariablesByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentEnvironmentVariablesByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentEnvironmentVariablesByID), ctx, arg)
+}
+
 // UpdateWorkspaceAgentLifecycleStateByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	m.ctrl.T.Helper()
@@ -12709,6 +12723,20 @@ func (m *MockStore) UpdateWorkspaceProxyDeleted(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateWorkspaceProxyDeleted(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceProxyDeleted", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceProxyDeleted), ctx, arg)
+}
+
+// UpdateWorkspaceResourceMetadatumValue mocks base method.
+func (m *MockStore) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceResourceMetadatumValue", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceResourceMetadatumValue indicates an expected call of UpdateWorkspaceResourceMetadatumValue.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceResourceMetadatumValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceResourceMetadatumValue", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceResourceMetadatumValue), ctx, arg)
 }
 
 // UpdateWorkspaceTTL mocks base method.

@@ -1802,6 +1802,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error
+	// Rewrites an agent's environment variables in place. Used by `coder server
+	// dbcrypt` maintenance commands to re-encrypt or decrypt the values at rest.
+	UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error
 	UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentLogOverflowByIDParams) error
 	UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error
@@ -1833,6 +1836,9 @@ type sqlcQuerier interface {
 	// This allows editing the properties of a workspace proxy.
 	UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error)
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
+	// Rewrites a metadata value in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+	UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg UpdateWorkspaceResourceMetadatumValueParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error

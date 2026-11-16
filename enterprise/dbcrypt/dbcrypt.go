@@ -1437,6 +1437,183 @@ func (db *dbCrypt) UpdateWorkspaceBuildParameterValue(ctx context.Context, param
 	return db.Store.UpdateWorkspaceBuildParameterValue(ctx, params)
 }
 
+// InsertWorkspaceResourceMetadata encrypts values of coder_metadata items
+// marked sensitive. The sensitive flag only hides values in the UI; at rest
+// they were stored in plaintext (SEC-1491).
+func (db *dbCrypt) InsertWorkspaceResourceMetadata(ctx context.Context, params database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
+	if len(params.ValueKeyID) == 0 {
+		params.ValueKeyID = make([]string, len(params.Value))
+	}
+	for i := range params.Value {
+		if i >= len(params.Sensitive) || !params.Sensitive[i] || params.Value[i] == "" {
+			continue
+		}
+		var keyID sql.NullString
+		if err := db.encryptField(&params.Value[i], &keyID); err != nil {
+			return nil, err
+		}
+		params.ValueKeyID[i] = keyID.String
+	}
+	metadata, err := db.Store.InsertWorkspaceResourceMetadata(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range metadata {
+		if err := db.decryptMetadatumValue(&metadata[idx]); err != nil {
+			return nil, err
+		}
+	}
+	return metadata, nil
+}
+
+func (db *dbCrypt) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+	metadata, err := db.Store.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range metadata {
+		if err := db.decryptMetadatumValue(&metadata[idx]); err != nil {
+			return nil, err
+		}
+	}
+	return metadata, nil
+}
+
+// UpdateWorkspaceResourceMetadatumValue is a maintenance-only query used by
+// `coder server dbcrypt` sweeps, which only pass values of sensitive
+// metadata; non-empty values are therefore always encrypted here.
+func (db *dbCrypt) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, params database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	if params.Value.Valid && params.Value.String != "" {
+		if err := db.encryptField(&params.Value.String, &params.ValueKeyID); err != nil {
+			return err
+		}
+	}
+	return db.Store.UpdateWorkspaceResourceMetadatumValue(ctx, params)
+}
+
+func (db *dbCrypt) decryptMetadatumValue(metadatum *database.WorkspaceResourceMetadatum) error {
+	if !metadatum.Value.Valid {
+		return nil
+	}
+	return db.decryptField(&metadatum.Value.String, metadatum.ValueKeyID)
+}
+
+// InsertWorkspaceAgent encrypts the agent's environment variable values.
+// Templates inject credentials through coder_env and owner data (SEC-1491).
+// Variable names and the JSON object shape stay in plaintext so readers that
+// only list names keep working without decryption.
+func (db *dbCrypt) InsertWorkspaceAgent(ctx context.Context, params database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
+	if err := db.encryptEnvValues(&params.EnvironmentVariables, &params.EnvironmentVariablesKeyID); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	agent, err := db.Store.InsertWorkspaceAgent(ctx, params)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	if err := db.decryptEnvValues(&agent.EnvironmentVariables, agent.EnvironmentVariablesKeyID); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return agent, nil
+}
+
+// GetWorkspaceAgentByID decrypts the agent's environment variable values;
+// this is the read path of the agent manifest, the only consumer of the
+// actual values.
+func (db *dbCrypt) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+	agent, err := db.Store.GetWorkspaceAgentByID(ctx, id)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	if err := db.decryptEnvValues(&agent.EnvironmentVariables, agent.EnvironmentVariablesKeyID); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return agent, nil
+}
+
+// UpdateWorkspaceAgentEnvironmentVariablesByID is a maintenance-only query
+// used by `coder server dbcrypt` sweeps.
+func (db *dbCrypt) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, params database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	if err := db.encryptEnvValues(&params.EnvironmentVariables, &params.EnvironmentVariablesKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, params)
+}
+
+// encryptEnvValues encrypts each value of a JSON object of environment
+// variables in place. Keys and the object shape stay plaintext; empty values
+// carry no secret and are stored as-is.
+func (db *dbCrypt) encryptEnvValues(envs *pqtype.NullRawMessage, digest *sql.NullString) error {
+	if db.ciphers == nil || db.primaryCipherDigest == "" {
+		return nil
+	}
+	if envs == nil || digest == nil {
+		return xerrors.Errorf("developer error: encryptEnvValues called with nil argument")
+	}
+	if !extraHoldsSecret(*envs) {
+		return nil
+	}
+	var values map[string]string
+	if err := json.Unmarshal(envs.RawMessage, &values); err != nil {
+		return xerrors.Errorf("unmarshal environment variables: %w", err)
+	}
+	encryptedAny := false
+	for name, value := range values {
+		if value == "" {
+			continue
+		}
+		if err := db.encryptField(&value, digest); err != nil {
+			return err
+		}
+		values[name] = value
+		encryptedAny = true
+	}
+	if !encryptedAny {
+		return nil
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return xerrors.Errorf("marshal encrypted environment variables: %w", err)
+	}
+	envs.RawMessage = encoded
+	return nil
+}
+
+// decryptEnvValues reverses encryptEnvValues. A NULL digest means the values
+// were stored in plaintext and are returned as-is.
+func (db *dbCrypt) decryptEnvValues(envs *pqtype.NullRawMessage, digest sql.NullString) error {
+	if envs == nil {
+		return xerrors.Errorf("developer error: decryptEnvValues called with nil envs")
+	}
+	if !digest.Valid || digest.String == "" {
+		// These values are not encrypted.
+		return nil
+	}
+	if !envs.Valid || len(envs.RawMessage) == 0 {
+		return nil
+	}
+	var values map[string]string
+	if err := json.Unmarshal(envs.RawMessage, &values); err != nil {
+		return &DecryptFailedError{
+			Inner: xerrors.Errorf("malformed encrypted environment variables: %w", err),
+		}
+	}
+	for name, value := range values {
+		if value == "" {
+			continue
+		}
+		if err := db.decryptField(&value, digest); err != nil {
+			return err
+		}
+		values[name] = value
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return xerrors.Errorf("marshal decrypted environment variables: %w", err)
+	}
+	envs.RawMessage = encoded
+	return nil
+}
+
 // encryptRawMessage is encryptExtra for non-null jsonb columns held as a bare
 // json.RawMessage.
 func (db *dbCrypt) encryptRawMessage(m *json.RawMessage, digest *sql.NullString) error {

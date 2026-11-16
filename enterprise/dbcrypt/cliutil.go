@@ -314,7 +314,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 	}
 
 	log.Info(ctx, "encrypting sensitive template version variables")
-	err = forEachTemplateVersionWithSensitiveVariables(ctx, sqlDB, func(versionID uuid.UUID) error {
+	err = forEachParentWithSecretRows(ctx, sqlDB, templateVersionVariablesScan, func(versionID uuid.UUID) error {
 		variables, err := cryptDB.GetTemplateVersionVariables(ctx, versionID)
 		if err != nil {
 			return xerrors.Errorf("get variables for template version %s: %w", versionID, err)
@@ -344,7 +344,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 	}
 
 	log.Info(ctx, "encrypting sensitive workspace build parameters")
-	err = forEachBuildWithSensitiveParameters(ctx, sqlDB, func(buildID uuid.UUID) error {
+	err = forEachParentWithSecretRows(ctx, sqlDB, workspaceBuildParametersScan, func(buildID uuid.UUID) error {
 		parameters, err := cryptDB.GetWorkspaceBuildParameters(ctx, buildID)
 		if err != nil {
 			return xerrors.Errorf("get parameters for workspace build %s: %w", buildID, err)
@@ -367,6 +367,59 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			}
 			log.Debug(ctx, "rotated workspace build parameter", slog.F("workspace_build_id", buildID), slog.F("name", parameter.Name), slog.F("cipher", ciphers[0].HexDigest()))
 		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "encrypting sensitive workspace resource metadata")
+	err = forEachParentWithSecretRows(ctx, sqlDB, workspaceResourceMetadataScan, func(resourceID uuid.UUID) error {
+		metadata, err := cryptDB.GetWorkspaceResourceMetadataByResourceIDs(ctx, []uuid.UUID{resourceID})
+		if err != nil {
+			return xerrors.Errorf("get metadata for workspace resource %s: %w", resourceID, err)
+		}
+		for _, metadatum := range metadata {
+			if !metadatum.Sensitive || !metadatum.Value.Valid || metadatum.Value.String == "" {
+				continue
+			}
+			if metadatum.ValueKeyID.Valid && metadatum.ValueKeyID.String == ciphers[0].HexDigest() {
+				log.Debug(ctx, "skipping workspace resource metadatum", slog.F("workspace_resource_id", resourceID), slog.F("key", metadatum.Key), slog.F("cipher", ciphers[0].HexDigest()))
+				continue
+			}
+			if err := cryptDB.UpdateWorkspaceResourceMetadatumValue(ctx, database.UpdateWorkspaceResourceMetadatumValueParams{
+				ID:         metadatum.ID,
+				Value:      metadatum.Value,
+				ValueKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+			}); err != nil {
+				return xerrors.Errorf("rotate metadatum %s of workspace resource %s: %w", metadatum.Key, resourceID, err)
+			}
+			log.Debug(ctx, "rotated workspace resource metadatum", slog.F("workspace_resource_id", resourceID), slog.F("key", metadatum.Key), slog.F("cipher", ciphers[0].HexDigest()))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "encrypting workspace agent environment variables")
+	err = forEachSecretRow(ctx, sqlDB, agentEnvironmentVariablesScan, func(agentID uuid.UUID, keyID sql.NullString) error {
+		if keyID.Valid && keyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping workspace agent environment variables", slog.F("workspace_agent_id", agentID), slog.F("cipher", ciphers[0].HexDigest()))
+			return nil
+		}
+		agent, err := cryptDB.GetWorkspaceAgentByID(ctx, agentID)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent %s: %w", agentID, err)
+		}
+		if err := cryptDB.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams{
+			ID:                        agentID,
+			EnvironmentVariables:      agent.EnvironmentVariables,
+			EnvironmentVariablesKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+		}); err != nil {
+			return xerrors.Errorf("rotate environment variables of workspace agent %s: %w", agentID, err)
+		}
+		log.Debug(ctx, "rotated workspace agent environment variables", slog.F("workspace_agent_id", agentID), slog.F("cipher", ciphers[0].HexDigest()))
 		return nil
 	})
 	if err != nil {
@@ -669,7 +722,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 	}
 
 	log.Info(ctx, "decrypting sensitive template version variables")
-	err = forEachTemplateVersionWithSensitiveVariables(ctx, sqlDB, func(versionID uuid.UUID) error {
+	err = forEachParentWithSecretRows(ctx, sqlDB, templateVersionVariablesScan, func(versionID uuid.UUID) error {
 		variables, err := cryptDB.GetTemplateVersionVariables(ctx, versionID)
 		if err != nil {
 			return xerrors.Errorf("get variables for template version %s: %w", versionID, err)
@@ -695,7 +748,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 	}
 
 	log.Info(ctx, "decrypting sensitive workspace build parameters")
-	err = forEachBuildWithSensitiveParameters(ctx, sqlDB, func(buildID uuid.UUID) error {
+	err = forEachParentWithSecretRows(ctx, sqlDB, workspaceBuildParametersScan, func(buildID uuid.UUID) error {
 		parameters, err := cryptDB.GetWorkspaceBuildParameters(ctx, buildID)
 		if err != nil {
 			return xerrors.Errorf("get parameters for workspace build %s: %w", buildID, err)
@@ -714,6 +767,55 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			}
 			log.Debug(ctx, "decrypted workspace build parameter", slog.F("workspace_build_id", buildID), slog.F("name", parameter.Name))
 		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "decrypting sensitive workspace resource metadata")
+	err = forEachParentWithSecretRows(ctx, sqlDB, workspaceResourceMetadataScan, func(resourceID uuid.UUID) error {
+		metadata, err := cryptDB.GetWorkspaceResourceMetadataByResourceIDs(ctx, []uuid.UUID{resourceID})
+		if err != nil {
+			return xerrors.Errorf("get metadata for workspace resource %s: %w", resourceID, err)
+		}
+		for _, metadatum := range metadata {
+			if !metadatum.ValueKeyID.Valid {
+				continue
+			}
+			if err := cryptDB.UpdateWorkspaceResourceMetadatumValue(ctx, database.UpdateWorkspaceResourceMetadatumValueParams{
+				ID:         metadatum.ID,
+				Value:      metadatum.Value,
+				ValueKeyID: sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+			}); err != nil {
+				return xerrors.Errorf("decrypt metadatum %s of workspace resource %s: %w", metadatum.Key, resourceID, err)
+			}
+			log.Debug(ctx, "decrypted workspace resource metadatum", slog.F("workspace_resource_id", resourceID), slog.F("key", metadatum.Key))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "decrypting workspace agent environment variables")
+	err = forEachSecretRow(ctx, sqlDB, agentEnvironmentVariablesScan, func(agentID uuid.UUID, keyID sql.NullString) error {
+		if !keyID.Valid {
+			log.Debug(ctx, "skipping workspace agent environment variables", slog.F("workspace_agent_id", agentID))
+			return nil
+		}
+		agent, err := cryptDB.GetWorkspaceAgentByID(ctx, agentID)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent %s: %w", agentID, err)
+		}
+		if err := cryptDB.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams{
+			ID:                        agentID,
+			EnvironmentVariables:      agent.EnvironmentVariables,
+			EnvironmentVariablesKeyID: sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+		}); err != nil {
+			return xerrors.Errorf("decrypt environment variables of workspace agent %s: %w", agentID, err)
+		}
+		log.Debug(ctx, "decrypted workspace agent environment variables", slog.F("workspace_agent_id", agentID))
 		return nil
 	})
 	if err != nil {
@@ -761,6 +863,86 @@ var terraformValuesCachedPlanScan = secretRowScan{
 	idColumn:          "template_version_id",
 	keyIDColumn:       "cached_plan_key_id",
 	nonEmptyPredicate: "cached_plan IS NOT NULL AND cached_plan != 'null'::jsonb AND cached_plan != '{}'::jsonb",
+}
+
+var agentEnvironmentVariablesScan = secretRowScan{
+	table:             "workspace_agents",
+	idColumn:          "id",
+	keyIDColumn:       "environment_variables_key_id",
+	nonEmptyPredicate: "environment_variables IS NOT NULL AND environment_variables != 'null'::jsonb AND environment_variables != '{}'::jsonb",
+}
+
+// Scans for tables with composite primary keys, paged over the parent ID with
+// forEachParentWithSecretRows. The keyIDColumn is unused there because the
+// per-row skip decision happens in the callback.
+var (
+	templateVersionVariablesScan = secretRowScan{
+		table:             "template_version_variables",
+		idColumn:          "template_version_id",
+		keyIDColumn:       "value_key_id",
+		nonEmptyPredicate: "sensitive AND value != ''",
+	}
+	workspaceBuildParametersScan = secretRowScan{
+		table:             "workspace_build_parameters",
+		idColumn:          "workspace_build_id",
+		keyIDColumn:       "value_key_id",
+		nonEmptyPredicate: "sensitive AND value != ''",
+	}
+	workspaceResourceMetadataScan = secretRowScan{
+		table:             "workspace_resource_metadata",
+		idColumn:          "workspace_resource_id",
+		keyIDColumn:       "value_key_id",
+		nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''",
+	}
+)
+
+// forEachParentWithSecretRows calls fn for every distinct parent ID (the
+// scan's idColumn) that has at least one row matching the scan's predicate,
+// one ID-ordered page at a time. Used for tables with composite primary keys,
+// where the callback re-reads and rewrites rows through the store.
+func forEachParentWithSecretRows(ctx context.Context, sqlDB *sql.DB, scan secretRowScan, fn func(parentID uuid.UUID) error) error {
+	//nolint:gosec // Identifiers and predicates are compile-time constants; only values are parameterized.
+	query := fmt.Sprintf(`
+		SELECT %s
+		FROM %s
+		WHERE %s
+			AND %s > $1
+		GROUP BY %s
+		ORDER BY %s
+		LIMIT $2`,
+		scan.idColumn, scan.table, scan.nonEmptyPredicate, scan.idColumn, scan.idColumn, scan.idColumn,
+	)
+	afterID := uuid.Nil
+	for {
+		rows, err := sqlDB.QueryContext(ctx, query, afterID, secretRowPageSize)
+		if err != nil {
+			return xerrors.Errorf("list %s parents after id=%s: %w", scan.table, afterID, err)
+		}
+		var page []uuid.UUID
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return xerrors.Errorf("scan %s parent id: %w", scan.table, err)
+			}
+			page = append(page, id)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return xerrors.Errorf("iterate %s parents: %w", scan.table, err)
+		}
+		_ = rows.Close()
+
+		for _, id := range page {
+			if err := fn(id); err != nil {
+				return err
+			}
+		}
+		if len(page) < secretRowPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1]
+	}
 }
 
 // forEachSecretRow calls fn for every row of the scan's table that holds a
@@ -812,98 +994,6 @@ func forEachSecretRow(ctx context.Context, sqlDB *sql.DB, scan secretRowScan, fn
 			return nil
 		}
 		afterID = page[len(page)-1].id
-	}
-}
-
-// forEachTemplateVersionWithSensitiveVariables calls fn for every template
-// version that has at least one sensitive variable with a non-empty value,
-// one ID-ordered page at a time. The variables table has a composite primary
-// key, so pagination runs over the version ID.
-func forEachTemplateVersionWithSensitiveVariables(ctx context.Context, sqlDB *sql.DB, fn func(versionID uuid.UUID) error) error {
-	afterID := uuid.Nil
-	for {
-		rows, err := sqlDB.QueryContext(ctx, `
-			SELECT template_version_id
-			FROM template_version_variables
-			WHERE sensitive
-				AND value != ''
-				AND template_version_id > $1
-			GROUP BY template_version_id
-			ORDER BY template_version_id
-			LIMIT $2`, afterID, secretRowPageSize)
-		if err != nil {
-			return xerrors.Errorf("list template versions with sensitive variables after id=%s: %w", afterID, err)
-		}
-		var page []uuid.UUID
-		for rows.Next() {
-			var id uuid.UUID
-			if err := rows.Scan(&id); err != nil {
-				_ = rows.Close()
-				return xerrors.Errorf("scan template version id: %w", err)
-			}
-			page = append(page, id)
-		}
-		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return xerrors.Errorf("iterate template versions: %w", err)
-		}
-		_ = rows.Close()
-
-		for _, id := range page {
-			if err := fn(id); err != nil {
-				return err
-			}
-		}
-		if len(page) < secretRowPageSize {
-			return nil
-		}
-		afterID = page[len(page)-1]
-	}
-}
-
-// forEachBuildWithSensitiveParameters calls fn for every workspace build that
-// has at least one sensitive parameter with a non-empty value, one ID-ordered
-// page at a time. The parameters table has a composite primary key, so
-// pagination runs over the build ID.
-func forEachBuildWithSensitiveParameters(ctx context.Context, sqlDB *sql.DB, fn func(buildID uuid.UUID) error) error {
-	afterID := uuid.Nil
-	for {
-		rows, err := sqlDB.QueryContext(ctx, `
-			SELECT workspace_build_id
-			FROM workspace_build_parameters
-			WHERE sensitive
-				AND value != ''
-				AND workspace_build_id > $1
-			GROUP BY workspace_build_id
-			ORDER BY workspace_build_id
-			LIMIT $2`, afterID, secretRowPageSize)
-		if err != nil {
-			return xerrors.Errorf("list workspace builds with sensitive parameters after id=%s: %w", afterID, err)
-		}
-		var page []uuid.UUID
-		for rows.Next() {
-			var id uuid.UUID
-			if err := rows.Scan(&id); err != nil {
-				_ = rows.Close()
-				return xerrors.Errorf("scan workspace build id: %w", err)
-			}
-			page = append(page, id)
-		}
-		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return xerrors.Errorf("iterate workspace builds: %w", err)
-		}
-		_ = rows.Close()
-
-		for _, id := range page {
-			if err := fn(id); err != nil {
-				return err
-			}
-		}
-		if len(page) < secretRowPageSize {
-			return nil
-		}
-		afterID = page[len(page)-1]
 	}
 }
 
@@ -988,6 +1078,18 @@ UPDATE workspace_build_parameters
 	SET value = '',
 		value_key_id = NULL
 	WHERE value_key_id IS NOT NULL;
+-- Sensitive resource metadata is informational; clear the unrecoverable
+-- ciphertext. Rows are rewritten on the next workspace build.
+UPDATE workspace_resource_metadata
+	SET value = NULL,
+		value_key_id = NULL
+	WHERE value_key_id IS NOT NULL;
+-- Agent environment variables are re-inserted from Terraform state on the
+-- next workspace build; clear the unrecoverable ciphertext.
+UPDATE workspace_agents
+	SET environment_variables = NULL,
+		environment_variables_key_id = NULL
+	WHERE environment_variables_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
@@ -1057,6 +1159,8 @@ var auditTargets = []auditTarget{
 	{table: "template_version_terraform_values", column: "cached_plan", keyIDColumn: "cached_plan_key_id", nonEmptyPredicate: "cached_plan IS NOT NULL AND cached_plan != 'null'::jsonb AND cached_plan != '{}'::jsonb"},
 	{table: "template_version_variables", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "workspace_build_parameters", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
+	{table: "workspace_resource_metadata", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
+	{table: "workspace_agents", column: "environment_variables", keyIDColumn: "environment_variables_key_id", nonEmptyPredicate: "environment_variables IS NOT NULL AND environment_variables != 'null'::jsonb AND environment_variables != '{}'::jsonb"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},

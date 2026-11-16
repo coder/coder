@@ -6561,6 +6561,14 @@ func (m queryMetricsStore) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentEnvironmentVariablesByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentEnvironmentVariablesByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
@@ -6742,6 +6750,14 @@ func (m queryMetricsStore) UpdateWorkspaceProxyDeleted(ctx context.Context, arg 
 	r0 := m.s.UpdateWorkspaceProxyDeleted(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceProxyDeleted").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceProxyDeleted").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceResourceMetadatumValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceResourceMetadatumValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceResourceMetadatumValue").Inc()
 	return r0
 }
 
