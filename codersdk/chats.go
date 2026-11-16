@@ -2526,10 +2526,11 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
-	// PinnedProjectsOnly leaves out the caller's own chats in projects the
-	// caller has not pinned, unless the chat itself is pinned. Chats shared
-	// with the caller are always included.
-	PinnedProjectsOnly bool
+	// ExcludeOwnProjectChats leaves out the caller's own unpinned chats in
+	// projects the caller can use. List those with ProjectID. Chats shared
+	// with the caller and chats in projects the caller can no longer use are
+	// still included.
+	ExcludeOwnProjectChats bool
 	Pagination
 }
 
@@ -2587,10 +2588,10 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 				r.URL.RawQuery = q.Encode()
 			})
 		}
-		if opts.PinnedProjectsOnly {
+		if opts.ExcludeOwnProjectChats {
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
-				q.Set("pinned_projects_only", "true")
+				q.Set("exclude_own_project_chats", "true")
 				r.URL.RawQuery = q.Encode()
 			})
 		}
