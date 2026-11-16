@@ -34,9 +34,9 @@ export const WorkspaceSharingIndicator: React.FC<
 			</TooltipTrigger>
 			<TooltipContent className="w-56 p-0">
 				<div className="px-3 py-2">
-					<p className="m-0 text-sm font-semibold text-content-primary">
+					<h2 className="m-0 text-sm font-semibold text-content-primary">
 						Workspace permissions
-					</p>
+					</h2>
 				</div>
 				<ul className="flex flex-col gap-1 m-0 p-0 list-none max-h-48 overflow-y-auto">
 					{sortedActors.map((actor) => {

@@ -37,6 +37,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"ChatProject":                      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableChatProjectTemplates":    {codersdk.AuditActionWrite},
 	"ChatModelConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -517,7 +518,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                               ActionTrack,
 		"created_at":                         ActionIgnore,
 		"updated_at":                         ActionIgnore,
-		"template_ids":                       ActionTrack,
+		"limit_templates":                    ActionTrack,
 		"default_template_id":                ActionTrack,
 		"default_template_version_preset_id": ActionTrack,
 		"default_parameters":                 ActionTrack,
@@ -542,6 +543,11 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_by":      ActionIgnore, // The audit log records the acting user.
 		"created_at":      ActionIgnore,
 		"updated_at":      ActionIgnore,
+	},
+	&database.AuditableChatProjectTemplates{}: {
+		"project_id":   ActionIgnore, // Conveyed by resource_id.
+		"project_name": ActionIgnore, // Conveyed by resource_target.
+		"template_ids": ActionTrack,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.

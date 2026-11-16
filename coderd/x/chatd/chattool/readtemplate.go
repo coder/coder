@@ -69,7 +69,7 @@ type RenderTemplateParametersFn func(
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
 	OwnerID uuid.UUID
-	// ProjectID limits reads to the project's templates.
+	// ProjectID applies the project's template limit.
 	ProjectID uuid.NullUUID
 	// RenderParameters resolves parameter defaults for the owner. When nil,
 	// or when evaluation fails, the tool falls back to the defaults recorded
@@ -125,7 +125,7 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if !template.AgentsAllowed {
 				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
-			project, err := loadProjectTemplates(ctx, db, options.ProjectID)
+			project, err := loadChatProjectTemplates(ctx, db, options.ProjectID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
@@ -173,13 +173,13 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				defaults := map[string]any{}
 				// A default preset from a version that is no longer active
 				// is skipped by create_workspace, so it is not reported.
-				if project.defaultPresetID.Valid && slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool {
-					return p.ID == project.defaultPresetID.UUID
+				if project.DefaultPresetID.Valid && slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool {
+					return p.ID == project.DefaultPresetID.UUID
 				}) {
-					defaults["preset_id"] = project.defaultPresetID.UUID.String()
+					defaults["preset_id"] = project.DefaultPresetID.UUID.String()
 				}
-				if len(project.defaultParameters) > 0 {
-					defaults["parameters"] = project.defaultParameters
+				if len(project.DefaultParameters) > 0 {
+					defaults["parameters"] = project.DefaultParameters
 				}
 				if len(defaults) > 0 {
 					defaults["note"] = "create_workspace applies these project defaults unless you pass preset_id or the parameter yourself."

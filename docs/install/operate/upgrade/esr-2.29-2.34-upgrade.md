@@ -118,7 +118,7 @@ Coder added the following:
 - Support bundle improvements.
 - `chatd` metrics.
 - Agent first-connection duration metrics.
-- A `coder_build_info` metric.
+- A `coderd_build_info` metric.
 
 Coder also removed several deprecated Prometheus metrics, so dashboards and alerts should be reviewed before the upgrade.
 
@@ -174,6 +174,7 @@ The following changes introduced after 2.29 might break workflows, require manua
 | `PATCH /api/v2/templates/{template}` accepts value fields for metadata updates.                                 | Template metadata update fields are optional pointer fields in the SDK, and 304 responses were removed.                                                                                                                                                                                                                             | Update SDK consumers and direct API clients that patch template metadata. Send only fields that should change, including false or zero values explicitly.                                                                                                                                |
 | External provisioner daemons use the 2.29 provisionerd protocol.                                                | The provisionerd protocol changed for provisioner operations and file upload/download.                                                                                                                                                                                                                                              | Update external provisioner daemons to the matching 2.34 protocol. The protocol reserves removed fields such as `stop_modules`, `exp_reuse_terraform_workspace`, and `user_secrets`, and adds `DownloadFile`.                                                                            |
 | Helm chart health probes and observability bind addresses use older chart defaults.                             | Readiness and liveness probes have `enabled` toggles and more fields, and Prometheus/pprof addresses are overridable.                                                                                                                                                                                                               | Review custom Helm values for probe behavior and observability bindings. Prefer restricting pprof to a local address when exposing diagnostics.                                                                                                                                          |
+| A server option set to an empty environment variable, such as `CODER_HTTP_ADDRESS=`, kept its default value.    | An empty value replaces the default. With `CODER_HTTP_ADDRESS=` and TLS off, the server exits with `TLS is disabled. Enable with --tls-enable or specify a HTTP address`.                                                                                                                                                           | Before you upgrade, remove or comment out the lines in your environment files that set a variable with no value, such as `CODER_HTTP_ADDRESS=`. The deb, RPM, and apk packages shipped `/etc/coder.d/coder.env` with that line, and an upgrade keeps your existing file.                 |
 
 <a id="upgrading"></a>
 

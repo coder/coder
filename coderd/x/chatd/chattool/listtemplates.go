@@ -71,6 +71,14 @@ const (
 	NextStepNoTemplates    = "No templates are available to this chat. Inform the user."
 )
 
+// Notes list_templates adds for a chat in a project. They name the roles
+// that can help, never people, so they reveal nothing about who has access.
+const (
+	projectTemplatesLimitedNote = "This chat's project limits workspaces to the templates listed here. Do not use any other template."
+	projectTemplatesHiddenNote  = "Some templates attached to this chat's project are not listed because the user does not have access to them. " +
+		"A template admin or organization admin can give the user access. Tell the user if none of the listed templates fit."
+)
+
 const (
 	queryScoreExactName        = 4
 	queryScoreNamePrefix       = 3
@@ -82,8 +90,8 @@ const (
 // required; Clock defaults to a real clock when nil.
 type ListTemplatesOptions struct {
 	OwnerID uuid.UUID
-	// ProjectID limits the list to the project's templates and recommends
-	// its default template.
+	// ProjectID lists the project's templates first, or only them when the
+	// project limits its chats, and recommends its default template.
 	ProjectID uuid.NullUUID
 	Logger    slog.Logger
 	Clock     quartz.Clock
@@ -95,7 +103,10 @@ type listTemplatesArgs struct {
 }
 
 type rankedTemplate struct {
-	Template      database.Template
+	Template database.Template
+	// Attached marks a template attached to the chat's project when the
+	// project does not limit its chats, so it is listed ahead of the rest.
+	Attached      bool
 	QueryScore    int
 	Signals       templateRankingSignals
 	AffinityScore float64
@@ -145,17 +156,18 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 					Valid: true,
 				},
 			}
-			project, err := loadProjectTemplates(ctx, db, options.ProjectID)
+			project, err := loadChatProjectTemplates(ctx, db, options.ProjectID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
+			limited := project != nil && project.Limit
 			var templates []database.Template
-			// An empty IDs filter matches every template, so a project
-			// without templates skips the query.
-			if project == nil || len(project.templateIDs) > 0 {
-				if project != nil {
-					filterParams.IDs = project.templateIDs
-				}
+			if limited {
+				// The limit leaves only the attached templates the owner
+				// can use, which the project lookup already read as the
+				// owner.
+				templates = project.Templates
+			} else {
 				templates, err = db.GetTemplatesWithFilter(ctx, filterParams)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -165,6 +177,11 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			query := strings.TrimSpace(args.Query)
 			visibleTemplateCount := len(templates)
 			ranked := scoreTemplateCandidates(templates, query)
+			if project != nil && !limited {
+				for i := range ranked {
+					_, ranked[i].Attached = project.Template(ranked[i].Template.ID)
+				}
+			}
 
 			templateIDs := make([]uuid.UUID, len(ranked))
 			for i, t := range ranked {
@@ -199,7 +216,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			if project != nil && slices.ContainsFunc(ranked, func(t rankedTemplate) bool {
 				return project.isDefault(t.Template.ID) && t.QueryScore == ranked[0].QueryScore
 			}) {
-				recommendedID, nextStep = project.defaultTemplateID.UUID, NextStepUseRecommended
+				recommendedID, nextStep = project.DefaultTemplateID.UUID, NextStepUseRecommended
 			}
 
 			page := args.Page
@@ -234,6 +251,13 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			}
 			if recommendedID != uuid.Nil {
 				result["recommended_template_id"] = recommendedID.String()
+			}
+			if limited {
+				result["project_templates_note"] = projectTemplatesLimitedNote
+			}
+			if project != nil && project.HiddenCount > 0 {
+				result["hidden_project_template_count"] = project.HiddenCount
+				result["hidden_project_templates_note"] = projectTemplatesHiddenNote
 			}
 			return toolResponse(result), nil
 		},
@@ -320,6 +344,12 @@ func rankTemplates(ranked []rankedTemplate, query string) {
 				return c
 			}
 		}
+		if a.Attached != b.Attached {
+			if a.Attached {
+				return -1
+			}
+			return 1
+		}
 		if c := cmp.Compare(b.AffinityScore, a.AffinityScore); c != 0 {
 			return c
 		}
@@ -401,6 +431,9 @@ func templateItem(t rankedTemplate) map[string]any {
 	}
 	if !t.Signals.LastUsedAt.IsZero() {
 		item["last_used_by_you"] = t.Signals.LastUsedAt.Format(time.RFC3339Nano)
+	}
+	if t.Attached {
+		item["attached_to_project"] = true
 	}
 	return item
 }

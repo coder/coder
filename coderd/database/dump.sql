@@ -2106,7 +2106,8 @@ CREATE TABLE chat_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
@@ -2126,6 +2127,8 @@ COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carr
 COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN chat_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2353,6 +2356,15 @@ CREATE TABLE chat_project_memories (
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
 
+CREATE TABLE chat_project_templates (
+    project_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_templates IS 'Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.';
+
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2364,13 +2376,11 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    template_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    limit_templates boolean DEFAULT false NOT NULL,
     default_template_id uuid,
     default_template_version_preset_id uuid,
     default_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_projects_default_preset_or_parameters CHECK (((default_template_version_preset_id IS NULL) OR (default_parameters = '{}'::jsonb))),
-    CONSTRAINT chat_projects_default_template_in_templates CHECK (((default_template_id IS NULL) OR (default_template_id = ANY (template_ids)))),
-    CONSTRAINT chat_projects_defaults_require_template CHECK (((default_template_id IS NOT NULL) OR ((default_template_version_preset_id IS NULL) AND (default_parameters = '{}'::jsonb)))),
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
@@ -2387,9 +2397,9 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
-COMMENT ON COLUMN chat_projects.template_ids IS 'Templates the project''s chats may use. Empty means the chats cannot create or attach workspaces.';
+COMMENT ON COLUMN chat_projects.limit_templates IS 'When true, the project''s chats can only use the templates in chat_project_templates, and none when it has no rows. When false, they can use every template their owner can use.';
 
-COMMENT ON COLUMN chat_projects.default_template_id IS 'Template recommended to the project''s chats. Must be one of template_ids.';
+COMMENT ON COLUMN chat_projects.default_template_id IS 'Attached template recommended to the project''s chats. Ignored while the template is not attached.';
 
 COMMENT ON COLUMN chat_projects.default_template_version_preset_id IS 'Preset applied when a chat creates a workspace from the default template without choosing one.';
 
@@ -3903,7 +3913,8 @@ CREATE TABLE workspace_agent_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
@@ -3923,6 +3934,8 @@ COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource stat
 COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE workspace_agent_context_snapshots (
     workspace_agent_id uuid NOT NULL,
@@ -4725,6 +4738,9 @@ ALTER TABLE ONLY chat_project_instructions
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_pkey PRIMARY KEY (project_id, template_id);
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
@@ -5680,6 +5696,15 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_default_template_id_fkey FOREIGN KEY (default_template_id) REFERENCES templates(id) ON DELETE SET NULL;

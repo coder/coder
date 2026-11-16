@@ -79,6 +79,11 @@ export type AlertProps = {
 	prominent?: boolean;
 	children?: React.ReactNode;
 	className?: string;
+	/**
+	 * Replaces the default `alert` role, for example with `none` when an
+	 * always-mounted parent live region announces the alert instead.
+	 */
+	role?: React.AriaRole;
 };
 
 export const Alert: React.FC<AlertProps> = ({

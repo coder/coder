@@ -3,17 +3,13 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -26,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -49,9 +46,15 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, func(project database.ChatProject) codersdk.ChatProject {
-		return api.convertChatProject(r, project)
-	}))
+	converted, err := api.convertChatProjects(r, projects)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat projects.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, converted)
 }
 
 // @Summary Create chat project
@@ -90,8 +93,15 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-	templates, ok := api.chatProjectTemplateFieldsOrWriteError(ctx, rw, organization.ID, req.Templates)
-	if !ok {
+	req.TemplateIDs = slice.Unique(req.TemplateIDs)
+	templates, err := api.attachableChatProjectTemplates(ctx, organization.ID, req.TemplateIDs)
+	if err != nil {
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to validate chat project templates.")
+		return
+	}
+	defaultTemplate, err := validateChatProjectDefaultTemplate(ctx, api.Database, templates, req.DefaultTemplate)
+	if err != nil {
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to validate the default template.")
 		return
 	}
 
@@ -105,7 +115,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	var project database.ChatProject
-	err := api.Database.InTx(func(tx database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		// The lock serializes a user's creates so concurrent requests cannot
 		// both observe room under the cap.
 		if err := tx.AcquireLock(ctx, database.GenLockID("chat-projects-owner:"+apiKey.UserID.String())); err != nil {
@@ -129,10 +139,21 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 			Description:    req.Description,
 			Icon:           req.Icon,
 
-			TemplateIDs:                    templates.templateIDs,
-			DefaultTemplateID:              templates.defaultTemplateID,
-			DefaultTemplateVersionPresetID: templates.defaultPresetID,
-			DefaultParameters:              pqtype.NullRawMessage{RawMessage: templates.defaultParameters, Valid: true},
+			LimitTemplates:                 req.LimitTemplates,
+			DefaultTemplateID:              defaultTemplate.templateID,
+			DefaultTemplateVersionPresetID: defaultTemplate.presetID,
+			DefaultParameters:              defaultTemplate.parameters,
+		})
+		if err != nil {
+			return err
+		}
+		if len(req.TemplateIDs) == 0 {
+			return nil
+		}
+		_, err = tx.InsertChatProjectTemplates(ctx, database.InsertChatProjectTemplatesParams{
+			ProjectID:   project.ID,
+			TemplateIDs: req.TemplateIDs,
+			CreatedBy:   apiKey.UserID,
 		})
 		return err
 	}, nil)
@@ -143,14 +164,11 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat project.",
-			Detail:  err.Error(),
-		})
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to create chat project.")
 		return
 	}
 	aReq.New = project
-	httpapi.Write(ctx, rw, http.StatusCreated, api.convertChatProject(r, project))
+	api.writeChatProject(rw, r, http.StatusCreated, project)
 }
 
 // @Summary Get chat project
@@ -166,13 +184,12 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, project))
+	api.writeChatProject(rw, r, http.StatusOK, project)
 }
 
 // @Summary Update chat project
@@ -190,8 +207,9 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	// Update covers the template list and defaults, so anyone allowed to edit
-	// the project, including through its ACL, can change them.
+	// Update covers the template limit and default template, so anyone
+	// allowed to edit the project, including through its ACL, can change
+	// them.
 	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
@@ -226,38 +244,52 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if !validateChatProjectFields(ctx, rw, name, description, icon) {
 		return
 	}
-	// Omitted templates are left to the query, which keeps the current
-	// columns instead of writing back this request's snapshot.
-	var templates chatProjectTemplateFields
-	if req.Templates != nil {
-		var ok bool
-		templates, ok = api.chatProjectTemplateFieldsOrWriteError(ctx, rw, project.OrganizationID, req.Templates)
-		if !ok {
-			return
-		}
+
+	// Omitted template settings are left to the query, which keeps the
+	// current columns instead of writing back this request's snapshot.
+	var limitTemplates sql.NullBool
+	if req.LimitTemplates != nil {
+		limitTemplates = sql.NullBool{Bool: *req.LimitTemplates, Valid: true}
 	}
+	var updated database.ChatProject
+	err := api.Database.InTx(func(tx database.Store) error {
+		var defaultTemplate chatProjectDefaultTemplate
+		if req.DefaultTemplate != nil {
+			// Detaching a template takes the same lock, so the default
+			// cannot be pointed at a template that is being detached.
+			if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+				return err
+			}
+			templates, err := chattool.LoadProjectTemplates(ctx, tx, project)
+			if err != nil {
+				return err
+			}
+			defaultTemplate, err = validateChatProjectDefaultTemplate(ctx, tx, templates.Templates, req.DefaultTemplate)
+			if err != nil {
+				return err
+			}
+		}
+		var err error
+		updated, err = tx.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+			ID:          project.ID,
+			Name:        name,
+			Description: description,
+			Icon:        icon,
 
-	updated, err := api.Database.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
-		ID:          project.ID,
-		Name:        name,
-		Description: description,
-		Icon:        icon,
-
-		UpdateTemplates:                req.Templates != nil,
-		TemplateIDs:                    templates.templateIDs,
-		DefaultTemplateID:              templates.defaultTemplateID,
-		DefaultTemplateVersionPresetID: templates.defaultPresetID,
-		DefaultParameters:              pqtype.NullRawMessage{RawMessage: templates.defaultParameters, Valid: req.Templates != nil},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat project.",
-			Detail:  err.Error(),
+			LimitTemplates:                 limitTemplates,
+			UpdateDefaultTemplate:          req.DefaultTemplate != nil,
+			DefaultTemplateID:              defaultTemplate.templateID,
+			DefaultTemplateVersionPresetID: defaultTemplate.presetID,
+			DefaultParameters:              defaultTemplate.parameters,
 		})
+		return err
+	}, nil)
+	if err != nil {
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to update chat project.")
 		return
 	}
 	aReq.New = updated
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, updated))
+	api.writeChatProject(rw, r, http.StatusOK, updated)
 }
 
 // @Summary Delete chat project
@@ -313,20 +345,42 @@ func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Reque
 	return true
 }
 
-func (api *API) convertChatProject(r *http.Request, project database.ChatProject) codersdk.ChatProject {
+// writeChatProject writes the project as the caller sees it.
+func (api *API) writeChatProject(rw http.ResponseWriter, r *http.Request, status int, project database.ChatProject) {
 	ctx := r.Context()
-	subject := httpmw.UserAuthorization(ctx)
-	obj := project.RBACObject()
-	// Denials are expected here, so this skips api.Authorize, which logs
-	// each one as a warning.
-	can := func(action policy.Action) bool {
-		return api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
+	converted, err := api.convertChatProjects(r, []database.ChatProject{project})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat project templates.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
-		Update: can(policy.ActionUpdate),
-		Delete: can(policy.ActionDelete),
-		Share:  can(policy.ActionShare),
-	})
+	httpapi.Write(ctx, rw, status, converted[0])
+}
+
+// convertChatProjects converts projects with the caller's permissions on
+// them and the attached templates the caller can access.
+func (api *API) convertChatProjects(r *http.Request, projects []database.ChatProject) ([]codersdk.ChatProject, error) {
+	ctx := r.Context()
+	templates, err := chattool.LoadProjectsTemplates(ctx, api.Database, projects)
+	if err != nil {
+		return nil, err
+	}
+	subject := httpmw.UserAuthorization(ctx)
+	return slice.List(projects, func(project database.ChatProject) codersdk.ChatProject {
+		obj := project.RBACObject()
+		// Denials are expected here, so this skips api.Authorize, which
+		// logs each one as a warning.
+		can := func(action policy.Action) bool {
+			return api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
+		}
+		return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
+			Update: can(policy.ActionUpdate),
+			Delete: can(policy.ActionDelete),
+			Share:  can(policy.ActionShare),
+		}, templates[project.ID])
+	}), nil
 }
 
 // maxChatProjectsPerOwner caps how many projects one user owns across all
@@ -361,164 +415,9 @@ func validateChatProjectFields(ctx context.Context, rw http.ResponseWriter, name
 	return true
 }
 
-// chatProjectTemplateFieldsOrWriteError validates requested templates and
-// writes the error response when they are invalid or cannot be checked.
-func (api *API) chatProjectTemplateFieldsOrWriteError(
-	ctx context.Context,
-	rw http.ResponseWriter,
-	organizationID uuid.UUID,
-	req *codersdk.ChatProjectTemplates,
-) (chatProjectTemplateFields, bool) {
-	fields, validation, err := api.validateChatProjectTemplates(ctx, organizationID, req)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to validate chat project templates.",
-			Detail:  err.Error(),
-		})
-		return chatProjectTemplateFields{}, false
-	}
-	if validation != nil {
-		writeChatProjectFieldError(ctx, rw, validation.Field, validation.Detail)
-		return chatProjectTemplateFields{}, false
-	}
-	return fields, true
-}
-
 func writeChatProjectFieldError(ctx context.Context, rw http.ResponseWriter, field, detail string) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message:     detail,
 		Validations: []codersdk.ValidationError{{Field: field, Detail: detail}},
 	})
-}
-
-// chatProjectTemplateFields are the validated database values for a
-// project's templates and defaults.
-type chatProjectTemplateFields struct {
-	templateIDs       []uuid.UUID
-	defaultTemplateID uuid.NullUUID
-	defaultPresetID   uuid.NullUUID
-	defaultParameters json.RawMessage
-}
-
-// validateChatProjectTemplates checks a project's requested templates and
-// defaults. Templates are looked up as the requester, so templates they
-// cannot read are reported as unavailable. A non-nil validation error means
-// the request is invalid; a non-nil error means the lookup failed.
-func (api *API) validateChatProjectTemplates(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	req *codersdk.ChatProjectTemplates,
-) (chatProjectTemplateFields, *codersdk.ValidationError, error) {
-	fields := chatProjectTemplateFields{templateIDs: []uuid.UUID{}, defaultParameters: json.RawMessage("{}")}
-	if req == nil {
-		return fields, nil, nil
-	}
-	invalid := func(field, detail string) (chatProjectTemplateFields, *codersdk.ValidationError, error) {
-		return chatProjectTemplateFields{}, &codersdk.ValidationError{Field: "templates." + field, Detail: detail}, nil
-	}
-
-	fields.templateIDs = slice.Unique(req.TemplateIDs)
-	templatesByID := make(map[uuid.UUID]database.Template, len(fields.templateIDs))
-	if len(fields.templateIDs) > 0 {
-		templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-			OrganizationID: organizationID,
-			IDs:            fields.templateIDs,
-			Deprecated:     sql.NullBool{Bool: false, Valid: true},
-			AgentsAllowed:  sql.NullBool{Bool: true, Valid: true},
-		})
-		if err != nil {
-			return chatProjectTemplateFields{}, nil, xerrors.Errorf("get templates: %w", err)
-		}
-		for _, template := range templates {
-			templatesByID[template.ID] = template
-		}
-	}
-	for _, id := range fields.templateIDs {
-		if _, ok := templatesByID[id]; !ok {
-			return invalid("template_ids", fmt.Sprintf("Template %s is not available to agents in this organization.", id))
-		}
-	}
-
-	if req.DefaultTemplateID == nil {
-		if req.DefaultPresetID != nil || len(req.DefaultParameters) > 0 {
-			return invalid("default_template_id", "Default preset and parameters require a default template.")
-		}
-		return fields, nil, nil
-	}
-	defaultTemplate, ok := templatesByID[*req.DefaultTemplateID]
-	if !ok {
-		return invalid("default_template_id", "The default template must be one of the project's templates.")
-	}
-	field, detail, err := api.validateChatProjectDefaults(ctx, defaultTemplate, req)
-	if err != nil {
-		return chatProjectTemplateFields{}, nil, err
-	}
-	if field != "" {
-		return invalid(field, detail)
-	}
-
-	fields.defaultTemplateID = uuid.NullUUID{UUID: *req.DefaultTemplateID, Valid: true}
-	if req.DefaultPresetID != nil {
-		fields.defaultPresetID = uuid.NullUUID{UUID: *req.DefaultPresetID, Valid: true}
-	}
-	if len(req.DefaultParameters) > 0 {
-		raw, err := json.Marshal(req.DefaultParameters)
-		if err != nil {
-			return chatProjectTemplateFields{}, nil, xerrors.Errorf("marshal default parameters: %w", err)
-		}
-		fields.defaultParameters = raw
-	}
-	return fields, nil, nil
-}
-
-// validateChatProjectDefaults checks the default preset and parameters
-// against the default template's active version. It returns the invalid
-// field and its detail, or an empty field when the defaults are valid.
-func (api *API) validateChatProjectDefaults(
-	ctx context.Context,
-	template database.Template,
-	req *codersdk.ChatProjectTemplates,
-) (field string, detail string, err error) {
-	activeVersionID := template.ActiveVersionID
-	if req.DefaultPresetID != nil && len(req.DefaultParameters) > 0 {
-		return "default_preset_id", "Choose a default preset or default parameters, not both.", nil
-	}
-	if req.DefaultPresetID != nil {
-		presets, err := api.Database.GetPresetsByTemplateVersionID(ctx, activeVersionID)
-		if err != nil {
-			return "", "", xerrors.Errorf("get presets: %w", err)
-		}
-		if !slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool { return p.ID == *req.DefaultPresetID }) {
-			return "default_preset_id", "The default preset must belong to the default template's active version.", nil
-		}
-	}
-	// Dynamic parameters can appear or change based on other values, so the
-	// stored parameter rows cannot check their names or values. Only the
-	// classic flow is checked here; the build validates dynamic parameters
-	// when a workspace is created.
-	if len(req.DefaultParameters) > 0 && template.UseClassicParameterFlow {
-		parameters, err := api.Database.GetTemplateVersionParameters(ctx, activeVersionID)
-		if err != nil {
-			return "", "", xerrors.Errorf("get template version parameters: %w", err)
-		}
-		for _, name := range slices.Sorted(maps.Keys(req.DefaultParameters)) {
-			index := slices.IndexFunc(parameters, func(p database.TemplateVersionParameter) bool { return p.Name == name })
-			if index < 0 {
-				return "default_parameters", fmt.Sprintf("Parameter %q does not exist on the default template's active version.", name), nil
-			}
-			parameter, err := db2sdk.TemplateVersionParameter(parameters[index])
-			if err != nil {
-				return "", "", xerrors.Errorf("convert template version parameter: %w", err)
-			}
-			value := codersdk.WorkspaceBuildParameter{Name: name, Value: req.DefaultParameters[name]}
-			if err := codersdk.ValidateWorkspaceBuildParameter(parameter, &value, nil); err != nil {
-				reason := err
-				if inner := errors.Unwrap(err); inner != nil {
-					reason = inner
-				}
-				return "default_parameters", fmt.Sprintf("Parameter %q has an invalid value: %s", name, reason), nil
-			}
-		}
-	}
-	return "", "", nil
 }
