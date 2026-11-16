@@ -7,7 +7,10 @@ import { useMutation, useQueryClient } from "react-query";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { pinChatProject, unpinChatProject } from "#/api/queries/chatProjects";
-import type { ChatListInput } from "#/api/queries/chats";
+import {
+	type ChatListInput,
+	infiniteProjectFolderChats,
+} from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatProject,
@@ -316,6 +319,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	focusAfterUnpin,
 	registerToggle,
 }) => {
+	const queryClient = useQueryClient();
 	const projectPathname = buildAgentProjectPath({ projectId: project.id });
 	const projectPath: To = { pathname: projectPathname, search: locationSearch };
 	const isOnProjectPage = useMatch(projectPathname) !== null;
@@ -364,6 +368,15 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		},
 		onDelete,
 	};
+	// A folder fetches its chats when it opens, so start once the pointer or
+	// keyboard focus reaches it.
+	const prefetchChats = () => {
+		if (!expanded) {
+			void queryClient.prefetchInfiniteQuery(
+				infiniteProjectFolderChats(project.id, chatListInput),
+			);
+		}
+	};
 	return (
 		<ChatDropArea
 			target={{
@@ -375,7 +388,10 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/project-drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:text-content-primary">
+					<div
+						className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/project-drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:text-content-primary"
+						onPointerEnter={prefetchChats}
+					>
 						<Button
 							ref={(element) => {
 								toggleRef.current = element;
@@ -387,6 +403,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							aria-expanded={expanded}
 							aria-label={`${expanded ? "Collapse" : "Expand"} ${projectLabel}`}
 							onClick={onToggle}
+							onFocus={prefetchChats}
 						>
 							<ChevronRightIcon
 								aria-hidden="true"
