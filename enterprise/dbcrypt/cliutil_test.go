@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -287,12 +289,14 @@ func TestRotateExternalAuthLinks(t *testing.T) {
 		live := dbgen.User(t, f.rawDB, database.User{})
 		deletedUser := dbgen.User(t, f.rawDB, database.User{Deleted: true})
 
+		extra := `{"id_token": "fake_token"}`
 		seedLink := func(u database.User) {
 			dbgen.ExternalAuthLink(t, f.cryptDBA, database.ExternalAuthLink{
 				UserID:            u.ID,
 				ProviderID:        "fake",
 				OAuthAccessToken:  "access-" + u.ID.String(),
 				OAuthRefreshToken: "refresh-" + u.ID.String(),
+				OAuthExtra:        pqtype.NullRawMessage{RawMessage: json.RawMessage(extra), Valid: true},
 			})
 		}
 		seedLink(live)
@@ -307,8 +311,12 @@ func TestRotateExternalAuthLinks(t *testing.T) {
 			link := links[0]
 			require.Equal(t, f.cipherB.HexDigest(), link.OAuthAccessTokenKeyID.String)
 			require.Equal(t, f.cipherB.HexDigest(), link.OAuthRefreshTokenKeyID.String)
+			require.Equal(t, f.cipherB.HexDigest(), link.OAuthExtraKeyID.String)
 			require.Equal(t, "access-"+u.ID.String(), decryptRawString(t, f.cipherB, link.OAuthAccessToken))
 			require.Equal(t, "refresh-"+u.ID.String(), decryptRawString(t, f.cipherB, link.OAuthRefreshToken))
+			var payload string
+			require.NoError(t, json.Unmarshal(link.OAuthExtra.RawMessage, &payload), "encrypted extra must be a JSON string")
+			require.JSONEq(t, extra, decryptRawString(t, f.cipherB, payload))
 		}
 	})
 

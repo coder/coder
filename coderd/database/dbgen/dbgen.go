@@ -1658,6 +1658,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 		OAuthExtra:             *msg,
+		OAuthExtraKeyID:        takeFirst(orig.OAuthExtraKeyID, sql.NullString{}),
 	})
 
 	require.NoError(t, err, "insert external auth link")

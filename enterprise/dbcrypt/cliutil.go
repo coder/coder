@@ -57,7 +57,8 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
 			for _, externalAuthLink := range externalAuthLinks {
-				if externalAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && externalAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() {
+				extraCurrent := !extraHoldsSecret(externalAuthLink.OAuthExtra) || externalAuthLink.OAuthExtraKeyID.String == ciphers[0].HexDigest()
+				if externalAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && externalAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() && extraCurrent {
 					log.Debug(ctx, "skipping external auth link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 					continue
 				}
@@ -71,6 +72,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
 					OAuthExpiry:               externalAuthLink.OAuthExpiry,
 					OAuthExtra:                externalAuthLink.OAuthExtra,
+					OAuthExtraKeyID:           sql.NullString{}, // dbcrypt will update as required
 					OauthRefreshFailureReason: "",
 					RefreshLeaseExpiresAt:     sql.NullTime{},
 				}); err != nil {
@@ -322,7 +324,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
 			for _, externalAuthLink := range externalAuthLinks {
-				if !externalAuthLink.OAuthAccessTokenKeyID.Valid && !externalAuthLink.OAuthRefreshTokenKeyID.Valid {
+				if !externalAuthLink.OAuthAccessTokenKeyID.Valid && !externalAuthLink.OAuthRefreshTokenKeyID.Valid && !externalAuthLink.OAuthExtraKeyID.Valid {
 					log.Debug(ctx, "skipping external auth link", slog.F("user_id", uid), slog.F("current", idx+1))
 					continue
 				}
@@ -336,6 +338,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					OAuthRefreshTokenKeyID:    sql.NullString{}, // we explicitly want to clear the key id
 					OAuthExpiry:               externalAuthLink.OAuthExpiry,
 					OAuthExtra:                externalAuthLink.OAuthExtra,
+					OAuthExtraKeyID:           sql.NullString{}, // we explicitly want to clear the key id
 					OauthRefreshFailureReason: "",
 					RefreshLeaseExpiresAt:     sql.NullTime{},
 				}); err != nil {
@@ -551,7 +554,8 @@ DELETE FROM user_links
 	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
-	OR oauth_refresh_token_key_id IS NOT NULL;
+	OR oauth_refresh_token_key_id IS NOT NULL
+	OR oauth_extra_key_id IS NOT NULL;
 DELETE FROM user_ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
@@ -620,12 +624,14 @@ type AuditResult struct {
 
 // auditTarget describes a column that dbcrypt encrypts at rest. emptyValues
 // are plaintext values that carry no secret (and are therefore never
-// encrypted), such as the empty string.
+// encrypted), such as the empty string. nonEmptyPredicate, when set, replaces
+// the default text-column emptiness check for columns of other types.
 type auditTarget struct {
-	table       string
-	column      string
-	keyIDColumn string
-	emptyValues []string
+	table             string
+	column            string
+	keyIDColumn       string
+	emptyValues       []string
+	nonEmptyPredicate string
 }
 
 // auditTargets lists every column dbcrypt encrypts. Extend this list whenever
@@ -636,6 +642,7 @@ var auditTargets = []auditTarget{
 	{table: "user_links", column: "oauth_refresh_token", keyIDColumn: "oauth_refresh_token_key_id"},
 	{table: "external_auth_links", column: "oauth_access_token", keyIDColumn: "oauth_access_token_key_id"},
 	{table: "external_auth_links", column: "oauth_refresh_token", keyIDColumn: "oauth_refresh_token_key_id"},
+	{table: "external_auth_links", column: "oauth_extra", keyIDColumn: "oauth_extra_key_id", nonEmptyPredicate: "oauth_extra IS NOT NULL AND oauth_extra != 'null'::jsonb AND oauth_extra != '{}'::jsonb"},
 	{table: "gitsshkeys", column: "private_key", keyIDColumn: "private_key_key_id"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
@@ -660,17 +667,28 @@ var auditTargets = []auditTarget{
 func Audit(ctx context.Context, sqlDB *sql.DB) ([]AuditResult, error) {
 	results := make([]AuditResult, 0, len(auditTargets))
 	for _, target := range auditTargets {
-		empties := append([]string{""}, target.emptyValues...)
-		placeholders := make([]string, 0, len(empties))
-		args := make([]any, 0, len(empties))
-		for i, v := range empties {
-			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
-			args = append(args, v)
+		var (
+			predicate string
+			args      []any
+		)
+		if target.nonEmptyPredicate != "" {
+			predicate = target.nonEmptyPredicate
+		} else {
+			empties := append([]string{""}, target.emptyValues...)
+			placeholders := make([]string, 0, len(empties))
+			for i, v := range empties {
+				placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+				args = append(args, v)
+			}
+			predicate = fmt.Sprintf(
+				"%s IS NOT NULL AND %s NOT IN (%s)",
+				target.column, target.column, strings.Join(placeholders, ", "),
+			)
 		}
-		//nolint:gosec // The table and column names are compile-time constants from auditTargets; only the empty values are parameterized.
+		//nolint:gosec // The table and column names and predicates are compile-time constants from auditTargets; only the empty values are parameterized.
 		query := fmt.Sprintf(
-			"SELECT COUNT(*) FROM %s WHERE %s IS NULL AND %s IS NOT NULL AND %s NOT IN (%s)",
-			target.table, target.keyIDColumn, target.column, target.column, strings.Join(placeholders, ", "),
+			"SELECT COUNT(*) FROM %s WHERE %s IS NULL AND %s",
+			target.table, target.keyIDColumn, predicate,
 		)
 		var count int64
 		if err := sqlDB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
