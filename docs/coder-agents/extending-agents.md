@@ -39,7 +39,7 @@ The agent scans the following:
 - Any additional source you declare through the agent's context sources API
 
 Declared sources contribute instruction files, skills, and [Agent Plugins](#agent-plugins-experimental).
-A `.mcp.json` file or plugin inside a declared source appears in the context inventory, but the agent does not connect to the MCP servers it lists.
+A `.mcp.json` file or plugin inside a declared source appears in the context inventory, but by default the agent does not connect to the MCP servers it lists.
 By default, MCP servers load only from the workspace working directory.
 When `CODER_AGENT_EXP_MCP_CONFIG_FILES` is set in the agent's environment, they load only from the files it lists.
 The working directory's `.mcp.json` still appears in the context inventory.
@@ -477,7 +477,8 @@ For how the model receives them, refer to [Tool results](./platform-controls/mcp
 > This feature is experimental.
 > Pin a release before broad rollout and review the release notes before upgrading.
 
-An [Agent Plugin](https://agent-plugins.org) is a directory with a `plugin.json` manifest that packages skills and MCP servers.
+An [Agent Plugin](https://agent-plugins.org) is a directory with a `plugin.json` manifest that packages skills.
+The agent does not connect to MCP servers that a plugin declares.
 The workspace agent discovers plugins only when the `agent-plugins` experiment is enabled on the Coder server.
 When the experiment is off, the agent ignores `plugin.json` files.
 An agent from a release without plugin support also ignores them, until the workspace restarts with a newer agent.
@@ -503,6 +504,19 @@ In each [scan root](#where-the-agent-looks), the agent treats these directories 
 - Each immediate subdirectory of `.agents/plugins/`
 - Each immediate subdirectory of `plugins/`
 - The scan root itself, when it holds a `plugin.json`
+
+A plugin keeps its skills in its `skills/` directory, one subdirectory per skill, each with a `SKILL.md` in the same format as other skills:
+
+```txt
+.agents/plugins/
+└── devtools/
+    ├── plugin.json
+    └── skills/
+        ├── format/
+        │   └── SKILL.md
+        └── lint/
+            └── SKILL.md
+```
 
 A plugin's `plugin.json` requires `$schema`, set to `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`, and `name`:
 
@@ -539,7 +553,8 @@ Other tools also use `plugin.json` and `plugins/`, so the agent handles a manife
 A plugin name uses lowercase letters, digits, `.`, and `-`, up to 64 characters.
 It starts and ends with a letter or digit and doesn't contain `..` or `--`.
 When two plugins use the same name, the agent keeps the first one it finds and reports the other as invalid.
-The agent checks declared sources first, in the order you declared them, then `~/.coder` and `~/.coder/skills`, then the working directory.
+For duplicate plugin names, the agent checks declared sources first, in the order you declared them, then `~/.coder` and `~/.coder/skills`, then the working directory.
 Within a scan root, `plugins/` comes before `.agents/plugins/`.
-When a scan root is itself a plugin, the agent does not look for other plugins inside it.
-None of an invalid plugin's skills or MCP servers load.
+The same scan root order decides which skill the agent keeps when two workspace skills outside a plugin share a name.
+When a scan root is itself a valid plugin, the agent does not look for other plugins inside it.
+None of an invalid plugin's skills load.
