@@ -132,7 +132,12 @@ fi
 dependencies go
 if [[ "$sign_darwin" == 1 ]]; then
 	dependencies rcodesign
-	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
+	# See ./sign_darwin.sh for the two supported signing modes.
+	if [[ "${AC_PKCS11_LIBRARY:-}" != "" ]]; then
+		requiredenvs AC_PKCS11_LIBRARY AC_PKCS11_KEY_LABEL AC_CERTIFICATE_FILE KMS_PKCS11_CONFIG
+	else
+		requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
+	fi
 fi
 if [[ "$sign_windows" == 1 ]]; then
 	dependencies java
