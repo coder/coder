@@ -12,8 +12,22 @@ on:
           - rc
       release_notes:
         description: Release notes for the publishing the release. This is required to create a release.
+      version:
+        description: >-
+          Version to release, e.g. v2.39.2 or v2.40.0-rc.0. Required unless dry-run. Run the workflow on
+          release/X.Y (or main for an RC); the approved release job creates the annotated tag at the
+          workflow's commit with the release App, since only the App may create tags.
+        type: string
+        required: false
+      commit:
+        description: >-
+          Full SHA of the commit to tag and release. Required unless dry-run. It must already be on the
+          branch the workflow runs on (so it was reviewed), and pins the release to that commit even if
+          the branch moves. scripts/release.sh fills this in.
+        type: string
+        required: false
       dry_run:
-        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
+        description: Perform a dry-run release (devel). No tag is created.
         type: boolean
         required: true
         default: false
@@ -91,12 +105,82 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          # Build the commit being released (checked below to be on the dispatched branch).
+          ref: ${{ inputs.commit != '' && inputs.commit || github.sha }}
 
-      # If the event that triggered the build was an annotated tag (which our
-      # tags are supposed to be), actions/checkout has a bug where the tag in
-      # question is only a lightweight tag and not a full annotated tag. This
-      # command seems to fix it.
-      # https://github.com/actions/checkout/issues/290
+      # Only the release App may create tags (ruleset "Release tags (App only)"), and this job only
+      # runs after a release manager other than the dispatcher approves the `release` environment.
+      # So the tag is created here, at the commit being released, instead of being pushed by a person
+      # beforehand.
+      - name: Generate release App token for tagging
+        id: tag_app_token
+        if: ${{ !inputs.dry_run }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: coder
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Create release tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.tag_app_token.outputs.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "::error::version must look like v2.39.2 or v2.40.0-rc.0, got '${VERSION}'"
+            exit 1
+          fi
+          if [[ ! "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit must be a full 40-character SHA, got '${COMMIT}'"
+            exit 1
+          fi
+          # The commit must already be on the dispatched branch, i.e. reviewed.
+          if ! git merge-base --is-ancestor "${COMMIT}" "${GITHUB_SHA}"; then
+            echo "::error::${COMMIT} is not on ${GITHUB_REF}"
+            exit 1
+          fi
+
+          # Non-RC releases must run on their release/X.Y branch; RCs on main or release/X.Y.
+          base_version="${VERSION#v}"
+          base_version="${base_version%%-*}"
+          release_branch="release/${base_version%.*}"
+          if [[ "${VERSION}" == *-rc.* ]]; then
+            allowed=("refs/heads/main" "refs/heads/${release_branch}")
+          else
+            allowed=("refs/heads/${release_branch}")
+          fi
+          if [[ ! " ${allowed[*]} " == *" ${GITHUB_REF} "* ]]; then
+            echo "::error::${VERSION} must be released from ${allowed[*]}, not ${GITHUB_REF}"
+            exit 1
+          fi
+
+          # Re-running a release whose tag already exists is fine, as long as it is this commit.
+          if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" --jq .object.sha 2>/dev/null)"; then
+            target="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${existing}" --jq .object.sha 2>/dev/null || echo "${existing}")"
+            if [[ "${target}" != "${COMMIT}" ]]; then
+              echo "::error::tag ${VERSION} already exists at ${target}, not ${COMMIT}"
+              exit 1
+            fi
+            echo "Tag ${VERSION} already exists at ${COMMIT}."
+            exit 0
+          fi
+
+          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
+            -f tag="${VERSION}" -f message="Release ${VERSION}" -f object="${COMMIT}" -f type=commit \
+            --jq .sha)"
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${VERSION}" -f sha="${tag_object}" >/dev/null
+          echo "Created annotated tag ${VERSION} at ${COMMIT}."
+
+      # actions/checkout fetches tags as lightweight tags
+      # (https://github.com/actions/checkout/issues/290); refetch so the annotated release tag, created
+      # above, is present for version.sh.
       - name: Fetch git tags
         run: git fetch --tags --force
 
@@ -113,11 +197,14 @@ jobs:
       # Verify that all expectations for a release are met.
       - name: Verify release input
         if: ${{ !inputs.dry_run }}
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
-            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
+          version="$(./scripts/version.sh)"
+          if [[ "v${version}" != "${INPUT_VERSION}" ]]; then
+            echo "Version from the tag (${version}) does not match the version input (${INPUT_VERSION})."
             exit 1
           fi
 
@@ -133,7 +220,7 @@ jobs:
           if [[ "$version" == *-rc.* ]]; then
             echo "RC release detected, skipping release branch check (RC tags are cut from main)."
           else
-            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+            branch_contains_tag=$(git branch --remotes --contains "refs/tags/${INPUT_VERSION}" --list "*/${release_branch}" --format='%(refname)')
             if [[ -z "${branch_contains_tag}" ]]; then
               echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
               exit 1
@@ -147,7 +234,7 @@ jobs:
 
           echo "Release inputs verified:"
           echo
-          echo "- Ref: ${GITHUB_REF}"
+          echo "- Ref: ${GITHUB_REF} (tag ${INPUT_VERSION})"
           echo "- Version: ${version}"
           echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
           echo "- Release branch: ${release_branch}"
@@ -573,16 +660,18 @@ jobs:
           done
 
       # Mint a short-lived installation token from the dedicated release
-      # GitHub App. The default GITHUB_TOKEN (github-actions[bot]) cannot be
-      # added to the "Auto-imported tag create protections" ruleset bypass
-      # list, so `gh release create` fails to create the tag with a 403. The
-      # App is added to that ruleset's bypass list as an Integration actor.
+      # GitHub App. Only the App may create tags (ruleset "Release tags (App
+      # only)"), so `gh release create` needs its token for any tag it creates.
       - name: Generate release App token
         id: release_app_token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: coder
+          permission-contents: write
+          permission-workflows: write
 
       - name: Publish release
         run: |
@@ -729,14 +818,38 @@ jobs:
           path: ./coder_latest_sbom.spdx.json
           retention-days: 7
 
+  # The coder-package-publisher App (installed on coder/packages and coder/homebrew-coder) has its key only in
+  # the release-publish environment, so the packages dispatch runs here rather than in the release job.
+  publish-packages:
+    name: Publish to coder/packages
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    environment: release-publish
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Generate coder-package-publisher App token
+        id: publisher_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: packages
+          # repository_dispatch needs contents: write on the target repository.
+          permission-contents: write
+
       - name: Send repository-dispatch event
-        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
-          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          token: ${{ steps.publisher_token.outputs.token }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
+          client-payload: '{"coder_version": "${{ needs.release.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap
@@ -751,10 +864,24 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Generate coder-package-publisher App token
+        id: publisher_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: homebrew-coder
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Update homebrew
         env:
           GH_REPO: coder/homebrew-coder
-          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          # The App token only reaches coder/homebrew-coder; the release assets are read with the
+          # workflow's own token.
+          GH_TOKEN: ${{ steps.publisher_token.outputs.token }}
+          RELEASE_READ_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           # Keep version number around for reference, removing any potential leading v
@@ -771,7 +898,7 @@ jobs:
           cd "$temp_dir"
 
           # Download checksums
-          checksums_url="$(gh release view --repo coder/coder "v$coder_version" --json assets \
+          checksums_url="$(GH_TOKEN="$RELEASE_READ_TOKEN" gh release view --repo coder/coder "v$coder_version" --json assets \
             | jq -r ".assets | map(.url) | .[]" \
             | grep -e ".checksums.txt\$")"
           wget "$checksums_url" -O checksums.txt
@@ -797,7 +924,7 @@ jobs:
             exit 0
           fi
 
-          # Set up cdrci credentials for pushing to homebrew-coder
+          # Set up coder-package-publisher credentials for pushing to homebrew-coder
           echo "https://x-access-token:$GH_TOKEN@github.com" >> ~/.git-credentials
           # Update the formulae and push
           git checkout -b "$brew_branch"
