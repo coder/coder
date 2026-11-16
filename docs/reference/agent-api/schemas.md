@@ -6,11 +6,15 @@ title: Schemas
 
 ```json
 {
+    "parent_id": "c3a3a1b0-9d6f-4e8e-8f3b-2d0f5a7e6b41",
     "agent_id": "151321db-0713-473c-ab42-2cc6ddeab1a4",
     "agent_name": "string",
     "owner_name": "string",
     "workspace_id": "8ef13a0d-a5c9-4fb4-abf2-f8f65c3830fb",
     "workspace_name": "string",
+    "workspace_build_id": "b2f7c8d1-3e4a-4f5b-9c6d-7e8f9a0b1c2d",
+    "template_id": "d4e5f6a7-8b9c-4d0e-a1b2-c3d4e5f6a7b8",
+    "template_name": "string",
     "git_auth_configs": 1,
     "vscode_port_proxy_uri": "string",
     "apps": [
@@ -78,30 +82,45 @@ title: Schemas
             "start_blocks_login": true,
             "timeout": 0
         }
+    ],
+    "devcontainers": [
+        {
+            "id": "7c1e2f3a-4b5c-4d6e-8f70-819a2b3c4d5e",
+            "name": "string",
+            "workspace_folder": "string",
+            "config_path": "string",
+            "status": "running",
+            "dirty": false
+        }
     ]
 }
 ```
 
 ### Properties
 
-| Name                         | Type                                                                                              | Required | Restrictions | Description |
-|------------------------------|---------------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_id`                   | string                                                                                            | true     |              |             |
-| `agent_name`                 | string                                                                                            | true     |              |             |
-| `owner_name`                 | string                                                                                            | true     |              |             |
-| `workspace_id`               | string                                                                                            | true     |              |             |
-| `workspace_name`             | string                                                                                            | true     |              |             |
-| `git_auth_configs`           | int                                                                                               | true     |              |             |
-| `vscode_port_proxy_uri`      | string                                                                                            | true     |              |             |
-| `apps`                       | array of [codersdk.WorkspaceApp](../api/schemas.md#codersdkworkspaceapp)                          | true     |              |             |
-| `derpmap`                    | [tailcfg.DERPMap](../api/schemas.md#tailcfgderpmap)                                               | true     |              |             |
-| `derp_force_websockets`      | boolean                                                                                           | true     |              |             |
-| `environment_variables`      | object                                                                                            | true     |              |             |
-| `directory`                  | string                                                                                            | true     |              |             |
-| `motd_file`                  | string                                                                                            | true     |              |             |
-| `disable_direct_connections` | boolean                                                                                           | true     |              |             |
-| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | true     |              |             |
-| `scripts`                    | array of [codersdk.WorkspaceAgentScript](../api/schemas.md#codersdkworkspaceagentscript)          | true     |              |             |
+| Name                         | Type                                                                                                 | Required | Restrictions | Description |
+|------------------------------|------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `parent_id`                  | string                                                                                               | true     |              |             |
+| `agent_id`                   | string                                                                                               | true     |              |             |
+| `agent_name`                 | string                                                                                               | true     |              |             |
+| `owner_name`                 | string                                                                                               | true     |              |             |
+| `workspace_id`               | string                                                                                               | true     |              |             |
+| `workspace_name`             | string                                                                                               | true     |              |             |
+| `workspace_build_id`         | string                                                                                               | true     |              |             |
+| `template_id`                | string                                                                                               | true     |              |             |
+| `template_name`              | string                                                                                               | true     |              |             |
+| `git_auth_configs`           | int                                                                                                  | true     |              |             |
+| `vscode_port_proxy_uri`      | string                                                                                               | true     |              |             |
+| `apps`                       | array of [codersdk.WorkspaceApp](../api/schemas.md#codersdkworkspaceapp)                             | true     |              |             |
+| `derpmap`                    | [tailcfg.DERPMap](../api/schemas.md#tailcfgderpmap)                                                  | true     |              |             |
+| `derp_force_websockets`      | boolean                                                                                              | true     |              |             |
+| `environment_variables`      | object                                                                                               | true     |              |             |
+| `directory`                  | string                                                                                               | true     |              |             |
+| `motd_file`                  | string                                                                                               | true     |              |             |
+| `disable_direct_connections` | boolean                                                                                              | true     |              |             |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription)    | true     |              |             |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](../api/schemas.md#codersdkworkspaceagentscript)             | true     |              |             |
+| `devcontainers`              | array of [codersdk.WorkspaceAgentDevcontainer](../api/schemas.md#codersdkworkspaceagentdevcontainer) | true     |              |             |
 
 ## codersdk.WorkspaceAgentMetadataDescription
 

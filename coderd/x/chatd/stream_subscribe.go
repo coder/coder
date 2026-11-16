@@ -26,6 +26,7 @@ func (p *Server) subscribeStreamLoop(
 	chat database.Chat,
 	requestHeader http.Header,
 	afterMessageID int64,
+	snapshotVersion int64,
 ) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), bool) {
 	if p == nil || p.db == nil || p.pubsub == nil {
 		return nil, nil, nil, false
@@ -55,11 +56,11 @@ func (p *Server) subscribeStreamLoop(
 	if err != nil {
 		logger.Warn(ctx, "failed to subscribe to chat state updates", slog.Error(err))
 		streamCancel()
-		return subscribeWithInitialError(chatID, "failed to subscribe to chat updates")
+		return nil, nil, nil, false
 	}
 
 	pollerCh, unregisterPoller := p.streamSyncPoller.Register(chatID)
-	loop := newStreamLoop(chat, p.db, logger, afterMessageID)
+	loop := newStreamLoop(chat, p.db, logger, afterMessageID, snapshotVersion)
 	// The immediate sync builds the initial snapshot returned to the caller
 	// and the relay target for the forwarder. Hints only fire on state
 	// changes, so without it an idle chat would never deliver a snapshot and
@@ -71,7 +72,7 @@ func (p *Server) subscribeStreamLoop(
 		unregisterPoller()
 		pubsubCancel()
 		streamCancel()
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		return nil, nil, nil, false
 	}
 
 	relay := newStreamRelayForwarder(
@@ -210,11 +211,14 @@ func sendStreamEvent(ctx context.Context, ch chan<- codersdk.ChatStreamEvent, ev
 	}
 }
 
+// Subscribe reads the chat as ctx's actor and calls SubscribeAuthorized. ok is
+// also false when the actor cannot read the chat or the read fails.
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
 	requestHeader http.Header,
 	afterMessageID int64,
+	snapshotVersion int64,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -234,22 +238,27 @@ func (p *Server) Subscribe(
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		return nil, nil, nil, false
 	}
-	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID)
+	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID, snapshotVersion)
 }
 
 // SubscribeAuthorized subscribes an already-authorized chat to stream updates.
+// A positive snapshotVersion resumes from that version and ignores
+// afterMessageID. ok is false, and nothing was sent, when the server has no
+// database or pubsub, or when the pubsub subscription or the initial read
+// fails. Only the two failures are logged.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
 	requestHeader http.Header,
 	afterMessageID int64,
+	snapshotVersion int64,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
 	func(),
 	bool,
 ) {
-	return p.subscribeStreamLoop(ctx, chat, requestHeader, afterMessageID)
+	return p.subscribeStreamLoop(ctx, chat, requestHeader, afterMessageID, snapshotVersion)
 }
