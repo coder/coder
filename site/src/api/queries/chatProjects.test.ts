@@ -87,7 +87,6 @@ describe("chat project mutations", () => {
 		queryClient.setQueryData(chatProjectSummariesKey, []);
 		await settle(unpinChatProject(queryClient));
 		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-		// No chat list depends on pins.
 		expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
 		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
 		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);

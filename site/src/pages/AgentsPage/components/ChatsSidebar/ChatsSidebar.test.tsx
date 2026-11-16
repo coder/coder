@@ -214,7 +214,6 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
 		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
-		// The folder lists the chats the sidebar's own list leaves out.
 		expect(requests[0].has("exclude_own_project_chats")).toBe(false);
 	});
 
@@ -229,20 +228,23 @@ describe("ChatsSidebar projects", () => {
 				return HttpResponse.json([]);
 			}),
 		);
-		const projectChat = buildChat({
+		const mockActiveProjectChat = buildChat({
 			id: "project-chat",
 			project_id: MockChatProject.id,
 		});
 		// The chat page loads the active chat into the cache.
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryDefaults(chatEntityKey(projectChat.id), {
+		queryClient.setQueryDefaults(chatEntityKey(mockActiveProjectChat.id), {
 			gcTime: Number.POSITIVE_INFINITY,
 		});
-		queryClient.setQueryData(chatEntityKey(projectChat.id), projectChat);
+		queryClient.setQueryData(
+			chatEntityKey(mockActiveProjectChat.id),
+			mockActiveProjectChat,
+		);
 
 		render(
 			<Wrapper
-				initialEntry={`/agents/${projectChat.id}`}
+				initialEntry={`/agents/${mockActiveProjectChat.id}`}
 				queryClient={queryClient}
 			>
 				<Routes>

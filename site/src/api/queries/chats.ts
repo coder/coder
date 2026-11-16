@@ -110,11 +110,7 @@ export type ChatListInput = Readonly<{
 	chatStatus?: ChatListStatusFilter;
 	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
-	/**
-	 * Leaves out the user's own unpinned chats in projects the user can use,
-	 * which project folders fetch for themselves. A folder's own list keeps
-	 * the flag in its key but never sends it.
-	 */
+	/** Leaves out the user's own unpinned chats in projects the user can use. */
 	excludeOwnProjectChats?: boolean;
 }>;
 
@@ -1511,7 +1507,8 @@ const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
 					project_id: projectId,
-					// A folder lists exactly the chats the flag leaves out.
+					// Sending the flag would drop the user's own chats from their
+					// folder. Folder keys keep it, so they match the sidebar list's.
 					exclude_own_project_chats:
 						(params.excludeOwnProjectChats && !projectId) || undefined,
 				},
@@ -1568,20 +1565,6 @@ export const infiniteProjectFolderChats = (
 		staleTime: PROJECT_FOLDER_STALE_TIME_MS,
 	};
 };
-
-/**
- * Loads a closed folder's chats before the user opens it, so the folder
- * opens with its chats instead of a skeleton. A recent list is reused, so
- * hovering again sends no request.
- */
-export const prefetchProjectFolderChats = (
-	queryClient: QueryClient,
-	projectId: string,
-	input: ChatListInput,
-) =>
-	queryClient.prefetchInfiniteQuery(
-		infiniteProjectFolderChats(projectId, input),
-	);
 
 /** Unarchived chats in one project, newest first. */
 export const projectChats = (projectId: string) => {

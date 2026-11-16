@@ -25,10 +25,8 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
-	chat as chatQuery,
 	findChatInListCaches,
 	infiniteChats,
-	infiniteProjectFolderChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
 	invalidateChatEntity,
@@ -71,6 +69,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { useActiveChatChildren } from "./hooks/useActiveChatChildren";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -90,10 +89,10 @@ export type AgentsPageOutletContext = {
 	clearChatErrorReason: (chatId: string) => void;
 	navigateAfterArchive: (chatId: string) => void;
 	/**
-	 * The active chat's children from the chat list cache, which watch
-	 * events keep fresh. The entity cache's embedded children are only a
-	 * fetch-time snapshot, so gating archive actions on them could leave
-	 * the actions disabled after a child finishes.
+	 * The active chat's children, preferably from the chat list caches, which
+	 * watch events keep fresh. The entity cache's embedded children are only
+	 * a fetch-time snapshot, so gating archive actions on them can leave the
+	 * actions disabled after a child finishes.
 	 */
 	activeChatChildren: readonly TypesGen.Chat[] | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
@@ -235,20 +234,6 @@ const AgentsPageLayout: React.FC = () => {
 
 	const sidebarChatListInput = getSidebarChatListInput(sidebarFilters);
 	const chatsQuery = useInfiniteQuery(infiniteChats(sidebarChatListInput));
-	// The sidebar's list leaves out the user's own project chats, so the
-	// active chat may only be in its project folder's list, which watch events
-	// keep fresh too. Disabled so the layout only reads these caches.
-	const { data: activeChatEntity } = useQuery({
-		...chatQuery(agentId ?? ""),
-		enabled: false,
-	});
-	const activeFolderQuery = useInfiniteQuery({
-		...infiniteProjectFolderChats(
-			activeChatEntity?.project_id ?? "",
-			sidebarChatListInput,
-		),
-		enabled: false,
-	});
 	useOpenNotificationChat(chatsQuery.isLoading);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
@@ -302,6 +287,11 @@ const AgentsPageLayout: React.FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const activeChatChildren = useActiveChatChildren(
+		agentId,
+		chatList,
+		sidebarChatListInput,
+	);
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
@@ -583,10 +573,7 @@ const AgentsPageLayout: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		navigateAfterArchive,
-		activeChatChildren: (
-			chatList.find((c) => c.id === agentId) ??
-			activeFolderQuery.data?.pages.flat().find((c) => c.id === agentId)
-		)?.children,
+		activeChatChildren,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,

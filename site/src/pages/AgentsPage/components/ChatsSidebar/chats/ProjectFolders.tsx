@@ -7,7 +7,7 @@ import { getErrorMessage } from "#/api/errors";
 import { unpinChatProject } from "#/api/queries/chatProjects";
 import {
 	type ChatListInput,
-	prefetchProjectFolderChats,
+	infiniteProjectFolderChats,
 } from "#/api/queries/chats";
 import type {
 	Chat,
@@ -322,7 +322,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	// keyboard focus reaches it.
 	const prefetchChats = () => {
 		if (!expanded) {
-			void prefetchProjectFolderChats(queryClient, project.id, chatListInput);
+			void queryClient.prefetchInfiniteQuery(
+				infiniteProjectFolderChats(project.id, chatListInput),
+			);
 		}
 	};
 	return (

@@ -1133,49 +1133,64 @@ describe("AgentsPageLayout project chats", () => {
 		},
 	);
 
-	it("blocks archiving the open chat while a subagent in its project folder runs", async () => {
-		const user = userEvent.setup();
-		const projectChat: Chat = {
-			...MockChat,
-			project_id: MockChatProject.id,
-			// The chat entity's children are a snapshot from its fetch.
-			children: [],
-		};
-		vi.spyOn(API.experimental, "getChat").mockResolvedValue(projectChat);
-		vi.spyOn(API.experimental, "getChats").mockImplementation(async (params) =>
-			params?.project_id === MockChatProject.id
-				? [
-						{
-							...projectChat,
-							children: [
-								{
-									...MockChat,
-									id: "subagent",
-									parent_chat_id: MockChat.id,
-									status: "running",
-								},
-							],
-						},
-					]
-				: [],
-		);
-		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
-			MockChatProjectSummary,
-		]);
-		renderLayout(`/agents/${MockChat.id}`);
+	it.each([
+		{ knownFrom: "its project folder", projectPinned: true },
+		{ knownFrom: "its entity, with no folder", projectPinned: false },
+	])(
+		"does not archive the open chat while a subagent known from $knownFrom runs",
+		async ({ projectPinned }) => {
+			const user = userEvent.setup();
+			const mockRunningSubagent: Chat = {
+				...MockChat,
+				id: "subagent",
+				parent_chat_id: MockChat.id,
+				status: "running",
+			};
+			const mockProjectChat: Chat = {
+				...MockChat,
+				project_id: MockChatProject.id,
+				// The folder holds the fresher copy when the project has one.
+				children: projectPinned ? [] : [mockRunningSubagent],
+			};
+			vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
+			const getChats = vi
+				.spyOn(API.experimental, "getChats")
+				.mockImplementation(async (params) =>
+					params?.project_id === MockChatProject.id
+						? [{ ...mockProjectChat, children: [mockRunningSubagent] }]
+						: [],
+				);
+			vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
+				{
+					...MockChatProjectSummary,
+					pinned: projectPinned,
+					pin_order: projectPinned ? 1 : 0,
+				},
+			]);
+			const updateChat = vi.spyOn(API.experimental, "updateChat");
+			renderLayout(`/agents/${MockChat.id}`);
+			if (projectPinned) {
+				await waitFor(() =>
+					expect(getChats).toHaveBeenCalledWith(
+						expect.objectContaining({ project_id: MockChatProject.id }),
+						expect.anything(),
+					),
+				);
+			}
 
-		await user.click(
-			await screen.findByRole("button", { name: "Open agent actions" }),
-		);
-		const archive = await screen.findByRole("menuitem", {
-			name: "Archive agent",
-		});
-		await waitFor(() =>
-			expect(archive).toHaveAccessibleDescription(
-				"Interrupt or wait for the agent to finish first.",
-			),
-		);
-	});
+			await user.click(
+				await screen.findByRole("button", { name: "Open agent actions" }),
+			);
+			const archive = await screen.findByRole("menuitem", {
+				name: "Archive agent",
+			});
+			await waitFor(() =>
+				expect(archive).toHaveAttribute("aria-disabled", "true"),
+			);
+			await user.click(archive);
+			expect(updateChat).not.toHaveBeenCalled();
+		},
+	);
 
 	it.each<ChatWatchEventKind>(["status_change", "action_required"])(
 		"refreshes project summaries on a %s event for a chat in a project",

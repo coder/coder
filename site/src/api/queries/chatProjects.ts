@@ -57,11 +57,6 @@ export const getPinnedProjectSummaries = (
 		.filter((summary) => summary.pinned)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-// Pins only choose which folders the sidebar shows. No chat list depends on
-// them, so a pin change refetches the summaries alone.
-const invalidateProjectPins = (queryClient: QueryClient) =>
-	queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey });
-
 /** Unpins a project, which also takes its chats out of the sidebar. */
 export const unpinChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
@@ -93,7 +88,8 @@ export const unpinChatProject = (queryClient: QueryClient) =>
 				);
 			}
 		},
-		onSettled: () => invalidateProjectPins(queryClient),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>
