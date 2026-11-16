@@ -57,8 +57,7 @@ import {
 	getBlockTurnAttachments,
 	getExpansionKeys,
 	getSliceContent,
-	getTurnAttachmentsByRow,
-	getTurnSourcesByRow,
+	getTurnPillsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
@@ -458,19 +457,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveTools = showsStreamOutput ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const turnPillOptions = {
+		const {
+			attachmentsByRow: turnAttachmentsByRow,
+			sourcesByRow: turnSourcesByRow,
+		} = getTurnPillsByRow(renderRows, {
 			hidesAttachmentRows: collapseSteps,
 			// requires_action counts, since the submitted tool result resumes the
 			// turn. The status can also settle before the streamed answer
 			// persists, so the live row keeps the turn open.
 			isChatActive: isActiveChatStatus(chatStatus) || hasLiveAssistant,
 			isCompacting: liveTools.some((tool) => tool.name === "chat_summarized"),
-		};
-		const turnAttachmentsByRow = getTurnAttachmentsByRow(
-			renderRows,
-			turnPillOptions,
-		);
-		const turnSourcesByRow = getTurnSourcesByRow(renderRows, turnPillOptions);
+		});
 
 		const layout = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {

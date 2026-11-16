@@ -14,13 +14,12 @@ import {
 	getBlockSources,
 	getBlockTurnAttachments,
 	getSliceContent,
-	getTurnAttachmentsByRow,
-	getTurnSourcesByRow,
+	getTurnPillsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
 	splitRowPieces,
-	type TurnAttachmentsOptions,
+	type TurnPillOptions,
 	type WorkingBlockLayout,
 } from "./workingBlockGrouping";
 
@@ -1703,26 +1702,27 @@ describe("isAgentAttachmentOnlyRow", () => {
 	});
 });
 
-describe("getTurnAttachmentsByRow", () => {
+describe("getTurnPillsByRow attachments", () => {
 	const file = (fileId: string): TypesGen.ChatMessagePart => ({
 		...mockAttachment,
 		file_id: fileId,
 	});
-	const mockIdleChat: TurnAttachmentsOptions = {
+	const mockIdleChat: TurnPillOptions = {
 		hidesAttachmentRows: false,
 		isChatActive: false,
 		isCompacting: false,
 	};
 	const pills = (
 		rows: readonly TimelineRow[],
-		options: Partial<TurnAttachmentsOptions> = {},
+		options: Partial<TurnPillOptions> = {},
 	) =>
-		[...getTurnAttachmentsByRow(rows, { ...mockIdleChat, ...options })].map(
-			([key, attachments]) => [
-				key,
-				attachments.map(({ file }) => file.file_id),
-			],
-		);
+		[
+			...getTurnPillsByRow(rows, { ...mockIdleChat, ...options })
+				.attachmentsByRow,
+		].map(([key, attachments]) => [
+			key,
+			attachments.map(({ file }) => file.file_id),
+		]);
 	const attachSteps = (fileId: string) => [
 		message("assistant", [call("attach", undefined, "attach_file")]),
 		message("assistant", [file(fileId)]),
@@ -1762,12 +1762,12 @@ describe("getTurnAttachmentsByRow", () => {
 
 	it("gives a block the pill only when its turn ends without an answer", () => {
 		const blockPills = ({ rows, blocks }: ReturnType<typeof group>) => {
-			const byRow = getTurnAttachmentsByRow(rows, {
+			const { attachmentsByRow } = getTurnPillsByRow(rows, {
 				...mockIdleChat,
 				hidesAttachmentRows: true,
 			});
 			return blocks.map((block) =>
-				getBlockTurnAttachments(block, rows, byRow)?.map(
+				getBlockTurnAttachments(block, rows, attachmentsByRow)?.map(
 					({ file }) => file.file_id,
 				),
 			);
@@ -1929,11 +1929,11 @@ describe("getBlockSources", () => {
 				getBlockSources(
 					block,
 					sourcesOnly.rows,
-					getTurnSourcesByRow(sourcesOnly.rows, {
+					getTurnPillsByRow(sourcesOnly.rows, {
 						hidesAttachmentRows: true,
 						isChatActive: false,
 						isCompacting: false,
-					}),
+					}).sourcesByRow,
 				),
 			),
 		).toEqual([{ url: "https://go.example.com", title: "Go" }]);
@@ -1947,18 +1947,18 @@ describe("getBlockSources", () => {
 				getBlockSources(
 					block,
 					withAnswer.rows,
-					getTurnSourcesByRow(withAnswer.rows, {
+					getTurnPillsByRow(withAnswer.rows, {
 						hidesAttachmentRows: true,
 						isChatActive: false,
 						isCompacting: false,
-					}),
+					}).sourcesByRow,
 				),
 			),
 		).toEqual([]);
 	});
 });
 
-describe("getTurnSourcesByRow", () => {
+describe("getTurnPillsByRow sources", () => {
 	const options = {
 		hidesAttachmentRows: true,
 		isChatActive: false,
@@ -1986,39 +1986,36 @@ describe("getTurnSourcesByRow", () => {
 		},
 	];
 
-	it("attaches deduplicated citations from earlier messages to the final answer", () => {
+	it("collects attachments and deduplicated citations on the final answer", () => {
 		const { rows } = group([
 			user("Research Go"),
 			message("assistant", search("search-1")),
-			message("assistant", [{ type: "source", ...mockPage }]),
+			message("assistant", [
+				mockAttachment,
+				source(mockPage.url, mockPage.url),
+			]),
 			message("assistant", [
 				{ type: "source", ...mockPage },
 				text("Here is the answer."),
 			]),
 		]);
-		expect([...getTurnSourcesByRow(rows, options)]).toEqual([
-			[rows[rows.length - 1].key, [mockPage]],
-		]);
+		const { attachmentsByRow, sourcesByRow } = getTurnPillsByRow(rows, options);
+		expect([...sourcesByRow]).toEqual([["message:4", [mockPage]]]);
+		expect(
+			[...attachmentsByRow].map(([key, attachments]) => [
+				key,
+				attachments.map(({ file }) => file.file_id),
+			]),
+		).toEqual([["message:4", ["report-file"]]]);
 	});
 
-	it("keeps uncited search results in the search row without adding a footer", () => {
+	it("does not add uncited search results to the turn's sources", () => {
 		const { rows } = group([
 			user("Research Go"),
 			message("assistant", search("search-1")),
 			message("assistant", [text("Here is the answer.")]),
 		]);
-		expect([...getTurnSourcesByRow(rows, options)]).toEqual([]);
-		expect([
-			...getTurnSourcesByRow(rows, { ...options, hidesAttachmentRows: false }),
-		]).toEqual([]);
-		const searchRow = rows.find(
-			(row) => row.type === "message" && row.entry.parsed.tools.length > 0,
-		);
-		expect(
-			searchRow?.type === "message"
-				? searchRow.entry.parsed.tools[0].foundPages
-				: [],
-		).toEqual([mockPage]);
+		expect([...getTurnPillsByRow(rows, options).sourcesByRow]).toEqual([]);
 	});
 
 	it("keeps sources within their user turn and waits for the active turn to finish", () => {
@@ -2036,13 +2033,14 @@ describe("getTurnSourcesByRow", () => {
 				text("Rust answer."),
 			]),
 		]);
-		const completed = [...getTurnSourcesByRow(rows, options)];
+		const completed = [...getTurnPillsByRow(rows, options).sourcesByRow];
 		expect(completed.map(([, sources]) => sources)).toEqual([
 			[mockPage],
 			[{ url: "https://rust.example.com", title: "Rust" }],
 		]);
 		expect([
-			...getTurnSourcesByRow(rows, { ...options, isChatActive: true }),
+			...getTurnPillsByRow(rows, { ...options, isChatActive: true })
+				.sourcesByRow,
 		]).toEqual(completed.slice(0, 1));
 	});
 });

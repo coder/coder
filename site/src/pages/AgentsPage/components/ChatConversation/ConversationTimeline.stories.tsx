@@ -1873,9 +1873,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/**
- * Sources remain accessible below a collapsed sources-only message.
- */
+/** Citations remain accessible even when the assistant sends no answer text. */
 export const SourcesOnlyAssistantSpacing: Story = {
 	args: {
 		...defaultArgs,
@@ -1910,10 +1908,6 @@ export const SourcesOnlyAssistantSpacing: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Sources (2)" }));
 	},
 };
 

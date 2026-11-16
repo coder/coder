@@ -26,7 +26,7 @@ export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 	className,
 	children,
 }) => (
-	<div className={cn("mt-0.5 flex items-center gap-1", className)}>
+	<div className={cn("mt-0.5 flex flex-wrap items-center gap-1", className)}>
 		{children}
 	</div>
 );

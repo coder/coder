@@ -624,12 +624,27 @@ export const SourcesAndAttachments: Story = {
 	},
 };
 
+const mockLongTitleSourcesMessages = mockSourcesAndAttachmentsMessages.map(
+	(message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "source"
+				? {
+						...part,
+						title: `Coder Agents reference for troubleshooting sources in a shared conversation: ${part.url}/verylongunbrokentokenthatneedstowraptomatchthenarrowpopover`,
+					}
+				: part,
+		),
+	}),
+);
+
 export const SourcesAndAttachmentsOpen: Story = {
-	...SourcesAndAttachments,
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(mockLongTitleSourcesMessages),
+	},
 	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Sources (5)" }),
-		);
+		within(canvasElement).getByRole("button", { name: "Sources (5)" }).focus();
+		await userEvent.keyboard("{Enter}");
 	},
 };
 
