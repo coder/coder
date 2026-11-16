@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -55,28 +56,41 @@ func TestChatProjectTemplatesAudit(t *testing.T) {
 	require.NoError(t, owner.AttachChatProjectTemplate(ctx, orgID, project.ID, template.ID))
 	require.NoError(t, owner.DetachChatProjectTemplate(ctx, orgID, project.ID, template.ID))
 
-	//nolint:gocritic // The test reads audit logs directly.
-	rows, err := db.GetAuditLogsOffset(dbauthz.AsSystemRestricted(ctx), database.GetAuditLogsOffsetParams{
-		ResourceType: string(database.ResourceTypeChatProject),
-		ResourceID:   project.ID,
-		Action:       string(database.AuditActionWrite),
-		LimitOpt:     10,
+	// Templates attached while creating a project are audited too.
+	createdWithTemplate, err := owner.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:        "Audited From Creation",
+		TemplateIDs: []uuid.UUID{template.ID},
 	})
 	require.NoError(t, err)
-	// Logs are newest first.
+
 	attached, detached := []any{template.ID.String()}, []any{}
-	want := []audit.Map{
-		{"template_ids": {Old: attached, New: detached}},
-		{"template_ids": {Old: detached, New: attached}},
+	requireTemplateAudits := func(project codersdk.ChatProject, status int, want ...audit.Map) {
+		t.Helper()
+		//nolint:gocritic // The test reads audit logs directly.
+		rows, err := db.GetAuditLogsOffset(dbauthz.AsSystemRestricted(ctx), database.GetAuditLogsOffsetParams{
+			ResourceType: string(database.ResourceTypeChatProject),
+			ResourceID:   project.ID,
+			Action:       string(database.AuditActionWrite),
+			LimitOpt:     10,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, len(want))
+		for i, row := range rows {
+			var diff audit.Map
+			require.NoError(t, json.Unmarshal(row.AuditLog.Diff, &diff))
+			require.Equal(t, want[i], diff)
+			require.EqualValues(t, status, row.AuditLog.StatusCode)
+			require.Equal(t, firstUser.UserID, row.AuditLog.UserID)
+			require.Equal(t, orgID, row.AuditLog.OrganizationID)
+			require.Equal(t, project.Name, row.AuditLog.ResourceTarget)
+		}
 	}
-	require.Len(t, rows, len(want))
-	for i, row := range rows {
-		var diff audit.Map
-		require.NoError(t, json.Unmarshal(row.AuditLog.Diff, &diff))
-		require.Equal(t, want[i], diff)
-		require.EqualValues(t, http.StatusNoContent, row.AuditLog.StatusCode)
-		require.Equal(t, firstUser.UserID, row.AuditLog.UserID)
-		require.Equal(t, orgID, row.AuditLog.OrganizationID)
-		require.Equal(t, project.Name, row.AuditLog.ResourceTarget)
-	}
+	// Logs are newest first.
+	requireTemplateAudits(project, http.StatusNoContent,
+		audit.Map{"template_ids": {Old: attached, New: detached}},
+		audit.Map{"template_ids": {Old: detached, New: attached}},
+	)
+	requireTemplateAudits(createdWithTemplate, http.StatusCreated,
+		audit.Map{"template_ids": {Old: detached, New: attached}},
+	)
 }

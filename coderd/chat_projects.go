@@ -105,6 +105,11 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The project's own audit diff does not hold its templates, so the ones
+	// attached here are audited like later attachments. Deferred first, so
+	// it is recorded after the project's creation.
+	templatesAudit, commitTemplatesAudit := api.initChatProjectTemplatesAudit(rw, r, organization.ID)
+	defer commitTemplatesAudit()
 	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
 		Log:            api.Logger,
@@ -168,6 +173,15 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = project
+	if len(req.TemplateIDs) > 0 {
+		templatesAudit.Old = database.AuditableChatProjectTemplates{
+			ProjectID:   project.ID,
+			ProjectName: project.Name,
+			TemplateIDs: []uuid.UUID{},
+		}
+		templatesAudit.New = templatesAudit.Old
+		templatesAudit.New.TemplateIDs = req.TemplateIDs
+	}
 	api.writeChatProject(rw, r, http.StatusCreated, project)
 }
 
