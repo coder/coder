@@ -63,7 +63,7 @@ At most 10 checks can set `resource_id`.
 {
   "checks": {
     "property1": {
-      "action": "create",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -73,7 +73,7 @@ At most 10 checks can set `resource_id`.
       }
     },
     "property2": {
-      "action": "create",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",

@@ -219,7 +219,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 				onValueChange={setSelectedCategory}
 				orientation="horizontal"
 				aria-label="Filter modules by category"
-				className="my-4 flex flex-wrap items-center gap-6 border-solid border-0 border-b border-border"
+				className="my-4 flex flex-wrap items-center gap-6 border-b"
 			>
 				{categoryFilters.map((filter) => (
 					<RadioGroup.Item
@@ -227,7 +227,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 						value={filter.value}
 						className={cn(
 							"-mb-px inline-flex items-center gap-2 px-1 py-2.5 bg-transparent",
-							"border-0 border-y border-solid border-transparent",
+							"border-y border-transparent",
 							"text-sm font-normal text-content-secondary cursor-pointer",
 							"transition-colors duration-150 ease-linear hover:text-content-primary",
 							"data-[state=checked]:text-content-primary data-[state=checked]:border-b-content-primary",
@@ -241,7 +241,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 			{/* Show three rows of cards (sized to the common 214px card height plus
 			    the row gaps) and let any extra rows scroll, so the Continue button
 			    stays high and is easy to discover. */}
-			<div className="max-h-[682px] overflow-y-auto p-1 -m-1">
+			<div className="max-h-170.5 overflow-y-auto p-1 -m-1">
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 					{visibleModules.length ? (
 						visibleModules.map((m) => (

@@ -43,7 +43,7 @@ export const ClickToOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(canvas.getByText("Build timeline", { exact: false }));
+		await user.click(canvas.getByRole("button", { name: "Build timeline" }));
 		await canvas.findByText("provisioning");
 	},
 };
@@ -56,7 +56,7 @@ export const ClickToClose: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		await canvas.findByText("provisioning");
-		await user.click(canvas.getByText("Build timeline", { exact: false }));
+		await user.click(canvas.getByRole("button", { name: "Build timeline" }));
 		await waitFor(() =>
 			expect(canvas.queryByText("workspace boot")).not.toBeInTheDocument(),
 		);
@@ -100,7 +100,9 @@ const openStartupScripts = async (canvasElement: HTMLElement) => {
 	const user = userEvent.setup();
 	const canvas = within(canvasElement);
 	await user.click(
-		canvas.getByRole("button", { name: "View run startup scripts details" }),
+		canvas.getByRole("button", {
+			name: /^View run startup scripts details \d/,
+		}),
 	);
 	return { user, canvas, body: within(canvasElement.ownerDocument.body) };
 };
@@ -219,12 +221,31 @@ export const NavigateToPlanStage: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const detailsButton = canvas.getByRole("button", {
-			name: "View plan details",
+			name: /^View plan details \d/,
 		});
 		await user.click(detailsButton);
 		await canvas.findByText(
 			"module.dotfiles.data.coder_parameter.dotfiles_uri[0]",
 		);
+	},
+};
+
+export const StageInfoFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: "About plan" }).focus();
+	},
+};
+
+export const ResourceBarFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			canvas.getByRole("button", { name: /^View plan details \d/ }),
+		);
+		await user.click(canvas.getByRole("textbox"));
+		await user.tab();
 	},
 };
 
@@ -234,10 +255,24 @@ export const NavigateToStartStage: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const detailsButton = canvas.getByRole("button", {
-			name: "View run startup scripts details",
+			name: /^View run startup scripts details \d/,
 		});
 		await user.click(detailsButton);
 		await canvas.findByText("Startup Script");
+	},
+};
+
+export const ScriptBarFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			canvas.getByRole("button", {
+				name: /^View run startup scripts details \d/,
+			}),
+		);
+		await user.click(canvas.getByRole("textbox"));
+		await user.tab();
 	},
 };
 
@@ -358,7 +393,7 @@ export const MissedAction: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const applyButton = canvas.getByRole("button", {
-			name: "View apply details",
+			name: /^View apply details \d/,
 		});
 		await user.click(applyButton);
 		await canvas.findByText("missed action");

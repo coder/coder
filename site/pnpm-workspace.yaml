@@ -1,0 +1,27 @@
+saveExact: true
+engineStrict: true
+
+# Needed for nix builds of the site; see: https://github.com/nzbr/pnpm2nix-nzbr/issues/33#issuecomment-2381628294
+lockfileIncludeTarballUrl: true
+
+overrides:
+  optionator: 0.9.3
+  semver: 7.8.5
+  esbuild: 0.28.2
+  prismjs: 1.30.0
+  dompurify: 3.4.17
+  qs: 6.16.1
+  brace-expansion@<2: 1.1.21
+  minimatch@>=10: 11.0.1
+
+allowBuilds:
+  cpu-features: false
+  esbuild: true
+  msw: false
+  odiff-bin: true
+  protobufjs: false
+  ssh2: true
+  storybook-addon-remix-react-router: false
+
+patchedDependencies:
+  frimousse@0.4.0: patches/frimousse@0.4.0.patch

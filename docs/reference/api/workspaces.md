@@ -1976,7 +1976,7 @@ The server closes the connection if you send a message.
     "transition": "start"
   },
   "error": {
-    "code": 0,
+    "code": 1,
     "details": "string",
     "message": "string",
     "retryable": true

@@ -92,7 +92,7 @@ export const JobRow: React.FC<JobRowProps> = ({
 						{job.status === "failed" && (
 							<div
 								className={cn([
-									"inline-flex items-center gap-2 rounded border border-solid border-border p-2",
+									"inline-flex items-center gap-2 rounded border p-2",
 									"text-content-primary bg-surface-secondary mb-4",
 								])}
 							>
@@ -104,7 +104,7 @@ export const JobRow: React.FC<JobRowProps> = ({
 							className={cn([
 								"text-xs text-content-secondary",
 								"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
-								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
+								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-5.5 [&_dt]:font-medium",
 							])}
 						>
 							<dt>Job ID:</dt>

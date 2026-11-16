@@ -8,9 +8,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import type { MessageAttachment } from "./messageHelpers";
-import { getEditableContentPayload } from "./messageParsing";
 import { TurnAttachments } from "./TurnAttachments";
+import type { SourceLink } from "./types";
 
 type MessageActionBarProps = {
 	className?: string;
@@ -25,7 +26,7 @@ export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 	className,
 	children,
 }) => (
-	<div className={cn("mt-0.5 flex items-center gap-1", className)}>
+	<div className={cn("mt-0.5 flex flex-wrap items-center gap-1", className)}>
 		{children}
 	</div>
 );
@@ -63,12 +64,7 @@ const MessageActionButton: React.FC<MessageActionButtonProps> = ({
 type UserMessageActionsProps = {
 	message: TypesGen.ChatMessage;
 	copyText?: string;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage?: (messageKey: string) => void;
@@ -99,11 +95,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 						<MessageActionButton
 							label="Edit message"
 							icon={<PencilIcon />}
-							onClick={() => {
-								const { text, fileBlocks, editorState } =
-									getEditableContentPayload(message.content);
-								onEditUserMessage(message.id, text, fileBlocks, editorState);
-							}}
+							onClick={() => onEditUserMessage(message.id)}
 						/>
 					)}
 					{canJump && (
@@ -147,6 +139,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 type AssistantMessageActionsProps = {
 	copyText?: string;
 	turnAttachments?: readonly MessageAttachment[];
+	sources?: SourceLink[];
 	keepsSpacing: boolean;
 };
 
@@ -156,8 +149,12 @@ type AssistantMessageActionsProps = {
  */
 export const AssistantMessageActions: React.FC<
 	AssistantMessageActionsProps
-> = ({ copyText, turnAttachments, keepsSpacing }) => {
-	if (copyText === undefined && turnAttachments === undefined) {
+> = ({ copyText, turnAttachments, sources, keepsSpacing }) => {
+	if (
+		copyText === undefined &&
+		turnAttachments === undefined &&
+		!sources?.length
+	) {
 		return keepsSpacing ? (
 			<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 		) : null;
@@ -174,6 +171,7 @@ export const AssistantMessageActions: React.FC<
 				/>
 			)}
 			{turnAttachments && <TurnAttachments attachments={turnAttachments} />}
+			{sources && <WebSearchSources sources={sources} />}
 		</MessageActionBar>
 	);
 };

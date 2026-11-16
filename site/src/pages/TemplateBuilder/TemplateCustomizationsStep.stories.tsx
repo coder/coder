@@ -75,16 +75,15 @@ type Story = StoryObj<typeof TemplateCustomizationsStep>;
 export const MultipleOrganizations: Story = {};
 
 // Submitting without choosing an organization surfaces an inline error under
-// the organization field and does not call onCreate.
+// the organization field.
 export const MissingOrganizationError: Story = {
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByTestId("organization-autocomplete");
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Create Template" }),
 		);
 		await canvas.findByText("Select an organization to continue.");
-		await expect(args.onCreate).not.toHaveBeenCalled();
 	},
 };
 

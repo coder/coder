@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SKILL_MAX_SIZE_BYTES } from "../utils/skills";
-import { SkillEditor } from "./SkillEditor";
+import { SkillEditorDialog } from "./SkillEditor";
 
 const markdown =
 	"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.";
@@ -10,7 +10,7 @@ const markdown =
 const renderEditor = (mode: "create" | "edit" = "create", readOnly = false) => {
 	const onSubmit = vi.fn();
 	render(
-		<SkillEditor
+		<SkillEditorDialog
 			open
 			mode={mode}
 			readOnly={readOnly}
@@ -34,7 +34,7 @@ const renderEditor = (mode: "create" | "edit" = "create", readOnly = false) => {
 	return { user: userEvent.setup(), onSubmit };
 };
 
-describe("SkillEditor", () => {
+describe("SkillEditorDialog", () => {
 	it("starts focus on Close when read-only", async () => {
 		renderEditor("edit", true);
 		await waitFor(() =>
@@ -76,7 +76,7 @@ describe("SkillEditor", () => {
 	});
 });
 
-describe("SkillEditor file import", () => {
+describe("SkillEditorDialog file import", () => {
 	it.each(["create", "edit"] as const)(
 		"imports a file before submitting in %s mode",
 		async (mode) => {

@@ -6,7 +6,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 
 const concurrencyDocsUrl = docs(
-	"/ai-coder/agents/platform-controls#concurrent-agents",
+	"/coder-agents/platform-controls#concurrent-agents",
 );
 
 export const QueuedForCapacityCallout: React.FC = () => {

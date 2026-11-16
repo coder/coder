@@ -53,7 +53,6 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
-	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseArray,
@@ -510,18 +509,11 @@ const SubagentRenderer: React.FC<ToolRendererProps> = ({
 	if (rawTitle) {
 		title = rawTitle;
 	}
-	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
-		status,
+		isError ? "error" : status,
 	);
-	let subagentIsError = subagentToolStatus === "error";
-	if (!subagentIsError) {
-		const toolFailed = status === "error" || isError;
-		if (toolFailed && !subagentCompleted) {
-			subagentIsError = true;
-		}
-	}
+	const subagentIsError = subagentToolStatus === "error";
 
 	// Detect timeout from the result. A timed-out wait_agent
 	// returns a structured payload with timed_out: true
@@ -813,9 +805,13 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 
 const ComputerRenderer: React.FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 }) => {
+	const action = asString(parseArgs(args)?.action);
+	// Failed and halted desktop actions persist as {"error": ...}.
+	const errorMessage = asString(asRecord(result)?.error);
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
@@ -847,7 +843,9 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 		if (rec) {
 			imageData = asString(rec.data);
 			mimeType = asString(rec.mime_type) || "image/png";
-			text = asString(rec.text);
+			// Desktop actions that return no screenshot persist their text
+			// output as {"output": ...}.
+			text = asString(rec.text) || asString(rec.output);
 			attachmentFileId = asString(rec.attachment_file_id);
 			attachmentName = asString(rec.attachment_name);
 		}
@@ -864,11 +862,13 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 
 	return (
 		<ComputerTool
+			action={action}
 			imageData={imageData}
 			mimeType={mimeType}
 			text={text}
 			status={status}
 			isError={isError}
+			errorMessage={errorMessage || undefined}
 		/>
 	);
 };
@@ -891,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 			</div>
 		)}
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"
@@ -980,7 +980,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	modelIntent,
 }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
 	// Media payloads are base64 blobs; keep them out of the text formatters.

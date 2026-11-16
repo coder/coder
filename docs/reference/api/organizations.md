@@ -317,14 +317,14 @@ Requires permission to read provisioner jobs in the organization.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                            |
-|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------|
-| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                      |
-| `limit`        | query | integer      | false    | Maximum number of results to return. The default is `50`, and `0` returns all results. |
-| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                              |
-| `status`       | query | string       | false    | Filter results by status                                                               |
-| `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)   |
-| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                            |
+| Name           | In    | Type          | Required | Description                                                                            |
+|----------------|-------|---------------|----------|----------------------------------------------------------------------------------------|
+| `organization` | path  | string        | true     | Organization ID, name, or `default` for the default organization.                      |
+| `limit`        | query | integer       | false    | Maximum number of results to return. The default is `50`, and `0` returns all results. |
+| `ids`          | query | array[string] | false    | Filter results by job IDs (UUIDs)                                                      |
+| `status`       | query | array[string] | false    | Filter results by status                                                               |
+| `tags`         | query | string        | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)   |
+| `initiator`    | query | string(uuid)  | false    | Filter results by initiator                                                            |
 
 #### Enumerated Values
 
@@ -431,12 +431,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                          |
+|------------------------------|-----------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                         |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown`   |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -24,10 +24,8 @@ export const AdminSettingsDropdown: React.FC<AdminSettingsDropdownProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[180px]">
-				<nav>
-					<AdminSettingsItems permissions={permissions} />
-				</nav>
+			<DropdownMenuContent align="end" className="w-45">
+				<AdminSettingsItems permissions={permissions} />
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

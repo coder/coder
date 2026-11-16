@@ -106,7 +106,7 @@ export const ServerSideFilter: Story = {
 		expect(await canvas.findByText("Test Template")).toBeVisible();
 		expect(canvas.getByText("Second Template")).toBeVisible();
 
-		await user.type(canvas.getByRole("textbox", { name: "Filter" }), "Second");
+		await user.type(canvas.getByRole("textbox", { name: "Search" }), "Second");
 
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
@@ -211,7 +211,7 @@ export const ConcurrentToggles: Story = {
 		expect(firstSwitch).toBeChecked();
 		expect(secondSwitch).not.toBeChecked();
 
-		const filter = canvas.getByRole("textbox", { name: "Filter" });
+		const filter = canvas.getByRole("textbox", { name: "Search" });
 		await user.type(filter, "Second");
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),

@@ -71,7 +71,7 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 				</SettingsHeader>
 
 				<form
-					className="flex flex-col gap-6 border border-solid p-6 rounded-lg"
+					className="flex flex-col gap-6 border p-6 rounded-lg"
 					onSubmit={form.handleSubmit}
 				>
 					{Boolean(error) && !isApiValidationError(error) && (
@@ -99,7 +99,6 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 						<IconField
 							{...getFieldHelpers("avatar_url")}
 							onChange={onChangeTrimmed(form)}
-							fullWidth
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>

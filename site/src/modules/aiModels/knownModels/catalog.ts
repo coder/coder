@@ -80,8 +80,7 @@ export const findKnownModelByCanonicalId = (
 };
 
 /**
- * Canonical identifiers verified to accept chatd's computer use tool
- * (Anthropic computer_20251124, OpenAI Responses computer tool).
+ * Canonical identifiers verified to accept chatd's computer use tool.
  */
 export const knownComputerUseModels: readonly {
 	readonly provider: ChatComputerUseProvider;
@@ -89,10 +88,12 @@ export const knownComputerUseModels: readonly {
 }[] = [
 	{ provider: "anthropic", modelIdentifier: "claude-fable-5-1" },
 	{ provider: "anthropic", modelIdentifier: "claude-fable-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-5-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-4-8" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-4-7" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-4-6" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-sonnet-4-6" },
 	{ provider: "openai", modelIdentifier: "gpt-6-astra" },
@@ -107,17 +108,34 @@ export const knownComputerUseModels: readonly {
 	{ provider: "openai", modelIdentifier: "gpt-5.4-mini" },
 ];
 
-/** Matches exact canonical identifiers only, not aliases or dated snapshots. */
+// Bedrock names Claude models with an optional inference profile prefix,
+// an "anthropic." vendor prefix and an optional "-vN:M" version suffix.
+const bedrockClaudeModelPattern =
+	/^(?:[a-z-]+\.)?anthropic\.(claude-.+?)(?:-v\d+(?::\d+)?)?$/;
+
+/**
+ * Matches exact canonical identifiers, and for Anthropic also the Claude
+ * identifier inside a Bedrock model ID. Does not match aliases or dated
+ * snapshots.
+ */
 export const isKnownComputerUseModel = (
-	provider: string,
+	provider: ChatComputerUseProvider,
 	modelId: string,
 ): boolean => {
-	const normalizedProvider = normalizeProvider(provider);
-	return knownComputerUseModels.some(
-		(entry) =>
-			entry.provider === normalizedProvider &&
-			entry.modelIdentifier === modelId,
-	);
+	const isCurated = (modelIdentifier: string) =>
+		knownComputerUseModels.some(
+			(entry) =>
+				entry.provider === provider &&
+				entry.modelIdentifier === modelIdentifier,
+		);
+	if (isCurated(modelId)) {
+		return true;
+	}
+	if (provider !== "anthropic") {
+		return false;
+	}
+	const bedrockClaudeModel = bedrockClaudeModelPattern.exec(modelId)?.[1];
+	return bedrockClaudeModel !== undefined && isCurated(bedrockClaudeModel);
 };
 
 const formatCompactNumber = (value: number): string => {

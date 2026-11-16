@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import {
 	chatPromptsQuery,
 	organizationChatModelOverrides,
@@ -10,6 +11,8 @@ import {
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -122,12 +125,7 @@ type ChatPageTimelineProps = {
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -280,6 +278,7 @@ export type SendChatMessageOptions = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
 	workspaceUploads?: readonly PendingWorkspaceUpload[];
+	busyBehavior?: TypesGen.ChatBusyBehavior;
 };
 
 type ChatPageInputProps = {
@@ -289,6 +288,8 @@ type ChatPageInputProps = {
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly: boolean;
@@ -322,6 +323,7 @@ type ChatPageInputProps = {
 		hasFileReferences: boolean,
 	) => void;
 	editingTarget: EditingTarget | null;
+	queuedMessageUnderEditID: number | null;
 	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
@@ -345,6 +347,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly,
@@ -372,6 +376,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	editingTarget,
+	queuedMessageUnderEditID,
 	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
@@ -385,6 +390,26 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	folder,
 }) => {
 	const { user: currentUser } = useAuthenticated();
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateChat: {
+					object: {
+						resource_type: "chat",
+						owner_id: chat.owner_id,
+						organization_id: chat.organization_id,
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: queuedMessages.length > 0,
+	});
+	const canUpdateChatQueue =
+		Boolean(chatAuthorizationQuery.data?.canUpdateChat) &&
+		currentUser.id === chat.owner_id &&
+		!chat.archived;
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -412,7 +437,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
 	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
@@ -696,7 +720,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 
 	const inputElement = (
 		<AgentChatInput
-			onSend={(message) => {
+			onSend={(message, busyBehavior) => {
 				void (async () => {
 					const hasActiveUploads =
 						attachments.some((file) =>
@@ -762,6 +786,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							message,
 							attachments: attachmentsArg,
 							workspaceUploads: workspaceUploadsArg,
+							busyBehavior,
 						});
 					} catch {
 						// Attachments preserved for retry on failure.
@@ -796,9 +821,19 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
-			onDeleteQueuedMessage={onDeleteQueuedMessage}
-			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			onDeleteQueuedMessage={
+				canUpdateChatQueue ? onDeleteQueuedMessage : undefined
+			}
+			onPromoteQueuedMessage={
+				canUpdateChatQueue ? onPromoteQueuedMessage : undefined
+			}
+			onEditQueuedMessage={onEditQueuedMessage}
+			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
 			isChatPaused={chatStatus === "paused"}
+			queuedMessageUnderEditID={queuedMessageUnderEditID}
+			composerQueuedMessageID={
+				editingTarget?.kind === "queued" ? editingTarget.id : null
+			}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
@@ -849,16 +884,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		/>
 	);
 
-	if (!modelSelectorHelp) {
-		return inputElement;
-	}
+	const queueAuthorizationError =
+		queuedMessages.length > 0 ? chatAuthorizationQuery.error : null;
 
 	return (
 		<div>
+			{queueAuthorizationError && (
+				<ErrorAlert
+					error={queueAuthorizationError}
+					showDebugDetail={false}
+					className="mb-2"
+					actions={
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={chatAuthorizationQuery.isFetching}
+							onClick={() => void chatAuthorizationQuery.refetch()}
+						>
+							Retry queue permissions
+						</Button>
+					}
+				/>
+			)}
 			{inputElement}
-			<div className="px-3 pt-1 text-2xs text-content-secondary">
-				{modelSelectorHelp}
-			</div>
+			{modelSelectorHelp && (
+				<div className="px-3 pt-1 text-2xs text-content-secondary">
+					{modelSelectorHelp}
+				</div>
+			)}
 		</div>
 	);
 };

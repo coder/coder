@@ -18,31 +18,23 @@ import (
 // here. Safe operations (file writes, fetches, editor) are
 // called directly.
 type ReleaseExecutor interface {
-	// CreateTag creates an annotated git tag.
-	CreateTag(ctx context.Context, tag, ref, message string) error
-	// PushTag pushes a tag to the origin remote.
-	PushTag(ctx context.Context, tag string) error
 	// TriggerWorkflow dispatches the release.yaml GitHub Actions
-	// workflow with the given inputs.
-	TriggerWorkflow(ctx context.Context, ref, channel, releaseNotes string) error
+	// workflow on branch with the given inputs. The workflow creates
+	// the release tag at commit once its release environment is
+	// approved: only the release GitHub App may create tags.
+	TriggerWorkflow(ctx context.Context, branch, version, commit, channel, releaseNotes string) error
 }
 
 // liveExecutor performs real operations.
 type liveExecutor struct{}
 
-func (*liveExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
-	return gitRun("tag", "-a", tag, "-m", message, ref)
-}
-
-func (*liveExecutor) PushTag(_ context.Context, tag string) error {
-	return gitRun("push", "origin", tag)
-}
-
-func (*liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNotes string) error {
+func (*liveExecutor) TriggerWorkflow(_ context.Context, branch, version, commit, channel, releaseNotes string) error {
 	payload := map[string]string{
 		"dry_run":         "false",
 		"release_channel": channel,
 		"release_notes":   releaseNotes,
+		"version":         version,
+		"commit":          commit,
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
@@ -50,7 +42,7 @@ func (*liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNot
 	}
 	cmd := exec.Command("gh", "workflow", "run", "release.yaml",
 		"--repo", owner+"/"+repo,
-		"--ref", ref,
+		"--ref", branch,
 		"--json",
 	)
 	cmd.Stdin = strings.NewReader(string(payloadJSON))
@@ -64,17 +56,7 @@ type dryRunExecutor struct {
 	w io.Writer
 }
 
-func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
-	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would run: git tag -a %s -m %q %s\n", tag, message, ref)
-	return nil
-}
-
-func (e *dryRunExecutor) PushTag(_ context.Context, tag string) error {
-	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would run: git push origin %s\n", tag)
-	return nil
-}
-
-func (e *dryRunExecutor) TriggerWorkflow(_ context.Context, ref, channel, _ string) error {
-	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would trigger release.yaml workflow (ref=%s, channel=%s)\n", ref, channel)
+func (e *dryRunExecutor) TriggerWorkflow(_ context.Context, branch, version, commit, channel, _ string) error {
+	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would trigger release.yaml workflow (ref=%s, version=%s, commit=%s, channel=%s)\n", branch, version, commit, channel)
 	return nil
 }

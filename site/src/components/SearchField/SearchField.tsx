@@ -23,6 +23,7 @@ export type SearchFieldProps = {
 	ref?: React.Ref<HTMLInputElement>;
 	"aria-label"?: string;
 	"aria-invalid"?: boolean;
+	"aria-describedby"?: string;
 };
 
 export const SearchField: React.FC<SearchFieldProps> = ({

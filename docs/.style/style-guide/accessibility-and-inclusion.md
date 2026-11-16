@@ -103,6 +103,10 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
 | legacy, pre-existing, exempt                          | grandfathered, grandfather clause             |
+| on-path attacker, machine-in-the-middle (MITM)        | man-in-the-middle                             |
+
+Use "on-path attacker" for the attack.
+When a feature intercepts traffic on purpose, such as the AI Gateway Proxy's MITM mode, expand MITM as "machine-in-the-middle."
 
 For information on why "grandfathered" is on the list, visit [the Wikipedia page on the history of the grandfather clause](https://en.wikipedia.org/wiki/Grandfather_clause).
 
@@ -395,6 +399,48 @@ Banning them burdens writers without a matching gain for readers familiar with t
 *Enforced by `Coder.LatinAbbreviations` at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
 The rule suggests the English form and never blocks either form.
 It checks paragraphs, list items, headings, and blockquotes, and skips table cells and code.*
+
+## Expand abbreviations on first use
+
+Spell out an abbreviation the first time it appears on a page, followed by the abbreviation in parentheses: "Model Context Protocol (MCP)."
+After that, use the abbreviation on its own.
+Each page needs its own expansion, because readers arrive on a page from search or a link and don't read the docs in order.
+
+The rule supports [WCAG 2.2 Level AAA](https://www.w3.org/TR/WCAG22/#abbreviations) Success Criterion 3.1.4 (Abbreviations), which asks for a way to find the expanded form of an abbreviation.
+It also helps readers whose first language isn't English, and readers who know the concept but not its abbreviation.
+
+**Do**:
+
+> Register a Model Context Protocol (MCP) server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+**Don't**:
+
+> Register an MCP server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+Write the expansion in lowercase unless it's a proper noun, such as a product, protocol, or standard name: "large language model (LLM)" but "OpenID Connect (OIDC)."
+For a plural, add `s` to both forms: "large language models (LLMs)."
+
+When the first use is a UI label in bold, keep the label exactly as the UI shows it and put the expansion elsewhere in the same paragraph or list item.
+
+**Do**:
+
+> Paste the path to the certificate authority (CA) certificate in **CA Path**.
+
+**Don't**:
+
+> Paste the path to the certificate in **certificate authority (CA) Path**.
+
+A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, JSON, and UUID.
+The `Coder.AbbreviationFirstUse` rule keeps that list, with the reason for each entry.
+Extend the list only for an abbreviation that every reader of the docs already knows, not for one that a page's expected audience knows.
+A Coder networking or identity term that the [glossary](../../reference/glossary.md) defines, such as DERP or OIDC, can also join the list, because the glossary gives readers one place to look it up.
+
+The rule skips headings, code, link URLs, and pages generated from source code.
+An abbreviation in a page title still needs its expansion in the body of the page.
+
+*Enforced by `Coder.AbbreviationFirstUse` (`warning`).*
 
 ## Page title and sidebar title
 

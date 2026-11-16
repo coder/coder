@@ -45,9 +45,7 @@ Returns `404` if you lack that permission or the deployment turns off the templa
       "prerequisites": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -301,9 +299,7 @@ Requires permission to read templates in at least one organization.
       "id": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
