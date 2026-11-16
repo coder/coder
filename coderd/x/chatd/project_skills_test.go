@@ -27,7 +27,9 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	// The test runs six model turns on this context, which together can
+	// take longer than WaitLong on a loaded CI runner.
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	recorder, openAIURL := newSkillRecordingOpenAI(t)
 	owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	// The teammate is an organization admin, whose role can read every
