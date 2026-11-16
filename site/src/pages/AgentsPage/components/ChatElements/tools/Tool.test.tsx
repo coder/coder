@@ -51,12 +51,13 @@ describe("Tool web search rows", () => {
 		expect(screen.getByRole("button")).toHaveAccessibleName("web_search");
 	});
 
-	it("links found pages only for http and https URLs", async () => {
+	it("links only web URLs and keeps source icon requests local", async () => {
 		renderWebSearch({
 			args: { type: "search", queries: ["coder"] },
 			foundPages: [
 				{ url: "https://coder.com/docs/ai", title: "" },
 				{ url: "http://coder.com/", title: "Coder" },
+				{ url: "https://internal.example/release", title: "Release notes" },
 				{ url: "ftp://example.com/release.txt", title: "" },
 				{ url: "data:text/html,unsafe", title: "" },
 			],
@@ -65,7 +66,14 @@ describe("Tool web search rows", () => {
 
 		expect(
 			screen.getAllByRole("link").map((link) => link.getAttribute("href")),
-		).toEqual(["https://coder.com/docs/ai", "http://coder.com/"]);
+		).toEqual([
+			"https://coder.com/docs/ai",
+			"http://coder.com/",
+			"https://internal.example/release",
+		]);
+		expect(
+			screen.queryAllByAltText("").map((image) => image.getAttribute("src")),
+		).toEqual(["/icon/coder.svg", "/icon/coder.svg"]);
 	});
 });
 

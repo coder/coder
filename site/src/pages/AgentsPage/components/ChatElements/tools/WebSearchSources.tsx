@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { NewTabLabel } from "#/components/Link/Link";
 import {
 	Popover,
@@ -12,6 +13,19 @@ import type { SourceLink } from "../../ChatConversation/types";
 type WebSearchSourcesProps = {
 	sources: SourceLink[];
 };
+
+// Do not suffix-match: subdomains may be privately hosted or user-controlled.
+const sourceIconsByHostname = new Map([
+	["coder.com", "/icon/coder.svg"],
+	["www.coder.com", "/icon/coder.svg"],
+	["github.com", "/icon/github.svg"],
+	["www.github.com", "/icon/github.svg"],
+	["docs.github.com", "/icon/github.svg"],
+	["aws.amazon.com", "/icon/aws.svg"],
+	["docs.aws.amazon.com", "/icon/aws.svg"],
+	["linear.app", "/icon/linear.svg"],
+	["www.linear.app", "/icon/linear.svg"],
+]);
 
 /** Cited pages, with non-web URLs kept as readable text instead of links. */
 const WebSearchSources: React.FC<WebSearchSourcesProps> = ({ sources }) => {
@@ -41,29 +55,17 @@ const WebSearchSources: React.FC<WebSearchSourcesProps> = ({ sources }) => {
 				className="group/sources inline-flex h-6 items-center gap-1.5 rounded-full bg-surface-secondary pl-0.5 pr-2 text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
 				<span aria-hidden className="inline-flex items-center">
-					{unique.slice(0, 3).map((source) => {
-						const { href, hostname } = getSourceDisplay(source);
-						return (
-							<span
-								key={source.url}
-								className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-secondary ring-1 ring-surface-secondary transition not-first:-ml-1.5 group-hover/sources:bg-surface-tertiary group-hover/sources:ring-surface-tertiary"
-							>
-								<GlobeIcon className="size-3" />
-								{href && hostname && (
-									<img
-										src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=16`}
-										alt=""
-										width={16}
-										height={16}
-										className="absolute size-4"
-										onError={(event) => {
-											event.currentTarget.style.display = "none";
-										}}
-									/>
-								)}
-							</span>
-						);
-					})}
+					{unique.slice(0, 3).map((source) => (
+						<span
+							key={source.url}
+							className="inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-secondary ring-1 ring-surface-secondary transition not-first:-ml-1.5 group-hover/sources:bg-surface-tertiary group-hover/sources:ring-surface-tertiary"
+						>
+							<SourceIcon
+								src={getSourceDisplay(source).iconSrc}
+								className="size-4"
+							/>
+						</span>
+					))}
 					{unique.length > 3 && (
 						<span className="pl-1 text-2xs">
 							+{(unique.length - 3).toLocaleString("en-US")}
@@ -107,7 +109,12 @@ const WebSearchSources: React.FC<WebSearchSourcesProps> = ({ sources }) => {
  */
 const getSourceDisplay = (
 	source: SourceLink,
-): { label: string; href: string | undefined; hostname: string } => {
+): {
+	label: string;
+	href: string | undefined;
+	hostname: string;
+	iconSrc: string | undefined;
+} => {
 	let url: URL | undefined;
 	try {
 		url = new URL(source.url);
@@ -121,16 +128,35 @@ const getSourceDisplay = (
 		label: source.title || (hostname ? `${hostname}${path}` : source.url),
 		href: isWebUrl ? source.url : undefined,
 		hostname,
+		iconSrc: isWebUrl ? sourceIconsByHostname.get(hostname) : undefined,
 	};
 };
 
+const SourceIcon: React.FC<{ src: string | undefined; className: string }> = ({
+	src,
+	className,
+}) => {
+	const [failedSrc, setFailedSrc] = useState<string>();
+	if (!src || failedSrc === src) {
+		return <GlobeIcon aria-hidden className={cn("shrink-0", className)} />;
+	}
+	return (
+		<ExternalImage
+			aria-hidden
+			src={src}
+			alt=""
+			className={cn("shrink-0", className)}
+			onError={() => setFailedSrc(src)}
+		/>
+	);
+};
+
 /**
- * A source URL pill with a favicon from Google's S2 service and a
- * truncated label from getSourceDisplay. URLs without an http or https
- * scheme render as text instead of a link.
+ * A source URL pill with a bundled site icon or globe. URLs without an http
+ * or https scheme render as text instead of a link.
  */
 export const SourcePill: React.FC<{ source: SourceLink }> = ({ source }) => {
-	const { label, href, hostname } = getSourceDisplay(source);
+	const { label, href, iconSrc } = getSourceDisplay(source);
 	const className = cn(
 		"inline-flex items-center gap-1.5 rounded-full",
 		"border bg-surface-secondary",
@@ -141,6 +167,7 @@ export const SourcePill: React.FC<{ source: SourceLink }> = ({ source }) => {
 	if (!href) {
 		return (
 			<span title={source.url} className={className}>
+				<SourceIcon src={iconSrc} className="size-3.5" />
 				<span className="truncate">{label}</span>
 			</span>
 		);
@@ -159,19 +186,7 @@ export const SourcePill: React.FC<{ source: SourceLink }> = ({ source }) => {
 				"hover:border-border-secondary",
 			)}
 		>
-			{hostname && (
-				<img
-					src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=16`}
-					alt=""
-					width={14}
-					height={14}
-					className="shrink-0 rounded-sm"
-					// Hide the broken-image icon if the favicon fails to load.
-					onError={(e) => {
-						e.currentTarget.style.display = "none";
-					}}
-				/>
-			)}
+			<SourceIcon src={iconSrc} className="size-3.5" />
 			<span className="truncate">{label}</span>
 			<ExternalLinkIcon aria-hidden className="size-3 shrink-0" />
 			<NewTabLabel />
@@ -187,7 +202,7 @@ type SourceListItemProps = {
 };
 
 const SourceListItem: React.FC<SourceListItemProps> = ({ source, linkRef }) => {
-	const { label, href, hostname } = getSourceDisplay(source);
+	const { label, href, hostname, iconSrc } = getSourceDisplay(source);
 	const Component = href ? "a" : "span";
 	return (
 		<Component
@@ -201,9 +216,9 @@ const SourceListItem: React.FC<SourceListItemProps> = ({ source, linkRef }) => {
 					"hover:bg-surface-tertiary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 			)}
 		>
-			<GlobeIcon
-				aria-hidden
-				className="mt-0.5 size-4 shrink-0 text-content-secondary"
+			<SourceIcon
+				src={iconSrc}
+				className="mt-0.5 size-4 text-content-secondary"
 			/>
 			<span className="flex min-w-0 flex-1 flex-col gap-1">
 				<span className="wrap-anywhere text-sm">{label}</span>
