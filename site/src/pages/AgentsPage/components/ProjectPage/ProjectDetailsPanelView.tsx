@@ -52,6 +52,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly organizationIconUrl?: string;
 	/** Attached templates the viewer can access. */
 	readonly templateCount: number;
+	/** Whether the project's chats can only use its attached templates. */
+	readonly limitTemplates: boolean;
 	/** Attached templates the viewer cannot access. */
 	readonly hiddenTemplateCount: number;
 	/** Opens the templates editor. Omit when the caller cannot edit. */
@@ -89,6 +91,7 @@ export const ProjectDetailsPanelView: React.FC<
 	organizationLabel,
 	organizationIconUrl,
 	templateCount,
+	limitTemplates,
 	hiddenTemplateCount,
 	onEditTemplates,
 	editTemplatesButtonRef,
@@ -105,8 +108,11 @@ export const ProjectDetailsPanelView: React.FC<
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
-	const templateCountLabel =
+	const templateCountText =
 		templateCount === 1 ? "1 template" : `${templateCount} templates`;
+	const templateCountLabel = limitTemplates
+		? `Limited to ${templateCountText}`
+		: templateCountText;
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert
 			error={error}
@@ -203,9 +209,10 @@ export const ProjectDetailsPanelView: React.FC<
 								{/* A button so keyboard users can focus it to read the note. */}
 								<TooltipTrigger
 									type="button"
-									className="ml-2 cursor-default rounded-sm bg-transparent p-0 text-content-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+									className="ml-2 cursor-default rounded-sm bg-transparent p-0 text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 								>
-									{hiddenTemplateCount} hidden
+									{hiddenTemplateCount} hidden{" "}
+									<span className="sr-only">templates</span>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
 									{hiddenTemplatesNote(hiddenTemplateCount)}

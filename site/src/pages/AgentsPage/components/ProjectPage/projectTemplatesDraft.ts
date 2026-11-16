@@ -43,31 +43,28 @@ export const serializeTemplates = (templates: ChatProjectTemplatesRequest) =>
 	]);
 
 /**
- * Returns what saving the draft changes about the templates it started
- * from. Only the user's own edits are saved, so a save never undoes a
- * template attached elsewhere, including the ones this user cannot see.
+ * Returns what saving the draft changes about the saved templates. Templates
+ * that are in neither are left alone, which covers the ones the user cannot
+ * see.
  */
 export const templatesChange = (
-	base: ChatProjectTemplatesRequest,
+	saved: ChatProjectTemplatesRequest,
 	draft: ChatProjectTemplatesRequest,
 ): ChatProjectTemplatesChange => {
-	const limitChanged = draft.limit_templates !== base.limit_templates;
+	const limitChanged = draft.limit_templates !== saved.limit_templates;
 	const defaultChanged =
 		serializeDefaultTemplate(draft.default_template) !==
-		serializeDefaultTemplate(base.default_template);
-	return {
-		attach: draft.template_ids.filter((id) => !base.template_ids.includes(id)),
-		detach: base.template_ids.filter((id) => !draft.template_ids.includes(id)),
-		...((limitChanged || defaultChanged) && {
-			request: {
-				...(limitChanged && { limit_templates: draft.limit_templates }),
-				...(defaultChanged && {
-					default_template: draft.default_template ?? {
-						template_id: NIL_UUID,
-					},
-				}),
-			},
+		serializeDefaultTemplate(saved.default_template);
+	const request = {
+		...(limitChanged && { limit_templates: draft.limit_templates }),
+		...(defaultChanged && {
+			default_template: draft.default_template ?? { template_id: NIL_UUID },
 		}),
+	};
+	return {
+		attach: draft.template_ids.filter((id) => !saved.template_ids.includes(id)),
+		detach: saved.template_ids.filter((id) => !draft.template_ids.includes(id)),
+		...((limitChanged || defaultChanged) && { request }),
 	};
 };
 
@@ -82,9 +79,9 @@ export const serializeValues = (values: ChatProjectTemplatesValues) =>
 	});
 
 /**
- * Applies the draft's changes since `base` to `latest`. The result keeps the
- * user's edits and everything saved elsewhere, so saving it never undoes a
- * template that someone else attached or detached.
+ * Applies the draft's changes since `base` to `latest`, so saving the result
+ * never undoes a template that someone else attached or detached. Where both
+ * changed the limit or the default template, the draft wins.
  */
 export const rebaseValues = (
 	draft: ChatProjectTemplatesValues,

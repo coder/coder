@@ -68,6 +68,7 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 		},
 		createdAt: MockChatProject.created_at,
 		templateCount: 2,
+		limitTemplates: false,
 		hiddenTemplateCount: 0,
 		onEditTemplates: fn(),
 		skillCount: 3,
@@ -129,11 +130,17 @@ export const OneTemplate: Story = {
 	args: { templateCount: 1 },
 };
 
+export const LimitedToTemplates: Story = {
+	args: { limitTemplates: true },
+};
+
 export const HiddenTemplates: Story = {
-	args: { hiddenTemplateCount: 2 },
+	args: { limitTemplates: true, templateCount: 0, hiddenTemplateCount: 2 },
 	// Focuses the hidden count so the screenshot shows its note.
 	play: async ({ canvasElement }) => {
-		within(canvasElement).getByRole("button", { name: "2 hidden" }).focus();
+		within(canvasElement)
+			.getByRole("button", { name: "2 hidden templates" })
+			.focus();
 	},
 };
 

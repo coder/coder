@@ -129,6 +129,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				organizationLabel={organizationLabel}
 				organizationIconUrl={showOrganizations ? organization?.icon : undefined}
 				templateCount={project.templates.length}
+				limitTemplates={project.limit_templates}
 				hiddenTemplateCount={project.hidden_template_count}
 				onEditTemplates={
 					project.permissions.update

@@ -116,12 +116,13 @@ export const templatesValidationDetail = (error: unknown) =>
  * Explains the templates attached to a project that the user cannot access.
  * Only their count is known.
  */
-export const hiddenTemplatesNote = (count: number) =>
-	`${
+export const hiddenTemplatesNote = (count: number) => {
+	const hidden =
 		count === 1
 			? "1 template in this project isn't shown because you don't have access to it."
-			: `${count} templates in this project aren't shown because you don't have access to them.`
-	} A template admin or organization admin can give you access.`;
+			: `${count} templates in this project aren't shown because you don't have access to them.`;
+	return `${hidden} A template admin or organization admin can give you access.`;
+};
 
 const templateLabel = (template: Template) =>
 	template.display_name || template.name;

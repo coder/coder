@@ -157,7 +157,6 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const latestTemplates = savedTemplates(project);
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
-	// Saving sends only what the draft changes about them.
 	const [baseTemplates, setBaseTemplates] = useState(latestTemplates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
@@ -199,10 +198,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// An untouched draft follows newer templates. So does a draft after its
 	// own save changed the project, even when that save failed partway: it
 	// keeps its edits, and saving again sends what is left of them.
-	if (isLatestNew && (isDraftUntouched || isSaveSent)) {
-		if (isDraftUntouched) {
-			setDismissedError(error);
-		}
+	const followLatest = () => {
 		setBaseTemplates(latestTemplates);
 		setValue(
 			rebaseValues(
@@ -211,6 +207,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				chatProjectTemplatesValues(latestTemplates),
 			),
 		);
+	};
+	if (isLatestNew && (isDraftUntouched || isSaveSent)) {
+		if (isDraftUntouched) {
+			setDismissedError(error);
+		}
+		followLatest();
 	}
 	// The default template's active version decides which saved defaults
 	// are stale, so the list refreshes with the project.
@@ -354,7 +356,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			className="flex flex-col gap-4"
 			onSubmit={async (event) => {
 				event.preventDefault();
-				if (!request || !canSave || isSubmittingRef.current) {
+				if (
+					!request ||
+					!eligibleTemplates ||
+					!canSave ||
+					isSubmittingRef.current
+				) {
 					return;
 				}
 				isSubmittingRef.current = true;
@@ -397,14 +404,14 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					return;
 				}
 				const latest = refreshed.data?.find(({ id }) => id === project.id);
-				const serializedLatest =
-					latest && serializeTemplates(savedTemplates(latest));
-				if (serializedLatest === undefined) {
+				if (!latest) {
 					return;
 				}
+				const saved = savedTemplates(latest);
+				const serializedSaved = serializeTemplates(saved);
 				if (
-					serializedLatest !== serializeTemplates(baseTemplates) &&
-					serializedLatest !== serializeTemplates(request)
+					serializedSaved !== serializeTemplates(baseTemplates) &&
+					serializedSaved !== serializeTemplates(request)
 				) {
 					pendingFocusRef.current = "conflict";
 					return;
@@ -412,7 +419,17 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				// A rejected save leaves the dialog open, so focus returns to Save.
 				pendingFocusRef.current = "save";
 				setIsSaveSent(true);
-				onSave(templatesChange(baseTemplates, request));
+				// The saved templates pass the draft's eligibility filter, so a
+				// template that left the list of eligible templates is left alone.
+				onSave(
+					templatesChange(
+						chatProjectTemplatesRequest(
+							chatProjectTemplatesValues(saved),
+							eligibleTemplates,
+						),
+						request,
+					),
+				);
 			}}
 		>
 			<DialogHeader>
@@ -495,14 +512,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 						// The warning unmounts once resolved, so focus moves to Save.
 						onKeepDraft={() => {
 							draftVersionRef.current += 1;
-							setBaseTemplates(latestTemplates);
-							setValue(
-								rebaseValues(
-									value,
-									initialValue,
-									chatProjectTemplatesValues(latestTemplates),
-								),
-							);
+							followLatest();
 							saveButtonRef.current?.focus();
 						}}
 						onLoadLatest={() => {

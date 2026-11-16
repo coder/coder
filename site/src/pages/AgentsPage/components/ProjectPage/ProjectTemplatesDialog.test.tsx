@@ -22,7 +22,7 @@ import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 type DialogProps = React.ComponentProps<typeof ProjectTemplatesDialog>;
 
 /** A project whose only template is its default template. */
-const projectWithDefault = (
+const mockProjectWithDefault = (
 	defaults?: Omit<ChatProjectDefaultTemplate, "template_id">,
 ): ChatProject => ({
 	...MockChatProject,
@@ -30,7 +30,7 @@ const projectWithDefault = (
 	default_template: { template_id: MockTemplate.id, ...defaults },
 });
 
-/** The save that only replaces the default template of `projectWithDefault`. */
+/** The save that only replaces the default template of `mockProjectWithDefault`. */
 const defaultChange = (
 	defaults?: Omit<ChatProjectDefaultTemplate, "template_id">,
 ) => ({
@@ -100,7 +100,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("keeps a saved empty parameter value when other defaults change", async () => {
 		const { user, props } = renderDialog({
-			project: projectWithDefault({
+			project: mockProjectWithDefault({
 				parameters: {
 					[MockTemplateVersionParameter1.name]: "",
 					[MockTemplateVersionParameter2.name]: "old",
@@ -130,7 +130,7 @@ describe("ProjectTemplatesDialog", () => {
 	it("clears a default preset that is no longer in the active version", async () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		const { user, props } = renderDialog({
-			project: projectWithDefault({ preset_id: "stale-preset" }),
+			project: mockProjectWithDefault({ preset_id: "stale-preset" }),
 		});
 
 		const save = await screen.findByRole("button", { name: /Save/ });
@@ -144,7 +144,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("clears the default template with a nil template ID", async () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
-		const { user, props } = renderDialog({ project: projectWithDefault() });
+		const { user, props } = renderDialog({ project: mockProjectWithDefault() });
 
 		await user.click(
 			await screen.findByRole("combobox", { name: "Default template" }),
@@ -161,7 +161,7 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
-	const mockProjectWithRemovedParameter = projectWithDefault({
+	const mockProjectWithRemovedParameter = mockProjectWithDefault({
 		parameters: {
 			[MockTemplateVersionParameter1.name]: "kept",
 			removed_parameter: "gone",
@@ -242,7 +242,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("keeps a saved empty parameter value when the user keeps their draft", async () => {
 		const { user, props, rerenderWithProject } = renderDialog({
-			project: projectWithDefault({
+			project: mockProjectWithDefault({
 				parameters: {
 					[MockTemplateVersionParameter1.name]: "",
 					[MockTemplateVersionParameter2.name]: "old",
@@ -256,7 +256,7 @@ describe("ProjectTemplatesDialog", () => {
 		await user.clear(second);
 		await user.type(second, "new");
 		rerenderWithProject(
-			projectWithDefault({
+			mockProjectWithDefault({
 				parameters: { [MockTemplateVersionParameter2.name]: "other" },
 			}),
 		);
@@ -282,7 +282,7 @@ describe("ProjectTemplatesDialog", () => {
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		const callsBeforeSave = getProjects.mock.calls.length;
-		getProjects.mockResolvedValue([projectWithDefault()]);
+		getProjects.mockResolvedValue([mockProjectWithDefault()]);
 
 		await user.click(save);
 
@@ -294,7 +294,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("replaces a saved empty value with the template default", async () => {
 		const { user, props } = renderDialog({
-			project: projectWithDefault({
+			project: mockProjectWithDefault({
 				parameters: { [MockTemplateVersionParameter1.name]: "" },
 			}),
 		});
@@ -363,7 +363,7 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
-		const newer = projectWithDefault();
+		const newer = mockProjectWithDefault();
 		getProjects.mockResolvedValue([newer]);
 
 		await user.click(save);
@@ -399,7 +399,7 @@ describe("ProjectTemplatesDialog", () => {
 
 	it("treats an edited and restored parameter as untouched", async () => {
 		const { user, props, rerenderWithProject } = renderDialog({
-			project: projectWithDefault({
+			project: mockProjectWithDefault({
 				parameters: {
 					[MockTemplateVersionParameter1.name]: "a",
 					[MockTemplateVersionParameter2.name]: "b",
@@ -414,7 +414,7 @@ describe("ProjectTemplatesDialog", () => {
 
 		// An untouched draft follows the newer save instead of warning.
 		rerenderWithProject(
-			projectWithDefault({
+			mockProjectWithDefault({
 				parameters: { [MockTemplateVersionParameter1.name]: "z" },
 			}),
 		);
@@ -461,7 +461,7 @@ describe("ProjectTemplatesDialog", () => {
 			.mockRejectedValueOnce(mockApiError({ message: "Network error." }))
 			.mockResolvedValue([]);
 		const { user, props } = renderDialog({
-			project: projectWithDefault({ preset_id: "preset-id" }),
+			project: mockProjectWithDefault({ preset_id: "preset-id" }),
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
@@ -480,7 +480,7 @@ describe("ProjectTemplatesDialog", () => {
 			mockApiError({ message: "Network error." }),
 		);
 		const { user, props } = renderDialog({
-			project: projectWithDefault({ preset_id: "preset-id" }),
+			project: mockProjectWithDefault({ preset_id: "preset-id" }),
 		});
 
 		await screen.findByRole("button", { name: "Retry" });
@@ -533,6 +533,27 @@ describe("ProjectTemplatesDialog", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(props.onSave).toHaveBeenCalledTimes(1);
+	});
+
+	it("leaves alone an attached template that is missing from the eligible list", async () => {
+		const { user, props } = renderDialog({
+			project: {
+				...MockChatProject,
+				templates: [{ ...MockTemplate, id: "deprecated-since-loading" }],
+			},
+		});
+
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [MockTemplate.id],
+				detach: [],
+			}),
+		);
 	});
 
 	it.each([

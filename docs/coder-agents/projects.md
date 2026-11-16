@@ -137,6 +137,7 @@ Unless the project limits its chats to its templates, the agent can also use eve
 
 A project doesn't limit which templates its chats use until you turn on the limit.
 To turn it on, use **Limit chats to these templates** when you create the project or in the **Edit templates** dialog.
+The **Templates** row of the project's **Details** panel then reads **Limited to** before the template count, such as **Limited to 2 templates**.
 While the limit is on:
 
 - `list_templates` returns only the attached templates that the chat's owner can use.

@@ -960,16 +960,22 @@ describe("ProjectDetailsPanel templates", () => {
 	});
 
 	it("does not block Save when the latest templates already match the draft", async () => {
-		const { user, attach, rerenderWithProject } = setup();
+		const { user, attach, getProjects, rerenderWithProject } = setup();
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
 		);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		rerenderWithProject(mockProjectWithTemplates);
+		const refreshesBeforeSave = getProjects.mock.calls.length;
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		await waitFor(() => expect(attach).toHaveBeenCalledTimes(2));
+		// The pre-save check and the settled save each refresh the project.
+		await waitFor(() =>
+			expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave + 2),
+		);
+		// Both templates are already attached, so nothing is sent again.
+		expect(attach).not.toHaveBeenCalled();
 	});
 
 	it("refetches the project's templates on open and when the window regains focus", async () => {
@@ -1029,7 +1035,7 @@ describe("ProjectDetailsPanel templates", () => {
 
 	it("explains the hidden template count to keyboard and screen reader users", async () => {
 		setup({ ...MockChatProject, hidden_template_count: 2 });
-		const hidden = screen.getByRole("button", { name: "2 hidden" });
+		const hidden = screen.getByRole("button", { name: "2 hidden templates" });
 
 		act(() => hidden.focus());
 
