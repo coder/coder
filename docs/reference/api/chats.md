@@ -4651,7 +4651,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/git \
 
 `GET /api/v2/chats/{chat}/stream/git`
 
-Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes since the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
+Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes after the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
 
 ### Parameters
 

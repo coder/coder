@@ -2346,7 +2346,7 @@ func (api *API) authorizeChatWorkspaceExecWithStatus(
 }
 
 // @Summary Watch chat workspace git state via WebSockets
-// @Description Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes since the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
+// @Description Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes after the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
 // @ID watch-chat-workspace-git-state-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
