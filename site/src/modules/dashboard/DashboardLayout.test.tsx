@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http, type PathParams } from "msw";
 import type { RouteObject } from "react-router";
@@ -137,6 +137,24 @@ test("navigates an organization group member reader to AI settings from Admin se
 	await user.click(await screen.findByRole("menuitem", { name: "AI" }));
 	await screen.findByRole("heading", { name: "AI settings" });
 	expect(router.state.location.pathname).toBe("/ai/settings");
+});
+
+test("navigates the dashboard logo to the preference-aware root", async () => {
+	server.use(
+		http.get("/api/v2/notifications/inbox", () =>
+			HttpResponse.json({ notifications: [], unread_count: 0 }),
+		),
+	);
+	const { router } = renderWithAuth(<DashboardLayout />, {
+		path: "/workspaces",
+		route: "/workspaces",
+		children: [{ index: true, element: <div>Workspaces</div> }],
+		extraRoutes: [{ path: "/", element: <div>Dashboard home</div> }],
+	});
+	const user = userEvent.setup();
+	await user.click(await screen.findByRole("link", { name: "Coder logo" }));
+
+	await waitFor(() => expect(router.state.location.pathname).toBe("/"));
 });
 
 test("renders a skip link before navigation content", async () => {

@@ -69,7 +69,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 							: undefined,
 			}}
 		>
-			<NavLink to="/workspaces">
+			<NavLink to="/">
 				<ProductLogo className="h-7" />
 			</NavLink>
 

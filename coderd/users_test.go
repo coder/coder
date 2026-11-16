@@ -2830,6 +2830,85 @@ func TestAgentChatSendShortcutPreference(t *testing.T) {
 	})
 }
 
+func TestDefaultLandingPagePreference(t *testing.T) {
+	t.Parallel()
+
+	admin, db := coderdtest.NewWithDatabase(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, admin)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, user := coderdtest.CreateAnotherUser(t, admin, firstUser.OrganizationID)
+	other, _ := coderdtest.CreateAnotherUser(t, admin, firstUser.OrganizationID)
+
+	settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, settings.DefaultLandingPage)
+
+	settings, err = client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+		DefaultLandingPage: codersdk.DefaultLandingPageAgents,
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageAgents, settings.DefaultLandingPage)
+
+	// A new client reads the persisted choice rather than a client-local value.
+	fresh := codersdk.New(client.URL, codersdk.WithSessionToken(client.SessionToken()), codersdk.WithHTTPClient(client.HTTPClient))
+	settings, err = fresh.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageAgents, settings.DefaultLandingPage)
+
+	otherSettings, err := other.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, otherSettings.DefaultLandingPage)
+
+	settings, err = fresh.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+		ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageAgents, settings.DefaultLandingPage)
+
+	settings, err = client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+		DefaultLandingPage: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageAgents, settings.DefaultLandingPage)
+
+	settings, err = client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+		DefaultLandingPage: codersdk.DefaultLandingPageWorkspaces,
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, settings.DefaultLandingPage)
+	require.Equal(t, codersdk.ThinkingDisplayModePreview, settings.ThinkingDisplayMode)
+
+	for _, invalid := range []codersdk.DefaultLandingPage{"dashboard", "/agents", "https://example.com/agents"} {
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			DefaultLandingPage: invalid,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "default_landing_page", sdkErr.Validations[0].Field)
+	}
+	settings, err = fresh.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, settings.DefaultLandingPage)
+
+	// A previously stored unknown value is never surfaced to the client.
+	_, err = db.UpdateUserDefaultLandingPage(dbauthz.AsSystemRestricted(ctx), database.UpdateUserDefaultLandingPageParams{
+		UserID: user.ID, DefaultLandingPage: "unknown",
+	})
+	require.NoError(t, err)
+	settings, err = fresh.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, settings.DefaultLandingPage)
+	settings, err = fresh.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, settings.DefaultLandingPage)
+	stored, err := db.GetUserDefaultLandingPage(dbauthz.AsSystemRestricted(ctx), user.ID)
+	require.NoError(t, err)
+	require.Equal(t, "unknown", stored)
+}
+
 func TestAgentDisplayModePreferences(t *testing.T) {
 	t.Parallel()
 

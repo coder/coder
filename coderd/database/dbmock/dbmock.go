@@ -6895,6 +6895,21 @@ func (mr *MockStoreMockRecorder) GetUserCount(ctx, includeSystem any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCount", reflect.TypeOf((*MockStore)(nil).GetUserCount), ctx, includeSystem)
 }
 
+// GetUserDefaultLandingPage mocks base method.
+func (m *MockStore) GetUserDefaultLandingPage(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserDefaultLandingPage", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserDefaultLandingPage indicates an expected call of GetUserDefaultLandingPage.
+func (mr *MockStoreMockRecorder) GetUserDefaultLandingPage(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserDefaultLandingPage", reflect.TypeOf((*MockStore)(nil).GetUserDefaultLandingPage), ctx, userID)
+}
+
 // GetUserEveryoneFallbackGroup mocks base method.
 func (m *MockStore) GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -11883,6 +11898,21 @@ func (m *MockStore) UpdateUserCollapseAssistantSteps(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpdateUserCollapseAssistantSteps(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCollapseAssistantSteps", reflect.TypeOf((*MockStore)(nil).UpdateUserCollapseAssistantSteps), ctx, arg)
+}
+
+// UpdateUserDefaultLandingPage mocks base method.
+func (m *MockStore) UpdateUserDefaultLandingPage(ctx context.Context, arg database.UpdateUserDefaultLandingPageParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserDefaultLandingPage", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserDefaultLandingPage indicates an expected call of UpdateUserDefaultLandingPage.
+func (mr *MockStoreMockRecorder) UpdateUserDefaultLandingPage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDefaultLandingPage", reflect.TypeOf((*MockStore)(nil).UpdateUserDefaultLandingPage), ctx, arg)
 }
 
 // UpdateUserDeletedByID mocks base method.

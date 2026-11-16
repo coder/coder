@@ -428,10 +428,12 @@ export const updatePreferenceSettings = (
 > => {
 	return {
 		mutationFn: (req) => API.updateUserPreferenceSettings(req),
-		onSuccess: async () =>
+		onSuccess: async (settings) => {
+			queryClient.setQueryData(preferenceSettingsKey, settings);
 			await queryClient.invalidateQueries({
 				queryKey: preferenceSettingsKey,
-			}),
+			});
+		},
 	};
 };
 

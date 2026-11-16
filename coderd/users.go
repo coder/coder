@@ -1459,12 +1459,22 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	defaultLandingPage, err := api.Database.GetUserDefaultLandingPage(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		ThinkingDisplayMode:    sanitizeThinkingDisplayMode(thinkingMode),
 		ShellToolDisplayMode:   sanitizeShellToolDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:    sanitizeAgentDisplayMode(codeDiffMode),
 		CollapseAssistantSteps: collapseAssistantSteps,
 		AgentChatSendShortcut:  sanitizeAgentChatSendShortcut(agentChatSendShortcut),
+		DefaultLandingPage:     sanitizeDefaultLandingPage(defaultLandingPage),
 	})
 }
 
@@ -1525,6 +1535,17 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			Message: "Invalid agent chat send shortcut.",
 			Validations: []codersdk.ValidationError{
 				{Field: "agent_chat_send_shortcut", Detail: agentChatSendShortcutValidationDetail},
+			},
+		})
+		return
+	}
+	if params.DefaultLandingPage != "" &&
+		params.DefaultLandingPage != codersdk.DefaultLandingPageWorkspaces &&
+		params.DefaultLandingPage != codersdk.DefaultLandingPageAgents {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid default landing page.",
+			Validations: []codersdk.ValidationError{
+				{Field: "default_landing_page", Detail: "must be one of: workspaces, agents"},
 			},
 		})
 		return
@@ -1615,6 +1636,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			}
 			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(stored)
 		}
+
+		if params.DefaultLandingPage != "" {
+			updated, err := tx.UpdateUserDefaultLandingPage(ctx, database.UpdateUserDefaultLandingPageParams{
+				UserID:             user.ID,
+				DefaultLandingPage: string(params.DefaultLandingPage),
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating default landing page.", err)
+			}
+			settings.DefaultLandingPage = sanitizeDefaultLandingPage(updated)
+		} else {
+			stored, err := tx.GetUserDefaultLandingPage(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading default landing page.", err)
+			}
+			settings.DefaultLandingPage = sanitizeDefaultLandingPage(stored)
+		}
 		return nil
 	}, database.DefaultTXOptions().WithID("user_preference_settings"))
 	if err != nil {
@@ -1694,6 +1732,13 @@ func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
 		return shortcut
 	}
 	return codersdk.AgentChatSendShortcutEnter
+}
+
+func sanitizeDefaultLandingPage(raw string) codersdk.DefaultLandingPage {
+	if raw == string(codersdk.DefaultLandingPageAgents) {
+		return codersdk.DefaultLandingPageAgents
+	}
+	return codersdk.DefaultLandingPageWorkspaces
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {

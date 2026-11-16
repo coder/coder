@@ -209,6 +209,9 @@ export const handlers = [
 	http.get("/api/v2/users/me/appearance", () => {
 		return HttpResponse.json(M.MockUserAppearanceSettings);
 	}),
+	http.get("/api/v2/users/me/preferences", () => {
+		return HttpResponse.json(M.MockUserPreferenceSettings);
+	}),
 	http.post("/api/v2/users/me/keys", () => {
 		return HttpResponse.json(M.MockAPIKey);
 	}),

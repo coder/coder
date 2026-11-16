@@ -380,6 +380,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_agent_chat_send_shortcut'
 RETURNING value AS agent_chat_send_shortcut;
 
+-- name: GetUserDefaultLandingPage :one
+SELECT
+	value AS default_landing_page
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_default_landing_page';
+
+-- name: UpdateUserDefaultLandingPage :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_default_landing_page', @default_landing_page::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @default_landing_page
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_default_landing_page'
+RETURNING value AS default_landing_page;
+
 -- name: GetUserCollapseAssistantSteps :one
 SELECT
 	value::boolean as collapse_assistant_steps

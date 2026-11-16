@@ -3656,6 +3656,14 @@ func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserDefaultLandingPage(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserDefaultLandingPage(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserDefaultLandingPage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserDefaultLandingPage").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserEveryoneFallbackGroup(ctx context.Context, userID database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserEveryoneFallbackGroup(ctx, userID)
@@ -6286,6 +6294,14 @@ func (m queryMetricsStore) UpdateUserCollapseAssistantSteps(ctx context.Context,
 	r0, r1 := m.s.UpdateUserCollapseAssistantSteps(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserCollapseAssistantSteps").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserCollapseAssistantSteps").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserDefaultLandingPage(ctx context.Context, arg database.UpdateUserDefaultLandingPageParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserDefaultLandingPage(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserDefaultLandingPage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserDefaultLandingPage").Inc()
 	return r0, r1
 }
 

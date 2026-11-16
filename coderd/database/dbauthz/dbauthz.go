@@ -5662,6 +5662,17 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 	return q.db.GetUserCount(ctx, includeSystem)
 }
 
+func (q *querier) GetUserDefaultLandingPage(ctx context.Context, userID uuid.UUID) (string, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.GetUserDefaultLandingPage(ctx, userID)
+}
+
 func (q *querier) GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return uuid.Nil, err
@@ -8879,6 +8890,17 @@ func (q *querier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg data
 		return false, err
 	}
 	return q.db.UpdateUserCollapseAssistantSteps(ctx, arg)
+}
+
+func (q *querier) UpdateUserDefaultLandingPage(ctx context.Context, arg database.UpdateUserDefaultLandingPageParams) (string, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.UpdateUserDefaultLandingPage(ctx, arg)
 }
 
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {

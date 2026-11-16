@@ -285,6 +285,7 @@ type UserPreferenceSettings struct {
 	CodeDiffDisplayMode    AgentDisplayMode      `json:"code_diff_display_mode"`
 	CollapseAssistantSteps bool                  `json:"collapse_assistant_steps"`
 	AgentChatSendShortcut  AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
+	DefaultLandingPage     DefaultLandingPage    `json:"default_landing_page"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
@@ -293,7 +294,16 @@ type UpdateUserPreferenceSettingsRequest struct {
 	CodeDiffDisplayMode    AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
 	CollapseAssistantSteps *bool                 `json:"collapse_assistant_steps,omitempty"`
 	AgentChatSendShortcut  AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+	DefaultLandingPage     DefaultLandingPage    `json:"default_landing_page,omitempty"`
 }
+
+// DefaultLandingPage identifies the page shown when opening the dashboard root.
+type DefaultLandingPage string
+
+const (
+	DefaultLandingPageWorkspaces DefaultLandingPage = "workspaces"
+	DefaultLandingPageAgents     DefaultLandingPage = "agents"
+)
 
 type AgentChatSendShortcut string
 

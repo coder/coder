@@ -34602,6 +34602,23 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserDefaultLandingPage = `-- name: GetUserDefaultLandingPage :one
+SELECT
+	value AS default_landing_page
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_default_landing_page'
+`
+
+func (q *sqlQuerier) GetUserDefaultLandingPage(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserDefaultLandingPage, userID)
+	var default_landing_page string
+	err := row.Scan(&default_landing_page)
+	return default_landing_page, err
+}
+
 const getUserForChatSyntheticAPIKeyByID = `-- name: GetUserForChatSyntheticAPIKeyByID :one
 SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM users
@@ -35249,6 +35266,33 @@ func (q *sqlQuerier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg U
 	var collapse_assistant_steps bool
 	err := row.Scan(&collapse_assistant_steps)
 	return collapse_assistant_steps, err
+}
+
+const updateUserDefaultLandingPage = `-- name: UpdateUserDefaultLandingPage :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_default_landing_page', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_default_landing_page'
+RETURNING value AS default_landing_page
+`
+
+type UpdateUserDefaultLandingPageParams struct {
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	DefaultLandingPage string    `db:"default_landing_page" json:"default_landing_page"`
+}
+
+func (q *sqlQuerier) UpdateUserDefaultLandingPage(ctx context.Context, arg UpdateUserDefaultLandingPageParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserDefaultLandingPage, arg.UserID, arg.DefaultLandingPage)
+	var default_landing_page string
+	err := row.Scan(&default_landing_page)
+	return default_landing_page, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
