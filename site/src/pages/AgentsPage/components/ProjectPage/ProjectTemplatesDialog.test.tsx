@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProject, Template } from "#/api/typesGenerated";
+import type {
+	ChatProject,
+	ChatProjectDefaultTemplate,
+	Template,
+} from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockTemplate,
@@ -12,9 +16,30 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { NIL_UUID } from "../../utils/modelOptions";
 import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 
 type DialogProps = React.ComponentProps<typeof ProjectTemplatesDialog>;
+
+/** A project whose only template is its default template. */
+const projectWithDefault = (
+	defaults?: Omit<ChatProjectDefaultTemplate, "template_id">,
+): ChatProject => ({
+	...MockChatProject,
+	templates: [MockTemplate],
+	default_template: { template_id: MockTemplate.id, ...defaults },
+});
+
+/** The save that only replaces the default template of `projectWithDefault`. */
+const defaultChange = (
+	defaults?: Omit<ChatProjectDefaultTemplate, "template_id">,
+) => ({
+	attach: [],
+	detach: [],
+	request: {
+		default_template: { template_id: MockTemplate.id, ...defaults },
+	},
+});
 
 const renderDialog = (
 	props: Partial<DialogProps> = {},
@@ -74,18 +99,14 @@ describe("ProjectTemplatesDialog", () => {
 	});
 
 	it("keeps a saved empty parameter value when other defaults change", async () => {
-		const project: ChatProject = {
-			...MockChatProject,
-			templates: {
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-				default_parameters: {
+		const { user, props } = renderDialog({
+			project: projectWithDefault({
+				parameters: {
 					[MockTemplateVersionParameter1.name]: "",
 					[MockTemplateVersionParameter2.name]: "old",
 				},
-			},
-		};
-		const { user, props } = renderDialog({ project });
+			}),
+		});
 
 		const second = await screen.findByRole("textbox", {
 			name: MockTemplateVersionParameter2.name,
@@ -95,28 +116,21 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-				default_parameters: {
-					[MockTemplateVersionParameter1.name]: "",
-					[MockTemplateVersionParameter2.name]: "new",
-				},
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(
+				defaultChange({
+					parameters: {
+						[MockTemplateVersionParameter1.name]: "",
+						[MockTemplateVersionParameter2.name]: "new",
+					},
+				}),
+			),
 		);
 	});
 
 	it("clears a default preset that is no longer in the active version", async () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		const { user, props } = renderDialog({
-			project: {
-				...MockChatProject,
-				templates: {
-					template_ids: [MockTemplate.id],
-					default_template_id: MockTemplate.id,
-					default_preset_id: "stale-preset",
-				},
-			},
+			project: projectWithDefault({ preset_id: "stale-preset" }),
 		});
 
 		const save = await screen.findByRole("button", { name: /Save/ });
@@ -124,24 +138,35 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(save);
 
 		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith(defaultChange()),
+		);
+	});
+
+	it("clears the default template with a nil template ID", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		const { user, props } = renderDialog({ project: projectWithDefault() });
+
+		await user.click(
+			await screen.findByRole("combobox", { name: "Default template" }),
+		);
+		await user.click(screen.getByRole("option", { name: "None" }));
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+
+		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
+				attach: [],
+				detach: [],
+				request: { default_template: { template_id: NIL_UUID } },
 			}),
 		);
 	});
 
-	const mockProjectWithRemovedParameter: ChatProject = {
-		...MockChatProject,
-		templates: {
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-			default_parameters: {
-				[MockTemplateVersionParameter1.name]: "kept",
-				removed_parameter: "gone",
-			},
+	const mockProjectWithRemovedParameter = projectWithDefault({
+		parameters: {
+			[MockTemplateVersionParameter1.name]: "kept",
+			removed_parameter: "gone",
 		},
-	};
+	});
 
 	it("drops default values for parameters a classic template no longer has", async () => {
 		const { user, props } = renderDialog(
@@ -154,11 +179,11 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(save);
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-				default_parameters: { [MockTemplateVersionParameter1.name]: "kept" },
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(
+				defaultChange({
+					parameters: { [MockTemplateVersionParameter1.name]: "kept" },
+				}),
+			),
 		);
 	});
 
@@ -174,14 +199,14 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-				default_parameters: {
-					[MockTemplateVersionParameter1.name]: "kept!",
-					removed_parameter: "gone",
-				},
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(
+				defaultChange({
+					parameters: {
+						[MockTemplateVersionParameter1.name]: "kept!",
+						removed_parameter: "gone",
+					},
+				}),
+			),
 		);
 	});
 
@@ -216,21 +241,13 @@ describe("ProjectTemplatesDialog", () => {
 	});
 
 	it("keeps a saved empty parameter value when the user keeps their draft", async () => {
-		const templates = {
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-		};
 		const { user, props, rerenderWithProject } = renderDialog({
-			project: {
-				...MockChatProject,
-				templates: {
-					...templates,
-					default_parameters: {
-						[MockTemplateVersionParameter1.name]: "",
-						[MockTemplateVersionParameter2.name]: "old",
-					},
+			project: projectWithDefault({
+				parameters: {
+					[MockTemplateVersionParameter1.name]: "",
+					[MockTemplateVersionParameter2.name]: "old",
 				},
-			},
+			}),
 		});
 
 		const second = await screen.findByRole("textbox", {
@@ -238,24 +255,23 @@ describe("ProjectTemplatesDialog", () => {
 		});
 		await user.clear(second);
 		await user.type(second, "new");
-		rerenderWithProject({
-			...MockChatProject,
-			templates: {
-				...templates,
-				default_parameters: { [MockTemplateVersionParameter2.name]: "other" },
-			},
-		});
+		rerenderWithProject(
+			projectWithDefault({
+				parameters: { [MockTemplateVersionParameter2.name]: "other" },
+			}),
+		);
 		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				...templates,
-				default_parameters: {
-					[MockTemplateVersionParameter1.name]: "",
-					[MockTemplateVersionParameter2.name]: "new",
-				},
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(
+				defaultChange({
+					parameters: {
+						[MockTemplateVersionParameter1.name]: "",
+						[MockTemplateVersionParameter2.name]: "new",
+					},
+				}),
+			),
 		);
 	});
 
@@ -266,15 +282,7 @@ describe("ProjectTemplatesDialog", () => {
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		const callsBeforeSave = getProjects.mock.calls.length;
-		getProjects.mockResolvedValue([
-			{
-				...MockChatProject,
-				templates: {
-					template_ids: [MockTemplate.id],
-					default_template_id: MockTemplate.id,
-				},
-			},
-		]);
+		getProjects.mockResolvedValue([projectWithDefault()]);
 
 		await user.click(save);
 
@@ -285,18 +293,10 @@ describe("ProjectTemplatesDialog", () => {
 	});
 
 	it("replaces a saved empty value with the template default", async () => {
-		const templates = {
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-		};
 		const { user, props } = renderDialog({
-			project: {
-				...MockChatProject,
-				templates: {
-					...templates,
-					default_parameters: { [MockTemplateVersionParameter1.name]: "" },
-				},
-			},
+			project: projectWithDefault({
+				parameters: { [MockTemplateVersionParameter1.name]: "" },
+			}),
 		});
 
 		await user.click(
@@ -307,7 +307,9 @@ describe("ProjectTemplatesDialog", () => {
 		).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
-		await waitFor(() => expect(props.onSave).toHaveBeenCalledWith(templates));
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith(defaultChange()),
+		);
 	});
 
 	it("saves nothing when the draft changes during the check", async () => {
@@ -361,13 +363,7 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
-		const newer = {
-			...MockChatProject,
-			templates: {
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-			},
-		};
+		const newer = projectWithDefault();
 		getProjects.mockResolvedValue([newer]);
 
 		await user.click(save);
@@ -402,16 +398,13 @@ describe("ProjectTemplatesDialog", () => {
 	});
 
 	it("treats an edited and restored parameter as untouched", async () => {
-		const templates = {
-			template_ids: [MockTemplate.id],
-			default_template_id: MockTemplate.id,
-			default_parameters: {
-				[MockTemplateVersionParameter1.name]: "a",
-				[MockTemplateVersionParameter2.name]: "b",
-			},
-		};
 		const { user, props, rerenderWithProject } = renderDialog({
-			project: { ...MockChatProject, templates },
+			project: projectWithDefault({
+				parameters: {
+					[MockTemplateVersionParameter1.name]: "a",
+					[MockTemplateVersionParameter2.name]: "b",
+				},
+			}),
 		});
 		const first = await screen.findByRole("textbox", {
 			name: MockTemplateVersionParameter1.name,
@@ -420,11 +413,11 @@ describe("ProjectTemplatesDialog", () => {
 		await user.type(first, "a");
 
 		// An untouched draft follows the newer save instead of warning.
-		const newer = {
-			...templates,
-			default_parameters: { [MockTemplateVersionParameter1.name]: "z" },
-		};
-		rerenderWithProject({ ...MockChatProject, templates: newer });
+		rerenderWithProject(
+			projectWithDefault({
+				parameters: { [MockTemplateVersionParameter1.name]: "z" },
+			}),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: MockTemplateVersionParameter1.name }),
 			"!",
@@ -432,10 +425,11 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				...newer,
-				default_parameters: { [MockTemplateVersionParameter1.name]: "z!" },
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(
+				defaultChange({
+					parameters: { [MockTemplateVersionParameter1.name]: "z!" },
+				}),
+			),
 		);
 	});
 
@@ -453,7 +447,8 @@ describe("ProjectTemplatesDialog", () => {
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
+				attach: [MockTemplate.id],
+				detach: [],
 			}),
 		);
 		// The failed load, Retry, and the pre-save check.
@@ -466,14 +461,7 @@ describe("ProjectTemplatesDialog", () => {
 			.mockRejectedValueOnce(mockApiError({ message: "Network error." }))
 			.mockResolvedValue([]);
 		const { user, props } = renderDialog({
-			project: {
-				...MockChatProject,
-				templates: {
-					template_ids: [MockTemplate.id],
-					default_template_id: MockTemplate.id,
-					default_preset_id: "preset-id",
-				},
-			},
+			project: projectWithDefault({ preset_id: "preset-id" }),
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
@@ -482,10 +470,7 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(save);
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(defaultChange()),
 		);
 		expect(getPresets).toHaveBeenCalledTimes(2);
 	});
@@ -495,14 +480,7 @@ describe("ProjectTemplatesDialog", () => {
 			mockApiError({ message: "Network error." }),
 		);
 		const { user, props } = renderDialog({
-			project: {
-				...MockChatProject,
-				templates: {
-					template_ids: [MockTemplate.id],
-					default_template_id: MockTemplate.id,
-					default_preset_id: "preset-id",
-				},
-			},
+			project: projectWithDefault({ preset_id: "preset-id" }),
 		});
 
 		await screen.findByRole("button", { name: "Retry" });
@@ -518,11 +496,11 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(save);
 
 		await waitFor(() =>
-			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
-				default_template_id: MockTemplate.id,
-				default_parameters: { [MockTemplateVersionParameter1.name]: "x" },
-			}),
+			expect(props.onSave).toHaveBeenCalledWith(
+				defaultChange({
+					parameters: { [MockTemplateVersionParameter1.name]: "x" },
+				}),
+			),
 		);
 	});
 
@@ -557,6 +535,29 @@ describe("ProjectTemplatesDialog", () => {
 		expect(props.onSave).toHaveBeenCalledTimes(1);
 	});
 
+	it.each([
+		[0, ""],
+		[
+			1,
+			"1 template in this project isn't shown because you don't have access to it. A template admin or organization admin can give you access.",
+		],
+		[
+			2,
+			"2 templates in this project aren't shown because you don't have access to them. A template admin or organization admin can give you access.",
+		],
+	])(
+		"describes the templates list with a note when %i attached templates are hidden",
+		async (count, note) => {
+			renderDialog({
+				project: { ...MockChatProject, hidden_template_count: count },
+			});
+
+			expect(
+				await screen.findByRole("combobox", { name: "Templates" }),
+			).toHaveAccessibleDescription(note);
+		},
+	);
+
 	it("saves when only a template outside the draft changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
@@ -571,7 +572,8 @@ describe("ProjectTemplatesDialog", () => {
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
-				template_ids: [MockTemplate.id],
+				attach: [MockTemplate.id],
+				detach: [],
 			}),
 		);
 	});

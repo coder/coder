@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { isApiValidationError } from "#/api/errors";
-import { chatProjects, chatProjectsKey } from "#/api/queries/chatProjects";
+import {
+	type ChatProjectTemplatesChange,
+	chatProjects,
+	chatProjectsKey,
+} from "#/api/queries/chatProjects";
 import {
 	agentTemplates,
 	agentTemplatesKey,
@@ -10,7 +14,7 @@ import {
 } from "#/api/queries/templates";
 import type {
 	ChatProject,
-	ChatProjectTemplates,
+	ChatProjectDefaultTemplate,
 	Template,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -24,8 +28,10 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { NIL_UUID } from "../../utils/modelOptions";
 import {
 	ChatProjectTemplatesFields,
+	type ChatProjectTemplatesRequest,
 	type ChatProjectTemplatesValues,
 	chatProjectTemplatesRequest,
 	chatProjectTemplatesValues,
@@ -39,7 +45,7 @@ type ProjectTemplatesDialogProps = {
 	readonly onOpenChange: (open: boolean) => void;
 	readonly isSaving: boolean;
 	readonly error: unknown;
-	readonly onSave: (templates: ChatProjectTemplates) => void;
+	readonly onSave: (change: ChatProjectTemplatesChange) => void;
 	readonly onResetError: () => void;
 	/**
 	 * Called when focus would return after closing. The dialog has no
@@ -48,7 +54,10 @@ type ProjectTemplatesDialogProps = {
 	readonly onCloseAutoFocus?: (event: Event) => void;
 };
 
-/** Edits the templates a project's chats may use, and their defaults. */
+/**
+ * Edits a project's templates, whether its chats are limited to them, and
+ * the default template.
+ */
 export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 	open,
 	onOpenChange,
@@ -115,19 +124,63 @@ type ProjectTemplatesFormProps = Omit<
 	readonly onCancel: () => void;
 };
 
+/** The project's saved templates, in the shape of a draft's request. */
+const savedTemplates = (project: ChatProject): ChatProjectTemplatesRequest => ({
+	limit_templates: project.limit_templates,
+	template_ids: project.templates.map(({ id }) => id),
+	default_template: project.default_template,
+});
+
 /**
- * Draft and server copies can list `default_parameters` keys in different
- * orders, so keys are sorted before comparing.
+ * Draft and server copies can list parameter keys in different orders, so
+ * keys are sorted before comparing.
  */
-const serializeTemplates = (templates: ChatProjectTemplates) =>
+const serializeDefaultTemplate = (
+	template: ChatProjectDefaultTemplate | undefined,
+) =>
 	JSON.stringify([
-		[...templates.template_ids].sort(),
-		templates.default_template_id ?? "",
-		templates.default_preset_id ?? "",
-		Object.entries(templates.default_parameters ?? {}).sort(([a], [b]) =>
+		template?.template_id ?? "",
+		template?.preset_id ?? "",
+		Object.entries(template?.parameters ?? {}).sort(([a], [b]) =>
 			a.localeCompare(b),
 		),
 	]);
+
+const serializeTemplates = (templates: ChatProjectTemplatesRequest) =>
+	JSON.stringify([
+		templates.limit_templates,
+		[...templates.template_ids].sort(),
+		serializeDefaultTemplate(templates.default_template),
+	]);
+
+/**
+ * Returns what saving the draft changes about the templates it started
+ * from. Only the user's own edits are saved, so a save never undoes a
+ * template attached elsewhere, including the ones this user cannot see.
+ */
+const templatesChange = (
+	base: ChatProjectTemplatesRequest,
+	draft: ChatProjectTemplatesRequest,
+): ChatProjectTemplatesChange => {
+	const limitChanged = draft.limit_templates !== base.limit_templates;
+	const defaultChanged =
+		serializeDefaultTemplate(draft.default_template) !==
+		serializeDefaultTemplate(base.default_template);
+	return {
+		attach: draft.template_ids.filter((id) => !base.template_ids.includes(id)),
+		detach: base.template_ids.filter((id) => !draft.template_ids.includes(id)),
+		...((limitChanged || defaultChanged) && {
+			request: {
+				...(limitChanged && { limit_templates: draft.limit_templates }),
+				...(defaultChanged && {
+					default_template: draft.default_template ?? {
+						template_id: NIL_UUID,
+					},
+				}),
+			},
+		}),
+	};
+};
 
 /**
  * Covers what a request for the draft's templates depends on: which of them
@@ -167,9 +220,15 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onResetError,
 	onCancel,
 }) => {
+	const latestTemplates = savedTemplates(project);
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
-	const [baseTemplates, setBaseTemplates] = useState(project.templates);
+	// Saving sends only what the draft changes about them.
+	const [baseTemplates, setBaseTemplates] = useState(latestTemplates);
+	// Newer templates that are not a conflict: the user kept the draft over
+	// them, or this dialog's own save produced them. The draft's changes
+	// still count from baseTemplates, so what was saved elsewhere is kept.
+	const [acknowledgedTemplates, setAcknowledgedTemplates] = useState<string>();
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
 	// Set before the pre-save check renders, so a second submit in the same
@@ -205,16 +264,21 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	});
 	const isDraftUntouched =
 		serializeValues(value) === serializeValues(initialValue);
-	if (
-		isDraftUntouched &&
-		serializeTemplates(project.templates) !== serializeTemplates(baseTemplates)
-	) {
+	const serializedLatest = serializeTemplates(latestTemplates);
+	const isLatestNew =
+		serializedLatest !== serializeTemplates(baseTemplates) &&
+		serializedLatest !== acknowledgedTemplates;
+	if (isDraftUntouched && isLatestNew) {
 		setDismissedError(error);
-		setBaseTemplates(project.templates);
-		setValue(chatProjectTemplatesValues(project.templates));
+		setBaseTemplates(latestTemplates);
+		setValue(chatProjectTemplatesValues(latestTemplates));
+	} else if (isSaveSent && isLatestNew) {
+		// This dialog's own save changed the project, even if it then failed
+		// partway. Saving again repeats the steps that already succeeded.
+		setAcknowledgedTemplates(serializedLatest);
 	}
-	// Saving drops templates missing from this list, so it refreshes with
-	// the project.
+	// The default template's active version decides which saved defaults
+	// are stale, so the list refreshes with the project.
 	const templatesQuery = useQuery({
 		...agentTemplates(project.organization_id),
 		refetchOnWindowFocus: true,
@@ -257,50 +321,29 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					(name) => !parameterNames.includes(name),
 				)
 			: [];
-	const dropsDefaultTemplate =
-		eligibleTemplates !== undefined &&
-		value.defaultTemplateId !== "" &&
-		defaultTemplate === undefined;
-	const formValue: ChatProjectTemplatesValues = dropsDefaultTemplate
-		? {
-				...value,
-				defaultTemplateId: "",
-				defaultPresetId: "",
-				defaultParameters: {},
-			}
-		: {
-				...value,
-				defaultPresetId: hasStalePreset ? "" : value.defaultPresetId,
-				defaultParameters: Object.fromEntries(
-					Object.entries(value.defaultParameters).filter(
-						([name]) => !staleParameterNames.includes(name),
-					),
-				),
-			};
+	const formValue: ChatProjectTemplatesValues = {
+		...value,
+		defaultPresetId: hasStalePreset ? "" : value.defaultPresetId,
+		defaultParameters: Object.fromEntries(
+			Object.entries(value.defaultParameters).filter(
+				([name]) => !staleParameterNames.includes(name),
+			),
+		),
+	};
 	const request =
 		eligibleTemplates &&
 		chatProjectTemplatesRequest(formValue, eligibleTemplates);
-	// Saving drops templates that are no longer eligible, so a draft that
-	// still holds any differs from the saved templates even when untouched.
-	const droppedTemplateCount =
-		request === undefined
-			? 0
-			: value.templateIds.length - request.template_ids.length;
 	const isUnchanged =
-		droppedTemplateCount === 0 &&
-		!hasStalePreset &&
-		staleParameterNames.length === 0 &&
-		isDraftUntouched;
-	// Save replaces every template setting, so a change saved elsewhere must
-	// be resolved first. Templates that already match the draft, such as this
+		!hasStalePreset && staleParameterNames.length === 0 && isDraftUntouched;
+	// A change saved elsewhere can touch what the draft changes, so the user
+	// resolves it first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
-	const serializedLatest = serializeTemplates(project.templates);
 	const hasConflict =
 		open &&
-		serializedLatest !== serializeTemplates(baseTemplates) &&
+		isLatestNew &&
 		(request === undefined || serializedLatest !== serializeTemplates(request));
-	// Without a fresh copy of the project, Save could overwrite a change
-	// made elsewhere that the conflict check has not seen.
+	// Without a fresh copy of the project, Save could overwrite a limit or
+	// default template changed elsewhere that the conflict check has not seen.
 	// The defaults queries decide which stale values the save clears.
 	// A disabled query keeps its last error, so only the queries this draft
 	// uses count.
@@ -316,8 +359,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const isLoadingDefaults =
 		(hasDefaultPreset && presetsQuery.isFetching) ||
 		(hasDefaultParameters && parametersQuery.isFetching);
-	// Templates missing from a stale list would be dropped on save. The
-	// pre-save check's own refresh leaves Save enabled, so focus stays on it.
+	// A stale list can miss a template's new active version. The pre-save
+	// check's own refresh leaves Save enabled, so focus stays on it.
 	const isRefreshing =
 		(projectsQuery.isFetching && !isCheckingBeforeSave) ||
 		templatesQuery.isFetching ||
@@ -419,12 +462,14 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					return;
 				}
 				const latest = refreshed.data?.find(({ id }) => id === project.id);
-				const serializedLatest = latest && serializeTemplates(latest.templates);
+				const serializedLatest =
+					latest && serializeTemplates(savedTemplates(latest));
 				if (serializedLatest === undefined) {
 					return;
 				}
 				if (
 					serializedLatest !== serializeTemplates(baseTemplates) &&
+					serializedLatest !== acknowledgedTemplates &&
 					serializedLatest !== serializeTemplates(request)
 				) {
 					pendingFocusRef.current = "conflict";
@@ -433,7 +478,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				// A rejected save leaves the dialog open, so focus returns to Save.
 				pendingFocusRef.current = "save";
 				setIsSaveSent(true);
-				onSave(request);
+				onSave(templatesChange(baseTemplates, request));
 			}}
 		>
 			<DialogHeader>
@@ -444,6 +489,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				templatesError={templatesQuery.error}
 				saveError={templatesValidationDetail(shownError)}
 				value={formValue}
+				hiddenTemplateCount={project.hidden_template_count}
 				onChange={(next) => {
 					draftVersionRef.current += 1;
 					setValue(next);
@@ -453,23 +499,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}}
 				disabled={isSaving}
 			/>
-			{(droppedTemplateCount > 0 ||
-				hasStalePreset ||
-				staleParameterNames.length > 0) && (
+			{(hasStalePreset || staleParameterNames.length > 0) && (
 				<Alert severity="warning">
-					{droppedTemplateCount > 0 && (
-						<AlertDescription className="block">
-							{droppedTemplateCount === 1
-								? "1 template is"
-								: `${droppedTemplateCount} templates are`}{" "}
-							no longer available to agents (deleted, deprecated, or no longer
-							allowed for agents). Saving removes{" "}
-							{droppedTemplateCount === 1 ? "it" : "them"} from the project
-							{dropsDefaultTemplate &&
-								", along with the default template and its default values"}
-							.
-						</AlertDescription>
-					)}
 					{staleParameterNames.length > 0 && (
 						<AlertDescription className="block">
 							The template's active version no longer has{" "}
@@ -529,13 +560,13 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 						disabled={isSaving}
 						// The warning unmounts once resolved, so focus moves to Save.
 						onKeepDraft={() => {
-							setBaseTemplates(project.templates);
+							setAcknowledgedTemplates(serializedLatest);
 							saveButtonRef.current?.focus();
 						}}
 						onLoadLatest={() => {
 							draftVersionRef.current += 1;
-							setBaseTemplates(project.templates);
-							setValue(chatProjectTemplatesValues(project.templates));
+							setBaseTemplates(latestTemplates);
+							setValue(chatProjectTemplatesValues(latestTemplates));
 							onResetError();
 							// The newer save can include templates this list hasn't seen.
 							void templatesQuery.refetch();
@@ -543,7 +574,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 						}}
 					>
 						Someone else changed these templates while you were editing. Load
-						the latest templates, or keep your draft to replace them.
+						the latest templates, or keep your draft to save only your own
+						changes.
 					</ProjectEditConflictAlert>
 				</div>
 			)}

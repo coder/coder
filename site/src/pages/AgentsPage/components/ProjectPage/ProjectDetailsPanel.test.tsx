@@ -669,20 +669,29 @@ describe("ProjectDetailsPanel templates", () => {
 		focusManager.setFocused(undefined);
 	});
 
-	const setup = () => {
+	const setup = (project: ChatProject = MockChatProject) => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		vi.spyOn(API, "getTemplates").mockResolvedValue([
 			mockDockerTemplate,
 			mockKubernetesTemplate,
 		]);
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		const attach = vi
+			.spyOn(API.experimental, "attachChatProjectTemplate")
+			.mockResolvedValue();
+		const detach = vi
+			.spyOn(API.experimental, "detachChatProjectTemplate")
+			.mockResolvedValue();
 		const updateProject = vi
 			.spyOn(API.experimental, "updateChatProject")
-			.mockResolvedValue(MockChatProject);
+			.mockResolvedValue(project);
 		const getProjects = vi
 			.spyOn(API.experimental, "getChatProjects")
-			.mockResolvedValue([MockChatProject]);
-		const panel = renderPanel();
+			.mockResolvedValue([project]);
+		const panel = renderPanel(project);
 		return {
+			attach,
+			detach,
 			updateProject,
 			getProjects,
 			...panel,
@@ -695,8 +704,14 @@ describe("ProjectDetailsPanel templates", () => {
 		};
 	};
 
-	it("saves the templates picked in the editor", async () => {
-		const { user, updateProject } = setup();
+	const projectArgs = [MockChatProject.organization_id, MockChatProject.id];
+	const mockProjectWithTemplates: ChatProject = {
+		...MockChatProject,
+		templates: [mockDockerTemplate, mockKubernetesTemplate],
+	};
+
+	it("attaches the templates picked in the editor and sends nothing else", async () => {
+		const { user, attach, detach, updateProject } = setup();
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
@@ -704,22 +719,135 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
+		await waitFor(() => expect(attach).toHaveBeenCalledTimes(2));
+		expect(attach).toHaveBeenCalledWith(...projectArgs, mockDockerTemplate.id);
+		expect(attach).toHaveBeenCalledWith(
+			...projectArgs,
+			mockKubernetesTemplate.id,
+		);
+		expect(updateProject).not.toHaveBeenCalled();
+		expect(detach).not.toHaveBeenCalled();
+	});
+
+	it("attaches the new default, then updates the limit and default, then detaches the old default", async () => {
+		const { user, attach, detach, updateProject } = setup({
+			...MockChatProject,
+			templates: [mockDockerTemplate],
+			default_template: { template_id: mockDockerTemplate.id },
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 1 template" }),
+		);
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Kubernetes" }));
+		await user.click(
+			screen.getByRole("combobox", { name: "Default template" }),
+		);
+		await user.click(screen.getByRole("option", { name: "Kubernetes" }));
+		await user.click(screen.getByRole("button", { name: "Remove Docker" }));
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		const save = screen.getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
 		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{
-					templates: {
-						template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
-					},
-				},
+			expect(detach).toHaveBeenCalledWith(
+				...projectArgs,
+				mockDockerTemplate.id,
 			),
+		);
+		expect(attach.mock.calls).toEqual([
+			[...projectArgs, mockKubernetesTemplate.id],
+		]);
+		expect(updateProject.mock.calls).toEqual([
+			[
+				...projectArgs,
+				{
+					limit_templates: true,
+					default_template: { template_id: mockKubernetesTemplate.id },
+				},
+			],
+		]);
+		expect(detach).toHaveBeenCalledTimes(1);
+		expect(attach.mock.invocationCallOrder[0]).toBeLessThan(
+			updateProject.mock.invocationCallOrder[0],
+		);
+		expect(updateProject.mock.invocationCallOrder[0]).toBeLessThan(
+			detach.mock.invocationCallOrder[0],
 		);
 	});
 
-	it("sends one templates update when Save is double clicked", async () => {
-		const { user, updateProject } = setup();
-		updateProject.mockReturnValue(new Promise(() => {}));
+	it.each([
+		{ status: 404, detachCalls: 2 },
+		{ status: 500, detachCalls: 1 },
+	])(
+		"continues after a detach that returns 404 and stops on other failures (status: $status)",
+		async ({ status, detachCalls }) => {
+			const { user, detach, getProjects } = setup(mockProjectWithTemplates);
+			detach.mockRejectedValueOnce({
+				...mockApiError({ message: "Failed to detach template." }),
+				status,
+			});
+
+			await user.click(
+				screen.getByRole("button", { name: "Edit templates: 2 templates" }),
+			);
+			await user.click(
+				await screen.findByRole("button", { name: "Clear all" }),
+			);
+			const save = screen.getByRole("button", { name: "Save" });
+			await waitFor(() =>
+				expect(save).toHaveAttribute("aria-disabled", "false"),
+			);
+			const refreshesBeforeSave = getProjects.mock.calls.length;
+			await user.click(save);
+
+			// The pre-save check refreshes the project, and so does the settled
+			// save, whether it failed or not.
+			await waitFor(() =>
+				expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave + 2),
+			);
+			expect(detach).toHaveBeenCalledTimes(detachCalls);
+		},
+	);
+
+	it("saves again after a save failed partway, without asking to resolve a conflict", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+		let failUpdate: (error: unknown) => void = () => {};
+		updateProject.mockReturnValueOnce(
+			new Promise((_, reject) => {
+				failUpdate = reject;
+			}),
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(1));
+		// The templates were attached before the update failed.
+		rerenderWithProject(mockProjectWithTemplates);
+		failUpdate(mockApiError({ message: "Failed to update chat project." }));
+
+		const save = await screen.findByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(2));
+	});
+
+	it("sends one save when Save is double clicked", async () => {
+		const { user, attach } = setup();
+		attach.mockReturnValue(new Promise(() => {}));
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
@@ -729,18 +857,14 @@ describe("ProjectDetailsPanel templates", () => {
 			.setup({ delay: null })
 			.dblClick(screen.getByRole("button", { name: "Save" }));
 
-		await waitFor(() => expect(updateProject).toHaveBeenCalled());
-		expect(updateProject).toHaveBeenCalledTimes(1);
+		await waitFor(() => expect(attach).toHaveBeenCalled());
+		expect(attach).toHaveBeenCalledTimes(1);
 	});
 
-	it("starts the editor from the saved templates", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
-		rerenderWithProject({
-			...MockChatProject,
-			templates: {
-				template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
-			},
-		});
+	it("detaches a template removed from the saved templates and sends nothing else", async () => {
+		const { user, attach, detach, updateProject, rerenderWithProject } =
+			setup();
+		rerenderWithProject(mockProjectWithTemplates);
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 2 templates" }),
@@ -752,36 +876,12 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{ templates: { template_ids: [mockDockerTemplate.id] } },
-			),
+			expect(detach.mock.calls).toEqual([
+				[...projectArgs, mockKubernetesTemplate.id],
+			]),
 		);
-	});
-
-	it("saves the removal of templates that are no longer eligible", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
-		vi.spyOn(API, "getTemplates").mockResolvedValue([]);
-		rerenderWithProject({
-			...MockChatProject,
-			templates: { template_ids: [mockDockerTemplate.id] },
-		});
-
-		await user.click(
-			screen.getByRole("button", { name: "Edit templates: 1 template" }),
-		);
-		const save = await screen.findByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
-		await user.click(save);
-
-		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{ templates: { template_ids: [] } },
-			),
-		);
+		expect(attach).not.toHaveBeenCalled();
+		expect(updateProject).not.toHaveBeenCalled();
 	});
 
 	it("returns focus to the edit button when the editor closes", async () => {
@@ -796,16 +896,21 @@ describe("ProjectDetailsPanel templates", () => {
 		await waitFor(() => expect(editButton).toHaveFocus());
 	});
 
-	it("blocks Save when the templates change while editing, until the user keeps the draft", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
+	it("blocks Save when the templates change while editing, then saves only the draft's own change", async () => {
+		const { user, attach, detach, updateProject, rerenderWithProject } =
+			setup();
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
 		);
-		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Limit chats to these templates",
+			}),
+		);
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [mockKubernetesTemplate.id] },
+			templates: [mockKubernetesTemplate],
 		});
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		expect(updateProject).not.toHaveBeenCalled();
@@ -814,20 +919,17 @@ describe("ProjectDetailsPanel templates", () => {
 		expect(screen.getByRole("button", { name: /Save/ })).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{
-					templates: {
-						template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
-					},
-				},
-			),
+			expect(updateProject.mock.calls).toEqual([
+				[...projectArgs, { limit_templates: true }],
+			]),
 		);
+		// The template attached elsewhere stays attached.
+		expect(detach).not.toHaveBeenCalled();
+		expect(attach).not.toHaveBeenCalled();
 	});
 
 	it("replaces the draft with templates saved elsewhere on Load latest", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
+		const { user, attach, detach, rerenderWithProject } = setup();
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
@@ -835,7 +937,7 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [mockKubernetesTemplate.id] },
+			templates: [mockKubernetesTemplate],
 		});
 		await user.click(screen.getByRole("button", { name: "Load latest" }));
 		await user.click(screen.getByRole("combobox", { name: "Templates" }));
@@ -843,34 +945,25 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{ templates: { template_ids: [] } },
+			expect(detach).toHaveBeenCalledWith(
+				...projectArgs,
+				mockKubernetesTemplate.id,
 			),
 		);
+		expect(attach).not.toHaveBeenCalled();
 	});
 
 	it("does not block Save when the latest templates already match the draft", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
-		const draft = {
-			template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
-		};
+		const { user, attach, rerenderWithProject } = setup();
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
 		);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		rerenderWithProject({ ...MockChatProject, templates: draft });
+		rerenderWithProject(mockProjectWithTemplates);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{ templates: draft },
-			),
-		);
+		await waitFor(() => expect(attach).toHaveBeenCalledTimes(2));
 	});
 
 	it("refetches the project's templates on open and when the window regains focus", async () => {
@@ -886,19 +979,19 @@ describe("ProjectDetailsPanel templates", () => {
 			focusManager.setFocused(true);
 		});
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
-		// Saving drops templates missing from this list, so it refreshes too.
+		// The list of templates to pick from refreshes too.
 		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
 	});
 
 	it("starts an untouched draft from templates saved while the editor is open", async () => {
-		const { user, updateProject, rerenderWithProject } = setup();
+		const { user, attach, rerenderWithProject } = setup();
 
 		await user.click(
 			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
 		);
 		rerenderWithProject({
 			...MockChatProject,
-			templates: { template_ids: [mockKubernetesTemplate.id] },
+			templates: [mockKubernetesTemplate],
 		});
 		await user.click(
 			await screen.findByRole("combobox", { name: "Templates" }),
@@ -907,15 +1000,9 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
-			expect(updateProject).toHaveBeenCalledWith(
-				MockChatProject.organization_id,
-				MockChatProject.id,
-				{
-					templates: {
-						template_ids: [mockKubernetesTemplate.id, mockDockerTemplate.id],
-					},
-				},
-			),
+			expect(attach.mock.calls).toEqual([
+				[...projectArgs, mockDockerTemplate.id],
+			]),
 		);
 	});
 
@@ -932,5 +1019,18 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
 		await waitFor(() => expect(screen.getByText("0 templates")).toHaveFocus());
+	});
+
+	it("explains the hidden template count to keyboard and screen reader users", async () => {
+		setup({ ...MockChatProject, hidden_template_count: 2 });
+		const hidden = screen.getByRole("button", { name: "2 hidden" });
+
+		act(() => hidden.focus());
+
+		await waitFor(() =>
+			expect(hidden).toHaveAccessibleDescription(
+				"2 templates in this project aren't shown because you don't have access to them. A template admin or organization admin can give you access.",
+			),
+		);
 	});
 });

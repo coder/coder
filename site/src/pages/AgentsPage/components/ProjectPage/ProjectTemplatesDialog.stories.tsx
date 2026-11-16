@@ -47,18 +47,18 @@ const mockSmallPreset: Preset = {
 };
 const mockProjectWithDefaultPreset: ChatProject = {
 	...MockChatProject,
-	templates: {
-		template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
-		default_template_id: mockDockerTemplate.id,
-		default_preset_id: mockSmallPreset.ID,
+	templates: [mockDockerTemplate, mockKubernetesTemplate],
+	default_template: {
+		template_id: mockDockerTemplate.id,
+		preset_id: mockSmallPreset.ID,
 	},
 };
 const mockProjectWithDefaultParameters: ChatProject = {
 	...MockChatProject,
-	templates: {
-		template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
-		default_template_id: mockDockerTemplate.id,
-		default_parameters: { [MockTemplateVersionParameter1.name]: "custom" },
+	templates: [mockDockerTemplate, mockKubernetesTemplate],
+	default_template: {
+		template_id: mockDockerTemplate.id,
+		parameters: { [MockTemplateVersionParameter1.name]: "custom" },
 	},
 };
 
@@ -113,6 +113,25 @@ export default meta;
 type Story = StoryObj<typeof ProjectTemplatesDialog>;
 
 export const NoTemplates: Story = {};
+
+/** The limit is on with nothing attached, so the dialog warns about it. */
+export const LimitWithoutTemplates: Story = {
+	args: { project: { ...MockChatProject, limit_templates: true } },
+};
+
+/**
+ * Templates the user cannot access are attached. Only their count shows, and
+ * the limit does not warn about having no templates.
+ */
+export const HiddenTemplates: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			limit_templates: true,
+			hidden_template_count: 2,
+		},
+	},
+};
 
 export const Loading: Story = {
 	parameters: {
@@ -218,7 +237,7 @@ export const SaveError: Story = {
 				'Parameter "cpu" has an invalid value: value 99 is more than the maximum 8',
 			validations: [
 				{
-					field: "templates.default_parameters",
+					field: "default_template.parameters",
 					detail:
 						'Parameter "cpu" has an invalid value: value 99 is more than the maximum 8',
 				},
@@ -280,7 +299,8 @@ export const Conflict: Story = {
 		await userEvent.keyboard("{Escape}");
 		serverProject.set({
 			...mockProjectWithDefaultPreset,
-			templates: { template_ids: [mockKubernetesTemplate.id] },
+			templates: [mockKubernetesTemplate],
+			default_template: undefined,
 		});
 	},
 };
@@ -289,24 +309,13 @@ export const StaleDefaultPreset: Story = {
 	args: {
 		project: {
 			...mockProjectWithDefaultPreset,
-			templates: {
-				...mockProjectWithDefaultPreset.templates,
-				default_preset_id: "preset-from-old-version",
+			default_template: {
+				template_id: mockDockerTemplate.id,
+				preset_id: "preset-from-old-version",
 			},
 		},
 	},
 	parameters: DefaultPreset.parameters,
-};
-
-export const IneligibleTemplate: Story = {
-	args: {
-		project: {
-			...MockChatProject,
-			templates: {
-				template_ids: [mockDockerTemplate.id, "template-deprecated"],
-			},
-		},
-	},
 };
 
 export const ProjectRefreshError: Story = {
@@ -328,25 +337,13 @@ export const ProjectRefreshError: Story = {
 	},
 };
 
-export const IneligibleDefaultTemplate: Story = {
-	args: {
-		project: {
-			...MockChatProject,
-			templates: {
-				template_ids: [mockDockerTemplate.id, "template-deprecated"],
-				default_template_id: "template-deprecated",
-			},
-		},
-	},
-};
-
 export const SavedEmptyParameter: Story = {
 	args: {
 		project: {
 			...mockProjectWithDefaultParameters,
-			templates: {
-				...mockProjectWithDefaultParameters.templates,
-				default_parameters: { [MockTemplateVersionParameter1.name]: "" },
+			default_template: {
+				template_id: mockDockerTemplate.id,
+				parameters: { [MockTemplateVersionParameter1.name]: "" },
 			},
 		},
 	},
@@ -357,9 +354,9 @@ export const RemovedClassicParameter: Story = {
 	args: {
 		project: {
 			...mockProjectWithDefaultParameters,
-			templates: {
-				...mockProjectWithDefaultParameters.templates,
-				default_parameters: {
+			default_template: {
+				template_id: mockDockerTemplate.id,
+				parameters: {
 					[MockTemplateVersionParameter1.name]: "custom",
 					removed_parameter: "gone",
 				},

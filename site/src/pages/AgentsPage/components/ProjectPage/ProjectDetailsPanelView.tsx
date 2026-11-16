@@ -13,6 +13,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { hiddenTemplatesNote } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import { RetryButton } from "../RetryButton";
 import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
@@ -49,7 +50,10 @@ type ProjectDetailsPanelViewProps = {
 	 * Omit when the organization is unknown to hide the avatar.
 	 */
 	readonly organizationIconUrl?: string;
+	/** Attached templates the viewer can access. */
 	readonly templateCount: number;
+	/** Attached templates the viewer cannot access. */
+	readonly hiddenTemplateCount: number;
 	/** Opens the templates editor. Omit when the caller cannot edit. */
 	readonly onEditTemplates?: () => void;
 	/** The button that opens the templates editor, for restoring focus. */
@@ -85,6 +89,7 @@ export const ProjectDetailsPanelView: React.FC<
 	organizationLabel,
 	organizationIconUrl,
 	templateCount,
+	hiddenTemplateCount,
 	onEditTemplates,
 	editTemplatesButtonRef,
 	templateCountRef,
@@ -192,6 +197,20 @@ export const ProjectDetailsPanelView: React.FC<
 							>
 								{templateCountLabel}
 							</span>
+						)}
+						{hiddenTemplateCount > 0 && (
+							<Tooltip>
+								{/* A button so keyboard users can focus it to read the note. */}
+								<TooltipTrigger
+									type="button"
+									className="ml-2 cursor-default rounded-sm bg-transparent p-0 text-content-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								>
+									{hiddenTemplateCount} hidden
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									{hiddenTemplatesNote(hiddenTemplateCount)}
+								</TooltipContent>
+							</Tooltip>
 						)}
 					</DetailRow>
 					<DetailRow label="Skills">

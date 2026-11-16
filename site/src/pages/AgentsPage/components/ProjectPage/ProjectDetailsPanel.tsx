@@ -7,8 +7,8 @@ import {
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
 	setChatProjectRole,
-	updateChatProject,
 	updateChatProjectInstructions,
+	updateChatProjectTemplates,
 } from "#/api/queries/chatProjects";
 import type { ChatProject, ChatProjectRole } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -92,7 +92,9 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const deleteMutation = useMutation(
 		deleteChatProjectInstructions(queryClient, project),
 	);
-	const updateTemplatesMutation = useMutation(updateChatProject(queryClient));
+	const updateTemplatesMutation = useMutation(
+		updateChatProjectTemplates(queryClient),
+	);
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
 	const [isTemplatesEditorOpen, setIsTemplatesEditorOpen] = useState(false);
 	const editTemplatesButtonRef = useRef<HTMLButtonElement>(null);
@@ -126,7 +128,8 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
 				organizationIconUrl={showOrganizations ? organization?.icon : undefined}
-				templateCount={project.templates.template_ids.length}
+				templateCount={project.templates.length}
+				hiddenTemplateCount={project.hidden_template_count}
 				onEditTemplates={
 					project.permissions.update
 						? () => {
@@ -191,13 +194,13 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				isSaving={updateTemplatesMutation.isPending}
 				error={updateTemplatesMutation.error}
 				onResetError={updateTemplatesMutation.reset}
-				onSave={(templates) => {
+				onSave={(change) => {
 					if (isTemplatesSaveInFlight.current) {
 						return;
 					}
 					isTemplatesSaveInFlight.current = true;
 					updateTemplatesMutation.mutate(
-						{ project, request: { templates } },
+						{ project, change },
 						{
 							onSuccess: () => setIsTemplatesEditorOpen(false),
 							onSettled: () => {

@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
@@ -59,6 +60,68 @@ export const updateChatProject = (queryClient: QueryClient) =>
 				project.id,
 				request,
 			),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
+	});
+
+/** What one save changes about a project's templates. */
+export type ChatProjectTemplatesChange = {
+	/** IDs of the templates to attach. */
+	readonly attach: readonly string[];
+	/** IDs of the templates to detach. */
+	readonly detach: readonly string[];
+	/** The limit and the default template, when either changed. */
+	readonly request?: Pick<
+		TypesGen.UpdateChatProjectRequest,
+		"limit_templates" | "default_template"
+	>;
+};
+
+/**
+ * Attaches templates, then updates the limit and default template, then
+ * detaches templates. A new default template has to be attached before the
+ * update names it, and detaching last keeps the old default when the update
+ * fails. The first failure stops the save; earlier steps stay saved.
+ */
+export const updateChatProjectTemplates = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: async ({
+			project,
+			change,
+		}: {
+			project: TypesGen.ChatProject;
+			change: ChatProjectTemplatesChange;
+		}) => {
+			const { organization_id: organizationId, id: projectId } = project;
+			for (const templateId of change.attach) {
+				await API.experimental.attachChatProjectTemplate(
+					organizationId,
+					projectId,
+					templateId,
+				);
+			}
+			if (change.request) {
+				await API.experimental.updateChatProject(
+					organizationId,
+					projectId,
+					change.request,
+				);
+			}
+			for (const templateId of change.detach) {
+				try {
+					await API.experimental.detachChatProjectTemplate(
+						organizationId,
+						projectId,
+						templateId,
+					);
+				} catch (error) {
+					// A 404 means someone else already detached the template.
+					if (getErrorStatus(error) !== 404) {
+						throw error;
+					}
+				}
+			}
+		},
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
