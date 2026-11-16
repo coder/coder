@@ -140,6 +140,8 @@ describe("ChatProjectDialog", () => {
 			description: "Project description",
 			icon: "/emojis/1f4c1.png",
 			organizationId: MockOrganization2.id,
+			limit_templates: false,
+			template_ids: [],
 		};
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(values));
 
@@ -221,6 +223,8 @@ describe("ChatProjectDialog", () => {
 				description: "",
 				icon: "",
 				organizationId: MockOrganization2.id,
+				limit_templates: false,
+				template_ids: [],
 			}),
 		);
 	});
@@ -257,6 +261,8 @@ describe("ChatProjectDialog", () => {
 				description: "",
 				icon: "",
 				organizationId: MockDefaultOrganization.id,
+				limit_templates: false,
+				template_ids: [],
 			}),
 		);
 	});
@@ -292,6 +298,8 @@ describe("ChatProjectDialog", () => {
 			description: "Notes",
 			icon: "",
 			organizationId: MockDefaultOrganization.id,
+			limit_templates: false,
+			template_ids: [],
 		});
 	});
 
@@ -537,21 +545,23 @@ describe("ChatProjectDialog templates", () => {
 		await user.click(screen.getByRole("option", { name }));
 	};
 
-	it("creates a project with every eligible template", async () => {
+	it("creates a project limited to every eligible template", async () => {
 		useTemplateHandlers();
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
 		await startCreate(user);
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
 		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					organizationId: MockDefaultOrganization.id,
-					templates: {
-						template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
-					},
+					limit_templates: true,
+					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
 				}),
 			);
 		});
@@ -573,10 +583,11 @@ describe("ChatProjectDialog templates", () => {
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
-					templates: {
-						template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
-						default_template_id: mockSecondTemplate.id,
-						default_preset_id: mockPreset.ID,
+					limit_templates: false,
+					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+					default_template: {
+						template_id: mockSecondTemplate.id,
+						preset_id: mockPreset.ID,
 					},
 				}),
 			);
@@ -602,10 +613,10 @@ describe("ChatProjectDialog templates", () => {
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
-					templates: {
-						template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
-						default_template_id: mockFirstTemplate.id,
-						default_parameters: {
+					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+					default_template: {
+						template_id: mockFirstTemplate.id,
+						parameters: {
 							[MockTemplateVersionParameter1.name]: "custom",
 						},
 					},
@@ -627,11 +638,12 @@ describe("ChatProjectDialog templates", () => {
 
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					templates: { template_ids: [mockFirstTemplate.id] },
-				}),
+				expect.objectContaining({ template_ids: [mockFirstTemplate.id] }),
 			);
 		});
+		expect(props.onSubmit).toHaveBeenCalledWith(
+			expect.not.objectContaining({ default_template: expect.anything() }),
+		);
 	});
 
 	it("starts with no templates when the organization changes", async () => {
@@ -650,11 +662,11 @@ describe("ChatProjectDialog templates", () => {
 
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.not.objectContaining({ templates: expect.anything() }),
+				expect.objectContaining({
+					organizationId: MockOrganization2.id,
+					template_ids: [],
+				}),
 			);
 		});
-		expect(props.onSubmit).toHaveBeenCalledWith(
-			expect.objectContaining({ organizationId: MockOrganization2.id }),
-		);
 	});
 });

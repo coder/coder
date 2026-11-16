@@ -7,7 +7,7 @@ import { isApiValidationError } from "#/api/errors";
 import { agentTemplates } from "#/api/queries/templates";
 import type {
 	ChatProject,
-	ChatProjectTemplates,
+	CreateChatProjectRequest,
 	Organization,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -35,21 +35,27 @@ import {
 	chatProjectTemplatesValues,
 } from "./ChatProjectTemplatesFields";
 
-/** @public */
+type ChatProjectTemplateFields =
+	| "limit_templates"
+	| "template_ids"
+	| "default_template";
+
+/**
+ * The template fields are set only when creating a project.
+ * @public
+ */
 export type ChatProjectFormValues = {
 	/** Set only when creating a project. */
 	organizationId?: Organization["id"];
 	name: string;
 	description: string;
 	icon: string;
-	/**
-	 * Set only when creating a project with templates selected, once the
-	 * organization's templates have loaded.
-	 */
-	templates?: ChatProjectTemplates;
-};
+} & Pick<CreateChatProjectRequest, ChatProjectTemplateFields>;
 
-type ChatProjectFormState = Omit<ChatProjectFormValues, "templates"> & {
+type ChatProjectFormState = Omit<
+	ChatProjectFormValues,
+	ChatProjectTemplateFields
+> & {
 	templates: ChatProjectTemplatesValues;
 };
 
@@ -209,21 +215,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		onSubmit: async (values) => {
 			// Built outside the try block: the React Compiler cannot compile
 			// conditional expressions inside try/catch. Templates are edited
-			// from the project page after creation, and an empty list is the
-			// server's default.
-			const eligibleTemplates =
-				project || values.templates.templateIds.length === 0
-					? undefined
-					: eligibleTemplatesQuery.data;
+			// from the project page after creation.
 			const submitted = {
 				...(!project && { organizationId: values.organizationId }),
 				...trimValues(values),
-				...(eligibleTemplates && {
-					templates: chatProjectTemplatesRequest(
+				...(!project &&
+					chatProjectTemplatesRequest(
 						values.templates,
-						eligibleTemplates,
-					),
-				}),
+						eligibleTemplatesQuery.data ?? [],
+					)),
 			};
 			try {
 				await onSubmit(submitted);
@@ -253,7 +253,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	// section shows them itself.
 	const templatesSaveError = isApiValidationError(error)
 		? error.response.data.validations?.find((validation) =>
-				validation.field.startsWith("templates."),
+				/^(template_ids$|default_template\.)/.test(validation.field),
 			)?.detail
 		: undefined;
 	const templatesOrganizationId = project

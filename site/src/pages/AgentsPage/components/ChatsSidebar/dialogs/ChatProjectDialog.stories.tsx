@@ -184,11 +184,22 @@ export const CreateTemplatesSaveError: Story = {
 			message: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
 			validations: [
 				{
-					field: "templates.template_ids",
+					field: "template_ids",
 					detail: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
 				},
 			],
 		}),
+	},
+};
+
+export const LimitWithoutTemplates: Story = {
+	// Turns the limit on so the screenshot shows the warning for no templates.
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("switch", {
+				name: "Limit chats to these templates",
+			}),
+		);
 	},
 };
 
