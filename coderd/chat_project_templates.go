@@ -54,7 +54,7 @@ func (api *API) putChatProjectTemplate(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	aReq, commitAudit := api.initChatProjectTemplatesAudit(rw, r, project)
+	aReq, commitAudit := api.initChatProjectTemplatesAudit(rw, r, project.OrganizationID)
 	defer commitAudit()
 	before, err := api.chatProjectTemplatesAudit(ctx, project)
 	if err != nil {
@@ -101,7 +101,7 @@ func (api *API) deleteChatProjectTemplate(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	aReq, commitAudit := api.initChatProjectTemplatesAudit(rw, r, project)
+	aReq, commitAudit := api.initChatProjectTemplatesAudit(rw, r, project.OrganizationID)
 	defer commitAudit()
 	before, err := api.chatProjectTemplatesAudit(ctx, project)
 	if err != nil {
@@ -137,13 +137,13 @@ func (api *API) deleteChatProjectTemplate(rw http.ResponseWriter, r *http.Reques
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) initChatProjectTemplatesAudit(rw http.ResponseWriter, r *http.Request, project database.ChatProject) (*audit.Request[database.AuditableChatProjectTemplates], func()) {
+func (api *API) initChatProjectTemplatesAudit(rw http.ResponseWriter, r *http.Request, organizationID uuid.UUID) (*audit.Request[database.AuditableChatProjectTemplates], func()) {
 	return audit.InitRequest[database.AuditableChatProjectTemplates](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
 		Log:            api.Logger,
 		Request:        r,
 		Action:         database.AuditActionWrite,
-		OrganizationID: project.OrganizationID,
+		OrganizationID: organizationID,
 	})
 }
 
