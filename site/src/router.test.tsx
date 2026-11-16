@@ -162,11 +162,10 @@ describe("dashboard landing page", () => {
 		expect(router.state.location.pathname).toBe("/workspaces");
 	});
 
-	it("falls back to Workspaces when Agents is unavailable", async () => {
-		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue({
-			...MockUserPreferenceSettings,
-			default_landing_page: "agents",
-		});
+	it("opens Workspaces without loading preferences when Agents is unavailable", async () => {
+		const getPreference = vi
+			.spyOn(API, "getUserPreferenceSettings")
+			.mockReturnValue(createDeferred<UserPreferenceSettings>().promise);
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 			...MockPermissions,
 			createChat: false,
@@ -176,6 +175,8 @@ describe("dashboard landing page", () => {
 		await waitFor(() => {
 			expect(router.state.location.pathname).toBe("/workspaces");
 		});
+		expect(getPreference).not.toHaveBeenCalled();
+		expect(router.state.historyAction).toBe("REPLACE");
 	});
 
 	it("falls back to Workspaces when preferences cannot be loaded", async () => {

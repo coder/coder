@@ -60,27 +60,6 @@ export const AgentsUnavailable: Story = {
 	},
 };
 
-export const AgentsUnavailableOpen: Story = {
-	args: { agentsEnabled: false },
-	parameters: {
-		queries: [
-			{
-				key: preferenceSettingsKey,
-				data: { ...MockUserPreferenceSettings, default_landing_page: "agents" },
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		await user.click(
-			await within(canvasElement).findByRole("combobox", {
-				name: "Default landing page",
-			}),
-		);
-		await user.keyboard("{ArrowDown}");
-	},
-};
-
 export const OptionsOpen: Story = {
 	parameters: {
 		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
@@ -197,28 +176,7 @@ export const LoadError: Story = {
 		return () => request.mockRestore();
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("button", {
-			name: "Retry loading preference",
-		});
-	},
-};
-
-export const Retrying: Story = {
-	beforeEach: () => {
-		const request = spyOn(API, "getUserPreferenceSettings")
-			.mockRejectedValueOnce(
-				mockApiError({ message: "Unable to load your default landing page." }),
-			)
-			.mockReturnValue(createDeferred<UserPreferenceSettings>().promise);
-		return () => request.mockRestore();
-	},
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		await user.click(
-			await within(canvasElement).findByRole("button", {
-				name: "Retry loading preference",
-			}),
-		);
+		await within(canvasElement).findByText("Workspaces");
 	},
 };
 

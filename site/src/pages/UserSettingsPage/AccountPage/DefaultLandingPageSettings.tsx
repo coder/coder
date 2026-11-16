@@ -1,11 +1,10 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
 import {
 	Select,
@@ -27,34 +26,22 @@ export const DefaultLandingPageSettings: React.FC<
 	DefaultLandingPageSettingsProps
 > = ({ agentsEnabled }) => {
 	const queryClient = useQueryClient();
-	const query = useQuery(preferenceSettings());
+	const query = useQuery({
+		...preferenceSettings(),
+		enabled: agentsEnabled,
+	});
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
 	const [open, setOpen] = useState(false);
-	const triggerRef = useRef<HTMLButtonElement>(null);
-	const focusAfterRetry = useRef(false);
 	const selectId = useId();
 	const descriptionId = useId();
-	const availabilityId = useId();
-	const value = query.data
-		? mutation.isPending
-			? mutation.variables.default_landing_page
-			: query.data.default_landing_page
-		: "";
-	const error = mutation.error || query.error;
+	const value = mutation.isPending
+		? mutation.variables.default_landing_page
+		: (query.data?.default_landing_page ??
+			(query.isLoading ? "" : "workspaces"));
 
-	useEffect(() => {
-		if (
-			query.isFetching ||
-			!focusAfterRetry.current ||
-			(!query.data && query.errorUpdatedAt === 0)
-		) {
-			return;
-		}
-		focusAfterRetry.current = false;
-		if (query.data && document.activeElement === document.body) {
-			triggerRef.current?.focus();
-		}
-	}, [query.isFetching, query.data, query.errorUpdatedAt]);
+	if (!agentsEnabled) {
+		return null;
+	}
 
 	return (
 		<Section title="Dashboard">
@@ -68,7 +55,7 @@ export const DefaultLandingPageSettings: React.FC<
 					<div className="flex items-center gap-3">
 						<Select
 							value={value}
-							disabled={!query.data}
+							disabled={query.isLoading}
 							open={open}
 							onOpenChange={(nextOpen) => {
 								if (!nextOpen || !mutation.isPending) {
@@ -92,27 +79,16 @@ export const DefaultLandingPageSettings: React.FC<
 							}}
 						>
 							<SelectTrigger
-								ref={triggerRef}
 								id={selectId}
 								className="max-w-xs text-content-primary"
 								aria-disabled={mutation.isPending || undefined}
-								aria-describedby={
-									agentsEnabled
-										? descriptionId
-										: `${descriptionId} ${availabilityId}`
-								}
+								aria-describedby={descriptionId}
 							>
-								<SelectValue
-									placeholder={
-										query.isFetching ? "Loading..." : "Select a page"
-									}
-								/>
+								<SelectValue placeholder="Loading..." />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="workspaces">Workspaces</SelectItem>
-								<SelectItem value="agents" disabled={!agentsEnabled}>
-									Agents
-								</SelectItem>
+								<SelectItem value="agents">Agents</SelectItem>
 							</SelectContent>
 						</Select>
 						<Spinner
@@ -125,32 +101,8 @@ export const DefaultLandingPageSettings: React.FC<
 							size="sm"
 						/>
 					</div>
-					{!agentsEnabled && (
-						<p
-							id={availabilityId}
-							className="m-0 text-sm text-content-secondary"
-						>
-							Agents is unavailable. If it is your default, Workspaces opens
-							instead.
-						</p>
-					)}
 				</div>
-				{Boolean(error) && <ErrorAlert error={error} />}
-				{(query.isError || (query.isFetched && !query.data)) && (
-					<Button
-						variant="outline"
-						className="w-fit"
-						aria-disabled={query.isFetching || undefined}
-						onClick={() => {
-							if (!query.isFetching) {
-								focusAfterRetry.current = true;
-								void query.refetch();
-							}
-						}}
-					>
-						Retry loading preference
-					</Button>
-				)}
+				{mutation.isError && <ErrorAlert error={mutation.error} />}
 			</div>
 		</Section>
 	);

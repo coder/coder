@@ -9,10 +9,11 @@ export const DashboardIndexRedirect: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const query = useQuery({
 		...preferenceSettings(),
+		enabled: permissions.createChat,
 		retry: false,
 	});
 
-	if (query.isLoading) {
+	if (permissions.createChat && query.isLoading) {
 		return <Loader />;
 	}
 
