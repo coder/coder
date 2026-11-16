@@ -99,9 +99,15 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 
 	noopClose := func() {}
 
+	// Only /dev/null turns logging off. An empty location is more likely a
+	// mistake, such as an environment variable set with no value.
+	devNullRequested := false
+
 	addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 		switch loc {
-		case "", "/dev/null":
+		case "":
+		case "/dev/null":
+			devNullRequested = true
 		case "/dev/stdout":
 			sinks = append(sinks, sinkFn(MaybeDiscardOnPipeError(inv.Stdout)))
 
@@ -138,8 +144,7 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		sinks = append(sinks, tracing.SlogSink{})
 	}
 
-	// User should log to null device if they don't want logs.
-	if len(sinks) == 0 {
+	if len(sinks) == 0 && !devNullRequested {
 		return slog.Logger{}, noopClose, xerrors.New("no loggers provided, use /dev/null to disable logging")
 	}
 

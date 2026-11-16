@@ -15,7 +15,7 @@ export const MockCoderMCPServer: TypesGen.MCPServerConfig = {
 	display_name: "Coder",
 	slug: "coder",
 	icon_url: "/icon/coder.svg",
-	url: "https://dev.coder.com/api/experimental/mcp/http",
+	url: "https://coder.example.com/api/experimental/mcp/http",
 	transport: "streamable_http",
 	auth_type: "oauth2",
 	oauth2_client_registration: "manual",
