@@ -44,7 +44,8 @@ The agent uses three tools to provision a workspace:
 | `create_workspace` | Create the workspace from a chosen template               |
 
 Administrators can restrict which templates these tools can use with the switches on the [Templates page](./platform-controls/template-optimization.md#restrict-available-templates).
-In a chat that belongs to a [project](./projects.md#templates), the tools can use only the project's templates, recommend the project's default template, and apply its default values.
+In a chat that belongs to a [project](./projects.md#templates), the tools list the project's attached templates first, recommend the project's default template, and apply its default values.
+When the project [limits its chats to its templates](./projects.md#limit-chats-to-the-projects-templates), the tools can use only the attached templates that the chat's owner can use.
 
 ### list_templates
 
@@ -117,6 +118,15 @@ Beyond the ranked list, the result tells the agent what to do next:
 When the agent is told to ask, it presents the choices instead of guessing.
 You can always override the recommendation by naming a template yourself.
 
+In a [project](./projects.md#templates) chat, the result also describes the project's templates:
+
+- Unless the project limits its chats to its templates, `attached_to_project` marks each template that is attached to the project.
+  Those templates come first within a relevance tier.
+- `project_templates_note` is present when the project limits its chats to its templates.
+  It tells the agent not to use any other template.
+- `hidden_project_template_count` and `hidden_project_templates_note` are present when the project has attached templates that the chat's owner can't access.
+  The note tells the agent that a template admin or organization admin can give you access.
+
 #### Example
 
 A user asks for "a workspace to debug a Docker image".
@@ -169,7 +179,7 @@ Had the two templates tied (for example, both plain substring matches with simil
 The agent calls it only when needed, typically when a template has required parameters or when a preset should be applied.
 For templates that work with defaults, the agent skips straight to `create_workspace`.
 
-In a [project](./projects.md#templates) chat, `read_template` refuses templates outside the project.
+In a chat of a [project](./projects.md#limit-chats-to-the-projects-templates) that limits its chats to its templates, `read_template` rejects every other template.
 For the project's default template, it also returns `project_defaults` with the default `parameters`, and the default `preset_id` when that preset is in the template's active version.
 
 ### create_workspace
@@ -193,5 +203,5 @@ Guardrails:
   It follows the `next_step` from `list_templates`, asking you to choose when no template is recommended.
 - The tool is idempotent: if the chat already has a workspace building or running, that workspace is returned instead of creating a duplicate.
 - Templates that do not allow Coder Agents are rejected.
-- In a project chat, templates outside the project's templates are rejected.
+- In a chat of a project that limits its chats to its templates, every other template is rejected.
 - A `preset_id` must belong to the template's active version.
