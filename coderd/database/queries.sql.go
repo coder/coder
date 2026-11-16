@@ -41486,6 +41486,7 @@ func (q *sqlQuerier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, i
 const getWorkspaceBuildProvisionerStateByID = `-- name: GetWorkspaceBuildProvisionerStateByID :one
 SELECT
 	workspace_builds.provisioner_state,
+	workspace_builds.provisioner_state_key_id,
 	templates.id AS template_id,
 	templates.organization_id AS template_organization_id,
 	templates.user_acl,
@@ -41501,11 +41502,12 @@ WHERE
 `
 
 type GetWorkspaceBuildProvisionerStateByIDRow struct {
-	ProvisionerState       []byte      `db:"provisioner_state" json:"provisioner_state"`
-	TemplateID             uuid.UUID   `db:"template_id" json:"template_id"`
-	TemplateOrganizationID uuid.UUID   `db:"template_organization_id" json:"template_organization_id"`
-	UserACL                TemplateACL `db:"user_acl" json:"user_acl"`
-	GroupACL               TemplateACL `db:"group_acl" json:"group_acl"`
+	ProvisionerState       []byte         `db:"provisioner_state" json:"provisioner_state"`
+	ProvisionerStateKeyID  sql.NullString `db:"provisioner_state_key_id" json:"provisioner_state_key_id"`
+	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
+	TemplateOrganizationID uuid.UUID      `db:"template_organization_id" json:"template_organization_id"`
+	UserACL                TemplateACL    `db:"user_acl" json:"user_acl"`
+	GroupACL               TemplateACL    `db:"group_acl" json:"group_acl"`
 }
 
 // Fetches the provisioner state of a workspace build, joined through to the
@@ -41517,6 +41519,7 @@ func (q *sqlQuerier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, 
 	var i GetWorkspaceBuildProvisionerStateByIDRow
 	err := row.Scan(
 		&i.ProvisionerState,
+		&i.ProvisionerStateKeyID,
 		&i.TemplateID,
 		&i.TemplateOrganizationID,
 		&i.UserACL,
@@ -41743,13 +41746,14 @@ INSERT INTO
 		initiator_id,
 		job_id,
 		provisioner_state,
+		provisioner_state_key_id,
 		deadline,
 		max_deadline,
 		reason,
 		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -41763,6 +41767,7 @@ type InsertWorkspaceBuildParams struct {
 	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
 	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	ProvisionerStateKeyID   sql.NullString      `db:"provisioner_state_key_id" json:"provisioner_state_key_id"`
 	Deadline                time.Time           `db:"deadline" json:"deadline"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	Reason                  BuildReason         `db:"reason" json:"reason"`
@@ -41781,6 +41786,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.InitiatorID,
 		arg.JobID,
 		arg.ProvisionerState,
+		arg.ProvisionerStateKeyID,
 		arg.Deadline,
 		arg.MaxDeadline,
 		arg.Reason,
@@ -41893,18 +41899,25 @@ UPDATE
 	workspace_builds
 SET
 	provisioner_state = $1::bytea,
-	updated_at = $2::timestamptz
-WHERE id = $3::uuid
+	provisioner_state_key_id = $2,
+	updated_at = $3::timestamptz
+WHERE id = $4::uuid
 `
 
 type UpdateWorkspaceBuildProvisionerStateByIDParams struct {
-	ProvisionerState []byte    `db:"provisioner_state" json:"provisioner_state"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	ID               uuid.UUID `db:"id" json:"id"`
+	ProvisionerState      []byte         `db:"provisioner_state" json:"provisioner_state"`
+	ProvisionerStateKeyID sql.NullString `db:"provisioner_state_key_id" json:"provisioner_state_key_id"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
+	ID                    uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildProvisionerStateByID, arg.ProvisionerState, arg.UpdatedAt, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildProvisionerStateByID,
+		arg.ProvisionerState,
+		arg.ProvisionerStateKeyID,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	return err
 }
 

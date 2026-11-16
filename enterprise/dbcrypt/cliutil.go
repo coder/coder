@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 // Rotate rotates the database encryption keys by re-encrypting all user tokens
@@ -262,6 +263,31 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting workspace build provisioner state")
+	err = forEachBuildWithProvisionerState(ctx, sqlDB, func(buildID uuid.UUID, keyID sql.NullString) error {
+		if keyID.Valid && keyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping workspace build provisioner state", slog.F("build_id", buildID), slog.F("cipher", ciphers[0].HexDigest()))
+			return nil
+		}
+		row, err := cryptDB.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		if err != nil {
+			return xerrors.Errorf("get provisioner state for build %s: %w", buildID, err)
+		}
+		if err := cryptDB.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:                    buildID,
+			UpdatedAt:             dbtime.Now(),
+			ProvisionerState:      row.ProvisionerState,
+			ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+		}); err != nil {
+			return xerrors.Errorf("rotate provisioner state for build %s: %w", buildID, err)
+		}
+		log.Debug(ctx, "rotated workspace build provisioner state", slog.F("build_id", buildID), slog.F("cipher", ciphers[0].HexDigest()))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -507,6 +533,31 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting workspace build provisioner state")
+	err = forEachBuildWithProvisionerState(ctx, sqlDB, func(buildID uuid.UUID, keyID sql.NullString) error {
+		if !keyID.Valid {
+			log.Debug(ctx, "skipping workspace build provisioner state", slog.F("build_id", buildID))
+			return nil
+		}
+		row, err := cryptDB.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		if err != nil {
+			return xerrors.Errorf("get provisioner state for build %s: %w", buildID, err)
+		}
+		if err := cryptDB.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:                    buildID,
+			UpdatedAt:             dbtime.Now(),
+			ProvisionerState:      row.ProvisionerState,
+			ProvisionerStateKeyID: sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+		}); err != nil {
+			return xerrors.Errorf("decrypt provisioner state for build %s: %w", buildID, err)
+		}
+		log.Debug(ctx, "decrypted workspace build provisioner state", slog.F("build_id", buildID))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -521,6 +572,63 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 // workspaceSecretsPageSize bounds how many workspace secrets Rotate and
 // Decrypt hold in memory at once.
 const workspaceSecretsPageSize = 1000
+
+// buildStatePageSize is the page size used when iterating workspace builds
+// that hold provisioner state.
+const buildStatePageSize = 100
+
+// forEachBuildWithProvisionerState calls fn for every workspace build that
+// holds a non-empty provisioner state, one page at a time. Listing reads
+// through raw SQL because the column is intentionally excluded from the
+// store's hot paths; the actual state reads and writes go through the
+// dbcrypt-wrapped store.
+func forEachBuildWithProvisionerState(ctx context.Context, sqlDB *sql.DB, fn func(id uuid.UUID, keyID sql.NullString) error) error {
+	type buildRef struct {
+		id    uuid.UUID
+		keyID sql.NullString
+	}
+	afterID := uuid.Nil
+	for {
+		//nolint:gosec // Constant query with parameterized values only.
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT id, provisioner_state_key_id
+			FROM workspace_builds
+			WHERE provisioner_state IS NOT NULL
+				AND provisioner_state != ''::bytea
+				AND id > $1
+			ORDER BY id
+			LIMIT $2`, afterID, buildStatePageSize)
+		if err != nil {
+			return xerrors.Errorf("list workspace builds with provisioner state after id=%s: %w", afterID, err)
+		}
+		// Collect the page before calling fn so the connection is free for
+		// fn's own queries.
+		var page []buildRef
+		for rows.Next() {
+			var ref buildRef
+			if err := rows.Scan(&ref.id, &ref.keyID); err != nil {
+				_ = rows.Close()
+				return xerrors.Errorf("scan workspace build: %w", err)
+			}
+			page = append(page, ref)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return xerrors.Errorf("iterate workspace builds: %w", err)
+		}
+		_ = rows.Close()
+
+		for _, ref := range page {
+			if err := fn(ref.id, ref.keyID); err != nil {
+				return err
+			}
+		}
+		if len(page) < buildStatePageSize {
+			return nil
+		}
+		afterID = page[len(page)-1].id
+	}
+}
 
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
@@ -579,6 +687,13 @@ UPDATE ai_providers
 	SET settings = NULL,
 		settings_key_id = NULL
 	WHERE settings_key_id IS NOT NULL;
+-- Terraform state cannot be recovered without the encryption keys. Clear it
+-- rather than leaving unreadable ciphertext; affected workspaces must be
+-- rebuilt and may leave orphaned cloud resources behind.
+UPDATE workspace_builds
+	SET provisioner_state = NULL,
+		provisioner_state_key_id = NULL
+	WHERE provisioner_state_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
@@ -644,6 +759,7 @@ var auditTargets = []auditTarget{
 	{table: "external_auth_links", column: "oauth_refresh_token", keyIDColumn: "oauth_refresh_token_key_id"},
 	{table: "external_auth_links", column: "oauth_extra", keyIDColumn: "oauth_extra_key_id", nonEmptyPredicate: "oauth_extra IS NOT NULL AND oauth_extra != 'null'::jsonb AND oauth_extra != '{}'::jsonb"},
 	{table: "gitsshkeys", column: "private_key", keyIDColumn: "private_key_key_id"},
+	{table: "workspace_builds", column: "provisioner_state", keyIDColumn: "provisioner_state_key_id", nonEmptyPredicate: "provisioner_state IS NOT NULL AND provisioner_state != ''::bytea"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},

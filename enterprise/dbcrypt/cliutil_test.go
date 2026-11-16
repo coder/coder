@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -543,6 +544,56 @@ func seedWorkspaceBuild(t *testing.T, db database.Store) dbfake.WorkspaceRespons
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 	}).Do()
+}
+
+// TestRotateWorkspaceBuildProvisionerState covers
+// workspace_builds.provisioner_state (Terraform state, which embeds owner
+// session tokens, git SSH keys and coder_env values; SEC-1491). One rotation
+// sweeps a plaintext row (written before encryption was enabled) and a row
+// encrypted under the old cipher A; a follow-up Decrypt returns both to
+// plaintext.
+func TestRotateWorkspaceBuildProvisionerState(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	plainBuild := seedWorkspaceBuild(t, f.rawDB).Build.ID
+	encBuild := seedWorkspaceBuild(t, f.rawDB).Build.ID
+	stateFor := func(id uuid.UUID) []byte { return []byte("terraform-state-" + id.String()) }
+
+	// Written raw, bypassing dbcrypt: plaintext state with a NULL key ID.
+	require.NoError(t, f.rawDB.UpdateWorkspaceBuildProvisionerStateByID(f.ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+		ID:                    plainBuild,
+		UpdatedAt:             dbtime.Now(),
+		ProvisionerState:      stateFor(plainBuild),
+		ProvisionerStateKeyID: sql.NullString{},
+	}))
+	// Written through dbcrypt under cipher A.
+	require.NoError(t, f.cryptDBA.UpdateWorkspaceBuildProvisionerStateByID(f.ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+		ID:                    encBuild,
+		UpdatedAt:             dbtime.Now(),
+		ProvisionerState:      stateFor(encBuild),
+		ProvisionerStateKeyID: sql.NullString{},
+	}))
+
+	f.rotate(t)
+
+	for _, id := range []uuid.UUID{plainBuild, encBuild} {
+		row, err := f.rawDB.GetWorkspaceBuildProvisionerStateByID(f.ctx, id)
+		require.NoError(t, err, "build %s", id)
+		require.Equal(t, f.cipherB.HexDigest(), row.ProvisionerStateKeyID.String, "build %s", id)
+		decrypted, err := f.cipherB.Decrypt(row.ProvisionerState)
+		require.NoError(t, err, "build %s", id)
+		require.Equal(t, stateFor(id), decrypted, "build %s", id)
+	}
+
+	// Decrypt returns the state to plaintext and clears the key IDs.
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	for _, id := range []uuid.UUID{plainBuild, encBuild} {
+		row, err := f.rawDB.GetWorkspaceBuildProvisionerStateByID(f.ctx, id)
+		require.NoError(t, err, "build %s", id)
+		require.False(t, row.ProvisionerStateKeyID.Valid, "build %s must be plaintext after decrypt", id)
+		require.Equal(t, stateFor(id), row.ProvisionerState, "build %s", id)
+	}
 }
 
 // TestRotateGitSSHKey covers the gitsshkeys table (per-user Git SSH private

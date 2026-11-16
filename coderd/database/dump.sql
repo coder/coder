@@ -4325,10 +4325,13 @@ CREATE TABLE workspace_builds (
     template_version_preset_id uuid,
     has_external_agent boolean,
     notified_autostop_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    provisioner_state_key_id text,
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
 COMMENT ON COLUMN workspace_builds.notified_autostop_deadline IS 'The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.';
+
+COMMENT ON COLUMN workspace_builds.provisioner_state_key_id IS 'The ID of the key used to encrypt the provisioner state. If this is NULL, the state is not encrypted. Terraform state embeds owner session tokens, git SSH private keys, OIDC access tokens, external auth tokens and coder_env values (SEC-1491).';
 
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,
@@ -6061,6 +6064,9 @@ ALTER TABLE ONLY workspace_build_parameters
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_provisioner_state_key_id_fkey FOREIGN KEY (provisioner_state_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

@@ -7233,6 +7233,8 @@ type WorkspaceBuildTable struct {
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
 	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	// The ID of the key used to encrypt the provisioner state. If this is NULL, the state is not encrypted. Terraform state embeds owner session tokens, git SSH private keys, OIDC access tokens, external auth tokens and coder_env values (SEC-1491).
+	ProvisionerStateKeyID sql.NullString `db:"provisioner_state_key_id" json:"provisioner_state_key_id"`
 }
 
 type WorkspaceLatestBuild struct {

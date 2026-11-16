@@ -100,13 +100,14 @@ INSERT INTO
 		initiator_id,
 		job_id,
 		provisioner_state,
+		provisioner_state_key_id,
 		deadline,
 		max_deadline,
 		reason,
 		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
@@ -138,6 +139,7 @@ UPDATE
 	workspace_builds
 SET
 	provisioner_state = @provisioner_state::bytea,
+	provisioner_state_key_id = sqlc.narg('provisioner_state_key_id'),
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 
@@ -291,6 +293,7 @@ GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
 -- accessible to template administrators.
 SELECT
 	workspace_builds.provisioner_state,
+	workspace_builds.provisioner_state_key_id,
 	templates.id AS template_id,
 	templates.organization_id AS template_organization_id,
 	templates.user_acl,

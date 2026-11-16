@@ -920,6 +920,87 @@ func initCipher(t *testing.T) *aes256 {
 	return c
 }
 
+// TestWorkspaceBuildProvisionerState verifies wrapper semantics for the
+// provisioner (Terraform) state blob: ciphertext bytes at rest, decrypted
+// reads, and plaintext passthrough for empty or pre-encryption rows.
+func TestWorkspaceBuildProvisionerState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	seedBuild := func(t *testing.T, db database.Store) uuid.UUID {
+		t.Helper()
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do().Build.ID
+	}
+
+	t.Run("UpdateAndGet", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		buildID := seedBuild(t, db)
+
+		state := []byte("terraform-state-with-secrets")
+		require.NoError(t, crypt.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:                    buildID,
+			UpdatedAt:             dbtime.Now(),
+			ProvisionerState:      state,
+			ProvisionerStateKeyID: sql.NullString{},
+		}))
+
+		// The raw row holds ciphertext, not the state.
+		raw, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.True(t, raw.ProvisionerStateKeyID.Valid, "state must have an encryption key ID")
+		require.NotEqual(t, state, raw.ProvisionerState, "state must not be stored in plaintext")
+		decrypted, err := ciphers[0].Decrypt(raw.ProvisionerState)
+		require.NoError(t, err)
+		require.Equal(t, state, decrypted)
+
+		// The wrapper decrypts on read.
+		row, err := crypt.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.Equal(t, state, row.ProvisionerState)
+	})
+
+	t.Run("EmptyStateStaysPlaintext", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		buildID := seedBuild(t, db)
+
+		require.NoError(t, crypt.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:                    buildID,
+			UpdatedAt:             dbtime.Now(),
+			ProvisionerState:      nil,
+			ProvisionerStateKeyID: sql.NullString{},
+		}))
+		raw, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.False(t, raw.ProvisionerStateKeyID.Valid, "empty state must not be encrypted")
+		require.Empty(t, raw.ProvisionerState)
+	})
+
+	t.Run("PlaintextPassthrough", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		buildID := seedBuild(t, db)
+
+		// A row written before encryption was enabled.
+		state := []byte("pre-encryption-state")
+		require.NoError(t, db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:                    buildID,
+			UpdatedAt:             dbtime.Now(),
+			ProvisionerState:      state,
+			ProvisionerStateKeyID: sql.NullString{},
+		}))
+		row, err := crypt.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.Equal(t, state, row.ProvisionerState, "plaintext rows must read through unchanged")
+	})
+}
+
 func setup(t *testing.T) (db database.Store, cryptDB *dbCrypt, cs []Cipher) {
 	t.Helper()
 	rawDB, _ := dbtestutil.NewDB(t)

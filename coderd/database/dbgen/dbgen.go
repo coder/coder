@@ -1009,19 +1009,20 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
-			ID:                buildID,
-			CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
-			UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
-			WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
-			TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
-			BuildNumber:       takeFirst(orig.BuildNumber, 1),
-			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
-			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
-			JobID:             jobID,
-			ProvisionerState:  []byte{},
-			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
-			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
-			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
+			ID:                    buildID,
+			CreatedAt:             takeFirst(orig.CreatedAt, dbtime.Now()),
+			UpdatedAt:             takeFirst(orig.UpdatedAt, dbtime.Now()),
+			WorkspaceID:           takeFirst(orig.WorkspaceID, uuid.New()),
+			TemplateVersionID:     takeFirst(orig.TemplateVersionID, uuid.New()),
+			BuildNumber:           takeFirst(orig.BuildNumber, 1),
+			Transition:            takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+			InitiatorID:           takeFirst(orig.InitiatorID, uuid.New()),
+			JobID:                 jobID,
+			ProvisionerState:      []byte{},
+			ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will set as required
+			Deadline:              takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
+			MaxDeadline:           takeFirst(orig.MaxDeadline, time.Time{}),
+			Reason:                takeFirst(orig.Reason, database.BuildReasonInitiator),
 			TemplateVersionPresetID: takeFirst(orig.TemplateVersionPresetID, uuid.NullUUID{
 				UUID:  uuid.UUID{},
 				Valid: false,
