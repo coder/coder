@@ -1,7 +1,7 @@
 name: deploy
 
 on:
-  # Via workflow_call, called from ci.yaml
+  # Via workflow_call, called from build.yaml
   workflow_call:
     inputs:
       image:
