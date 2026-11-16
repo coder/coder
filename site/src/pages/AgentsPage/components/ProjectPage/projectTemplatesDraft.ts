@@ -10,7 +10,10 @@ import {
 	chatProjectTemplatesValues,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 
-/** The project's saved template settings. */
+/**
+ * The project's saved template settings as the viewer sees them. Attached
+ * templates the viewer cannot access are not in `template_ids`.
+ */
 export const savedTemplates = (
 	project: ChatProject,
 ): ChatProjectTemplatesSettings => ({
@@ -77,7 +80,6 @@ export const serializeValues = (values: ChatProjectTemplatesValues) =>
 		),
 	});
 
-/** Serializes only the default template and its default values. */
 const serializeDefaults = (values: ChatProjectTemplatesValues) =>
 	serializeValues({ ...values, limitTemplates: false, templateIds: [] });
 

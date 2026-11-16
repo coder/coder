@@ -974,7 +974,6 @@ describe("ProjectDetailsPanel templates", () => {
 		await waitFor(() =>
 			expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave + 2),
 		);
-		// Both templates are already attached, so nothing is sent again.
 		expect(attach).not.toHaveBeenCalled();
 	});
 
