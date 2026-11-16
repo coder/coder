@@ -20,11 +20,20 @@ inputs:
     description: Git revision of indygreg/apple-platform-rs to build.
     required: false
     default: "0ebbd2ef3b96d5adccc30b1cad4deea38cd735c4"
+  use-cache:
+    description: >-
+      Restore and save the built binary with actions/cache. Signing jobs must
+      pass "false": Depot caches are shared across branches, so a pull request
+      could plant a binary under the same key that a signing job would then run
+      with the signing credentials.
+    required: false
+    default: "true"
 runs:
   using: composite
   steps:
     - name: Cache rcodesign binary
       id: cache-rcodesign
+      if: inputs.use-cache == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: /tmp/rcodesign-bin
@@ -53,6 +62,7 @@ runs:
         git -C "$src" apply "$GITHUB_ACTION_PATH/pkcs11-single-init.patch"
 
         ./.github/scripts/retry.sh -- cargo install \
+          --locked \
           --path "$src/apple-codesign" \
           --features pkcs11 \
           --bin rcodesign \
