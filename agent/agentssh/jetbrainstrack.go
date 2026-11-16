@@ -3,6 +3,8 @@ package agentssh
 import (
 	"context"
 	"io"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -80,7 +82,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
 		NewChannel:         newChannel,
 		startSession:       startSession,
 		logger:             logger.With(slog.F("destination_port", d.DestPort)),
-		originAddr:         d.OriginAddr,
+		originAddr:         net.JoinHostPort(d.OriginAddr, strconv.FormatUint(uint64(d.OriginPort), 10)),
 		connectionReporter: connectionReporter,
 		clientSessionID:    clientSessionID,
 		isClosing:          isClosing,
