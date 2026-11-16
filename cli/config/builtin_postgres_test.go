@@ -31,18 +31,28 @@ func TestBuiltinPostgresConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			pgDir := t.TempDir()
+			dataDir := filepath.Join(pgDir, "data")
 			if tc.name != "new" {
-				dataDir := filepath.Join(pgDir, "data")
 				require.NoError(t, os.Mkdir(dataDir, 0o700))
 				if tc.dataVersion != "" {
 					require.NoError(t, os.WriteFile(filepath.Join(dataDir, "PG_VERSION"), []byte(tc.dataVersion), 0o600))
+				}
+				if tc.wantErr != "" {
+					require.NoError(t, os.WriteFile(filepath.Join(dataDir, "keep"), []byte("user data"), 0o600))
 				}
 			}
 
 			version, binDir, fresh, err := config.BuiltinPostgresConfig(pgDir)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
-				require.DirExists(t, filepath.Join(pgDir, "data"))
+				contents, err := os.ReadFile(filepath.Join(dataDir, "keep"))
+				require.NoError(t, err)
+				require.Equal(t, "user data", string(contents))
+				if tc.dataVersion != "" {
+					version, err := os.ReadFile(filepath.Join(dataDir, "PG_VERSION"))
+					require.NoError(t, err)
+					require.Equal(t, tc.dataVersion, string(version))
+				}
 				return
 			}
 			require.NoError(t, err)
