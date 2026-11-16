@@ -63,7 +63,6 @@ const (
 	portOffsetStep         = 20
 	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
-	defaultPassword        = "SomeSecurePassword!"
 	defaultBindAddress     = "0.0.0.0"
 	loopbackBindAddress    = "127.0.0.1"
 	defaultStarterTemplate = "docker"
@@ -185,8 +184,7 @@ func (c *devConfig) options() serpent.OptionSet {
 		{
 			Flag:        "password",
 			Env:         "CODER_DEV_ADMIN_PASSWORD",
-			Default:     defaultPassword,
-			Description: "Admin user password.",
+			Description: "Admin user password. When unset, develop generates one and stores it in .coderv2/admin-password.",
 			Value:       serpent.StringOf(&c.password),
 		},
 		{
@@ -255,6 +253,8 @@ type devConfig struct {
 	accessURL         string
 	bindAddress       string
 	password          string
+	adminLogin        devLogin
+	memberLogin       devLogin
 	useProxy          bool
 	debug             bool
 	skipSetup         bool
@@ -278,6 +278,14 @@ type devConfig struct {
 	metricsPortSource portSource
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
+}
+
+type devLogin struct {
+	// password is empty when the user already existed and develop did
+	// not set its password.
+	password string
+	fromFlag bool
+	seeded   bool
 }
 
 type portExplicit struct {
@@ -399,6 +407,9 @@ func (c *devConfig) validate() error {
 	// addresses work.
 	if c.bindAddress != defaultBindAddress && c.bindAddress != loopbackBindAddress {
 		return xerrors.Errorf("--bind-address must be %s or %s, got %q", defaultBindAddress, loopbackBindAddress, c.bindAddress)
+	}
+	if c.password == oldDefaultPassword {
+		return xerrors.New("--password must not be the old default password: unset --password and CODER_DEV_ADMIN_PASSWORD to use a generated one")
 	}
 	if c.agpl && c.useProxy {
 		return xerrors.New("cannot use both --agpl and --use-proxy")
@@ -657,6 +668,12 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	defer stop()
 
 	if err := preflight(sigCtx, logger, cfg); err != nil {
+		return err
+	}
+
+	// Checked here so that an unusable password file stops the run
+	// before the build, not after it.
+	if err := cfg.checkPasswordFiles(); err != nil {
 		return err
 	}
 
@@ -949,20 +966,44 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		}
 	}
 
+	adminPath := cfg.passwordPath(adminPasswordFile)
 	if !loggedIn {
 		hasUser, err := client.HasFirstUser(ctx)
 		if err != nil {
 			return nil, xerrors.Errorf("checking first user: %w", err)
 		}
+
+		// A password is generated only when develop is about to create
+		// the user. A user that exists without a password file was
+		// created some other way, and develop does not know its
+		// password.
+		password := cfg.password
+		switch {
+		case password != "":
+		case hasUser:
+			var ok bool
+			password, ok, err = readPassword(adminPath)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, errUnknownAdminPassword
+			}
+		default:
+			password, err = loadOrCreatePassword(adminPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		if !hasUser {
 			logger.Info(ctx, "creating first user",
-				slog.F("email", "admin@coder.com"),
-				slog.F("password", cfg.password))
+				slog.F("email", "admin@coder.com"))
 			_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 				Email:    "admin@coder.com",
 				Username: "admin",
 				Name:     "Admin User",
-				Password: cfg.password,
+				Password: password,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("creating first user: %w", err)
@@ -971,9 +1012,12 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 
 		loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    "admin@coder.com",
-			Password: cfg.password,
+			Password: password,
 		})
 		if err != nil {
+			if apiErr, ok := codersdk.AsError(err); ok && hasUser && apiErr.StatusCode() == http.StatusUnauthorized {
+				return nil, errUnknownAdminPassword
+			}
 			return nil, xerrors.Errorf("login: %w", err)
 		}
 		client.SetSessionToken(loginResp.SessionToken)
@@ -984,6 +1028,9 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		if err := cfgRoot.URL().Write(apiURL); err != nil {
 			return nil, xerrors.Errorf("writing url: %w", err)
 		}
+		cfg.adminLogin = devLogin{password: password, fromFlag: cfg.password != "", seeded: true}
+	} else {
+		cfg.adminLogin = cfg.knownLogin(ctx, logger, "admin@coder.com", adminPath, cfg.password)
 	}
 	logger.Info(ctx, "authenticated as admin user", slog.F("email", "admin@coder.com"))
 
@@ -994,23 +1041,60 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 	}
 
 	// Member user is best-effort.
+	memberPath := cfg.passwordPath(memberPasswordFile)
 	if _, err := client.User(ctx, "member"); err != nil {
-		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			Email:           "member@coder.com",
-			Username:        "member",
-			Name:            "Regular User",
-			Password:        cfg.password,
-			UserLoginType:   codersdk.LoginTypePassword,
-			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
-		})
+		memberPassword, err := loadOrCreatePassword(memberPath)
+		if err == nil {
+			_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+				Email:           "member@coder.com",
+				Username:        "member",
+				Name:            "Regular User",
+				Password:        memberPassword,
+				UserLoginType:   codersdk.LoginTypePassword,
+				OrganizationIDs: []uuid.UUID{defaultOrg.ID},
+			})
+		}
 		if err != nil {
 			logger.Warn(ctx, "failed to create member user", slog.Error(err))
 		} else {
 			logger.Info(ctx, "created member user", slog.F("email", "member@coder.com"))
+			cfg.memberLogin = devLogin{password: memberPassword, seeded: true}
 		}
+	} else {
+		cfg.memberLogin = cfg.knownLogin(ctx, logger, "member@coder.com", memberPath, "")
 	}
 
 	return client, nil
+}
+
+var errUnknownAdminPassword = xerrors.New("cannot sign in as admin@coder.com: develop.sh does not know the password of this instance: " +
+	"run with --db-reset to start fresh, or pass the current password with --password")
+
+func (c *devConfig) checkPasswordFiles() error {
+	if c.skipSetup {
+		return nil
+	}
+	if c.password == "" {
+		if _, _, err := readPassword(c.passwordPath(adminPasswordFile)); err != nil {
+			return err
+		}
+	}
+	_, _, err := readPassword(c.passwordPath(memberPasswordFile))
+	return err
+}
+
+func (*devConfig) knownLogin(ctx context.Context, logger slog.Logger, email, path, override string) devLogin {
+	if override != "" {
+		return devLogin{password: override, fromFlag: true, seeded: true}
+	}
+	password, ok, err := readPassword(path)
+	if err != nil || !ok {
+		logger.Warn(ctx, fmt.Sprintf("develop.sh did not generate the password of %s on this instance. "+
+			"If it is still the old public default, anyone who can reach this instance can sign in as that user. "+
+			"Run with --db-reset, or change the password in the dashboard.", email))
+		return devLogin{seeded: true}
+	}
+	return devLogin{password: password, seeded: true}
 }
 
 func setupMultiOrg(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, group *procGroup) error {
@@ -1461,6 +1545,7 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 			line(indent(fmt.Sprintf("http://%s:%d", h, port)))
 		}
 	}
+	line(loginBannerLines(cfg)...)
 	line(
 		"",
 		"Use ./scripts/coder-dev.sh to talk to this instance!",
@@ -1469,6 +1554,42 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 	)
 	_, _ = fmt.Fprintln(&b, bottom)
 	logger.Info(ctx, b.String())
+}
+
+func loginBannerLines(cfg *devConfig) []string {
+	if !cfg.adminLogin.seeded && !cfg.memberLogin.seeded {
+		return nil
+	}
+	const indent = "           "
+	show := func(l devLogin) string {
+		if l.password == "" {
+			return "password not set by develop.sh"
+		}
+		return l.password
+	}
+
+	lines := []string{"", "Logins:"}
+	var files []string
+	if cfg.adminLogin.seeded {
+		lines = append(lines, indent+"admin@coder.com   "+show(cfg.adminLogin))
+		switch {
+		case cfg.adminLogin.fromFlag:
+			lines = append(lines, indent+"  (from --password)")
+		case cfg.adminLogin.password != "":
+			files = append(files, indent+".coderv2/"+adminPasswordFile)
+		}
+	}
+	if cfg.memberLogin.seeded {
+		lines = append(lines, indent+"member@coder.com  "+show(cfg.memberLogin))
+		if cfg.memberLogin.password != "" {
+			files = append(files, indent+".coderv2/"+memberPasswordFile)
+		}
+	}
+	if len(files) > 0 {
+		lines = append(lines, "", "Password files:")
+		lines = append(lines, files...)
+	}
+	return lines
 }
 
 // logWriter adapts an slog.Logger into an io.Writer. Each complete

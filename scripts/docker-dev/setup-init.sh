@@ -1,16 +1,41 @@
 #!/bin/sh
 set -e
 
+# shellcheck source=scripts/docker-dev/password.sh
+. /scripts/password.sh
+
 CODER="go run ./cmd/coder"
-PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
 TOKEN_FILE="/bootstrap/token"
 TOKEN_NAME="bootstrap"
 
 echo "=== Coder Dev Environment Init ==="
 
+reject_old_default CODER_DEV_ADMIN_PASSWORD "${CODER_DEV_ADMIN_PASSWORD:-}"
+
+print_admin_login() {
+	if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]; then
+		echo "Admin login: admin@coder.com (password from CODER_DEV_ADMIN_PASSWORD)"
+	elif [ -s "$ADMIN_PASSWORD_FILE" ]; then
+		echo "Admin login: admin@coder.com / $(cat "$ADMIN_PASSWORD_FILE")"
+	else
+		echo "Admin login: admin@coder.com (password was not set by this environment)"
+	fi
+}
+
 if curl -s -o /dev/null -w "%{http_code}" http://coderd:3000/api/v2/users/first | grep -q "200"; then
 	echo "First user already exists, skipping setup"
+	print_admin_login
 	exit 0
+fi
+
+# setup-users mounts /bootstrap read-only, so the member password is
+# created here too.
+create_password_file "$MEMBER_PASSWORD_FILE"
+if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]; then
+	PASSWORD="$CODER_DEV_ADMIN_PASSWORD"
+else
+	create_password_file "$ADMIN_PASSWORD_FILE"
+	PASSWORD="$(cat "$ADMIN_PASSWORD_FILE")"
 fi
 
 # Step 1: Create first user (idempotent - creates OR logs in)
@@ -35,4 +60,5 @@ else
 	echo "Bootstrap token created and saved."
 fi
 
+print_admin_login
 echo "=== Init complete ==="
