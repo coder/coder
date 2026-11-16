@@ -47,14 +47,17 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: React.FC<React.ComponentProps<"span">> = (
-	props,
-) => {
+export const SidebarCaption: React.FC<React.ComponentProps<"h2">> = ({
+	children,
+	...props
+}) => {
 	return (
-		<span
-			className="text-[10px] leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
+		<h2
+			className="m-0 text-[10px] leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
 			{...props}
-		/>
+		>
+			{children}
+		</h2>
 	);
 };
 

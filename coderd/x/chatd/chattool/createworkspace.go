@@ -72,8 +72,8 @@ type AgentConnFunc func(
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
 	OwnerID uuid.UUID
-	// ProjectID limits creation to the project's templates and applies the
-	// project's defaults to its default template.
+	// ProjectID applies the project's template limit and the defaults of
+	// its default template.
 	ProjectID                      uuid.NullUUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
@@ -187,7 +187,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			if !tmpl.AgentsAllowed {
 				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
-			project, err := loadProjectTemplates(ctx, db, options.ProjectID)
+			project, err := loadChatProjectTemplates(ctx, db, options.ProjectID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}

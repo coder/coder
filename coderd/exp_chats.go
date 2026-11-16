@@ -2043,7 +2043,13 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
+	var snapshotVersion int64
 	if beforeID == 0 && afterID == 0 {
+		// A cursored page can leave out newer messages, so only the newest
+		// page reports a snapshot version. chat was read before the messages
+		// and the queue, so a stream opened at this version can resend a
+		// change committed between those reads.
+		snapshotVersion = chat.SnapshotVersion
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2055,10 +2061,11 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       slice.List(messages, db2sdk.ChatMessage),
-		QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
-		HasMore:        hasMore,
-		TurnStartID:    turnStartID,
+		Messages:        slice.List(messages, db2sdk.ChatMessage),
+		QueuedMessages:  db2sdk.ChatQueuedMessages(queuedMessages),
+		HasMore:         hasMore,
+		TurnStartID:     turnStartID,
+		SnapshotVersion: snapshotVersion,
 	})
 }
 
@@ -2855,38 +2862,10 @@ func (api *API) updateChat(
 		}
 	}
 
-	workspaceID := uuid.NullUUID{}
-	if req.WorkspaceID != nil && *req.WorkspaceID != uuid.Nil {
-		var workspace database.Workspace
-		var status int
-		var resp *codersdk.Response
-		workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
-		if resp != nil {
-			return database.Chat{}, httperror.NewResponseError(status, *resp)
-		}
-		if workspace.OrganizationID != chat.OrganizationID {
-			return database.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: "Workspace does not belong to this chat's organization.",
-			})
-		}
-		if chat.ProjectID.Valid {
-			// The chat update is already authorized, and only the project's
-			// template list is read, so this does not require
-			// chat_project:read.
-			//nolint:gocritic // See above.
-			project, err := api.Database.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
-			if err != nil {
-				return database.Chat{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to get chat project.",
-					Detail:  err.Error(),
-				})
-			}
-			if !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
-				return database.Chat{}, httperror.NewResponseError(http.StatusBadRequest, errChatProjectWorkspaceTemplate)
-			}
-		}
-	}
-
+	// project is the project the chat is in once the request is applied, so
+	// a request that moves the chat and binds a workspace checks the
+	// workspace against the project it moves to.
+	var project *database.ChatProject
 	var projectUpdate *uuid.NullUUID
 	if req.ProjectID != nil {
 		var refusal string
@@ -2901,13 +2880,44 @@ func (api *API) updateChat(
 		}
 		projectID := uuid.NullUUID{}
 		if *req.ProjectID != uuid.Nil {
-			project, status, resp := api.validateChatProjectSelection(ctx, *req.ProjectID, chat.OwnerID, chat.OrganizationID)
+			selected, status, resp := api.validateChatProjectSelection(ctx, *req.ProjectID, chat.OwnerID, chat.OrganizationID)
 			if resp != nil {
 				return database.Chat{}, httperror.NewResponseError(status, *resp)
 			}
-			projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+			project = &selected
+			projectID = uuid.NullUUID{UUID: selected.ID, Valid: true}
 		}
 		projectUpdate = &projectID
+	}
+
+	workspaceID := uuid.NullUUID{}
+	if req.WorkspaceID != nil && *req.WorkspaceID != uuid.Nil {
+		var workspace database.Workspace
+		var status int
+		var resp *codersdk.Response
+		workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
+		if resp != nil {
+			return database.Chat{}, httperror.NewResponseError(status, *resp)
+		}
+		if workspace.OrganizationID != chat.OrganizationID {
+			return database.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace does not belong to this chat's organization.",
+			})
+		}
+		// Only the owner can change the workspace, so ctx is the owner's.
+		if req.ProjectID == nil {
+			var err error
+			project, err = api.chatProject(ctx, chat)
+			if err != nil {
+				return database.Chat{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get chat project.",
+					Detail:  err.Error(),
+				})
+			}
+		}
+		if status, resp := api.checkChatProjectTemplate(ctx, project, workspace.TemplateID); resp != nil {
+			return database.Chat{}, httperror.NewResponseError(status, *resp)
+		}
 	}
 
 	if req.Title != nil {
@@ -3955,9 +3965,54 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set"
+// @Param snapshot_version query int false "Send what changed at this snapshot version or later"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
+// @Description
+// @Description Each WebSocket message is a JSON array of events.
+// @Description
+// @Description The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
+// @Description A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
+// @Description Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+// @Description The server reads `snapshot_version` before the messages and the queue, so the page can include changes with a higher `snapshot_version`.
+// @Description The stream can send changes that are already in the page.
+// @Description
+// @Description The server reads the chat when the stream opens and each time the chat changes.
+// @Description Each read sends the changes since the previous read.
+// @Description When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
+// @Description
+// @Description - A `message` event for each message that isn't deleted.
+// @Description - A `history_reset` event for each edit.
+// @Description - A `queue_update` event, if the queue changed.
+// @Description
+// @Description The server ignores `after_id` when you set `snapshot_version`.
+// @Description The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+// @Description
+// @Description On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
+// @Description Each read sends these events in order of `snapshot_version`.
+// @Description Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
+// @Description The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+// @Description The server sends `message_part` events between reads.
+// @Description
+// @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
+// @Description The edit deleted that message and every message after it.
+// @Description When managing history state, delete every message with that ID or higher.
+// @Description After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
+// @Description
+// @Description A messages page that you request with `before_id` includes no `snapshot_version`.
+// @Description If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+// @Description
+// @Description On each new connection, the server sends the chat's current status again.
+// @Description When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
+// @Description The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
+// @Description
+// @Description When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
+// @Description After a `history_reset` event, the server sends every message in the chat as `message` events.
+// @Description On a new connection, when `after_id` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.
+// @Description When `after_id` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a `history_reset` event if the chat has a deleted message.
+// @Description
+// @Description When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3980,15 +4035,35 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var snapshotVersion int64
+	if v := r.URL.Query().Get("snapshot_version"); v != "" {
+		var err error
+		snapshotVersion, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || snapshotVersion < 1 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid snapshot_version parameter.",
+				Detail:  "snapshot_version must be a positive integer.",
+			})
+			return
+		}
+	}
+	// A chat's snapshot version decreases only when the database is restored,
+	// so a cursor above it is from before a restore or was never issued.
+	if snapshotVersion > chat.SnapshotVersion {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid snapshot_version parameter.",
+			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d. Request the chat's newest messages page again and open the stream with its snapshot_version.", snapshotVersion, chat.SnapshotVersion),
+		})
+		return
+	}
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID)
-	// Defensive against future SubscribeAuthorized failure modes.
+	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID, snapshotVersion)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Chat streaming is not available.",
-			Detail:  "Chat stream state is not configured.",
+			Message: "Failed to open the chat stream.",
+			Detail:  "Retry the request, or check the coderd logs for this chat.",
 		})
 		return
 	}
@@ -4478,6 +4553,12 @@ func (api *API) chatCreateWorkspace(
 		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load user authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
+
+	// The create_workspace tool checks the project's templates before it
+	// calls, but the workspace is bound here, so the limit is enforced here.
+	if status, resp := api.checkChatCreateWorkspaceTemplate(ctx, chatID, req); resp != nil {
+		return codersdk.Workspace{}, database.Chat{}, httperror.NewResponseError(status, *resp)
+	}
 
 	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
@@ -5188,18 +5269,102 @@ func (api *API) validateCreateChatWorkspaceSelection(
 			Message: "Workspace does not belong to the specified organization.",
 		}
 	}
-	if project != nil && !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
-		return selection, http.StatusBadRequest, &errChatProjectWorkspaceTemplate
+	if status, resp := api.checkChatProjectTemplate(ctx, project, workspace.TemplateID); resp != nil {
+		return selection, status, resp
 	}
 
 	return selection, 0, nil
 }
 
-// errChatProjectWorkspaceTemplate rejects attaching a workspace whose
-// template is not one of the chat project's templates. Workspaces already
-// bound to a chat keep working after a template leaves the project.
-var errChatProjectWorkspaceTemplate = codersdk.Response{
-	Message: "This workspace's template is not allowed in the chat's project.",
+// checkChatCreateWorkspaceTemplate applies checkChatProjectTemplate to a
+// workspace the chat is about to create. ctx must be authorized as the
+// chat's owner.
+func (api *API) checkChatCreateWorkspaceTemplate(ctx context.Context, chatID uuid.UUID, req codersdk.CreateWorkspaceRequest) (int, *codersdk.Response) {
+	failed := func(message string, err error) (int, *codersdk.Response) {
+		return http.StatusInternalServerError, &codersdk.Response{Message: message, Detail: err.Error()}
+	}
+	chat, err := api.Database.GetChatByID(ctx, chatID)
+	if httpapi.Is404Error(err) {
+		// Binding the workspace reports the missing chat.
+		return 0, nil
+	}
+	if err != nil {
+		return failed("Failed to get chat.", err)
+	}
+	project, err := api.chatProject(ctx, chat)
+	if err != nil {
+		return failed("Failed to get chat project.", err)
+	}
+	if project == nil {
+		return 0, nil
+	}
+	templateID := req.TemplateID
+	if templateID == uuid.Nil {
+		version, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
+		if httpapi.Is404Error(err) {
+			// Workspace creation reports the unknown version.
+			return 0, nil
+		}
+		if err != nil {
+			return failed("Failed to get template version.", err)
+		}
+		templateID = version.TemplateID.UUID
+	}
+	return api.checkChatProjectTemplate(ctx, project, templateID)
+}
+
+// chatProject returns the project the chat is in, or nil when it has none or
+// its owner can no longer read it. Subagent chats do not carry a project, so
+// they use their root chat's. ctx must be authorized as the chat's owner.
+func (api *API) chatProject(ctx context.Context, chat database.Chat) (*database.ChatProject, error) {
+	projectID := chat.ProjectID
+	if !projectID.Valid && chat.RootChatID.Valid && chat.RootChatID.UUID != chat.ID {
+		root, err := api.Database.GetChatByID(ctx, chat.RootChatID.UUID)
+		if httpapi.Is404Error(err) {
+			return nil, nil //nolint:nilnil // No root chat means no project.
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("get root chat: %w", err)
+		}
+		projectID = root.ProjectID
+	}
+	if !projectID.Valid {
+		return nil, nil //nolint:nilnil // The chat is not in a project.
+	}
+	project, err := api.Database.GetChatProjectByID(ctx, projectID.UUID)
+	if httpapi.Is404Error(err) {
+		// An owner who lost access to the project also loses its limit.
+		return nil, nil //nolint:nilnil // See above.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get chat project: %w", err)
+	}
+	return &project, nil
+}
+
+// checkChatProjectTemplate rejects binding a workspace that uses templateID
+// to a chat in project when the project limits its chats to other
+// templates. Every path that binds a workspace to a chat calls it. A nil
+// project never rejects. ctx must be authorized as the chat's owner.
+// Workspaces already bound to a chat keep working after a template is
+// detached from the project.
+func (api *API) checkChatProjectTemplate(ctx context.Context, project *database.ChatProject, templateID uuid.UUID) (int, *codersdk.Response) {
+	if project == nil {
+		return 0, nil
+	}
+	allowed, err := api.chatProjectAllowsTemplate(ctx, *project, templateID)
+	if err != nil {
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to check the chat project's templates.",
+			Detail:  err.Error(),
+		}
+	}
+	if !allowed {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "This template is not one of the templates the chat's project allows.",
+		}
+	}
+	return 0, nil
 }
 
 func (api *API) resolveCreateChatModelConfigID(

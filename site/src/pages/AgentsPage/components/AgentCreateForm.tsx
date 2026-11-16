@@ -307,7 +307,10 @@ type AgentCreateFormProps = {
 	 * servers chosen here are not saved as the user's defaults. The form
 	 * remounts when the project changes.
 	 */
-	project?: Pick<TypesGen.ChatProject, "id" | "organization_id" | "templates">;
+	project?: Pick<
+		TypesGen.ChatProject,
+		"id" | "organization_id" | "limit_templates" | "templates"
+	>;
 	prefill?: AgentCreatePrefill;
 	fillWidth?: boolean;
 	highlightKey?: string;
@@ -692,13 +695,12 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)
 			: []
 		: workspaceOptions;
-	// The server rejects attaching a workspace whose template is outside the
-	// chat project's templates.
-	const chatProjectTemplateIds = (project ?? selectedProject)?.templates
-		.template_ids;
-	const filteredWorkspaces = chatProjectTemplateIds
+	// The server rejects attaching a workspace whose template is outside a
+	// chat project that limits its chats to its templates.
+	const chatProject = project ?? selectedProject;
+	const filteredWorkspaces = chatProject?.limit_templates
 		? organizationWorkspaces.filter((ws) =>
-				chatProjectTemplateIds.includes(ws.template_id),
+				chatProject.templates.some(({ id }) => id === ws.template_id),
 			)
 		: organizationWorkspaces;
 
