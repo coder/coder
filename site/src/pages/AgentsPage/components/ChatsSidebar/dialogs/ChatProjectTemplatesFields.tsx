@@ -125,6 +125,8 @@ export const ChatProjectTemplatesFields: React.FC<
 	const defaultTemplateId = useId();
 	const limitId = useId();
 	const limitDescriptionId = useId();
+	const limitsToNothing =
+		value.limitTemplates && value.templateIds.length === 0;
 	const options = (templates ?? []).map((template) => ({
 		value: template.id,
 		label: templateLabel(template),
@@ -215,7 +217,7 @@ export const ChatProjectTemplatesFields: React.FC<
 							use these templates. When this is off, chats can use any template
 							their owner can use.
 						</p>
-						{value.limitTemplates && value.templateIds.length === 0 && (
+						{limitsToNothing && (
 							<p className="m-0 text-content-warning">
 								With no templates selected, chats in this project can't create
 								or attach workspaces.
