@@ -1338,7 +1338,6 @@ jobs:
         uses: ./.github/actions/build-coder
         with:
           targets: build-slim
-          frontend: "false"
 
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
