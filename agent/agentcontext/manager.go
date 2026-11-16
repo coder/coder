@@ -135,7 +135,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 	resolver := opts.Resolver
 	if resolver == nil {
-		resolver = &Resolver{}
+		resolver = &Resolver{Logger: opts.Logger.Named("resolver")}
 	}
 
 	m := &Manager{
@@ -478,7 +478,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveContext(ctx, roots, ResolveOptions{})
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot whose SnapshotError is set to
@@ -665,7 +665,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveContext(ctx, roots, ResolveOptions{})
 	if err := ctx.Err(); err != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot. Publishing it would replace the live

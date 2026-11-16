@@ -2,6 +2,7 @@ package agentcontext_test
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -444,6 +446,28 @@ func TestResolver_CountCapExcludes(t *testing.T) {
 	require.Equal(t, 2, excluded)
 }
 
+// coderd rejects a push of more than workspacesdk.MaxContextResources
+// resources, so the excluded rows past that count are dropped.
+func TestResolver_PushCapDropsExcludedRows(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for i := range workspacesdk.MaxContextResources + 1 {
+		mustWriteSkill(t, filepath.Join(root, ".agents", "skills"), fmt.Sprintf("s%04d", i), "S")
+	}
+
+	snap := (&agentcontext.Resolver{}).Resolve([]agentcontext.ScanRoot{{Path: root}})
+
+	require.Len(t, snap.Resources, workspacesdk.MaxContextResources)
+	var ok int
+	for _, res := range snap.Resources {
+		if res.Status == agentcontext.StatusOK {
+			ok++
+		}
+	}
+	require.Equal(t, agentcontext.DefaultMaxResources, ok)
+	require.Equal(t, "snapshot has 1001 resources; excluded resources past the 1000-resource push cap were dropped", snap.SnapshotError)
+}
+
 // TestResolver_MCPConfigOnlyAtScanRoot verifies that .mcp.json is
 // recognized only at a scan root's top level. A nested config is
 // ignored because the resolver no longer walks the tree.
@@ -757,4 +781,24 @@ func TestComputeAggregateHash_ChangesOnContent(t *testing.T) {
 	withStatus.Status = agentcontext.StatusOversize
 	hash3 := agentcontext.ComputeAggregateHash([]agentcontext.Resource{withStatus})
 	require.NotEqual(t, hash1, hash3)
+}
+
+// coderd's jsonb storage cannot hold U+0000, so it is removed from skill
+// names and descriptions, plain or plugin.
+func TestResolver_SkillFrontmatterNULRemoved(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	meta := "---\nname: escaped-nul\ndescription: \"a\\0b\"\n---\nbody"
+	mustWriteFile(t, filepath.Join(root, "skills", "escaped-nul", "SKILL.md"), meta)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteFile(t, filepath.Join(pluginDir, "skills", "escaped-nul", "SKILL.md"), meta)
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	for _, dir := range []string{filepath.Join(root, "skills", "escaped-nul"), filepath.Join(pluginDir, "skills", "escaped-nul")} {
+		skill := findResource(t, snap.Resources, agentcontext.KindSkill, dir)
+		require.Equal(t, agentcontext.StatusOK, skill.Status, skill.Error)
+		require.Equal(t, "ab", skill.Description)
+	}
 }
