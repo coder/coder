@@ -93,7 +93,7 @@ Best practices for installing Coder can be found on our [install](../install/ind
 | [2.36](https://coder.com/changelog/coder-2-36)                                                  | August 04, 2026    | Not Supported            | [v2.36.12](https://github.com/coder/coder/releases/tag/v2.36.12) |
 | [2.37](https://coder.com/changelog/coder-2-37)                                                  | September 01, 2026 | Security Support         | [v2.37.10](https://github.com/coder/coder/releases/tag/v2.37.10) |
 | [2.38](https://coder.com/changelog/broader-model-access-and-tighter-governance-controls-in-238) | October 06, 2026   | Stable                   | [v2.38.10](https://github.com/coder/coder/releases/tag/v2.38.10) |
-| [2.39](https://coder.com/changelog/project-level-memory-for-coder-agents-in-239)                | November 03, 2026  | Mainline                 | [v2.39.0](https://github.com/coder/coder/releases/tag/v2.39.0)   |
+| [2.39](https://coder.com/changelog/project-level-memory-for-coder-agents-in-239)                | November 03, 2026  | Mainline                 | [v2.39.4](https://github.com/coder/coder/releases/tag/v2.39.4)   |
 | 2.40                                                                                            |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
 
