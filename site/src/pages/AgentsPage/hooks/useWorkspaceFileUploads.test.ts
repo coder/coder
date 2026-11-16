@@ -492,15 +492,20 @@ describe("useWorkspaceFileUploads", () => {
 	);
 
 	it("ignores malformed and mismatched workspace references in a saved draft", () => {
+		const mockEmptyFileResponse = { ...okResponse, size: 0, media_type: "" };
 		localStorage.setItem(
 			"agents.workspace-upload-draft.chat-1.ws-1",
+			// JSON.stringify turns Infinity into null, so encode an overflowing number.
 			JSON.stringify([
 				null,
 				{ ...okResponse, name: 42 },
 				{ ...okResponse, size: -1 },
+				{ ...okResponse, size: "16" },
+				{ ...okResponse, size: "1e309" },
 				{ ...okResponse, workspace_id: "ws-2" },
 				okResponse,
-			]),
+				mockEmptyFileResponse,
+			]).replace('"1e309"', "1e309"),
 		);
 
 		const { result } = renderHook(() =>
@@ -509,6 +514,10 @@ describe("useWorkspaceFileUploads", () => {
 
 		expect(result.current.uploads).toEqual([
 			expect.objectContaining({ status: "uploaded", response: okResponse }),
+			expect.objectContaining({
+				status: "uploaded",
+				response: mockEmptyFileResponse,
+			}),
 		]);
 		expect(uploadMock).not.toHaveBeenCalled();
 	});

@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useMutation } from "react-query";
+import * as Yup from "yup";
 import { API } from "#/api/api";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -55,6 +56,15 @@ const createUploadId = (): string => {
 	return `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
+const workspaceUploadSchema: Yup.ObjectSchema<UploadChatWorkspaceFileResponse> =
+	Yup.object({
+		path: Yup.string().required(),
+		name: Yup.string().required(),
+		size: Yup.number().min(0).max(Number.MAX_VALUE).required(),
+		media_type: Yup.string().defined(),
+		workspace_id: Yup.string().defined(),
+	}).required();
+
 const readWorkspaceUploadDraft = (
 	storageKey: string | undefined,
 ): readonly UploadChatWorkspaceFileResponse[] | undefined => {
@@ -68,24 +78,8 @@ const readWorkspaceUploadDraft = (
 		if (!Array.isArray(stored)) {
 			return undefined;
 		}
-		return stored.filter(
-			(value: unknown): value is UploadChatWorkspaceFileResponse =>
-				typeof value === "object" &&
-				value !== null &&
-				"path" in value &&
-				typeof value.path === "string" &&
-				value.path.length > 0 &&
-				"name" in value &&
-				typeof value.name === "string" &&
-				value.name.length > 0 &&
-				"size" in value &&
-				typeof value.size === "number" &&
-				Number.isFinite(value.size) &&
-				value.size >= 0 &&
-				"media_type" in value &&
-				typeof value.media_type === "string" &&
-				"workspace_id" in value &&
-				typeof value.workspace_id === "string",
+		return stored.filter((value: unknown) =>
+			workspaceUploadSchema.isValidSync(value, { strict: true }),
 		);
 	} catch {
 		// Unavailable or invalid storage must not prevent composing a message.
