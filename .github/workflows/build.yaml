@@ -6,7 +6,7 @@ name: build
 # The build job signs exactly like release.yaml, through the same
 # ./.github/actions/build-coder action. This workflow has no pull_request or
 # workflow_dispatch trigger: the release-signer identity provider only accepts
-# this file on a push to main or release/*, or the creation of a release/*
+# this file on a push to main or release/X.Y, or the creation of a release/X.Y
 # branch, from the ci-signing environment.
 
 on:
@@ -14,9 +14,15 @@ on:
     branches:
       - main
       - release/*
+    # Same as the docs filter in ci.yaml's changes job: commits that only
+    # touch these don't need a signed build or a dogfood deploy.
     paths-ignore:
       - "docs/**"
       - ".claude/docs/**"
+      - "*.md"
+      - "examples/web-server/**"
+      - "examples/monitoring/**"
+      - "examples/lima/**"
 
   # GitHub Actions does not reliably trigger push-based runs when a new branch
   # is created at a commit that already has a run (e.g. from main). The create
