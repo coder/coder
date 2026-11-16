@@ -24,10 +24,10 @@ import {
 import {
 	AgentChatInput,
 	type AgentContextUsage,
-	type AttachedWorkspaceInfo,
 	type UploadState,
 } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
+import type { AttachedWorkspaceInfo } from "./ChatToolBadges";
 
 const defaultModelID = "model-config-1";
 
@@ -761,17 +761,6 @@ export const MCPOverlappingTransparentIcons: Story = {
 	},
 };
 
-export const ReadOnlyNotice: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCPConnected],
-		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
-		isDisabled: true,
-		isReadOnly: true,
-		readOnlyNotice: "This chat is owned by Tyler. It is read-only.",
-	},
-};
-
 export const MCPGroupPopoverOpen: Story = {
 	args: {
 		...WithMCPServers.args,
@@ -795,15 +784,6 @@ export const MCPGroupDisabled: Story = {
 	args: {
 		...WithMCPServers.args,
 		isDisabled: true,
-	},
-	play: MCPGroupPopoverOpen.play,
-};
-
-export const MCPGroupReadOnly: Story = {
-	args: {
-		...ReadOnlyNotice.args,
-		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
 	},
 	play: MCPGroupPopoverOpen.play,
 };

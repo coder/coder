@@ -552,14 +552,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 	};
 
-	const chatOwnerUsername = chat.owner_username?.trim();
-	const chatOwnerLabel =
-		chat.owner_name?.trim() ||
-		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const readOnlyNotice = isOtherUserReadOnly
-		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
-		: undefined;
 
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
@@ -674,7 +667,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onInterrupt={handleInterrupt}
 									isInputDisabled={isInputDisabled}
 									isReadOnly={isOtherUserReadOnly}
-									readOnlyNotice={readOnlyNotice}
 									isSendPending={isSubmissionPending}
 									isInterruptPending={isInterruptPending}
 									hasModelOptions={hasModelOptions}
