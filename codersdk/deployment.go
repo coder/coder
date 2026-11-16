@@ -5618,6 +5618,7 @@ var ExperimentsKnown = Experiments{
 var ExperimentsSafe = Experiments{
 	ExperimentChatStageMetrics,
 	ExperimentChatProjectSharing,
+	ExperimentAgentPlugins,
 }
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules

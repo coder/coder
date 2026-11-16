@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -426,6 +427,7 @@ func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, in
 	}
 
 	res.Error = strings.Join(warnings, "; ")
+	res.pluginOrder = len(pluginNames)
 	if !r.appendResource(out, index, res) {
 		return pluginValid
 	}
@@ -666,4 +668,56 @@ func pluginSkillLimitError(name, description string) string {
 		return fmt.Sprintf("skill description is %d characters, maximum is %d", n, maxPluginSkillDescriptionRunes)
 	}
 	return ""
+}
+
+// PluginInfo describes a validated plugin present in a Snapshot.
+type PluginInfo struct {
+	// Name is the manifest name.
+	Name string
+	// Root is the canonical plugin root directory.
+	Root string
+}
+
+// Plugins returns the StatusOK plugins in s in the order the resolver
+// claimed their names, not by resource ID.
+func (s Snapshot) Plugins() []PluginInfo {
+	var plugins []Resource
+	for _, r := range s.Resources {
+		if r.Kind != KindPlugin || r.Status != StatusOK {
+			continue
+		}
+		plugins = append(plugins, r)
+	}
+	slices.SortStableFunc(plugins, func(a, b Resource) int {
+		return cmp.Compare(a.pluginOrder, b.pluginOrder)
+	})
+	out := make([]PluginInfo, 0, len(plugins))
+	for _, r := range plugins {
+		out = append(out, PluginInfo{
+			Name: r.Name,
+			Root: r.Source,
+		})
+	}
+	return out
+}
+
+// PluginsAt returns the plugins from Plugins that a scan root at dir
+// discovers: dir itself and the immediate children of its plugin
+// containers. Plugins found through other scan roots, including roots
+// nested under dir, are left out.
+func (s Snapshot) PluginsAt(dir string) []PluginInfo {
+	root, err := canonicalExistingDir(dir, dir)
+	if err != nil {
+		return nil
+	}
+	var out []PluginInfo
+	for _, p := range s.Plugins() {
+		parent := filepath.Dir(p.Root)
+		if p.Root == root || slices.ContainsFunc(pluginContainerRelPaths, func(rel string) bool {
+			return parent == filepath.Join(root, rel)
+		}) {
+			out = append(out, p)
+		}
+	}
+	return out
 }

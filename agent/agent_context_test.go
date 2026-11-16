@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -169,6 +170,324 @@ func TestAgent_ContextStatePluginsDroppedAfterReconnect(t *testing.T) {
 		pushes := client.ContextStatePushes()
 		return !hasPluginData(pushes[len(pushes)-1])
 	}, testutil.WaitMedium, testutil.IntervalFast, "expected a push without plugin data")
+}
+
+// The declared command does not exist, so the server is unreadable;
+// only the nesting and plugin-prefixed source are checked.
+func TestAgent_PluginMCPServersLoaded(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, ".agents", "plugins", "acme")
+	require.NoError(t, os.MkdirAll(pluginDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+		"name": "acme"
+	}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "mcp.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+		"mcpServers": {
+			"srv": {"type": "stdio", "command": "coder-test-missing-mcp-binary"}
+		}
+	}`), 0o600))
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir, AgentPluginsEnabled: true},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{}
+		},
+	)
+
+	var (
+		plugin *agentproto.ContextResource
+		server *agentproto.ContextResource
+	)
+	pushed := assert.Eventually(t, func() bool {
+		for _, push := range client.ContextStatePushes() {
+			for _, r := range push.GetResources() {
+				if servers := r.GetPlugin().GetMcpServers(); r.GetPlugin().GetName() == "acme" && len(servers) > 0 {
+					plugin, server = r, servers[0]
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	if !pushed {
+		t.Fatalf("expected plugin and plugin MCP server resources to be pushed; got %s",
+			describePushes(client.ContextStatePushes()))
+	}
+
+	assert.Equal(t, "acme", plugin.GetPlugin().GetName())
+	assert.Equal(t, agentproto.ContextResource_OK, plugin.GetStatus())
+	assert.Equal(t, "acme/srv", server.GetSource())
+	assert.Equal(t, "srv", server.GetMcpServer().GetServerName())
+	assert.Equal(t, agentproto.ContextResource_UNREADABLE, server.GetStatus())
+}
+
+func TestAgent_PluginMCPServersFollowPluginChanges(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	pluginsDir := filepath.Join(dir, ".agents", "plugins")
+	require.NoError(t, os.MkdirAll(pluginsDir, 0o700))
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir, AgentPluginsEnabled: true},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{}
+		},
+	)
+
+	latestHasServer := func() (pushed, found bool) {
+		pushes := client.ContextStatePushes()
+		if len(pushes) == 0 {
+			return false, false
+		}
+		for _, r := range pushes[len(pushes)-1].GetResources() {
+			for _, server := range r.GetPlugin().GetMcpServers() {
+				if server.GetMcpServer() != nil && server.GetSource() == "acme/srv" {
+					return true, true
+				}
+			}
+		}
+		return true, false
+	}
+	require.Eventually(t, func() bool {
+		pushed, _ := latestHasServer()
+		return pushed
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+	pluginDir := filepath.Join(pluginsDir, "acme")
+	require.NoError(t, os.Mkdir(pluginDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+		"name": "acme"
+	}`), 0o600))
+	require.Eventually(t, func() bool {
+		pushes := client.ContextStatePushes()
+		for _, r := range pushes[len(pushes)-1].GetResources() {
+			if r.GetPlugin().GetName() == "acme" {
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+	// The plugin's mcp.json arrives after the plugin itself.
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "mcp.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+		"mcpServers": {
+			"srv": {"type": "stdio", "command": "coder-test-missing-mcp-binary"}
+		}
+	}`), 0o600))
+
+	if !assert.Eventually(t, func() bool {
+		_, found := latestHasServer()
+		return found
+	}, testutil.WaitSuperLong, testutil.IntervalFast) {
+		t.Fatalf("expected the added plugin's MCP server to be pushed; got %s",
+			describePushes(client.ContextStatePushes()))
+	}
+
+	require.NoError(t, os.RemoveAll(pluginDir))
+	if !assert.Eventually(t, func() bool {
+		_, found := latestHasServer()
+		return !found
+	}, testutil.WaitSuperLong, testutil.IntervalFast) {
+		t.Fatalf("expected the removed plugin's MCP server to leave the push; got %s",
+			describePushes(client.ContextStatePushes()))
+	}
+}
+
+// With plugins disabled, the workspace .mcp.json server is pushed and the
+// plugin's server is not.
+func TestAgent_PluginMCPServersNotLoadedWithPluginsDisabled(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeMCPPlugin(t, filepath.Join(dir, ".agents", "plugins", "acme"), "acme")
+	writeMCPConfig(t, filepath.Join(dir, ".mcp.json"), "ws")
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{}
+		},
+	)
+
+	var pushes []*agentproto.PushContextStateRequest
+	if !assert.Eventually(t, func() bool {
+		pushes = client.ContextStatePushes()
+		return slices.ContainsFunc(pushes, hasMCPServer("ws"))
+	}, testutil.WaitSuperLong, testutil.IntervalFast) {
+		t.Fatalf("expected the workspace MCP server to be pushed; got %s", describePushes(pushes))
+	}
+	require.False(t, slices.ContainsFunc(pushes, hasPluginData), describePushes(pushes))
+}
+
+// Only plugins discovered at the working directory start MCP servers; a
+// plugin in a declared source contributes its plugin row only.
+func TestAgent_PluginMCPServersOnlyFromWorkingDirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	declared := t.TempDir()
+	writeMCPPlugin(t, filepath.Join(dir, ".agents", "plugins", "acme"), "acme")
+	writeMCPPlugin(t, filepath.Join(declared, ".agents", "plugins", "ext"), "ext")
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir, AgentPluginsEnabled: true},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{InstructionsDirs: declared}
+		},
+	)
+
+	var push *agentproto.PushContextStateRequest
+	if !assert.Eventually(t, func() bool {
+		pushes := client.ContextStatePushes()
+		i := slices.IndexFunc(pushes, func(p *agentproto.PushContextStateRequest) bool {
+			return len(pluginOf(p, "acme").GetMcpServers()) > 0 && pluginOf(p, "ext") != nil
+		})
+		if i < 0 {
+			return false
+		}
+		push = pushes[i]
+		return true
+	}, testutil.WaitSuperLong, testutil.IntervalFast) {
+		t.Fatalf("expected both plugins and acme's MCP server to be pushed; got %s",
+			describePushes(client.ContextStatePushes()))
+	}
+	require.Empty(t, pluginOf(push, "ext").GetMcpServers(), describePushes([]*agentproto.PushContextStateRequest{push}))
+}
+
+// Setting the MCP config file list, even to the default file, stops
+// plugin MCP servers from starting.
+func TestAgent_PluginMCPServersNotLoadedWithMCPConfigFilesSet(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	mcpConfig := filepath.Join(dir, agentcontextconfig.DefaultMCPConfigFile)
+	writeMCPPlugin(t, filepath.Join(dir, ".agents", "plugins", "acme"), "acme")
+	writeMCPConfig(t, mcpConfig, "ws")
+
+	//nolint:dogsled // setupAgent returns a wide tuple; we only care about the client.
+	_, client, _, _, _ := setupAgent(t,
+		agentsdk.Manifest{Directory: dir, AgentPluginsEnabled: true},
+		0,
+		func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ContextConfig = agentcontextconfig.Config{
+				MCPConfigFiles:    agentcontextconfig.DefaultMCPConfigFile,
+				MCPConfigFilesSet: true,
+			}
+		},
+	)
+
+	require.Eventually(t, func() bool {
+		return slices.ContainsFunc(client.ContextStatePushes(), func(p *agentproto.PushContextStateRequest) bool {
+			return pluginOf(p, "acme") != nil && hasMCPServer("ws")(p)
+		})
+	}, testutil.WaitSuperLong, testutil.IntervalFast, "expected plugin acme and the workspace MCP server to be pushed")
+
+	// This reload runs after acme is in the snapshot.
+	writeMCPConfig(t, mcpConfig, "ws", "ws2")
+	var push *agentproto.PushContextStateRequest
+	if !assert.Eventually(t, func() bool {
+		pushes := client.ContextStatePushes()
+		i := slices.IndexFunc(pushes, hasMCPServer("ws2"))
+		if i < 0 {
+			return false
+		}
+		push = pushes[i]
+		return true
+	}, testutil.WaitSuperLong, testutil.IntervalFast) {
+		t.Fatalf("expected the added MCP server to be pushed; got %s", describePushes(client.ContextStatePushes()))
+	}
+	require.NotNil(t, pluginOf(push, "acme"))
+	require.Empty(t, pluginOf(push, "acme").GetMcpServers(), describePushes([]*agentproto.PushContextStateRequest{push}))
+}
+
+// writeMCPPlugin writes plugin name at pluginDir with one stdio MCP
+// server, srv, whose command does not exist.
+func writeMCPPlugin(t *testing.T, pluginDir, name string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(pluginDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+		"name": "`+name+`"
+	}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "mcp.json"), []byte(`{
+		"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+		"mcpServers": {
+			"srv": {"type": "stdio", "command": "coder-test-missing-mcp-binary"}
+		}
+	}`), 0o600))
+}
+
+// writeMCPConfig writes a .mcp.json-format file at path declaring a stdio
+// server, whose command does not exist, for each name.
+func writeMCPConfig(t *testing.T, path string, names ...string) {
+	t.Helper()
+	servers := make(map[string]any, len(names))
+	for _, name := range names {
+		servers[name] = map[string]any{"type": "stdio", "command": "coder-test-missing-mcp-binary"}
+	}
+	data, err := json.Marshal(map[string]any{"mcpServers": servers})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+}
+
+func hasMCPServer(source string) func(*agentproto.PushContextStateRequest) bool {
+	return func(req *agentproto.PushContextStateRequest) bool {
+		return slices.ContainsFunc(req.GetResources(), func(r *agentproto.ContextResource) bool {
+			return r.GetMcpServer() != nil && r.GetSource() == source
+		})
+	}
+}
+
+// pluginOf returns the plugin body named name in req, or nil.
+func pluginOf(req *agentproto.PushContextStateRequest, name string) *agentproto.PluginBody {
+	for _, r := range req.GetResources() {
+		if r.GetPlugin().GetName() == name {
+			return r.GetPlugin()
+		}
+	}
+	return nil
+}
+
+func describePushes(pushes []*agentproto.PushContextStateRequest) string {
+	var sb strings.Builder
+	for _, push := range pushes {
+		var resources []*agentproto.ContextResource
+		for _, r := range push.GetResources() {
+			resources = append(resources, r)
+			resources = append(resources, r.GetPlugin().GetSkills()...)
+			resources = append(resources, r.GetPlugin().GetMcpServers()...)
+		}
+		for _, r := range resources {
+			kind := "other"
+			switch {
+			case r.GetPlugin() != nil:
+				kind = "plugin"
+			case r.GetMcpServer() != nil:
+				kind = "mcp_server"
+			case r.GetSkill() != nil:
+				kind = "skill"
+			case r.GetInstructionFile() != nil:
+				kind = "instruction_file"
+			}
+			_, _ = fmt.Fprintf(&sb, "[v%d %s %s %s] ", push.GetVersion(), kind, r.GetSource(), r.GetStatus())
+		}
+	}
+	return sb.String()
 }
 
 // The notice is logged only when the manifest has no directory.

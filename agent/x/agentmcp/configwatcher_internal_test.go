@@ -21,7 +21,7 @@ import (
 )
 
 // These tests exercise the dual-agent late-file regression: the
-// inner sandbox agent settles startup quickly and calls Reload
+// inner sandbox agent settles startup quickly and calls ReloadCurrent
 // while `~/.mcp.json` still does not exist on disk. The host
 // agent then writes the file ~20s later. Before this fix, the
 // manager cached an empty snapshot and stayed empty until a
@@ -43,7 +43,7 @@ func awaitTools(ctx context.Context, t *testing.T, m *Manager, pred func([]catal
 
 // useFastDebounce shortens the watcher's debounce window so
 // real-clock tests do not stall on the 250 ms default. Must be
-// called before any Reload arms the watcher.
+// called before any reload arms the watcher.
 func useFastDebounce(t *testing.T, m *Manager) {
 	t.Helper()
 	m.mu.Lock()
@@ -68,13 +68,13 @@ func TestWatcher_LateFileTriggersReload(t *testing.T) {
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
-	// First Reload arms the watcher but finds nothing on disk.
-	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	// The first reload arms the watcher but finds nothing on disk.
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 	require.Empty(t, m.connectedTools(), "manager should start with no tools")
 
 	// Write the file after the manager has already settled. The
 	// watcher must observe the Create event, debounce it, and
-	// trigger a fresh Reload without any external HTTP call.
+	// trigger a fresh reload without any external HTTP call.
 	_, entry := fakeMCPServerConfig(t, "srv")
 	writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
@@ -85,7 +85,7 @@ func TestWatcher_LateFileTriggersReload(t *testing.T) {
 	assert.Equal(t, "echo", tools[0].tool)
 
 	// The snapshot must now reflect the on-disk file so the
-	// next Reload short-circuits.
+	// next reload short-circuits.
 	assert.False(t, m.SnapshotChanged(LegacySources([]string{configPath})))
 }
 
@@ -108,14 +108,14 @@ func TestWatcher_RewriteTriggersReload(t *testing.T) {
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 	tools := m.connectedTools()
 	require.Len(t, tools, 1)
 	assert.Equal(t, "srv", tools[0].server)
 
 	// Overwrite the config with a different server name. The
 	// watcher should fire and the cache should reflect the new
-	// server without any caller-driven Reload.
+	// server without any caller-driven reload.
 	_, entry2 := fakeMCPServerConfig(t, "srv2")
 	writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv2": entry2})
 
@@ -145,7 +145,7 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 	require.Len(t, m.connectedTools(), 1)
 
 	require.NoError(t, os.Remove(configPath))
@@ -161,7 +161,7 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 // produce exactly one onChange invocation. This is the
 // guarantee that lets the watcher coalesce editor-style
 // multi-event writes (write + chmod + rename) into a single
-// Reload.
+// reload.
 func TestWatcher_DebouncesBurst(t *testing.T) {
 	t.Parallel()
 
@@ -242,7 +242,7 @@ func TestWatcher_CloseStopsGoroutine(t *testing.T) {
 	for range 5 {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 		useFastDebounce(t, m)
-		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 		require.NoError(t, m.Close())
 
 		// After Close the watcher field is cleared and the
@@ -278,8 +278,8 @@ func TestWatcher_DualAgentLateConfigWarmsCatalog(t *testing.T) {
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
-	// First Reload races ahead of the host agent: empty config.
-	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	// The first reload races ahead of the host agent: empty config.
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 	require.Empty(t, m.connectedTools())
 
 	// Host agent writes the file later. The watcher must pick it up
@@ -326,7 +326,7 @@ func TestWatcher_LateParentDirTriggersReload(t *testing.T) {
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 	require.Empty(t, m.connectedTools())
 
 	// Create the missing parent directory. fsnotify will deliver
@@ -371,8 +371,8 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
-	// First Reload arms both paths, sharing the dir watch.
-	require.NoError(t, m.Reload(ctx, []string{pathA, pathB}))
+	// The first reload arms both paths, sharing the dir watch.
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{pathA, pathB})))
 
 	m.mu.RLock()
 	w := m.watcher
@@ -385,9 +385,9 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 	require.Equal(t, 2, w.dirs[dir], "refcount equals number of files")
 	w.mu.Unlock()
 
-	// Second Reload removes pathB, so the dir refcount drops to
+	// The second reload removes pathB, so the dir refcount drops to
 	// 1 but the watch must remain in place for pathA.
-	require.NoError(t, m.Reload(ctx, []string{pathA}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{pathA})))
 
 	w.mu.Lock()
 	require.Equal(t, 1, len(w.files), "one file tracked after removal")
@@ -413,7 +413,7 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 
 // TestWatcher_CloseDoesNotStallOnInFlightReload guards the
 // shutdown-ordering invariant: Close() must mark the manager
-// closed before w.Close() so an in-flight watcher-driven Reload
+// closed before w.Close() so an in-flight watcher-driven reload
 // short-circuits instead of blocking firesWG.Wait() for the full
 // connect timeout. Without the ordering, this test would block
 // at Close() for ~30 s.
@@ -444,10 +444,10 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	useFastDebounce(t, m)
 
-	// Arm the watcher with an initial empty Reload. We install the
+	// Arm the watcher with an initial empty reload. We install the
 	// hook after this so the first connectAll (with empty
 	// toConnect) is not blocked.
-	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{configPath})))
 
 	reached := make(chan struct{})
 	release := make(chan struct{})
@@ -474,7 +474,7 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 		t.Fatal("watcher-driven reload never reached connectAll")
 	}
 
-	// Reload is in-flight: connectAll is blocked inside the hook,
+	// A reload is in-flight: connectAll is blocked inside the hook,
 	// the singleflight body has not returned, and fire() is
 	// blocked in waitReload. Now call Close. With the correct
 	// ordering (m.closedCh closed before w.Close()), this returns
