@@ -203,7 +203,7 @@ Refer to the following resources:
 
 - [Tutorial: Create a template from scratch](./template-from-scratch.md)
 - [Extending templates](./extending-templates/index.md): Features and concepts around templates (agents, parameters, variables, and so on)
-- [Coder Registry](https://registry.coder.com/templates): Official and community templates
+- [Coder Registry](https://registry.coder.com/templates): Official and community templates for Coder
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)
 
 ### Next steps
