@@ -129,7 +129,7 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			if !project.allows(template.ID) {
+			if project != nil && !project.Allows(template.ID) {
 				return fantasy.NewTextErrorResponse(projectTemplateNotAvailableMessage), nil
 			}
 
