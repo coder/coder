@@ -174,6 +174,21 @@ func TestPlugin_ManifestValidation(t *testing.T) {
 			errContains: "author.name must be a string",
 		},
 		{
+			name:   "keys differing only in case are unknown",
+			fields: map[string]any{"name": "cased", "Name": 5},
+			status: agentcontext.StatusOK,
+			check: func(t *testing.T, res agentcontext.Resource) {
+				require.Equal(t, "cased", res.Name)
+				require.Equal(t, `unknown field "Name" ignored`, res.Error)
+			},
+		},
+		{
+			name:        "author key differing only in case rejected",
+			fields:      map[string]any{"name": "auth", "author": map[string]any{"Name": "Ada"}},
+			status:      agentcontext.StatusInvalid,
+			errContains: `author contains unknown field "Name"`,
+		},
+		{
 			name:        "author not an object",
 			fields:      map[string]any{"name": "auth", "author": "Ada"},
 			status:      agentcontext.StatusInvalid,
