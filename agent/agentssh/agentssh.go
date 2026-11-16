@@ -602,6 +602,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				} else {
 					fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 				}
+				if !reason.Expected() {
+					logger.Flush(ctx)
+				}
 				logger.Info(ctx, "ssh session closed",
 					fields...,
 				)
@@ -611,9 +614,6 @@ func (s *Server) sessionHandler(session ssh.Session) {
 					RxBytes: st.RxBytes(),
 					TxBytes: st.TxBytes(),
 				})
-				if !reason.Expected() {
-					logger.Flush(ctx)
-				}
 			})
 		}
 		// Non-PTY processes outlive the client like OpenSSH, so report the

@@ -144,6 +144,9 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 				reason = codersdk.DisconnectReasonGraceful
 			}
 			reportClose.Do(func() {
+				if !reason.Expected() {
+					clog.Flush(ctx)
+				}
 				clog.Info(ctx, "reconnecting pty closed", append(fields,
 					reason.SlogField(),
 					reason.SlogExpectedField(),
@@ -156,9 +159,6 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 					RxBytes: conn.RxBytes(),
 					TxBytes: conn.TxBytes(),
 				})
-				if !reason.Expected() {
-					clog.Flush(ctx)
-				}
 			})
 		}()
 	}

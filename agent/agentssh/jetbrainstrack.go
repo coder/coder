@@ -129,19 +129,19 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 			} else {
 				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 			}
+			if !reason.Expected() {
+				w.logger.Flush(context.Background())
+			}
+			//nolint: gocritic // JetBrains is a proper noun and should be capitalized
+			w.logger.Info(context.Background(), "JetBrains channel closed",
+				fields...,
+			)
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:    0,
 				Reason:  string(reason),
 				RxBytes: rxbytes,
 				TxBytes: txbytes,
 			})
-			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
-			w.logger.Debug(context.Background(), "JetBrains channel closed",
-				fields...,
-			)
-			if !reason.Expected() {
-				w.logger.Flush(context.Background())
-			}
 		},
 	}, r, err
 }
