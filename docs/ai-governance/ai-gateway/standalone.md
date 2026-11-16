@@ -340,5 +340,5 @@ Sequence changes that move both components:
 
 Running the same Coder release on `coderd` and every standalone replica is the simplest way to stay compatible, but it is not required.
 
-A replica older than Coder v2.40 checks AI budgets across all of a user's organizations instead of in the [request's organization](./request-organization.md#standalone-gateways-older-than-v240).
+A replica older than Coder v2.40 checks AI budgets across all of a user's organizations instead of in the [request's organization](./request-organization.md#standalone-gateways-earlier-than-v240).
 Upgrade every replica to apply budgets per organization.

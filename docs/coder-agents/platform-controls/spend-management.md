@@ -53,7 +53,7 @@ The API reference documents how to [get](../../reference/api/enterprise.md#get-g
 
 The usage indicator on the Agents page and the summary in the user menu both show the signed-in user's current AI spend, their budget, and the period reset date.
 Both appear only when the deployment has the AI Gateway entitlement.
-For a user in several organizations, both can show a different budget from the one that applies to a chat.
+For a user in several organizations, both can show a different budget from the one that applies to a chat, as [Where spend reports can differ](../../ai-governance/ai-gateway/request-organization.md#where-spend-reports-can-differ) explains.
 
 ## Spend details
 

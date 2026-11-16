@@ -315,8 +315,7 @@ Visibility follows the viewer's role:
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
 
-The avatar menu, the Coder Agents usage indicator, the **Members** tab budget, the **Groups** page combined limits, and the Get user AI spend endpoint resolve the effective group across all of the user's organizations.
-For a user in several organizations, these reports can differ from the budget that applied to a request that used a workspace session token or came from a chat.
+For a user in several organizations, some of these reports can differ from the budget that applied to a request.
 Refer to [Where spend reports can differ](./request-organization.md#where-spend-reports-can-differ).
 
 ### Spend export

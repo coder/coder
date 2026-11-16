@@ -113,17 +113,19 @@ Some reports resolve the user's effective group across all of their organization
 For a user in several organizations, these reports can differ from the budget that applied to a request that used a workspace session token or came from a chat.
 
 Spend amounts on the **Groups** page and the **Members** tab, and in the [spend export](./cost-controls.md#spend-export), are the spend recorded against each group, so they match where each request was charged.
-To find where a request was charged, use the spend export, whose rows name the group that each request's spend was recorded against.
+The spend export doesn't list individual requests.
+Each row totals one user's spend for one group, model, and provider, and names the group's organization, so it shows which organization a user's spend was charged to.
 
-## Standalone gateways older than v2.40
+## Standalone gateways earlier than v2.40
 
-A standalone AI Gateway replica older than Coder v2.40 can still connect to a newer `coderd`, as [Version compatibility](./standalone.md#version-compatibility) describes.
+A standalone AI Gateway replica from before Coder v2.40 can still connect to a newer `coderd`, as [Version compatibility](./standalone.md#version-compatibility) describes.
 Until you upgrade it, requests through that replica behave as follows:
 
 - The budget check runs across all of the user's organizations, as it did before v2.40.
 - The request's organization isn't recorded, so its spend is attributed to the effective group resolved across all of the user's organizations.
 
-The [rejected requests](#rejected-requests) still apply, because `coderd` chooses the organization before the replica checks the budget.
+The [rejected requests](#rejected-requests) still apply.
+`coderd` chooses the organization when the replica asks it to authenticate the request, and rejects the request at that step, before the replica checks the budget or sends the request upstream.
 
 To apply budgets per organization, upgrade `coderd` first, then upgrade every standalone replica.
 
