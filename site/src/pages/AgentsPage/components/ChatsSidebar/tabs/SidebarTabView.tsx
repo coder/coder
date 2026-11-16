@@ -322,7 +322,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 				tabIndex={-1}
 				className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary"
 			>
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1">
+				<div className="flex shrink-0 items-center gap-2 border-b px-4 py-1.5 lg:px-3 lg:py-1">
 					{onClose && (
 						<Button
 							variant="subtle"
@@ -365,7 +365,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 			onValueChange={onActiveTabChange}
 			className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary"
 		>
-			<div className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1">
+			<div className="relative flex shrink-0 items-center gap-2 border-b px-4 py-1.5 lg:px-3 lg:py-1">
 				{onClose && (
 					<Button
 						variant="subtle"

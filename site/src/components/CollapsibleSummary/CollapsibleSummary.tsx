@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 const collapsibleSummaryVariants = cva(
 	cn(
-		"flex items-center gap-1 p-0 bg-transparent border-0 cursor-pointer",
+		"flex items-center gap-1 p-0 bg-transparent cursor-pointer",
 		"transition-colors text-content-secondary hover:text-content-primary font-medium",
 		"whitespace-nowrap",
 	),

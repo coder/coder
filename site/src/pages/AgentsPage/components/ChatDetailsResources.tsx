@@ -64,8 +64,7 @@ export const ContextResourceGroups: React.FC<{
 						<ul
 							className={cn(
 								"m-0 flex list-none flex-col gap-3 p-0",
-								hasDirectory &&
-									"ml-1.5 border-0 border-l border-solid border-border pl-4",
+								hasDirectory && "ml-1.5 border-l pl-4",
 							)}
 						>
 							{items.map(({ resource, name }) => (

@@ -218,7 +218,7 @@ const DetailsSection: React.FC<{
 		<Collapsible
 			open={open}
 			onOpenChange={setOpen}
-			className="border-0 border-b border-solid border-border last:border-b-0"
+			className="border-b last:border-b-0"
 		>
 			<h3 className="m-0 text-sm font-medium">
 				<CollapsibleTrigger asChild>
@@ -321,7 +321,7 @@ const DetailsSections: React.FC<
 				{Boolean(
 					context?.dirty || context?.error || applyError || showApply,
 				) && (
-					<div className="flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-xs">
+					<div className="flex flex-col gap-2 border-b p-4 text-xs">
 						{context?.dirty && (
 							<p className="m-0 text-highlight-orange">
 								New workspace context is available. This chat is using the
@@ -470,9 +470,7 @@ const DetailsSections: React.FC<
 					</DetailsSection>
 				)}
 			</div>
-			<div className="border-0 border-t border-solid border-border p-4">
-				{attachments}
-			</div>
+			<div className="border-t p-4">{attachments}</div>
 		</>
 	);
 };

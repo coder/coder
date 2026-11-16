@@ -6,9 +6,7 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import userEvent, {
-	PointerEventsCheckLevel,
-} from "@testing-library/user-event";
+import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -722,10 +720,7 @@ describe("AgentChatInput", () => {
 	});
 
 	it("on a busy chat, a long press on Send opens the menu and the release does not send", async () => {
-		// Allow the held touch to finish after the menu disables outside pointer events.
-		const user = userEvent.setup({
-			pointerEventsCheck: PointerEventsCheckLevel.Never,
-		});
+		const user = userEvent.setup();
 		const onSend = vi.fn();
 
 		renderInput(

@@ -193,7 +193,7 @@ const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 	disabled,
 	onRemove,
 }) => (
-	<div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-border last:border-b-0 px-1 py-3">
+	<div className="flex items-center justify-between gap-3 border-b last:border-b-0 px-1 py-3">
 		<div className="min-w-0 flex-1">{children}</div>
 		<div className="flex shrink-0 items-center gap-2">
 			<ReadRoleBadge />
@@ -355,7 +355,7 @@ export const ChatSharingPopoverContent: React.FC<
 								</p>
 							</div>
 						) : (
-							<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
+							<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border sm:hidden">
 								{groups.map((group) => (
 									<MobileMemberRow
 										key={group.id}

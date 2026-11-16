@@ -56,19 +56,19 @@ const drawerContentVariants = cva(
 		variants: {
 			direction: {
 				top: cn(
-					"inset-x-0 top-0 max-h-[80vh] w-full border-b border-border",
+					"inset-x-0 top-0 max-h-[80vh] w-full border-b",
 					"data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top",
 				),
 				bottom: cn(
-					"inset-x-0 bottom-0 max-h-[80vh] w-full border-t border-border",
+					"inset-x-0 bottom-0 max-h-[80vh] w-full border-t",
 					"data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
 				),
 				left: cn(
-					"inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-sm",
+					"inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
 					"data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
 				),
 				right: cn(
-					"inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-sm",
+					"inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
 					"data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
 				),
 			},

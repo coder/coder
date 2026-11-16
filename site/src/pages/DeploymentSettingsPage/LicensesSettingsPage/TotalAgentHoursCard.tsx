@@ -39,7 +39,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 
 	if (!isUnlimited && limit < 0) {
 		return (
-			<section className="border border-solid rounded">
+			<section className="border rounded">
 				<div className="p-4">
 					<ErrorAlert error="Invalid license usage limits" />
 				</div>
@@ -146,7 +146,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 	}
 
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<div className="flex flex-col gap-2">
 					<div className="flex flex-col gap-0.5">
@@ -157,7 +157,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 									<button
 										type="button"
 										aria-label="Total agent hours information"
-										className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+										className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 									>
 										<InfoIcon className="size-3" />
 									</button>
@@ -197,7 +197,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 							<>
 								{softMarkerPercent !== undefined && (
 									<div
-										className="absolute inset-y-0 z-0 border-0 border-l-2 border-dotted border-border-warning"
+										className="absolute inset-y-0 z-0 border-l-2 border-dotted border-border-warning"
 										style={{ left: `${softMarkerPercent}%` }}
 									/>
 								)}

@@ -73,14 +73,14 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 				data-chart={chartId}
 				className={cn(
 					"flex aspect-video justify-center text-xs",
-					"[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
+					"[&_.recharts-cartesian-axis-tick_text]:fill-content-secondary",
 					"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50",
 					"[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border",
 					"[&_.recharts-dot[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-layer]:outline-hidden",
 					"[&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border",
-					"[&_.recharts-radial-bar-background-sector]:fill-muted",
-					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted",
+					"[&_.recharts-radial-bar-background-sector]:fill-surface-secondary",
+					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-surface-secondary",
 					"[&_.recharts-reference-line_[stroke='#ccc']]:stroke-border",
 					"[&_.recharts-sector[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-sector]:outline-hidden",
@@ -358,7 +358,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 	return (
 		<div
 			className={cn(
-				"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
+				"grid min-w-32 items-start gap-1 rounded-lg border bg-surface-primary px-3 py-2 text-xs shadow-xl",
 				className,
 			)}
 		>

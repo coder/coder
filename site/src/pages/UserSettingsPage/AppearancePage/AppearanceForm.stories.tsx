@@ -40,7 +40,7 @@ const ResyncHarness: React.FC<ResyncHarnessProps> = ({
 		<div className="flex flex-col gap-6">
 			<button
 				type="button"
-				className="w-fit rounded-md border border-solid border-border px-3 py-2"
+				className="w-fit rounded-md border px-3 py-2"
 				onClick={() =>
 					setSettings({ ...baseSettings, theme_preference: "light" })
 				}
@@ -73,14 +73,14 @@ const PendingUpdateHarness: React.FC<PendingUpdateHarnessProps> = ({
 			<div className="flex gap-2">
 				<button
 					type="button"
-					className="rounded-md border border-solid border-border px-3 py-2"
+					className="rounded-md border px-3 py-2"
 					onClick={() => setRenderCount((current) => current + 1)}
 				>
 					Rerender pending update
 				</button>
 				<button
 					type="button"
-					className="rounded-md border border-solid border-border px-3 py-2"
+					className="rounded-md border px-3 py-2"
 					onClick={() => setIsUpdating(false)}
 				>
 					Complete update

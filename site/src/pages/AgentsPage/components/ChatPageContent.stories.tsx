@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type QueryClient, useQueryClient } from "react-query";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatPromptsKey,
 	organizationChatModelOverridesKey,
@@ -405,6 +407,40 @@ export const MergedMessagesRenderInIDOrder: Story = {
 // rejected by the backend, so Stop stays present but disabled.
 const interruptingOnInterrupt = fn();
 export const InterruptingShowsBusyComposer: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: "",
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
+	},
 	render: () => {
 		const store = buildInterruptingStore();
 		return (
@@ -434,9 +470,15 @@ export const InterruptingShowsBusyComposer: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
 		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
-		expect(canvas.getByRole("status")).toHaveTextContent(
-			"Interrupting. Waiting for the agent to stop.",
-		);
+		expect(
+			canvas
+				.getAllByRole("status")
+				.some((status) =>
+					status.textContent?.includes(
+						"Interrupting. Waiting for the agent to stop.",
+					),
+				),
+		).toBe(true);
 		expect(
 			canvas.queryByRole("button", { name: "Send during turn" }),
 		).toBeNull();
@@ -452,10 +494,96 @@ export const InterruptingShowsBusyComposer: Story = {
 };
 
 export const RunningShowsBusyComposer: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: "",
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
+	},
 	render: () => {
 		const store = buildInterruptingStore();
 		store.setChatStatus("running");
 		return <StoryChatPageInput store={store} />;
+	},
+};
+
+export const QueuePermissionError: Story = {
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockRejectedValue(
+			new Error("Unable to check queue permissions."),
+		);
+	},
+	render: () => {
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", {
+			name: "Retry queue permissions",
+		});
+	},
+};
+
+let queuePermissionQueryClient: QueryClient | undefined;
+
+export const QueuePermissionRefetchError: Story = {
+	decorators: [
+		(Story) => {
+			queuePermissionQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	beforeEach: () => {
+		const checkQueuePermissions = fn()
+			.mockResolvedValueOnce({ canUpdateChat: true })
+			.mockRejectedValue(new Error("Unable to check queue permissions."));
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			"canUpdateChat" in checks
+				? checkQueuePermissions()
+				: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+	},
+	render: () => {
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Remove from queue" });
+		await queuePermissionQueryClient?.refetchQueries({
+			queryKey: authorizationKey,
+		});
+		await canvas.findByRole("button", { name: "Retry queue permissions" });
 	},
 };
 

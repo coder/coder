@@ -84,7 +84,7 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 
 	return (
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel="Workspace agent startup log"
 			followEnd

@@ -56,7 +56,9 @@ describe("UsersPage", () => {
 			route: "/deployment/users?filter=status%3Aactive",
 		});
 
-		await user.click(await screen.findByRole("button", { name: "Last seen" }));
+		await user.click(
+			await screen.findByRole("combobox", { name: "Last seen" }),
+		);
 		await user.click(
 			await screen.findByRole("radio", { name: "Over 30 days" }),
 		);
@@ -68,8 +70,10 @@ describe("UsersPage", () => {
 				'status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:-30d',
 			),
 		);
-		expect(
-			await screen.findByRole("button", { name: /Over 30 days/ }),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				screen.getByRole("combobox", { name: "Last seen" }),
+			).toHaveTextContent("Over 30 days"),
+		);
 	});
 });

@@ -181,7 +181,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 				</Command>
 				{/* Outside Command so search never filters it out and it stays
 				    visible while the list scrolls. */}
-				<div className="border-0 border-t border-solid border-border p-1">
+				<div className="border-t p-1">
 					<Button
 						variant="subtle"
 						size="sm"

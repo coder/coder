@@ -311,7 +311,7 @@ export const TemplateBuilderPageView: React.FC<
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="p-6 border border-solid rounded-lg overflow-x-auto">
+					<div className="p-6 border rounded-lg overflow-x-auto">
 						<StepContent
 							stepId={currentStep.id}
 							state={state}

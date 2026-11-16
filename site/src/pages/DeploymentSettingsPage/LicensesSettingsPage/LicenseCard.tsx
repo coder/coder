@@ -317,7 +317,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				}
 				confirmLoading={isRemoving}
 			/>
-			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-xs">
+			<div className="license-card group overflow-hidden rounded-md border bg-surface-secondary text-sm shadow-xs">
 				<div className="flex items-center gap-6 p-3">
 					<CollapsibleTrigger
 						asChild
@@ -325,7 +325,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 					>
 						<button
 							type="button"
-							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
+							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 bg-transparent p-0 text-left"
 						>
 							{headerContent}
 						</button>
@@ -356,7 +356,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 
 				<CollapsibleContent>
-					<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
+					<div className="border-t bg-surface-primary px-4 py-4">
 						<div className="text-sm text-content-secondary">Products</div>
 						<div className="mt-3 flex flex-wrap gap-3">
 							<CoderWorkspacesProductCard

@@ -125,11 +125,11 @@ const NotificationsPage: React.FC = () => {
 
 						return (
 							<article
-								className="border border-solid rounded-lg overflow-hidden"
+								className="border rounded-lg overflow-hidden"
 								key={group}
 							>
 								<div className="flex flex-col">
-									<header className="flex items-center justify-start gap-2 bg-surface-secondary border-0 border-b border-solid px-4 py-3">
+									<header className="flex items-center justify-start gap-2 bg-surface-secondary border-b px-4 py-3">
 										<div className="flex items-center gap-2">
 											<Switch
 												id={group}
@@ -180,7 +180,7 @@ const NotificationsPage: React.FC = () => {
 
 										return (
 											<Fragment key={tmpl.id}>
-												<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 not-last:border-b border-solid">
+												<div className="flex items-center justify-between gap-3 px-4 py-3 not-last:border-b">
 													<div className="flex items-center gap-2">
 														<Switch
 															id={tmpl.id}
@@ -221,7 +221,7 @@ const NotificationsPage: React.FC = () => {
 															<button
 																type="button"
 																aria-label={label}
-																className="m-0 flex items-center border-0 bg-transparent p-0 text-content-secondary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+																className="m-0 flex items-center bg-transparent p-0 text-content-secondary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 															>
 																<Icon className="size-icon-sm" />
 															</button>

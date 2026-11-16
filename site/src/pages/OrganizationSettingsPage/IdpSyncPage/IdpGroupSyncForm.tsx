@@ -259,7 +259,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 												placeholder="Select IdP group"
 											/>
 										</ComboboxTrigger>
-										<ComboboxContent className="w-72">
+										<ComboboxContent className="w-72" label="Search IdP groups">
 											<ComboboxInput
 												value={comboInputValue}
 												onValueChange={setComboInputValue}

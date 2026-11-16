@@ -47,7 +47,7 @@ const mockCost: TypesGen.ChatCost = {
 };
 
 const PanelFrame = (Story: React.FC) => (
-	<div className="h-[760px] w-[360px] max-w-full border border-solid border-border">
+	<div className="h-[760px] w-[360px] max-w-full border">
 		<Story />
 	</div>
 );

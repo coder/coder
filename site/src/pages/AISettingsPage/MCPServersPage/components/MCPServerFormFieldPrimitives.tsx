@@ -59,7 +59,7 @@ export const CollapsibleSection: React.FC<{
 			onOpenChange={onOpenChange}
 			className={cn("p-4", className)}
 		>
-			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
+			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
 				{open ? (
 					<ChevronDownIcon className="mt-1 size-4 shrink-0 text-content-primary" />
 				) : (

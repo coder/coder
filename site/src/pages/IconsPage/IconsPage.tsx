@@ -109,7 +109,7 @@ const IconsPage: React.FC = () => {
 				<div className="relative max-w-xs">
 					<SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-icon-xs text-content-secondary" />
 					<Input
-						aria-label="Filter"
+						aria-label="Search"
 						name="query"
 						placeholder="Search…"
 						value={searchInputText}
