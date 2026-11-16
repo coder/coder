@@ -47,6 +47,7 @@ const renderHook: typeof renderHookBase = (callback, options) => {
 describe("useWorkspaceFileUploads", () => {
 	beforeEach(() => {
 		uploadMock.mockReset();
+		localStorage.clear();
 	});
 
 	it("transitions an upload from uploading to uploaded", async () => {
@@ -458,70 +459,80 @@ describe("useWorkspaceFileUploads", () => {
 		expect(result.current.uploads[0].file.name).toBe("b.tar");
 	});
 
-	it("resets pending uploads when the chat changes", async () => {
-		uploadMock.mockResolvedValue(okResponse);
-		const { result, rerender } = renderHook(
-			({ chatId }: { chatId: string }) =>
-				useWorkspaceFileUploads(chatId, "ws-1"),
-			{ initialProps: { chatId: "chat-1" } },
+	it.each([
+		{ scope: "chat", next: { chatId: "chat-2", workspaceId: "ws-1" } },
+		{ scope: "workspace", next: { chatId: "chat-1", workspaceId: "ws-2" } },
+	])(
+		"restores completed uploads when returning to a $scope",
+		async ({ next }) => {
+			uploadMock.mockResolvedValue(okResponse);
+			const initialProps = { chatId: "chat-1", workspaceId: "ws-1" };
+			const { result, rerender } = renderHook(
+				({ chatId, workspaceId }: typeof initialProps) =>
+					useWorkspaceFileUploads(chatId, workspaceId, { persist: true }),
+				{ initialProps },
+			);
+
+			act(() => {
+				result.current.attach([makeFile()]);
+			});
+			await waitFor(() => {
+				expect(result.current.uploads[0].status).toBe("uploaded");
+			});
+
+			rerender(next);
+			expect(result.current.uploads).toEqual([]);
+
+			rerender(initialProps);
+			expect(result.current.uploads).toEqual([
+				expect.objectContaining({ status: "uploaded", response: okResponse }),
+			]);
+			expect(uploadMock).toHaveBeenCalledOnce();
+		},
+	);
+
+	it("ignores malformed and mismatched workspace references in a saved draft", () => {
+		localStorage.setItem(
+			"agents.workspace-upload-draft.chat-1.ws-1",
+			JSON.stringify([
+				null,
+				{ ...okResponse, name: 42 },
+				{ ...okResponse, size: -1 },
+				{ ...okResponse, workspace_id: "ws-2" },
+				okResponse,
+			]),
 		);
 
-		act(() => {
-			result.current.attach([makeFile()]);
-		});
-		await waitFor(() => {
-			expect(result.current.uploads[0].status).toBe("uploaded");
-		});
-
-		rerender({ chatId: "chat-2" });
-
-		await waitFor(() => {
-			expect(result.current.uploads).toHaveLength(0);
-		});
-	});
-
-	it("resets uploads when the bound workspace changes", async () => {
-		uploadMock.mockResolvedValue(okResponse);
-		const initialProps: { workspaceId: string | undefined } = {
-			workspaceId: "ws-1",
-		};
-		const { result, rerender } = renderHook(
-			({ workspaceId }: typeof initialProps) =>
-				useWorkspaceFileUploads("chat-1", workspaceId),
-			{ initialProps },
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads("chat-1", "ws-1", { persist: true }),
 		);
 
-		act(() => {
-			result.current.attach([makeFile()]);
-		});
-		await waitFor(() => {
-			expect(result.current.uploads[0].status).toBe("uploaded");
-		});
-
-		rerender({ workspaceId: "ws-2" });
-
-		await waitFor(() => {
-			expect(result.current.uploads).toHaveLength(0);
-		});
+		expect(result.current.uploads).toEqual([
+			expect.objectContaining({ status: "uploaded", response: okResponse }),
+		]);
+		expect(uploadMock).not.toHaveBeenCalled();
 	});
 
 	it("uploads to the new chat while stale uploads are still settling", async () => {
-		// Saturate all worker slots with chat-1 uploads that never
-		// settle, so stale workers still hold slots when chat-2 files
-		// arrive. Without generation-scoped slot accounting the chat-2
-		// upload would never start (or a stale chat-1 worker would
-		// steal it).
+		// Saturate the worker slots so the next chat must start uploads
+		// before the previous chat's requests settle.
+		const resolveOldUploads: ((
+			value: UploadChatWorkspaceFileResponse,
+		) => void)[] = [];
+		const mockNewChatResponse = {
+			...okResponse,
+			path: "/home/coder/.coder/chats/chat-2/files/new.tar",
+			name: "new.tar",
+		};
 		uploadMock.mockImplementation((chatId: string) => {
 			if (chatId === "chat-1") {
-				return new Promise(() => {
-					// Never resolves; the abort is what ends it.
-				});
+				return new Promise((resolve) => resolveOldUploads.push(resolve));
 			}
-			return Promise.resolve(okResponse);
+			return Promise.resolve(mockNewChatResponse);
 		});
 		const { result, rerender } = renderHook(
 			({ chatId }: { chatId: string }) =>
-				useWorkspaceFileUploads(chatId, "ws-1"),
+				useWorkspaceFileUploads(chatId, "ws-1", { persist: true }),
 			{ initialProps: { chatId: "chat-1" } },
 		);
 
@@ -553,10 +564,27 @@ describe("useWorkspaceFileUploads", () => {
 			expect.any(File),
 			expect.any(AbortSignal),
 		);
+
+		await act(async () => {
+			for (const resolve of resolveOldUploads) {
+				resolve(okResponse);
+			}
+		});
+
+		rerender({ chatId: "chat-1" });
+		expect(result.current.uploads).toEqual([]);
+		rerender({ chatId: "chat-2" });
+		expect(result.current.uploads).toEqual([
+			expect.objectContaining({
+				status: "uploaded",
+				response: mockNewChatResponse,
+			}),
+		]);
 	});
 
-	it("aborts in-flight uploads on unmount", async () => {
+	it("aborts in-flight uploads on unmount without restoring unfinished files", async () => {
 		let capturedSignal: AbortSignal | undefined;
+		uploadMock.mockResolvedValueOnce(okResponse);
 		uploadMock.mockImplementationOnce(
 			(_chatId: string, _file: File, signal?: AbortSignal) => {
 				capturedSignal = signal;
@@ -566,17 +594,28 @@ describe("useWorkspaceFileUploads", () => {
 			},
 		);
 		const { result, unmount } = renderHook(() =>
-			useWorkspaceFileUploads("chat-1", "ws-1"),
+			useWorkspaceFileUploads("chat-1", "ws-1", { persist: true }),
 		);
 
 		act(() => {
-			result.current.attach([makeFile()]);
+			result.current.attach([makeFile(), makeFile("pending.tar")]);
+		});
+		await waitFor(() => {
+			expect(result.current.uploads.map((upload) => upload.status)).toEqual([
+				"uploaded",
+				"uploading",
+			]);
 		});
 
 		unmount();
+		expect(capturedSignal?.aborted).toBe(true);
 
-		await waitFor(() => {
-			expect(capturedSignal?.aborted).toBe(true);
-		});
+		const restored = renderHook(() =>
+			useWorkspaceFileUploads("chat-1", "ws-1", { persist: true }),
+		);
+		expect(restored.result.current.uploads).toEqual([
+			expect.objectContaining({ status: "uploaded", response: okResponse }),
+		]);
+		expect(uploadMock).toHaveBeenCalledTimes(2);
 	});
 });

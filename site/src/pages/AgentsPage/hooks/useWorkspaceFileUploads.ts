@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useMutation } from "react-query";
 import { API } from "#/api/api";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { renameChatFileForUpload } from "../utils/chatAttachments";
 import { formatAgentAttachmentUploadError } from "../utils/fileAttachmentLimits";
 
@@ -54,6 +55,103 @@ const createUploadId = (): string => {
 	return `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
+const readWorkspaceUploadDraft = (
+	storageKey: string | undefined,
+): readonly UploadChatWorkspaceFileResponse[] | undefined => {
+	if (!storageKey) {
+		return [];
+	}
+	try {
+		const stored: unknown = JSON.parse(
+			localStorage.getItem(storageKey) ?? "[]",
+		);
+		if (!Array.isArray(stored)) {
+			return undefined;
+		}
+		return stored.filter(
+			(value: unknown): value is UploadChatWorkspaceFileResponse =>
+				typeof value === "object" &&
+				value !== null &&
+				"path" in value &&
+				typeof value.path === "string" &&
+				value.path.length > 0 &&
+				"name" in value &&
+				typeof value.name === "string" &&
+				value.name.length > 0 &&
+				"size" in value &&
+				typeof value.size === "number" &&
+				Number.isFinite(value.size) &&
+				value.size >= 0 &&
+				"media_type" in value &&
+				typeof value.media_type === "string" &&
+				"workspace_id" in value &&
+				typeof value.workspace_id === "string",
+		);
+	} catch {
+		// Unavailable or invalid storage must not prevent composing a message.
+		return undefined;
+	}
+};
+
+const restoreWorkspaceUploadDraft = (
+	storageKey: string | undefined,
+	workspaceId: string | undefined,
+): readonly WorkspaceFileUpload[] =>
+	(readWorkspaceUploadDraft(storageKey) ?? [])
+		.filter((response) => response.workspace_id === workspaceId)
+		.map((response) => ({
+			id: createUploadId(),
+			file: new File([], response.name, { type: response.media_type }),
+			status: "uploaded",
+			response,
+		}));
+
+const persistWorkspaceUploadDraft = (
+	storageKey: string | undefined,
+	uploads: readonly WorkspaceFileUpload[],
+) => {
+	if (!storageKey) {
+		return;
+	}
+	const responses = uploads.flatMap((upload) =>
+		upload.status === "uploaded" && upload.response ? [upload.response] : [],
+	);
+	try {
+		if (responses.length === 0) {
+			localStorage.removeItem(storageKey);
+		} else {
+			localStorage.setItem(storageKey, JSON.stringify(responses));
+		}
+	} catch {
+		toast.warning(
+			"Could not save workspace upload changes. Your draft may be outdated when you return to this chat.",
+			{ id: storageKey },
+		);
+		try {
+			const savedResponses = readWorkspaceUploadDraft(storageKey);
+			// Keep a saved subset, but discard references removed from this draft.
+			if (
+				!savedResponses ||
+				savedResponses.some(
+					(saved) =>
+						!responses.some(
+							(response) =>
+								response.path === saved.path &&
+								response.name === saved.name &&
+								response.size === saved.size &&
+								response.media_type === saved.media_type &&
+								response.workspace_id === saved.workspace_id,
+						),
+				)
+			) {
+				localStorage.removeItem(storageKey);
+			}
+		} catch {
+			// The in-memory draft remains usable if storage is unavailable.
+		}
+	}
+};
+
 const createUploadCancellationError = (): Error => {
 	const error = new Error("Workspace file upload canceled.");
 	error.name = "AbortError";
@@ -72,17 +170,23 @@ const createUploadCancellationError = (): Error => {
  * already reached the workspace stay there; removal only drops the
  * composer reference.
  *
- * Uploads are scoped to the chat and its bound workspace: switching
- * either one resets the pending set, because already-uploaded bytes
- * live in the previous workspace and their references would be
- * unreadable for the new one.
+ * Uploads are scoped to the chat and its bound workspace. With persistence
+ * enabled, completed uploads are restored when returning to that scope;
+ * unfinished uploads are canceled. Only references are saved, not file bytes.
  */
 export function useWorkspaceFileUploads(
 	chatId: string | undefined,
 	workspaceId: string | undefined,
+	options?: { persist: boolean },
 ): UseWorkspaceFileUploadsReturn {
-	const [uploads, setUploads] = useState<readonly WorkspaceFileUpload[]>([]);
-	const uploadsRef = useRef<readonly WorkspaceFileUpload[]>([]);
+	const storageKey =
+		options?.persist && chatId && workspaceId
+			? `agents.workspace-upload-draft.${chatId}.${workspaceId}`
+			: undefined;
+	const [uploads, setUploads] = useState<readonly WorkspaceFileUpload[]>(() =>
+		restoreWorkspaceUploadDraft(storageKey, workspaceId),
+	);
+	const uploadsRef = useRef(uploads);
 	const generationRef = useRef(0);
 	// Deferred callbacks capture this render's generation. A reset
 	// updates the state after incrementing the ref, so callbacks from
@@ -106,7 +210,7 @@ export function useWorkspaceFileUploads(
 	// already settled cannot un-resolve that settle promise, so
 	// uploadQueued drops these ids from its final results instead.
 	const removedIdsRef = useRef(new Set<string>());
-	const scopeKey = `${chatId ?? ""}/${workspaceId ?? ""}`;
+	const scopeKey = `${chatId ?? ""}/${workspaceId ?? ""}/${storageKey ?? ""}`;
 	const previousScopeKeyRef = useRef(scopeKey);
 
 	const uploadMutation = useMutation({
@@ -130,6 +234,7 @@ export function useWorkspaceFileUploads(
 		const next = update(uploadsRef.current);
 		uploadsRef.current = next;
 		setUploads(next);
+		return next;
 	};
 
 	const settleUpload = (id: string, result: WorkspaceFileUpload | null) => {
@@ -160,6 +265,7 @@ export function useWorkspaceFileUploads(
 		abortAllUploads();
 		setQueueGeneration(generationRef.current);
 		updateUploads(() => []);
+		persistWorkspaceUploadDraft(storageKey, []);
 	};
 
 	// Abort any in-flight uploads when the composer unmounts. StrictMode
@@ -172,10 +278,13 @@ export function useWorkspaceFileUploads(
 	});
 	useEffect(() => () => abortOnUnmount(), []);
 
-	// Uploads target a specific chat's directory in a specific
-	// workspace, so navigating to a different chat or rebinding the
-	// workspace invalidates the pending set.
-	const resetForScope = useEffectEvent(reset);
+	// Keep the previous scope's saved references so an optimistic rebind
+	// can roll back without losing the draft.
+	const resetForScope = useEffectEvent(() => {
+		abortAllUploads();
+		setQueueGeneration(generationRef.current);
+		updateUploads(() => restoreWorkspaceUploadDraft(storageKey, workspaceId));
+	});
 	useEffect(() => {
 		if (previousScopeKeyRef.current === scopeKey) {
 			return;
@@ -188,11 +297,14 @@ export function useWorkspaceFileUploads(
 		id: string,
 		result: Partial<WorkspaceFileUpload>,
 	) => {
-		updateUploads((current) =>
+		const next = updateUploads((current) =>
 			current.map((upload) =>
 				upload.id === id ? { ...upload, ...result } : upload,
 			),
 		);
+		if (result.status === "uploaded") {
+			persistWorkspaceUploadDraft(storageKey, next);
+		}
 	};
 
 	// Each worker pulls queued files until the queue drains, so a
@@ -212,6 +324,9 @@ export function useWorkspaceFileUploads(
 						file: next.file,
 						signal: controller.signal,
 					});
+					if (generationRef.current !== generation) {
+						return;
+					}
 					setUploadResult(next.id, { status: "uploaded", response });
 					settleUpload(next.id, {
 						id: next.id,
@@ -220,6 +335,9 @@ export function useWorkspaceFileUploads(
 						response,
 					});
 				} catch (error: unknown) {
+					if (generationRef.current !== generation) {
+						return;
+					}
 					if (!controller.signal.aborted) {
 						const message = formatAgentAttachmentUploadError(error);
 						setUploadResult(next.id, {
@@ -336,7 +454,10 @@ export function useWorkspaceFileUploads(
 			(entry) => entry.id !== id,
 		);
 		settleUpload(id, null);
-		updateUploads((current) => current.filter((upload) => upload.id !== id));
+		const next = updateUploads((current) =>
+			current.filter((upload) => upload.id !== id),
+		);
+		persistWorkspaceUploadDraft(storageKey, next);
 	};
 
 	return { uploads, attach, remove, reset, uploadQueued };
