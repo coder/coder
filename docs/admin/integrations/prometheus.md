@@ -37,6 +37,8 @@ kind: Service
 metadata:
   name: coder-prom
   namespace: coder
+  labels:
+    app.kubernetes.io/name: coder-prom
 spec:
   clusterIP: None
   ports:
@@ -89,7 +91,7 @@ spec:
     - coder
   selector:
     matchLabels:
-      app.kubernetes.io/name: coder
+      app.kubernetes.io/name: coder-prom
 ```
 
 ## Available metrics
@@ -383,8 +385,7 @@ Each app counts its own minutes, so a user with VS Code and Cursor open in the s
 `slug="unknown"` holds sessions reported without an app name, or with the reserved name `overflow`.
 
 Per template, every built-in app Coder recognizes gets a series, and so do the 64 busiest other apps.
-The same app name under two connection methods counts as two apps.
-The rest add up under `slug="overflow"` of their connection method, which can count a minute more than once.
+The rest add up under one series, `connection_method="ssh"` with `slug="overflow"`, which can count a minute more than once.
 The template insights page in the dashboard uses the same rule, but applies the limit across all selected templates instead of per template.
 
 #### Upgrade from the family series
@@ -473,6 +474,8 @@ The following metrics support native histograms:
 * `coderd_template_workspace_build_duration_seconds`
 * `coder_pubsub_send_duration_seconds`
 * `coder_pubsub_receive_duration_seconds`
+* `coderd_provisioner_job_queue_wait_seconds`
+* `coder_ai_gateway_cost_control_enforcement_duration_seconds`
 
 Native histograms are an **experimental** Prometheus feature that removes the need to predefine bucket boundaries and allows higher-resolution buckets that adapt to deployment characteristics.
 Whether a metric is exposed as classic or native depends entirely on the Prometheus server configuration (see [Prometheus docs](https://prometheus.io/docs/specs/native_histograms/) for details):
