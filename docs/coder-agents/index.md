@@ -265,7 +265,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting, to running if there are queued messages, or to paused if the next queued message, or any message under **Next step**, is being edited |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                                                          |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                                                                                             |
-| `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                                               |
+| `read_skill`                                | Read the instructions for a skill by name                                                                                                                                                         |
 | `read_skill_file`                           | Read a supporting file from a skill's directory                                                                                                                                                   |
 | `web_search`                                | Search the internet (provider-native, when enabled)                                                                                                                                               |
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the turn has MCP tools to defer                                                                             |
@@ -278,7 +278,7 @@ Sub-agents do not have access to these tools and cannot create workspaces or spa
 
 `spawn_agent` with `type=computer_use` works only after an administrator enables the [virtual desktop](./platform-controls/virtual-desktop.md) feature.
 It also requires a model from an Anthropic, OpenAI, or OpenAI-compatible AI provider, or a Claude model from an AWS Bedrock AI provider.
-`read_skill` and `read_skill_file` are available when the workspace contains skills in its `.agents/skills/` directory.
+`read_skill` is available when personal, organization, project, or workspace skills exist, and `read_skill_file` is available when the workspace has skills.
 
 `propose_plan` and `ask_user_question` are only available while plan mode is active.
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.

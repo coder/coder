@@ -55,6 +55,10 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 		return proxy.healthy && latency !== undefined && latency.at < refetchDate;
 	};
 
+	const isRefreshingLatencies = Boolean(
+		proxyContextValue.proxies?.some(proxyLatencyLoading),
+	);
+
 	// This endpoint returns a 404 when not using enterprise.
 	// If we don't return null, then it looks like this is
 	// loading forever!
@@ -202,6 +206,13 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 					Refresh latencies
 				</DropdownMenuItem>
 			</DropdownMenuContent>
+			{/* Outside the menu content so it stays mounted while the menu closes. */}
+			<span role="status" className="sr-only">
+				{refetchDate &&
+					(isRefreshingLatencies
+						? "Refreshing latencies"
+						: "Latencies refreshed")}
+			</span>
 		</DropdownMenu>
 	);
 };

@@ -235,11 +235,23 @@ type ChatProject struct {
 	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
-	Icon        string                 `json:"icon"`
-	Templates   ChatProjectTemplates   `json:"templates"`
-	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
-	Permissions ChatProjectPermissions `json:"permissions"`
+	Icon string `json:"icon"`
+	// LimitTemplates restricts the project's chats to its attached
+	// templates, and to none when nothing is attached. When false, the chats
+	// can use every template their owner can use.
+	LimitTemplates bool `json:"limit_templates"`
+	// Templates are the attached templates the caller can access. Deprecated
+	// templates and templates that do not allow agents are left out.
+	Templates []ChatProjectTemplate `json:"templates"`
+	// HiddenTemplateCount is the number of attached templates the caller
+	// cannot access. Nothing else about them is returned.
+	HiddenTemplateCount int `json:"hidden_template_count"`
+	// DefaultTemplate is omitted when the project has none or the caller
+	// cannot access it.
+	DefaultTemplate *ChatProjectDefaultTemplate `json:"default_template,omitempty"`
+	CreatedAt       time.Time                   `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time                   `json:"updated_at" format:"date-time"`
+	Permissions     ChatProjectPermissions      `json:"permissions"`
 }
 
 // ChatProjectPermissions are the actions the caller may take on a project.
@@ -249,23 +261,28 @@ type ChatProjectPermissions struct {
 	Share  bool `json:"share"`
 }
 
-// ChatProjectTemplates are the workspace templates a project's chats may use.
-// An empty TemplateIDs means the project's chats cannot create or attach
-// workspaces.
-type ChatProjectTemplates struct {
-	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
-	// DefaultTemplateID is recommended to the project's chats and must be one
-	// of TemplateIDs.
-	DefaultTemplateID *uuid.UUID `json:"default_template_id,omitempty" format:"uuid"`
-	// DefaultPresetID is a preset of the default template's active version,
-	// applied when a chat creates a workspace from the default template
-	// without choosing a preset. It is mutually exclusive with
-	// DefaultParameters.
-	DefaultPresetID *uuid.UUID `json:"default_preset_id,omitempty" format:"uuid"`
-	// DefaultParameters are parameter values, keyed by name, applied when a
-	// chat creates a workspace from the default template. Values the chat
-	// passes take precedence.
-	DefaultParameters map[string]string `json:"default_parameters,omitempty"`
+// ChatProjectTemplate is a workspace template attached to a chat project.
+// Attaching a template does not grant access to it.
+type ChatProjectTemplate struct {
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
+	Icon        string    `json:"icon"`
+}
+
+// ChatProjectDefaultTemplate is the attached template a project recommends
+// to its chats, with the preset or parameter values to create workspaces
+// from it.
+type ChatProjectDefaultTemplate struct {
+	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
+	// PresetID is a preset of the template's active version, applied when a
+	// chat creates a workspace from the template without choosing a preset.
+	// It is mutually exclusive with Parameters.
+	PresetID *uuid.UUID `json:"preset_id,omitempty" format:"uuid"`
+	// Parameters are parameter values, keyed by name, applied when a chat
+	// creates a workspace from the template. Values the chat passes take
+	// precedence.
+	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -274,18 +291,26 @@ type CreateChatProjectRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description"`
 	Icon        string `json:"icon,omitempty"`
-	// Templates defaults to no templates.
-	Templates *ChatProjectTemplates `json:"templates,omitempty"`
+	// LimitTemplates restricts the project's chats to TemplateIDs.
+	LimitTemplates bool `json:"limit_templates,omitempty"`
+	// TemplateIDs are attached to the new project.
+	TemplateIDs []uuid.UUID `json:"template_ids,omitempty" format:"uuid"`
+	// DefaultTemplate must name one of TemplateIDs.
+	DefaultTemplate *ChatProjectDefaultTemplate `json:"default_template,omitempty"`
 }
 
-// UpdateChatProjectRequest updates a chat project.
+// UpdateChatProjectRequest updates a chat project. Templates are attached
+// and detached one at a time with AttachChatProjectTemplate and
+// DetachChatProjectTemplate, so a caller never replaces attachments they
+// cannot see.
 type UpdateChatProjectRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Icon        *string `json:"icon,omitempty"`
-	// Templates replaces the project's templates and defaults as a whole when
-	// set.
-	Templates *ChatProjectTemplates `json:"templates,omitempty"`
+	Name           *string `json:"name,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	Icon           *string `json:"icon,omitempty"`
+	LimitTemplates *bool   `json:"limit_templates,omitempty"`
+	// DefaultTemplate replaces the project's default template, preset, and
+	// parameters as a whole when set. A zero TemplateID clears them.
+	DefaultTemplate *ChatProjectDefaultTemplate `json:"default_template,omitempty"`
 }
 
 // ChatProjectRole is the access a project ACL grants.
@@ -1142,6 +1167,15 @@ type ChatMessagesResponse struct {
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
+	// SnapshotVersion is the chat's snapshot version, a number that the
+	// server increases each time it changes the chat's messages, queue or
+	// status. The server sets it only when the request has neither
+	// before_id nor after_id. Pass it as the stream's snapshot_version
+	// parameter. The server reads this version before the page's messages
+	// and queued messages, so the page can include changes made at a
+	// higher version. The stream can send changes that are already in the
+	// page.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -2388,6 +2422,24 @@ type ChatStreamEvent struct {
 	// messages first, then queue messages.
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	// HistoryReset is set on history_reset events of streams opened with a
+	// snapshot_version.
+	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
+	// SnapshotVersion is set on the message, queue_update and history_reset
+	// events of streams opened with a snapshot_version. It is the chat's
+	// snapshot version when the change that the event reports was made. To
+	// reconnect, open the stream with the highest one received from the
+	// messages page or from events.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
+}
+
+// ChatStreamHistoryReset identifies the messages that an edit deleted.
+type ChatStreamHistoryReset struct {
+	// FromMessageID is the ID of a message that was edited. The edit deleted
+	// that message and every message after it. When managing history state,
+	// delete every message with this ID or higher. The messages that follow
+	// were written by the edit or after it and should be kept.
+	FromMessageID int64 `json:"from_message_id"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -2580,6 +2632,30 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	}
 	var project ChatProject
 	return project, ReadBodyAsJSON(res, &project)
+}
+
+// AttachChatProjectTemplate attaches a template to a chat project. It
+// succeeds when the template is already attached.
+func (c *ExperimentalClient) AttachChatProjectTemplate(ctx context.Context, organizationID, projectID, templateID uuid.UUID) error {
+	return c.chatProjectTemplateRequest(ctx, http.MethodPut, organizationID, projectID, templateID)
+}
+
+// DetachChatProjectTemplate detaches a template from a chat project. A
+// template the caller cannot access is reported as not found.
+func (c *ExperimentalClient) DetachChatProjectTemplate(ctx context.Context, organizationID, projectID, templateID uuid.UUID) error {
+	return c.chatProjectTemplateRequest(ctx, http.MethodDelete, organizationID, projectID, templateID)
+}
+
+func (c *ExperimentalClient) chatProjectTemplateRequest(ctx context.Context, method string, organizationID, projectID, templateID uuid.UUID) error {
+	res, err := c.Request(ctx, method, fmt.Sprintf("%s/templates/%s", chatProjectPath(organizationID, projectID), templateID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // DeleteChatProject deletes a chat project and detaches its chats.
@@ -2973,11 +3049,20 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 
 // StreamChatOptions are optional parameters for StreamChat.
 type StreamChatOptions struct {
-	// AfterID limits the initial snapshot to messages created
-	// after the given ID. This is useful for relay connections
-	// that only need live message_part events and can skip the
-	// full message history.
+	// AfterID is a message ID that selects the messages the stream sends
+	// when it opens. The server uses it only when SnapshotVersion is unset.
+	// When AfterID is the ID of a non-deleted message in the chat, the
+	// stream sends only the non-deleted messages with a higher ID. When it
+	// is unset or the ID of a deleted message in the chat, the stream sends
+	// every non-deleted message, after a history_reset event if the chat
+	// has a deleted message.
 	AfterID *int64
+	// SnapshotVersion is a snapshot version of the chat. When it is set,
+	// the stream sends what changed at that version or later: each
+	// non-deleted message written, a history_reset event for each edit,
+	// and the queue if it changed. Set it to the highest one received in a
+	// ChatMessagesResponse or a ChatStreamEvent.
+	SnapshotVersion int64
 }
 
 // StreamChat streams chat updates in real time.
@@ -2987,8 +3072,17 @@ type StreamChatOptions struct {
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
-	if opts != nil && opts.AfterID != nil {
-		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	if opts != nil {
+		query := url.Values{}
+		if opts.AfterID != nil {
+			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
+		}
+		if opts.SnapshotVersion > 0 {
+			query.Set("snapshot_version", strconv.FormatInt(opts.SnapshotVersion, 10))
+		}
+		if len(query) > 0 {
+			path += "?" + query.Encode()
+		}
 	}
 
 	conn, err := c.Dial(

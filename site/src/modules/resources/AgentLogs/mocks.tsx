@@ -1,4 +1,4 @@
-// Those mocks are fetched from the Coder API in dev.coder.com
+// Those mocks are based on responses from the Coder API
 
 import type { Line } from "#/components/Logs/LogLine";
 
