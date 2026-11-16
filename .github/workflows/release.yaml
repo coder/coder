@@ -130,29 +130,10 @@ jobs:
         with:
           use-cache: false
 
-      - name: Install rcodesign
-        run: |
-          set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz
-          sudo tar -xzf /tmp/rcodesign.tar.gz \
-            -C /usr/local/bin \
-            --strip-components=1 \
-            apple-codesign-0.22.0-macos-universal/rcodesign
-          rm /tmp/rcodesign.tar.gz
-
-      - name: Setup Apple Developer certificate and API key
-        run: |
-          set -euo pipefail
-          touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
-          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
-          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
-          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
-          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
-        env:
-          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
-          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
-          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
-
+      # The dylibs are built unsigned: the signing key lives in Google Cloud
+      # KMS and the Cloud KMS PKCS#11 library that rcodesign uses to reach it
+      # has no macOS build, so the release job signs the downloaded dylibs on
+      # Linux before inserting them into the site assets.
       - name: Build dylibs
         run: |
           set -euxo pipefail
@@ -160,10 +141,6 @@ jobs:
 
           make gen/mark-fresh
           make build/coder-dylib
-        env:
-          CODER_SIGN_DARWIN: 1
-          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
-          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -173,9 +150,6 @@ jobs:
             ./build/*.h
             ./build/*.dylib
           retention-days: 7
-
-      - name: Delete Apple Developer certificate and API key
-        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
   release:
     name: Build and publish
@@ -491,6 +465,23 @@ jobs:
         with:
           name: dylibs
           path: ./build
+
+      # The build-dylib job uploads the dylibs unsigned because the Cloud KMS
+      # PKCS#11 library has no macOS build. Sign them here with the same
+      # KMS-backed certificate as the other darwin binaries; the certificate,
+      # PKCS#11 library, and credentials were prepared by earlier steps.
+      - name: Sign dylibs
+        run: |
+          set -euo pipefail
+          for dylib in ./build/*.dylib; do
+            ./scripts/sign_darwin.sh "$dylib" "com.coder.Coder-Desktop.VPN.dylib" 1>&2
+          done
+        env:
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.pem
+          AC_PKCS11_LIBRARY: /usr/local/lib/libkmsp11.so
+          AC_PKCS11_KEY_LABEL: ${{ secrets.AC_KMS_KEY }}
+          KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
 
       - name: Insert dylibs
         run: |
