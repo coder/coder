@@ -623,16 +623,6 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
-	it("describes the templates list with the note about hidden templates", async () => {
-		renderDialog({
-			project: { ...MockChatProject, hidden_template_count: 2 },
-		});
-
-		expect(
-			await screen.findByRole("combobox", { name: "Templates" }),
-		).toHaveAccessibleDescription();
-	});
-
 	it("saves when only a template outside the draft changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));

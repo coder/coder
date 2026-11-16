@@ -10,7 +10,7 @@ import {
 	chatProjectTemplatesValues,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 
-/** The project's saved templates, in the shape of a draft's request. */
+/** The project's saved template settings. */
 export const savedTemplates = (
 	project: ChatProject,
 ): ChatProjectTemplatesSettings => ({
@@ -19,10 +19,6 @@ export const savedTemplates = (
 	default_template: project.default_template,
 });
 
-/**
- * Draft and server copies can list parameter keys in different orders, so
- * keys are sorted before comparing.
- */
 const serializeDefaultTemplate = (
 	template: ChatProjectDefaultTemplate | undefined,
 ) =>
