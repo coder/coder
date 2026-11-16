@@ -918,7 +918,6 @@ func TestPlugin_SymlinkedSkillDir(t *testing.T) {
 	require.Empty(t, escaped.Payload)
 	require.Equal(t, "p", escaped.PluginName)
 	require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 2)
-
 }
 
 func TestPlugin_SkillsFileDisablesSkills(t *testing.T) {
