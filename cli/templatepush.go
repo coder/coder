@@ -339,11 +339,22 @@ func (r *RootCmd) templatePush() *serpent.Command {
 // `templates push` and the deprecated `templates create` use it so their
 // output stays the same.
 func printTemplateCreated(w io.Writer, templateName, organizationName string, createdAt time.Time) {
-	_, _ = fmt.Fprintln(w, "\n"+cliui.Wrap(
-		"The "+cliui.Keyword(templateName)+" template has been created at "+cliui.Timestamp(createdAt)+"! "+
-			"Developers can provision a workspace with this template using:")+"\n")
-	_, _ = fmt.Fprintln(w, "  "+cliui.Code(fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", templateName, organizationName)))
-	_, _ = fmt.Fprintln(w)
+	message := fmt.Sprintf(
+		"The %s template has been created at %s! "+
+			"Developers can provision a workspace with this template using:",
+		cliui.Keyword(templateName),
+		cliui.Timestamp(createdAt),
+	)
+
+	command := fmt.Sprintf(
+		"coder create --template=%q --org=%q [workspace name]",
+		templateName, organizationName,
+	)
+
+	_, _ = fmt.Fprintf(w, "\n%s\n\n  %s\n\n",
+		cliui.Wrap(message),
+		cliui.Code(command),
+	)
 }
 
 type templateUploadFlags struct {
