@@ -67,7 +67,7 @@ func TestOpenPreview(t *testing.T) {
 		{
 			name:      "URLPathWithoutPort",
 			input:     `{"title":"Docs","path":"/home/coder/output","url_path":"/docs"}`,
-			wantError: "url_path can only be used with port",
+			wantError: "url_path can only be used with port or app",
 		},
 		{
 			// Browsers treat a leading // or /\ as another host.
@@ -278,13 +278,41 @@ func TestOpenPreviewApp(t *testing.T) {
 	})
 
 	for _, tt := range []struct {
-		name      string
-		app       string
-		wantError string
+		name        string
+		app         string
+		input       string
+		wantURLPath string
+		wantError   string
 	}{
-		{name: "Openable", app: "code-server"},
-		{name: "Hidden", app: "hidden", wantError: `app "hidden" cannot be opened: open_preview only opens subdomain apps that are not hidden, external, or command apps; apps it can open: code-server`},
-		{name: "PathBased", app: "path-app", wantError: `app "path-app" cannot be opened: open_preview only opens subdomain apps that are not hidden, external, or command apps; apps it can open: code-server`},
+		{
+			name:  "Openable",
+			app:   "code-server",
+			input: `{"title":"Editor","app":"code-server"}`,
+		},
+		{
+			name:        "WithURLPath",
+			app:         "code-server",
+			input:       `{"title":"Editor","app":"code-server","url_path":"/?folder=/home/coder"}`,
+			wantURLPath: "/?folder=/home/coder",
+		},
+		{
+			name:      "WithURLPathOtherHost",
+			app:       "code-server",
+			input:     `{"title":"Editor","app":"code-server","url_path":"//evil.example"}`,
+			wantError: "url_path must start with a single /",
+		},
+		{
+			name:      "Hidden",
+			app:       "hidden",
+			input:     `{"title":"Editor","app":"hidden"}`,
+			wantError: `app "hidden" cannot be opened: open_preview only opens subdomain apps that are not hidden, external, or command apps; apps it can open: code-server`,
+		},
+		{
+			name:      "PathBased",
+			app:       "path-app",
+			input:     `{"title":"Editor","app":"path-app"}`,
+			wantError: `app "path-app" cannot be opened: open_preview only opens subdomain apps that are not hidden, external, or command apps; apps it can open: code-server`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -293,7 +321,7 @@ func TestOpenPreviewApp(t *testing.T) {
 			response, err := tool.Run(ctx, fantasy.ToolCall{
 				ID:    uuid.NewString(),
 				Name:  "open_preview",
-				Input: `{"title":"Editor","app":"` + tt.app + `"}`,
+				Input: tt.input,
 			})
 			require.NoError(t, err)
 			if tt.wantError != "" {
@@ -310,7 +338,8 @@ func TestOpenPreviewApp(t *testing.T) {
 				Title:       "Editor",
 				WorkspaceID: build.Workspace.ID,
 				AgentName:   build.Agents[0].Name,
-				AppSlug:     "code-server",
+				AppSlug:     tt.app,
+				URLPath:     tt.wantURLPath,
 			}, result)
 		})
 	}

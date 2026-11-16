@@ -297,7 +297,26 @@ describe("useChatPreviewPanel", () => {
 		expect(getOpenAction(mockPathApp.slug)).toBeUndefined();
 		expect(getOpenAction(mockPathBrowserApp.slug)).toBeUndefined();
 		act(() => getOpenAction(mockSubdomainApp.slug)?.());
-		expect(openWorkspaceApp).toHaveBeenCalledExactlyOnceWith(mockSubdomainApp);
+		expect(openWorkspaceApp).toHaveBeenCalledExactlyOnceWith(
+			mockSubdomainApp,
+			undefined,
+		);
+
+		// An open_preview result with a url_path opens the app at that path.
+		act(() =>
+			result.current.getOpenAction?.({
+				workspaceId: "workspace-1",
+				app: {
+					agent_name: "main",
+				slug: mockSubdomainApp.slug,
+					url_path: "/?folder=/home/coder",
+				},
+			})?.(),
+		);
+		expect(openWorkspaceApp).toHaveBeenLastCalledWith(
+			mockSubdomainApp,
+			"/?folder=/home/coder",
+		);
 
 		// A stopped workspace has no agents.
 		rerender({ workspaceAgent: undefined });

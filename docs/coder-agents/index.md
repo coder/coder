@@ -299,6 +299,7 @@ It gives each preview a short title and supplies exactly one of `port`, `path`, 
 - `app` opens a `coder_app` on the workspace agent, such as an IDE, in the app's own right panel tab instead of the **Preview** tab.
   `open_preview` opens only subdomain apps, because path-based apps run on the dashboard's origin, where content the agent controls could use your session.
   It also rejects hidden, external, and command apps.
+  An optional `url_path` opens the app at a path and query other than its root, such as `/?folder=/home/coder/project`.
   To let the agent open an app, set `subdomain = true` on the `coder_app`, or on the module that defines it if the module has a `subdomain` input, then update the workspace to the new template version.
   The app opens when you select **Open app** on the tool result while the workspace is running.
 

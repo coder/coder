@@ -57,6 +57,7 @@ export type UserRightPanelTab =
 			label: string;
 			appId: string;
 			agentId: string;
+			urlPath?: string;
 	  }
 	| {
 			id: string;
@@ -99,7 +100,8 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.label === "string" &&
 			typeof record.appId === "string" &&
-			typeof record.agentId === "string"
+			typeof record.agentId === "string" &&
+			(record.urlPath === undefined || typeof record.urlPath === "string")
 		);
 	}
 

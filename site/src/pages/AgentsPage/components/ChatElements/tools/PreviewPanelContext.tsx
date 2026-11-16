@@ -37,7 +37,7 @@ type OpenPreviewTarget =
 	  }
 	| {
 			workspaceId: string;
-			app: { agent_name: string; slug: string };
+			app: { agent_name: string; slug: string; url_path?: string };
 	  };
 
 /** Returns undefined when result doesn't name a workspace and agent. */
@@ -55,7 +55,11 @@ export const parseOpenPreviewTarget = (
 	if (typeof rec.app_slug === "string") {
 		return {
 			workspaceId: rec.workspace_id,
-			app: { agent_name: rec.agent_name, slug: rec.app_slug },
+			app: {
+				agent_name: rec.agent_name,
+				slug: rec.app_slug,
+				url_path: typeof rec.url_path === "string" ? rec.url_path : undefined,
+			},
 		};
 	}
 
@@ -178,7 +182,7 @@ export const useChatPreviewPanel = ({
 	isPreviewTabSupported: boolean;
 	isArchived: boolean;
 	showSingletonTab: (tabId: "browser" | "preview") => void;
-	openWorkspaceApp: (app: WorkspaceApp) => void;
+	openWorkspaceApp: (app: WorkspaceApp, urlPath?: string) => void;
 	setPreviewPanelKey: (update: (key: number) => number) => void;
 }) => {
 	const getOpenAction = (
@@ -213,7 +217,7 @@ export const useChatPreviewPanel = ({
 		// Recheck because the app can change after the tool ran, such as on a
 		// rebuild. Path-based apps run on the dashboard's origin.
 		return app?.subdomain && isWorkspaceAppEmbeddable(app)
-			? () => openWorkspaceApp(app)
+			? () => openWorkspaceApp(app, target.app.url_path)
 			: undefined;
 	};
 
