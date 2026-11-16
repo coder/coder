@@ -19,13 +19,6 @@
  * "Browse other Templates" are reported. Acronyms ("SSH") and mixed-case
  * names ("GitHub") are never reported.
  *
- * --fix lowercases reported words only in text that is plainly
- * displayed: JSX text, strings rendered as JSX children, and values of
- * display attributes such as title, aria-label, placeholder, and props
- * named like confirmText or emptyMessage. Other strings are reported but
- * left for a person to fix, because they may be machine values that
- * only look like prose.
- *
  * For deliberate exceptions, put a comment containing
  * "sentence-case-expect" on the line above the text. Like
  * @ts-expect-error, the check fails when that line has nothing to report,
@@ -69,11 +62,6 @@ const PROPER_NOUNS = [
 	"Web Terminal",
 	"Workspace Proxy",
 
-	// Keyboard keys, named in keyboard instructions.
-	"Enter",
-	"Escape",
-	"Space",
-
 	// Days of the week.
 	"Monday",
 	"Tuesday",
@@ -87,20 +75,15 @@ const PROPER_NOUNS = [
 	"Splunk",
 	"Anthropic",
 	"Azure Repos",
-	"Amazon Bedrock",
 	"Bedrock",
-	"Claude",
 	"Claude Platform",
-	"Bitbucket",
 	"Copilot",
-	"Datadog",
 	"Discord",
 	"Git",
 	"Google Cloud",
 	"Inc",
 	"JetBrains Gateway",
 	"JetBrains Toolbox",
-	"Mantle",
 	"Markdown",
 	"Mermaid",
 	"React",
@@ -123,8 +106,6 @@ const PROPER_NOUNS = [
 	"Universal Plug and Play",
 
 	// Font names, shown in the terminal font picker.
-	"Consolas",
-	"Courier",
 	"Courier New",
 	"Fira Code",
 	"Geist Mono",
@@ -135,8 +116,6 @@ const PROPER_NOUNS = [
 	"Liberation Mono",
 	"Lucida Console",
 	"Lucida Sans Typewriter",
-	"Menlo",
-	"Monaco",
 	"Source Code Pro",
 	"Terminal Symbols",
 ];
@@ -156,95 +135,15 @@ const properNounWords = PROPER_NOUNS.map((noun) => noun.split(" "));
 
 // Surrounding punctuation that is not part of a word, such as quotes,
 // brackets, and sentence punctuation.
-const LEADING_PUNCTUATION = /^[^\p{L}\p{N}\p{M}]+/u;
-const TRAILING_PUNCTUATION = /[^\p{L}\p{N}\p{M}]+$/u;
+const LEADING_PUNCTUATION = /^[^\p{L}\p{N}]+/u;
+const TRAILING_PUNCTUATION = /[^\p{L}\p{N}]+$/u;
 
 // A regular capitalized word, like "Workspace" or "Don't".
-// Letters may carry combining marks, as in decomposed "Re\u0301sume\u0301".
-const CAPITALIZED_WORD =
-	/^\p{Lu}\p{M}*(?:\p{Ll}\p{M}*)+(?:['’-](?:\p{Ll}\p{M}*)+)*$/u;
+const CAPITALIZED_WORD = /^[A-Z][a-z]+(?:['’-][a-z]+)*$/;
 
-// One segment of a hyphenated word: a regular capitalized word or a
-// lowercase word. Words with a segment like "X" in "X-Forwarded-For" are
-// left alone, since they are usually names.
-const HYPHEN_SEGMENT =
-	/^(?:\p{Lu}\p{M}*(?:\p{Ll}\p{M}*)+|(?:\p{Ll}\p{M}*)+)(?:['’](?:\p{Ll}\p{M}*)+)*$/u;
-
-/**
- * Returns the capitalized segments of a hyphenated word, such as "Based"
- * in "Role-Based", with their offsets in the word. Segments before
- * `start` are skipped, such as a proper noun prefix. Returns nothing
- * when the word has no hyphen or a checked segment is not a regular word.
- */
-function capitalizedSegments(word, start = 0) {
-	if (!word.includes("-")) {
-		return [];
-	}
-	const segments = word.slice(start).split("-");
-	if (!segments.every((s) => HYPHEN_SEGMENT.test(s))) {
-		return [];
-	}
-	const results = [];
-	let offset = start;
-	for (const segment of segments) {
-		if (/^\p{Lu}/u.test(segment)) {
-			results.push({ offset, word: segment });
-		}
-		offset += segment.length + 1;
-	}
-	return results;
-}
-
-// Words that follow a single-letter name, such as a key in "press A to
-// rotate" or an option in "plan A or B", rather than the article "a".
-const AFTER_LETTER_NAME = new Set([
-	"and",
-	"as",
-	"at",
-	"by",
-	"for",
-	"from",
-	"in",
-	"is",
-	"key",
-	"of",
-	"on",
-	"or",
-	"to",
-	"with",
-]);
-
-/**
- * Returns true when `token` is the article "A" mid-phrase: a bare "A"
- * followed directly by a regular word that does not suggest a name, as
- * in "Create A workspace" or "Enter A Valid Name".
- */
-function isArticleA(token, next) {
-	return (
-		token.word === "A" &&
-		token.raw === "A" &&
-		next !== undefined &&
-		!next.startsPhrase &&
-		(/^\p{Ll}+$/u.test(next.word) || CAPITALIZED_WORD.test(next.word)) &&
-		!AFTER_LETTER_NAME.has(next.word.toLowerCase())
-	);
-}
-
-// Punctuation that joins the words around it into one phrase. Other
-// standalone punctuation, such as the "-" in "Workspace - Health",
-// separates labels.
-const CONNECTOR = /^[&/+]$/;
-
-// Brackets and quotes that open or close an aside. The phrase around an
-// aside resumes after it closes: "Create a (temporary) workspace".
-const OPENING_MARK = /[([{“‘"']/;
-const CLOSING_MARK = /[)\]}”’"']/;
-
-// Punctuation that ends a sentence or label, so the next word starts a
-// new phrase and may be capitalized. Commas and semicolons continue the
-// sentence ("Create a workspace; then open settings"); lists of names
-// such as "Menlo, Monaco" rely on PROPER_NOUNS.
-const PHRASE_END = /[.!?:…][)\]}”’"']*$/;
+// Punctuation that ends a sentence, label, or list item, so the next
+// word starts a new phrase and may be capitalized ("GitHub, GitLab").
+const PHRASE_END = /[.!?:;,]["'’)\]]*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
@@ -257,7 +156,6 @@ export function findTitleCaseWords(text) {
 		const word = match[0]
 			.slice(leading.length)
 			.replace(TRAILING_PUNCTUATION, "");
-		const trailing = match[0].slice(leading.length + word.length);
 		tokens.push({
 			offset: match.index + leading.length,
 			raw: match[0],
@@ -265,16 +163,11 @@ export function findTitleCaseWords(text) {
 			// A leading bracket or quote starts a new phrase, e.g.
 			// "Use (Recommended)" is a label followed by a note.
 			startsPhrase: leading.length > 0,
-			opens: OPENING_MARK.test(leading),
-			closes: CLOSING_MARK.test(trailing),
 		});
 	}
 
-	// Indexes of tokens that belong to a proper noun. A token like
-	// "Coder-Based" also maps to the offset of the suffix after the proper
-	// noun, which is still checked.
+	// Indexes of tokens that belong to a proper noun.
 	const properNounTokens = new Set();
-	const properNounSuffixes = new Map();
 	for (const nounWords of properNounWords) {
 		for (let i = 0; i + nounWords.length <= tokens.length; i++) {
 			const matches = nounWords.every((w, j) => {
@@ -291,69 +184,28 @@ export function findTitleCaseWords(text) {
 			if (matches) {
 				for (let j = 0; j < nounWords.length; j++) {
 					properNounTokens.add(i + j);
-					const word = tokens[i + j].word;
-					if (word.startsWith(`${nounWords[j]}-`)) {
-						properNounSuffixes.set(i + j, nounWords[j].length + 1);
-					}
 				}
 			}
 		}
 	}
 
 	const results = [];
-	const reportSegments = (token, start) => {
-		for (const segment of capitalizedSegments(token.word, start)) {
-			results.push({
-				offset: token.offset + segment.offset,
-				word: segment.word,
-			});
-		}
-	};
 	let inPhrase = false;
-	// The phrase state around each open aside.
-	const outerPhrases = [];
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
-		if (token.opens) {
-			outerPhrases.push(inPhrase);
-		}
-		const capitalized = /^\p{Lu}/u.test(token.word);
+		const capitalized = /^[A-Z]/.test(token.word);
 		if (token.raw.includes(SUBSTITUTION)) {
 			// Unknown text; keep the current phrase, if any, going.
-		} else if (CONNECTOR.test(token.raw)) {
-			// "Create & manage" and "Create / manage" are one phrase.
 		} else if (!inPhrase || token.startsPhrase) {
 			// A lowercase word outside a phrase may continue text from
 			// elsewhere, so only a capitalized word starts a phrase.
 			inPhrase = capitalized;
-			if (properNounSuffixes.has(i)) {
-				reportSegments(token, properNounSuffixes.get(i));
-			} else if (capitalized && !properNounTokens.has(i)) {
-				// Only the first segment of the first word keeps its
-				// capital: "Browser-Only" becomes "Browser-only".
-				for (const segment of capitalizedSegments(token.word).slice(1)) {
-					results.push({
-						offset: token.offset + segment.offset,
-						word: segment.word,
-					});
-				}
-			}
-		} else if (properNounSuffixes.has(i)) {
-			// The proper noun keeps its capital, but not the suffix:
-			// "Coder-Based" becomes "Coder-based".
-			reportSegments(token, properNounSuffixes.get(i));
-		} else if (properNounTokens.has(i)) {
-			// Proper nouns keep their capitalization.
 		} else if (
-			(capitalized && CAPITALIZED_WORD.test(token.word)) ||
-			isArticleA(token, tokens[i + 1])
+			capitalized &&
+			CAPITALIZED_WORD.test(token.word) &&
+			!properNounTokens.has(i)
 		) {
 			results.push({ offset: token.offset, word: token.word });
-		} else {
-			reportSegments(token, 0);
-		}
-		if (token.closes && outerPhrases.length > 0) {
-			inPhrase = outerPhrases.pop();
 		}
 		if (PHRASE_END.test(token.raw)) {
 			inPhrase = false;
@@ -362,379 +214,15 @@ export function findTitleCaseWords(text) {
 	return results;
 }
 
-// Attributes whose values are code rather than displayed text: IDs and
-// ID references, URLs, enumerated values, CSS, and form values. All
-// data-* attributes and the aria-* attributes not listed in
-// ARIA_TEXT_ATTRIBUTES are code too.
-const CODE_ATTRIBUTES = new Set([
-	"accept",
-	"archive",
-	"cite",
-	"classID",
-	"codeBase",
-	"data",
-	"icon",
-	"longDesc",
-	"manifest",
-	"acceptCharset",
-	"accessKey",
-	"action",
-	"allow",
-	"as",
-	"autoCapitalize",
-	"autoComplete",
-	"charSet",
-	"className",
-	"crossOrigin",
-	"dangerouslySetInnerHTML",
-	"d",
-	"decoding",
-	"defaultValue",
-	"dir",
-	"download",
-	"encType",
-	"enterKeyHint",
-	"fill",
-	"form",
-	"formAction",
-	"formEncType",
-	"formMethod",
-	"formTarget",
-	"headers",
-	"href",
-	"hrefLang",
-	"htmlFor",
-	"id",
-	"inputMode",
-	"integrity",
-	"is",
-	"itemID",
-	"itemProp",
-	"itemRef",
-	"itemScope",
-	"itemType",
-	"key",
-	"kind",
-	"lang",
-	"list",
-	"loading",
-	"media",
-	"method",
-	"name",
-	"nonce",
-	"part",
-	"pattern",
-	"poster",
-	"ping",
-	"points",
-	"referrerPolicy",
-	"rel",
-	"role",
-	"sandbox",
-	"scope",
-	"shape",
-	"sizes",
-	"slot",
-	"src",
-	"srcDoc",
-	"srcLang",
-	"srcSet",
-	"stroke",
-	"style",
-	"target",
-	"to",
-	"transform",
-	"type",
-	"useMap",
-	"value",
-	"viewBox",
-	"wrap",
-	"xmlns",
-]);
-
-const ARIA_TEXT_ATTRIBUTES = new Set([
-	"aria-description",
-	"aria-label",
-	"aria-placeholder",
-	"aria-roledescription",
-	"aria-valuetext",
-]);
-
-// Attributes whose values are code on components as well as on
-// intrinsic elements, by React convention. Other names in
-// CODE_ATTRIBUTES, such as `name`, are often displayed text on components.
-const COMPONENT_CODE_ATTRIBUTES = new Set([
-	"className",
-	"dangerouslySetInnerHTML",
-	"defaultValue",
-	"href",
-	"htmlFor",
-	"id",
-	"key",
-	"rel",
-	"role",
-	"src",
-	"srcSet",
-	"style",
-	"target",
-	"to",
-	"type",
-	"value",
-]);
-
-/**
- * Returns the JSX attribute that `node` is part of, as its name and
- * whether its element is intrinsic, such as "div", or null. Looks through
- * any expression in the value, such as `className={cn("a", { b: ok })}`
- * or a callback, and through properties of spread objects, such as
- * `{...{ className: "a" }}`. Stops at JSX elements, whose own attributes
- * and children are checked on their own.
- */
-function enclosingJsxAttribute(node) {
-	let property = null;
-	let parent = node.parent;
-	while (
-		parent &&
-		!ts.isJsxAttribute(parent) &&
-		!ts.isJsxSpreadAttribute(parent) &&
-		!ts.isJsxElement(parent) &&
-		!ts.isJsxSelfClosingElement(parent) &&
-		!ts.isJsxFragment(parent) &&
-		!ts.isSourceFile(parent)
-	) {
-		if (ts.isPropertyAssignment(parent)) {
-			property = parent;
-		}
-		parent = parent.parent;
-	}
-	let name;
-	if (parent && ts.isJsxAttribute(parent)) {
-		name = parent.name.getText();
-	} else if (
-		parent &&
-		ts.isJsxSpreadAttribute(parent) &&
-		property &&
-		isSpreadObject(property.parent, parent)
-	) {
-		// The outermost property of the spread object names the attribute.
-		name = staticPropertyName(property.name);
-	} else {
-		return null;
-	}
-	const tagName = parent.parent.parent.tagName;
-	const intrinsic = ts.isIdentifier(tagName) && /^[a-z]/.test(tagName.text);
-	return { name, intrinsic };
-}
-
-/**
- * Returns the static text of a property name: `className`, "className",
- * and ["className"] all return className.
- */
-function staticPropertyName(name) {
-	const key = ts.isComputedPropertyName(name)
-		? skipTransparent(name.expression)
-		: name;
-	return ts.isIdentifier(key) ||
-		ts.isStringLiteral(key) ||
-		ts.isNoSubstitutionTemplateLiteral(key) ||
-		ts.isNumericLiteral(key)
-		? key.text
-		: name.getText();
-}
-
-/**
- * Returns true when `object` is what `spread` spreads: the object itself
- * or a branch of a conditional or logical expression, such as
- * `{...(ok ? { className: "a" } : {})}`.
- */
-function isSpreadObject(object, spread) {
-	let node = object;
-	while (
-		isTransparent(node.parent) ||
-		ts.isConditionalExpression(node.parent) ||
-		(ts.isBinaryExpression(node.parent) &&
-			[
-				ts.SyntaxKind.AmpersandAmpersandToken,
-				ts.SyntaxKind.BarBarToken,
-				ts.SyntaxKind.QuestionQuestionToken,
-			].includes(node.parent.operatorToken.kind))
-	) {
-		node = node.parent;
-	}
-	return ts.isObjectLiteralExpression(object) && node.parent === spread;
-}
-
-/**
- * Returns true when a JSX attribute's value is code, like data-state.
- * DOM attributes such as `name` are code only on intrinsic elements.
- */
-function isCodeAttribute({ name, intrinsic }) {
-	return (
-		(intrinsic ? CODE_ATTRIBUTES : COMPONENT_CODE_ATTRIBUTES).has(name) ||
-		name.startsWith("data-") ||
-		(name.startsWith("aria-") && !ARIA_TEXT_ATTRIBUTES.has(name))
-	);
-}
-
-/**
- * Returns true when `node` is inside the value of an object property
- * whose key names code, such as `{ className: "a" }` or
- * `{ value: "a", label: "A" }`, so props built before a JSX spread are
- * handled like attributes. Looks through callbacks inside the value and
- * stops at JSX.
- */
-function isInCodeProperty(node) {
-	for (
-		let parent = node.parent;
-		parent &&
-		!ts.isJsxElement(parent) &&
-		!ts.isJsxSelfClosingElement(parent) &&
-		!ts.isJsxFragment(parent) &&
-		!ts.isSourceFile(parent);
-		parent = parent.parent
-	) {
-		if (!ts.isPropertyAssignment(parent)) {
-			continue;
-		}
-		const name = staticPropertyName(parent.name);
-		// An object of headers, as in fetch options, maps header names to
-		// protocol values. An array of headers is usually table labels.
-		const isHeaderMap =
-			name === "headers" &&
-			ts.isObjectLiteralExpression(skipTransparent(parent.initializer));
-		if (isHeaderMap || isCodeAttribute({ name, intrinsic: false })) {
-			return true;
-		}
-	}
-	return false;
-}
-
-// Functions and constructors whose first argument, when a string, is
-// code: a pattern, search string, selector, storage key, URL, event name,
-// or attribute name. Later arguments may be displayed text, such as the message in
-// Yup's `matches(pattern, message)`.
-const CODE_ARGUMENT_CALLS = new Set([
-	"CustomEvent",
-	"Event",
-	"RegExp",
-	"URL",
-	"URLSearchParams",
-	"addEventListener",
-	"closest",
-	"dispatchEvent",
-	"endsWith",
-	"fetch",
-	"getAttribute",
-	"getElementById",
-	"getElementsByClassName",
-	"getElementsByTagName",
-	"getItem",
-	"hasAttribute",
-	"includes",
-	"indexOf",
-	"lastIndexOf",
-	"match",
-	"matchAll",
-	"matches",
-	"querySelector",
-	"querySelectorAll",
-	"removeAttribute",
-	"removeEventListener",
-	"removeItem",
-	"replace",
-	"replaceAll",
-	"search",
-	"setAttribute",
-	"setItem",
-	"split",
-	"startsWith",
-]);
-
-/**
- * Returns true when `argument` of `call` is code: any class token passed
- * to a classList method, the first argument of a CODE_ARGUMENT_CALLS
- * function, or the value in `setAttribute("class", value)` and other code
- * attributes.
- */
-function isCodeArgument(call, argument) {
-	const name = calleeName(call.expression);
-	if (isClassListCall(call.expression)) {
-		return true;
-	}
-	const [first, second] = call.arguments ?? [];
-	if (argument === first) {
-		return CODE_ARGUMENT_CALLS.has(name);
-	}
-	if (argument === second && name === "setAttribute") {
-		const attribute = skipTransparent(first);
-		return (
-			ts.isStringLiteralLike(attribute) &&
-			isCodeAttribute({
-				name: HTML_ATTRIBUTE_NAMES[attribute.text] ?? attribute.text,
-				intrinsic: true,
-			})
-		);
-	}
-	return false;
-}
-
-/** Returns true for `x.classList.add(...)` and similar token methods. */
-function isClassListCall(expression) {
-	const callee = skipTransparent(expression);
-	if (!ts.isPropertyAccessExpression(callee)) {
-		return false;
-	}
-	const target = skipTransparent(callee.expression);
-	const targetName = ts.isIdentifier(target)
-		? target.text
-		: ts.isPropertyAccessExpression(target)
-			? target.name.text
-			: "";
-	return (
-		targetName === "classList" &&
-		["add", "contains", "remove", "replace", "toggle"].includes(
-			callee.name.text,
-		)
-	);
-}
-
-// HTML attribute names whose JSX names differ.
-const HTML_ATTRIBUTE_NAMES = { class: "className", for: "htmlFor" };
-
-/** Returns the name a call invokes: `f` in `f()` and `a.f()`, or "". */
-function calleeName(expression) {
-	const callee = skipTransparent(expression);
-	if (ts.isIdentifier(callee)) {
-		return callee.text;
-	}
-	if (ts.isPropertyAccessExpression(callee)) {
-		return callee.name.text;
-	}
-	return "";
-}
-
 /** Returns true when the literal is code rather than displayed text. */
-function isNonDisplayLiteral(literal) {
-	const attribute = enclosingJsxAttribute(literal);
-	if ((attribute && isCodeAttribute(attribute)) || isInCodeProperty(literal)) {
-		return true;
-	}
-	// Look through wrappers such as `("Task Events" as const)` to the node
-	// that uses the value.
-	let node = literal;
-	let parent = literal.parent;
-	while (isTransparent(parent)) {
-		node = parent;
-		parent = parent.parent;
-	}
+function isNonDisplayLiteral(node) {
+	const parent = node.parent;
 	if (
 		ts.isImportDeclaration(parent) ||
 		ts.isExportDeclaration(parent) ||
 		ts.isExternalModuleReference(parent) ||
 		ts.isLiteralTypeNode(parent) ||
 		ts.isCaseClause(parent) ||
-		ts.isEnumMember(parent) ||
-		ts.isComputedPropertyName(parent) ||
 		ts.isElementAccessExpression(parent) ||
 		ts.isTaggedTemplateExpression(parent)
 	) {
@@ -746,16 +234,7 @@ function isNonDisplayLiteral(literal) {
 	) {
 		return true;
 	}
-	if (
-		(ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
-		isCodeArgument(parent, node)
-	) {
-		return true;
-	}
-	if (
-		("name" in parent && parent.name === node) ||
-		("propertyName" in parent && parent.propertyName === node)
-	) {
+	if ("name" in parent && parent.name === node) {
 		return true;
 	}
 	if (ts.isBinaryExpression(parent)) {
@@ -776,198 +255,6 @@ function isNonDisplayLiteral(literal) {
 // end a sentence.
 const SUBSTITUTION = "\uE000";
 
-// Named HTML entities that JSX decodes, as "name codePoint" pairs: the
-// HTML 4 set that TypeScript's JSX transform supports. JSX renders
-// entities in text and attribute strings, so they are decoded before
-// words are classified: "Validate&hellip;" reads as "Validate…".
-const NAMED_ENTITIES = new Map(
-	[
-		"quot 34 amp 38 apos 39 lt 60 gt 62 nbsp 160 iexcl 161 cent 162",
-		// spellchecker:ignore-next-line
-		"pound 163 curren 164 yen 165 brvbar 166 sect 167 uml 168 copy 169",
-		"ordf 170 laquo 171 not 172 shy 173 reg 174 macr 175 deg 176",
-		"plusmn 177 sup2 178 sup3 179 acute 180 micro 181 para 182",
-		"middot 183 cedil 184 sup1 185 ordm 186 raquo 187 frac14 188",
-		"frac12 189 frac34 190 iquest 191 Agrave 192 Aacute 193 Acirc 194",
-		"Atilde 195 Auml 196 Aring 197 AElig 198 Ccedil 199 Egrave 200",
-		"Eacute 201 Ecirc 202 Euml 203 Igrave 204 Iacute 205 Icirc 206",
-		"Iuml 207 ETH 208 Ntilde 209 Ograve 210 Oacute 211 Ocirc 212",
-		"Otilde 213 Ouml 214 times 215 Oslash 216 Ugrave 217 Uacute 218",
-		"Ucirc 219 Uuml 220 Yacute 221 THORN 222 szlig 223 agrave 224",
-		"aacute 225 acirc 226 atilde 227 auml 228 aring 229 aelig 230",
-		"ccedil 231 egrave 232 eacute 233 ecirc 234 euml 235 igrave 236",
-		"iacute 237 icirc 238 iuml 239 eth 240 ntilde 241 ograve 242",
-		"oacute 243 ocirc 244 otilde 245 ouml 246 divide 247 oslash 248",
-		"ugrave 249 uacute 250 ucirc 251 uuml 252 yacute 253 thorn 254",
-		"yuml 255 OElig 338 oelig 339 Scaron 352 scaron 353 Yuml 376",
-		"fnof 402 circ 710 tilde 732 Alpha 913 Beta 914 Gamma 915 Delta 916",
-		"Epsilon 917 Zeta 918 Eta 919 Theta 920 Iota 921 Kappa 922",
-		"Lambda 923 Mu 924 Nu 925 Xi 926 Omicron 927 Pi 928 Rho 929",
-		"Sigma 931 Tau 932 Upsilon 933 Phi 934 Chi 935 Psi 936 Omega 937",
-		"alpha 945 beta 946 gamma 947 delta 948 epsilon 949 zeta 950",
-		"eta 951 theta 952 iota 953 kappa 954 lambda 955 mu 956 nu 957",
-		"xi 958 omicron 959 pi 960 rho 961 sigmaf 962 sigma 963 tau 964",
-		"upsilon 965 phi 966 chi 967 psi 968 omega 969 thetasym 977",
-		"upsih 978 piv 982 ensp 8194 emsp 8195 thinsp 8201 zwnj 8204",
-		"zwj 8205 lrm 8206 rlm 8207 ndash 8211 mdash 8212 lsquo 8216",
-		"rsquo 8217 sbquo 8218 ldquo 8220 rdquo 8221 bdquo 8222 dagger 8224",
-		"Dagger 8225 bull 8226 hellip 8230 permil 8240 prime 8242",
-		"Prime 8243 lsaquo 8249 rsaquo 8250 oline 8254 frasl 8260 euro 8364",
-		"image 8465 weierp 8472 real 8476 trade 8482 alefsym 8501 larr 8592",
-		"uarr 8593 rarr 8594 darr 8595 harr 8596 crarr 8629 lArr 8656",
-		"uArr 8657 rArr 8658 dArr 8659 hArr 8660 forall 8704 part 8706",
-		"exist 8707 empty 8709 nabla 8711 isin 8712 notin 8713 ni 8715",
-		"prod 8719 sum 8721 minus 8722 lowast 8727 radic 8730 prop 8733",
-		"infin 8734 ang 8736 and 8743 or 8744 cap 8745 cup 8746 int 8747",
-		"there4 8756 sim 8764 cong 8773 asymp 8776 ne 8800 equiv 8801",
-		"le 8804 ge 8805 sub 8834 sup 8835 nsub 8836 sube 8838 supe 8839",
-		"oplus 8853 otimes 8855 perp 8869 sdot 8901 lceil 8968 rceil 8969",
-		"lfloor 8970 rfloor 8971 lang 9001 rang 9002 loz 9674 spades 9824",
-		"clubs 9827 hearts 9829 diams 9830",
-	]
-		.join(" ")
-		.match(/\S+ \d+/g)
-		.map((pair) => {
-			const [name, codePoint] = pair.split(" ");
-			return [name, String.fromCodePoint(Number(codePoint))];
-		}),
-);
-
-const ENTITY = /&(?:#(\d+)|#[xX]([\da-fA-F]+)|([A-Za-z][\dA-Za-z]*));/y;
-
-/** Returns the character an HTML entity renders, or null if unknown. */
-function decodeEntity(match) {
-	const [, decimal, hex, name] = match;
-	const codePoint = decimal
-		? Number.parseInt(decimal, 10)
-		: hex
-			? Number.parseInt(hex, 16)
-			: null;
-	if (codePoint === null) {
-		return NAMED_ENTITIES.get(name) ?? null;
-	}
-	if (codePoint > 0x10ffff) {
-		return null;
-	}
-	const char = String.fromCodePoint(codePoint);
-	// Never let source text pose as a substitution.
-	return char === SUBSTITUTION ? "\uFFFD" : char;
-}
-
-/**
- * Returns the known HTML entity at `position` in `sourceText` as its
- * decoded text and source length, or null.
- */
-function entityAt(sourceText, position) {
-	if (sourceText[position] !== "&") {
-		return null;
-	}
-	ENTITY.lastIndex = position;
-	const match = ENTITY.exec(sourceText);
-	const decoded = match && decodeEntity(match);
-	return decoded ? { decoded, length: match[0].length } : null;
-}
-
-const ESCAPE =
-	/\\(?:u\{([\da-fA-F]+)\}|u([\da-fA-F]{4})|x([\da-fA-F]{2})|(\r\n|[\s\S]))/y;
-
-// Single-character escapes that do not stand for themselves.
-const SIMPLE_ESCAPES = {
-	0: "\0",
-	b: "\b",
-	f: "\f",
-	n: "\n",
-	r: "\r",
-	t: "\t",
-	v: "\v",
-};
-
-/**
- * Returns the JavaScript string escape at `position` in `sourceText` as
- * its decoded text and source length, or null.
- */
-function escapeAt(sourceText, position) {
-	if (sourceText[position] !== "\\") {
-		return null;
-	}
-	ESCAPE.lastIndex = position;
-	const match = ESCAPE.exec(sourceText);
-	if (!match) {
-		return null;
-	}
-	const [escape, braced, unicode, hex, char] = match;
-	const codePoint = Number.parseInt(braced ?? unicode ?? hex ?? "", 16);
-	let decoded;
-	if (!Number.isNaN(codePoint)) {
-		if (codePoint > 0x10ffff) {
-			return null;
-		}
-		decoded = String.fromCodePoint(codePoint);
-		// An escaped surrogate pair, such as "\\uD801\\uDC00", is one
-		// character.
-		const low =
-			codePoint >= 0xd800 &&
-			codePoint <= 0xdbff &&
-			escapeAt(sourceText, position + escape.length);
-		if (low && /^[\uDC00-\uDFFF]$/.test(low.decoded)) {
-			return {
-				decoded: decoded + low.decoded,
-				length: escape.length + low.length,
-			};
-		}
-	} else if (/^[\r\n\u2028\u2029]/.test(char)) {
-		// A line continuation renders nothing.
-		decoded = "";
-	} else {
-		decoded = SIMPLE_ESCAPES[char] ?? char;
-	}
-	// Never let source text pose as a substitution.
-	if (decoded === SUBSTITUTION) {
-		decoded = "\uFFFD";
-	}
-	return { decoded, length: escape.length };
-}
-
-/**
- * Returns the encoded character at `position` as its decoded text and
- * source length, or null. `encoding` is "jsx" for HTML entities, as JSX
- * renders them in text and attribute strings, and "js" for JavaScript
- * string escapes.
- */
-function encodedAt(sourceText, position, encoding) {
-	if (encoding === "jsx") {
-		return entityAt(sourceText, position);
-	}
-	if (encoding === "js") {
-		return escapeAt(sourceText, position);
-	}
-	return null;
-}
-
-/**
- * Appends the source text in [start, end) to `target`, recording the
- * source position of each character. Characters encoded per `encoding`
- * (see encodedAt) are replaced by the text they render, each mapped to
- * the position where the encoding starts.
- */
-function appendSource(target, sourceText, start, end, encoding) {
-	let position = start;
-	while (position < end) {
-		const encoded = encodedAt(sourceText, position, encoding);
-		if (encoded && position + encoded.length <= end) {
-			target.text += encoded.decoded;
-			for (let i = 0; i < encoded.decoded.length; i++) {
-				target.positions.push(position);
-			}
-			position += encoded.length;
-			continue;
-		}
-		target.text += sourceText[position];
-		target.positions.push(position);
-		position++;
-	}
-}
-
 /**
  * Returns true when JSX renders the whitespace at one edge of a text
  * piece. JSX drops leading and trailing whitespace that contains a line
@@ -977,128 +264,36 @@ function rendersSpace(whitespace) {
 	return whitespace.length > 0 && !whitespace.includes("\n");
 }
 
-// Elements whose content is code or keyboard input rather than prose.
-// Inline ones are read as unknown text inside the surrounding phrase;
-// BLOCK_CODE_ELEMENTS end it.
-const CODE_ELEMENTS = new Set([
-	"code",
-	"kbd",
-	"pre",
-	"samp",
-	"script",
-	"style",
-]);
-const BLOCK_CODE_ELEMENTS = new Set(["pre", "script", "style"]);
-
-// Inline HTML elements: the phrasing content that renders text, except
-// form controls such as button, whose text is a label of its own.
-// Adjacent inline siblings render as one run of text, so a phrase
-// continues across them when an edge renders a space. Other intrinsic
-// elements render as blocks.
-const INLINE_ELEMENTS = new Set([
-	"a",
-	"abbr",
-	"b",
-	"bdi",
-	"bdo",
-	"cite",
-	"data",
-	"del",
-	"dfn",
-	"em",
-	"i",
-	"ins",
-	"label",
-	"mark",
-	"q",
-	"rp",
-	"rt",
-	"ruby",
-	"s",
-	"small",
-	"span",
-	"strong",
-	"sub",
-	"sup",
-	"time",
-	"u",
-	"var",
-]);
-
-/** Returns the tag name of an intrinsic element, such as "span". */
-function intrinsicTagName(node) {
-	if (!ts.isJsxElement(node)) {
-		return null;
-	}
-	const tagName = node.openingElement.tagName;
-	return ts.isIdentifier(tagName) && /^[a-z]/.test(tagName.text)
-		? tagName.text
-		: null;
-}
-
-// Caps the rendered variants checked for one JSX element or string. Past
-// the cap, further conditional values are treated as substitutions and
-// their text is checked on its own.
-const MAX_VARIANTS = 64;
+// Caps the rendered variants checked for one JSX element. Past the cap,
+// further conditional children are treated as substitutions and their
+// JSX is checked on its own.
+const MAX_JSX_VARIANTS = 64;
 
 /**
- * Returns true for an expression that renders its operand unchanged:
- * parentheses and type-only wrappers such as `as const`, `satisfies`,
- * and `!`.
- */
-function isTransparent(node) {
-	return (
-		ts.isParenthesizedExpression(node) ||
-		ts.isAsExpression(node) ||
-		ts.isSatisfiesExpression(node) ||
-		ts.isNonNullExpression(node) ||
-		ts.isTypeAssertionExpression(node)
-	);
-}
-
-/** Returns the expression inside any transparent wrappers. */
-function skipTransparent(node) {
-	let inner = node;
-	while (isTransparent(inner)) {
-		inner = inner.expression;
-	}
-	return inner;
-}
-
-/**
- * Returns what an inline JSX expression may render: a JSX node, string,
- * template literal, string concatenation, or array to read as text, null
- * for nothing, or "substitution" for an unknown value.
- * `cond && <b>Text</b>` renders the element or nothing, `value || "Text"`
- * and `value ?? "Text"` render the value or the fallback, and a
- * conditional renders either branch.
+ * Returns what an inline JSX expression may render: a JSX node or string
+ * literal to read as text, null for nothing, or "substitution" for an
+ * unknown value. `cond && <b>Text</b>` renders the element or nothing,
+ * and a conditional renders either branch.
  */
 function renderedOptions(expression) {
-	const node = skipTransparent(expression);
+	let node = expression;
+	while (ts.isParenthesizedExpression(node)) {
+		node = node.expression;
+	}
 	if (
 		ts.isJsxElement(node) ||
 		ts.isJsxFragment(node) ||
 		ts.isJsxSelfClosingElement(node) ||
 		ts.isStringLiteral(node) ||
-		ts.isNoSubstitutionTemplateLiteral(node) ||
-		ts.isTemplateExpression(node) ||
-		isStringConcatenation(node) ||
-		ts.isArrayLiteralExpression(node)
+		ts.isNoSubstitutionTemplateLiteral(node)
 	) {
 		return [node];
 	}
-	if (ts.isBinaryExpression(node)) {
-		const operator = node.operatorToken.kind;
-		if (operator === ts.SyntaxKind.AmpersandAmpersandToken) {
-			return [...renderedOptions(node.right), null];
-		}
-		// `label || "Fallback"` renders the left value or the fallback.
-		if (
-			operator === ts.SyntaxKind.BarBarToken ||
-			operator === ts.SyntaxKind.QuestionQuestionToken
-		) {
-			return [...renderedOptions(node.left), ...renderedOptions(node.right)];
-		}
+	if (
+		ts.isBinaryExpression(node) &&
+		node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+	) {
+		return [...renderedOptions(node.right), null];
 	}
 	if (ts.isConditionalExpression(node)) {
 		return [
@@ -1117,244 +312,6 @@ function renderedOptions(expression) {
 }
 
 /**
- * Returns the parts of a template expression in order: the source range
- * of each literal part, without its `, ${, and } delimiters, and the
- * substituted expression between each pair of parts.
- */
-function templateParts(node, sourceFile) {
-	const head = node.head;
-	const parts = [{ start: head.getStart(sourceFile) + 1, end: head.end - 2 }];
-	for (const span of node.templateSpans) {
-		parts.push({ substitution: span.expression });
-		const literal = span.literal;
-		const isTail = literal.kind === ts.SyntaxKind.TemplateTail;
-		parts.push({
-			start: literal.getStart(sourceFile) + 1,
-			end: literal.end - (isTail ? 1 : 2),
-		});
-	}
-	return parts;
-}
-
-/** Returns true for a string literal or template literal. */
-function isStringNode(node) {
-	return (
-		ts.isStringLiteral(node) ||
-		ts.isNoSubstitutionTemplateLiteral(node) ||
-		ts.isTemplateExpression(node)
-	);
-}
-
-function isPlus(node) {
-	return (
-		ts.isBinaryExpression(node) &&
-		node.operatorToken.kind === ts.SyntaxKind.PlusToken
-	);
-}
-
-/** Returns the operands of a chain of `+` expressions, in order. */
-function concatenationOperands(node) {
-	const operands = [];
-	const add = (operand) => {
-		const inner = skipTransparent(operand);
-		if (isPlus(inner)) {
-			add(inner.left);
-			add(inner.right);
-		} else {
-			operands.push(inner);
-		}
-	};
-	add(node);
-	return operands;
-}
-
-/** Returns true for a `+` expression that joins at least one string. */
-function isStringConcatenation(node) {
-	return isPlus(node) && concatenationOperands(node).some(isStringNode);
-}
-
-/**
- * Returns true for the outermost `+` expression of a string
- * concatenation, so the inner `+` expressions are not read again.
- */
-function isOutermostConcatenation(node) {
-	let parent = node.parent;
-	while (isTransparent(parent)) {
-		parent = parent.parent;
-	}
-	return isStringConcatenation(node) && !isPlus(parent);
-}
-
-/**
- * Returns the parts of a string concatenation in order, like
- * templateParts: the source range of each string's text, and each other
- * operand as a substituted expression. `"New " + name` renders as one
- * phrase. The strings read here are added to `consumed`.
- */
-function concatenationParts(node, sourceFile, consumed) {
-	const parts = [];
-	for (const operand of concatenationOperands(node)) {
-		if (ts.isTemplateExpression(operand)) {
-			consumed.add(operand);
-			parts.push(...templateParts(operand, sourceFile));
-		} else if (isStringNode(operand)) {
-			consumed.add(operand);
-			parts.push({
-				start: operand.getStart(sourceFile) + 1,
-				end: operand.end - 1,
-			});
-		} else {
-			parts.push({ substitution: operand });
-		}
-	}
-	return parts;
-}
-
-/**
- * Returns functions that build the rendered pieces of JSX and string
- * expressions: text ranges, substitutions for unknown values, boundaries
- * at the edges of nested elements, breaks for self-closing elements, and
- * choices between the pieces of each variant a conditional expression
- * renders. Nodes read here are added to `consumed` so they are not
- * checked again on their own.
- */
-function createPieceBuilder(sourceFile, consumed) {
-	const sourceText = sourceFile.text;
-	let variants = 1;
-
-	// `inline` marks pieces inside a string, where a substitution joins the
-	// text around it, as in `${count}s`.
-	const addNode = (node, pieces, inline = false) => {
-		if (node === null) {
-			return;
-		}
-		if (node === "substitution") {
-			pieces.push({ kind: "substitution", inline });
-		} else if (ts.isJsxText(node)) {
-			consumed.add(node);
-			const text = sourceText.slice(node.pos, node.end);
-			// Whitespace with a line break between tags renders nothing.
-			if (!/^\s*$/.test(text) || rendersSpace(text)) {
-				pieces.push({
-					kind: "text",
-					start: node.pos,
-					end: node.end,
-					encoding: "jsx",
-				});
-			}
-		} else if (
-			ts.isStringLiteral(node) ||
-			ts.isNoSubstitutionTemplateLiteral(node)
-		) {
-			consumed.add(node);
-			pieces.push({
-				kind: "text",
-				start: node.getStart(sourceFile) + 1,
-				end: node.end - 1,
-				encoding: "js",
-			});
-		} else if (ts.isTemplateExpression(node) || isPlus(node)) {
-			consumed.add(node);
-			const parts = isPlus(node)
-				? concatenationParts(node, sourceFile, consumed)
-				: templateParts(node, sourceFile);
-			for (const { start, end, substitution } of parts) {
-				if (substitution) {
-					addExpression(substitution, pieces, true);
-				} else {
-					pieces.push({ kind: "text", start, end, encoding: "js" });
-				}
-			}
-		} else if (ts.isArrayLiteralExpression(node)) {
-			// React renders an array's items one after another, including
-			// the items of spread arrays, per rendered variant.
-			for (const element of node.elements) {
-				addExpression(
-					ts.isSpreadElement(element) ? element.expression : element,
-					pieces,
-					inline,
-				);
-			}
-		} else if (ts.isJsxExpression(node)) {
-			// An empty expression, such as {/* note */}, renders nothing.
-			if (node.expression) {
-				addExpression(node.expression, pieces);
-			}
-		} else if (CODE_ELEMENTS.has(intrinsicTagName(node))) {
-			// Skip the rendered content, including text in expressions and
-			// nested elements. Attributes, such as aria-label on the element
-			// or on elements inside it, are still checked on their own.
-			const consume = (child) => {
-				if (ts.isJsxSelfClosingElement(child)) {
-					return;
-				}
-				consumed.add(child);
-				if (ts.isJsxElement(child) || ts.isJsxFragment(child)) {
-					child.children.forEach(consume);
-				} else {
-					ts.forEachChild(child, consume);
-				}
-			};
-			consume(node);
-			pieces.push(
-				BLOCK_CODE_ELEMENTS.has(intrinsicTagName(node))
-					? { kind: "break" }
-					: { kind: "substitution", inline },
-			);
-		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
-			consumed.add(node);
-			const tagName = intrinsicTagName(node);
-			const inlineElement =
-				ts.isJsxFragment(node) || INLINE_ELEMENTS.has(tagName);
-			// An intrinsic element that is not inline, such as a heading or
-			// paragraph, renders as its own block. Components may render
-			// either, so the space at their edges decides.
-			const blockElement = tagName !== null && !inlineElement;
-			const boundary = { kind: "boundary", inlineElement, blockElement };
-			pieces.push({ ...boundary, edge: "open" });
-			for (const child of node.children) {
-				addNode(child, pieces);
-			}
-			pieces.push({ ...boundary, edge: "close" });
-		} else {
-			// A self-closing element, such as an icon, sits between
-			// separate labels more often than inside a phrase.
-			pieces.push({ kind: "break" });
-		}
-	};
-
-	const addExpression = (expression, pieces, inline = false) => {
-		const options = renderedOptions(expression);
-		if (options.length === 1) {
-			addNode(options[0], pieces, inline);
-		} else if (
-			options.every((option) => option === "substitution") ||
-			variants * options.length > MAX_VARIANTS
-		) {
-			pieces.push({ kind: "substitution", inline });
-		} else {
-			variants *= options.length;
-			pieces.push({
-				kind: "choice",
-				options: options.map((option) => {
-					const optionPieces = [];
-					addNode(option, optionPieces, inline);
-					return optionPieces;
-				}),
-			});
-		}
-	};
-
-	// Returns the phrases of every rendered variant of `pieces`.
-	const join = (pieces) =>
-		expandChoices(pieces).flatMap((sequence) =>
-			joinJsxPieces(sequence, sourceText),
-		);
-
-	return { addNode, join };
-}
-
-/**
  * Collects the rendered text of a JSX element or fragment, including the
  * text of nested elements, so a phrase that crosses inline markup is
  * checked as one phrase: `Create <strong>New Workspace</strong>` reads as
@@ -1365,33 +322,92 @@ function createPieceBuilder(sourceFile, consumed) {
  *
  * The edge of a nested element joins the text on either side only when
  * JSX renders a space there; otherwise it ends the phrase, because
- * adjacent elements are usually separate labels.
+ * adjacent elements are usually separate labels. Nested nodes that are
+ * read here are added to `consumed` so they are not checked again on
+ * their own.
  */
 function collectJsxTexts(container, sourceFile, consumed) {
-	const builder = createPieceBuilder(sourceFile, consumed);
-	const pieces = [];
-	if (CODE_ELEMENTS.has(intrinsicTagName(container))) {
-		// Consumes the code element without reading its text.
-		builder.addNode(container, pieces);
-		return [];
-	}
-	for (const child of container.children) {
-		builder.addNode(child, pieces);
-	}
-	return builder.join(pieces);
-}
+	const sourceText = sourceFile.text;
+	let variants = 1;
 
-/**
- * Collects the rendered text of a template literal or string
- * concatenation. Substituted values that render known strings, such as
- * `"Create " + (ok ? "New Workspace" : name)`, are read in place once per
- * variant.
- */
-function collectStringTexts(node, sourceFile, consumed) {
-	const builder = createPieceBuilder(sourceFile, consumed);
-	const pieces = [];
-	builder.addNode(node, pieces);
-	return builder.join(pieces);
+	// Appends the rendered pieces of `node` to `pieces`: text ranges,
+	// substitutions for unknown values, boundaries at the edges of nested
+	// elements, breaks for self-closing elements, and choices between the
+	// pieces of each variant a conditional expression renders.
+	const addNode = (node, pieces) => {
+		if (node === null) {
+			return;
+		}
+		if (node === "substitution") {
+			pieces.push({ kind: "substitution" });
+		} else if (ts.isJsxText(node)) {
+			consumed.add(node);
+			const text = sourceText.slice(node.pos, node.end);
+			// Whitespace with a line break between tags renders nothing.
+			if (!/^\s*$/.test(text) || rendersSpace(text)) {
+				pieces.push({ kind: "text", start: node.pos, end: node.end });
+			}
+		} else if (
+			ts.isStringLiteral(node) ||
+			ts.isNoSubstitutionTemplateLiteral(node)
+		) {
+			consumed.add(node);
+			pieces.push({
+				kind: "text",
+				start: node.getStart(sourceFile) + 1,
+				end: node.end - 1,
+			});
+		} else if (ts.isJsxExpression(node)) {
+			// An empty expression, such as {/* note */}, renders nothing.
+			if (node.expression) {
+				addExpression(node.expression, pieces);
+			}
+		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+			consumed.add(node);
+			pieces.push({ kind: "boundary", edge: "open" });
+			for (const child of node.children) {
+				addNode(child, pieces);
+			}
+			pieces.push({ kind: "boundary", edge: "close" });
+		} else {
+			// A self-closing element, such as an icon, sits between
+			// separate labels more often than inside a phrase.
+			pieces.push({ kind: "break" });
+		}
+	};
+
+	const addExpression = (expression, pieces) => {
+		const options = renderedOptions(expression);
+		if (options.length === 1) {
+			addNode(options[0], pieces);
+		} else if (
+			options.every((option) => option === "substitution") ||
+			variants * options.length > MAX_JSX_VARIANTS
+		) {
+			pieces.push({ kind: "substitution" });
+		} else {
+			variants *= options.length;
+			pieces.push({
+				kind: "choice",
+				options: options.map((option) => {
+					const optionPieces = [];
+					addNode(option, optionPieces);
+					return optionPieces;
+				}),
+			});
+		}
+	};
+
+	const rootPieces = [];
+	for (const child of container.children) {
+		addNode(child, rootPieces);
+	}
+
+	const texts = [];
+	for (const pieces of expandChoices(rootPieces)) {
+		texts.push(...joinJsxPieces(pieces, sourceText));
+	}
+	return texts;
 }
 
 /** Expands choice pieces into every linear sequence of pieces. */
@@ -1428,20 +444,7 @@ function joinJsxPieces(pieces, sourceText) {
 		}
 		const text = sourceText.slice(piece.start, piece.end);
 		const whitespace = text.match(edge === "end" ? /\s*$/ : /^\s*/)[0];
-		if (rendersSpace(whitespace)) {
-			return true;
-		}
-		// Past any dropped whitespace, an encoded space such as &nbsp;
-		// still renders.
-		const decoded = { text: "", positions: [] };
-		appendSource(
-			decoded,
-			sourceText,
-			edge === "end" ? piece.start : piece.start + whitespace.length,
-			edge === "end" ? piece.end - whitespace.length : piece.end,
-			piece.encoding,
-		);
-		return (edge === "end" ? /\s$/ : /^\s/).test(decoded.text);
+		return rendersSpace(whitespace);
 	};
 
 	const texts = [];
@@ -1457,14 +460,10 @@ function joinJsxPieces(pieces, sourceText) {
 		if (
 			piece.kind === "boundary" &&
 			piece.edge === "open" &&
-			pieces[i - 1]?.edge === "close" &&
-			!(piece.inlineElement && pieces[i - 1].inlineElement)
+			pieces[i - 1]?.edge === "close"
 		) {
 			// Sibling elements with nothing rendered between them are
-			// separate labels, whatever whitespace they hold inside,
-			// unless both are inline elements in one run of text.
-			endPhrase();
-		} else if (piece.kind === "boundary" && piece.blockElement) {
+			// separate labels, whatever whitespace they hold inside.
 			endPhrase();
 		} else if (piece.kind === "boundary") {
 			let before = i - 1;
@@ -1483,79 +482,19 @@ function joinJsxPieces(pieces, sourceText) {
 			}
 		} else if (piece.kind === "break") {
 			endPhrase();
-		} else if (piece.kind === "substitution" && piece.inline) {
-			// A template substitution joins the literal text around it,
-			// as in `${count}s`.
-			current.text += SUBSTITUTION;
-			current.positions.push(-1);
 		} else if (piece.kind === "substitution") {
 			// Pad with spaces so the substitution is a token of its own.
 			current.text += ` ${SUBSTITUTION} `;
 			current.positions.push(-1, -1, -1);
 		} else {
-			appendSource(current, sourceText, piece.start, piece.end, piece.encoding);
+			current.text += sourceText.slice(piece.start, piece.end);
+			for (let position = piece.start; position < piece.end; position++) {
+				current.positions.push(position);
+			}
 		}
 	}
 	endPhrase();
 	return texts;
-}
-
-// Attributes whose values are displayed text that --fix may rewrite,
-// plus component props named like DISPLAY_ATTRIBUTE_SUFFIX.
-const DISPLAY_ATTRIBUTES = new Set([
-	"alt",
-	"aria-description",
-	"aria-label",
-	"aria-placeholder",
-	"aria-roledescription",
-	"aria-valuetext",
-	"caption",
-	"description",
-	"heading",
-	"hint",
-	"label",
-	"message",
-	"placeholder",
-	"subtitle",
-	"title",
-	"tooltip",
-]);
-
-// Component props such as confirmText, emptyMessage, and ariaLabel.
-const DISPLAY_ATTRIBUTE_SUFFIX =
-	/[a-z](?:Caption|Description|Heading|Label|Message|Placeholder|Text|Title|Tooltip)$/;
-
-/**
- * Returns true when `node` is the value of a display attribute, directly
- * or through wrappers, `{}`, conditionals, fallbacks, and concatenation,
- * so --fix may rewrite it. A value passed through a call, such as
- * `title={format("...")}`, may be transformed, so it is not.
- */
-function isDisplayAttributeValue(node) {
-	let parent = node.parent;
-	while (
-		parent &&
-		(isTransparent(parent) ||
-			ts.isJsxExpression(parent) ||
-			ts.isTemplateSpan(parent) ||
-			ts.isTemplateExpression(parent) ||
-			(ts.isConditionalExpression(parent) && parent.condition !== node) ||
-			(ts.isBinaryExpression(parent) &&
-				[
-					ts.SyntaxKind.AmpersandAmpersandToken,
-					ts.SyntaxKind.BarBarToken,
-					ts.SyntaxKind.QuestionQuestionToken,
-					ts.SyntaxKind.PlusToken,
-				].includes(parent.operatorToken.kind)))
-	) {
-		node = parent;
-		parent = parent.parent;
-	}
-	if (!parent || !ts.isJsxAttribute(parent)) {
-		return false;
-	}
-	const name = parent.name.getText();
-	return DISPLAY_ATTRIBUTES.has(name) || DISPLAY_ATTRIBUTE_SUFFIX.test(name);
 }
 
 /**
@@ -1567,48 +506,52 @@ function collectTexts(sourceFile) {
 	const texts = [];
 	// JSX nodes already read as part of an enclosing element's text.
 	const consumed = new Set();
-	const addRange = (start, end, encoding, fixable) => {
-		const text = { text: "", positions: [], fixable };
-		appendSource(text, sourceText, start, end, encoding);
-		texts.push(text);
+	const addRange = (start, end) => {
+		texts.push({
+			text: sourceText.slice(start, end),
+			positions: Array.from({ length: end - start }, (_, i) => start + i),
+		});
 	};
 	const visit = (node) => {
 		switch (node.kind) {
 			case ts.SyntaxKind.JsxElement:
 			case ts.SyntaxKind.JsxFragment:
 				if (!consumed.has(node)) {
-					for (const text of collectJsxTexts(node, sourceFile, consumed)) {
-						texts.push({ ...text, fixable: true });
-					}
+					texts.push(...collectJsxTexts(node, sourceFile, consumed));
 				}
 				break;
 			case ts.SyntaxKind.StringLiteral:
 			case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
 				if (!consumed.has(node) && !isNonDisplayLiteral(node)) {
-					// JSX attribute strings decode HTML entities, not escapes.
-					addRange(
-						node.getStart(sourceFile),
-						node.end,
-						ts.isJsxAttribute(node.parent) ? "jsx" : "js",
-						isDisplayAttributeValue(node),
-					);
+					addRange(node.getStart(sourceFile), node.end);
 				}
 				break;
-			case ts.SyntaxKind.BinaryExpression:
 			case ts.SyntaxKind.TemplateExpression: {
-				const isString =
-					ts.isTemplateExpression(node) || isOutermostConcatenation(node);
-				if (!isString || consumed.has(node)) {
+				if (isNonDisplayLiteral(node)) {
 					break;
 				}
-				if (isNonDisplayLiteral(node)) {
-					// Skip the whole value, including the strings inside it.
-					return;
+				// Join the literal parts without their `, ${, and } delimiters.
+				let text = "";
+				const positions = [];
+				const addPart = (start, end) => {
+					text += sourceText.slice(start, end);
+					for (let i = start; i < end; i++) {
+						positions.push(i);
+					}
+				};
+				const head = node.head;
+				addPart(head.getStart(sourceFile) + 1, head.end - 2);
+				for (const span of node.templateSpans) {
+					text += SUBSTITUTION;
+					positions.push(-1);
+					const literal = span.literal;
+					const isTail = literal.kind === ts.SyntaxKind.TemplateTail;
+					addPart(
+						literal.getStart(sourceFile) + 1,
+						literal.end - (isTail ? 1 : 2),
+					);
 				}
-				const fixable = isDisplayAttributeValue(node);
-				for (const text of collectStringTexts(node, sourceFile, consumed)) {
-					texts.push({ ...text, fixable });
-				}
+				texts.push({ text, positions });
 				break;
 			}
 		}
@@ -1619,9 +562,9 @@ function collectTexts(sourceFile) {
 }
 
 /**
- * Checks one file's source text. Returns the reported words, each marked
- * `fixable` when --fix may rewrite it, the line numbers of unused expect
- * comments, and the source with every fixable word lowercased.
+ * Checks one file's source text. Returns the reported words, the
+ * line numbers of unused expect comments, and the source with every
+ * reported word lowercased.
  */
 export function checkSource(fileName, sourceText) {
 	const sourceFile = ts.createSourceFile(
@@ -1646,7 +589,7 @@ export function checkSource(fileName, sourceText) {
 	// Conditional JSX is checked once per rendered variant, so the same
 	// word can be reported more than once.
 	const reportedPositions = new Set();
-	for (const { text, positions, fixable } of collectTexts(sourceFile)) {
+	for (const { text, positions } of collectTexts(sourceFile)) {
 		for (const { offset, word } of findTitleCaseWords(text)) {
 			const position = positions[offset];
 			if (reportedPositions.has(position)) {
@@ -1659,32 +602,17 @@ export function checkSource(fileName, sourceText) {
 				usedExpectations.add(line);
 				continue;
 			}
-			issues.push({
-				position,
-				line: line + 1,
-				column: character + 1,
-				word,
-				fixable,
-			});
+			issues.push({ position, line: line + 1, column: character + 1, word });
 		}
 	}
 	issues.sort((a, b) => a.position - b.position);
 
 	let fixedText = sourceText;
-	for (const { position } of issues.filter((i) => i.fixable).reverse()) {
-		// A word that starts with an entity or escape, such as
-		// "&#87;orkspace" or "\\u0057orkspace", maps to its first character;
-		// replace the whole encoding with the lowercase letter.
-		const entity =
-			entityAt(sourceText, position) ?? escapeAt(sourceText, position);
-		const initial = entity
-			? entity.decoded
-			: String.fromCodePoint(sourceText.codePointAt(position));
-		const length = entity ? entity.length : initial.length;
+	for (const { position } of [...issues].reverse()) {
 		fixedText =
 			fixedText.slice(0, position) +
-			initial.toLowerCase() +
-			fixedText.slice(position + length);
+			fixedText[position].toLowerCase() +
+			fixedText.slice(position + 1);
 	}
 
 	// A zero-based expected line is also the one-based line of its
@@ -1722,8 +650,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 		.map((path) => relative(siteDir, path))
 		.filter((path) => !isExcluded(path));
 
-	let fixedCount = 0;
-	let remainingCount = 0;
+	let issueCount = 0;
 	let unusedCount = 0;
 	for (const file of files) {
 		const sourceText = readFileSync(join(siteDir, file), "utf8");
@@ -1731,13 +658,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 			file,
 			sourceText,
 		);
-		for (const { line, column, word, fixable } of issues) {
-			if (fix && fixable) {
-				continue;
-			}
-			const note = fixable ? "" : " (fix by hand)";
+		for (const { line, column, word } of issues) {
 			console.log(
-				`${file}:${line}:${column}: "${word}" should be lowercase in sentence case${note}`,
+				`${file}:${line}:${column}: "${word}" should be lowercase in sentence case`,
 			);
 		}
 		for (const line of unusedExpectations) {
@@ -1745,25 +668,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 				`${file}:${line}: unused "${EXPECT_COMMENT}" comment, the next line has no title case text`,
 			);
 		}
-		const fixable = fix ? issues.filter((i) => i.fixable).length : 0;
-		fixedCount += fixable;
-		remainingCount += issues.length - fixable;
+		issueCount += issues.length;
 		unusedCount += unusedExpectations.length;
-		if (fixable > 0) {
+		if (fix && issues.length > 0) {
 			writeFileSync(join(siteDir, file), fixedText);
 		}
 	}
 
-	if (fixedCount > 0) {
-		console.log(`\nLowercased ${fixedCount} word(s). Review the changes.`);
+	if (fix && issueCount > 0) {
+		console.log(`\nLowercased ${issueCount} word(s). Review the changes.`);
 	}
-	if (remainingCount > 0 || unusedCount > 0) {
+	if ((!fix && issueCount > 0) || unusedCount > 0) {
 		console.log(
 			[
 				"",
 				"Use sentence case for UI text: capitalize only the first word and proper nouns.",
-				"To fix displayed text automatically: pnpm run lint:sentence-case --fix",
-				"Words marked (fix by hand) are in strings that may be machine values.",
+				"To fix automatically: pnpm run lint:sentence-case --fix",
 				"For proper nouns: add them to PROPER_NOUNS in scripts/check-sentence-case.mjs.",
 				`For other exceptions: add a "${EXPECT_COMMENT}" comment on the line above.`,
 			].join("\n"),
