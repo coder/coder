@@ -919,6 +919,9 @@ func TestPlugin_SymlinkedSkillDir(t *testing.T) {
 	require.Equal(t, "p", escaped.PluginName)
 	require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 2)
 
+	dirs := agentcontext.WatchDirs([]agentcontext.ScanRoot{{Path: root}}, agentcontext.ResolveOptions{PluginsEnabled: true})
+	require.Contains(t, dirs, innerLink)
+	require.NotContains(t, dirs, escapeLink)
 }
 
 func TestPlugin_SkillsFileDisablesSkills(t *testing.T) {
@@ -1057,6 +1060,81 @@ func TestPlugin_IncludedInAggregateHash(t *testing.T) {
 	after := resolvePlugins(agentcontext.ScanRoot{Path: root})
 
 	require.NotEqual(t, before.AggregateHash, after.AggregateHash)
+}
+
+func TestManager_SetPluginsEnabledTriggersResolve(t *testing.T) {
+	t.Parallel()
+	wd := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(wd, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "one", "One")
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return wd },
+	})
+
+	snap := m.Snapshot()
+	require.Equal(t, uint64(1), snap.Version)
+	require.Empty(t, resourcesOfKind(snap, agentcontext.KindPlugin))
+
+	m.SetPluginsEnabled(true)
+	snap = m.Snapshot()
+	require.Equal(t, uint64(2), snap.Version)
+	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+	require.Equal(t, agentcontext.StatusOK, plugin.Status, plugin.Error)
+	skill := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(pluginDir, "skills", "one"))
+	require.Equal(t, "p", skill.PluginName)
+
+	// An unchanged value does not resolve again.
+	m.SetPluginsEnabled(true)
+	require.Equal(t, uint64(2), m.Snapshot().Version)
+
+	m.SetPluginsEnabled(false)
+	snap = m.Snapshot()
+	require.Equal(t, uint64(3), snap.Version)
+	require.Empty(t, resourcesOfKind(snap, agentcontext.KindPlugin))
+	require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
+}
+
+func TestManager_SetPluginsEnabledBeforeReady(t *testing.T) {
+	t.Parallel()
+	wd := testutil.TempDirResolved(t)
+	mustWritePlugin(t, filepath.Join(wd, "plugins", "p"), "p")
+
+	m := newPendingTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return wd },
+	})
+	m.SetPluginsEnabled(true)
+	require.Equal(t, uint64(0), m.Snapshot().Version, "gated manager must not resolve")
+
+	m.SetReady()
+	snap := m.Snapshot()
+	require.Equal(t, uint64(1), snap.Version)
+	require.Len(t, resourcesOfKind(snap, agentcontext.KindPlugin), 1)
+}
+
+func TestManager_SetPluginsEnabledWithRunLoop(t *testing.T) {
+	t.Parallel()
+	wd := testutil.TempDirResolved(t)
+	mustWritePlugin(t, filepath.Join(wd, "plugins", "p"), "p")
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return wd },
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	go func() { _ = m.Run(ctx) }()
+	<-agentcontext.ManagerStarted(m)
+
+	ch, unsub := m.SubscribeChanges()
+	defer unsub()
+
+	m.SetPluginsEnabled(true)
+	select {
+	case <-ch:
+	case <-ctx.Done():
+		t.Fatal("expected a broadcast after SetPluginsEnabled")
+	}
+	require.Len(t, resourcesOfKind(m.Snapshot(), agentcontext.KindPlugin), 1)
 }
 
 // A path that is not valid UTF-8 cannot be sent as a resource Source, so

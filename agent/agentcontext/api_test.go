@@ -165,6 +165,32 @@ func TestAPI_Resync(t *testing.T) {
 	require.Equal(t, "ok", snap.Resources[0].Status)
 }
 
+func TestAPI_ResyncReportsPluginFields(t *testing.T) {
+	t.Parallel()
+	wd := t.TempDir()
+	pluginDir := filepath.Join(wd, ".agents", "plugins", "acme")
+	mustWriteFile(t, filepath.Join(pluginDir, "plugin.json"),
+		`{"$schema":"`+agentcontext.PluginSchemaV1+`","name":"acme","version":"1.2.0"}`)
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "deploy", "Deploys")
+
+	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return wd },
+	})
+	m.SetPluginsEnabled(true)
+
+	status, body := doRequest(t, http.MethodPost, srv.URL+"/resync", nil)
+	require.Equal(t, http.StatusOK, status)
+
+	var snap agentcontext.SnapshotResponse
+	require.NoError(t, json.Unmarshal(body, &snap))
+	byKind := map[string]agentcontext.SnapshotResource{}
+	for _, r := range snap.Resources {
+		byKind[r.Kind] = r
+	}
+	require.Equal(t, "1.2.0", byKind["plugin"].PluginVersion)
+	require.Equal(t, "acme", byKind["skill"].PluginName)
+}
+
 func TestAPI_AddSourceMalformedBody(t *testing.T) {
 	t.Parallel()
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{

@@ -261,6 +261,13 @@ func New(options Options) Agent {
 	return a
 }
 
+// Values of agent.lastMissingDirNotice. Zero means no notice was
+// logged.
+const (
+	missingDirNoticePluginsOff int32 = iota + 1
+	missingDirNoticePluginsOn
+)
+
 type agent struct {
 	clock                 quartz.Clock
 	logger                slog.Logger
@@ -353,6 +360,9 @@ type agent struct {
 	contextConfigAPI *agentcontextconfig.API
 	contextManager   *agentcontext.Manager
 	contextAPI       *agentcontext.API
+	// lastMissingDirNotice holds the AgentPluginsEnabled setting of the
+	// last logged missing-directory notice.
+	lastMissingDirNotice atomic.Int32
 
 	socketServerEnabled bool
 	socketPath          string
@@ -1275,6 +1285,27 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
+
+		// Set before SeedSources and Trigger so their resolves use this
+		// manifest's plugin setting.
+		a.contextManager.SetPluginsEnabled(manifest.AgentPluginsEnabled)
+
+		noticeState := missingDirNoticePluginsOff
+		if manifest.AgentPluginsEnabled {
+			noticeState = missingDirNoticePluginsOn
+		}
+		if strings.TrimSpace(manifest.Directory) == "" && a.lastMissingDirNotice.Swap(noticeState) != noticeState {
+			hint := "set coder_agent.dir in the template"
+			if manifest.AgentPluginsEnabled {
+				hint += ", or place plugins under ~/.coder/.agents/plugins"
+			}
+			a.logger.Info(ctx, "agent directory is not set; skipping working-directory context",
+				slog.F("not_scanned", agentcontext.ScanRootEntries(agentcontext.ResolveOptions{
+					PluginsEnabled: manifest.AgentPluginsEnabled,
+				})),
+				slog.F("hint", hint),
+			)
+		}
 
 		// Manifest just landed; the agentcontext manager now has
 		// a working directory to scan and a known set of scan
