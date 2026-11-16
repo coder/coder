@@ -597,6 +597,11 @@
 				"path": "reference/cli/server/dbcrypt/index.md",
 				"children": [
 					{
+						"title": "`audit`",
+						"description": "Report rows that should be encrypted at rest but are stored in plaintext.",
+						"path": "reference/cli/server/dbcrypt/audit.md"
+					},
+					{
 						"title": "`decrypt`",
 						"description": "Decrypt a previously encrypted database.",
 						"path": "reference/cli/server/dbcrypt/decrypt.md"

@@ -72,6 +72,61 @@ func (f *rotateFixture) rotate(t *testing.T) {
 	require.NoError(t, err, "rotate should succeed and cleanly revoke the old key")
 }
 
+// TestAudit verifies that Audit reports plaintext rows in dbcrypt-managed
+// columns and reports nothing once the database is encrypted.
+func TestAudit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	findCount := func(t *testing.T, results []dbcrypt.AuditResult, table, column string) int64 {
+		t.Helper()
+		for _, result := range results {
+			if result.Table == table && result.Column == column {
+				return result.UnencryptedCount
+			}
+		}
+		t.Fatalf("no audit result for %s.%s", table, column)
+		return 0
+	}
+	requireAllZero := func(t *testing.T, results []dbcrypt.AuditResult) {
+		t.Helper()
+		for _, result := range results {
+			require.Zerof(t, result.UnencryptedCount, "%s.%s should have no unencrypted rows", result.Table, result.Column)
+		}
+	}
+
+	// An empty database has nothing to report.
+	results, err := dbcrypt.Audit(ctx, sqlDB)
+	require.NoError(t, err)
+	requireAllZero(t, results)
+
+	// Seed plaintext rows the way pre-encryption data or a code path that
+	// bypasses dbcrypt would write them: non-empty values, NULL key IDs.
+	user := dbgen.User(t, rawDB, database.User{})
+	dbgen.UserLink(t, rawDB, database.UserLink{UserID: user.ID})
+	dbgen.GitSSHKey(t, rawDB, database.GitSSHKey{
+		UserID:     user.ID,
+		PrivateKey: "plaintext-private-key",
+	})
+
+	results, err = dbcrypt.Audit(ctx, sqlDB)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, findCount(t, results, "user_links", "oauth_access_token"))
+	require.EqualValues(t, 1, findCount(t, results, "user_links", "oauth_refresh_token"))
+	require.EqualValues(t, 1, findCount(t, results, "gitsshkeys", "private_key"))
+
+	// Encrypting the database clears every finding.
+	ciphers, err := dbcrypt.NewCiphers([]byte(testutil.MustRandString(t, 32)))
+	require.NoError(t, err)
+	require.NoError(t, dbcrypt.Rotate(ctx, testutil.Logger(t), sqlDB, ciphers))
+
+	results, err = dbcrypt.Audit(ctx, sqlDB)
+	require.NoError(t, err)
+	requireAllZero(t, results)
+}
+
 // newCipher returns a fresh, independent cipher unrelated to a fixture's
 // cipherA/cipherB, for tests that need to seed data under a key Rotate is
 // never told about.

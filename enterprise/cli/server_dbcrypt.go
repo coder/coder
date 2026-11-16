@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"text/tabwriter"
 
 	"golang.org/x/xerrors"
 
@@ -29,11 +30,110 @@ func (r *RootCmd) dbcryptCmd() *serpent.Command {
 		},
 	}
 	dbcryptCmd.AddSubcommands(
+		r.dbcryptAuditCmd(),
 		r.dbcryptDecryptCmd(),
 		r.dbcryptDeleteCmd(),
 		r.dbcryptRotateCmd(),
 	)
 	return dbcryptCmd
+}
+
+func (*RootCmd) dbcryptAuditCmd() *serpent.Command {
+	var flags auditFlags
+	cmd := &serpent.Command{
+		Use:   "audit",
+		Short: "Report rows that should be encrypted at rest but are stored in plaintext.",
+		Long: "Scans every dbcrypt-managed column for non-empty values with a NULL key ID, " +
+			"which means the value is stored in plaintext. This catches rows written by code " +
+			"paths that bypass encryption as well as rows that predate enabling it. The command " +
+			"performs reads only, requires no encryption keys, and exits with a non-zero status " +
+			"when any plaintext row is found. Run `coder server dbcrypt rotate` to encrypt the " +
+			"reported rows.",
+		Handler: func(inv *serpent.Invocation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
+			defer cancel()
+			// Log to stderr so stdout stays machine-readable.
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if verbose, err := inv.ParsedFlags().GetBool("verbose"); err == nil && verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			if err := flags.valid(); err != nil {
+				return err
+			}
+
+			sqlDriver := "postgres"
+			var err error
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL, nil)
+			if err != nil {
+				return xerrors.Errorf("connect to postgres: %w", err)
+			}
+			defer func() {
+				_ = sqlDB.Close()
+			}()
+
+			results, err := dbcrypt.Audit(ctx, sqlDB)
+			if err != nil {
+				return xerrors.Errorf("audit database: %w", err)
+			}
+
+			var total int64
+			tw := tabwriter.NewWriter(inv.Stdout, 0, 0, 2, ' ', 0)
+			_, _ = fmt.Fprintln(tw, "TABLE\tCOLUMN\tUNENCRYPTED ROWS")
+			for _, result := range results {
+				total += result.UnencryptedCount
+				_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\n", result.Table, result.Column, result.UnencryptedCount)
+			}
+			_ = tw.Flush()
+
+			if total > 0 {
+				return xerrors.Errorf("found %d plaintext rows in dbcrypt-managed columns; run `coder server dbcrypt rotate` to encrypt them", total)
+			}
+			_, _ = fmt.Fprintln(inv.Stdout, "No plaintext rows found in dbcrypt-managed columns.")
+			return nil
+		},
+	}
+	flags.attach(&cmd.Options)
+	return cmd
+}
+
+type auditFlags struct {
+	PostgresURL  string
+	PostgresAuth string
+}
+
+func (f *auditFlags) attach(opts *serpent.OptionSet) {
+	*opts = append(
+		*opts,
+		serpent.Option{
+			Flag:        "postgres-url",
+			Env:         "CODER_PG_CONNECTION_URL",
+			Description: "The connection URL for the Postgres database.",
+			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
+		},
+	)
+}
+
+func (f *auditFlags) valid() error {
+	if f.PostgresURL == "" {
+		return xerrors.Errorf("no database configured")
+	}
+	return nil
 }
 
 func (*RootCmd) dbcryptRotateCmd() *serpent.Command {

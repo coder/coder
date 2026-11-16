@@ -6,6 +6,8 @@ USAGE:
   Manage database encryption.
 
 SUBCOMMANDS:
+    audit      Report rows that should be encrypted at rest but are stored in
+               plaintext.
     decrypt    Decrypt a previously encrypted database.
     delete     Delete all encrypted data from the database. THIS IS A
                DESTRUCTIVE OPERATION.

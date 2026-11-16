@@ -3,6 +3,7 @@ package dbcrypt
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -607,4 +608,79 @@ func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
 	}
 
 	return nil
+}
+
+// AuditResult summarizes one dbcrypt-managed column and the number of rows
+// whose value is stored in plaintext (non-empty value with a NULL key ID).
+type AuditResult struct {
+	Table            string
+	Column           string
+	UnencryptedCount int64
+}
+
+// auditTarget describes a column that dbcrypt encrypts at rest. emptyValues
+// are plaintext values that carry no secret (and are therefore never
+// encrypted), such as the empty string.
+type auditTarget struct {
+	table       string
+	column      string
+	keyIDColumn string
+	emptyValues []string
+}
+
+// auditTargets lists every column dbcrypt encrypts. Extend this list whenever
+// a column gains a *_key_id companion so `coder server dbcrypt audit` keeps
+// flagging rows written by code paths that bypass encryption (SEC-1491).
+var auditTargets = []auditTarget{
+	{table: "user_links", column: "oauth_access_token", keyIDColumn: "oauth_access_token_key_id"},
+	{table: "user_links", column: "oauth_refresh_token", keyIDColumn: "oauth_refresh_token_key_id"},
+	{table: "external_auth_links", column: "oauth_access_token", keyIDColumn: "oauth_access_token_key_id"},
+	{table: "external_auth_links", column: "oauth_refresh_token", keyIDColumn: "oauth_refresh_token_key_id"},
+	{table: "gitsshkeys", column: "private_key", keyIDColumn: "private_key_key_id"},
+	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
+	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
+	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},
+	{table: "ai_providers", column: "settings", keyIDColumn: "settings_key_id"},
+	{table: "ai_provider_keys", column: "api_key", keyIDColumn: "api_key_key_id"},
+	{table: "user_ai_provider_keys", column: "api_key", keyIDColumn: "api_key_key_id"},
+	{table: "mcp_server_configs", column: "oauth2_client_secret", keyIDColumn: "oauth2_client_secret_key_id"},
+	{table: "mcp_server_configs", column: "api_key_value", keyIDColumn: "api_key_value_key_id"},
+	{table: "mcp_server_configs", column: "custom_headers", keyIDColumn: "custom_headers_key_id", emptyValues: []string{"{}"}},
+	{table: "mcp_server_configs", column: "signing_secret", keyIDColumn: "signing_secret_key_id"},
+	{table: "mcp_server_user_tokens", column: "access_token", keyIDColumn: "access_token_key_id"},
+	{table: "mcp_server_user_tokens", column: "refresh_token", keyIDColumn: "refresh_token_key_id"},
+	{table: "chat_mcp_servers", column: "headers", keyIDColumn: "headers_key_id", emptyValues: []string{"{}"}},
+}
+
+// Audit reports, for every dbcrypt-managed column, how many rows hold a
+// non-empty value with a NULL key ID, meaning the value is stored in
+// plaintext. This catches rows written by code paths that bypass dbcrypt as
+// well as rows that predate enabling encryption. It performs reads only and
+// needs no encryption keys.
+func Audit(ctx context.Context, sqlDB *sql.DB) ([]AuditResult, error) {
+	results := make([]AuditResult, 0, len(auditTargets))
+	for _, target := range auditTargets {
+		empties := append([]string{""}, target.emptyValues...)
+		placeholders := make([]string, 0, len(empties))
+		args := make([]any, 0, len(empties))
+		for i, v := range empties {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+			args = append(args, v)
+		}
+		//nolint:gosec // The table and column names are compile-time constants from auditTargets; only the empty values are parameterized.
+		query := fmt.Sprintf(
+			"SELECT COUNT(*) FROM %s WHERE %s IS NULL AND %s IS NOT NULL AND %s NOT IN (%s)",
+			target.table, target.keyIDColumn, target.column, target.column, strings.Join(placeholders, ", "),
+		)
+		var count int64
+		if err := sqlDB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+			return nil, xerrors.Errorf("count unencrypted rows in %s.%s: %w", target.table, target.column, err)
+		}
+		results = append(results, AuditResult{
+			Table:            target.table,
+			Column:           target.column,
+			UnencryptedCount: count,
+		})
+	}
+	return results, nil
 }

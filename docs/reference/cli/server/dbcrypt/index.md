@@ -18,6 +18,7 @@ coder server dbcrypt
 
 | Name                                 | Purpose                                                                       |
 |--------------------------------------|-------------------------------------------------------------------------------|
+| [<code>audit</code>](./audit.md)     | Report rows that should be encrypted at rest but are stored in plaintext.     |
 | [<code>decrypt</code>](./decrypt.md) | Decrypt a previously encrypted database.                                      |
 | [<code>delete</code>](./delete.md)   | Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION. |
 | [<code>rotate</code>](./rotate.md)   | Rotate database encryption keys.                                              |

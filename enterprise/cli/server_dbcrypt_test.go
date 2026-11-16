@@ -1,9 +1,11 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"io"
 	"testing"
 	"time"
 
@@ -494,3 +496,52 @@ func (*nullCipher) HexDigest() string {
 }
 
 var _ dbcrypt.Cipher = (*nullCipher)(nil)
+
+// TestServerDBCryptAudit tests the CLI contract of `server dbcrypt audit`:
+// a non-zero exit with a per-column report when plaintext rows exist, and a
+// clean exit once the database is fully encrypted.
+func TestServerDBCryptAudit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	connectionURL, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	defer sqlDB.Close()
+	db := database.New(sqlDB)
+
+	// A plaintext row written without dbcrypt.
+	user := dbgen.User(t, db, database.User{})
+	dbgen.GitSSHKey(t, db, database.GitSSHKey{
+		UserID:     user.ID,
+		PrivateKey: "plaintext-private-key",
+	})
+
+	inv, _ := newCLI(t, "server", "dbcrypt", "audit", "--postgres-url", connectionURL)
+	var stdout bytes.Buffer
+	inv.Stdout = &stdout
+	inv.Stderr = io.Discard
+	err = inv.WithContext(ctx).Run()
+	require.Error(t, err, "audit must exit non-zero when plaintext rows exist")
+	require.ErrorContains(t, err, "plaintext rows")
+	require.Contains(t, stdout.String(), "gitsshkeys")
+
+	// Encrypt the database; the audit must then pass.
+	key := testutil.MustRandString(t, 32)
+	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
+		"--postgres-url", connectionURL,
+		"--new-key", base64.StdEncoding.EncodeToString([]byte(key)),
+		"--yes",
+	)
+	inv.Stdout = io.Discard
+	require.NoError(t, inv.WithContext(ctx).Run())
+
+	inv, _ = newCLI(t, "server", "dbcrypt", "audit", "--postgres-url", connectionURL)
+	stdout.Reset()
+	inv.Stdout = &stdout
+	inv.Stderr = io.Discard
+	require.NoError(t, inv.WithContext(ctx).Run())
+	require.Contains(t, stdout.String(), "No plaintext rows found")
+}
