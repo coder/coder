@@ -352,19 +352,6 @@ jobs:
           service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
-      # Secrets can't be used in step conditions. The identity provider only
-      # accepts release tags, so dry runs from branches skip KMS signing.
-      - name: Check for GPG KMS signing key
-        id: gpg_kms
-        run: |
-          enabled=false
-          if [[ -n "$GPG_KMS_KEY" && "$GITHUB_REF" == refs/tags/* ]]; then
-            enabled=true
-          fi
-          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
-        env:
-          GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
-
       # release-signer@ for the KMS GPG key and the darwin signing key. Not
       # exported, so the job's default credentials stay on the EV code signing
       # account; GPG steps and the darwin PKCS11 library receive this
