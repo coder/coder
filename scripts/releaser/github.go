@@ -184,3 +184,32 @@ func ghBuildPRMetadataMap(commits []commitEntry) (*prMetadataMaps, error) {
 	}
 	return result, nil
 }
+
+// ghFindDispatchedRun returns the URL of the release.yaml run that
+// the current gh user dispatched on branch at or after since. A
+// workflow dispatch doesn't return the run it creates, so this polls
+// for a short while; it returns "" if the run doesn't show up.
+func ghFindDispatchedRun(branch string, since time.Time) string {
+	user, err := ghOutput("api", "user", "--jq", ".login")
+	if err != nil || user == "" {
+		return ""
+	}
+	query := `[.[] | select(.createdAt >= "` + since.UTC().Add(-time.Minute).Format(time.RFC3339) + `")] | first | .url // ""`
+	for range 10 {
+		url, err := ghOutput("run", "list",
+			"--repo", owner+"/"+repo,
+			"--workflow", "release.yaml",
+			"--branch", branch,
+			"--event", "workflow_dispatch",
+			"--user", user,
+			"--limit", "5",
+			"--json", "url,createdAt",
+			"--jq", query,
+		)
+		if err == nil && url != "" {
+			return url
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return ""
+}
