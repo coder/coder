@@ -153,13 +153,13 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 		GroupACL: database.ChatACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 	}))
 
-	// The member cannot open the project, so the sidebar keeps their chat
-	// in it although nothing is pinned.
+	// The member cannot open the project, so no project list reaches their
+	// chat in it and the main list keeps it.
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID: orgID, OwnerID: memberUser.ID, LastModelConfigID: model.ID,
 		ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
 	})
-	memberChats, err := member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	memberChats, err := member.ListChats(ctx, &codersdk.ListChatsOptions{ExcludeOwnProjectChats: true})
 	require.NoError(t, err)
 	require.Contains(t, chatIDs(memberChats), chat.ID)
 
@@ -176,7 +176,7 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 	requirePinOrders(ctx, t, sqlDB, memberUser.ID, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
 }
 
-func TestListChatsPinnedProjectsOnly(t *testing.T) {
+func TestListChatsExcludeOwnProjectChats(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -189,28 +189,27 @@ func TestListChatsPinnedProjectsOnly(t *testing.T) {
 	require.NoError(t, client.UnpinChatProject(ctx, orgID, unpinned.ID))
 
 	unfiled := createChatInProject(t, client, orgID, nil)
+	// Project pins do not matter: chats in pinned and unpinned projects
+	// are both left out.
 	inPinned := createChatInProject(t, client, orgID, &pinned.ID)
 	pinnedChat := createChatInProject(t, client, orgID, &unpinned.ID)
 	require.NoError(t, client.UpdateChat(ctx, pinnedChat.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))}))
-	// The newest chat is hidden, so filtering after the query would leave
-	// the first page short.
-	hidden := createChatInProject(t, client, orgID, &unpinned.ID)
+	// The newest chat is left out, so filtering after the query would
+	// return an empty second page.
+	inUnpinned := createChatInProject(t, client, orgID, &unpinned.ID)
 
-	opts := &codersdk.ListChatsOptions{PinnedProjectsOnly: true, Pagination: codersdk.Pagination{Limit: 2}}
+	opts := &codersdk.ListChatsOptions{ExcludeOwnProjectChats: true, Pagination: codersdk.Pagination{Limit: 1}}
 	firstPage, err := client.ListChats(ctx, opts)
 	require.NoError(t, err)
-	require.Len(t, firstPage, 2)
+	require.Len(t, firstPage, 1)
 	require.Equal(t, pinnedChat.ID, firstPage[0].ID)
-	opts.AfterID = firstPage[1].ID
+	opts.AfterID = firstPage[0].ID
 	secondPage, err := client.ListChats(ctx, opts)
 	require.NoError(t, err)
-	require.ElementsMatch(t,
-		[]uuid.UUID{pinnedChat.ID, inPinned.ID, unfiled.ID},
-		chatIDs(append(firstPage, secondPage...)),
-	)
+	require.Equal(t, []uuid.UUID{unfiled.ID}, chatIDs(secondPage))
 
 	// A chat in a project the viewer can no longer use stays listed,
-	// because the sidebar is the only place left to find it.
+	// because no project list reaches it.
 	member, memberUser := newChatProjectMember(t, client, orgID)
 	setRole := func(role codersdk.ChatProjectRole) {
 		require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, unpinned.ID, codersdk.UpdateChatProjectACL{
@@ -219,25 +218,26 @@ func TestListChatsPinnedProjectsOnly(t *testing.T) {
 	}
 	setRole(codersdk.ChatProjectRoleUse)
 	revoked := createChatInProject(t, member, orgID, &unpinned.ID)
-	// Grants count: the member sees the project, so its chats are listed
-	// only after the member pins it.
-	memberChats, err := member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
-	require.NoError(t, err)
-	require.NotContains(t, chatIDs(memberChats), revoked.ID)
-	require.NoError(t, member.PinChatProject(ctx, orgID, unpinned.ID, codersdk.PinChatProjectRequest{}))
-	memberChats, err = member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
-	require.NoError(t, err)
-	require.Contains(t, chatIDs(memberChats), revoked.ID)
-	require.NoError(t, member.UnpinChatProject(ctx, orgID, unpinned.ID))
+	// Grants count: the member can use the project, so its chats are left
+	// out whether or not the member pinned it.
+	memberOpts := &codersdk.ListChatsOptions{ExcludeOwnProjectChats: true}
+	for _, pin := range []bool{false, true} {
+		if pin {
+			require.NoError(t, member.PinChatProject(ctx, orgID, unpinned.ID, codersdk.PinChatProjectRequest{}))
+		}
+		memberChats, err := member.ListChats(ctx, memberOpts)
+		require.NoError(t, err)
+		require.NotContains(t, chatIDs(memberChats), revoked.ID)
+	}
 	setRole(codersdk.ChatProjectRoleDeleted)
-	memberChats, err = member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	memberChats, err := member.ListChats(ctx, memberOpts)
 	require.NoError(t, err)
 	require.Contains(t, chatIDs(memberChats), revoked.ID)
 
-	// Other callers still see every chat.
+	// Without the option, every chat is listed.
 	all, err := client.ListChats(ctx, nil)
 	require.NoError(t, err)
-	require.Contains(t, chatIDs(all), hidden.ID)
+	require.Subset(t, chatIDs(all), []uuid.UUID{unfiled.ID, inPinned.ID, pinnedChat.ID, inUnpinned.ID})
 }
 
 // A chat pin belongs to the chat's owner, so pinning a shared chat must not
@@ -287,17 +287,15 @@ func TestListChatsIgnoresOtherUsersChatPins(t *testing.T) {
 	}
 	require.Equal(t, []uuid.UUID{memberPinned.ID, newer.ID, ownerPinned.ID}, listed)
 
-	// The owner's own list still honors the pin with the project unpinned.
-	require.NoError(t, client.UnpinChatProject(ctx, orgID, project.ID))
-	ownerChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	// The owner's own list keeps the pinned chat in the project.
+	ownerChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{ExcludeOwnProjectChats: true})
 	require.NoError(t, err)
 	require.NotEmpty(t, ownerChats)
 	require.Equal(t, ownerPinned.ID, ownerChats[0].ID)
 
 	// Chats shared with the member are listed whether or not anyone pinned
-	// the chat or its project. The member can use the project but has not
-	// pinned it.
-	pinnedOpts := &codersdk.ListChatsOptions{Query: ownedAndShared, PinnedProjectsOnly: true}
+	// the chat, although the member can use its project.
+	pinnedOpts := &codersdk.ListChatsOptions{Query: ownedAndShared, ExcludeOwnProjectChats: true}
 	want := []uuid.UUID{memberPinned.ID, newer.ID, ownerPinned.ID}
 	memberChats, err := member.ListChats(ctx, pinnedOpts)
 	require.NoError(t, err)
