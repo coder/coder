@@ -3512,7 +3512,7 @@ communicating directly.`,
 		// Misc. settings
 		{
 			Name:        "Experiments",
-			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.",
 			Flag:        "experiments",
 			Env:         "CODER_EXPERIMENTS",
 			Value:       &c.Experiments,
@@ -4029,7 +4029,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
-			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
+			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
 			Flag:        "default-quiet-hours-schedule",
 			Env:         "CODER_QUIET_HOURS_DEFAULT_SCHEDULE",
 			Default:     "CRON_TZ=UTC 0 0 * * *",
@@ -5542,6 +5542,7 @@ const (
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
+	ExperimentAgentPlugins              Experiment = "agent-plugins"               // Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5578,6 +5579,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat ACP Subagents"
 	case ExperimentChatAutomations:
 		return "Chat Automations"
+	case ExperimentAgentPlugins:
+		return "Agent Plugins"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5605,6 +5608,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
 	ExperimentChatAutomations,
+	ExperimentAgentPlugins,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
