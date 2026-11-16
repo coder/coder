@@ -1459,17 +1459,21 @@ jobs:
           service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
-      # Secrets can't be read in step conditions, so record whether KMS signing
-      # is configured.
+      # Secrets can't be used in step conditions. The identity provider only
+      # accepts push events, so create and workflow_dispatch runs skip KMS signing.
       - name: Check for GPG KMS signing key
         id: gpg_kms
-        run: echo "enabled=$([[ -n "$GPG_KMS_KEY" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        run: |
+          enabled=false
+          if [[ -n "$GPG_KMS_KEY" && "$GITHUB_EVENT_NAME" == "push" ]]; then
+            enabled=true
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
         env:
           GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
 
-      # release-signer@ for the Cloud KMS GPG key. Its credentials are only
-      # passed to sign_with_gpg.sh, so the job's default credentials stay on
-      # the EV code signing account.
+      # release-signer@ for the KMS GPG key. Not exported, so the job's default
+      # credentials stay on the EV code signing account.
       - name: Authenticate to Google Cloud (GPG signing)
         id: gcloud_auth_gpg
         if: steps.gpg_kms.outputs.enabled == 'true'

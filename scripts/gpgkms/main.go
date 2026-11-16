@@ -111,7 +111,9 @@ func runPublicKey(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("public-key", flag.ExitOnError)
 	var c commonFlags
 	c.register(fs)
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return xerrors.Errorf("parse flags: %w", err)
+	}
 
 	e, err := c.entity(ctx)
 	if err != nil {
@@ -127,7 +129,9 @@ func runSign(ctx context.Context, args []string) error {
 	c.register(fs)
 	prependPath := fs.String("prepend", "", "binary detached signature whose packets are written before the KMS signature")
 	outPath := fs.String("out", "", "path to write the armored detached signature to")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return xerrors.Errorf("parse flags: %w", err)
+	}
 	if fs.NArg() != 1 {
 		return xerrors.New("exactly one file to sign is required")
 	}
