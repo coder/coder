@@ -43,22 +43,7 @@ If you run your terminal in Emacs via `ansi-term` then you might run into a prob
 
 To fix this:
 
-1. In your workspace Terraform template be sure to add the following:
-
-   ```tf
-   data "coder_workspace" "me" {
-   }
-
-   resource "coder_agent" "main" {
-     # ...
-     env = {
-       name = "CODER_WORKSPACE_NAME"
-       value = data.coder_workspace.me.name
-     }
-   }
-   ```
-
-2. Next in the shell profile file on the workspace (ex., `~/.bashrc` for Bash and `~/.zshrc` for Zsh) add the following:
+1. In the shell profile file on the workspace (ex., `~/.bashrc` for Bash and `~/.zshrc` for Zsh) add the following:
 
    ```sh
    ansi_term_announce_host() {
