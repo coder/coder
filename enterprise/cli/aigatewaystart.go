@@ -449,6 +449,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 
 	provReloadCancel()
 	provReloadShutdownCtx, provReloadShutdownCancel := clockTimeout(context.Background(), s.clock, providerReloadShutdownTimeout, "aigateway", "provider_reload_shutdown")
+	defer provReloadShutdownCancel()
 
 	var provReloadStopErr error
 	select {
@@ -457,11 +458,6 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	case <-provReloadShutdownCtx.Done():
 		provReloadStopErr = xerrors.Errorf("provider reload did not stop within %s, continuing gateway shutdown", providerReloadShutdownTimeout)
 	}
-
-	// Stop the provider reload timer before HTTP draining starts. A pending
-	// timer would stop a mock clock from advancing straight to the HTTP
-	// shutdown timeout.
-	provReloadShutdownCancel()
 
 	// Provider reload normally stops before HTTP draining so it cannot clear the
 	// bridge cache while requests are draining. If it does not stop within its

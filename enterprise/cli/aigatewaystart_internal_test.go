@@ -605,7 +605,10 @@ func TestStandaloneGatewayServe_HTTPShutdownTimeout(t *testing.T) {
 
 	httpShutdownTrap.MustWait(testCtx).MustRelease(testCtx)
 
-	mClock.Advance(httpShutdownTimeout).MustWait(testCtx)
+	// The provider reload timer is still pending until serve returns, so the
+	// mock clock must pass it before it can reach the HTTP shutdown timeout.
+	mClock.Advance(providerReloadShutdownTimeout).MustWait(testCtx)
+	mClock.Advance(httpShutdownTimeout - providerReloadShutdownTimeout).MustWait(testCtx)
 
 	err := testutil.RequireReceive(testCtx, t, serveDone)
 	require.ErrorContains(t, err, "shutdown http server:")
