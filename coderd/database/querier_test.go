@@ -2310,9 +2310,9 @@ func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
 	require.False(t, usable)
 }
 
-// A PATCH that omits templates must not write back the project snapshot it
-// loaded, or it would undo a concurrent template change.
-func TestUpdateChatProjectByIDKeepsOmittedTemplates(t *testing.T) {
+// A PATCH that omits the template settings must not write back the project
+// snapshot it loaded, or it would undo a concurrent change to them.
+func TestUpdateChatProjectByIDKeepsOmittedTemplateSettings(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -2326,14 +2326,14 @@ func TestUpdateChatProjectByIDKeepsOmittedTemplates(t *testing.T) {
 	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 
-	// Another request sets templates after this one loaded the project.
+	// Another request changes the settings after this one loaded the project.
 	_, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
-		ID:                project.ID,
-		Name:              project.Name,
-		UpdateTemplates:   true,
-		TemplateIDs:       []uuid.UUID{tpl.ID},
-		DefaultTemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-		DefaultParameters: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"region":"us"}`), Valid: true},
+		ID:                    project.ID,
+		Name:                  project.Name,
+		LimitTemplates:        sql.NullBool{Bool: true, Valid: true},
+		UpdateDefaultTemplate: true,
+		DefaultTemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		DefaultParameters:     pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"region":"us"}`), Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -2343,9 +2343,43 @@ func TestUpdateChatProjectByIDKeepsOmittedTemplates(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "renamed", renamed.Name)
-	require.Equal(t, []uuid.UUID{tpl.ID}, renamed.TemplateIDs)
+	require.True(t, renamed.LimitTemplates)
 	require.Equal(t, uuid.NullUUID{UUID: tpl.ID, Valid: true}, renamed.DefaultTemplateID)
 	require.JSONEq(t, `{"region":"us"}`, string(renamed.DefaultParameters))
+}
+
+// Templates no chat can use are left out of a project's attachments for
+// every reader, so they are never counted as hidden from one of them.
+func TestGetChatProjectTemplatesByProjectIDsSkipsUnusableTemplates(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	attach := func(seed database.Template) database.Template {
+		seed.OrganizationID, seed.CreatedBy = org.ID, owner.ID
+		tpl := dbgen.Template(t, db, seed)
+		dbgen.ChatProjectTemplate(t, db, database.ChatProjectTemplate{ProjectID: project.ID, TemplateID: tpl.ID, CreatedBy: owner.ID})
+		return tpl
+	}
+	usable := attach(database.Template{AgentsAllowed: true})
+	attach(database.Template{AgentsAllowed: false})
+	deprecated := attach(database.Template{AgentsAllowed: true})
+	require.NoError(t, db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{ID: deprecated.ID, Deprecated: "Use another template."}))
+	deleted := attach(database.Template{AgentsAllowed: true})
+	require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{ID: deleted.ID, Deleted: true}))
+
+	rows, err := db.GetChatProjectTemplatesByProjectIDs(ctx, []uuid.UUID{project.ID})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, usable.ID, rows[0].ChatProjectTemplate.TemplateID)
+	require.Equal(t, owner.ID, rows[0].ChatProjectTemplate.CreatedBy)
 }
 
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {

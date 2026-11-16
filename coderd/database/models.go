@@ -5647,9 +5647,9 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
-	// Templates the project's chats may use. Empty means the chats cannot create or attach workspaces.
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
-	// Template recommended to the project's chats. Must be one of template_ids.
+	// When true, the project's chats can only use the templates in chat_project_templates, and none when it has no rows. When false, they can use every template their owner can use.
+	LimitTemplates bool `db:"limit_templates" json:"limit_templates"`
+	// Attached template recommended to the project's chats. Ignored while the template is not attached.
 	DefaultTemplateID uuid.NullUUID `db:"default_template_id" json:"default_template_id"`
 	// Preset applied when a chat creates a workspace from the default template without choosing one.
 	DefaultTemplateVersionPresetID uuid.NullUUID `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
@@ -5677,6 +5677,14 @@ type ChatProjectMemory struct {
 	Body           string    `db:"body" json:"body"`
 	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+// Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.
+type ChatProjectTemplate struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	CreatedBy  uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {

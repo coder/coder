@@ -1402,6 +1402,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/templates/{template}": {
+            "put": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Attach template to chat project",
+                "operationId": "attach-template-to-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Detach template from chat project",
+                "operationId": "detach-template-from-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/members/{user}/skill-preferences": {
             "get": {
                 "produces": [
@@ -23659,8 +23753,20 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default_template": {
+                    "description": "DefaultTemplate is omitted when the project has none or the caller\ncannot access it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
+                },
+                "hidden_template_count": {
+                    "description": "HiddenTemplateCount is the number of attached templates the caller\ncannot access. Nothing else about them is returned.",
+                    "type": "integer"
                 },
                 "icon": {
                     "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
@@ -23669,6 +23775,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to its attached\ntemplates, and to none when nothing is attached. When false, the chats\ncan use every template their owner can use.",
+                    "type": "boolean"
                 },
                 "name": {
                     "description": "Name is a display label and is not unique; ID identifies the project.",
@@ -23686,7 +23796,11 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatProjectPermissions"
                 },
                 "templates": {
-                    "$ref": "#/definitions/codersdk.ChatProjectTemplates"
+                    "description": "Templates are the attached templates the caller can access. Deprecated\ntemplates and templates that do not allow agents are left out.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectTemplate"
+                    }
                 },
                 "updated_at": {
                     "type": "string",
@@ -23716,6 +23830,27 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatProjectUser"
                     }
+                }
+            }
+        },
+        "codersdk.ChatProjectDefaultTemplate": {
+            "type": "object",
+            "properties": {
+                "parameters": {
+                    "description": "Parameters are parameter values, keyed by name, applied when a chat\ncreates a workspace from the template. Values the chat passes take\nprecedence.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "preset_id": {
+                    "description": "PresetID is a preset of the template's active version, applied when a\nchat creates a workspace from the template without choosing a preset.\nIt is mutually exclusive with Parameters.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -23863,32 +23998,21 @@ const docTemplate = `{
                 "ChatProjectRoleDeleted"
             ]
         },
-        "codersdk.ChatProjectTemplates": {
+        "codersdk.ChatProjectTemplate": {
             "type": "object",
             "properties": {
-                "default_parameters": {
-                    "description": "DefaultParameters are parameter values, keyed by name, applied when a\nchat creates a workspace from the default template. Values the chat\npasses take precedence.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                "display_name": {
+                    "type": "string"
                 },
-                "default_preset_id": {
-                    "description": "DefaultPresetID is a preset of the default template's active version,\napplied when a chat creates a workspace from the default template\nwithout choosing a preset. It is mutually exclusive with\nDefaultParameters.",
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "default_template_id": {
-                    "description": "DefaultTemplateID is recommended to the project's chats and must be one\nof TemplateIDs.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "template_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -24740,22 +24864,34 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate must name one of TemplateIDs.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to TemplateIDs.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
-                "templates": {
-                    "description": "Templates defaults to no templates.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatProjectTemplates"
-                        }
-                    ]
+                "template_ids": {
+                    "description": "TemplateIDs are attached to the new project.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 }
             }
         },
@@ -33158,22 +33294,25 @@ const docTemplate = `{
         "codersdk.UpdateChatProjectRequest": {
             "type": "object",
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate replaces the project's default template, preset, and\nparameters as a whole when set. A zero TemplateID clears them.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "limit_templates": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
-                },
-                "templates": {
-                    "description": "Templates replaces the project's templates and defaults as a whole when\nset.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatProjectTemplates"
-                        }
-                    ]
                 }
             }
         },

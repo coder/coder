@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -765,99 +766,197 @@ func TestChatProjectTemplates(t *testing.T) {
 	otherOrganization := dbgen.Organization(t, db, database.Organization{})
 	otherOrgTemplate, _ := createAgentTemplate(t, db, otherOrganization.ID, firstUser.UserID, true, false)
 
-	// A new project has no templates.
+	// A new project does not limit templates and has none attached.
 	project := createChatProject(t, client, orgID, "No Templates")
-	require.Equal(t, codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{}}, project.Templates)
+	require.False(t, project.LimitTemplates)
+	require.Empty(t, project.Templates)
+	require.Zero(t, project.HiddenTemplateCount)
+	require.Nil(t, project.DefaultTemplate)
 
-	withPreset := codersdk.ChatProjectTemplates{
-		TemplateIDs:       []uuid.UUID{first.ID, second.ID, first.ID},
-		DefaultTemplateID: &first.ID,
-		DefaultPresetID:   &firstPreset.ID,
+	withPreset := &codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, PresetID: &firstPreset.ID}
+	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:            "Templates",
+		LimitTemplates:  true,
+		TemplateIDs:     []uuid.UUID{first.ID, second.ID, first.ID},
+		DefaultTemplate: withPreset,
+	})
+	require.NoError(t, err)
+	require.True(t, project.LimitTemplates)
+	require.ElementsMatch(t, []codersdk.ChatProjectTemplate{
+		{ID: first.ID, Name: first.Name, DisplayName: first.DisplayName, Icon: first.Icon},
+		{ID: second.ID, Name: second.Name, DisplayName: second.DisplayName, Icon: second.Icon},
+	}, project.Templates)
+	require.Equal(t, withPreset, project.DefaultTemplate)
+	getProject := func() codersdk.ChatProject {
+		fetched, err := client.GetChatProject(ctx, orgID, project.ID)
+		require.NoError(t, err)
+		return fetched
 	}
-	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{Name: "Templates", Templates: &withPreset})
-	require.NoError(t, err)
-	withPreset.TemplateIDs = []uuid.UUID{first.ID, second.ID}
-	require.Equal(t, withPreset, project.Templates)
-	fetched, err := client.GetChatProject(ctx, orgID, project.ID)
-	require.NoError(t, err)
-	require.Equal(t, withPreset, fetched.Templates)
+	require.Equal(t, project, getProject())
 
-	// Updating other fields keeps the templates.
+	// Updating other fields keeps the template settings.
 	name := "Renamed"
 	updated, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Name: &name})
 	require.NoError(t, err)
-	require.Equal(t, withPreset, updated.Templates)
+	require.True(t, updated.LimitTemplates)
+	require.Equal(t, withPreset, updated.DefaultTemplate)
 
-	// Templates are replaced as a whole.
-	withParameters := codersdk.ChatProjectTemplates{
-		TemplateIDs:       []uuid.UUID{second.ID},
-		DefaultTemplateID: &second.ID,
-		DefaultParameters: map[string]string{"region": "eu"},
+	// The default template is replaced as a whole.
+	withParameters := &codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID, Parameters: map[string]string{"region": "eu"}}
+	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{DefaultTemplate: withParameters})
+	require.NoError(t, err)
+	require.Equal(t, withParameters, updated.DefaultTemplate)
+
+	// Detaching the default template clears the default for good, so
+	// attaching the template again does not bring it back.
+	require.NoError(t, client.DetachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	require.Equal(t, []uuid.UUID{first.ID}, chatProjectTemplateIDs(getProject()))
+	err = client.DetachChatProjectTemplate(ctx, orgID, project.ID, second.ID)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+	// Attaching an attached template succeeds.
+	require.NoError(t, client.AttachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	require.NoError(t, client.AttachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	fetched := getProject()
+	require.ElementsMatch(t, []uuid.UUID{first.ID, second.ID}, chatProjectTemplateIDs(fetched))
+	require.Nil(t, fetched.DefaultTemplate)
+
+	// A zero template ID clears the default.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{DefaultTemplate: withPreset})
+	require.NoError(t, err)
+	unlimited := false
+	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		LimitTemplates:  &unlimited,
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.LimitTemplates)
+	require.Nil(t, updated.DefaultTemplate)
+
+	// Templates agents cannot use here are rejected with one message, so
+	// the response does not say whether the template exists.
+	for _, id := range []uuid.UUID{notAllowed.ID, otherOrgTemplate.ID, uuid.New()} {
+		err := client.AttachChatProjectTemplate(ctx, orgID, project.ID, id)
+		requireChatProjectFieldError(t, err, "template_ids", "Template "+id.String()+" is not available to agents in this organization.")
 	}
-	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &withParameters})
-	require.NoError(t, err)
-	require.Equal(t, withParameters, updated.Templates)
 
-	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{}})
-	require.NoError(t, err)
-	require.Equal(t, codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{}}, updated.Templates)
-
-	unknownID := uuid.New()
+	require.NoError(t, client.DetachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
 	for _, tc := range []struct {
-		name      string
-		templates codersdk.ChatProjectTemplates
-		field     string
-		detail    string
+		name            string
+		defaultTemplate codersdk.ChatProjectDefaultTemplate
+		field           string
+		detail          string
 	}{
-		{"NotAllowed", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{notAllowed.ID}}, "templates.template_ids", "Template " + notAllowed.ID.String() + " is not available to agents in this organization."},
-		{"OtherOrganization", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{otherOrgTemplate.ID}}, "templates.template_ids", "Template " + otherOrgTemplate.ID.String() + " is not available to agents in this organization."},
-		{"Unknown", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{unknownID}}, "templates.template_ids", "Template " + unknownID.String() + " is not available to agents in this organization."},
-		{"DefaultNotListed", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &second.ID}, "templates.default_template_id", "The default template must be one of the project's templates."},
-		{"PresetWithoutDefault", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultPresetID: &firstPreset.ID}, "templates.default_template_id", "Default preset and parameters require a default template."},
-		{"PresetAndParameters", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultPresetID: &firstPreset.ID, DefaultParameters: map[string]string{"region": "eu"}}, "templates.default_preset_id", "Choose a default preset or default parameters, not both."},
-		{"PresetOfOtherTemplate", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultPresetID: &secondPreset.ID}, "templates.default_preset_id", "The default preset must belong to the default template's active version."},
-		{"UnknownClassicParameter", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{second.ID}, DefaultTemplateID: &second.ID, DefaultParameters: map[string]string{"size": "xl"}}, "templates.default_parameters", `Parameter "size" does not exist on the default template's active version.`},
+		{"NotAttached", codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID}, "template_id", "The default template must be one of the project's templates."},
+		{"PresetWithoutTemplate", codersdk.ChatProjectDefaultTemplate{PresetID: &firstPreset.ID}, "template_id", "A default preset or default parameters require a default template."},
+		{"PresetAndParameters", codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, PresetID: &firstPreset.ID, Parameters: map[string]string{"region": "eu"}}, "preset_id", "Choose a default preset or default parameters, not both."},
+		{"PresetOfOtherTemplate", codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, PresetID: &secondPreset.ID}, "preset_id", "The default preset must belong to the default template's active version."},
 	} {
-		_, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &tc.templates})
-		requireChatProjectFieldError(t, err, tc.field, tc.detail)
+		_, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{DefaultTemplate: &tc.defaultTemplate})
+		requireChatProjectFieldError(t, err, "default_template."+tc.field, tc.detail)
 	}
 
-	// Classic parameter values are checked against the parameter's rules.
-	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
-		TemplateIDs:       []uuid.UUID{second.ID},
-		DefaultTemplateID: &second.ID,
-		DefaultParameters: map[string]string{"cpu": "99"},
-	}})
+	// Classic parameter names and values are checked against the template.
+	require.NoError(t, client.AttachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID, Parameters: map[string]string{"size": "xl"}},
+	})
+	requireChatProjectFieldError(t, err, "default_template.parameters", `Parameter "size" does not exist on the default template's active version.`)
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID, Parameters: map[string]string{"cpu": "99"}},
+	})
 	sdkErr := coderdtest.SDKError(t, err)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	require.Len(t, sdkErr.Validations, 1)
-	require.Equal(t, "templates.default_parameters", sdkErr.Validations[0].Field)
+	require.Equal(t, "default_template.parameters", sdkErr.Validations[0].Field)
 	require.True(t, strings.HasPrefix(sdkErr.Message, `Parameter "cpu" has an invalid value: `), sdkErr.Message)
 
 	// Dynamic parameter names and values are left for the build to validate,
 	// since a parameter can exist only for some values of the others.
-	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
-		TemplateIDs:       []uuid.UUID{first.ID},
-		DefaultTemplateID: &first.ID,
-		DefaultParameters: map[string]string{"cpu": "99", "gpu_type": "a100"},
-	}})
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, Parameters: map[string]string{"cpu": "99", "gpu_type": "a100"}},
+	})
 	require.NoError(t, err)
 }
 
+// Attaching a template never grants access to it, so a project admin who
+// cannot read an attached template only learns that one is hidden, and
+// cannot detach it or build on it.
+func TestChatProjectTemplateVisibility(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+
+	visible, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	// Without the Everyone group, members cannot read the template.
+	restricted, restrictedPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false, database.TemplateACL{})
+
+	defaultTemplate := &codersdk.ChatProjectDefaultTemplate{TemplateID: restricted.ID, PresetID: &restrictedPreset.ID}
+	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:            "Shared",
+		LimitTemplates:  true,
+		TemplateIDs:     []uuid.UUID{visible.ID, restricted.ID},
+		DefaultTemplate: defaultTemplate,
+	})
+	require.NoError(t, err)
+	member, memberUser := newChatProjectMember(t, client, orgID)
+	require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleAdmin},
+	}))
+
+	asMember, err := member.GetChatProject(ctx, orgID, project.ID)
+	require.NoError(t, err)
+	listed, err := member.ListChatProjects(ctx)
+	require.NoError(t, err)
+	for _, got := range append(listed, asMember) {
+		require.Equal(t, []uuid.UUID{visible.ID}, chatProjectTemplateIDs(got))
+		require.Equal(t, 1, got.HiddenTemplateCount)
+		require.Nil(t, got.DefaultTemplate)
+	}
+
+	err = member.DetachChatProjectTemplate(ctx, orgID, project.ID, restricted.ID)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+	err = member.AttachChatProjectTemplate(ctx, orgID, project.ID, restricted.ID)
+	requireChatProjectFieldError(t, err, "template_ids", "Template "+restricted.ID.String()+" is not available to agents in this organization.")
+	_, err = member.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: restricted.ID},
+	})
+	requireChatProjectFieldError(t, err, "default_template.template_id", "The default template must be one of the project's templates.")
+
+	// Editing what the member can see leaves the hidden attachment alone.
+	require.NoError(t, member.DetachChatProjectTemplate(ctx, orgID, project.ID, visible.ID))
+	asOwner, err := client.GetChatProject(ctx, orgID, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{restricted.ID}, chatProjectTemplateIDs(asOwner))
+	require.Zero(t, asOwner.HiddenTemplateCount)
+	require.Equal(t, defaultTemplate, asOwner.DefaultTemplate)
+}
+
+func chatProjectTemplateIDs(project codersdk.ChatProject) []uuid.UUID {
+	return slice.List(project.Templates, func(template codersdk.ChatProjectTemplate) uuid.UUID { return template.ID })
+}
+
 // createAgentTemplate creates a template whose active version has a "region"
-// parameter and one preset.
-func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUID, agentsAllowed, classicParameters bool) (database.Template, database.TemplateVersionPreset) {
+// parameter and one preset. Everyone in the organization can use it unless
+// groupACL is given.
+func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUID, agentsAllowed, classicParameters bool, groupACL ...database.TemplateACL) (database.Template, database.TemplateVersionPreset) {
 	t.Helper()
 
 	versionID := uuid.New()
-	template := dbgen.Template(t, db, database.Template{
+	seed := database.Template{
 		OrganizationID:  orgID,
 		CreatedBy:       userID,
 		ActiveVersionID: versionID,
 		AgentsAllowed:   agentsAllowed,
 
 		UseClassicParameterFlow: classicParameters,
-	})
+	}
+	if len(groupACL) > 0 {
+		seed.GroupACL = groupACL[0]
+	}
+	template := dbgen.Template(t, db, seed)
 	preset := database.TemplateVersionPreset{ID: uuid.New(), Name: "default"}
 	dbfake.TemplateVersion(t, db).
 		Seed(database.TemplateVersion{
@@ -885,16 +984,24 @@ func TestChatProjectWorkspaceTemplates(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatProjectClient(t)
+	client, api := newChatProjectClientWithAPI(t)
+	db := api.Database
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 	orgID := firstUser.OrganizationID
 
 	allowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
 	other, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
-	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
-		Name:      "Workspace Templates",
-		Templates: &codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{allowed.ID}},
+	// A project limits nothing until it opts in, whatever is attached.
+	unlimited, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:        "Unlimited",
+		TemplateIDs: []uuid.UUID{allowed.ID},
+	})
+	require.NoError(t, err)
+	limited, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:           "Limited",
+		LimitTemplates: true,
+		TemplateIDs:    []uuid.UUID{allowed.ID},
 	})
 	require.NoError(t, err)
 	workspace := func(templateID uuid.UUID) uuid.UUID {
@@ -905,27 +1012,45 @@ func TestChatProjectWorkspaceTemplates(t *testing.T) {
 		}).Do().Workspace.ID
 	}
 	allowedWorkspace, otherWorkspace := workspace(allowed.ID), workspace(other.ID)
-	createChat := func(workspaceID uuid.UUID) (codersdk.Chat, error) {
+	createChat := func(projectID, workspaceID uuid.UUID) (codersdk.Chat, error) {
 		return client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: orgID,
-			ProjectID:      &project.ID,
+			ProjectID:      &projectID,
 			WorkspaceID:    &workspaceID,
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "attach"}},
 		})
 	}
-	const notAllowed = "This workspace's template is not allowed in the chat's project."
+	const notAllowed = "This template is not one of the templates the chat's project allows."
+	requireNotAllowed := func(err error) {
+		t.Helper()
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, notAllowed, sdkErr.Message)
+	}
 
-	_, err = createChat(otherWorkspace)
-	sdkErr := coderdtest.SDKError(t, err)
-	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	require.Equal(t, notAllowed, sdkErr.Message)
-
-	chat, err := createChat(allowedWorkspace)
+	_, err = createChat(unlimited.ID, otherWorkspace)
 	require.NoError(t, err)
 
-	err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &otherWorkspace})
-	sdkErr = coderdtest.SDKError(t, err)
-	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	require.Equal(t, notAllowed, sdkErr.Message)
+	_, err = createChat(limited.ID, otherWorkspace)
+	requireNotAllowed(err)
+	chat, err := createChat(limited.ID, allowedWorkspace)
+	require.NoError(t, err)
+	requireNotAllowed(client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &otherWorkspace}))
 	require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &allowedWorkspace}))
+
+	// A request that moves the chat and binds a workspace is checked
+	// against the project the chat moves to, not the one it leaves.
+	moving := createIdleChat(ctx, t, client, api, orgID)
+	requireNotAllowed(client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID, WorkspaceID: &otherWorkspace}))
+	requireChatProjectID(ctx, t, client, moving.ID, nil)
+	require.NoError(t, client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID}))
+	require.NoError(t, client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &unlimited.ID, WorkspaceID: &otherWorkspace}))
+
+	// The create_workspace tool binds through this path.
+	unbound := createChatInProject(t, client, orgID, &limited.ID)
+	_, _, err = coderd.ChatCreateWorkspace(api, ctx, firstUser.UserID, unbound.ID, codersdk.CreateWorkspaceRequest{
+		TemplateID: other.ID,
+		Name:       "not-attached",
+	})
+	require.ErrorContains(t, err, notAllowed)
 }

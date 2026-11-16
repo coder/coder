@@ -5038,9 +5038,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
+  "hidden_template_count": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "limit_templates": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5049,35 +5059,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "share": true,
     "update": true
   },
-  "templates": {
-    "default_parameters": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "default_preset_id": "f6f1c01b-6d76-418e-b45d-8de864319dc2",
-    "default_template_id": "f54f627f-a412-4c54-a577-481a61f59262",
-    "template_ids": [
-      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
-  },
+  "templates": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
-|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string                                                             | false    |              |                                                                                               |
-| `description`     | string                                                             | false    |              |                                                                                               |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string                                                             | false    |              |                                                                                               |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string                                                             | false    |              |                                                                                               |
-| `owner_id`        | string                                                             | false    |              |                                                                                               |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
-| `templates`       | [codersdk.ChatProjectTemplates](#codersdkchatprojecttemplates)     | false    |              |                                                                                               |
-| `updated_at`      | string                                                             | false    |              |                                                                                               |
+| Name                    | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                      |
+|-------------------------|----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `default_template`      | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template is omitted when the project has none or the caller cannot access it.                                                                                            |
+| `description`           | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `hidden_template_count` | integer                                                                    | false    |              | Hidden template count is the number of attached templates the caller cannot access. Nothing else about them is returned.                                                         |
+| `icon`                  | string                                                                     | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                    |
+| `id`                    | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `limit_templates`       | boolean                                                                    | false    |              | Limit templates restricts the project's chats to its attached templates, and to none when nothing is attached. When false, the chats can use every template their owner can use. |
+| `name`                  | string                                                                     | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                            |
+| `organization_id`       | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `owner_id`              | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `permissions`           | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions)         | false    |              |                                                                                                                                                                                  |
+| `templates`             | array of [codersdk.ChatProjectTemplate](#codersdkchatprojecttemplate)      | false    |              | Templates are the attached templates the caller can access. Deprecated templates and templates that do not allow agents are left out.                                            |
+| `updated_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
 
 ## codersdk.ChatProjectACL
 
@@ -5139,6 +5149,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
 | `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
 | `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
+
+## codersdk.ChatProjectDefaultTemplate
+
+```json
+{
+  "parameters": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `parameters`       | object | false    |              | Parameters are parameter values, keyed by name, applied when a chat creates a workspace from the template. Values the chat passes take precedence.                                     |
+| » `[any property]` | string | false    |              |                                                                                                                                                                                        |
+| `preset_id`        | string | false    |              | Preset ID is a preset of the template's active version, applied when a chat creates a workspace from the template without choosing a preset. It is mutually exclusive with Parameters. |
+| `template_id`      | string | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.ChatProjectGroup
 
@@ -5284,31 +5316,25 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------------|
 | ``, `admin`, `use` |
 
-## codersdk.ChatProjectTemplates
+## codersdk.ChatProjectTemplate
 
 ```json
 {
-  "default_parameters": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "default_preset_id": "f6f1c01b-6d76-418e-b45d-8de864319dc2",
-  "default_template_id": "f54f627f-a412-4c54-a577-481a61f59262",
-  "template_ids": [
-    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ]
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description                                                                                                                                                                                                           |
-|-----------------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_parameters`  | object          | false    |              | Default parameters are parameter values, keyed by name, applied when a chat creates a workspace from the default template. Values the chat passes take precedence.                                                    |
-| » `[any property]`    | string          | false    |              |                                                                                                                                                                                                                       |
-| `default_preset_id`   | string          | false    |              | Default preset ID is a preset of the default template's active version, applied when a chat creates a workspace from the default template without choosing a preset. It is mutually exclusive with DefaultParameters. |
-| `default_template_id` | string          | false    |              | Default template ID is recommended to the project's chats and must be one of TemplateIDs.                                                                                                                             |
-| `template_ids`        | array of string | false    |              |                                                                                                                                                                                                                       |
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.ChatProjectUser
 
@@ -7102,31 +7128,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "description": "string",
-  "icon": "string",
-  "name": "string",
-  "templates": {
-    "default_parameters": {
+  "default_template": {
+    "parameters": {
       "property1": "string",
       "property2": "string"
     },
-    "default_preset_id": "f6f1c01b-6d76-418e-b45d-8de864319dc2",
-    "default_template_id": "f54f627f-a412-4c54-a577-481a61f59262",
-    "template_ids": [
-      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
-  }
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
+  "description": "string",
+  "icon": "string",
+  "limit_templates": true,
+  "name": "string",
+  "template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                           | Required | Restrictions | Description                         |
-|---------------|----------------------------------------------------------------|----------|--------------|-------------------------------------|
-| `description` | string                                                         | false    |              |                                     |
-| `icon`        | string                                                         | false    |              |                                     |
-| `name`        | string                                                         | true     |              |                                     |
-| `templates`   | [codersdk.ChatProjectTemplates](#codersdkchatprojecttemplates) | false    |              | Templates defaults to no templates. |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                   |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template must name one of TemplateIDs.                |
+| `description`      | string                                                                     | false    |              |                                                               |
+| `icon`             | string                                                                     | false    |              |                                                               |
+| `limit_templates`  | boolean                                                                    | false    |              | Limit templates restricts the project's chats to TemplateIDs. |
+| `name`             | string                                                                     | true     |              |                                                               |
+| `template_ids`     | array of string                                                            | false    |              | Template ids are attached to the new project.                 |
 
 ## codersdk.CreateChatRequest
 
@@ -17421,31 +17450,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "description": "string",
-  "icon": "string",
-  "name": "string",
-  "templates": {
-    "default_parameters": {
+  "default_template": {
+    "parameters": {
       "property1": "string",
       "property2": "string"
     },
-    "default_preset_id": "f6f1c01b-6d76-418e-b45d-8de864319dc2",
-    "default_template_id": "f54f627f-a412-4c54-a577-481a61f59262",
-    "template_ids": [
-      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
-  }
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
+  "description": "string",
+  "icon": "string",
+  "limit_templates": true,
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                           | Required | Restrictions | Description                                                                  |
-|---------------|----------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------|
-| `description` | string                                                         | false    |              |                                                                              |
-| `icon`        | string                                                         | false    |              |                                                                              |
-| `name`        | string                                                         | false    |              |                                                                              |
-| `templates`   | [codersdk.ChatProjectTemplates](#codersdkchatprojecttemplates) | false    |              | Templates replaces the project's templates and defaults as a whole when set. |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                                                                                          |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template replaces the project's default template, preset, and parameters as a whole when set. A zero TemplateID clears them. |
+| `description`      | string                                                                     | false    |              |                                                                                                                                      |
+| `icon`             | string                                                                     | false    |              |                                                                                                                                      |
+| `limit_templates`  | boolean                                                                    | false    |              |                                                                                                                                      |
+| `name`             | string                                                                     | false    |              |                                                                                                                                      |
 
 ## codersdk.UpdateChatRequest
 

@@ -3593,7 +3593,27 @@ export interface ChatProject {
 	 * default folder glyph.
 	 */
 	readonly icon: string;
-	readonly templates: ChatProjectTemplates;
+	/**
+	 * LimitTemplates restricts the project's chats to its attached
+	 * templates, and to none when nothing is attached. When false, the chats
+	 * can use every template their owner can use.
+	 */
+	readonly limit_templates: boolean;
+	/**
+	 * Templates are the attached templates the caller can access. Deprecated
+	 * templates and templates that do not allow agents are left out.
+	 */
+	readonly templates: readonly ChatProjectTemplate[];
+	/**
+	 * HiddenTemplateCount is the number of attached templates the caller
+	 * cannot access. Nothing else about them is returned.
+	 */
+	readonly hidden_template_count: number;
+	/**
+	 * DefaultTemplate is omitted when the project has none or the caller
+	 * cannot access it.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly permissions: ChatProjectPermissions;
@@ -3611,6 +3631,28 @@ export interface ChatProjectACL {
 	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectDefaultTemplate is the attached template a project recommends
+ * to its chats, with the preset or parameter values to create workspaces
+ * from it.
+ */
+export interface ChatProjectDefaultTemplate {
+	readonly template_id: string;
+	/**
+	 * PresetID is a preset of the template's active version, applied when a
+	 * chat creates a workspace from the template without choosing a preset.
+	 * It is mutually exclusive with Parameters.
+	 */
+	readonly preset_id?: string;
+	/**
+	 * Parameters are parameter values, keyed by name, applied when a chat
+	 * creates a workspace from the template. Values the chat passes take
+	 * precedence.
+	 */
+	readonly parameters?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -3669,30 +3711,14 @@ export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
 
 // From codersdk/chats.go
 /**
- * ChatProjectTemplates are the workspace templates a project's chats may use.
- * An empty TemplateIDs means the project's chats cannot create or attach
- * workspaces.
+ * ChatProjectTemplate is a workspace template attached to a chat project.
+ * Attaching a template does not grant access to it.
  */
-export interface ChatProjectTemplates {
-	readonly template_ids: readonly string[];
-	/**
-	 * DefaultTemplateID is recommended to the project's chats and must be one
-	 * of TemplateIDs.
-	 */
-	readonly default_template_id?: string;
-	/**
-	 * DefaultPresetID is a preset of the default template's active version,
-	 * applied when a chat creates a workspace from the default template
-	 * without choosing a preset. It is mutually exclusive with
-	 * DefaultParameters.
-	 */
-	readonly default_preset_id?: string;
-	/**
-	 * DefaultParameters are parameter values, keyed by name, applied when a
-	 * chat creates a workspace from the default template. Values the chat
-	 * passes take precedence.
-	 */
-	readonly default_parameters?: Record<string, string>;
+export interface ChatProjectTemplate {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly icon: string;
 }
 
 // From codersdk/chats.go
@@ -4554,9 +4580,17 @@ export interface CreateChatProjectRequest {
 	readonly description: string;
 	readonly icon?: string;
 	/**
-	 * Templates defaults to no templates.
+	 * LimitTemplates restricts the project's chats to TemplateIDs.
 	 */
-	readonly templates?: ChatProjectTemplates;
+	readonly limit_templates?: boolean;
+	/**
+	 * TemplateIDs are attached to the new project.
+	 */
+	readonly template_ids?: readonly string[];
+	/**
+	 * DefaultTemplate must name one of TemplateIDs.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 }
 
 // From codersdk/chats.go
@@ -11265,17 +11299,21 @@ export interface UpdateChatProjectInstructionsRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatProjectRequest updates a chat project.
+ * UpdateChatProjectRequest updates a chat project. Templates are attached
+ * and detached one at a time with AttachChatProjectTemplate and
+ * DetachChatProjectTemplate, so a caller never replaces attachments they
+ * cannot see.
  */
 export interface UpdateChatProjectRequest {
 	readonly name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	readonly limit_templates?: boolean;
 	/**
-	 * Templates replaces the project's templates and defaults as a whole when
-	 * set.
+	 * DefaultTemplate replaces the project's default template, preset, and
+	 * parameters as a whole when set. A zero TemplateID clears them.
 	 */
-	readonly templates?: ChatProjectTemplates;
+	readonly default_template?: ChatProjectDefaultTemplate;
 }
 
 // From codersdk/chats.go
