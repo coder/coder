@@ -107,7 +107,7 @@ Coder will also detect if apps inside the workspace are listening on ports, and 
 ### Share ports
 
 You can share ports as URLs, either with other authenticated coder users or publicly.
-Using the open ports interface, you can assign a sharing levels that match our `coder_app`’s share option in [Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share).
+Using the open ports interface, you can assign a sharing level to a port.
 
 - `owner` (Default): The implicit sharing level for all listening ports, only visible to the workspace owner
 - `organization`: Accessible by authenticated users in the same organization as the workspace.

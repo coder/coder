@@ -214,7 +214,7 @@ If you're on a Windows machine (or if one of the commands fail), try grabbing th
 kubectl cluster-info
 
 # Get cluster CA and token (base64 encoded)
-kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data}"
+kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data}"
 
 coder templates push \
     --variable host=API_ADDRESS \

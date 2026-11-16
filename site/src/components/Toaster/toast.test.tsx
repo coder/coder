@@ -70,6 +70,25 @@ describe("toast", () => {
 		);
 	});
 
+	it("names the notifications region only while toasts are shown", async () => {
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		expect(
+			screen.queryByRole("region", { name: /Notifications/ }),
+		).not.toBeInTheDocument();
+
+		toast.success("Member added.");
+		expect(
+			await screen.findByRole("region", { name: /Notifications/ }),
+		).toHaveTextContent("Member added.");
+
+		await user.click(screen.getByRole("button", { name: "Close toast" }));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("region", { name: /Notifications/ }),
+			).not.toBeInTheDocument(),
+		);
+	});
+
 	it("still auto-dismisses success toasts", async () => {
 		toast.success("Member added.");
 		expect(await screen.findByText("Member added.")).toBeInTheDocument();
