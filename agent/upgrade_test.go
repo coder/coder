@@ -115,29 +115,57 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		id     string
-		expect string
-		// shutdown closes the agent instead of exiting the session.
+		name string
+		// Optional client session ID to pass in or "invalid".
+		id string
+		// Expected disconnect reason (defaults to graceful).
+		reason codersdk.DisconnectReason
+		// Expected bytes for the agent to receive from the client.
+		rxBytes int64
+		// Expected exit code.
+		code int
+		// Expected session error, if any.
+		error string
+		// Optional string to write in addition to "echo test\n".
+		write string
+		// Closes the agent instead of waiting for the session to exit.
 		shutdown bool
 	}{
 		{
-			name: "EmptyClientSessionID",
+			name:    "EmptyClientSessionID",
+			write:   "exit 0\n",
+			rxBytes: 17,
 		},
 		{
-			name: "InvalidClientSessionID",
-			id:   "invalid",
+			name:    "InvalidClientSessionID",
+			id:      "invalid",
+			write:   "exit 0\n",
+			rxBytes: 17,
 		},
 		{
-			name:   "ValidClientSessionID",
-			id:     "0123456789abcdef0123456789abcdef",
-			expect: "0123456789abcdef0123456789abcdef",
+			name:    "ValidClientSessionID",
+			id:      "0123456789abcdef0123456789abcdef",
+			write:   "exit 0\n",
+			rxBytes: 17,
 		},
 		{
 			name:     "AgentShutdown",
 			id:       "0123456789abcdef0123456789abcdef",
-			expect:   "0123456789abcdef0123456789abcdef",
+			reason:   codersdk.DisconnectReasonServerShutdown,
+			write:    "echo test\r",
 			shutdown: true,
+			rxBytes:  10,
+			// The agent closes the shell's stdin before it signals the shell, so the
+			// shell can exit 0 first.
+			code: wantIgnoreCode,
+		},
+		{
+			name:    "UnexpectedDisconnect",
+			reason:  "process exited with error status: 1",
+			error:   "process exited with error status: 1",
+			write:   "exit 1\n",
+			rxBytes: wantSomeBytes,
+			code:    1,
 		},
 	}
 
@@ -149,8 +177,10 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			defer cancel()
 
 			sink := testutil.NewFakeSink(t)
+			logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1)
+			logger.Debug(ctx, "making sure there is at least one debug log")
 			conn, client, stats, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-				o.Logger = sink.Logger()
+				o.Logger = logger
 			})
 			require.True(t, conn.AwaitReachable(ctx))
 
@@ -182,43 +212,55 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			testutil.TryReceive(ctx, t, output)
 
 			assertSSHStats(t, stats)
-			reason := codersdk.DisconnectReasonGraceful
-			code := 0
-			rxBytes := int64(17) // send "echo test\nexit 0\n"
+
+			if tc.write != "" {
+				_, err = stdin.Write([]byte(tc.write))
+				require.NoError(t, err, "writing %q to stdin", tc.write)
+			}
+
 			if tc.shutdown {
-				// The client's end of the tunnel may not notice the shutdown, so
-				// only the agent's report is checked.
+				// The client's end of the tunnel may not notice the shutdown, so only
+				// the agent's report is checked.
 				require.NoError(t, agnt.Close())
-				reason = codersdk.DisconnectReasonServerShutdown
-				// The agent closes the shell's stdin before it signals the
-				// shell, so the shell can exit 0 first.
-				code = wantIgnoreCode
-				rxBytes = 10 // send "echo test\n"
 			} else {
-				_, err = stdin.Write([]byte("exit 0\n"))
-				require.NoError(t, err, "writing exit to stdin")
 				_ = stdin.Close()
 				err = session.Wait()
-				require.NoError(t, err, "waiting for session to exit")
+				if tc.error == "" {
+					require.NoError(t, err, "waiting for session to exit")
+				} else {
+					require.Error(t, err, tc.error)
+				}
+			}
+
+			reason := codersdk.DisconnectReasonGraceful
+			if tc.reason != "" {
+				reason = tc.reason
+			}
+			expectID := tc.id
+			if expectID == "invalid" {
+				expectID = ""
 			}
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
 					Method:          proto.Connection_METHOD_SSH,
-					ClientSessionID: tc.expect,
+					ClientSessionID: expectID,
 				},
 				proto.DisconnectEvent{
-					Code:    code,
+					Code:    tc.code,
 					Reason:  string(reason),
-					RxBytes: rxBytes,
+					RxBytes: tc.rxBytes,
 					TxBytes: wantSomeBytes, // echo output + prompts
 				},
 			)
-			requireDisconnectLog(t, sink, "ssh session closed", tc.expect, reason)
+
+			requireDisconnectLog(t, sink, "ssh session closed", expectID, reason)
 			if tc.shutdown {
 				// Only a shutdown adds a disconnect reason to the connection log.
-				requireDisconnectLog(t, sink, "ssh connection complete", tc.expect, reason)
+				requireDisconnectLog(t, sink, "ssh connection complete", expectID, reason)
 			}
+
+			requireDebugFlushed(t, sink, reason)
 		})
 	}
 }
@@ -227,29 +269,47 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		id     string
-		expect string
-		// shutdown closes the agent instead of the client connection.
+		name string
+		// Optional client session ID to pass in or "invalid".
+		id string
+		// Expected disconnect reason (defaults to graceful).
+		reason codersdk.DisconnectReason
+		// Expected exit code.
+		code int
+		// Optional string to write.
+		write string
+		// Shell to execute (defaults to bash).
+		shell string
+		// Closes the agent instead of waiting for the session to exit.
 		shutdown bool
 	}{
 		{
-			name: "EmptyClientSessionID",
+			name:  "EmptyClientSessionID",
+			write: "echo test\rexit 0\r",
 		},
 		{
-			name: "InvalidClientSessionID",
-			id:   "invalid",
+			name:  "InvalidClientSessionID",
+			id:    "invalid",
+			write: "echo test\rexit 0\r",
 		},
 		{
-			name:   "ValidClientSessionID",
-			id:     "0123456789abcdef0123456789abcdef",
-			expect: "0123456789abcdef0123456789abcdef",
+			name:  "ValidClientSessionID",
+			id:    "0123456789abcdef0123456789abcdef",
+			write: "echo test\rexit 0\r",
 		},
 		{
 			name:     "AgentShutdown",
 			id:       "0123456789abcdef0123456789abcdef",
-			expect:   "0123456789abcdef0123456789abcdef",
+			reason:   codersdk.DisconnectReasonServerShutdown,
+			write:    "echo test\r",
 			shutdown: true,
+			code:     1,
+		},
+		{
+			name:   "UnexpectedDisconnect",
+			reason: codersdk.DisconnectReasonNetworkError,
+			shell:  `#!"`, // Malformed shebang to cause an error.
+			code:   1,
 		},
 	}
 
@@ -261,9 +321,11 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 			defer cancel()
 
 			sink := testutil.NewFakeSink(t)
+			logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1)
+			logger.Debug(ctx, "making sure there is at least one debug log")
 			//nolint:dogsled
 			conn, client, _, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-				o.Logger = sink.Logger()
+				o.Logger = logger
 			})
 			require.True(t, conn.AwaitReachable(ctx))
 
@@ -274,32 +336,13 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 			}
 
 			id := uuid.New()
-			ptyConn, err := conn.ReconnectingPTY(ctx, id, 128, 128, "bash")
+			command := "bash"
+			if tc.shell != "" {
+				command = tc.shell
+			}
+			ptyConn, err := conn.ReconnectingPTY(ctx, id, 128, 128, command)
 			require.NoError(t, err)
 			defer ptyConn.Close()
-
-			type copyResult struct {
-				written int64
-				err     error
-			}
-			copied := make(chan copyResult, 1)
-			output := make(chan struct{})
-			go func() {
-				written, err := io.Copy(&firstWriteNotifier{notify: output}, ptyConn)
-				copied <- copyResult{written: written, err: err}
-			}()
-
-			input := "echo test\rexit\r"
-			if tc.shutdown {
-				// Keep the shell running so the agent shutdown closes it.
-				input = "echo test\r"
-			}
-			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
-				Data: input,
-			})
-			require.NoError(t, err)
-			_, err = ptyConn.Write(data)
-			require.NoError(t, err)
 
 			initData, err := json.Marshal(workspacesdk.AgentReconnectingPTYInit{
 				ID:      id,
@@ -309,43 +352,80 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			reason := codersdk.DisconnectReasonGraceful
-			code := 0
-			rxBytes := int64(len(data) + len(initData) + 2)
+			rxBytes := int64(len(initData) + 2)
 			var txBytes int64
-			if tc.shutdown {
-				// Output means the PTY is attached, so the shutdown closes a live
-				// connection rather than one still being set up.
-				testutil.TryReceive(ctx, t, output)
-				require.NoError(t, agnt.Close())
-				reason = codersdk.DisconnectReasonServerShutdown
-				code = 1
-				// The agent may not have read all the input before the shutdown,
-				// and the client may not notice the close, so any bytes will do.
-				rxBytes = wantSomeBytes
-				txBytes = wantSomeBytes
-			} else {
-				// Should get at least the commands, resulting output, and newlines,
-				// but there will be more because of the prompts.
-				result := testutil.TryReceive(ctx, t, copied)
-				require.NoError(t, result.err)
-				txBytes = result.written
-				require.Greater(t, txBytes, int64(20))
+
+			type copyResult struct {
+				written int64
+				err     error
+			}
+
+			// write writes the provided input and returns the actual bytes that were
+			// written, a channel that closes on the first write, and a channel that
+			// returns the total number of bytes written along with any error.
+			write := func(input string) ([]byte, chan copyResult, chan struct{}) {
+				copied := make(chan copyResult, 1)
+				output := make(chan struct{})
+				go func() {
+					written, err := io.Copy(&firstWriteNotifier{notify: output}, ptyConn)
+					copied <- copyResult{written: written, err: err}
+				}()
+
+				data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+					Data: input,
+				})
+				require.NoError(t, err)
+				_, err = ptyConn.Write(data)
+				require.NoError(t, err)
+
+				return data, copied, output
+			}
+
+			if tc.write != "" {
+				data, copied, output := write(tc.write)
+				if tc.shutdown {
+					// Output means the PTY is attached, so the shutdown closes a live
+					// connection rather than one still being set up.
+					testutil.TryReceive(ctx, t, output)
+					require.NoError(t, agnt.Close())
+					// The agent may not have read all the input before the shutdown,
+					// and the client may not notice the close, so any bytes will do.
+					rxBytes = wantSomeBytes
+					txBytes = wantSomeBytes
+				} else {
+					// Should get at least the commands, resulting output, and newlines,
+					// but there will be more because of the prompts.
+					result := testutil.TryReceive(ctx, t, copied)
+					require.NoError(t, result.err)
+					rxBytes += int64(len(data))
+					txBytes = result.written
+					require.Greater(t, txBytes, int64(20))
+				}
+			}
+
+			reason := codersdk.DisconnectReasonGraceful
+			if tc.reason != "" {
+				reason = tc.reason
+			}
+			expectID := tc.id
+			if expectID == "invalid" {
+				expectID = ""
 			}
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
 					Method:          proto.Connection_METHOD_RECONNECTING_PTY,
-					ClientSessionID: tc.expect,
+					ClientSessionID: expectID,
 				},
 				proto.DisconnectEvent{
-					Code:    code,
+					Code:    tc.code,
 					Reason:  string(reason),
 					RxBytes: rxBytes,
 					TxBytes: txBytes,
 				},
 			)
-			requireDisconnectLog(t, sink, "reconnecting pty closed", tc.expect, reason)
+			requireDisconnectLog(t, sink, "reconnecting pty closed", expectID, reason)
+			requireDebugFlushed(t, sink, reason)
 		})
 	}
 }
@@ -381,5 +461,16 @@ func requireDisconnectLog(t *testing.T, sink *testutil.FakeSink, message, client
 	if reason == codersdk.DisconnectReasonServerShutdown {
 		require.Equal(t, codersdk.DisconnectInitiatorAgent, fields["disconnect_initiator"])
 		require.Equal(t, true, fields["disconnect_expected"])
+	}
+}
+
+// requireDebugFlushed asserts whether the logger should have flushed.
+func requireDebugFlushed(t *testing.T, sink *testutil.FakeSink, reason codersdk.DisconnectReason) {
+	// Debug logs should flush based on whether the disconnect was expected.
+	debugEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelDebug })
+	if !reason.Expected() {
+		require.NotEmpty(t, debugEntries)
+	} else {
+		require.Empty(t, debugEntries)
 	}
 }
