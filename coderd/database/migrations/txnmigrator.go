@@ -62,20 +62,19 @@ func (d *pgTxnDriver) Lock() error {
 	}
 	d.reporter.setBackend(pid, xid)
 
-	since, stop := d.reporter.lockWaitStarted(d.phase)
+	d.reporter.lockWaitStarted(d.phase)
 	_, err = d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
-	stop()
 	if err != nil {
+		d.reporter.stopHeartbeat()
 		return xerrors.Errorf("exec select: %w", err)
 	}
-	d.reporter.lockAcquired(d.phase, since)
+	d.reporter.lockAcquired(d.phase)
 	return nil
 }
 
 func (d *pgTxnDriver) Unlock() error {
-	// Lock stops its own lock wait heartbeat, so only a step that failed
-	// before it was applied can still have one running.
-	d.reporter.stopStepHeartbeat()
+	// A step that failed before it was applied still has its heartbeat.
+	d.reporter.stopHeartbeat()
 	err := d.tx.Commit()
 	d.tx = nil
 	if err != nil {
