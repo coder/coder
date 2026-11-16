@@ -475,7 +475,7 @@ Because the condition evaluates based on the workspace owner, provisioning or de
 
 #### Validation
 
-To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the **Provisioner jobs** page or the [`coder provisioner jobs list`](../../reference/cli/provisioner/jobs/list.md) CLI command to inspect job metadata and tags.
+To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner jobs dashboard or the [`coder provisioner jobs list`](../../reference/cli/provisioner/jobs/list.md) CLI command to inspect job metadata and tags.
 Follow these steps:
 
 1. Publish the new template version.
