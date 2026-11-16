@@ -11,7 +11,6 @@ import { useOutletContext, useParams } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
-import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import {
 	type ChatListInput,
 	chat as chatById,
@@ -245,7 +244,7 @@ describe("AgentsPageLayout diff status events", () => {
 	};
 	const unfiltered: ChatListInput = {
 		sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-		pinnedProjectsOnly: true,
+		excludeOwnProjectChats: true,
 	};
 	const openPRsOnly: ChatListInput = { ...unfiltered, prStatuses: ["open"] };
 	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
@@ -338,7 +337,7 @@ describe("AgentsPageLayout manual read state", () => {
 			...infiniteChats({
 				chatStatus: "unread",
 				sources: ["created_by_me"],
-				pinnedProjectsOnly: true,
+				excludeOwnProjectChats: true,
 			}),
 			enabled: false,
 		});
@@ -390,7 +389,7 @@ describe("AgentsPageLayout manual read state", () => {
 					.getQueryData<InfiniteData<Chat[]>>(
 						infiniteChats({
 							sources: ["created_by_me"],
-							pinnedProjectsOnly: true,
+							excludeOwnProjectChats: true,
 						}).queryKey,
 					)
 					?.pages.flat()
@@ -895,7 +894,7 @@ describe("AgentsPageLayout archive and delete", () => {
 									.getQueryData(
 										infiniteChats({
 											sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-											pinnedProjectsOnly: true,
+											excludeOwnProjectChats: true,
 										}).queryKey,
 									)
 									?.pages.flat(),
@@ -1068,7 +1067,7 @@ describe("AgentsPageLayout project moves", () => {
 					.getQueryData<InfiniteData<Chat[]>>(
 						infiniteChats({
 							sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-							pinnedProjectsOnly: true,
+							excludeOwnProjectChats: true,
 						}).queryKey,
 					)
 					?.pages.flat(),
@@ -1077,8 +1076,8 @@ describe("AgentsPageLayout project moves", () => {
 	});
 });
 
-describe("AgentsPageLayout pinned projects", () => {
-	it("leaves chats in unpinned projects out of the sidebar's chat list", async () => {
+describe("AgentsPageLayout project chats", () => {
+	it("leaves the user's own project chats out of the sidebar's chat list", async () => {
 		const getChats = vi
 			.spyOn(API.experimental, "getChats")
 			.mockResolvedValue([]);
@@ -1086,66 +1085,121 @@ describe("AgentsPageLayout pinned projects", () => {
 
 		await waitFor(() => expect(getChats).toHaveBeenCalled());
 		expect(getChats.mock.calls[0][0]).toMatchObject({
-			pinned_projects_only: true,
+			exclude_own_project_chats: true,
 		});
 	});
 
-	it("leaves the user's new chat in an unpinned project out of the sidebar's chat list, but not a shared one", async () => {
-		// The refetch after the event stays pending, so the list shows what the
-		// watch handler wrote.
-		vi.spyOn(API.experimental, "getChats")
-			.mockResolvedValueOnce([])
-			.mockReturnValue(new Promise(() => {}));
-		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
-			{ ...MockChatProjectSummary, pinned: false, pin_order: 0 },
-		]);
-		const publishChatWatchEvent = mockChatWatchSocket();
-		const { queryClient } = renderLayout();
-		const sidebarChatIds = () =>
-			queryClient
-				.getQueryData<InfiniteData<Chat[]>>(
-					infiniteChats({
-						sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-						pinnedProjectsOnly: true,
-					}).queryKey,
-				)
-				?.pages.flat()
-				.map((chat) => chat.id);
-		await waitFor(() => expect(sidebarChatIds()).toEqual([]));
-		await waitFor(() =>
-			expect(queryClient.getQueryData(chatProjectSummariesKey)).toBeDefined(),
-		);
-		await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+	it.each([true, false])(
+		"adds a new chat to the sidebar's chat list only outside the user's projects (project pinned: %s)",
+		async (pinned) => {
+			vi.spyOn(API.experimental, "getChats")
+				.mockResolvedValueOnce([])
+				// Keeps a refetch from replacing the cache this test reads.
+				.mockReturnValue(new Promise(() => {}));
+			const getSummaries = vi
+				.spyOn(API.experimental, "getChatProjectSummaries")
+				.mockResolvedValue([
+					{ ...MockChatProjectSummary, pinned, pin_order: pinned ? 1 : 0 },
+				]);
+			const publishChatWatchEvent = mockChatWatchSocket();
+			const { queryClient } = renderLayout();
+			await waitFor(() => expect(getSummaries).toHaveBeenCalled());
+			await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+			const listedIds = () =>
+				queryClient
+					.getQueryData<InfiniteData<Chat[]>>(
+						infiniteChats({
+							sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+							excludeOwnProjectChats: true,
+						}).queryKey,
+					)
+					?.pages.flat()
+					.map((chat) => chat.id);
+			await waitFor(() => expect(listedIds()).toEqual([]));
 
-		publishChatWatchEvent({
-			kind: "created",
-			chat: {
+			publishChatWatchEvent({
+				kind: "created",
+				chat: {
+					...MockChat,
+					id: "project-chat",
+					project_id: MockChatProject.id,
+				},
+			});
+			publishChatWatchEvent({
+				kind: "created",
+				chat: { ...MockChat, id: "unfiled-chat", project_id: undefined },
+			});
+			publishChatWatchEvent({
+				kind: "created",
+				chat: {
+					...MockChat,
+					id: "shared-project-chat",
+					owner_id: MockUserMember.id,
+					project_id: MockChatProject.id,
+				},
+			});
+
+			await waitFor(() =>
+				expect(listedIds()).toEqual(["shared-project-chat", "unfiled-chat"]),
+			);
+		},
+	);
+
+	it.each([
+		{ knownFrom: "its project folder", projectPinned: true },
+		{ knownFrom: "its entity, with no folder", projectPinned: false },
+	])(
+		"does not archive the open chat while a subagent known from $knownFrom runs",
+		async ({ projectPinned }) => {
+			const user = userEvent.setup();
+			const mockRunningSubagent: Chat = {
 				...MockChat,
-				id: "unpinned-project-chat",
-				project_id: MockChatProject.id,
-			},
-		});
-		publishChatWatchEvent({
-			kind: "created",
-			chat: { ...MockChat, id: "loose-chat", project_id: undefined },
-		});
-
-		publishChatWatchEvent({
-			kind: "created",
-			chat: {
+				id: "subagent",
+				parent_chat_id: MockChat.id,
+				status: "running",
+			};
+			const mockProjectChat: Chat = {
 				...MockChat,
-				id: "shared-unpinned-project-chat",
-				owner_id: MockUserMember.id,
 				project_id: MockChatProject.id,
-			},
-		});
+				children: projectPinned ? [] : [mockRunningSubagent],
+			};
+			vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
+			const getChats = vi
+				.spyOn(API.experimental, "getChats")
+				.mockImplementation(async (params) =>
+					params?.project_id === MockChatProject.id
+						? [{ ...mockProjectChat, children: [mockRunningSubagent] }]
+						: [],
+				);
+			vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
+				{
+					...MockChatProjectSummary,
+					pinned: projectPinned,
+					pin_order: projectPinned ? 1 : 0,
+				},
+			]);
+			const updateChat = vi.spyOn(API.experimental, "updateChat");
+			renderLayout(`/agents/${MockChat.id}`);
+			if (projectPinned) {
+				await waitFor(() =>
+					expect(getChats).toHaveBeenCalledWith(
+						expect.objectContaining({ project_id: MockChatProject.id }),
+						expect.anything(),
+					),
+				);
+			}
 
-		await waitFor(() => expect(sidebarChatIds()).toContain("loose-chat"));
-		await waitFor(() =>
-			expect(sidebarChatIds()).toContain("shared-unpinned-project-chat"),
-		);
-		expect(sidebarChatIds()).not.toContain("unpinned-project-chat");
-	});
+			await user.click(
+				await screen.findByRole("button", { name: "Open agent actions" }),
+			);
+			const archive = await screen.findByRole("menuitem", {
+				name: "Archive agent",
+				description: "Interrupt or wait for the agent to finish first.",
+			});
+			await user.click(archive);
+			expect(updateChat).not.toHaveBeenCalled();
+		},
+	);
 
 	it.each<ChatWatchEventKind>(["status_change", "action_required"])(
 		"refreshes project summaries on a %s event for a chat in a project",
