@@ -1313,6 +1313,11 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
+
+		// A service account can be the root of delegated identities, for
+		// an agent that acts on its own behalf and starts agents of its
+		// own.
+		ResourceDelegatedIdentity.Type: ResourceDelegatedIdentity.AvailableActions(),
 	})
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}

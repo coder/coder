@@ -51,6 +51,9 @@ a person's workspace.
   suspends its identities, and a user with identities cannot be deleted.
 - **Quota had to follow the root user.** An identity is in no group, so it
   would have had no quota, or the organization's default a second time.
+- **AI seats had to follow the root user as well.** A seat is taken by
+  whoever makes a model call, so every delegated identity a person runs
+  would have taken a seat of its own.
 
 ## What is not done
 
@@ -74,7 +77,9 @@ a person's workspace.
   delegated identity.** The new owner attributes are set when the workspace
   is built. The form's preview comes from a separate module that would have
   to learn them.
-- **Limits that no delegated identity can exceed** are not built.
+- **Only an owner can create an API token for a delegated identity.** Such a
+  token is held to the identity's scopes and its creation is audited, but
+  the identity's parent cannot create one yet.
 - **A second daemon under an identity inside a person's workspace** (level
   1 of the maturity model) is not built.
 - **Identities show up wherever accounts do**, for example in the list of

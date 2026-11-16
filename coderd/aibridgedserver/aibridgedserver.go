@@ -338,7 +338,14 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	if !s.experiments.Enabled(codersdk.ExperimentAIGatewaySeatExclusion) {
 		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
-		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+		// A delegated identity uses the seat of its root user. Counting
+		// it by itself would take a seat for every agent a person runs.
+		seatUserID, err := s.spendOwner(ctx, initID)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to resolve who an AI seat counts against", slog.F("initiator_id", initID), slog.Error(err))
+			seatUserID = initID
+		}
+		s.aiSeatTracker.RecordUsage(ctx, seatUserID, reason)
 	}
 	return &proto.RecordInterceptionResponse{}, nil
 }

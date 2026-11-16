@@ -18,7 +18,8 @@ agent in it is to Coder.
   no way to sign in, plus a record of its parent, its root user and its
   scopes.
 - **Its parent is a user or another delegated identity.** The chain ends at
-  a user, the root user.
+  a user or a service account, the root user. A service account is the root
+  for an agent that acts on its own behalf.
 - **Creating one returns a record, not a credential.** The identity gets its
   credentials where it is used.
 - **It is judged with three things**, read on every request:

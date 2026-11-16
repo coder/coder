@@ -165,6 +165,25 @@ func TestDelegatedIdentities(t *testing.T) {
 		UserID:       alice.ID,
 	}))
 
+	// The build minted a session token for the workspace's owner. That is
+	// the identity. Nothing was minted for Alice, so a template that hands
+	// the owner's session token to the workspace hands over the identity's.
+	//nolint:gocritic // The test looks at what no user may.
+	identityKeys, err := db.GetAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeysByUserIDParams{
+		LoginType: database.LoginTypeNone, UserID: identity.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, identityKeys, 1)
+	require.Contains(t, identityKeys[0].TokenName, workspace.ID.String())
+	//nolint:gocritic // The test looks at what no user may.
+	aliceKeys, err := db.GetAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeysByUserIDParams{
+		LoginType: database.LoginTypePassword, UserID: alice.ID,
+	})
+	require.NoError(t, err)
+	for _, key := range aliceKeys {
+		require.NotContains(t, key.TokenName, workspace.ID.String(), "no session token of the root user is made for the identity's workspace")
+	}
+
 	// The workspace daemon works for an identity that may do nothing with
 	// the API: what a daemon needs does not come out of the identity's
 	// scopes.
@@ -588,6 +607,39 @@ func TestDelegatedIdentitiesRootUser(t *testing.T) {
 	requireStatus(t, adminClient.DeleteUser(ctx, user.ID), http.StatusExpectationFailed)
 	require.NoError(t, userClient.DeleteDelegatedIdentity(ctx, identity.ID.String()))
 	require.NoError(t, adminClient.DeleteUser(ctx, user.ID))
+}
+
+// TestDelegatedIdentitiesServiceAccountRoot checks that the root of a chain
+// need not be a person: a service account creates a delegated identity
+// under itself, as an agent that acts on its own behalf would.
+func TestDelegatedIdentitiesServiceAccountRoot(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentDelegatedIdentities)}
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+	admin := coderdtest.CreateFirstUser(t, adminClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	account := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: admin.OrganizationID, UserID: account.ID})
+	_, token := dbgen.APIKey(t, db, database.APIKey{UserID: account.ID, LoginType: database.LoginTypeToken})
+	serviceClient := codersdk.New(adminClient.URL)
+	serviceClient.SetSessionToken(token)
+
+	identity, err := serviceClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeDelegatedIdentityCreate, codersdk.APIKeyScopeDelegatedIdentityRead},
+	})
+	require.NoError(t, err)
+	require.Equal(t, account.ID, identity.ParentID)
+	require.Equal(t, account.ID, identity.RootUserID)
+
+	// The identity starts one below itself. The service account is still
+	// the root.
+	child, err := identityClient(t, db, adminClient, identity.ID).CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{})
+	require.NoError(t, err)
+	require.Equal(t, identity.ID, child.ParentID)
+	require.Equal(t, account.ID, child.RootUserID)
 }
 
 // TestDelegatedIdentitiesExperiment checks that nothing is served without
