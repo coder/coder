@@ -5,11 +5,7 @@ import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import { agentTemplates } from "#/api/queries/templates";
-import type {
-	ChatProject,
-	CreateChatProjectRequest,
-	Organization,
-} from "#/api/typesGenerated";
+import type { ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -30,30 +26,26 @@ import { Textarea } from "#/components/Textarea/Textarea";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	ChatProjectTemplatesFields,
+	type ChatProjectTemplatesSettings,
 	type ChatProjectTemplatesValues,
 	chatProjectTemplatesRequest,
 	chatProjectTemplatesValues,
 	templatesValidationDetail,
 } from "./ChatProjectTemplatesFields";
 
-type TemplateRequestKeys =
-	| "limit_templates"
-	| "template_ids"
-	| "default_template";
-
-/**
- * The template fields are set only when creating a project.
- * @public
- */
+/** The template settings are set only when creating a project. */
 export type ChatProjectFormValues = {
 	/** Set only when creating a project. */
 	organizationId?: Organization["id"];
 	name: string;
 	description: string;
 	icon: string;
-} & Pick<CreateChatProjectRequest, TemplateRequestKeys>;
+} & Partial<ChatProjectTemplatesSettings>;
 
-type ChatProjectFormState = Omit<ChatProjectFormValues, TemplateRequestKeys> & {
+type ChatProjectFormState = Omit<
+	ChatProjectFormValues,
+	keyof ChatProjectTemplatesSettings
+> & {
 	templates: ChatProjectTemplatesValues;
 };
 

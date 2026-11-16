@@ -5,7 +5,7 @@ import type {
 } from "#/api/typesGenerated";
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
-	type ChatProjectTemplatesRequest,
+	type ChatProjectTemplatesSettings,
 	type ChatProjectTemplatesValues,
 	chatProjectTemplatesValues,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
@@ -13,7 +13,7 @@ import {
 /** The project's saved templates, in the shape of a draft's request. */
 export const savedTemplates = (
 	project: ChatProject,
-): ChatProjectTemplatesRequest => ({
+): ChatProjectTemplatesSettings => ({
 	limit_templates: project.limit_templates,
 	template_ids: project.templates.map(({ id }) => id),
 	default_template: project.default_template,
@@ -35,7 +35,7 @@ const serializeDefaultTemplate = (
 	]);
 
 /** Serializes saved or drafted templates for comparison. */
-export const serializeTemplates = (templates: ChatProjectTemplatesRequest) =>
+export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
 	JSON.stringify([
 		templates.limit_templates,
 		[...templates.template_ids].sort(),
@@ -48,8 +48,8 @@ export const serializeTemplates = (templates: ChatProjectTemplatesRequest) =>
  * see.
  */
 export const templatesChange = (
-	saved: ChatProjectTemplatesRequest,
-	draft: ChatProjectTemplatesRequest,
+	saved: ChatProjectTemplatesSettings,
+	draft: ChatProjectTemplatesSettings,
 ): ChatProjectTemplatesChange => {
 	const limitChanged = draft.limit_templates !== saved.limit_templates;
 	const defaultChanged =

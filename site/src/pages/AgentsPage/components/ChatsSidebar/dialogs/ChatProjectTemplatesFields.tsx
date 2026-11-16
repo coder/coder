@@ -19,7 +19,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Switch } from "#/components/Switch/Switch";
+import { SettingSwitch } from "../../SettingSwitch";
 
 /** Form state for a project's templates and the defaults its chats use. */
 export type ChatProjectTemplatesValues = {
@@ -43,15 +43,19 @@ export type ChatProjectTemplatesValues = {
 
 const noDefaultTemplate = "none";
 
-/** The template fields of a create request, with the limit and list set. */
-export type ChatProjectTemplatesRequest = Required<
+/**
+ * A project's template settings: whether its chats are limited to its
+ * templates, the IDs of the attached templates, and the default template.
+ * The create request, the saved state, and a draft all take this shape.
+ */
+export type ChatProjectTemplatesSettings = Required<
 	Pick<CreateChatProjectRequest, "limit_templates" | "template_ids">
 > &
 	Pick<CreateChatProjectRequest, "default_template">;
 
 /** Returns the form state for saved templates, or an empty form when none. */
 export const chatProjectTemplatesValues = (
-	templates: ChatProjectTemplatesRequest | undefined,
+	templates: ChatProjectTemplatesSettings | undefined,
 ): ChatProjectTemplatesValues => ({
 	limitTemplates: templates?.limit_templates ?? false,
 	templateIds: templates?.template_ids ?? [],
@@ -71,7 +75,7 @@ export const chatProjectTemplatesValues = (
 export const chatProjectTemplatesRequest = (
 	values: ChatProjectTemplatesValues,
 	eligible: readonly Template[],
-): ChatProjectTemplatesRequest => {
+): ChatProjectTemplatesSettings => {
 	const request = {
 		limit_templates: values.limitTemplates,
 		template_ids: values.templateIds.filter((id) =>
@@ -107,8 +111,10 @@ export const chatProjectTemplatesRequest = (
  */
 export const templatesValidationDetail = (error: unknown) =>
 	isApiValidationError(error)
-		? error.response.data.validations?.find((validation) =>
-				/^(template_ids$|default_template\.)/.test(validation.field),
+		? error.response.data.validations?.find(
+				(validation) =>
+					validation.field === "template_ids" ||
+					validation.field.startsWith("default_template."),
 			)?.detail
 		: undefined;
 
@@ -157,8 +163,6 @@ export const ChatProjectTemplatesFields: React.FC<
 	disabled,
 }) => {
 	const defaultTemplateId = useId();
-	const limitId = useId();
-	const limitDescriptionId = useId();
 	const hiddenNoteId = useId();
 	const hiddenNote =
 		hiddenTemplateCount > 0
@@ -253,13 +257,10 @@ export const ChatProjectTemplatesFields: React.FC<
 					</p>
 				)}
 			</div>
-			<div className="flex items-start justify-between gap-4">
-				<div className="flex flex-col gap-1">
-					<Label htmlFor={limitId}>Limit chats to these templates</Label>
-					<div
-						id={limitDescriptionId}
-						className="flex flex-col gap-1 text-xs text-content-secondary"
-					>
+			<SettingSwitch
+				label="Limit chats to these templates"
+				description={
+					<>
 						<p className="m-0">
 							Chats in this project can only create or attach workspaces that
 							use these templates. When this is off, chats can use any template
@@ -271,18 +272,14 @@ export const ChatProjectTemplatesFields: React.FC<
 								or attach workspaces.
 							</p>
 						)}
-					</div>
-				</div>
-				<Switch
-					id={limitId}
-					aria-describedby={limitDescriptionId}
-					checked={value.limitTemplates}
-					disabled={disabled}
-					onCheckedChange={(limitTemplates) =>
-						onChange({ ...value, limitTemplates })
-					}
-				/>
-			</div>
+					</>
+				}
+				checked={value.limitTemplates}
+				disabled={disabled}
+				onCheckedChange={(limitTemplates) =>
+					onChange({ ...value, limitTemplates })
+				}
+			/>
 			{selectedTemplates.length > 0 && (
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={defaultTemplateId}>Default template</Label>
