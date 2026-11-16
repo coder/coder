@@ -173,6 +173,9 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 							) : (
 								<CopyIcon className="size-icon-xs! ml-auto" />
 							)}
+							<span role="status" className="sr-only">
+								{showCopiedSuccess && "Copied"}
+							</span>
 						</DropdownMenuItem>
 					</TooltipTrigger>
 					<TooltipContent side="left">

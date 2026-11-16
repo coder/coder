@@ -93,10 +93,14 @@ test("update password when submit returns an unknown error", async () => {
 	});
 
 	const { user } = await renderPage();
+	// The live region exists before the error so screen readers announce it.
+	const errorRegion = screen.getByRole("alert");
+	expect(errorRegion).toBeEmptyDOMElement();
 	fillAndSubmitSecurityForm();
 
-	const errorMessage = await screen.findByText("Something went wrong.");
-	expect(errorMessage).toBeDefined();
+	await waitFor(() =>
+		expect(errorRegion).toHaveTextContent("Something went wrong."),
+	);
 	expect(API.updateUserPassword).toBeCalledTimes(1);
 	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 });
