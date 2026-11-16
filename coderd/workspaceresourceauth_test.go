@@ -65,7 +65,7 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 
 		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expectedAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+		require.Equal(t, expectedAgent.AuthToken, agentClient.SDK.SessionToken())
 	})
 }
 
@@ -228,7 +228,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 
 		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expectedAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+		require.Equal(t, expectedAgent.AuthToken, agentClient.SDK.SessionToken())
 	})
 
 	t.Run("Ambiguous/MultipleAgentsUnknownSelector", func(t *testing.T) {
@@ -280,7 +280,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 
 		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
-		require.Equal(t, rootAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+		require.Equal(t, rootAgent.AuthToken, agentClient.SDK.SessionToken())
 	})
 }
 
@@ -341,7 +341,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
 		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expectedAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+		require.Equal(t, expectedAgent.AuthToken, agentClient.SDK.SessionToken())
 	})
 
 	t.Run("ForeignAudience", func(t *testing.T) {
@@ -383,7 +383,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		))
 		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expectedAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+		require.Equal(t, expectedAgent.AuthToken, agentClient.SDK.SessionToken())
 	})
 }
 

@@ -4092,7 +4092,7 @@ CREATE TABLE workspace_agents (
     last_connected_at timestamp with time zone,
     disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
-    auth_token uuid NOT NULL,
+    auth_token text NOT NULL,
     auth_instance_id character varying,
     architecture character varying(64) NOT NULL,
     environment_variables jsonb,
@@ -4119,9 +4119,13 @@ CREATE TABLE workspace_agents (
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     environment_variables_key_id text,
+    auth_token_key_id text,
+    auth_token_hashed bytea NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
+
+COMMENT ON COLUMN workspace_agents.auth_token IS 'Session token the agent presents to authenticate. Stored as the canonical uuid string, or as ciphertext when auth_token_key_id is set (SEC-1491).';
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
 
@@ -4150,6 +4154,10 @@ COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the AP
 COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
 
 COMMENT ON COLUMN workspace_agents.environment_variables_key_id IS 'The ID of the key used to encrypt the environment variable values. If this is NULL, the values are not encrypted. Variable names stay in plaintext; values are encrypted individually because templates inject credentials through coder_env (SEC-1491).';
+
+COMMENT ON COLUMN workspace_agents.auth_token_key_id IS 'The ID of the key used to encrypt auth_token. If this is NULL, auth_token is not encrypted.';
+
+COMMENT ON COLUMN workspace_agents.auth_token_hashed IS 'SHA-256 of the canonical uuid string form of auth_token. Used for authentication lookups so the token itself can be encrypted at rest (SEC-1491).';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -5420,7 +5428,7 @@ COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Su
 
 CREATE INDEX workspace_agents_auth_instance_id_deleted_idx ON workspace_agents USING btree (auth_instance_id, deleted);
 
-CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
+CREATE INDEX workspace_agents_auth_token_hashed_idx ON workspace_agents USING btree (auth_token_hashed);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
@@ -6037,6 +6045,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_auth_token_key_id_fkey FOREIGN KEY (auth_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_environment_variables_key_id_fkey FOREIGN KEY (environment_variables_key_id) REFERENCES dbcrypt_keys(active_key_digest);

@@ -1498,16 +1498,27 @@ func (db *dbCrypt) decryptMetadatumValue(metadatum *database.WorkspaceResourceMe
 	return db.decryptField(&metadatum.Value.String, metadatum.ValueKeyID)
 }
 
-// InsertWorkspaceAgent encrypts the agent's environment variable values.
-// Templates inject credentials through coder_env and owner data (SEC-1491).
-// Variable names and the JSON object shape stay in plaintext so readers that
-// only list names keep working without decryption.
+// InsertWorkspaceAgent encrypts the agent's auth token and environment
+// variable values. Templates inject credentials through coder_env and owner
+// data (SEC-1491). Variable names and the JSON object shape stay in
+// plaintext so readers that only list names keep working without decryption.
+// The auth token lookup hash in params is computed by the caller from the
+// plaintext token; agents authenticate by that hash, so the token column can
+// hold non-deterministic ciphertext.
 func (db *dbCrypt) InsertWorkspaceAgent(ctx context.Context, params database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
+	if params.AuthToken != "" {
+		if err := db.encryptField(&params.AuthToken, &params.AuthTokenKeyID); err != nil {
+			return database.WorkspaceAgent{}, err
+		}
+	}
 	if err := db.encryptEnvValues(&params.EnvironmentVariables, &params.EnvironmentVariablesKeyID); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	agent, err := db.Store.InsertWorkspaceAgent(ctx, params)
 	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	if err := db.decryptAgentAuthToken(&agent); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	if err := db.decryptEnvValues(&agent.EnvironmentVariables, agent.EnvironmentVariablesKeyID); err != nil {
@@ -1516,12 +1527,15 @@ func (db *dbCrypt) InsertWorkspaceAgent(ctx context.Context, params database.Ins
 	return agent, nil
 }
 
-// GetWorkspaceAgentByID decrypts the agent's environment variable values;
-// this is the read path of the agent manifest, the only consumer of the
-// actual values.
+// GetWorkspaceAgentByID decrypts the agent's auth token and environment
+// variable values; this is the read path of the agent manifest, the only
+// consumer of the actual environment variable values.
 func (db *dbCrypt) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	agent, err := db.Store.GetWorkspaceAgentByID(ctx, id)
 	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	if err := db.decryptAgentAuthToken(&agent); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	if err := db.decryptEnvValues(&agent.EnvironmentVariables, agent.EnvironmentVariablesKeyID); err != nil {
@@ -1537,6 +1551,133 @@ func (db *dbCrypt) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Cont
 		return err
 	}
 	return db.Store.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, params)
+}
+
+// GetWorkspaceAgentSecretsByID is a maintenance-only read used by `coder
+// server dbcrypt` sweeps. It decrypts both agent secrets and, unlike
+// GetWorkspaceAgentByID, includes soft-deleted sub agents, whose rows still
+// hold secrets that rotation must rewrite.
+func (db *dbCrypt) GetWorkspaceAgentSecretsByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentSecretsByIDRow, error) {
+	row, err := db.Store.GetWorkspaceAgentSecretsByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceAgentSecretsByIDRow{}, err
+	}
+	if err := db.decryptField(&row.AuthToken, row.AuthTokenKeyID); err != nil {
+		return database.GetWorkspaceAgentSecretsByIDRow{}, err
+	}
+	if err := db.decryptEnvValues(&row.EnvironmentVariables, row.EnvironmentVariablesKeyID); err != nil {
+		return database.GetWorkspaceAgentSecretsByIDRow{}, err
+	}
+	return row, nil
+}
+
+// UpdateWorkspaceAgentAuthTokenByID is a maintenance-only query used by
+// `coder server dbcrypt` sweeps. The lookup hash is derived from the
+// plaintext token and is not rewritten by re-encryption.
+func (db *dbCrypt) UpdateWorkspaceAgentAuthTokenByID(ctx context.Context, params database.UpdateWorkspaceAgentAuthTokenByIDParams) error {
+	if params.AuthToken != "" {
+		if err := db.encryptField(&params.AuthToken, &params.AuthTokenKeyID); err != nil {
+			return err
+		}
+	}
+	return db.Store.UpdateWorkspaceAgentAuthTokenByID(ctx, params)
+}
+
+// decryptAgentAuthToken restores the plaintext uuid-string auth token on an
+// agent row. Queries whose consumers never read the token leave the
+// ciphertext in place; the ones below are the retrieval paths that hand the
+// token back to an agent (SEC-1491).
+func (db *dbCrypt) decryptAgentAuthToken(agent *database.WorkspaceAgent) error {
+	return db.decryptField(&agent.AuthToken, agent.AuthTokenKeyID)
+}
+
+// GetWorkspaceBuildAgentsByInstanceID decrypts agent auth tokens: this is
+// the read path of the AWS/GCP/Azure instance-identity exchange, which
+// returns the token to the agent.
+func (db *dbCrypt) GetWorkspaceBuildAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.GetWorkspaceBuildAgentsByInstanceIDRow, error) {
+	rows, err := db.Store.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range rows {
+		if err := db.decryptAgentAuthToken(&rows[idx].WorkspaceAgent); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
+
+func (db *dbCrypt) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
+	agents, err := db.Store.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range agents {
+		if err := db.decryptAgentAuthToken(&agents[idx]); err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
+}
+
+// GetWorkspaceAgentsByWorkspaceAndBuildNumber decrypts agent auth tokens:
+// prebuild claims re-send build-1 tokens to the provisioner, and the
+// external agent credentials endpoint returns the token verbatim.
+func (db *dbCrypt) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Context, params database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	agents, err := db.Store.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range agents {
+		if err := db.decryptAgentAuthToken(&agents[idx]); err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
+}
+
+// GetWorkspaceAgentsByParentID decrypts agent auth tokens: the sub-agent API
+// returns tokens of devcontainer agents to the parent agent.
+func (db *dbCrypt) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	agents, err := db.Store.GetWorkspaceAgentsByParentID(ctx, parentID)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range agents {
+		if err := db.decryptAgentAuthToken(&agents[idx]); err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
+}
+
+// GetExternalAgentTokensByTemplateID decrypts the bulk token dump used by
+// the scaletest external-agent manager.
+func (db *dbCrypt) GetExternalAgentTokensByTemplateID(ctx context.Context, params database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
+	rows, err := db.Store.GetExternalAgentTokensByTemplateID(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range rows {
+		if err := db.decryptField(&rows[idx].AgentToken, rows[idx].AgentTokenKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
+
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken decrypts the
+// authenticated agent's auth token. The lookup itself happens on the hash
+// column, so it works on ciphertext rows without any keys.
+func (db *dbCrypt) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authTokenHashed []byte) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	row, err := db.Store.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authTokenHashed)
+	if err != nil {
+		return database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, err
+	}
+	if err := db.decryptAgentAuthToken(&row.WorkspaceAgent); err != nil {
+		return database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, err
+	}
+	return row, nil
 }
 
 // encryptEnvValues encrypts each value of a JSON object of environment

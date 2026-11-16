@@ -740,14 +740,23 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 }
 
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
+	authToken := takeFirst(orig.AuthToken, uuid.NewString())
+	authTokenHashed := takeFirstSlice(orig.AuthTokenHashed, nil)
+	if authTokenHashed == nil {
+		parsed, err := uuid.Parse(authToken)
+		require.NoError(t, err, "agent auth token must be a uuid")
+		authTokenHashed = database.HashAuthToken(parsed)
+	}
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
-		ID:         takeFirst(orig.ID, uuid.New()),
-		ParentID:   takeFirst(orig.ParentID, uuid.NullUUID{}),
-		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
-		Name:       takeFirst(orig.Name, testutil.GetRandomName(t)),
-		ResourceID: takeFirst(orig.ResourceID, uuid.New()),
-		AuthToken:  takeFirst(orig.AuthToken, uuid.New()),
+		ID:              takeFirst(orig.ID, uuid.New()),
+		ParentID:        takeFirst(orig.ParentID, uuid.NullUUID{}),
+		CreatedAt:       takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:       takeFirst(orig.UpdatedAt, dbtime.Now()),
+		Name:            takeFirst(orig.Name, testutil.GetRandomName(t)),
+		ResourceID:      takeFirst(orig.ResourceID, uuid.New()),
+		AuthToken:       authToken,
+		AuthTokenHashed: authTokenHashed,
+		AuthTokenKeyID:  takeFirst(orig.AuthTokenKeyID, sql.NullString{}),
 		AuthInstanceID: sql.NullString{
 			String: takeFirst(orig.AuthInstanceID.String, testutil.GetRandomName(t)),
 			Valid:  takeFirst(orig.AuthInstanceID.Valid, true),
@@ -803,6 +812,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		// Add a test antagonist. For every agent we add a deleted sub agent
 		// to discover cases where deletion should be handled.
 		// See also `(dbfake.WorkspaceBuildBuilder).Do()`.
+		antagonistToken := uuid.New()
 		subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 			ID:                        uuid.New(),
 			ParentID:                  uuid.NullUUID{UUID: agt.ID, Valid: true},
@@ -810,7 +820,9 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			UpdatedAt:                 dbtime.Now(),
 			Name:                      testutil.GetRandomName(t),
 			ResourceID:                agt.ResourceID,
-			AuthToken:                 uuid.New(),
+			AuthToken:                 antagonistToken.String(),
+			AuthTokenHashed:           database.HashAuthToken(antagonistToken),
+			AuthTokenKeyID:            sql.NullString{},
 			AuthInstanceID:            sql.NullString{},
 			Architecture:              agt.Architecture,
 			EnvironmentVariables:      pqtype.NullRawMessage{},

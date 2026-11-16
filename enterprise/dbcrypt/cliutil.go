@@ -408,7 +408,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			log.Debug(ctx, "skipping workspace agent environment variables", slog.F("workspace_agent_id", agentID), slog.F("cipher", ciphers[0].HexDigest()))
 			return nil
 		}
-		agent, err := cryptDB.GetWorkspaceAgentByID(ctx, agentID)
+		agent, err := cryptDB.GetWorkspaceAgentSecretsByID(ctx, agentID)
 		if err != nil {
 			return xerrors.Errorf("get workspace agent %s: %w", agentID, err)
 		}
@@ -420,6 +420,30 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("rotate environment variables of workspace agent %s: %w", agentID, err)
 		}
 		log.Debug(ctx, "rotated workspace agent environment variables", slog.F("workspace_agent_id", agentID), slog.F("cipher", ciphers[0].HexDigest()))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "encrypting workspace agent auth tokens")
+	err = forEachSecretRow(ctx, sqlDB, agentAuthTokenScan, func(agentID uuid.UUID, keyID sql.NullString) error {
+		if keyID.Valid && keyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping workspace agent auth token", slog.F("workspace_agent_id", agentID), slog.F("cipher", ciphers[0].HexDigest()))
+			return nil
+		}
+		agent, err := cryptDB.GetWorkspaceAgentSecretsByID(ctx, agentID)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent %s: %w", agentID, err)
+		}
+		if err := cryptDB.UpdateWorkspaceAgentAuthTokenByID(ctx, database.UpdateWorkspaceAgentAuthTokenByIDParams{
+			ID:             agentID,
+			AuthToken:      agent.AuthToken,
+			AuthTokenKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+		}); err != nil {
+			return xerrors.Errorf("rotate auth token of workspace agent %s: %w", agentID, err)
+		}
+		log.Debug(ctx, "rotated workspace agent auth token", slog.F("workspace_agent_id", agentID), slog.F("cipher", ciphers[0].HexDigest()))
 		return nil
 	})
 	if err != nil {
@@ -809,7 +833,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			log.Debug(ctx, "skipping workspace agent environment variables", slog.F("workspace_agent_id", agentID))
 			return nil
 		}
-		agent, err := cryptDB.GetWorkspaceAgentByID(ctx, agentID)
+		agent, err := cryptDB.GetWorkspaceAgentSecretsByID(ctx, agentID)
 		if err != nil {
 			return xerrors.Errorf("get workspace agent %s: %w", agentID, err)
 		}
@@ -821,6 +845,30 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			return xerrors.Errorf("decrypt environment variables of workspace agent %s: %w", agentID, err)
 		}
 		log.Debug(ctx, "decrypted workspace agent environment variables", slog.F("workspace_agent_id", agentID))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "decrypting workspace agent auth tokens")
+	err = forEachSecretRow(ctx, sqlDB, agentAuthTokenScan, func(agentID uuid.UUID, keyID sql.NullString) error {
+		if !keyID.Valid {
+			log.Debug(ctx, "skipping workspace agent auth token", slog.F("workspace_agent_id", agentID))
+			return nil
+		}
+		agent, err := cryptDB.GetWorkspaceAgentSecretsByID(ctx, agentID)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent %s: %w", agentID, err)
+		}
+		if err := cryptDB.UpdateWorkspaceAgentAuthTokenByID(ctx, database.UpdateWorkspaceAgentAuthTokenByIDParams{
+			ID:             agentID,
+			AuthToken:      agent.AuthToken,
+			AuthTokenKeyID: sql.NullString{}, // primaryCipherDigest is empty, so dbcrypt writes this value as plaintext.
+		}); err != nil {
+			return xerrors.Errorf("decrypt auth token of workspace agent %s: %w", agentID, err)
+		}
+		log.Debug(ctx, "decrypted workspace agent auth token", slog.F("workspace_agent_id", agentID))
 		return nil
 	})
 	if err != nil {
@@ -880,6 +928,13 @@ var agentEnvironmentVariablesScan = secretRowScan{
 	idColumn:          "id",
 	keyIDColumn:       "environment_variables_key_id",
 	nonEmptyPredicate: "environment_variables IS NOT NULL AND environment_variables != 'null'::jsonb AND environment_variables != '{}'::jsonb",
+}
+
+var agentAuthTokenScan = secretRowScan{
+	table:             "workspace_agents",
+	idColumn:          "id",
+	keyIDColumn:       "auth_token_key_id",
+	nonEmptyPredicate: "auth_token != ''",
 }
 
 // Scans for tables with composite primary keys, paged over the parent ID with
@@ -1150,6 +1205,15 @@ UPDATE workspace_agents
 	SET environment_variables = NULL,
 		environment_variables_key_id = NULL
 	WHERE environment_variables_key_id IS NOT NULL;
+-- Agent auth tokens cannot be recovered without the keys. The lookup hash
+-- stays, so running agents (which hold the plaintext token) keep
+-- authenticating; only the retrieval paths (instance identity exchange,
+-- external agent credentials, prebuild claims, sub-agent listing) break
+-- until the next workspace build issues fresh tokens.
+UPDATE workspace_agents
+	SET auth_token = '',
+		auth_token_key_id = NULL
+	WHERE auth_token_key_id IS NOT NULL;
 -- The DERP mesh key is regenerated at startup; HA workspace proxies
 -- re-register and receive the new key.
 DELETE FROM site_configs
@@ -1234,6 +1298,7 @@ var auditTargets = []auditTarget{
 	{table: "workspace_build_parameters", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "workspace_resource_metadata", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "workspace_agents", column: "environment_variables", keyIDColumn: "environment_variables_key_id", nonEmptyPredicate: "environment_variables IS NOT NULL AND environment_variables != 'null'::jsonb AND environment_variables != '{}'::jsonb"},
+	{table: "workspace_agents", column: "auth_token", keyIDColumn: "auth_token_key_id"},
 	{table: "site_configs", column: "derp_mesh_key", customCountQuery: "SELECT COUNT(*) FROM site_configs WHERE key = 'derp_mesh_key' AND value != '' AND NOT EXISTS (SELECT 1 FROM site_configs WHERE key = 'derp_mesh_key_key_id')"},
 	{table: "site_configs", column: "webpush_vapid_private_key", customCountQuery: "SELECT COUNT(*) FROM site_configs WHERE key = 'webpush_vapid_private_key' AND value != '' AND NOT EXISTS (SELECT 1 FROM site_configs WHERE key = 'webpush_vapid_private_key_key_id')"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},

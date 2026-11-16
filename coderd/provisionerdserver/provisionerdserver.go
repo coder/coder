@@ -887,7 +887,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			for _, agent := range agents {
 				runningAgentAuthTokens = append(runningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
 					AgentId: agent.ID.String(),
-					Token:   agent.AuthToken.String(),
+					Token:   agent.AuthToken,
 				})
 			}
 		}
@@ -3054,7 +3054,9 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			UpdatedAt:                 dbtime.Now(),
 			ResourceID:                resource.ID,
 			Name:                      prAgent.Name,
-			AuthToken:                 authToken,
+			AuthToken:                 authToken.String(),
+			AuthTokenHashed:           database.HashAuthToken(authToken),
+			AuthTokenKeyID:            sql.NullString{}, // dbcrypt will set as required
 			AuthInstanceID:            instanceID,
 			Architecture:              prAgent.Architecture,
 			EnvironmentVariables:      envJSON,
@@ -3597,6 +3599,7 @@ func insertDevcontainerSubagent(
 		return uuid.UUID{}, err
 	}
 
+	authToken := uuid.New()
 	_, err = db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                        subAgentID,
 		ParentID:                  uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
@@ -3604,7 +3607,9 @@ func insertDevcontainerSubagent(
 		UpdatedAt:                 dbtime.Now(),
 		ResourceID:                resourceID,
 		Name:                      dc.GetName(),
-		AuthToken:                 uuid.New(),
+		AuthToken:                 authToken.String(),
+		AuthTokenHashed:           database.HashAuthToken(authToken),
+		AuthTokenKeyID:            sql.NullString{}, // dbcrypt will set as required
 		AuthInstanceID:            sql.NullString{},
 		Architecture:              parentAgent.Architecture,
 		EnvironmentVariables:      envJSON,

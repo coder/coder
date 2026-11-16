@@ -439,7 +439,7 @@ type sqlcQuerier interface {
 	// the STOP or DELETE build is executing, allowing shutdown scripts and final
 	// connection reports to authenticate (see issue #19467). The agent connection
 	// monitor in coderd/workspaceagentsrpc.go applies the same rule.
-	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
+	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authTokenHashed []byte) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
@@ -1136,6 +1136,11 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByBuildIDRow, error)
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error)
+	// Maintenance-only read used by `coder server dbcrypt` sweeps. Unlike
+	// GetWorkspaceAgentByID it includes soft-deleted sub agents: their rows
+	// still hold encrypted secrets that rotation must rewrite before the old
+	// key can be revoked.
+	GetWorkspaceAgentSecretsByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentSecretsByIDRow, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
 	GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error)
@@ -1799,6 +1804,11 @@ type sqlcQuerier interface {
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
+	// Rewrites an agent's auth token in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt the token at rest. The
+	// hash is never rewritten: it is derived from the plaintext token, which
+	// rotation does not change.
+	UpdateWorkspaceAgentAuthTokenByID(ctx context.Context, arg UpdateWorkspaceAgentAuthTokenByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error

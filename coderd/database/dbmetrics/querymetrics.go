@@ -1480,7 +1480,7 @@ func (m queryMetricsStore) GetAuditLogsOffset(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+func (m queryMetricsStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken []byte) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken)
 	m.queryLatencies.WithLabelValues("GetAuthenticatedWorkspaceAgentAndBuildByAuthToken").Observe(time.Since(start).Seconds())
@@ -3901,6 +3901,14 @@ func (m queryMetricsStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Contex
 	r0, r1 := m.s.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentScriptsByAgentIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentScriptsByAgentIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentSecretsByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentSecretsByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentSecretsByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentSecretsByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentSecretsByID").Inc()
 	return r0, r1
 }
 
@@ -6534,6 +6542,14 @@ func (m queryMetricsStore) UpdateWorkspaceACLByID(ctx context.Context, arg datab
 	r0 := m.s.UpdateWorkspaceACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceACLByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceAgentAuthTokenByID(ctx context.Context, arg database.UpdateWorkspaceAgentAuthTokenByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentAuthTokenByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentAuthTokenByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentAuthTokenByID").Inc()
 	return r0
 }
 

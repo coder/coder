@@ -208,6 +208,6 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AuthenticateResponse{
-		SessionToken: agent.AuthToken.String(),
+		SessionToken: agent.AuthToken,
 	})
 }

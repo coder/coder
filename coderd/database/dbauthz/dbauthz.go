@@ -3277,7 +3277,7 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 	return q.db.GetAuthorizedAuditLogsOffset(ctx, arg, prep)
 }
 
-func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken []byte) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
 	// This is a system function.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, err
@@ -5948,6 +5948,13 @@ func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
+}
+
+func (q *querier) GetWorkspaceAgentSecretsByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentSecretsByIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetWorkspaceAgentSecretsByIDRow{}, err
+	}
+	return q.db.GetWorkspaceAgentSecretsByID(ctx, id)
 }
 
 func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -9204,6 +9211,13 @@ func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.Updat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentAuthTokenByID(ctx context.Context, arg database.UpdateWorkspaceAgentAuthTokenByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentAuthTokenByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {

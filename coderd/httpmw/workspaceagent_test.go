@@ -269,7 +269,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
-			AuthToken:  authToken,
+			AuthToken:  authToken.String(),
 		})
 
 		// Create a STOP build with running job.
@@ -357,7 +357,7 @@ func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Ha
 	})
 	_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: resource.ID,
-		AuthToken:  authToken,
+		AuthToken:  authToken.String(),
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)

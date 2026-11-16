@@ -278,12 +278,18 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 
 	tokens := make([]TokenInfo, 0, len(rows))
 	for _, row := range rows {
+		// This direct Postgres connection bypasses dbcrypt, so a deployment
+		// with encryption at rest returns ciphertext here. Fail loudly
+		// rather than handing agents unusable tokens.
+		if _, err := uuid.Parse(row.AgentToken); err != nil {
+			return nil, xerrors.Errorf("agent %s auth token is not a uuid; the database is likely encrypted at rest (dbcrypt), which the agentfake scaletest does not support: %w", row.AgentID, err)
+		}
 		tokens = append(tokens, TokenInfo{
 			WorkspaceID:   row.WorkspaceID,
 			WorkspaceName: row.WorkspaceName,
 			AgentID:       row.AgentID,
 			AgentName:     row.AgentName,
-			Token:         row.AgentToken.String(),
+			Token:         row.AgentToken,
 		})
 	}
 	m.logger.Info(ctx, "enumerated external-agent workspaces",

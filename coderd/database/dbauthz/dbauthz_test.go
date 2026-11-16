@@ -3195,6 +3195,16 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().UpdateWorkspaceAgentEnvironmentVariablesByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("GetWorkspaceAgentSecretsByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().GetWorkspaceAgentSecretsByID(gomock.Any(), id).Return(database.GetWorkspaceAgentSecretsByIDRow{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpdateWorkspaceAgentAuthTokenByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkspaceAgentAuthTokenByIDParams{ID: uuid.New()}
+		dbm.EXPECT().UpdateWorkspaceAgentAuthTokenByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("SoftDeleteTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
@@ -5913,7 +5923,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		tok := uuid.New()
+		tok := database.HashAuthToken(uuid.New())
 		dbm.EXPECT().GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(gomock.Any(), tok).Return(database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, sql.ErrNoRows).AnyTimes()
 		check.Args(tok).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))

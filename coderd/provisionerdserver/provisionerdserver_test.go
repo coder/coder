@@ -621,7 +621,7 @@ func TestAcquireJob(t *testing.T) {
 					})
 					agent = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ResourceID: resource.ID,
-						AuthToken:  uuid.New(),
+						AuthToken:  uuid.NewString(),
 					})
 					buildID := uuid.New()
 					input := provisionerdserver.WorkspaceProvisionJob{
@@ -738,7 +738,7 @@ func TestAcquireJob(t *testing.T) {
 					wantedMetadata.PrebuiltWorkspaceBuildStage = prebuiltWorkspaceBuildStage
 					wantedMetadata.RunningAgentAuthTokens = append(wantedMetadata.RunningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
 						AgentId: agent.ID.String(),
-						Token:   agent.AuthToken.String(),
+						Token:   agent.AuthToken,
 					})
 				}
 

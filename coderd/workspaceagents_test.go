@@ -1059,7 +1059,7 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
-	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), database.HashAuthToken(agentToken))
 	require.NoError(t, err)
 
 	//nolint: bodyclose // closed by ReadBodyAsError
@@ -1149,7 +1149,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
+		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), database.HashAuthToken(agentTokenUUID))
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -1221,7 +1221,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
+		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), database.HashAuthToken(agentTokenUUID))
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a

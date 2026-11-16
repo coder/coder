@@ -868,7 +868,7 @@ func TestSubAgentAPI(t *testing.T) {
 			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
 			ResourceID: parentAgent.ResourceID,
 			Name:       "child-agent",
-			AuthToken:  uuid.New(),
+			AuthToken:  uuid.NewString(),
 		}
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))

@@ -94,10 +94,40 @@ INSERT INTO
 		motd_file,
 		display_apps,
 		display_order,
-		api_key_scope
+		api_key_scope,
+		auth_token_hashed,
+		auth_token_key_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *;
+
+-- name: GetWorkspaceAgentSecretsByID :one
+-- Maintenance-only read used by `coder server dbcrypt` sweeps. Unlike
+-- GetWorkspaceAgentByID it includes soft-deleted sub agents: their rows
+-- still hold encrypted secrets that rotation must rewrite before the old
+-- key can be revoked.
+SELECT
+	auth_token,
+	auth_token_key_id,
+	environment_variables,
+	environment_variables_key_id
+FROM
+	workspace_agents
+WHERE
+	id = $1;
+
+-- name: UpdateWorkspaceAgentAuthTokenByID :exec
+-- Rewrites an agent's auth token in place. Used by `coder server dbcrypt`
+-- maintenance commands to re-encrypt or decrypt the token at rest. The
+-- hash is never rewritten: it is derived from the plaintext token, which
+-- rotation does not change.
+UPDATE
+	workspace_agents
+SET
+	auth_token = @auth_token,
+	auth_token_key_id = sqlc.narg('auth_token_key_id')
+WHERE
+	id = @id;
 
 -- name: UpdateWorkspaceAgentEnvironmentVariablesByID :exec
 -- Rewrites an agent's environment variables in place. Used by `coder server
@@ -405,7 +435,8 @@ SELECT
 	workspaces.name             AS workspace_name,
 	workspace_agents.id         AS agent_id,
 	workspace_agents.name       AS agent_name,
-	workspace_agents.auth_token AS agent_token
+	workspace_agents.auth_token AS agent_token,
+	workspace_agents.auth_token_key_id AS agent_token_key_id
 FROM
 	workspaces
 JOIN (
@@ -470,8 +501,12 @@ JOIN
 ON
 	workspace_build_with_user.workspace_id = workspaces.id
 WHERE
+	-- The token itself may be encrypted at rest (SEC-1491), so agents are
+	-- authenticated by the deterministic SHA-256 hash of the canonical uuid
+	-- string. A match proves the caller holds the original 128-bit random
+	-- token.
 	-- This should only match 1 agent, so 1 returned row or 0.
-	workspace_agents.auth_token = @auth_token::uuid
+	workspace_agents.auth_token_hashed = @auth_token_hashed::bytea
 	AND workspaces.deleted = FALSE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE

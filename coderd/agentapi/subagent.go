@@ -39,6 +39,18 @@ type SubAgentAPI struct {
 	PortSharer *atomic.Pointer[portsharing.PortSharer]
 }
 
+// subAgentTokenBytes converts an agent's auth token to the raw 16-byte uuid
+// form carried by the SubAgent proto. The token read from the database is
+// always the plaintext uuid string: dbcrypt decrypts it when encryption at
+// rest is enabled (SEC-1491).
+func subAgentTokenBytes(agent database.WorkspaceAgent) ([]byte, error) {
+	token, err := uuid.Parse(agent.AuthToken)
+	if err != nil {
+		return nil, xerrors.Errorf("parse sub agent auth token: %w", err)
+	}
+	return token[:], nil
+}
+
 func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
@@ -114,11 +126,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			}
 		}
 
+		authToken, err := subAgentTokenBytes(subAgent)
+		if err != nil {
+			return nil, err
+		}
 		return &agentproto.CreateSubAgentResponse{
 			Agent: &agentproto.SubAgent{
 				Name:      subAgent.Name,
 				Id:        subAgent.ID[:],
-				AuthToken: subAgent.AuthToken[:],
+				AuthToken: authToken,
 			},
 		}, nil
 	}
@@ -151,6 +167,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		}
 	}
 
+	newAuthToken := uuid.New()
 	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                        uuid.New(),
 		ParentID:                  uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
@@ -158,7 +175,9 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		UpdatedAt:                 createdAt,
 		Name:                      agentName,
 		ResourceID:                parentAgent.ResourceID,
-		AuthToken:                 uuid.New(),
+		AuthToken:                 newAuthToken.String(),
+		AuthTokenHashed:           database.HashAuthToken(newAuthToken),
+		AuthTokenKeyID:            sql.NullString{}, // dbcrypt will set as required
 		AuthInstanceID:            sql.NullString{},
 		Architecture:              req.Architecture,
 		EnvironmentVariables:      pqtype.NullRawMessage{},
@@ -342,11 +361,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		}
 	}
 
+	authToken, err := subAgentTokenBytes(subAgent)
+	if err != nil {
+		return nil, err
+	}
 	return &agentproto.CreateSubAgentResponse{
 		Agent: &agentproto.SubAgent{
 			Name:      subAgent.Name,
 			Id:        subAgent.ID[:],
-			AuthToken: subAgent.AuthToken[:],
+			AuthToken: authToken,
 		},
 		AppCreationErrors: appCreationErrors,
 	}, nil
@@ -385,10 +408,14 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 	agents := make([]*agentproto.SubAgent, len(workspaceAgents))
 
 	for i, agent := range workspaceAgents {
+		authToken, err := subAgentTokenBytes(agent)
+		if err != nil {
+			return nil, err
+		}
 		agents[i] = &agentproto.SubAgent{
 			Name:      agent.Name,
 			Id:        agent.ID[:],
-			AuthToken: agent.AuthToken[:],
+			AuthToken: authToken,
 		}
 	}
 

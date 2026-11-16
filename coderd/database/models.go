@@ -6869,15 +6869,16 @@ type Workspace struct {
 }
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID             `db:"id" json:"id"`
-	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
-	Name                 string                `db:"name" json:"name"`
-	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
-	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
-	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
-	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	ID               uuid.UUID    `db:"id" json:"id"`
+	CreatedAt        time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
+	Name             string       `db:"name" json:"name"`
+	FirstConnectedAt sql.NullTime `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt  sql.NullTime `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt   sql.NullTime `db:"disconnected_at" json:"disconnected_at"`
+	ResourceID       uuid.UUID    `db:"resource_id" json:"resource_id"`
+	// Session token the agent presents to authenticate. Stored as the canonical uuid string, or as ciphertext when auth_token_key_id is set (SEC-1491).
+	AuthToken            string                `db:"auth_token" json:"auth_token"`
 	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
 	Architecture         string                `db:"architecture" json:"architecture"`
 	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
@@ -6918,6 +6919,10 @@ type WorkspaceAgent struct {
 	Deleted bool `db:"deleted" json:"deleted"`
 	// The ID of the key used to encrypt the environment variable values. If this is NULL, the values are not encrypted. Variable names stay in plaintext; values are encrypted individually because templates inject credentials through coder_env (SEC-1491).
 	EnvironmentVariablesKeyID sql.NullString `db:"environment_variables_key_id" json:"environment_variables_key_id"`
+	// The ID of the key used to encrypt auth_token. If this is NULL, auth_token is not encrypted.
+	AuthTokenKeyID sql.NullString `db:"auth_token_key_id" json:"auth_token_key_id"`
+	// SHA-256 of the canonical uuid string form of auth_token. Used for authentication lookups so the token itself can be encrypted at rest (SEC-1491).
+	AuthTokenHashed []byte `db:"auth_token_hashed" json:"auth_token_hashed"`
 }
 
 // Per-resource state for the latest pushed workspace agent context snapshot.

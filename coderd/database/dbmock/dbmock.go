@@ -2620,18 +2620,18 @@ func (mr *MockStoreMockRecorder) GetAuditLogsOffset(ctx, arg any) *gomock.Call {
 }
 
 // GetAuthenticatedWorkspaceAgentAndBuildByAuthToken mocks base method.
-func (m *MockStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+func (m *MockStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authTokenHashed []byte) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", ctx, authToken)
+	ret := m.ctrl.Call(m, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", ctx, authTokenHashed)
 	ret0, _ := ret[0].(database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAuthenticatedWorkspaceAgentAndBuildByAuthToken indicates an expected call of GetAuthenticatedWorkspaceAgentAndBuildByAuthToken.
-func (mr *MockStoreMockRecorder) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authTokenHashed any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetAuthenticatedWorkspaceAgentAndBuildByAuthToken), ctx, authToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetAuthenticatedWorkspaceAgentAndBuildByAuthToken), ctx, authTokenHashed)
 }
 
 // GetAuthorizationUserRoles mocks base method.
@@ -7357,6 +7357,21 @@ func (m *MockStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids 
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptsByAgentIDs(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptsByAgentIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptsByAgentIDs), ctx, ids)
+}
+
+// GetWorkspaceAgentSecretsByID mocks base method.
+func (m *MockStore) GetWorkspaceAgentSecretsByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentSecretsByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentSecretsByID", ctx, id)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentSecretsByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentSecretsByID indicates an expected call of GetWorkspaceAgentSecretsByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentSecretsByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentSecretsByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentSecretsByID), ctx, id)
 }
 
 // GetWorkspaceAgentStats mocks base method.
@@ -12339,6 +12354,20 @@ func (m *MockStore) UpdateWorkspaceACLByID(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateWorkspaceACLByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceACLByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceACLByID), ctx, arg)
+}
+
+// UpdateWorkspaceAgentAuthTokenByID mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentAuthTokenByID(ctx context.Context, arg database.UpdateWorkspaceAgentAuthTokenByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentAuthTokenByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentAuthTokenByID indicates an expected call of UpdateWorkspaceAgentAuthTokenByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentAuthTokenByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentAuthTokenByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentAuthTokenByID), ctx, arg)
 }
 
 // UpdateWorkspaceAgentConnectionByID mocks base method.

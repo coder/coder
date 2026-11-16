@@ -9302,7 +9302,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			UpdatedAt:       time.Now(),
 			Name:            "duplicate-agent", // Same name as agent1
 			ResourceID:      resource.ID,
-			AuthToken:       uuid.New(),
+			AuthToken:       uuid.NewString(),
 			Architecture:    "amd64",
 			OperatingSystem: "linux",
 			APIKeyScope:     database.AgentKeyScopeEnumAll,
@@ -9333,7 +9333,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			UpdatedAt:       time.Now(),
 			Name:            agent.Name,
 			ResourceID:      resource.ID,
-			AuthToken:       uuid.New(),
+			AuthToken:       uuid.NewString(),
 			Architecture:    "amd64",
 			OperatingSystem: "linux",
 			APIKeyScope:     database.AgentKeyScopeEnumAll,
@@ -9378,7 +9378,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			UpdatedAt:       time.Now(),
 			Name:            agent1Child.Name,
 			ResourceID:      resource2.ID,
-			AuthToken:       uuid.New(),
+			AuthToken:       uuid.NewString(),
 			Architecture:    "amd64",
 			OperatingSystem: "linux",
 			APIKeyScope:     database.AgentKeyScopeEnumAll,
@@ -9436,7 +9436,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			UpdatedAt:       time.Now(),
 			Name:            "orphan-agent",
 			ResourceID:      orphanResource.ID,
-			AuthToken:       uuid.New(),
+			AuthToken:       uuid.NewString(),
 			Architecture:    "amd64",
 			OperatingSystem: "linux",
 			APIKeyScope:     database.AgentKeyScopeEnumAll,
@@ -9460,7 +9460,7 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 			UpdatedAt:       time.Now(),
 			Name:            "orphan-agent", // Same name as agent1
 			ResourceID:      orphanResource2.ID,
-			AuthToken:       uuid.New(),
+			AuthToken:       uuid.NewString(),
 			Architecture:    "amd64",
 			OperatingSystem: "linux",
 			APIKeyScope:     database.AgentKeyScopeEnumAll,
@@ -12572,7 +12572,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 			})
 
 			// Agent should still authenticate during stop build execution.
-			row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+			row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent.AuthToken)))
 			require.NoError(t, err, "agent should authenticate during %s build execution", transition)
 			require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 			require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not %s build", transition)
@@ -12631,7 +12631,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate after stop job completes.
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent.AuthToken)))
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate after stop job completes")
 	})
 
@@ -12685,7 +12685,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate (start build failed).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent.AuthToken)))
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from failed start build should not authenticate")
 	})
 
@@ -12740,7 +12740,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should authenticate during pending stop build.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent.AuthToken)))
 		require.NoError(t, err, "agent should authenticate during pending stop build")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build")
@@ -12837,13 +12837,13 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 3 should authenticate.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent2.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent2.AuthToken)))
 		require.NoError(t, err, "agent from most recent start should authenticate during stop")
 		require.Equal(t, agent2.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild2.ID, row.WorkspaceBuild.ID)
 
 		// Agent from build 1 should NOT authenticate.
-		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent1.AuthToken)
+		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent1.AuthToken)))
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from old cycle should not authenticate")
 	})
 
@@ -12897,7 +12897,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 1 should NOT authenticate (latest is not STOP).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent1.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, database.HashAuthToken(uuid.MustParse(agent1.AuthToken)))
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate when latest build is not STOP")
 	})
 }

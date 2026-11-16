@@ -865,6 +865,68 @@ func TestRotateWorkspaceAgentEnvironmentVariables(t *testing.T) {
 	}
 }
 
+// TestRotateWorkspaceAgentAuthTokens covers workspace_agents.auth_token
+// (SEC-1491). Agents authenticate by the deterministic hash column, which is
+// derived from the plaintext token and must survive rotation unchanged.
+func TestRotateWorkspaceAgentAuthTokens(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	resp := seedWorkspaceBuild(t, f.rawDB)
+	resource := dbgen.WorkspaceResource(t, f.rawDB, database.WorkspaceResource{JobID: resp.Build.JobID})
+
+	tokens := map[string]uuid.UUID{"plain": uuid.New(), "enc": uuid.New()}
+	seedAgent := func(store database.Store, name string) uuid.UUID {
+		return dbgen.WorkspaceAgent(t, store, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			Name:       name,
+			AuthToken:  tokens[name].String(),
+		}).ID
+	}
+	agentIDs := map[string]uuid.UUID{
+		"plain": seedAgent(f.rawDB, "plain"),  // plaintext, pre-encryption
+		"enc":   seedAgent(f.cryptDBA, "enc"), // encrypted under cipher A
+	}
+
+	f.rotate(t)
+
+	for name, agentID := range agentIDs {
+		agent, err := f.rawDB.GetWorkspaceAgentByID(f.ctx, agentID)
+		require.NoError(t, err, "agent %s", name)
+		require.Equal(t, f.cipherB.HexDigest(), agent.AuthTokenKeyID.String, "agent %s", name)
+		require.Equal(t, tokens[name].String(), decryptRawString(t, f.cipherB, agent.AuthToken), "agent %s", name)
+		require.Equal(t, database.HashAuthToken(tokens[name]), agent.AuthTokenHashed, "agent %s: the lookup hash must survive rotation unchanged", name)
+	}
+
+	// Wrapped reads return the plaintext token (retrieval paths).
+	cryptDBB, err := dbcrypt.New(f.ctx, f.rawDB, f.cipherB)
+	require.NoError(t, err)
+	for name, agentID := range agentIDs {
+		agent, err := cryptDBB.GetWorkspaceAgentByID(f.ctx, agentID)
+		require.NoError(t, err, "agent %s", name)
+		require.Equal(t, tokens[name].String(), agent.AuthToken, "agent %s", name)
+	}
+
+	// Agents still authenticate: the lookup runs on the hash column and
+	// never needs the ciphertext.
+	for name, agentID := range agentIDs {
+		row, err := cryptDBB.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(f.ctx, database.HashAuthToken(tokens[name]))
+		require.NoError(t, err, "agent %s must authenticate after rotation", name)
+		require.Equal(t, agentID, row.WorkspaceAgent.ID, "agent %s", name)
+		require.Equal(t, tokens[name].String(), row.WorkspaceAgent.AuthToken, "agent %s", name)
+	}
+
+	// Decrypt returns the tokens to plaintext and clears the key IDs.
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	for name, agentID := range agentIDs {
+		agent, err := f.rawDB.GetWorkspaceAgentByID(f.ctx, agentID)
+		require.NoError(t, err, "agent %s", name)
+		require.False(t, agent.AuthTokenKeyID.Valid, "agent %s must be plaintext after decrypt", name)
+		require.Equal(t, tokens[name].String(), agent.AuthToken, "agent %s", name)
+		require.Equal(t, database.HashAuthToken(tokens[name]), agent.AuthTokenHashed, "agent %s", name)
+	}
+}
+
 // TestRotateSiteConfigSecrets covers the DERP mesh key and the webpush VAPID
 // private key in the site_configs key/value table, whose dbcrypt key digests
 // live in adjacent *_key_id rows (SEC-1491).

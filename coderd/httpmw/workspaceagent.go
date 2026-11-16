@@ -91,8 +91,10 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
+			// Agents are authenticated by the deterministic hash of the token
+			// so the token itself can be encrypted at rest (SEC-1491).
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			row, err := opts.DB.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
+			row, err := opts.DB.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), database.HashAuthToken(token))
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
