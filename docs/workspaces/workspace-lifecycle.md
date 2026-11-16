@@ -22,7 +22,8 @@ Generally, there are 3 states that a workspace can fall into:
 
 - Running: Started and ready for connections
 - Stopped: Ephemeral resources destroyed, persistent resources idle
-- Deleted: All resources destroyed, workspace records removed from database
+- Deleted: All resources destroyed, and the workspace is marked as deleted with its record and build history kept.
+  Agent logs are subject to the [workspace agent logs retention](../admin/setup/data-retention.md#workspace-agent-logs-behavior) setting.
 
 If some error occurs during the above, a workspace might fall into one of the following broken states:
 

@@ -16,7 +16,7 @@ module "coder-base" {
   # Modules take in variables and can provision infrastructure
   vpc_name            = "devex-3"
   subnet_tags         = { "name": data.coder_workspace.me.name }
-  code_server_version = 4.14.1
+  code_server_version = "4.14.1"
 }
 
 resource "coder_agent" "dev" {
@@ -131,7 +131,7 @@ Air-gapped users can clone the [coder/registry](https://github.com/coder/registr
 
    ```tf
    module "module-name" {
-     source = "https://example.jfrog.io/tf__coder/module-name/coder"
+     source = "example.jfrog.io/tf__coder/module-name/coder"
      version = "1.0.0"
      agent_id = coder_agent.example.id
      ...
