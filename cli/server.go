@@ -2508,9 +2508,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// in CI and cause flaky tests.
 	maxAttempts := 1
 	_, err = cfg.PostgresPort().Read()
-	// Important: if retryPortDiscovery is changed to not include flag.Lookup("test.v") != nil,
-	// the retry logic below also needs to be updated to ensure we don't delete an
-	// existing database
+	// Test invocations retry a discovered port if another process claims it
+	// before PostgreSQL starts. Only data absent at entry can take this path.
 	retryPortDiscovery := freshData && errors.Is(err, os.ErrNotExist) && flag.Lookup("test.v") != nil
 	if retryPortDiscovery {
 		maxAttempts = 10
@@ -2519,10 +2518,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	var startErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if retryPortDiscovery && attempt > 0 {
-			// Clean up the data and runtime directories and the port file from the
-			// previous failed attempt to ensure a clean slate for the next attempt.
-			_ = os.RemoveAll(filepath.Join(cfg.PostgresPath(), "data"))
-			_ = os.RemoveAll(filepath.Join(cfg.PostgresPath(), "runtime"))
+			// Only retry with a new port. The data directory may contain a
+			// partially initialized database and must never be removed here.
 			_ = cfg.PostgresPort().Delete()
 		}
 

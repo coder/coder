@@ -21,12 +21,13 @@ func TestBuiltinPostgresConfig(t *testing.T) {
 		wantBin     string
 		wantFresh   bool
 		wantErr     string
+		wantAdvice  string
 	}{
-		{name: "new", wantVersion: "18.6.0", wantBin: "bin-18.6.0", wantFresh: true},
+		{name: "new", wantVersion: embeddedpostgres.V18, wantBin: "bin-" + string(embeddedpostgres.V18), wantFresh: true},
 		{name: "existing 13", dataVersion: "13\n", wantVersion: embeddedpostgres.V13, wantBin: "bin"},
-		{name: "existing 18", dataVersion: "18\n", wantVersion: "18.6.0", wantBin: "bin-18.6.0"},
+		{name: "existing 18", dataVersion: "18\n", wantVersion: embeddedpostgres.V18, wantBin: "bin-" + string(embeddedpostgres.V18)},
 		{name: "unsupported", dataVersion: "16\n", wantErr: "unsupported built-in PostgreSQL version"},
-		{name: "missing version", dataVersion: "", wantErr: "read built-in PostgreSQL version"},
+		{name: "missing version", dataVersion: "", wantErr: "read built-in PostgreSQL version", wantAdvice: "Restore the data directory from a backup"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -45,6 +46,11 @@ func TestBuiltinPostgresConfig(t *testing.T) {
 			version, binDir, fresh, err := config.BuiltinPostgresConfig(pgDir)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
+				if tc.wantAdvice != "" {
+					require.ErrorContains(t, err, tc.wantAdvice)
+					require.ErrorContains(t, err, "move it aside and restart Coder")
+					require.ErrorContains(t, err, "Do not create PG_VERSION manually")
+				}
 				contents, err := os.ReadFile(filepath.Join(dataDir, "keep"))
 				require.NoError(t, err)
 				require.Equal(t, "user data", string(contents))

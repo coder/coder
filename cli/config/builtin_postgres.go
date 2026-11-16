@@ -10,8 +10,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const builtinPostgresVersion = embeddedpostgres.PostgresVersion("18.6.0")
-
 // BuiltinPostgresConfig selects the binaries matching the existing data directory.
 // A missing data directory is safe to initialize; an existing directory without a
 // supported PG_VERSION must not be passed to embedded-postgres, which would remove it.
@@ -19,7 +17,7 @@ func BuiltinPostgresConfig(postgresPath string) (embeddedpostgres.PostgresVersio
 	dataPath := filepath.Join(postgresPath, "data")
 	_, err := os.Stat(dataPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return builtinPostgresVersion, filepath.Join(postgresPath, "bin-"+string(builtinPostgresVersion)), true, nil
+		return embeddedpostgres.V18, filepath.Join(postgresPath, "bin-"+string(embeddedpostgres.V18)), true, nil
 	}
 	if err != nil {
 		return "", "", false, xerrors.Errorf("inspect built-in PostgreSQL data directory: %w", err)
@@ -27,13 +25,17 @@ func BuiltinPostgresConfig(postgresPath string) (embeddedpostgres.PostgresVersio
 
 	version, err := os.ReadFile(filepath.Join(dataPath, "PG_VERSION"))
 	if err != nil {
-		return "", "", false, xerrors.Errorf("read built-in PostgreSQL version in %s: %w; data was not changed", dataPath, err)
+		advice := "Check that Coder can read PG_VERSION and the data directory before retrying."
+		if errors.Is(err, os.ErrNotExist) {
+			advice = "Restore the data directory from a backup, or if this is a new deployment, move it aside and restart Coder. Do not create PG_VERSION manually."
+		}
+		return "", "", false, xerrors.Errorf("read built-in PostgreSQL version in %s: %w; data was not changed. %s", dataPath, err, advice)
 	}
 	switch strings.TrimSpace(string(version)) {
 	case "13":
 		return embeddedpostgres.V13, filepath.Join(postgresPath, "bin"), false, nil
 	case "18":
-		return builtinPostgresVersion, filepath.Join(postgresPath, "bin-"+string(builtinPostgresVersion)), false, nil
+		return embeddedpostgres.V18, filepath.Join(postgresPath, "bin-"+string(embeddedpostgres.V18)), false, nil
 	default:
 		return "", "", false, xerrors.Errorf("unsupported built-in PostgreSQL version %q in %s; data was not changed", strings.TrimSpace(string(version)), dataPath)
 	}
