@@ -32,6 +32,8 @@ import {
 } from "#/testHelpers/storybook";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
+import { useChatContext } from "../hooks/useChatContext";
+import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
@@ -58,6 +60,13 @@ const StoryChatPageTimeline: React.FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(MockChat);
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
+	},
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		user: MockUserOwner,
@@ -114,7 +123,11 @@ const StoryChatPageInput: React.FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			modelCatalog={undefined}
+			contextUsage={getLatestContextUsage(
+				[...store.getSnapshot().messagesByID.values()],
+				contextLimit,
+			)}
+			onOpenDetails={fn()}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
@@ -590,12 +603,18 @@ const CompactionChatPageInput: React.FC = () => {
 		},
 	]);
 
+	const contextState = useChatContext({
+		chat: MockChat,
+		messages: [...store.getSnapshot().messagesByID.values()],
+		modelCatalog: mockCompactionModelCatalog,
+	});
 	return (
 		<div className="mx-auto w-full max-w-3xl p-4">
 			<ChatPageInput
 				chat={MockChat}
 				store={store}
-				modelCatalog={mockCompactionModelCatalog}
+				contextUsage={contextState.contextUsage}
+				onOpenDetails={fn()}
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}
 				onPromoteQueuedMessage={fn()}

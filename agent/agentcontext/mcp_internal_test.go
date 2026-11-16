@@ -51,14 +51,23 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, "search", got[1].Tools[1].Name)
 	})
 
-	t.Run("ConnectedWithoutToolsSkipped", func(t *testing.T) {
+	t.Run("ConnectedWithoutToolsIsOK", func(t *testing.T) {
 		t.Parallel()
-		// A connected server that has not yet reported any tools is
-		// not surfaced; a later re-resolve picks it up once tools
-		// arrive.
-		require.Nil(t, buildMCPServerResources([]MCPServerStatus{
+		got := buildMCPServerResources([]MCPServerStatus{
 			{Name: "fs", Connected: true},
-		}))
+		})
+		require.Len(t, got, 1)
+		require.Equal(t, KindMCPServer, got[0].Kind)
+		require.Equal(t, "fs", got[0].Source)
+		require.Equal(t, "fs", got[0].Name)
+		require.Equal(t, "mcp_server:fs", got[0].ID)
+		require.Equal(t, StatusOK, got[0].Status)
+		require.Empty(t, got[0].Error)
+		require.Empty(t, got[0].Tools)
+		require.NotEqual(t, [32]byte{}, got[0].ContentHash)
+		require.Equal(t, got[0].ContentHash, buildMCPServerResources([]MCPServerStatus{
+			{Name: "fs", Connected: true, Tools: []MCPTool{}},
+		})[0].ContentHash)
 	})
 
 	t.Run("FailedServerSurfacesAsIssue", func(t *testing.T) {

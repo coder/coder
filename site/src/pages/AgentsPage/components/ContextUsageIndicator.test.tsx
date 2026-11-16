@@ -40,4 +40,27 @@ describe("ContextUsageIndicator", () => {
 		await user.click(screen.getByRole("button", { name: "Refresh context" }));
 		expect(onRefreshContext).toHaveBeenCalledTimes(1);
 	});
+
+	it("closes the popover and passes the trigger when opening Details from the keyboard", async () => {
+		const user = userEvent.setup();
+		const onOpenDetails = vi.fn();
+		render(
+			<ContextUsageIndicator
+				usage={{ usedTokens: 12_000, contextLimitTokens: 200_000 }}
+				onOpenDetails={onOpenDetails}
+			/>,
+		);
+		const trigger = screen.getByRole("button", { name: /Context usage/ });
+		await user.tab();
+		expect(trigger).toHaveFocus();
+		await user.keyboard("{Enter}");
+		const details = await screen.findByRole("button", { name: "Details" });
+		details.focus();
+		await user.keyboard("{Enter}");
+		expect(onOpenDetails).toHaveBeenCalledExactlyOnceWith(trigger);
+		expect(
+			screen.queryByRole("button", { name: "Details" }),
+		).not.toBeInTheDocument();
+		expect(trigger).not.toHaveFocus();
+	});
 });

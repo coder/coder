@@ -31,14 +31,12 @@ type MCPServerStatus struct {
 // order, and tools within a server in name order, so the resource ID
 // list and content hashes are deterministic across resolves.
 //
-// A connected server that exposes at least one tool becomes a
-// StatusOK resource carrying its tools. A server that failed to
+// A connected server becomes a StatusOK resource carrying its tools,
+// including when its tool list is empty. A server that failed to
 // connect becomes a StatusUnreadable resource carrying the connection
 // error, so it appears in the snapshot's issues instead of vanishing.
-// A connected server with no tools yet is skipped until its tools
-// arrive (a later re-resolve, driven by the runner's reload, surfaces
-// it). A server's .mcp.json entry still appears separately as a
-// KindMCPConfig resource from the filesystem pass.
+// A server's .mcp.json entry still appears separately as a KindMCPConfig
+// resource from the filesystem pass.
 //
 // Tool names are emitted exactly as the server reported them; flattening
 // them into a single namespace (e.g. "server__tool") is the control
@@ -71,9 +69,6 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 				Error:       errMsg,
 				ContentHash: hashMCPServerError(s.Name, errMsg),
 			})
-			continue
-		}
-		if len(s.Tools) == 0 {
 			continue
 		}
 		serverTools := slices.Clone(s.Tools)
