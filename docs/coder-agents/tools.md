@@ -44,8 +44,8 @@ The agent uses three tools to provision a workspace:
 | `create_workspace` | Create the workspace from a chosen template               |
 
 Administrators can restrict which templates these tools can use with the switches on the [Templates page](./platform-controls/template-optimization.md#restrict-available-templates).
-In a chat that belongs to a [project](./projects.md#templates), the tools list the project's attached templates first, recommend the project's default template, and apply its default values.
-When the project [limits its chats to its templates](./projects.md#limit-chats-to-the-projects-templates), the tools can use only the attached templates that the chat's owner can use.
+In a chat that belongs to a [project](./projects.md#templates), `list_templates` lists the project's attached templates first, and the tools recommend the project's default template and apply its default values.
+When the project [limits its chats to its templates](./projects.md#limit-chats-to-the-projects-templates), the tools can use only the attached templates that the chat's owner can access.
 
 ### list_templates
 

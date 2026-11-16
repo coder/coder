@@ -30,7 +30,7 @@ Any organization member who can use Coder Agents can create projects in that org
 Each user can own up to 100 projects across all organizations.
 
 A project is private to its owner.
-Coder records project, instruction, skill, and memory changes in the [audit log](../admin/security/audit-logs.md).
+Coder records changes to projects, including their attached templates, and to instructions, skills, and memory in the [audit log](../admin/security/audit-logs.md).
 
 ## Create a project
 
@@ -40,6 +40,7 @@ Coder records project, instruction, skill, and memory changes in the [audit log]
 1. Under **Templates**, select the templates to attach to the project.
 
    You can skip this step and attach templates later.
+   If you change the **Organization** afterward, the dialog clears the selected templates.
    To limit the project's chats to these templates, turn on **Limit chats to these templates**.
    To also set a default template, refer to [Default template](#default-template).
 
@@ -129,9 +130,9 @@ To list, read, create, or delete them directly, use `/api/experimental/organizat
 You can attach templates from the project's organization to a project.
 In a project chat, `list_templates` lists the attached templates before other templates that match the agent's search equally well.
 Attaching a template never gives anyone access to it.
-The agent can use an attached template only when the chat's owner can use it.
+The agent can use an attached template only when the chat's owner can access it.
 
-Unless the project limits its chats to its templates, the agent can also use every other template that the chat's owner can use.
+Unless the project limits its chats to its templates, the agent can also use every other template that the chat's owner can access.
 
 ### Limit chats to the project's templates
 
@@ -140,13 +141,14 @@ To turn it on, use **Limit chats to these templates** when you create the projec
 The **Templates** row of the project's **Details** panel then reads **Limited to** before the template count, such as **Limited to 2 templates**.
 While the limit is on:
 
-- `list_templates` returns only the attached templates that the chat's owner can use.
+- `list_templates` returns only the attached templates that the chat's owner can access.
   `create_workspace` and `read_template` reject every other template.
 - To give a project chat an existing workspace, the workspace must use one of those templates.
   This applies when you pick a workspace as you start the chat, where the composer lists only those workspaces, and when you set `workspace_id` through the API.
   The API rejects other workspaces with `This template is not one of the templates the chat's project allows.`
-- When the project has no attached template that the chat's owner can use, the agent can't create a workspace, and you can't give the chat an existing workspace.
+- When the project has no attached template that the chat's owner can access, the agent can't create a workspace, and you can't give the chat an existing workspace.
   If the agent in a project chat says that no templates are available, attach templates to the project or turn off the limit.
+  If you can't edit the project, ask its owner or a project admin.
 
 A chat that already has a workspace keeps it, as [Template changes and existing workspaces](#template-changes-and-existing-workspaces) describes.
 
@@ -154,7 +156,8 @@ A chat that already has a workspace keeps it, as [Template changes and existing 
 
 To change a project's templates, select the template count, such as **2 templates**, in the **Templates** row of the project's **Details** panel.
 This opens the **Edit templates** dialog.
-You need the `chat_project:update` permission on the project, which the project owner has.
+You need the `chat_project:update` permission on the project.
+The project owner has it, and so does anyone the project is shared with in the **Admin** role.
 To attach a template, you also need permission to use it.
 To detach a template, you need permission to read it.
 
@@ -189,13 +192,14 @@ The API equivalents are:
 | Change the limit or the default template | `PATCH /api/experimental/organizations/{organization}/chats/projects/{project}` with `limit_templates` or `default_template`        |
 
 Attaching a template that is already attached succeeds.
+Attaching returns a `400` error when the template isn't available to agents in the project's organization or you can't access it, and a `403` error when you can read the template but not use it.
 Detaching returns a `404` error when the template isn't attached or you can't read it.
 A `PATCH` doesn't change which templates are attached.
 
 ### Templates you can't access
 
 A project can have attached templates that you can't access, for example templates that someone else attached.
-The **Details** panel and the **Edit templates** dialog show only how many there are, such as **2 hidden**.
+The **Details** panel shows only how many there are, such as **2 hidden**, and the **Edit templates** dialog shows a note with the same number.
 The API returns only their number, in `hidden_template_count`.
 A template admin or organization admin can give you access to a template.
 
