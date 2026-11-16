@@ -349,10 +349,16 @@ You can upload the template through the CLI, or through the Coder dashboard:
 
 1. Run `coder templates push` from the directory with your template files:
 
+   > [!NOTE]
+   > `--org` sets the organization the template belongs to. It's required if
+   > you belong to more than one organization. `coder` is the name of the
+   > [default organization](../admin/users/organizations.md#the-default-organization).
+   > Run `coder orgs list` to see the organizations you can use.
+
    ```console
    $ pwd
    /home/docs/template-tour
-   $ coder templates push
+   $ coder templates push --org="coder"
    > Upload "."? (yes/no) yes
    ```
 
@@ -367,10 +373,6 @@ You can upload the template through the CLI, or through the Coder dashboard:
 
    Updated version at Nov 10 15:25:29!
    ```
-
-   The `--org` value is the organization the template belongs to. `coder` is
-   the name of the
-   [default organization](../admin/users/organizations.md#the-default-organization).
 
 1. In your web browser, log in to your Coder dashboard, select **Templates**.
 
