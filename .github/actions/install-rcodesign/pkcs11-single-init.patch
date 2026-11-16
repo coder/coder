@@ -1,0 +1,307 @@
+Fix PKCS#11 module double-initialization in apple-codesign.
+
+A PKCS#11 module can only be initialized once per process. rcodesign on
+upstream main initializes the module both while resolving the certificate
+source and again for each signing operation; the second C_Initialize fails
+with CKR_CRYPTOKI_ALREADY_INITIALIZED, which breaks signing with the Google
+Cloud KMS PKCS#11 library (and any other PKCS#11 module).
+
+This is the apple-codesign/src portion of the upstream fix:
+https://github.com/indygreg/apple-platform-rs/pull/350
+(head commit 399e5a8e57ba6c35d1c221be7424f6ba3cfddd6b)
+
+Drop this patch once the pull request lands and the pinned revision in
+action.yml is bumped past it.
+
+diff --git a/apple-codesign/src/cli/certificate_source.rs b/apple-codesign/src/cli/certificate_source.rs
+index b7d30c00a..df6babaec 100644
+--- a/apple-codesign/src/cli/certificate_source.rs
++++ b/apple-codesign/src/cli/certificate_source.rs
+@@ -29,10 +29,7 @@ use {
+ };
+ 
+ #[cfg(feature = "pkcs11")]
+-use {
+-    crate::pkcs11::Pkcs11PrivateKey,
+-    cryptoki::context::{CInitializeArgs, CInitializeFlags, Pkcs11},
+-};
++use crate::pkcs11::{initialized_module, Pkcs11PrivateKey};
+ 
+ #[cfg(target_os = "macos")]
+ use crate::macos::{keychain_find_code_signing_certificates, KeychainDomain};
+@@ -768,10 +765,9 @@ impl KeySource for Pkcs11SigningKey {
+             None => return Ok(Default::default()),
+         };
+ 
+-        info!("initializing PKCS11 library: {}", library_path.display());
+-
+-        let pkcs11 = Pkcs11::new(library_path.clone())?;
+-        pkcs11.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK))?;
++        // Shared with the signing operations that follow: the module can only be
++        // initialized once per process.
++        let pkcs11 = initialized_module(&library_path)?;
+ 
+         let slots = pkcs11.get_slots_with_token()?;
+         if slots.is_empty() {
+diff --git a/apple-codesign/src/pkcs11.rs b/apple-codesign/src/pkcs11.rs
+index bd0219f1a..c931975b3 100644
+--- a/apple-codesign/src/pkcs11.rs
++++ b/apple-codesign/src/pkcs11.rs
+@@ -8,6 +8,7 @@ use {
+     bytes::Bytes,
+     cryptoki::{
+         context::{CInitializeArgs, CInitializeFlags, Pkcs11},
++        error::RvError,
+         mechanism::{Mechanism, MechanismType},
+         object::{Attribute, AttributeType, ObjectClass, ObjectHandle},
+         session::UserType,
+@@ -15,7 +16,11 @@ use {
+     },
+     log::{info, warn},
+     signature::Signer,
+-    std::{collections::HashMap, path::PathBuf},
++    std::{
++        collections::HashMap,
++        path::{Path, PathBuf},
++        sync::{LazyLock, Mutex, MutexGuard},
++    },
+     x509_certificate::{
+         rfc3447::DigestInfo, CapturedX509Certificate, DigestAlgorithm, KeyAlgorithm, KeyInfoSigner,
+         Sign, Signature, SignatureAlgorithm, X509CertificateError,
+@@ -23,6 +28,114 @@ use {
+     zeroize::Zeroizing,
+ };
+ 
++/// A PKCS#11 module context plus how it came to be initialized.
++struct ModuleContext {
++    context: Pkcs11,
++
++    /// Whether the `C_Initialize` backing this context was issued by us.
++    ///
++    /// False when the module reported it was already initialized, in which case something
++    /// else owns that initialization and we must not finalize it out from under it.
++    initialized_here: bool,
++}
++
++/// Process-wide registry of initialized PKCS#11 module contexts, keyed by library path.
++///
++/// A PKCS#11 module is initialized once per process: `C_Initialize` on a module that is
++/// already initialized fails with `CKR_CRYPTOKI_ALREADY_INITIALIZED`. Certificate resolution
++/// and every signing operation each need a context, so contexts are created once and shared
++/// rather than created on demand. Dropping a [Pkcs11] does not finalize the module (cryptoki
++/// has no finalize-on-drop), so creating them on demand leaves the module initialized and
++/// makes every subsequent initialization fail.
++static MODULE_CONTEXTS: LazyLock<Mutex<HashMap<PathBuf, ModuleContext>>> =
++    LazyLock::new(|| Mutex::new(HashMap::new()));
++
++/// Key a module by its resolved path so different spellings of the same library share a context.
++fn module_key(library_path: &Path) -> PathBuf {
++    std::fs::canonicalize(library_path).unwrap_or_else(|_| library_path.to_path_buf())
++}
++
++fn module_contexts() -> MutexGuard<'static, HashMap<PathBuf, ModuleContext>> {
++    // The registry has no invariant that a panic could break, so a poisoned lock is usable.
++    MODULE_CONTEXTS.lock().unwrap_or_else(|e| e.into_inner())
++}
++
++/// Obtain an initialized context for a PKCS#11 module, initializing it on first use.
++///
++/// Repeated calls for the same library return the same context.
++pub(crate) fn initialized_module(library_path: &Path) -> Result<Pkcs11, AppleCodesignError> {
++    let key = module_key(library_path);
++    let mut contexts = module_contexts();
++
++    if let Some(existing) = contexts.get(&key) {
++        return Ok(existing.context.clone());
++    }
++
++    let context = Pkcs11::new(library_path)?;
++
++    let initialized_here =
++        match context.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK)) {
++            Ok(()) => {
++                info!("initialized PKCS11 library: {}", library_path.display());
++                true
++            }
++            // Something else in this process already initialized the module. That
++            // initialization is usable as-is, so adopt it instead of failing.
++            Err(cryptoki::error::Error::Pkcs11(RvError::CryptokiAlreadyInitialized, _)) => {
++                warn!(
++                    "PKCS11 library {} is already initialized; reusing that initialization",
++                    library_path.display()
++                );
++                false
++            }
++            Err(e) => return Err(e.into()),
++        };
++
++    contexts.insert(
++        key,
++        ModuleContext {
++            context: context.clone(),
++            initialized_here,
++        },
++    );
++
++    Ok(context)
++}
++
++/// Finalize a PKCS#11 module and forget its context.
++///
++/// Does nothing when the module is unknown or when its initialization is owned by something
++/// else. A later [initialized_module] call for the same library initializes it again.
++///
++/// There is no use counting: the first caller to finalize a library finalizes it for every
++/// [Pkcs11PrivateKey] sharing it. The CLI resolves at most one private key, and the
++/// re-initialization above makes that recoverable, so this only matters to embedders
++/// driving several keys on one module.
++pub(crate) fn finalize_module(library_path: &Path) -> Result<(), AppleCodesignError> {
++    let key = module_key(library_path);
++    let mut contexts = module_contexts();
++
++    let Some(entry) = contexts.remove(&key) else {
++        return Ok(());
++    };
++
++    if !entry.initialized_here {
++        return Ok(());
++    }
++
++    // finalize() consumes the context; clone so `entry` survives a failure.
++    if let Err(e) = entry.context.clone().finalize() {
++        // The module is most likely still initialized and still ours, so keep the entry
++        // rather than orphaning a module nothing can finalize later.
++        contexts.insert(key, entry);
++        return Err(e.into());
++    }
++
++    info!("finalized PKCS11 library: {}", library_path.display());
++
++    Ok(())
++}
++
+ pub struct Pkcs11PrivateKey {
+     library_path: PathBuf,
+     slot_id: u64,
+@@ -112,8 +225,7 @@ impl Pkcs11PrivateKey {
+     where
+         F: FnOnce(&cryptoki::session::Session) -> Result<T, AppleCodesignError>,
+     {
+-        let pkcs11 = Pkcs11::new(&self.library_path)?;
+-        pkcs11.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK))?;
++        let pkcs11 = initialized_module(&self.library_path)?;
+ 
+         let slots = pkcs11.get_slots_with_token()?;
+         let slot = slots
+@@ -471,8 +583,13 @@ impl PrivateKey for Pkcs11PrivateKey {
+     }
+ 
+     fn finish(&self) -> Result<(), AppleCodesignError> {
+-        // Could implement cleanup logic here if needed
+-        // For now, PKCS11 sessions are cleaned up automatically
++        // Sessions close on drop. The module context outlives them and is finalized here so
++        // the process pairs its C_Initialize with a C_Finalize. A module that refuses to
++        // finalize is not a reason to fail a signing run that already wrote its output.
++        if let Err(e) = finalize_module(&self.library_path) {
++            warn!("failed to finalize PKCS11 library: {}", e);
++        }
++
+         Ok(())
+     }
+ }
+@@ -483,3 +600,95 @@ impl From<cryptoki::error::Error> for AppleCodesignError {
+         AppleCodesignError::Pkcs11Error(format!("PKCS11 error: {}", err))
+     }
+ }
++
++#[cfg(test)]
++mod test {
++    use super::*;
++
++    /// Path to a PKCS#11 module to exercise, if the environment provides one.
++    ///
++    /// Tests below need a real, spec compliant module. Point this at one to run them, e.g.
++    /// `APPLE_CODESIGN_TEST_PKCS11_LIBRARY=/usr/lib/softhsm/libsofthsm2.so`. The module
++    /// does not need an initialized token; only initialization and slot enumeration are
++    /// exercised.
++    ///
++    /// The name deliberately avoids the `RCODESIGN_` prefix, which the CLI consumes as
++    /// configuration and rejects for unknown keys.
++    fn test_library() -> Option<PathBuf> {
++        let path = PathBuf::from(std::env::var_os("APPLE_CODESIGN_TEST_PKCS11_LIBRARY")?);
++
++        if path.exists() {
++            Some(path)
++        } else {
++            panic!(
++                "APPLE_CODESIGN_TEST_PKCS11_LIBRARY does not exist: {}",
++                path.display()
++            );
++        }
++    }
++
++    /// Walks the full module lifecycle in one test because the registry is process global.
++    #[test]
++    fn module_context_is_shared_and_finalized() {
++        let Some(library) = test_library() else {
++            eprintln!("skipping: APPLE_CODESIGN_TEST_PKCS11_LIBRARY is not set");
++            return;
++        };
++
++        // Stand in for a module the loader keeps resident: it is already initialized by
++        // the time we ask for a context. Adopting that initialization is what keeps this
++        // from failing with CKR_CRYPTOKI_ALREADY_INITIALIZED.
++        let foreign = Pkcs11::new(&library).unwrap();
++        foreign
++            .initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK))
++            .unwrap();
++
++        let adopted = initialized_module(&library).expect("adopting an initialized module");
++        adopted
++            .get_slots_with_token()
++            .expect("adopted context works");
++
++        // Every later request reuses that context rather than initializing a second time.
++        let reused = initialized_module(&library).expect("reusing the adopted module");
++        reused.get_slots_with_token().expect("reused context works");
++
++        {
++            let contexts = module_contexts();
++            assert_eq!(contexts.len(), 1, "both requests share one registry entry");
++            assert!(
++                !contexts.values().next().unwrap().initialized_here,
++                "an adopted initialization is not ours to finalize"
++            );
++        }
++
++        // The initialization is not ours, so finalizing must leave it alone.
++        finalize_module(&library).expect("finalize skips a foreign initialization");
++        foreign
++            .get_slots_with_token()
++            .expect("foreign initialization survived");
++        foreign.finalize().unwrap();
++
++        // Nothing holds the module now, so the next context owns its initialization and
++        // finalizing it is what pairs our C_Initialize with a C_Finalize.
++        let owned = initialized_module(&library).expect("initializing a finalized module");
++        owned.get_slots_with_token().expect("owned context works");
++
++        {
++            let contexts = module_contexts();
++            assert!(
++                contexts.values().next().unwrap().initialized_here,
++                "we performed this initialization"
++            );
++        }
++
++        finalize_module(&library).expect("finalizing our own initialization");
++        assert!(module_contexts().is_empty(), "finalize forgets the context");
++
++        // Finalizing forgets the context, so the module can be initialized again.
++        initialized_module(&library).expect("initializing again after finalize");
++        finalize_module(&library).unwrap();
++
++        // Finalizing a module we know nothing about is a no-op.
++        finalize_module(&library).expect("finalize is idempotent");
++    }
++}
