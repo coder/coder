@@ -131,6 +131,11 @@ func (api *API) deleteChatProjectTemplate(rw http.ResponseWriter, r *http.Reques
 		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to detach template.")
 		return
 	}
+	// The list leaves out templates no chat can use, such as deprecated
+	// ones, and those can still be detached.
+	if !slices.Contains(before.TemplateIDs, templateID) {
+		before.TemplateIDs = append(before.TemplateIDs, templateID)
+	}
 	aReq.Old = before
 	aReq.New = before
 	aReq.New.TemplateIDs = slices.DeleteFunc(slices.Clone(before.TemplateIDs), func(id uuid.UUID) bool { return id == templateID })
