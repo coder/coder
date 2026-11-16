@@ -127,7 +127,7 @@ coder templates edit universal-template \
   --icon "/emojis/2b50.png"
 ```
 
-Some `templates edit` flags change settings that apply to existing workspaces, such as `--dormancy-threshold`, `--failure-ttl`, and `--require-active-version`.
+Some `templates edit` flags change settings that apply to existing workspaces, such as failure cleanup, dormancy threshold and auto-deletion, require active version, the autostop and autostart requirements, and user autostart and autostop.
 When an edit changes one of these settings, `templates edit` lists each change with its current and new value, then shows the prompt `Apply these changes?`.
 Other edits, such as the display name, description, and icon changes in the previous example, apply without a prompt.
 If the command fails with `was modified while waiting for confirmation`, the template changed after the command read it, and the command applied none of your changes.
@@ -203,7 +203,7 @@ Refer to the following resources:
 
 - [Tutorial: Create a template from scratch](./template-from-scratch.md)
 - [Extending templates](./extending-templates/index.md): Features and concepts around templates (agents, parameters, variables, and so on)
-- [Coder Registry](https://registry.coder.com/templates): Official and community templates for Coder
+- [Coder Registry](https://registry.coder.com/templates): Official and community templates
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)
 
 ### Next steps
