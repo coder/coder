@@ -12178,27 +12178,19 @@ WHERE
         WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
         ELSE true
     END
-    -- The sidebar lists the viewer's own chat in a project only when the
-    -- viewer pinned the project or the chat. Chats shared with the viewer
-    -- are always listed: the sidebar files them under a pinned project or
-    -- lists them on their own. Filtering here, not after the query, keeps
+    -- Leaves out the viewer's own unpinned chats in projects the viewer can
+    -- use, which clients list per project with project_id. Project pins do
+    -- not change the result. Filtering here, not after the query, keeps
     -- cursor pages full.
     AND CASE
         WHEN $8::boolean THEN (
             chats_expanded.project_id IS NULL
             OR chats_expanded.owner_id != $3::uuid
             OR chats_expanded.pin_order > 0
-            OR EXISTS (
-                SELECT 1
-                FROM chat_project_pins
-                WHERE chat_project_pins.user_id = $3::uuid
-                    AND chat_project_pins.project_id = chats_expanded.project_id
-                    AND chat_project_pins.unpinned_at IS NULL
-            )
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
-            -- the sidebar is the only place left to find the chat. Same
-            -- access predicate as GetChatProjectSummariesByUserID.
+            -- no project list reaches the chat. Same access predicate as
+            -- GetChatProjectSummariesByUserID.
             OR NOT EXISTS (
                 SELECT 1
                 FROM chat_projects cp
@@ -12426,28 +12418,28 @@ LIMIT
 `
 
 type GetChatsParams struct {
-	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
-	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
-	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
-	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
-	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
-	Archived            sql.NullBool          `db:"archived" json:"archived"`
-	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
-	PinnedProjectsOnly  sql.NullBool          `db:"pinned_projects_only" json:"pinned_projects_only"`
-	ACLEnabled          bool                  `db:"acl_enabled" json:"acl_enabled"`
-	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
-	TitleQuery          string                `db:"title_query" json:"title_query"`
-	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
-	ChatStatuses        []string              `db:"chat_statuses" json:"chat_statuses"`
-	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
-	PrNumber            int32                 `db:"pr_number" json:"pr_number"`
-	RepoQuery           string                `db:"repo_query" json:"repo_query"`
-	PrTitleQuery        string                `db:"pr_title_query" json:"pr_title_query"`
-	Search              string                `db:"search" json:"search"`
-	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnedOnly              bool                  `db:"owned_only" json:"owned_only"`
+	SharedOnly             bool                  `db:"shared_only" json:"shared_only"`
+	ViewerID               uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedWithUserID       uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
+	SharedWithGroupIds     []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
+	Archived               sql.NullBool          `db:"archived" json:"archived"`
+	ProjectID              uuid.NullUUID         `db:"project_id" json:"project_id"`
+	ExcludeOwnProjectChats sql.NullBool          `db:"exclude_own_project_chats" json:"exclude_own_project_chats"`
+	ACLEnabled             bool                  `db:"acl_enabled" json:"acl_enabled"`
+	AfterID                uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter            pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffURL                sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery             string                `db:"title_query" json:"title_query"`
+	HasUnread              sql.NullBool          `db:"has_unread" json:"has_unread"`
+	ChatStatuses           []string              `db:"chat_statuses" json:"chat_statuses"`
+	PullRequestStatuses    []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	PrNumber               int32                 `db:"pr_number" json:"pr_number"`
+	RepoQuery              string                `db:"repo_query" json:"repo_query"`
+	PrTitleQuery           string                `db:"pr_title_query" json:"pr_title_query"`
+	Search                 string                `db:"search" json:"search"`
+	OffsetOpt              int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt               int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -12464,7 +12456,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
-		arg.PinnedProjectsOnly,
+		arg.ExcludeOwnProjectChats,
 		arg.ACLEnabled,
 		arg.AfterID,
 		arg.LabelFilter,

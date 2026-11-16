@@ -3128,8 +3128,8 @@
 					},
 					{
 						"type": "boolean",
-						"description": "Leave out the caller's own chats in projects the caller has not pinned, unless the chat is pinned. Chats shared with the caller and chats in projects the caller can no longer use are still returned.",
-						"name": "pinned_projects_only",
+						"description": "Leave out the caller's own unpinned chats in projects the caller can use. Project pins do not change the result.",
+						"name": "exclude_own_project_chats",
 						"in": "query"
 					}
 				],
