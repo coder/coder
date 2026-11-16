@@ -1,7 +1,8 @@
 name: build
 
 # Builds, signs and publishes ghcr.io/coder/coder-preview for every commit to
-# main and release/*, then deploys main to dogfood.
+# main and release/*. dogfood.cdr.dev pulls new main builds itself through Flux
+# image automation in coder/dogfood, so this workflow needs no cluster access.
 #
 # The build job signs exactly like release.yaml, through the same
 # ./.github/actions/build-coder action. This workflow has no pull_request or
@@ -15,7 +16,7 @@ on:
       - main
       - release/*
     # Same as the docs filter in ci.yaml's changes job: commits that only
-    # touch these don't need a signed build or a dogfood deploy.
+    # touch these don't need a signed build.
     paths-ignore:
       - "docs/**"
       - ".claude/docs/**"
@@ -55,8 +56,6 @@ jobs:
       attestations: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
-    outputs:
-      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -183,7 +182,9 @@ jobs:
             # Define specific tags
             tags=("$tag")
             if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-              tags+=("main" "latest")
+              # main-<commit unix time>-<sha> sorts by commit time, so the
+              # dogfood Flux ImagePolicy can select the newest main build.
+              tags+=("main" "latest" "main-$(git log -1 --format=%ct HEAD)-$(git rev-parse --short=12 HEAD)")
             elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
               tags+=("release-${GITHUB_REF#refs/heads/release/}")
             fi
@@ -391,23 +392,10 @@ jobs:
             ^v
           prune-untagged: true
 
-  # Deploy is handled in deploy.yaml so we can apply concurrency limits. It
-  # only deploys main (scripts/should_deploy.sh).
-  deploy:
-    needs: build
-    uses: ./.github/workflows/deploy.yaml
-    with:
-      image: ${{ needs.build.outputs.IMAGE }}
-    permissions:
-      contents: read
-      id-token: write
-      packages: write # to retag image as dogfood
-
   notify-slack-on-failure:
     needs:
       - build
       - prune
-      - deploy
     runs-on: ubuntu-latest
     environment: main
     if: failure() && github.ref == 'refs/heads/main'
@@ -421,7 +409,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": "❌ Build or dogfood deploy failure in main",
+                  "text": "❌ Build failure in main",
                   "emoji": true
                 }
               },
