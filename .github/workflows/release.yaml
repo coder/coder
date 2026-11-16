@@ -108,8 +108,28 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          # Build the commit being released (checked below to be on the dispatched branch).
-          ref: ${{ inputs.commit != '' && inputs.commit || github.sha }}
+          # Check out the dispatched commit first so the step below runs from reviewed workflow
+          # content before any file from the commit input's tree.
+          ref: ${{ github.sha }}
+
+      # Every later step runs files from the working tree with release credentials, dry run or not,
+      # so the commit input must be proven to be on the dispatched branch before it is checked out.
+      - name: Check out the commit being released
+        if: ${{ inputs.commit != '' }}
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit must be a full 40-character SHA, got '${COMMIT}'"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${COMMIT}" "${GITHUB_SHA}"; then
+            echo "::error::${COMMIT} is not on ${GITHUB_REF}"
+            exit 1
+          fi
+          git checkout --quiet --detach "${COMMIT}"
 
       # Only the release App may create tags (ruleset "Release tags (App only)"), and this job only
       # runs after a release manager other than the dispatcher approves the `release` environment.
@@ -272,7 +292,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Shared with build.yaml so main builds and releases are signed the same
-      # way. Signing material is deleted before the action returns.
+      # way. Signing material is deleted before the action returns. Dry runs
+      # sign too, so they exercise the signing path; they only build commits
+      # already on the dispatched branch (checked after checkout above).
       - name: Build and sign binaries
         id: build
         uses: ./.github/actions/build-coder
@@ -591,8 +613,10 @@ jobs:
       # Mint a short-lived installation token from the dedicated release
       # GitHub App. Only the App may create tags (ruleset "Release tags (App
       # only)"), so `gh release create` needs its token for any tag it creates.
+      # Dry runs create no release, so they never mint it.
       - name: Generate release App token
         id: release_app_token
+        if: ${{ !inputs.dry_run }}
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
