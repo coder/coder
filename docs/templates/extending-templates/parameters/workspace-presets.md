@@ -12,7 +12,9 @@ After you save the template file, the presets will be available for all new work
 
 ## Optional preset fields
 
-In addition to the required `name` and `parameters` fields, you can enhance your workspace presets with optional `description` and `icon` fields:
+Only the `name` field is required.
+The other fields you can set are optional, including `parameters`, so a preset can have zero parameters and only define prebuilds.
+You can also set these fields:
 
 - **description**:
   A helpful text description that provides additional context about the preset.

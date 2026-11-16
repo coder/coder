@@ -40,6 +40,17 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 
+const roleLabels: Record<WorkspaceRole, string> = {
+	use: "Use",
+	admin: "Admin",
+	"": "",
+};
+
+// Speech input users activate a control by its visible text, so the
+// accessible name has to include the selected role.
+const getRoleSelectLabel = (label: string, value: WorkspaceRole) =>
+	roleLabels[value] ? `${label}: ${roleLabels[value]}` : label;
+
 type RoleSelectProps = {
 	value: WorkspaceRole;
 	memberOrGroupName: string;
@@ -53,17 +64,11 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 	disabled,
 	onValueChange,
 }) => {
-	const roleLabels: Record<WorkspaceRole, string> = {
-		use: "Use",
-		admin: "Admin",
-		"": "",
-	};
-
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
 			<SelectTrigger
 				className="w-40 h-auto"
-				aria-label={`Role for ${memberOrGroupName}`}
+				aria-label={getRoleSelectLabel(`Role for ${memberOrGroupName}`, value)}
 			>
 				<SelectValue>
 					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
@@ -134,7 +139,10 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			onValueChange={(val: WorkspaceRole) => onChange(val)}
 			disabled={disabled}
 		>
-			<SelectTrigger className="w-40" aria-label="Role">
+			<SelectTrigger
+				className="w-40"
+				aria-label={getRoleSelectLabel("Role", value)}
+			>
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>

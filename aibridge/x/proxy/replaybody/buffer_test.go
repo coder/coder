@@ -45,7 +45,7 @@ func newRequestBuffer(source io.ReadCloser) (*http.Request, *replaybody.TeeBuffe
 	request := httptest.NewRequest(http.MethodPost, "/", nil)
 	request.Body = source
 	request.ContentLength = -1 // source has unknown length
-	return request, replaybody.NewRequest(request)
+	return replaybody.NewRequest(request)
 }
 
 type result struct {
