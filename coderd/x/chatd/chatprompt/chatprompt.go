@@ -1703,6 +1703,7 @@ var partNulFields = []partNulField{
 	{name: "ContextFileSkillMetaFile", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileSkillMetaFile }},
 	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
 	{name: "SkillSource", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.SkillSource) }},
+	{name: "SkillPluginName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillPluginName }},
 	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
 	{name: "WorkspaceFilePath", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFilePath }},
 	{name: "WorkspaceFileName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileName }},
