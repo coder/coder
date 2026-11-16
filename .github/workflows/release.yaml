@@ -175,6 +175,14 @@ jobs:
             exit 0
           fi
 
+          # Each version needs its own commit: version.sh refuses a commit with two release tags, so
+          # tagging a commit that was already released would only fail the build and leave a stray tag.
+          released="$(git tag --points-at "${COMMIT}" --list 'v*' | paste -sd ' ' -)"
+          if [[ -n "${released}" ]]; then
+            echo "::error::${COMMIT} was already released as ${released}; merge a new commit to ${GITHUB_REF#refs/heads/} and release that"
+            exit 1
+          fi
+
           tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
             -f tag="${VERSION}" -f message="Release ${VERSION}" -f object="${COMMIT}" -f type=commit \
             --jq .sha)"
