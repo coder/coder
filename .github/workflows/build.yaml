@@ -183,7 +183,9 @@ jobs:
             # Define specific tags
             tags=("$tag")
             if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-              tags+=("main" "latest")
+              # main-<commit unix time>-<sha> sorts by commit time, so the
+              # dogfood Flux ImagePolicy can select the newest main build.
+              tags+=("main" "latest" "main-$(git log -1 --format=%ct HEAD)-$(git rev-parse --short=12 HEAD)")
             elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
               tags+=("release-${GITHUB_REF#refs/heads/release/}")
             fi
