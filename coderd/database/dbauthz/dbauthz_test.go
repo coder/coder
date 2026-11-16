@@ -6288,7 +6288,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		check.Args(t0).Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
 	}))
 	s.Run("GetRunningPrebuiltWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetRunningPrebuiltWorkspaces(gomock.Any()).Return([]database.GetRunningPrebuiltWorkspacesRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetRunningPrebuiltWorkspaces(gomock.Any(), gomock.Any()).Return([]database.GetRunningPrebuiltWorkspacesRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
 	s.Run("GetTemplatePresetsWithPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

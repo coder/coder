@@ -80,7 +80,7 @@ var (
 	eligiblePrebuildsDesc = prometheus.NewDesc(
 		MetricEligibleGauge,
 		"Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that "+
-			"have completed their build process with their agent reporting 'ready' status.",
+			"have completed their build process with all configured agents connected and reporting 'ready' status.",
 		labels,
 		nil,
 	)

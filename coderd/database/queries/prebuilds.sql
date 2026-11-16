@@ -21,7 +21,7 @@ WHERE w.id = (
 	-- per outer row, and SKIP LOCKED then makes one claim update two prebuilds.
 	-- Read workspaces directly, not the workspace_prebuilds or workspace_latest_builds views: they
 	-- scan every workspace, and each SKIP LOCKED skip would redo that deployment-wide work.
-	-- These conditions must match workspace_prebuilds (TestClaimPrebuiltWorkspaceEligibilityMatchesView).
+	-- Keep eligibility aligned with inventory (TestPrebuildAgentEligibility).
 	SELECT pw.id
 	FROM workspaces pw
 		INNER JOIN templates t ON t.id = pw.template_id
@@ -60,22 +60,8 @@ WHERE w.id = (
 			ORDER BY wbp.build_number DESC
 			LIMIT 1
 		) = @preset_id::uuid
-		-- Ready: the latest build has at least one agent, and all of its agents are ready.
-		AND EXISTS (
-			SELECT 1
-			FROM workspace_resources wr
-				INNER JOIN workspace_agents wa ON wa.resource_id = wr.id
-			WHERE wr.job_id = b.job_id
-				AND NOT wa.deleted
-		)
-		AND NOT EXISTS (
-			SELECT 1
-			FROM workspace_resources wr
-				INNER JOIN workspace_agents wa ON wa.resource_id = wr.id
-			WHERE wr.job_id = b.job_id
-				AND NOT wa.deleted
-				AND wa.lifecycle_state != 'ready'::workspace_agent_lifecycle_state
-		)
+		-- Inventory and claims use the same agent readiness predicate.
+		AND prebuild_agents_ready(b.job_id, @connected_after::timestamptz)
 	-- Oldest first, so prebuilds are claimed before they reach the preset TTL and get rebuilt.
 	-- Newest first would leave older prebuilds to expire while demand is below the pool size.
 	ORDER BY pw.created_at, pw.id
@@ -150,16 +136,8 @@ workspace_latest_presets AS (
 	ORDER BY latest_prebuilds.id, workspace_builds.build_number DESC
 ),
 ready_agents AS (
-	-- For each of the above workspaces, check if all agents are ready.
-	SELECT
-		latest_prebuilds.job_id,
-		BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
+	SELECT job_id, prebuild_agents_ready(job_id, @connected_after::timestamptz) AS ready
 	FROM latest_prebuilds
-	JOIN workspace_resources ON workspace_resources.job_id = latest_prebuilds.job_id
-	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
-	WHERE workspace_agents.deleted = false
-	AND workspace_agents.parent_id IS NULL
-	GROUP BY latest_prebuilds.job_id
 )
 SELECT
 	latest_prebuilds.id,

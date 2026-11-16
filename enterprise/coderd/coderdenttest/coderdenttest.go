@@ -473,7 +473,7 @@ func GetRunningPrebuilds(
 
 	var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		prebuiltWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx)
+		prebuiltWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 		assert.NoError(t, err, "failed to get running prebuilds")
 
 		for _, prebuild := range prebuiltWorkspaces {

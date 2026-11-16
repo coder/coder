@@ -8167,7 +8167,11 @@ func (p claimTestPreset) addWorkspace(ctx context.Context, t *testing.T, ws data
 		if len(b.agents) > 0 {
 			resource := dbgen.WorkspaceResource(t, p.db, database.WorkspaceResource{JobID: job.ID})
 			for _, state := range b.agents {
-				agent := dbgen.WorkspaceAgent(t, p.db, database.WorkspaceAgent{ResourceID: resource.ID})
+				agent := dbgen.WorkspaceAgent(t, p.db, database.WorkspaceAgent{
+					ResourceID:       resource.ID,
+					FirstConnectedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+					LastConnectedAt:  sql.NullTime{Time: dbtime.Now(), Valid: true},
+				})
 				require.NoError(t, p.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 					ID:             agent.ID,
 					LifecycleState: state,
@@ -8204,10 +8208,11 @@ func (p claimTestPreset) addReadyPrebuilds(ctx context.Context, t *testing.T, n 
 
 func (claimTestPreset) claim(ctx context.Context, store database.Store, presetID, userID uuid.UUID) (uuid.UUID, error) {
 	row, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
-		NewUserID: userID,
-		NewName:   "claimed-" + uuid.NewString()[:8],
-		Now:       dbtime.Now(),
-		PresetID:  presetID,
+		ConnectedAfter: dbtime.Now().Add(-time.Minute),
+		NewUserID:      userID,
+		NewName:        "claimed-" + uuid.NewString()[:8],
+		Now:            dbtime.Now(),
+		PresetID:       presetID,
 	})
 	return row.ID, err
 }
@@ -10090,7 +10095,7 @@ func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	})
 
 	// When: we query for running prebuild workspaces
-	runningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+	runningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 	require.NoError(t, err)
 
 	// Then: only the running prebuild workspace should be returned.
@@ -12930,7 +12935,11 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 					OrganizationID: org.ID,
 				})
 				resource = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
-				agent    = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+				agent    = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+					ResourceID:       resource.ID,
+					FirstConnectedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+					LastConnectedAt:  sql.NullTime{Time: dbtime.Now(), Valid: true},
+				})
 			)
 
 			ids := make([]uuid.UUID, len(tc.validSubagent))
@@ -19256,7 +19265,11 @@ func TestSoftDeleteWorkspaceAgentsPurgesContext(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 		})
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:       resource.ID,
+			FirstConnectedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+			LastConnectedAt:  sql.NullTime{Time: dbtime.Now(), Valid: true},
+		})
 		return buildBundle{buildID: build.ID, agentID: agent.ID, agent: agent}
 	}
 
@@ -22001,4 +22014,107 @@ func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
 		"agent_relay_session_id":       "session",
 		"agent_relay_cursor_pool_name": "pool",
 	}, got)
+}
+
+// TestPrebuildAgentEligibility checks inventory and atomic selection against
+// independent expectations, including configured devcontainers not yet created.
+func TestPrebuildAgentEligibility(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	now := dbtime.Now()
+	cutoff := now.Add(-time.Minute)
+	user := dbgen.User(t, p.db, database.User{})
+	cases := []struct {
+		name         string
+		child        bool
+		missing      bool
+		deleted      bool
+		state        database.WorkspaceAgentLifecycleState
+		stale        bool
+		disconnected bool
+		reconnect    bool
+		want         bool
+	}{
+		{name: "HostOnly", want: true},
+		{name: "ReadyDevcontainer", child: true, want: true},
+		{name: "MissingDevcontainer", missing: true},
+		{name: "DeletedDevcontainer", child: true, deleted: true},
+		{name: "StartingDevcontainer", child: true, state: database.WorkspaceAgentLifecycleStateStarting},
+		{name: "DevcontainerStartError", child: true, state: database.WorkspaceAgentLifecycleStateStartError},
+		{name: "StaleHost", stale: true},
+		{name: "StaleDevcontainer", child: true, stale: true},
+		{name: "DisconnectedHost", disconnected: true},
+		{name: "DisconnectedDevcontainer", child: true, disconnected: true},
+		{name: "ReconnectedDevcontainer", child: true, disconnected: true, reconnect: true, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			id := p.addWorkspace(ctx, t, database.WorkspaceTable{}, p.readyBuild())
+			var host, resource uuid.UUID
+			require.NoError(t, p.sqlDB.QueryRowContext(ctx, `SELECT a.id, a.resource_id FROM workspace_agents a JOIN workspace_resources r ON r.id = a.resource_id JOIN workspace_builds b ON b.job_id = r.job_id WHERE b.workspace_id = $1`, id).Scan(&host, &resource))
+			_, err := p.sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET first_connected_at = $2, last_connected_at = $2 WHERE id = $1`, host, now)
+			require.NoError(t, err)
+			target := host
+			var childID uuid.NullUUID
+			if tc.child {
+				child := dbgen.WorkspaceAgent(t, p.db, database.WorkspaceAgent{
+					ResourceID:       resource,
+					ParentID:         uuid.NullUUID{UUID: host, Valid: true},
+					FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
+					LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
+				})
+				target = child.ID
+				childID = uuid.NullUUID{UUID: child.ID, Valid: true}
+				state := tc.state
+				if state == "" {
+					state = database.WorkspaceAgentLifecycleStateReady
+				}
+				require.NoError(t, p.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{ID: child.ID, LifecycleState: state}))
+			}
+			if tc.child || tc.missing {
+				_, err := p.sqlDB.ExecContext(ctx, `INSERT INTO workspace_agent_devcontainers (id, workspace_agent_id, workspace_folder, config_path, name, subagent_id) VALUES ($1,$2,'/workspace','devcontainer.json','devcontainer',$3)`, uuid.New(), host, childID)
+				require.NoError(t, err)
+			}
+			if tc.deleted {
+				_, err := p.sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET deleted = true WHERE id = $1`, target)
+				require.NoError(t, err)
+			}
+			if tc.stale {
+				_, err := p.sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET last_connected_at = $2 WHERE id = $1`, target, cutoff.Add(-time.Second))
+				require.NoError(t, err)
+			}
+			if tc.disconnected {
+				disconnectedAt := now
+				if tc.reconnect {
+					disconnectedAt = now.Add(-time.Second)
+				}
+				_, err := p.sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET disconnected_at = $2 WHERE id = $1`, target, disconnectedAt)
+				require.NoError(t, err)
+			}
+			inventory, err := p.db.GetRunningPrebuiltWorkspaces(ctx, cutoff)
+			require.NoError(t, err)
+			found := false
+			for _, row := range inventory {
+				if row.ID == id {
+					found = true
+					require.Equal(t, tc.want, row.Ready)
+				}
+			}
+			require.True(t, found)
+			claimed, err := p.db.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+				NewUserID:      user.ID,
+				NewName:        "claimed-" + uuid.NewString()[:8],
+				PresetID:       p.version.preset.ID,
+				Now:            now,
+				ConnectedAfter: cutoff,
+			})
+			if tc.want {
+				require.NoError(t, err)
+				require.Equal(t, id, claimed.ID)
+			} else {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			}
+		})
+	}
 }

@@ -41,16 +41,17 @@ import (
 )
 
 type StoreReconciler struct {
-	store             database.Store
-	cfg               codersdk.PrebuildsConfig
-	pubsub            pubsub.Pubsub
-	fileCache         *files.Cache
-	logger            slog.Logger
-	clock             quartz.Clock
-	registerer        prometheus.Registerer
-	notifEnq          notifications.Enqueuer
-	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
-	tracer            trace.Tracer
+	agentInactiveDisconnectTimeout time.Duration
+	store                          database.Store
+	cfg                            codersdk.PrebuildsConfig
+	pubsub                         pubsub.Pubsub
+	fileCache                      *files.Cache
+	logger                         slog.Logger
+	clock                          quartz.Clock
+	registerer                     prometheus.Registerer
+	notifEnq                       notifications.Enqueuer
+	buildUsageChecker              *atomic.Pointer[wsbuilder.UsageChecker]
+	tracer                         trace.Tracer
 
 	// mu protects the reconciler's lifecycle state.
 	mu       sync.Mutex
@@ -102,6 +103,7 @@ func NewStoreReconciler(store database.Store,
 	tracerProvider trace.TracerProvider,
 	maxDBConnections int,
 	workspaceBuilderMetrics *wsbuilder.Metrics,
+	agentInactiveDisconnectTimeout time.Duration,
 ) *StoreReconciler {
 	reconciliationConcurrency := calculateReconciliationConcurrency(maxDBConnections)
 
@@ -110,20 +112,21 @@ func NewStoreReconciler(store database.Store,
 		slog.F("max_db_connections", maxDBConnections))
 
 	reconciler := &StoreReconciler{
-		store:                     store,
-		pubsub:                    ps,
-		fileCache:                 fileCache,
-		logger:                    logger,
-		cfg:                       cfg,
-		clock:                     clock,
-		registerer:                registerer,
-		notifEnq:                  notifEnq,
-		buildUsageChecker:         buildUsageChecker,
-		tracer:                    tracerProvider.Tracer(tracing.TracerName),
-		done:                      make(chan struct{}, 1),
-		provisionNotifyCh:         make(chan database.ProvisionerJob, 10),
-		reconciliationConcurrency: reconciliationConcurrency,
-		workspaceBuilderMetrics:   workspaceBuilderMetrics,
+		store:                          store,
+		pubsub:                         ps,
+		fileCache:                      fileCache,
+		logger:                         logger,
+		cfg:                            cfg,
+		clock:                          clock,
+		registerer:                     registerer,
+		notifEnq:                       notifEnq,
+		buildUsageChecker:              buildUsageChecker,
+		tracer:                         tracerProvider.Tracer(tracing.TracerName),
+		done:                           make(chan struct{}, 1),
+		provisionNotifyCh:              make(chan database.ProvisionerJob, 10),
+		reconciliationConcurrency:      reconciliationConcurrency,
+		workspaceBuilderMetrics:        workspaceBuilderMetrics,
+		agentInactiveDisconnectTimeout: agentInactiveDisconnectTimeout,
 	}
 
 	if registerer != nil {
@@ -581,7 +584,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 		}
 
 		// Get results from both original and optimized queries for comparison
-		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx, c.clock.Now().Add(-c.agentInactiveDisconnectTimeout))
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
 		}

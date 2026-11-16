@@ -5085,12 +5085,12 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
+func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context, connectedAfter time.Time) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	// This query returns only prebuilt workspaces, but we decided to require permissions for all workspaces.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
 	}
-	return q.db.GetRunningPrebuiltWorkspaces(ctx)
+	return q.db.GetRunningPrebuiltWorkspaces(ctx, connectedAfter)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {

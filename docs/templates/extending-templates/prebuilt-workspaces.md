@@ -82,7 +82,9 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. The agent starts its bootstrap procedures and completes its startup scripts.
    1. The agent reports `ready` status.
 
-      After the agent reports `ready`, the prebuilt workspace considered eligible to be claimed.
+      A prebuilt workspace is eligible only when all agents are connected and report `ready`.
+      Configured Dev Container agents must also exist and be ready.
+      Startup errors and stale heartbeats prevent claims.
 
    Prebuilt workspaces that fail during provisioning are retried with a backoff to prevent transient failures.
 
@@ -516,7 +518,7 @@ Before the event:
 
 1. Confirm that the pool is ready.
 
-   A prebuilt workspace is eligible to be claimed only after its agent reports `ready`.
+   A prebuilt workspace is eligible only when all configured agents are connected and report `ready`.
    Before the event starts, check that `coderd_prebuilt_workspaces_eligible` matches `coderd_prebuilt_workspaces_desired` for the preset.
    Both metrics carry `template_name` and `preset_name` labels.
 

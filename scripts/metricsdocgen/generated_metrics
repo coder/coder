@@ -550,7 +550,7 @@ coderd_prebuilt_workspaces_created_total{template_name="",preset_name="",organiz
 # HELP coderd_prebuilt_workspaces_desired Target number of prebuilt workspaces that should be available for each template preset.
 # TYPE coderd_prebuilt_workspaces_desired gauge
 coderd_prebuilt_workspaces_desired{template_name="",preset_name="",organization_name=""} 0
-# HELP coderd_prebuilt_workspaces_eligible Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that have completed their build process with their agent reporting 'ready' status.
+# HELP coderd_prebuilt_workspaces_eligible Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that have completed their build process with all configured agents connected and reporting 'ready' status.
 # TYPE coderd_prebuilt_workspaces_eligible gauge
 coderd_prebuilt_workspaces_eligible{template_name="",preset_name="",organization_name=""} 0
 # HELP coderd_prebuilt_workspaces_failed_total Total number of prebuilt workspaces that failed to build.

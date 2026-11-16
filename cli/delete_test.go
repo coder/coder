@@ -340,14 +340,14 @@ func TestDelete(t *testing.T) {
 
 				// Ensure at least one prebuilt workspace is reported as running in the database
 				testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
-					running, err := db.GetRunningPrebuiltWorkspaces(ctx)
+					running, err := db.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 					if !assert.NoError(t, err) || !assert.GreaterOrEqual(t, len(running), 1) {
 						return false
 					}
 					return true
 				}, testutil.IntervalMedium, "running prebuilt workspaces timeout")
 
-				runningWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx)
+				runningWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 				require.NoError(t, err)
 				require.GreaterOrEqual(t, len(runningWorkspaces), 1)
 

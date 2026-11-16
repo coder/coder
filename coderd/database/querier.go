@@ -904,7 +904,7 @@ type sqlcQuerier interface {
 	GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
-	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
+	GetRunningPrebuiltWorkspaces(ctx context.Context, connectedAfter time.Time) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
 	// Count only the active, successfully imported version of each non-deleted
 	// template, so repeated imports do not inflate adoption.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -215,6 +216,7 @@ func TestMetricsCollector(t *testing.T) {
 										noop.NewTracerProvider(),
 										10,
 										nil,
+										time.Minute,
 									)
 									ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -346,6 +348,7 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -505,6 +508,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -543,6 +547,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -581,6 +586,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 

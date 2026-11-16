@@ -347,7 +347,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			runningPrebuilds = nil
-			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
+			rows, err := db.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 			if err != nil {
 				return false
 			}
@@ -415,8 +415,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Given: a template and a template version where the preset defines values for all required parameters,
@@ -527,8 +528,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Given: a template and a template version where the preset defines values for all required parameters,

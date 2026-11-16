@@ -2004,7 +2004,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			// count could never match again.
 			runningPrebuilds = nil
 
-			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
+			rows, err := db.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 			if err != nil {
 				t.Logf("poll %d (%s elapsed): query failed: %v", polls, time.Since(start), err)
 				return false
@@ -2111,6 +2111,8 @@ func TestPrebuildsAutobuild(t *testing.T) {
 	claimPrebuild := func(
 		t *testing.T,
 		ctx context.Context,
+		db database.Store,
+		now time.Time,
 		client *codersdk.Client,
 		userClient *codersdk.Client,
 		username string,
@@ -2120,6 +2122,22 @@ func TestPrebuildsAutobuild(t *testing.T) {
 	) codersdk.Workspace {
 		t.Helper()
 
+		// Simulate the heartbeat that a running agent would send while the
+		// scheduling tests advance the mock clock by hours or days.
+		inventory, err := db.GetRunningPrebuiltWorkspaces(ctx, now.Add(-time.Minute))
+		require.NoError(t, err)
+		for _, row := range inventory {
+			if row.CurrentPresetID.UUID != presetID {
+				continue
+			}
+			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
+			require.NoError(t, err)
+			for _, agent := range agents {
+				require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+					ID: agent.ID, FirstConnectedAt: sql.NullTime{Time: now, Valid: true}, LastConnectedAt: sql.NullTime{Time: now, Valid: true},
+				}))
+			}
+		}
 		var startSchedule string
 		if len(autostartSchedule) > 0 {
 			startSchedule = autostartSchedule[0]
@@ -2191,8 +2209,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2243,7 +2262,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Given: a user claims the prebuilt workspace sometime later
 		clock.Set(clock.Now().Add(1 * time.Hour)) // 11:01 AM UTC
-		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+		workspace := claimPrebuild(t, ctx, db, clock.Now(), client, userClient, user.Username, version, presets[0].ID)
 		require.Equal(t, prebuild.ID, workspace.ID)
 		// Workspace deadline must be ttlTime from the time it is claimed (1:01 PM UTC)
 		require.True(t, workspace.LatestBuild.Deadline.Time.Equal(clock.Now().Add(ttlTime)))
@@ -2316,8 +2335,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2368,7 +2388,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Zero(t, prebuild.LatestBuild.MaxDeadline)
 
 		// Given: a user claims the prebuilt workspace
-		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+		workspace := claimPrebuild(t, ctx, db, clock.Now(), client, userClient, user.Username, version, presets[0].ID)
 		require.Equal(t, prebuild.ID, workspace.ID)
 		// Then: the claimed workspace should respect the next valid scheduled deadline (2024-01-03 0:00 UTC)
 		require.True(t, workspace.LatestBuild.Deadline.Time.Equal(clock.Now().Truncate(24*time.Hour).Add(24*time.Hour)))
@@ -2441,8 +2461,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2501,7 +2522,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 
 		// Given: a user claims the prebuilt workspace with an Autostart schedule request
-		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID, sched.String())
+		workspace := claimPrebuild(t, ctx, db, clock.Now(), client, userClient, user.Username, version, presets[0].ID, sched.String())
 		require.Equal(t, prebuild.ID, workspace.ID)
 		// Then: newly claimed workspace's AutostartSchedule and NextStartAt should be set
 		require.NotNil(t, workspace.AutostartSchedule)
@@ -2588,8 +2609,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2638,7 +2660,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Given: a user claims the prebuilt workspace sometime later
 		clock.Set(clock.Now().Add(1 * time.Hour)) // 11:01 AM UTC
-		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+		workspace := claimPrebuild(t, ctx, db, clock.Now(), client, userClient, user.Username, version, presets[0].ID)
 		require.Equal(t, prebuild.ID, workspace.ID)
 		// Then: the claimed workspace should have DormantAt and DeletingAt unset (nil),
 		// and LastUsedAt updated
@@ -2750,8 +2772,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -3014,6 +3037,9 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 			agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
+			require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID: agent.WorkspaceAgent.ID, FirstConnectedAt: sql.NullTime{Time: clock.Now(), Valid: true}, LastConnectedAt: sql.NullTime{Time: clock.Now(), Valid: true},
+			}))
 			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 				ID:             agent.WorkspaceAgent.ID,
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
@@ -3113,6 +3139,9 @@ func TestPrebuildActivityBump(t *testing.T) {
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 	agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
 	require.NoError(t, err)
+	require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+		ID: agent.WorkspaceAgent.ID, FirstConnectedAt: sql.NullTime{Time: clock.Now(), Valid: true}, LastConnectedAt: sql.NullTime{Time: clock.Now(), Valid: true},
+	}))
 	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             agent.WorkspaceAgent.ID,
 		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
@@ -3201,12 +3230,13 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 	go reconciler.Run(ctx)
 	t.Cleanup(func() {
 		reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
 	})
-	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 	organizationName, err := client.Organization(ctx, owner.OrganizationID)

@@ -62,6 +62,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// given a template version with no presets
@@ -114,6 +115,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// given there are presets, but no prebuilds
@@ -453,6 +455,7 @@ func (tc testCase) run(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
 
 		// Run the reconciliation multiple times to ensure idempotency
@@ -562,6 +565,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	ownerID := uuid.New()
@@ -694,6 +698,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				noop.NewTracerProvider(),
 				10,
 				nil,
+				time.Minute,
 			)
 
 			ownerID := uuid.New()
@@ -804,6 +809,7 @@ func TestInvalidPreset(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	ownerID := uuid.New()
@@ -875,6 +881,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	ownerID := uuid.New()
@@ -978,6 +985,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				noop.NewTracerProvider(),
 				10,
 				nil,
+				time.Minute,
 			)
 
 			// Set up test environment with a template, version, and preset.
@@ -1101,6 +1109,7 @@ func TestHardLimitedPresetWithBuildInFlight(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	ownerID := uuid.New()
@@ -1261,6 +1270,7 @@ func TestValidationFailedPresets(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// First reconcile: marks B, C as validation_failed.
@@ -1399,6 +1409,7 @@ func TestValidationFailedPresetResets(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// First reconcile: preset gets marked as validation_failed.
@@ -1533,6 +1544,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 				noop.NewTracerProvider(),
 				10,
 				nil,
+				time.Minute,
 			)
 
 			// Set up test environment with a template, version, and preset.
@@ -1735,6 +1747,7 @@ func TestRunLoop(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	ownerID := uuid.New()
@@ -1868,6 +1881,7 @@ func TestReconcilerLifecycle(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// When: the reconciler is stopped (simulating the prebuilds feature being disabled)
@@ -1884,6 +1898,7 @@ func TestReconcilerLifecycle(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// Gracefully stop the reconciliation loop
@@ -1918,6 +1933,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// Given: an active template version with presets and prebuilds configured.
@@ -2041,6 +2057,7 @@ func TestReconciliationLock(t *testing.T) {
 				newNoopUsageCheckerPtr(), noop.NewTracerProvider(),
 				10,
 				nil,
+				time.Minute,
 			)
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
@@ -2080,6 +2097,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// Given: a template admin to receive a notification.
@@ -2241,6 +2259,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 				noop.NewTracerProvider(),
 				10,
 				nil,
+				time.Minute,
 			)
 
 			// Set up test environment with a template, version, and preset
@@ -2707,6 +2726,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 					noop.NewTracerProvider(),
 					10,
 					nil,
+					time.Minute,
 				)
 				owner := coderdtest.CreateFirstUser(t, client)
 
@@ -2953,6 +2973,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 			nil,
+			time.Minute,
 		)
 		owner := coderdtest.CreateFirstUser(t, client)
 
@@ -3027,6 +3048,7 @@ func TestReconciliationStats(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 	owner := coderdtest.CreateFirstUser(t, client)
 
@@ -3344,11 +3366,12 @@ func setupTestDBWorkspaceAgent(t *testing.T, db database.Store, workspaceID uuid
 
 	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: res.ID,
+		ResourceID:       res.ID,
+		FirstConnectedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		LastConnectedAt:  sql.NullTime{Time: dbtime.Now(), Valid: true},
 	})
 
-	// A prebuilt workspace is considered eligible when its agent is in a "ready" lifecycle state.
-	// i.e. connected to the control plane and all startup scripts have run.
+	// Eligible agents are connected and have completed their startup scripts.
 	if eligible {
 		require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(t.Context(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 			ID:             agent.ID,
@@ -3518,6 +3541,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 		nil,
+		time.Minute,
 	)
 
 	// Setup a template with a preset that should create prebuilds
@@ -3625,6 +3649,7 @@ func BenchmarkReconcileAll_NoOps(b *testing.B) {
 				noop.NewTracerProvider(),
 				maxOpenConns,
 				nil,
+				time.Minute,
 			)
 
 			org := dbgen.Organization(b, db, database.Organization{})
@@ -3737,6 +3762,7 @@ func BenchmarkReconcileAll_ConnectionContention(b *testing.B) {
 					noop.NewTracerProvider(),
 					maxOpenConns,
 					nil,
+					time.Minute,
 				)
 
 				// Create presets from active template versions that need reconciliation actions
@@ -3857,6 +3883,7 @@ func BenchmarkReconcileAll_Mix(b *testing.B) {
 					noop.NewTracerProvider(),
 					maxOpenConns,
 					nil,
+					time.Minute,
 				)
 
 				org := dbgen.Organization(b, db, database.Organization{})

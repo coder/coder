@@ -2115,6 +2115,7 @@ func ClaimPrebuild(
 	ttl sql.NullInt64,
 ) database.ClaimPrebuiltWorkspaceRow {
 	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
+		ConnectedAfter:    time.Now().Add(-time.Minute),
 		NewUserID:         newUserID,
 		NewName:           newName,
 		Now:               now,

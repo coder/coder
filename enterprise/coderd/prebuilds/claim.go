@@ -13,13 +13,15 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
-type EnterpriseClaimer struct{}
-
-func NewEnterpriseClaimer() *EnterpriseClaimer {
-	return &EnterpriseClaimer{}
+type EnterpriseClaimer struct {
+	agentInactiveDisconnectTimeout time.Duration
 }
 
-func (EnterpriseClaimer) Claim(
+func NewEnterpriseClaimer(agentInactiveDisconnectTimeout time.Duration) *EnterpriseClaimer {
+	return &EnterpriseClaimer{agentInactiveDisconnectTimeout: agentInactiveDisconnectTimeout}
+}
+
+func (c EnterpriseClaimer) Claim(
 	ctx context.Context,
 	store database.Store,
 	now time.Time,
@@ -31,6 +33,7 @@ func (EnterpriseClaimer) Claim(
 	ttl sql.NullInt64,
 ) (*uuid.UUID, error) {
 	result, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+		ConnectedAfter:    now.Add(-c.agentInactiveDisconnectTimeout),
 		NewUserID:         userID,
 		NewName:           name,
 		Now:               now,

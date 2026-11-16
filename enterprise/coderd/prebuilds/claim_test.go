@@ -175,12 +175,13 @@ func TestClaimPrebuild(t *testing.T) {
 					noop.NewTracerProvider(),
 					10,
 					nil,
+					time.Minute,
 				)
 				go reconciler.Run(ctx)
 				t.Cleanup(func() {
 					reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
 				})
-				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(time.Minute)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 				version := coderdtest.CreateTemplateVersion(t, client, orgID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
@@ -211,7 +212,7 @@ func TestClaimPrebuild(t *testing.T) {
 				// Given: a set of running, eligible prebuilds eventually starts up.
 				runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
 				require.Eventually(t, func() bool {
-					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
+					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 					if err != nil {
 						return false
 					}
@@ -228,8 +229,16 @@ func TestClaimPrebuild(t *testing.T) {
 							return false
 						}
 
-						// Workspaces are eligible once its agent is marked "ready".
+						// Eligible agents are connected and ready.
 						for _, agent := range agents {
+							err = db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+								ID:               agent.ID,
+								FirstConnectedAt: sql.NullTime{Time: clock.Now(), Valid: true},
+								LastConnectedAt:  sql.NullTime{Time: clock.Now(), Valid: true},
+							})
+							if err != nil {
+								return false
+							}
 							err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 								ID:             agent.ID,
 								LifecycleState: database.WorkspaceAgentLifecycleStateReady,
@@ -250,10 +259,11 @@ func TestClaimPrebuild(t *testing.T) {
 				// When: a user creates a new workspace with a preset for which prebuilds are configured.
 				workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
 				params := database.ClaimPrebuiltWorkspaceParams{
-					Now:       clock.Now(),
-					NewUserID: user.ID,
-					NewName:   workspaceName,
-					PresetID:  presets[0].ID,
+					ConnectedAfter: clock.Now().Add(-time.Minute),
+					Now:            clock.Now(),
+					NewUserID:      user.ID,
+					NewName:        workspaceName,
+					PresetID:       presets[0].ID,
 				}
 				userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
 					TemplateVersionID:       version.ID,
@@ -270,7 +280,7 @@ func TestClaimPrebuild(t *testing.T) {
 					coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
 					// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed and we fallback to creating new workspace.
-					currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
+					currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 					require.NoError(t, err)
 					require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
 					// If there are no prebuilt workspaces to claim, a new workspace is created from scratch
@@ -284,7 +294,7 @@ func TestClaimPrebuild(t *testing.T) {
 					require.ErrorContains(t, err, unexpectedClaimingError.Error())
 
 					// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed.
-					currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
+					currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 					require.NoError(t, err)
 					require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
 					// If a prebuilt workspace claim fails for an unanticipated, erroneous reason,
@@ -322,7 +332,7 @@ func TestClaimPrebuild(t *testing.T) {
 				require.Equal(t, user.ID, workspace.OwnerID)
 
 				// Then: the number of running prebuilds has changed since one was claimed.
-				currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
+				currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 				require.NoError(t, err)
 				require.Equal(t, expectedPrebuildsCount-1, len(currentPrebuilds))
 
@@ -349,7 +359,7 @@ func TestClaimPrebuild(t *testing.T) {
 				}
 
 				require.Eventually(t, func() bool {
-					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
+					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx, time.Now().Add(-time.Minute))
 					if err != nil {
 						return false
 					}
