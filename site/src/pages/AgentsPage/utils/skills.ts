@@ -294,7 +294,7 @@ const isManualOnlyMarkdown = (content: string): boolean => {
  * `disable-model-invocation: true` in its frontmatter, so Claude Code, Cursor,
  * and VS Code treat the file as manual-only too, and re-importing it keeps the
  * setting. The content is returned unchanged when it already marks the skill
- * manual-only, or when the marker would make it unparseable (for example, a
+ * manual-only, or when the marker would make it unparsable (for example, a
  * duplicate key spelled differently) or push it past the size limit.
  */
 export const skillFileContent = (skill: Skill): string => {
