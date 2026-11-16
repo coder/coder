@@ -1292,6 +1292,9 @@ jobs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    # Gates access to the release signing identity: the GCP workload identity
+    # provider for release-signer only exchanges tokens for this workflow on a
+    # push to main or release/* with this environment claim.
     environment: ci-signing
     permissions:
       # Necessary to push docker images to ghcr.io.
@@ -1341,25 +1344,41 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       - name: Install rcodesign
-        run: |
-          set -euo pipefail
-          ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
-          sudo tar -xzf /tmp/rcodesign.tar.gz \
-            -C /usr/bin \
-            --strip-components=1 \
-            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
-          rm /tmp/rcodesign.tar.gz
+        uses: ./.github/actions/install-rcodesign
 
       - name: Setup Apple Developer certificate
         run: |
           set -euo pipefail
-          touch /tmp/{apple_cert.p12,apple_cert_password.txt}
-          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt}
-          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
-          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+          touch /tmp/apple_cert.pem
+          chmod 600 /tmp/apple_cert.pem
+          echo "$AC_CERTIFICATE_PEM" > /tmp/apple_cert.pem
         env:
-          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
-          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+          AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
+
+      # The Apple Developer certificate's private key lives in Google Cloud
+      # KMS. rcodesign accesses it through the Cloud KMS PKCS#11 library,
+      # authenticated via the Google Cloud credentials set up below.
+      - name: Setup Google Cloud KMS PKCS11 library
+        run: |
+          set -euo pipefail
+          ./.github/scripts/retry.sh -- wget -O /tmp/libkmsp11.tar.gz https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/pkcs11-v1.9/libkmsp11-1.9-linux-amd64.tar.gz
+          echo "5397f965073cd5d1e2c43e5148f102f31a7c835902f97eb41c7c9c0f1b876a40 /tmp/libkmsp11.tar.gz" | sha256sum -c
+          sudo tar -xzf /tmp/libkmsp11.tar.gz \
+            -C /usr/local/lib \
+            --strip-components=1 \
+            libkmsp11-1.9-linux-amd64/libkmsp11.so
+          rm /tmp/libkmsp11.tar.gz
+
+          # The library requires the config file to be owner-writable only.
+          touch /tmp/kmsp11_config.yaml
+          chmod 600 /tmp/kmsp11_config.yaml
+          cat > /tmp/kmsp11_config.yaml <<EOF
+          ---
+          tokens:
+            - key_ring: "$AC_KMS_KEY_RING"
+          EOF
+        env:
+          AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
@@ -1381,7 +1400,8 @@ jobs:
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 
-      # Setup GCloud for signing Windows binaries.
+      # Setup GCloud for signing Windows binaries (jsign uses the access
+      # token).
       - name: Authenticate to Google Cloud
         id: gcloud_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -1403,11 +1423,13 @@ jobs:
         env:
           GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
 
-      # release-signer@ for the KMS GPG key. Not exported, so the job's default
-      # credentials stay on the EV code signing account.
-      - name: Authenticate to Google Cloud (GPG signing)
+      # release-signer@ for the KMS GPG key and the darwin signing key. Not
+      # exported, so the job's default credentials stay on the EV code signing
+      # account; GPG steps and the darwin PKCS11 library receive this
+      # credentials file explicitly. Unconditional because darwin signing
+      # always needs it, even when the optional KMS GPG signing is disabled.
+      - name: Authenticate to Google Cloud (release signing)
         id: gcloud_auth_gpg
-        if: steps.gpg_kms.outputs.enabled == 'true'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
@@ -1460,8 +1482,13 @@ jobs:
           CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
           CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           CODER_SIGN_DARWIN: "1"
-          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
-          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.pem
+          AC_PKCS11_LIBRARY: /usr/local/lib/libkmsp11.so
+          AC_PKCS11_KEY_LABEL: ${{ secrets.AC_KMS_KEY }}
+          KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
+          # Credentials for the Cloud KMS PKCS11 library (darwin signing)
+          # only; jsign uses the ambient coder-ci credentials.
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           EV_KEY: ${{ secrets.EV_KEY }}
           EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
           EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
