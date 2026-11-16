@@ -28,6 +28,11 @@ To upgrade your Coder deployment, reinstall Coder using your original method of 
    systemctl restart coder
    ```
 
+> [!NOTE]
+> In Coder v2.34.0 and later, an option set to an empty value in `/etc/coder.d/coder.env` no longer keeps its default.
+> The deb, RPM, and apk packages for Coder v2.39 and earlier shipped a `CODER_HTTP_ADDRESS=` line with no value, and an upgrade keeps your existing file.
+> If the service fails to start with `TLS is disabled. Enable with --tls-enable or specify a HTTP address`, add a `#` at the start of that line, and then restart the service.
+
 ### Other upgrade methods
 
 <div class="tabs">
@@ -63,7 +68,7 @@ See [Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-hel
 
 ### Windows
 
-Download the latest Windows installer or binary from [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade from Winget.
+Download the latest Windows installer or binary from the [Coder downloads page](https://coder.com/downloads), or upgrade from Winget.
 
 ```ps1
 winget install Coder.Coder

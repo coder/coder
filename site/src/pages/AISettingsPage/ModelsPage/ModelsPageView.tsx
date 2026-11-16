@@ -81,7 +81,7 @@ const AddModelDropdown: React.FC<{
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} className="min-w-56">
-				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+				<div className="px-2 py-1.5 text-xs text-content-secondary">
 					Select a provider
 				</div>
 				{manageableProviderStates.length === 0 ? (
@@ -96,7 +96,10 @@ const AddModelDropdown: React.FC<{
 								void navigate(organizationAddModelPath(organization, next));
 							}}
 						>
-							<ProviderIcon provider={providerState.provider} />
+							<ProviderIcon
+								provider={providerState.provider}
+								icon={providerState.providerDescriptor.icon}
+							/>
 							<span>{providerState.label}</span>
 						</DropdownMenuItem>
 					))
@@ -222,9 +225,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				<SettingsHeaderDescription>
 					Choose which models from your configured providers are available for
 					users to select. You can set a default and adjust context limits.{" "}
-					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/agents/models#models")}
-					/>
+					<SettingsHeaderDocsLink href={docs("/coder-agents/models#models")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{(loadError ?? refetchError) != null && (
@@ -279,7 +280,10 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
 								<span className="flex items-center gap-2">
-									<ProviderIcon provider={providerState.provider} />
+									<ProviderIcon
+										provider={providerState.provider}
+										icon={providerState.providerDescriptor.icon}
+									/>
 									{providerState.label}
 								</span>
 							</SelectItem>

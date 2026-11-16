@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import { MockChatProject } from "#/testHelpers/entities";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
-import { ProjectMetadataBadges } from "./ProjectMetadataBadges";
 import { ProjectPageHeader } from "./ProjectPageHeader";
 
 const actions = (
@@ -26,12 +23,6 @@ const meta: Meta<typeof ProjectPageHeader> = {
 	args: {
 		project: MockChatProject,
 		actions,
-		metadata: (
-			<ProjectMetadataBadges
-				ownerLabel="you"
-				createdAt={MockChatProject.created_at}
-			/>
-		),
 	},
 };
 
@@ -53,64 +44,5 @@ export const LongNameAndDescription: Story = {
 			name: "N".repeat(64),
 			description: "d".repeat(1024),
 		},
-	},
-};
-
-export const OwnerLoading: Story = {
-	args: {
-		metadata: (
-			<ProjectMetadataBadges
-				ownerLabel={undefined}
-				createdAt={MockChatProject.created_at}
-			/>
-		),
-	},
-};
-
-export const OtherOwner: Story = {
-	args: {
-		metadata: (
-			<ProjectMetadataBadges
-				ownerLabel="Jane Doe"
-				createdAt={MockChatProject.created_at}
-			/>
-		),
-	},
-};
-
-export const OwnerUnknown: Story = {
-	args: {
-		metadata: (
-			<ProjectMetadataBadges
-				ownerLabel="Unknown"
-				createdAt={MockChatProject.created_at}
-			/>
-		),
-	},
-};
-
-export const WithOrganization: Story = {
-	args: {
-		metadata: (
-			<ProjectMetadataBadges
-				ownerLabel="you"
-				createdAt={MockChatProject.created_at}
-				organizationLabel="Coder"
-			/>
-		),
-	},
-};
-
-/** Keyboard focus on the creation date shows the full timestamp. */
-export const CreatedDateFocused: Story = {
-	play: async ({ canvasElement }) => {
-		within(canvasElement)
-			.getByRole("button", {
-				name: formatDateTime(
-					MockChatProject.created_at,
-					DATE_FORMAT.MEDIUM_DATE,
-				),
-			})
-			.focus();
 	},
 };

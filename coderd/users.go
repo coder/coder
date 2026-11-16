@@ -403,6 +403,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		CreatedBefore:    params.CreatedBefore,
 		GithubComUserID:  params.GithubComUserID,
 		LoginType:        params.LoginType,
+		IncludeSystem:    params.IncludeSystem,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -474,6 +475,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		if req.Email != "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Email cannot be set for service accounts.",
+			})
+			return
+		}
+		if req.UserStatus != nil && *req.UserStatus == codersdk.UserStatusDormant {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Service accounts can't be dormant.",
 			})
 			return
 		}

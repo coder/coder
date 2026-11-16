@@ -33,6 +33,7 @@ type SpendPageViewProps = {
 	onPeriodChange: (value: DateTimeRangeValue) => void;
 	filterMenus: SpendFilterMenus | undefined;
 	reportQuery: SpendReportQuery;
+	providers?: readonly TypesGen.AIBridgeProvider[];
 };
 
 export const SpendPageView: React.FC<SpendPageViewProps> = ({
@@ -51,7 +52,7 @@ export const SpendPageView: React.FC<SpendPageViewProps> = ({
 	}
 
 	return (
-		<div className="flex max-w-[1100px] flex-col gap-4">
+		<div className="flex max-w-275 flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
 					Spend
@@ -87,6 +88,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	onPeriodChange,
 	filterMenus,
 	reportQuery,
+	providers,
 }) => {
 	if (isOrganizationsLoading) {
 		return <Loader />;
@@ -144,7 +146,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
 			/>
-			<SpendUsersTable reportQuery={reportQuery} />
+			<SpendUsersTable reportQuery={reportQuery} providers={providers} />
 		</>
 	);
 };

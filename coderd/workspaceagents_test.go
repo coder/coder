@@ -97,6 +97,41 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
+	t.Run("RedactsEnvironmentVariables", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Env = map[string]string{
+				"GITHUB_TOKEN": "ghp_supersecret",
+				"EMPTY":        "",
+			}
+			return agents
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		want := map[string]string{
+			"GITHUB_TOKEN": db2sdk.RedactedEnvValue,
+			"EMPTY":        "",
+		}
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+		require.Equal(t, want, workspace.LatestBuild.Resources[0].Agents[0].EnvironmentVariables)
+
+		agent, err := client.WorkspaceAgent(ctx, agentID)
+		require.NoError(t, err)
+		require.Equal(t, want, agent.EnvironmentVariables)
+
+		build, err := client.WorkspaceBuild(ctx, r.Build.ID)
+		require.NoError(t, err)
+		require.Equal(t, want, build.Resources[0].Agents[0].EnvironmentVariables)
+	})
 	t.Run("ScriptDependencies", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)
@@ -1261,6 +1296,57 @@ func connectToCoordinatorAndFetchResumeToken(ctx context.Context, logger slog.Lo
 		return "", xerrors.Errorf("fetch resume token: %w", err)
 	}
 	return newResumeToken.Token, nil
+}
+
+// TestWorkspaceAgentManifestSecretsDuringStop checks that an agent whose
+// workspace has a pending stop build still receives its build secrets when
+// it reconnects, so shutdown scripts keep their credentials.
+func TestWorkspaceAgentManifestSecretsDuringStop(t *testing.T) {
+	t.Parallel()
+
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("build-value"), EnvName: "API_KEY"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+	buildSecretValue := func() string {
+		t.Helper()
+		conn, err := agentClient.ConnectRPC(ctx)
+		require.NoError(t, err)
+		defer conn.Close()
+		mp, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+		for _, secret := range mp.Secrets {
+			if secret.EnvName == "API_KEY" {
+				return string(secret.Value)
+			}
+		}
+		return ""
+	}
+	require.Equal(t, "build-value", buildSecretValue())
+
+	// With no provisioner the stop build stays pending while the agent from
+	// the start build is still running. A reconnect must keep its secrets.
+	closeDaemon.Close()
+	stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	require.Equal(t, "build-value", buildSecretValue())
+
+	coderdtest.NewProvisionerDaemon(t, api)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
 }
 
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
@@ -2442,6 +2528,8 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	// Verify manifest API response.
 	require.Equal(t, workspace.ID, manifest.WorkspaceID)
 	require.Equal(t, workspace.OwnerName, manifest.OwnerName)
+	require.Equal(t, workspace.TemplateID, manifest.TemplateID)
+	require.Equal(t, workspace.TemplateName, manifest.TemplateName)
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
 	require.Equal(t, "echo hi", manifest.Metadata[0].Script)

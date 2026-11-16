@@ -5,6 +5,7 @@ import (
 	"maps"
 	"net/http"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -30,14 +31,14 @@ func (api *API) getOrganizationSkillACL(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	skill := httpmw.OrganizationSkillParam(r)
 
-	users, err := resolveACLUsers(ctx, api.Database, skill.UserACL, func(user codersdk.MinimalUser) codersdk.OrganizationSkillUser {
+	users, err := resolveACLUsers(ctx, api.Database, skill.UserACL, func(user codersdk.MinimalUser, _ database.ChatACLEntry) codersdk.OrganizationSkillUser {
 		return codersdk.OrganizationSkillUser{MinimalUser: user, Role: codersdk.OrganizationSkillRoleRead}
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	groups, err := resolveACLGroups(ctx, api.Database, skill.GroupACL, func(group codersdk.Group) codersdk.OrganizationSkillGroup {
+	groups, err := resolveACLGroups(ctx, api.Database, uuid.Nil, skill.GroupACL, func(group codersdk.Group, _ database.ChatACLEntry) codersdk.OrganizationSkillGroup {
 		return codersdk.OrganizationSkillGroup{Group: group, Role: codersdk.OrganizationSkillRoleRead}
 	})
 	if err != nil {

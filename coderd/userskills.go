@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
@@ -61,13 +62,14 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	skill, ok := createSkill(ctx, rw, r, userSkillCreateErrors, func(parsed skills.ParsedSkill, content string) (database.Skill, error) {
+	skill, ok := createSkill(ctx, rw, r, userSkillCreateErrors, skillOwnerPersonal, func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error) {
 		return api.Database.InsertUserSkill(ctx, database.InsertUserSkillParams{
-			ID:          uuid.New(),
-			UserID:      user.ID,
-			Name:        parsed.Name,
-			Description: parsed.Description,
-			Content:     content,
+			ID:             uuid.New(),
+			UserID:         user.ID,
+			Name:           parsed.Name,
+			Description:    parsed.Description,
+			Content:        create.Content,
+			ModelInvocable: create.ModelInvocable,
 		})
 	})
 	if !ok {
@@ -160,7 +162,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	oldSkill, skill, ok := api.updateSkill(ctx, rw, r, name, userSkillUpdateErrors, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
+	oldSkill, skill, ok := api.updateSkill(ctx, rw, r, name, userSkillUpdateErrors, skillOwnerPersonal, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
 		fetched, err := tx.GetUserSkillByUserIDAndName(ctx, database.GetUserSkillByUserIDAndNameParams{
 			UserID: user.ID,
 			Name:   name,
@@ -169,11 +171,12 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 			return database.Skill{}, database.Skill{}, xerrors.Errorf("fetch user skill: %w", err)
 		}
 		updated, err := tx.UpdateUserSkillByUserIDAndName(ctx, database.UpdateUserSkillByUserIDAndNameParams{
-			UserID:      user.ID,
-			Name:        name,
-			Description: update.Description,
-			Content:     update.Content,
-			Enabled:     update.Enabled,
+			UserID:         user.ID,
+			Name:           name,
+			Description:    update.Description,
+			Content:        update.Content,
+			Enabled:        update.Enabled,
+			ModelInvocable: update.ModelInvocable,
 		})
 		if err != nil {
 			return database.Skill{}, database.Skill{}, xerrors.Errorf("update user skill: %w", err)
@@ -272,9 +275,33 @@ func (e skillWriteErrors) write(ctx context.Context, rw http.ResponseWriter, err
 		httpapi.Write(ctx, rw, http.StatusConflict, e.limitReached)
 	case e.nameIndex != "" && database.IsUniqueViolation(err, e.nameIndex):
 		writeSkillNameConflict(ctx, rw)
+	case database.IsCheckViolation(err, database.CheckSkillsActionProjectOnly):
+		writeSkillActionNotAllowed(ctx, rw)
 	default:
 		httpapi.InternalServerError(rw, err)
 	}
+}
+
+// skillOwnerKind is the kind of owner a skill route manages.
+type skillOwnerKind int
+
+const (
+	skillOwnerPersonal skillOwnerKind = iota
+	skillOwnerOrganization
+	skillOwnerProject
+)
+
+// allowsAction reports whether skills of this owner kind can be actions.
+func (k skillOwnerKind) allowsAction() bool {
+	return k == skillOwnerProject
+}
+
+// skillCreate holds the columns a skill create request writes. Unset
+// optional columns keep their database defaults.
+type skillCreate struct {
+	Content        string
+	Action         sql.NullBool
+	ModelInvocable sql.NullBool
 }
 
 // createSkill parses a skill create request, stores the skill with insert,
@@ -284,10 +311,15 @@ func createSkill(
 	rw http.ResponseWriter,
 	r *http.Request,
 	errs skillWriteErrors,
-	insert func(parsed skills.ParsedSkill, content string) (database.Skill, error),
+	kind skillOwnerKind,
+	insert func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error),
 ) (database.Skill, bool) {
 	var req codersdk.CreateSkillRequest
 	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
+		return database.Skill{}, false
+	}
+	if req.Action != nil && !kind.allowsAction() {
+		writeSkillActionNotAllowed(ctx, rw)
 		return database.Skill{}, false
 	}
 	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
@@ -295,7 +327,15 @@ func createSkill(
 		writeInvalidSkillContent(ctx, rw, err)
 		return database.Skill{}, false
 	}
-	skill, err := insert(parsed, req.Content)
+	modelInvocable := nullBool(req.ModelInvocable)
+	if !modelInvocable.Valid && workspacesdk.SkillDisablesModelInvocation(req.Content) {
+		modelInvocable = sql.NullBool{Bool: false, Valid: true}
+	}
+	skill, err := insert(parsed, skillCreate{
+		Content:        req.Content,
+		Action:         nullBool(req.Action),
+		ModelInvocable: modelInvocable,
+	})
 	if err != nil {
 		errs.write(ctx, rw, err)
 		return database.Skill{}, false
@@ -314,9 +354,10 @@ func (api *API) updateSkill(
 	r *http.Request,
 	name string,
 	errs skillWriteErrors,
+	kind skillOwnerKind,
 	apply func(tx database.Store, update skillUpdate) (old database.Skill, updated database.Skill, err error),
 ) (old database.Skill, updated database.Skill, ok bool) {
-	update, ok := readSkillUpdate(ctx, rw, r, name)
+	update, ok := readSkillUpdate(ctx, rw, r, name, kind)
 	if !ok {
 		return database.Skill{}, database.Skill{}, false
 	}
@@ -335,30 +376,37 @@ func (api *API) updateSkill(
 
 // skillUpdate holds the optional columns a skill PATCH writes.
 type skillUpdate struct {
-	Description sql.NullString
-	Content     sql.NullString
-	Enabled     sql.NullBool
+	Description    sql.NullString
+	Content        sql.NullString
+	Enabled        sql.NullBool
+	Action         sql.NullBool
+	ModelInvocable sql.NullBool
 }
 
 // readSkillUpdate reads and validates a PATCH request for the skill named
-// name. It writes the error response and returns false when the request is
-// invalid.
-func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Request, name string) (skillUpdate, bool) {
+// name for an owner of the given kind. It writes the error response and
+// returns false when the request is invalid.
+func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Request, name string, kind skillOwnerKind) (skillUpdate, bool) {
 	var req codersdk.UpdateSkillRequest
 	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
 		return skillUpdate{}, false
 	}
-	if req.Content == nil && req.Enabled == nil {
+	if req.Action != nil && !kind.allowsAction() {
+		writeSkillActionNotAllowed(ctx, rw)
+		return skillUpdate{}, false
+	}
+	if req.Content == nil && req.Enabled == nil && req.Action == nil && req.ModelInvocable == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "No skill fields to update.",
-			Detail:  "Set content, enabled, or both.",
+			Detail:  "Set at least one of content, enabled, action, or model_invocable.",
 		})
 		return skillUpdate{}, false
 	}
 
-	var update skillUpdate
-	if req.Enabled != nil {
-		update.Enabled = sql.NullBool{Bool: *req.Enabled, Valid: true}
+	update := skillUpdate{
+		Enabled:        nullBool(req.Enabled),
+		Action:         nullBool(req.Action),
+		ModelInvocable: nullBool(req.ModelInvocable),
 	}
 	if req.Content == nil {
 		return update, true
@@ -378,6 +426,20 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 	update.Description = sql.NullString{String: parsed.Description, Valid: true}
 	update.Content = sql.NullString{String: *req.Content, Valid: true}
 	return update, true
+}
+
+func nullBool(value *bool) sql.NullBool {
+	if value == nil {
+		return sql.NullBool{}
+	}
+	return sql.NullBool{Bool: *value, Valid: true}
+}
+
+func writeSkillActionNotAllowed(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Only project skills can be actions.",
+		Detail:  "Remove the action field; personal and organization skills cannot be shown as actions.",
+	})
 }
 
 func writeSkillNameConflict(ctx context.Context, rw http.ResponseWriter) {

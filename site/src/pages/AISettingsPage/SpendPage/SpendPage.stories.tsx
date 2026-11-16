@@ -10,8 +10,10 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { aiBridgeProviders } from "#/api/queries/aiBridge";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
 import {
+	MockAIProviderOpenAI,
 	MockAIProviders,
 	MockOrganization,
 	MockOrganization2,
@@ -42,6 +44,13 @@ const mockSpendUsers: OrganizationAISpendUser[] = Array.from(
 );
 
 const routing = { path: "/ai/settings/spend", useStoryElement: true };
+
+const mockDeepSeekProvider = {
+	...MockAIProviderOpenAI,
+	name: "deepseek",
+	display_name: "DeepSeek",
+	icon: "/icon/widgets.svg",
+};
 
 // Story parameters deep-merge into the meta's, so a story cannot drop a range
 // the meta sets.
@@ -180,10 +189,39 @@ export const RetentionLimitedPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
-		await userEvent.click(canvas.getByRole("button", { name: "Last 7 days" }));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Time range" }));
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
 		);
+	},
+};
+
+// Rows list configured provider names, so a provider on the OpenAI type keeps
+// its own display name and icon instead of showing as OpenAI. A name missing
+// from the provider list is labeled like a provider type.
+export const ConfiguredProviderNames: Story = {
+	parameters: {
+		reactRouter: explicitRange,
+		queries: [
+			{
+				key: aiBridgeProviders().queryKey,
+				data: [...MockAIProviders, mockDeepSeekProvider],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockResolvedValue({
+			...MockOrganizationAISpendReport,
+			count: 2,
+			totals: { cost_micros: 23_000_000, unpriced_usage_count: 0 },
+			users: [
+				{ ...mockSpendUsers[1], providers: [mockDeepSeekProvider.name] },
+				{ ...mockSpendUsers[2], providers: ["internal-gateway"] },
+			],
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},
 };
 

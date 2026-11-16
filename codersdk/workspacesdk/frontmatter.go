@@ -17,6 +17,37 @@ const MaxSkillMetaBytes = 64 * 1024
 // SkillNamePattern is the compiled pattern used to validate kebab-case skill names.
 var SkillNamePattern = regexp.MustCompile(SkillNameRegex)
 
+// MaxPluginNameLength is the maximum length in bytes of an Agent Plugin name.
+const MaxPluginNameLength = 64
+
+// ValidatePluginName checks name against the Agent Plugins manifest name
+// grammar: 1 to MaxPluginNameLength bytes from [a-z0-9.-], starting and
+// ending with an alphanumeric character, with no "--" or ".." runs.
+func ValidatePluginName(name string) error {
+	if name == "" {
+		return xerrors.New("plugin name is required")
+	}
+	if len(name) > MaxPluginNameLength {
+		return xerrors.Errorf("plugin name is %d bytes, maximum is %d", len(name), MaxPluginNameLength)
+	}
+	for i, c := range name {
+		isAlnum := (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+		if isAlnum {
+			continue
+		}
+		if c != '.' && c != '-' {
+			return xerrors.Errorf("plugin name %q contains invalid character %q; allowed are a-z, 0-9, '.', and '-'", name, c)
+		}
+		if i == 0 || i == len(name)-1 {
+			return xerrors.Errorf("plugin name %q must start and end with a letter or digit", name)
+		}
+		if rune(name[i-1]) == c {
+			return xerrors.Errorf("plugin name %q must not contain %q", name, string([]rune{c, c}))
+		}
+	}
+	return nil
+}
+
 // markdownCommentRe strips HTML comments from skill file bodies so
 // they don't leak into the LLM prompt.
 var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
@@ -47,31 +78,9 @@ func frontmatterStringField(frontmatter map[string]any, key string) (string, boo
 //	---
 //	Body text here...
 func ParseSkillFrontmatter(content string) (name, description, body string, err error) {
-	content = strings.TrimPrefix(content, "\xef\xbb\xbf")
-	lines := strings.Split(content, "\n")
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return "", "", "", xerrors.New(
-			"missing opening frontmatter delimiter",
-		)
-	}
-
-	closingIdx := -1
-	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "---" {
-			closingIdx = i
-			break
-		}
-	}
-	if closingIdx < 0 {
-		return "", "", "", xerrors.New(
-			"missing closing frontmatter delimiter",
-		)
-	}
-
-	frontmatterContent := strings.Join(lines[1:closingIdx], "\n")
-	var frontmatter map[string]any
-	if err := yaml.Unmarshal([]byte(frontmatterContent), &frontmatter); err != nil {
-		return "", "", "", xerrors.Errorf("parse frontmatter YAML: %w", err)
+	frontmatter, body, err := splitSkillFrontmatter(content)
+	if err != nil {
+		return "", "", "", err
 	}
 
 	name, ok, err := frontmatterStringField(frontmatter, "name")
@@ -86,10 +95,57 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 		return "", "", "", err
 	}
 
+	return name, description, body, nil
+}
+
+// SkillDisablesModelInvocation reports whether a skill meta file's
+// frontmatter sets disable-model-invocation to the YAML boolean true.
+// Agents must not discover or load such a skill on their own; only a
+// person can invoke it. Any other value, and content whose frontmatter
+// does not parse, leaves the skill model-invocable.
+func SkillDisablesModelInvocation(content string) bool {
+	frontmatter, _, err := splitSkillFrontmatter(content)
+	if err != nil {
+		return false
+	}
+	disabled, _ := frontmatter["disable-model-invocation"].(bool)
+	return disabled
+}
+
+// splitSkillFrontmatter decodes the YAML frontmatter of a skill meta file
+// and returns it with the body that follows, with HTML comments stripped
+// and surrounding whitespace trimmed.
+func splitSkillFrontmatter(content string) (frontmatter map[string]any, body string, err error) {
+	content = strings.TrimPrefix(content, "\xef\xbb\xbf")
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil, "", xerrors.New(
+			"missing opening frontmatter delimiter",
+		)
+	}
+
+	closingIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closingIdx = i
+			break
+		}
+	}
+	if closingIdx < 0 {
+		return nil, "", xerrors.New(
+			"missing closing frontmatter delimiter",
+		)
+	}
+
+	frontmatterContent := strings.Join(lines[1:closingIdx], "\n")
+	if err := yaml.Unmarshal([]byte(frontmatterContent), &frontmatter); err != nil {
+		return nil, "", xerrors.Errorf("parse frontmatter YAML: %w", err)
+	}
+
 	// Everything after the closing delimiter is the body.
 	body = strings.Join(lines[closingIdx+1:], "\n")
 	body = markdownCommentRe.ReplaceAllString(body, "")
 	body = strings.TrimSpace(body)
 
-	return name, description, body, nil
+	return frontmatter, body, nil
 }

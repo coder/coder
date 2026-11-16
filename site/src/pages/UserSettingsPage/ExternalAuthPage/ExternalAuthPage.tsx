@@ -13,6 +13,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
+import { pageTitle } from "#/utils/page";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const ExternalAuthPage: React.FC = () => {
@@ -28,6 +29,7 @@ const ExternalAuthPage: React.FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("External Authentication", "Settings")}</title>
 			<SettingsHeader>
 				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
 			</SettingsHeader>

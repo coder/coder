@@ -36,13 +36,16 @@ type ServeOptions struct {
 	// ExitTimeout defines how long we will wait for a running Terraform
 	// command to exit (cleanly) if the provision was stopped. This
 	// happens when the provision is canceled via RPC and when the command is
-	// still running after the provision stream is closed.
+	// still running after the provision stream is closed. When it expires,
+	// the command is interrupted again and killed if it is still running
+	// after forceExitTimeout or ExitTimeout, whichever is shorter.
 	//
 	// This is a no-op on Windows where the process can't be interrupted.
 	//
-	// Default value: 3 minutes (jobreaper.HungJobExitTimeout). This value should
-	// be kept less than the value that Coder uses to mark hung jobs as failed,
-	// which is 5 minutes (see jobreaper package).
+	// Default value: 3 minutes (jobreaper.HungJobExitTimeout). This value plus
+	// the wait after the second interrupt should be kept less than the value
+	// that Coder uses to mark hung jobs as failed, which is 5 minutes (see
+	// jobreaper package).
 	ExitTimeout time.Duration
 }
 
@@ -159,6 +162,27 @@ type server struct {
 	logger               slog.Logger
 	tracer               trace.Tracer
 	exitTimeout          time.Duration
+
+	// versionMu guards cachedVersion, so `terraform version` runs once per
+	// server instead of before every stage.
+	versionMu     sync.Mutex
+	cachedVersion *version.Version
+}
+
+// terraformVersion returns the Terraform binary's version. Failures aren't
+// cached, so a canceled context doesn't break later calls.
+func (s *server) terraformVersion(ctx context.Context) (*version.Version, error) {
+	s.versionMu.Lock()
+	defer s.versionMu.Unlock()
+	if s.cachedVersion != nil {
+		return s.cachedVersion, nil
+	}
+	v, err := versionFromBinaryPath(ctx, s.binaryPath)
+	if err != nil {
+		return nil, err
+	}
+	s.cachedVersion = v
+	return v, nil
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

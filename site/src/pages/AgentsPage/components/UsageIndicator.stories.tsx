@@ -136,6 +136,16 @@ export const LowUsage: Story = {
 	],
 };
 
+export const TriggerFocusedWithKeyboard: Story = {
+	decorators: [
+		withAISpend(aiSpendStatus()),
+		withWorkspaceQuota(noWorkspaceQuota),
+	],
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
 export const MediumUsage: Story = {
 	decorators: [
 		withAISpend(

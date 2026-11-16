@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -23,11 +26,12 @@ const (
 	// CompactionDisabledThresholdPercent turns a compaction trigger off.
 	CompactionDisabledThresholdPercent = int32(100)
 
-	// compactionDebugCreateRunTimeout caps the compaction debug
-	// CreateRun budget. Debug instrumentation is best-effort;
-	// running without the debug row is preferable to blocking
-	// compaction on a slow or locked DB.
-	compactionDebugCreateRunTimeout = 5 * time.Second
+	// compactionContextTooLargeMessage tells the user how to recover a
+	// conversation that is too large to summarize.
+	compactionContextTooLargeMessage = "This conversation is too large for the model to compact. " +
+		"Send /clear to keep the transcript and start the next message with a fresh context. " +
+		"You can also edit an earlier message, which deletes every message after it, or start a new conversation. " +
+		"If the conversation is short, ask an administrator to check the model's context limit."
 
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
 		"Summarize the conversation so a new assistant can seamlessly " +
@@ -85,49 +89,6 @@ const (
 	CompactionSourceAutomatic CompactionSource = "automatic"
 	CompactionSourceManual    CompactionSource = "manual"
 )
-
-type CompactionOptions struct {
-	ThresholdPercent    int32
-	ContextLimit        int64
-	SummaryPrompt       string
-	SummaryHint         string
-	SystemSummaryPrefix string
-	DebugSvc            *chatdebug.Service
-	ChatID              uuid.UUID
-	HistoryTipMessageID int64
-
-	ResolvedProvider string
-	ResolvedModel    string
-	ModelConfigID    uuid.UUID
-	SummaryCall      fantasy.Call
-	// ToolDefinitions is copied from the parent generation request so the
-	// summary call uses the exact same ordered definitions.
-	ToolDefinitions []fantasy.Tool
-
-	// Clock and StreamSilenceTimeout guard the summary stream against a
-	// provider that opens the stream but stops yielding parts. Zero values
-	// fall back to a real clock and DefaultStreamSilenceTimeout.
-	Clock                quartz.Clock
-	StreamSilenceTimeout time.Duration
-
-	// Force skips the threshold gate (including the threshold=100
-	// disable and the zero-usage early return). Set for manual,
-	// user-requested compactions.
-	Force bool
-	// Source labels what triggered the compaction. Defaults to
-	// CompactionSourceAutomatic when empty.
-	Source CompactionSource
-
-	// ToolCallID and ToolName identify the synthetic tool call
-	// used to represent compaction in the message stream.
-	ToolCallID string
-	ToolName   string
-
-	// PublishMessagePart publishes streaming parts to connected
-	// clients so they see "Summarizing..." / "Summarized" UI
-	// transitions during compaction.
-	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-}
 
 // CompactionResult is one generated summary. ThresholdPercent and
 // TriggerContextLimit echo the requested trigger, not the normalized one, so
@@ -282,29 +243,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	return result, nil
 }
 
-func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (CompactionOptions, bool) {
-	config := CompactionOptions{
-		ThresholdPercent:     opts.ThresholdPercent,
-		ContextLimit:         opts.ContextLimit,
-		SummaryPrompt:        opts.SummaryPrompt,
-		SummaryHint:          opts.SummaryHint,
-		SystemSummaryPrefix:  opts.SystemSummaryPrefix,
-		DebugSvc:             opts.DebugSvc,
-		ChatID:               opts.ChatID,
-		HistoryTipMessageID:  opts.HistoryTipMessageID,
-		ResolvedProvider:     opts.ResolvedProvider,
-		ResolvedModel:        opts.ResolvedModel,
-		ModelConfigID:        opts.ModelConfigID,
-		SummaryCall:          opts.SummaryCall,
-		ToolDefinitions:      opts.ToolDefinitions,
-		Force:                opts.Force,
-		Source:               opts.Source,
-		ToolCallID:           opts.ToolCallID,
-		ToolName:             opts.ToolName,
-		PublishMessagePart:   opts.PublishMessagePart,
-		Clock:                opts.Clock,
-		StreamSilenceTimeout: opts.StreamSilenceTimeout,
-	}
+func normalizedCompactionGenerateConfig(config GenerateCompactionOptions) (GenerateCompactionOptions, bool) {
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
 	}
@@ -321,14 +260,14 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 	// threshold=100 disables automatic compaction; a forced run
 	// still proceeds because the user asked explicitly.
 	if config.ThresholdPercent == CompactionDisabledThresholdPercent && !config.Force {
-		return CompactionOptions{}, false
+		return GenerateCompactionOptions{}, false
 	}
 	return config, true
 }
 
 // publishCompactionError sends a tool-result error part so
 // connected clients see that compaction failed.
-func publishCompactionError(config CompactionOptions, msg string) {
+func publishCompactionError(config GenerateCompactionOptions, msg string) {
 	if config.PublishMessagePart == nil || config.ToolCallID == "" {
 		return
 	}
@@ -424,7 +363,7 @@ func shouldCompact(contextTokens, contextLimit int64, thresholdPercent int32) (f
 
 func startCompactionDebugRun(
 	ctx context.Context,
-	options CompactionOptions,
+	options GenerateCompactionOptions,
 ) (context.Context, func(error)) {
 	if options.DebugSvc == nil || options.ChatID == uuid.Nil {
 		return ctx, func(error) {}
@@ -455,15 +394,7 @@ func startCompactionDebugRun(
 		modelConfigID = options.ModelConfigID
 	}
 
-	// Use a separate short-lived context for the debug insert so a
-	// slow or locked DB cannot block the model call. Detached from
-	// the parent so cancellation of the compaction run still lets
-	// the insert reach a terminal state, matching the best-effort
-	// contract of debug instrumentation.
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
-	)
-	run, err := options.DebugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	return options.DebugSvc.StartRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
@@ -474,61 +405,48 @@ func startCompactionDebugRun(
 		Status:              chatdebug.StatusInProgress,
 		Provider:            provider,
 		Model:               model,
-	})
-	createRunCancel()
-	if err != nil {
-		// Debug instrumentation must not surface as a compaction failure.
-		return ctx, func(error) {}
-	}
-
-	compactionCtx := chatdebug.ContextWithRun(ctx, &chatdebug.RunContext{
-		RunID:               run.ID,
-		ChatID:              options.ChatID,
-		RootChatID:          parentRun.RootChatID,
-		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       modelConfigID,
-		TriggerMessageID:    parentRun.TriggerMessageID,
-		HistoryTipMessageID: historyTipMessageID,
-		Provider:            provider,
-		Model:               model,
-	})
-
-	return compactionCtx, func(runErr error) {
-		status := chatdebug.ClassifyError(runErr)
-		// Debug instrumentation must not surface as a compaction failure.
-		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
-			RunID:  run.ID,
-			ChatID: options.ChatID,
-			Status: status,
-		})
-	}
+	}, nil, 0)
 }
+
+// summaryToolResultCaps are the sizes, in bytes, that successive summary
+// requests cut large tool results to after the model rejects the request
+// without tool definitions for its size.
+var summaryToolResultCaps = []int{32 << 10, 4 << 10}
 
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
 // complete history (system prompt, user/assistant turns, tool
 // results). A final user message with the summary prompt is appended
 // before calling the model.
+//
+// Compaction is the recovery path for an over-limit conversation, so each
+// request the model rejects for its size is followed by a thinner one:
+// first without tool definitions, then with large tool results cut to each
+// of summaryToolResultCaps.
 func generateCompactionSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
-	options CompactionOptions,
+	options GenerateCompactionOptions,
 ) (summary string, responseID string, err error) {
-	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
-	summaryPrompt = append(summaryPrompt, messages...)
 	summaryParts := []fantasy.MessagePart{fantasy.TextPart{Text: options.SummaryPrompt}}
 	if strings.TrimSpace(options.SummaryHint) != "" {
 		summaryParts = append(summaryParts, fantasy.TextPart{Text: options.SummaryHint})
 	}
-	summaryPrompt = append(summaryPrompt, fantasy.Message{
-		Role:    fantasy.MessageRoleUser,
-		Content: summaryParts,
-	})
-	// Claude only reads the cache at explicit breakpoints, so without
-	// these the shared tool and history prefix is never a cache hit.
-	if applyPromptCaching := promptCachingStrategyFor(model, model.Model()); applyPromptCaching != nil {
-		applyPromptCaching(summaryPrompt)
+	applyPromptCaching := promptCachingStrategyFor(model, model.Model())
+	summaryPromptFor := func(history []fantasy.Message) []fantasy.Message {
+		summaryPrompt := make([]fantasy.Message, 0, len(history)+1)
+		summaryPrompt = append(summaryPrompt, history...)
+		summaryPrompt = append(summaryPrompt, fantasy.Message{
+			Role:    fantasy.MessageRoleUser,
+			Content: summaryParts,
+		})
+		// Claude only reads the cache at explicit breakpoints, so without
+		// these the shared tool and history prefix is never a cache hit.
+		if applyPromptCaching != nil {
+			applyPromptCaching(summaryPrompt)
+		}
+		return summaryPrompt
 	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
@@ -547,9 +465,6 @@ func generateCompactionSummary(
 		finishDebugRun(err)
 	}()
 
-	call := options.SummaryCall
-	call.Prompt = summaryPrompt
-	call.Tools = options.ToolDefinitions
 	clock := options.Clock
 	if clock == nil {
 		clock = quartz.NewReal()
@@ -560,7 +475,7 @@ func generateCompactionSummary(
 	}
 	// TTFT is an assistant-generation measurement, so the summary stream
 	// records neither its histogram nor its stage.
-	streamSummaryText := func() (string, error) {
+	streamSummaryText := func(call fantasy.Call) (string, error) {
 		attempt, err := guardedStream(
 			summaryCtx,
 			options.ResolvedProvider,
@@ -650,48 +565,187 @@ func generateCompactionSummary(
 		}
 		return joined, nil
 	}
-	summary, err = streamSummaryText()
-	if err != nil && len(call.Tools) > 0 && isContextTooLargeError(err) {
-		// Tool definitions keep the summary request on the parent turn's
-		// cacheable prefix, but they also make it larger than the turn
-		// that just overflowed. Compaction is the recovery path for an
-		// over-limit conversation, so fall back to the tool-less request,
-		// which still fits whenever the history alone does. The rejection
-		// can arrive from the stream open or as an in-stream error part,
-		// so the retry wraps the whole attempt.
-		call.Tools = nil
-		summary, err = streamSummaryText()
+	request := summaryRequest{history: messages, tools: options.ToolDefinitions}
+	for {
+		call := options.SummaryCall
+		call.Prompt = summaryPromptFor(request.history)
+		call.Tools = request.tools
+		summary, err = streamSummaryText(call)
+		// The rejection can arrive from the stream open or as an in-stream
+		// error part, so the next request repeats the whole attempt.
+		if !isContextTooLargeError(err) {
+			return summary, responseID, err
+		}
+		options.Logger.Warn(ctx, "compaction summary request rejected for its size",
+			slog.F("summary_tool_count", len(request.tools)),
+			slog.F("summary_tool_result_max_bytes", request.toolResultMaxBytes),
+			slog.F("summary_elided_bytes", request.elidedBytes),
+			slog.Error(err),
+		)
+		next, ok := request.thinner(messages)
+		if !ok {
+			break
+		}
+		request = next
 	}
-	return summary, responseID, err
+	classified := chaterror.Classify(err)
+	classified.Kind = codersdk.ChatErrorKindConfig
+	classified.Message = compactionContextTooLargeMessage
+	classified.Retryable = false
+	classified.RetryAfter = 0
+	return "", responseID, chaterror.WithClassification(err, classified)
+}
+
+// summaryRequest is the history and tool definitions of one summary
+// request, and how much of the history's tool results it cut.
+type summaryRequest struct {
+	history            []fantasy.Message
+	tools              []fantasy.Tool
+	toolResultMaxBytes int
+	elidedBytes        int
+}
+
+// thinner returns the request to send after the model rejects r for its
+// size: r without tool definitions, then messages with their tool results
+// cut to the first size in summaryToolResultCaps that cuts more than r did.
+// It reports false when no request is smaller than r.
+func (r summaryRequest) thinner(messages []fantasy.Message) (summaryRequest, bool) {
+	if len(r.tools) > 0 {
+		r.tools = nil
+		return r, true
+	}
+	for _, maxBytes := range summaryToolResultCaps {
+		history, elidedBytes := cutToolResults(messages, maxBytes)
+		if elidedBytes > r.elidedBytes {
+			return summaryRequest{history: history, toolResultMaxBytes: maxBytes, elidedBytes: elidedBytes}, true
+		}
+	}
+	return summaryRequest{}, false
+}
+
+// cutToolResults returns messages with every locally executed text or error
+// tool result longer than maxBytes cut to its head and tail, and the number
+// of bytes removed. It copies what it changes, so the caller's messages
+// stay intact.
+func cutToolResults(messages []fantasy.Message, maxBytes int) ([]fantasy.Message, int) {
+	var cut []fantasy.Message
+	removed := 0
+	for i, msg := range messages {
+		var content []fantasy.MessagePart
+		for j, part := range msg.Content {
+			cutPart, partRemoved := cutToolResult(part, maxBytes)
+			if partRemoved == 0 {
+				continue
+			}
+			if content == nil {
+				content = slices.Clone(msg.Content)
+			}
+			content[j] = cutPart
+			removed += partRemoved
+		}
+		if content == nil {
+			continue
+		}
+		if cut == nil {
+			cut = slices.Clone(messages)
+		}
+		cut[i].Content = content
+	}
+	if cut == nil {
+		return messages, 0
+	}
+	return cut, removed
+}
+
+// cutToolResult returns part cut to maxBytes when it is a locally executed
+// text or error tool result longer than that, and the number of bytes
+// removed. An error result stays an error.
+func cutToolResult(part fantasy.MessagePart, maxBytes int) (fantasy.MessagePart, int) {
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+	if !ok || result.ProviderExecuted {
+		return part, 0
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
+		text, truncated := TruncateToolResultText(output.Text, maxBytes)
+		if !truncated {
+			return part, 0
+		}
+		result.Output = fantasy.ToolResultOutputContentText{Text: text}
+		return result, len(output.Text) - len(text)
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); ok && output.Error != nil {
+		message := output.Error.Error()
+		text, truncated := TruncateToolResultText(message, maxBytes)
+		if !truncated {
+			return part, 0
+		}
+		result.Output = fantasy.ToolResultOutputContentError{Error: xerrors.New(text)}
+		return result, len(message) - len(text)
+	}
+	return part, 0
 }
 
 // contextTooLargePhrases are context-window rejections fantasy does not
 // parse, such as the OpenAI Responses API "Your input exceeds the context
-// window of this model." and Anthropic-family "too long" rejections
-// without token counts. The response body is included so the OpenAI
-// error code "context_length_exceeded" matches regardless of wording.
+// window of this model.", Anthropic-family "too long" rejections without
+// token counts, and the Anthropic "input length and `max_tokens` exceed
+// context limit" rejection. The OpenAI error code "context_length_exceeded"
+// in a provider error's response body matches regardless of wording.
 var contextTooLargePhrases = []string{
 	"context window",
 	"context length",
 	"context_length",
+	"context limit",
 	"too long",
 }
 
 // isContextTooLargeError reports whether a provider rejected a request for
 // its size: the prompt exceeded the model's context window, or the body
 // exceeded a request size limit on the provider or a gateway in front of it.
+// The rejection can arrive as an HTTP 400 or inside an HTTP 200 stream,
+// where fantasy reports it with no status code or, for spec-shaped OpenAI
+// Responses error events, as a plain *fantasy.Error whose message ends with
+// the event's error code when it has one. The code then decides, so a rate
+// limit or server error whose text mentions the context window is not taken
+// for an overflow.
 func isContextTooLargeError(err error) bool {
-	providerErr, ok := errors.AsType[*fantasy.ProviderError](err)
+	if providerErr, ok := errors.AsType[*fantasy.ProviderError](err); ok {
+		if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
+			return true
+		}
+		if providerErr.IsRetryable() ||
+			(providerErr.StatusCode != http.StatusBadRequest && providerErr.StatusCode != 0) {
+			return false
+		}
+		return hasContextTooLargePhrase(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	}
+	if fantasyErr, ok := errors.AsType[*fantasy.Error](err); ok {
+		if code := responsesErrorCode(fantasyErr.Message); code != "" {
+			return code == "context_length_exceeded"
+		}
+		return hasContextTooLargePhrase(fantasyErr.Error())
+	}
+	return false
+}
+
+// responsesErrorCode returns the error code fantasy appends to the message
+// of an OpenAI Responses failure as " (code: <code>)", or "" when there is
+// none.
+func responsesErrorCode(message string) string {
+	const marker = " (code: "
+	rest, ok := strings.CutSuffix(message, ")")
 	if !ok {
-		return false
+		return ""
 	}
-	if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
-		return true
+	i := strings.LastIndex(rest, marker)
+	if i < 0 {
+		return ""
 	}
-	if providerErr.StatusCode != http.StatusBadRequest {
-		return false
-	}
-	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return rest[i+len(marker):]
+}
+
+func hasContextTooLargePhrase(text string) bool {
+	text = strings.ToLower(text)
 	for _, phrase := range contextTooLargePhrases {
 		if strings.Contains(text, phrase) {
 			return true

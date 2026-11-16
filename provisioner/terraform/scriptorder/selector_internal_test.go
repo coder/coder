@@ -161,6 +161,21 @@ func TestResolveSelector(t *testing.T) {
 			}},
 		},
 		{
+			name: "AllMatchingManagedForEachInstances",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					managedCoderScript(`coder_script.setup["worker"]`, "setup"),
+					managedCoderScript("coder_script.other", "other"),
+					managedCoderScript(`coder_script.setup["api"]`, "setup"),
+				},
+			}},
+			selector: "coder_script.setup",
+			expected: selectorResolution{addresses: []string{
+				`coder_script.setup["api"]`,
+				`coder_script.setup["worker"]`,
+			}},
+		},
+		{
 			name: "OneMatchingCountInstance",
 			modules: []*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{
@@ -171,6 +186,46 @@ func TestResolveSelector(t *testing.T) {
 			selector: "coder_script.setup[1]",
 			expected: selectorResolution{
 				addresses: []string{"coder_script.setup[1]"},
+			},
+		},
+		{
+			name: "EquivalentCountInstanceKeys",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					managedCoderScript("coder_script.setup[1000]", "setup"),
+				},
+			}},
+			selector: "coder_script.setup[1e3]",
+			expected: selectorResolution{
+				addresses: []string{"coder_script.setup[1000]"},
+			},
+		},
+		{
+			name: "CountKeyDistinctFromStringAndUnindexed",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					managedCoderScript("coder_script.setup", "setup"),
+					managedCoderScript(`coder_script.setup["0"]`, "setup"),
+					managedCoderScript("coder_script.setup[0]", "setup"),
+				},
+			}},
+			selector: "coder_script.setup[0]",
+			expected: selectorResolution{
+				addresses: []string{"coder_script.setup[0]"},
+			},
+		},
+		{
+			name: "StringKeyDistinctFromCountAndUnindexed",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					managedCoderScript("coder_script.setup", "setup"),
+					managedCoderScript("coder_script.setup[0]", "setup"),
+					managedCoderScript(`coder_script.setup["0"]`, "setup"),
+				},
+			}},
+			selector: `coder_script.setup["0"]`,
+			expected: selectorResolution{
+				addresses: []string{`coder_script.setup["0"]`},
 			},
 		},
 		{
@@ -553,6 +608,37 @@ func TestResolveSelector(t *testing.T) {
 
 func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
+
+	t.Run("MalformedSiblingOfIndexedScript", func(t *testing.T) {
+		t.Parallel()
+
+		selector, err := parseSelector("coder_script.setup[0]")
+		require.NoError(t, err)
+
+		_, err = resolveSelectorForTest([]*tfjson.StateModule{{
+			Resources: []*tfjson.StateResource{
+				managedCoderScript("coder_script.setup[0]", "setup"),
+				managedCoderScript("not-an-address", "setup"),
+			},
+		}}, nil, "", selector)
+		require.ErrorContains(t, err, `parse Terraform resource address "not-an-address"`)
+	})
+
+	t.Run("MalformedUnrelatedResourceIsDeferred", func(t *testing.T) {
+		t.Parallel()
+
+		selector, err := parseSelector("coder_script.setup[0]")
+		require.NoError(t, err)
+
+		resolved, err := resolveSelectorForTest([]*tfjson.StateModule{{
+			Resources: []*tfjson.StateResource{
+				managedCoderScript("coder_script.setup[0]", "setup"),
+				managedCoderScript("not-an-address", "other"),
+			},
+		}}, nil, "", selector)
+		require.NoError(t, err)
+		require.Equal(t, []string{"coder_script.setup[0]"}, resolved.addresses)
+	})
 
 	t.Run("MalformedScriptAddress", func(t *testing.T) {
 		t.Parallel()

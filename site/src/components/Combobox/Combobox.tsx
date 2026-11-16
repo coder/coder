@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -99,6 +99,8 @@ export const ComboboxButton = ({
 
 type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
+	/** Accessible name for the search input. */
+	label?: string;
 };
 
 export const ComboboxContent = ({
@@ -106,18 +108,37 @@ export const ComboboxContent = ({
 	className,
 	ref,
 	shouldFilter,
+	label,
+	onOpenAutoFocus,
 	...props
 }: ComboboxContentProps) => {
+	const commandRef = useRef<HTMLDivElement>(null);
+
 	return (
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"flex w-auto flex-col overflow-y-hidden border-border text-sm",
+				"flex w-auto flex-col overflow-y-hidden text-sm",
 				className,
 			)}
+			onOpenAutoFocus={(event) => {
+				onOpenAutoFocus?.(event);
+				// Without a search input, focus would land on the popover itself,
+				// where the arrow keys never reach the command list.
+				const root = commandRef.current;
+				if (!event.defaultPrevented && !root?.querySelector("[cmdk-input]")) {
+					event.preventDefault();
+					root?.querySelector<HTMLElement>("[cmdk-list]")?.focus();
+				}
+			}}
 			{...props}
 		>
-			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
+			<Command
+				ref={commandRef}
+				shouldFilter={shouldFilter}
+				label={label}
+				className="min-h-0 flex-1"
+			>
 				{children}
 			</Command>
 		</PopoverContent>
@@ -131,7 +152,7 @@ export const ComboboxList: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<CommandList
-			className={cn("max-h-none min-h-0 flex-1 p-2", className)}
+			className={cn("max-h-none min-h-0 flex-1 p-2 outline-hidden", className)}
 			{...props}
 		/>
 	);

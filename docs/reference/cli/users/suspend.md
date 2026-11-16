@@ -24,17 +24,17 @@ coder users suspend [flags] <username|user_id>
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### -c, --column
 
-|         |                                                    |
-|---------|----------------------------------------------------|
-| Type    | <code>[username\|email\|created at\|status]</code> |
-| Default | <code>username,email,created at,status</code>      |
+| Property | Value                                              |
+|----------|----------------------------------------------------|
+| Type     | <code>[username\|email\|created at\|status]</code> |
+| Default  | <code>username,email,created at,status</code>      |
 
 Specify a column to filter in the table.

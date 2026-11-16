@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import {
 	assignableRole,
@@ -71,6 +71,26 @@ export const NoAvailableLoginTypes: Story = {
 		await expect(
 			canvas.queryByRole("button", { name: /save/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const ServiceAccountRequiresPremium: Story = {
+	args: {
+		serviceAccountsEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByTestId("login-type-input"));
+	},
+};
+
+export const LoginTypeKeyboardFocus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByTestId("login-type-input").focus();
+		await userEvent.keyboard("{Enter}");
+		await screen.findByRole("listbox");
+		await userEvent.keyboard("{ArrowDown}");
 	},
 };
 

@@ -8,6 +8,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
+import { pageTitle } from "#/utils/page";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
 const SSHKeysPage: React.FC = () => {
@@ -22,6 +23,7 @@ const SSHKeysPage: React.FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("SSH Keys", "Settings")}</title>
 			<SettingsHeader>
 				<SettingsHeaderTitle>SSH keys</SettingsHeaderTitle>
 			</SettingsHeader>

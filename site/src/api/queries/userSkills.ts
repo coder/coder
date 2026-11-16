@@ -2,7 +2,7 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-const userSkillsKey = (user = "me") => ["user-skills", user] as const;
+export const userSkillsKey = (user = "me") => ["user-skills", user] as const;
 
 const userSkillKey = (name: string, user = "me") =>
 	[...userSkillsKey(user), name] as const;

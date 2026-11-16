@@ -148,6 +148,8 @@ func TestSkillsCRUD(t *testing.T) {
 			assert.Equal(t, "Initial description", created.Description)
 			assert.Equal(t, content, created.Content)
 			assert.True(t, created.Enabled)
+			assert.True(t, created.ModelInvocable)
+			assert.False(t, created.Action)
 			assert.NotZero(t, created.CreatedAt)
 			assert.NotZero(t, created.UpdatedAt)
 
@@ -188,9 +190,38 @@ func TestSkillsCRUD(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, got.Enabled)
 
+			manual, err := owner.update(ctx, "crud-skill", codersdk.UpdateSkillRequest{ModelInvocable: ptr.Ref(false)})
+			require.NoError(t, err)
+			assert.False(t, manual.ModelInvocable)
+			assert.False(t, manual.Enabled)
+			list, err = owner.list(ctx)
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			assert.False(t, list[0].ModelInvocable)
+
 			require.NoError(t, owner.delete(ctx, "crud-skill"))
 			_, err = owner.get(ctx, "crud-skill")
 			requireSDKErrorStatus(t, err, http.StatusNotFound)
+
+			// The frontmatter key sets the default only on create; an
+			// explicit model_invocable wins, and updates keep the stored value.
+			manualOnlyContent := func(name, body string) string {
+				return fmt.Sprintf("---\nname: %s\ndescription: Manual only\ndisable-model-invocation: true\n---\n\n%s\n", name, body)
+			}
+			flagged, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: manualOnlyContent("flagged-skill", "Body.")})
+			require.NoError(t, err)
+			assert.False(t, flagged.ModelInvocable)
+			explicit, err := owner.create(ctx, codersdk.CreateSkillRequest{
+				Content:        manualOnlyContent("explicit-skill", "Body."),
+				ModelInvocable: ptr.Ref(true),
+			})
+			require.NoError(t, err)
+			assert.True(t, explicit.ModelInvocable)
+			explicit, err = owner.update(ctx, "explicit-skill", codersdk.UpdateSkillRequest{
+				Content: ptr.Ref(manualOnlyContent("explicit-skill", "Updated body.")),
+			})
+			require.NoError(t, err)
+			assert.True(t, explicit.ModelInvocable)
 		})
 	}
 }
@@ -285,6 +316,25 @@ func TestSkillValidationAndConflicts(t *testing.T) {
 				_, err = owner.update(ctx, "patch-no-fields", codersdk.UpdateSkillRequest{})
 				sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
 				assert.Equal(t, "No skill fields to update.", sdkErr.Message)
+			})
+
+			// Only project skills can be actions, so personal and
+			// organization routes reject the field even when it is false.
+			t.Run("ActionRejected", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				content := userSkillMarkdown("action-rejected", "Valid", "Body.")
+				_, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: content, Action: ptr.Ref(true)})
+				sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+				assert.Equal(t, "Only project skills can be actions.", sdkErr.Message)
+				_, err = owner.create(ctx, codersdk.CreateSkillRequest{Content: content, ModelInvocable: ptr.Ref(false)})
+				require.NoError(t, err)
+				for _, action := range []bool{true, false} {
+					_, err = owner.update(ctx, "action-rejected", codersdk.UpdateSkillRequest{Action: ptr.Ref(action)})
+					sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
+					assert.Equal(t, "Only project skills can be actions.", sdkErr.Message)
+				}
 			})
 
 			t.Run("PatchNameMismatch", func(t *testing.T) {

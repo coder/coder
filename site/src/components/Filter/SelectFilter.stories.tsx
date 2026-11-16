@@ -75,6 +75,7 @@ export const WithSearch: Story = {
 				{...args}
 				selectedOption={selectedOption}
 				onSelect={setSelectedOption}
+				searchLabel="Search options"
 				selectFilterSearch={
 					<ComboboxInput
 						placeholder="Search options..."
@@ -146,9 +147,9 @@ export const SearchingOption: Story = {
 				selectedOption={selectedOption}
 				onSelect={setSelectedOption}
 				options={visibleOptions}
+				searchLabel="Search options"
 				selectFilterSearch={
 					<ComboboxInput
-						aria-label="Search options"
 						placeholder="Search options..."
 						value={search}
 						onValueChange={setSearch}

@@ -61,8 +61,6 @@ const (
 // combinations before graph construction can exhaust provisioner CPU
 // or memory. It applies across all runtime and phase graphs in one
 // conversion and remains well above typical script counts.
-// TODO(PLAT-554): Benchmark large script-order graphs and tune this
-// limit.
 const maxCandidateDependencies = 100_000
 
 // buildGraphs combines resolved rules into deterministic graphs

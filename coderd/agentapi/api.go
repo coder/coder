@@ -96,6 +96,9 @@ type Options struct {
 	WorkspaceID       uuid.UUID
 	OrganizationID    uuid.UUID
 	TemplateVersionID uuid.UUID
+	// WorkspaceBuildID is the build that created the agent, resolved by the
+	// agent token middleware.
+	WorkspaceBuildID uuid.UUID
 
 	AuthenticatedCtx      context.Context
 	Log                   slog.Logger
@@ -152,10 +155,12 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		DisableDirectConnections:  opts.DisableDirectConnections,
 		DerpForceWebSockets:       opts.DerpForceWebSockets,
 		DisableUserSecretFilePath: opts.DisableUserSecretFilePath,
+		AgentPluginsEnabled:       opts.Experiments.Enabled(codersdk.ExperimentAgentPlugins),
 		AgentFn:                   api.agent,
 		Database:                  opts.Database,
 		DerpMapFn:                 opts.DerpMapFn,
 		WorkspaceID:               opts.WorkspaceID,
+		WorkspaceBuildID:          opts.WorkspaceBuildID,
 	}
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated
@@ -242,6 +247,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	api.ConnLogAPI = &ConnLogAPI{
 		AgentID:          agent.ID,
 		AgentName:        agent.Name,
+		WorkspaceBuildID: opts.WorkspaceBuildID,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
@@ -285,6 +291,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Database:    opts.Database,
 		DirtyMarker: opts.ContextDirtyMarker,
 		Disabled:    opts.ContextSyncDisabled,
+		Experiments: opts.Experiments,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

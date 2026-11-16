@@ -2,15 +2,20 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc/drpcerr"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -270,6 +275,63 @@ func TestWorkspaceAgentRPCUserSecretFilePathDisabled(t *testing.T) {
 	}, byEnv)
 }
 
+func TestWorkspaceAgentRPCPluginsFollowExperiment(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Enabled=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				if enabled {
+					dv.Experiments = []string{string(codersdk.ExperimentAgentPlugins)}
+				}
+			})
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+			owner := coderdtest.CreateFirstUser(t, client)
+			workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        owner.UserID,
+			}).WithAgent().Do()
+
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+			conn, err := agentClient.ConnectRPC(ctx)
+			require.NoError(t, err)
+			defer conn.Close()
+			aAPI := agentproto.NewDRPCAgentClient(conn)
+
+			manifest, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
+			require.NoError(t, err)
+			require.Equal(t, enabled, manifest.GetAgentPluginsEnabled())
+
+			resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+				Version: 1,
+				Initial: true,
+				Resources: []*agentproto.ContextResource{{
+					Source: "/workspace/.agents/plugins/acme",
+					Status: agentproto.ContextResource_OK,
+					Body: &agentproto.ContextResource_Plugin{
+						Plugin: &agentproto.PluginBody{Name: "acme"},
+					},
+				}},
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetAccepted())
+
+			resources, err := db.ListWorkspaceAgentContextResources(dbauthz.AsSystemRestricted(ctx), workspace.Agents[0].ID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+			require.NoError(t, err)
+			if enabled {
+				require.Len(t, resources, 1)
+				require.Equal(t, database.WorkspaceAgentContextBodyKindPlugin, resources[0].BodyKind)
+				require.Equal(t, "acme", resources[0].PluginName)
+			} else {
+				require.Empty(t, resources)
+			}
+		})
+	}
+}
+
 func TestWorkspaceAgentRPCRole(t *testing.T) {
 	t.Parallel()
 
@@ -349,4 +411,44 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 	// existing tests like TestWorkspaceAgentReportStats which use
 	// ConnectRPC() (no role). The server defaults to monitoring when
 	// the role query parameter is omitted.
+}
+
+func TestWorkspaceAgentRPCConnectionLog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	conn, err := ac.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Report over the wire so coderd must accept and log the method and app.
+	id := uuid.New()
+	_, err = agentproto.NewDRPCAgentClient(conn).ReportConnection(ctx, &agentproto.ReportConnectionRequest{
+		Connection: &agentproto.Connection{
+			Id:               id[:],
+			Action:           agentproto.Connection_CONNECT,
+			Timestamp:        timestamppb.Now(),
+			ConnectionMethod: agentproto.Connection_METHOD_SSH,
+			AppName:          "Some-IDE",
+		},
+	})
+	require.NoError(t, err)
+
+	require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
+		WorkspaceID:      r.Workspace.ID,
+		ConnectionID:     uuid.NullUUID{UUID: id, Valid: true},
+		ConnectionMethod: database.ConnectionLogMethodSSH,
+		AppNameOrPort:    sql.NullString{String: "some_ide", Valid: true},
+	}))
 }

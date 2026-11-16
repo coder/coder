@@ -19,18 +19,20 @@ import { optionValue } from "./optionValue";
 type OptionsTableProps = {
 	options: readonly SerpentOption[];
 	additionalValues?: readonly string[];
+	"aria-label"?: string;
 };
 
 const OptionsTable: React.FC<OptionsTableProps> = ({
 	options,
 	additionalValues,
+	"aria-label": ariaLabel,
 }) => {
 	if (options.length === 0) {
 		return <p>No options to configure</p>;
 	}
 
 	return (
-		<Table className="options-table">
+		<Table className="options-table" aria-label={ariaLabel}>
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/2">Option</TableHead>

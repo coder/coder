@@ -53,7 +53,7 @@ export const BuildParametersPopover: React.FC<BuildParametersPopoverProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="bg-surface-secondary border-surface-quaternary w-[304px]"
+				className="bg-surface-secondary border-surface-quaternary w-76"
 			>
 				<BuildParametersPopoverContent
 					workspace={workspace}
@@ -86,7 +86,7 @@ const BuildParametersPopoverContent: React.FC<
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink
 						href={docs(
-							"/admin/templates/extending-templates/parameters#ephemeral-parameters",
+							"/templates/extending-templates/parameters#ephemeral-parameters",
 						)}
 					>
 						Read the docs

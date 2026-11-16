@@ -12,5 +12,5 @@ children:
     path: ./install/prepare/airgap.md
     icon_path: ./images/icons/lan.svg
   - title: Mirror the registry
-    description: Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments
+    description: Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments.
     path: ./install/prepare/registry-mirror.md

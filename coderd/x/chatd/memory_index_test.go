@@ -117,3 +117,120 @@ func TestProjectMemoryIndexKeepsPromptPrefixStable(t *testing.T) {
 	}
 	require.Equal(t, 2, indexRows, "one snapshot and one update")
 }
+
+// TestMovedChatUsesNewProject moves a chat between two turns and checks that
+// the next turn uses the instructions and the memory of the chat's new
+// project, or of no project once the chat leaves its project.
+func TestMovedChatUsesNewProject(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		// toBilling moves the chat to Billing instead of out of any project.
+		toBilling bool
+		// want are texts that appear once in the second turn's request.
+		want []string
+	}{
+		{
+			name:      "ToProject",
+			toBilling: true,
+			// The model saw the Platform index in turn one, so turn two adds
+			// the Billing memories and removes the Platform ones.
+			want: []string{
+				`in the project "Billing"`,
+				"Write all dates in ISO 8601.",
+				chattool.FormatMemoryIndexUpdate(
+					[]chattool.MemoryIndexEntry{{Name: "invoice-format", Description: "Invoices use ISO dates"}},
+					[]string{"deploy-day"},
+				),
+			},
+		},
+		{
+			name: "OutOfProject",
+			want: []string{chattool.FormatMemoryIndexUpdate(nil, []string{"deploy-day"})},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+
+			var (
+				mu       sync.Mutex
+				requests []*chattest.OpenAIRequest
+			)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				mu.Lock()
+				requests = append(requests, req)
+				mu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("ok")...)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			platform := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID, Name: "Platform"})
+			billing := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID, Name: "Billing"})
+			_, err := db.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
+				ProjectID:    billing.ID,
+				Instructions: "Write all dates in ISO 8601.",
+				UpdatedBy:    user.ID,
+			})
+			require.NoError(t, err)
+			dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{
+				ProjectID: platform.ID, OrganizationID: org.ID, CreatedBy: user.ID,
+				Name: "deploy-day", Description: "Deploys happen on Tuesdays", Body: "The team deploys every Tuesday.",
+			})
+			dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{
+				ProjectID: billing.ID, OrganizationID: org.ID, CreatedBy: user.ID,
+				Name: "invoice-format", Description: "Invoices use ISO dates", Body: "Invoices use ISO 8601 dates.",
+			})
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				ProjectID:          uuid.NullUUID{UUID: platform.ID, Valid: true},
+				Title:              "moved",
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hi")},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			target := uuid.NullUUID{}
+			if tc.toBilling {
+				target = uuid.NullUUID{UUID: billing.ID, Valid: true}
+			}
+			require.NoError(t, server.MoveChatToProject(ctx, chat, target))
+			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:    chat.ID,
+				CreatedBy: user.ID,
+				Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("what do you know?")},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Len(t, requests, 2, "one request per turn")
+			count := func(req *chattest.OpenAIRequest, text string) int {
+				n := 0
+				for _, msg := range req.Messages {
+					if strings.Contains(msg.Content, text) {
+						n++
+					}
+				}
+				return n
+			}
+			last := requests[1]
+			require.Zero(t, count(last, `in the project "Platform"`))
+			for _, text := range tc.want {
+				require.Equal(t, 1, count(last, text), text)
+			}
+		})
+	}
+}

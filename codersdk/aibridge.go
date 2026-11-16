@@ -228,6 +228,26 @@ type AIBridgeSessionThreadsTokenUsage struct {
 	CacheReadInputTokens  int64          `json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64          `json:"cache_write_input_tokens"`
 	Metadata              map[string]any `json:"metadata"`
+	// CostMicros is the summed cost of the priced usage, in micro-units
+	// (1000000 is $1.00).
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports that some usage has no cost, so CostMicros
+	// is a lower bound.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
+}
+
+// AIBridgePricedModel is the model and per-token prices used to compute the
+// cost of an interception. Prices are integer micro-units per million
+// tokens, so 1000000 is $1.00 per million tokens. A nil price means the
+// price is not known and was treated as zero.
+type AIBridgePricedModel struct {
+	// Model is the priced model, either the requested model or the model
+	// reported by the provider.
+	Model           string `json:"model"`
+	InputPrice      *int64 `json:"input_price"`
+	OutputPrice     *int64 `json:"output_price"`
+	CacheReadPrice  *int64 `json:"cache_read_price"`
+	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
 // AIBridgeAttribution contains the attribution fields recorded for one
@@ -254,6 +274,11 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	// PricedModel is the model and prices used for the root interception
+	// (the prompt). Other requests in the thread may use different models
+	// and prices, see agentic_actions[].priced_model. Nil when the root
+	// interception was not priced.
+	PricedModel *AIBridgePricedModel `json:"priced_model,omitempty"`
 	// Attribution contains attribution data from the root interception.
 	// Unknown attribution is serialized as an empty object.
 	Attribution    AIBridgeAttribution     `json:"attribution"`
@@ -286,8 +311,11 @@ type AIBridgeAgenticAction struct {
 	// Unknown attribution is serialized as an empty object.
 	Attribution AIBridgeAttribution              `json:"attribution"`
 	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	Thinking    []AIBridgeModelThought           `json:"thinking"`
-	ToolCalls   []AIBridgeToolCall               `json:"tool_calls"`
+	// PricedModel is the model and prices used for this interception. Nil
+	// when it was not priced.
+	PricedModel *AIBridgePricedModel   `json:"priced_model,omitempty"`
+	Thinking    []AIBridgeModelThought `json:"thinking"`
+	ToolCalls   []AIBridgeToolCall     `json:"tool_calls"`
 }
 
 // AIBridgeModelThought represents a single thinking block from
@@ -542,7 +570,8 @@ type OrganizationAISpendUser struct {
 	// UnpricedUsageCount is the number of the user's token usage records that
 	// carry no cost because their model had no price when they were recorded.
 	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
-	// Providers are the provider types the user spent through, sorted.
+	// Providers are the configured provider names the user spent through,
+	// sorted.
 	Providers []string `json:"providers"`
 	// Clients are the clients the user spent through, sorted. Usage without a
 	// recorded client is reported as Unknown.
@@ -684,6 +713,92 @@ func (c *ExperimentalClient) OrganizationAISpendUsers(ctx context.Context, organ
 	}
 	var report OrganizationAISpendReport
 	return report, ReadBodyAsJSON(res, &report)
+}
+
+// OrganizationAISpendOverview is the AI spend of an organization over the
+// applied period, read from the daily spend aggregate. Count, Totals, and
+// Intervals cover every user with spend.
+type OrganizationAISpendOverview struct {
+	AISpendPeriodWindow
+	// Count is the number of users with spend in the period.
+	Count  int64                             `json:"count"`
+	Totals OrganizationAISpendOverviewTotals `json:"totals"`
+	// Intervals holds the daily spend, one interval per UTC day in the period
+	// (omitting days after the current day). Days without spend are zero. When
+	// the period includes the current day, its interval only has the spend
+	// recorded so far.
+	Intervals []OrganizationAISpendOverviewInterval `json:"intervals"`
+	// Users is the requested page, most spend first.
+	Users []OrganizationAISpendOverviewUser `json:"users"`
+}
+
+// OrganizationAISpendOverviewTotals summarizes the organization's spend in
+// the period.
+type OrganizationAISpendOverviewTotals struct {
+	// SpendMicros is the total spend of all users in the period.
+	SpendMicros int64 `json:"spend_micros"`
+	// MedianSpendMicros is the median spend across users with spend in the
+	// period. It is zero when no user has spend.
+	MedianSpendMicros int64 `json:"median_spend_micros"`
+}
+
+// OrganizationAISpendOverviewInterval is the spend of an organization over the
+// [StartTime, EndTime) interval.
+type OrganizationAISpendOverviewInterval struct {
+	StartTime   time.Time `json:"start_time" format:"date-time"`
+	EndTime     time.Time `json:"end_time" format:"date-time"`
+	SpendMicros int64     `json:"spend_micros"`
+}
+
+// OrganizationAISpendOverviewUser is one user's spend within an organization
+// overview.
+type OrganizationAISpendOverviewUser struct {
+	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	// SpendMicros is the user's total spend in the period, across all of
+	// their groups.
+	SpendMicros int64 `json:"spend_micros"`
+	// Groups are the groups the user's spend was attributed to, most spend
+	// first.
+	Groups []OrganizationAISpendOverviewGroup `json:"groups"`
+}
+
+// OrganizationAISpendOverviewGroup is a group that a user's spend was
+// attributed to in the period, and the amount attributed to it.
+type OrganizationAISpendOverviewGroup struct {
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupName        string    `json:"group_name"`
+	GroupDisplayName string    `json:"group_display_name"`
+	// SpendMicros is the user's spend attributed to this group in the period.
+	SpendMicros int64 `json:"spend_micros"`
+}
+
+// OrganizationAISpend returns the AI spend overview of the organization with
+// one page of users. The period bounds must be set together and be at
+// 00:00:00 UTC. When both are zero, they are omitted and the server uses the
+// current budget period.
+func (c *ExperimentalClient) OrganizationAISpend(ctx context.Context, organization uuid.UUID, period AISpendPeriodWindow, page OrganizationAISpendPage) (OrganizationAISpendOverview, error) {
+	filter := OrganizationAISpendDetailsFilter{
+		PeriodStart: period.PeriodStart,
+		PeriodEnd:   period.PeriodEnd,
+	}
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/spend", organization.String()),
+		nil,
+		filter.asRequestOption(),
+		page.asRequestOption(),
+	)
+	if err != nil {
+		return OrganizationAISpendOverview{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationAISpendOverview{}, ReadBodyAsError(res)
+	}
+	var overview OrganizationAISpendOverview
+	return overview, ReadBodyAsJSON(res, &overview)
 }
 
 type GroupAIBudget struct {

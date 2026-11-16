@@ -9,6 +9,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
 )
@@ -99,6 +100,72 @@ func TestPubSub_DoesntRaceListenUnlisten(t *testing.T) {
 		finalCancels[i]()
 	}
 	require.Len(t, uut.queues, 0)
+}
+
+// TestPubSub_CloseReleasesBlockedLatencyProbe tests that Close returns while a
+// latency probe is blocked in Listen, as pq.Listener.Listen is while Postgres
+// is unreachable.
+func TestPubSub_CloseReleasesBlockedLatencyProbe(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+
+	uut := newWithoutListener(logger, nil, nil)
+	fListener := newBlockingPqListener()
+	// Unblock the probe if Close hangs, so the failed test leaks no goroutines.
+	t.Cleanup(func() { _ = fListener.Close() })
+	uut.pgListener = fListener
+	go uut.listen()
+	uut.metrics.StartLatencyLoop(uut)
+	// The loop measures immediately, so its first probe blocks in Listen.
+	testutil.TryReceive(ctx, t, fListener.listening)
+
+	closeErrs := make(chan error, 1)
+	go func() {
+		closeErrs <- uut.Close()
+	}()
+	err := testutil.TryReceive(ctx, t, closeErrs)
+	require.NoError(t, err)
+}
+
+// blockingPqListener is a fake pq.Listener whose Listen blocks until Close,
+// like pq.Listener.Listen does while it waits to reconnect.
+type blockingPqListener struct {
+	listening     chan struct{}
+	listeningOnce sync.Once
+	closed        chan struct{}
+	closeOnce     sync.Once
+	notify        chan *pq.Notification
+}
+
+func newBlockingPqListener() *blockingPqListener {
+	return &blockingPqListener{
+		listening: make(chan struct{}),
+		closed:    make(chan struct{}),
+		notify:    make(chan *pq.Notification),
+	}
+}
+
+func (f *blockingPqListener) Close() error {
+	f.closeOnce.Do(func() {
+		close(f.closed)
+		close(f.notify)
+	})
+	return nil
+}
+
+func (f *blockingPqListener) Listen(string) error {
+	f.listeningOnce.Do(func() { close(f.listening) })
+	<-f.closed
+	return xerrors.New("listener closed")
+}
+
+func (*blockingPqListener) Unlisten(string) error {
+	return nil
+}
+
+func (f *blockingPqListener) NotifyChan() <-chan *pq.Notification {
+	return f.notify
 }
 
 const (

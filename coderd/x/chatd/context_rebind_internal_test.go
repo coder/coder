@@ -25,8 +25,8 @@ import (
 // in persistBuildAgentBinding, which the end-to-end context test does not
 // reach: the shared repinChatContext helper is proven through the refresh
 // endpoint, but the rebind-specific wiring (the AgentID change guard, the
-// AsChatd escalation, the ReadModifyUpdate transaction, and the best-effort
-// error swallow) is exercised only here.
+// AsChatd escalation, and the shared binding and re-pin transaction) is
+// exercised only here.
 func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 	t.Parallel()
 
@@ -64,8 +64,8 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.True(t, updated.AgentID.Valid)
 		require.Equal(t, fix.agentB, updated.AgentID.UUID, "the binding commits the new agent")
 
-		// The re-pin runs in its own transaction after the binding row is
-		// written, so re-read the chat to observe the new pinned state.
+		// The binding row is returned before the re-pin writes, so re-read the
+		// chat to observe the new pinned state.
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, fix.hashB, post.ContextAggregateHash, "rebind re-pins the new agent's hash")
@@ -188,13 +188,14 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.Empty(t, postRes, "rebinding to an agent with no snapshot clears the pinned resources")
 	})
 
-	// SwallowsRepinError: a re-pin failure is logged and swallowed so it never
-	// fails the agent binding itself.
-	t.Run("SwallowsRepinError", func(t *testing.T) {
+	// RepinErrorRollsBackBinding: a re-pin failure fails the binding in the
+	// same transaction, so the next turn sees the old agent and retries.
+	t.Run("RepinErrorRollsBackBinding", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		dbm := dbmock.NewMockStore(ctrl)
+		txm := dbmock.NewMockStore(ctrl)
 		server := &Server{db: dbm, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
 
 		chatID := uuid.New()
@@ -207,19 +208,20 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 			AgentID: uuid.NullUUID{UUID: newAgent, Valid: true},
 		}
 
-		dbm.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
+		repinErr := xerrors.New("boom")
+		// Both writes must go through the transaction store, so a failed
+		// re-pin rolls back the binding.
+		dbm.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(txm)
+			})
+		txm.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
 			ID:      chatID,
 			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
 			AgentID: uuid.NullUUID{UUID: newAgent, Valid: true},
 		}).Return(boundChat, nil)
-		// The re-pin runs inside ReadModifyUpdate; drive the closure and fail
-		// its first read so repinChatContext returns an error.
-		dbm.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(f func(database.Store) error, _ *database.TxOptions) error {
-				return f(dbm)
-			})
-		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), newAgent).
-			Return(database.WorkspaceAgentContextSnapshot{}, xerrors.New("boom"))
+		txm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), newAgent).
+			Return(database.WorkspaceAgentContextSnapshot{}, repinErr)
 
 		cur := database.Chat{ID: chatID}
 		wc := turnWorkspaceContext{
@@ -231,10 +233,9 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		t.Cleanup(wc.close)
 
 		prior := database.Chat{ID: chatID, AgentID: uuid.NullUUID{UUID: priorAgent, Valid: true}}
-		updated, err := wc.persistBuildAgentBinding(ctx, prior, buildID, newAgent)
-		require.NoError(t, err, "a re-pin failure must not fail the binding")
-		require.Equal(t, newAgent, updated.AgentID.UUID)
-		require.Equal(t, boundChat, wc.currentChatSnapshot(), "the binding still commits the new agent")
+		_, err := wc.persistBuildAgentBinding(ctx, prior, buildID, newAgent)
+		require.ErrorIs(t, err, repinErr)
+		require.Equal(t, database.Chat{ID: chatID}, wc.currentChatSnapshot(), "a failed binding leaves the current chat unchanged")
 	})
 }
 

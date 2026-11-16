@@ -180,6 +180,7 @@ func TestResolveModelOverride(t *testing.T) {
 					require.NoError(t, err)
 				}
 				require.Equal(t, test.wantSet && wantErr || test.wantModel, resolved.Set)
+				require.Equal(t, test.wantSet && !wantErr && !test.wantModel, resolved.Unavailable)
 				if test.wantModel {
 					require.Equal(t, config.ID, resolved.Config.ID)
 					require.Equal(t, ptr.Ref("high"), resolved.ReasoningEffort)

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -36,7 +37,7 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	projects, err := api.Database.GetChatProjectsByOwnerID(ctx, apiKey.UserID)
+	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",
@@ -44,7 +45,9 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, db2sdk.ChatProject))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, func(project database.ChatProject) codersdk.ChatProject {
+		return api.convertChatProject(r, project)
+	}))
 }
 
 // @Summary Create chat project
@@ -134,7 +137,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = project
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project))
+	httpapi.Write(ctx, rw, http.StatusCreated, api.convertChatProject(r, project))
 }
 
 // @Summary Get chat project
@@ -156,7 +159,7 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(project))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, project))
 }
 
 // @Summary Update chat project
@@ -174,8 +177,7 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
 
@@ -224,7 +226,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = updated
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, updated))
 }
 
 // @Summary Delete chat project
@@ -239,8 +241,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionDelete, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project.RBACObject()) {
 		return
 	}
 
@@ -269,8 +270,36 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
+	if !api.Authorize(r, policy.ActionRead, object) {
+		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	if !api.Authorize(r, action, object) {
+		httpapi.Forbidden(rw)
+		return false
+	}
+	return true
+}
+
+func (api *API) convertChatProject(r *http.Request, project database.ChatProject) codersdk.ChatProject {
+	ctx := r.Context()
+	subject := httpmw.UserAuthorization(ctx)
+	obj := project.RBACObject()
+	// Denials are expected here, so this skips api.Authorize, which logs
+	// each one as a warning.
+	can := func(action policy.Action) bool {
+		return api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
+	}
+	return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
+		Update: can(policy.ActionUpdate),
+		Delete: can(policy.ActionDelete),
+		Share:  can(policy.ActionShare),
+	})
+}
+
 // maxChatProjectsPerOwner caps how many projects one user owns across all
-// organizations, which bounds the project list every agents page loads.
+// organizations.
 const maxChatProjectsPerOwner = 100
 
 var errChatProjectLimit = xerrors.New("chat project limit reached")

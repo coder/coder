@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
@@ -39,26 +40,36 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 
+const roleLabels: Record<WorkspaceRole, string> = {
+	use: "Use",
+	admin: "Admin",
+	"": "",
+};
+
+// Speech input users activate a control by its visible text, so the
+// accessible name has to include the selected role.
+const getRoleSelectLabel = (label: string, value: WorkspaceRole) =>
+	roleLabels[value] ? `${label}: ${roleLabels[value]}` : label;
+
 type RoleSelectProps = {
 	value: WorkspaceRole;
+	memberOrGroupName: string;
 	disabled?: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
 };
 
 const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
+	memberOrGroupName,
 	disabled,
 	onValueChange,
 }) => {
-	const roleLabels: Record<WorkspaceRole, string> = {
-		use: "Use",
-		admin: "Admin",
-		"": "",
-	};
-
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
-			<SelectTrigger className="w-40 h-auto">
+			<SelectTrigger
+				className="w-40 h-auto"
+				aria-label={getRoleSelectLabel(`Role for ${memberOrGroupName}`, value)}
+			>
 				<SelectValue>
 					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
 						{roleLabels[value]}
@@ -98,7 +109,7 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 }) => {
 	return (
 		<form action={onSubmit}>
-			<div className="flex flex-row items-center gap-2">
+			<div className="flex items-center gap-2">
 				{children}
 				<Button disabled={disabled || isLoading} type="submit">
 					<Spinner loading={isLoading}>
@@ -128,7 +139,10 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			onValueChange={(val: WorkspaceRole) => onChange(val)}
 			disabled={disabled}
 		>
-			<SelectTrigger className="w-40">
+			<SelectTrigger
+				className="w-40"
+				aria-label={getRoleSelectLabel("Role", value)}
+			>
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>
@@ -219,7 +233,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	);
 
 	const tableHeader = (
-		<TableHeader>
+		<TableHeader
+			className={cn(isCompact && "sticky top-0 z-10 bg-surface-primary")}
+		>
 			<TableRow>
 				<TableHead className="w-[50%] py-2">Member</TableHead>
 				<TableHead className="w-[40%] py-2">Role</TableHead>
@@ -259,6 +275,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
+										memberOrGroupName={group.display_name || group.name}
 										disabled={updatingGroupId === group.id}
 										onValueChange={(value) => onUpdateGroup(group, value)}
 									/>
@@ -274,10 +291,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 											<Button
 												size="icon-lg"
 												variant="subtle"
-												aria-label="Open menu"
+												aria-label={`Open menu for ${group.display_name || group.name}`}
 											>
 												<EllipsisVerticalIcon aria-hidden="true" />
-												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
@@ -307,6 +323,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
+										memberOrGroupName={user.username}
 										disabled={updatingUserId === user.id}
 										onValueChange={(value) => onUpdateUser(user, value)}
 									/>
@@ -322,10 +339,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 											<Button
 												size="icon-lg"
 												variant="subtle"
-												aria-label="Open menu"
+												aria-label={`Open menu for ${user.username}`}
 											>
 												<EllipsisVerticalIcon aria-hidden="true" />
-												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
@@ -346,26 +362,6 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		</TableBody>
 	);
 
-	if (isCompact) {
-		return (
-			<div className="flex flex-col gap-4">
-				{Boolean(error) && <ErrorAlert error={error} />}
-				{canShareWorkspace && addMemberForm}
-				{showRestartWarning && (
-					<Alert severity="warning">
-						Workspace restart required for the removal to take effect.
-					</Alert>
-				)}
-				<div>
-					<Table>{tableHeader}</Table>
-					<div className="max-h-60 overflow-y-auto">
-						<Table>{tableBody}</Table>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
@@ -375,7 +371,21 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 					Workspace restart required for the removal to take effect.
 				</Alert>
 			)}
-			<Table>
+			{/* Screen readers associate headers with cells only within one table. */}
+			<Table
+				aria-label="Shared workspace members and groups"
+				wrapperClassName={cn(isCompact && "max-h-60")}
+				// Without row controls, keyboard users need the scroll area itself to be focusable.
+				wrapperProps={
+					isCompact && !canShareWorkspace
+						? {
+								tabIndex: 0,
+								role: "region",
+								"aria-label": "Shared workspace members and groups",
+							}
+						: undefined
+				}
+			>
 				{tableHeader}
 				{tableBody}
 			</Table>

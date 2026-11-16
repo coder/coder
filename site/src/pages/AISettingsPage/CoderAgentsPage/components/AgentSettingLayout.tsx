@@ -57,7 +57,7 @@ export const AgentSettingLayout: React.FC<AgentSettingLayoutProps> = ({
 									size="lg"
 									type="submit"
 									disabled={saveDisabled}
-									className="h-10 min-w-[88px]"
+									className="h-10 min-w-22"
 								>
 									{isSaving && <Spinner loading className="size-4" />}
 									Save

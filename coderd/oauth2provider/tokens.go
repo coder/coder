@@ -111,15 +111,14 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, ap
 
 	// First, so a typo reads as an unknown scope rather than as a coverage
 	// check RBAC could not decide.
-	if unknown, ok := firstUnknownScope(requested); ok {
+	narrowed, err := requestedScopes(requested)
+	if err != nil {
 		logger.Warn(ctx, "oauth2 token request refused: scope outside the catalog",
 			slog.F("phase", phase),
 			slog.F("app_id", appID.String()),
-			slog.F("scope", unknown))
-		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
+			slog.Error(err))
+		return "", err
 	}
-
-	narrowed := canonicalScopes(requested)
 	outside, err := firstScopeBeyondCeiling(ctx, logger, phase, appID, ceiling, narrowed)
 	if err != nil {
 		return "", err

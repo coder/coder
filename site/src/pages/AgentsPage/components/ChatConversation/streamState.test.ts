@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import {
+	MockACPTranscriptDeltas,
+	MockACPWaitingResult,
+	MockACPWaitResult,
+} from "#/testHelpers/acp";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -724,7 +730,7 @@ describe("applyMessagePartToStreamState", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
 			type: "tool-call",
-			tool_name: "web_search",
+			tool_name: "code_execution",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 		});
@@ -735,7 +741,7 @@ describe("applyMessagePartToStreamState", () => {
 	it("records a provider_executed tool-result part without a tool card", () => {
 		const part: ChatMessagePart = {
 			type: "tool-result",
-			tool_name: "web_search",
+			tool_name: "code_execution",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 			result: { output: "search results" },
@@ -746,6 +752,96 @@ describe("applyMessagePartToStreamState", () => {
 			providerToolRan: true,
 		});
 		expect(applyMessagePartToStreamState(state, part)).toBe(state);
+	});
+
+	it("streams tagged sources under their web_search call, untagged ones in the source row", () => {
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			args: { type: "search", queries: JSON.stringify(["coder"]) },
+			provider_executed: true,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com/changelog",
+		});
+		const afterFirstPage = state;
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com/changelog",
+		});
+		expect(state).toBe(afterFirstPage);
+
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				status: "running",
+				providerExecuted: true,
+				foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+			}),
+		]);
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			provider_executed: true,
+			result: {},
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://coder.com/changelog",
+			title: "Coder changelog",
+		});
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				result: {},
+				status: "completed",
+				foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+			}),
+		]);
+		expect(state?.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{
+				type: "sources",
+				sources: [
+					{ url: "https://coder.com/changelog", title: "Coder changelog" },
+				],
+			},
+		]);
+		expect(state?.sources).toEqual([
+			{ url: "https://coder.com/changelog", title: "Coder changelog" },
+		]);
+	});
+
+	it("keeps found pages when later tool-call deltas arrive", () => {
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			provider_executed: true,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com",
+			title: "Coder",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			args: { query: "coder" },
+		});
+		expect(state?.toolCalls["ws-1"]).toMatchObject({
+			args: { query: "coder" },
+			providerExecuted: true,
+			foundPages: [{ url: "https://coder.com", title: "Coder" }],
+		});
 	});
 
 	it("adds a file block from a file part with data", () => {
@@ -831,6 +927,28 @@ describe("applyMessagePartToStreamState", () => {
 				{ url: "https://other.com", title: "Other" },
 			],
 		});
+	});
+
+	it("keeps streamed text together and its citations after it", () => {
+		let state: StreamState | null = null;
+		const parts: ChatMessagePart[] = [
+			{ type: "text", text: "Go 1.27 " },
+			{ type: "source", url: "https://go.dev/doc/go1.27", title: "Go 1.27" },
+			{ type: "text", text: "is out." },
+			// A paragraph break streamed as its own delta stays in the text.
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Go 1.28 is next." },
+		];
+		for (const part of parts) {
+			state = applyMessagePartToStreamState(state, part);
+		}
+		expect(state!.blocks).toEqual([
+			{ type: "response", text: "Go 1.27 is out.\n\nGo 1.28 is next." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
 	});
 
 	it("deduplicates sources with the same URL", () => {
@@ -1298,4 +1416,80 @@ describe("compiler cache guard simulation", () => {
 		}
 		expect(subFieldMisses).toBe(1);
 	});
+});
+
+it("replaces an ACP wait's live preview with its user-visible transcript", () => {
+	let state = applyMessagePartToStreamState(null, {
+		type: "tool-call",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		args: { session_id: "session" },
+	});
+	for (const [delta, preview] of [
+		[MockACPTranscriptDeltas.slice(0, 3).join(""), MockACPWaitingResult],
+		[MockACPTranscriptDeltas.slice(3).join(""), MockACPWaitResult],
+	] as const) {
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_call_id: "wait",
+			tool_name: ACPToolNames.WaitAgent,
+			result_delta: delta,
+		});
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				name: ACPToolNames.WaitAgent,
+				status: "running",
+				result: { messages: preview.messages },
+			}),
+		]);
+	}
+	expect(state?.toolResults.wait?.resultRaw).toBe("");
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait",
+		result_delta: '{"message_index":',
+	});
+	const result = MockACPWaitResult;
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		result: JSON.stringify(result),
+	});
+	expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+		expect.objectContaining({ status: "completed", result }),
+	]);
+	expect(state?.toolResults.wait?.resultRaw).toBe(JSON.stringify(result));
+});
+
+it("keeps interleaved ACP waits with matching inner tool IDs independent", () => {
+	let state: StreamState | null = null;
+	for (const id of ["wait-a", "wait-b"]) {
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: id,
+			tool_name: ACPToolNames.WaitAgent,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_call_id: id,
+			result_delta: MockACPTranscriptDeltas.slice(0, 3).join(""),
+		});
+	}
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait-a",
+		result_delta: MockACPTranscriptDeltas.slice(3).join(""),
+	});
+	expect(state?.toolResults["wait-a"].result).toEqual({
+		messages: MockACPWaitResult.messages,
+	});
+	expect(state?.toolResults["wait-b"].result).toEqual({
+		messages: MockACPWaitingResult.messages,
+	});
+	expect(
+		buildStreamTools(state?.toolCalls, state?.toolResults).map(
+			(tool) => tool.status,
+		),
+	).toEqual(["running", "running"]);
 });

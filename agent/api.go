@@ -27,6 +27,8 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 		tracing.Middleware(nil, []string{"/", "/api", "/api/**", "/debug/**"}, "agent"),
 		loggermw.Logger(a.logger, nil),
 		agentchat.Middleware,
+		// Install WriteDeadlineMiddleware before tool call deduplication so retries also get the deadline.
+		a.acpAPI.WriteDeadlineMiddleware,
 		a.toolCalls.Middleware,
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
@@ -41,6 +43,7 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Mount("/api/v0/tool-calls", a.toolCalls.Routes())
 	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
 	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
+	r.Mount("/api/v0/acp", a.acpAPI.Routes())
 	r.Mount("/api/v0/context-config", a.contextConfigAPI.Routes())
 	if a.contextAPI != nil {
 		r.Mount("/api/v0/context", a.contextAPI.Routes())

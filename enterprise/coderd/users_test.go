@@ -641,7 +641,7 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
 		require.Empty(t, user.Email)
 		require.Equal(t, "service-acct-ok", user.Username)
-		require.Equal(t, codersdk.UserStatusDormant, user.Status)
+		require.Equal(t, codersdk.UserStatusActive, user.Status)
 	})
 
 	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
@@ -720,6 +720,32 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Service accounts must use login type 'none'")
+	})
+
+	t.Run("ServiceAccount/WithDormantStatus", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic // The owner creates the service account under test.
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-dormant",
+			UserStatus:      new(codersdk.UserStatusDormant),
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Service accounts can't be dormant")
 	})
 
 	t.Run("ServiceAccount/DefaultLoginType", func(t *testing.T) {
@@ -824,19 +850,19 @@ func TestServiceAccountNotifications(t *testing.T) {
 	require.NoError(t, err)
 	requireServiceAccountNotification(t, notifications.TemplateUserAccountCreated, serviceAccount.ID)
 
-	// Service accounts are created dormant, so activation comes before
-	// suspension.
-	notifyEnq.Clear()
-	//nolint:gocritic // Only the owner can change another account's status here.
-	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusActive)
-	require.NoError(t, err)
-	requireServiceAccountNotification(t, notifications.TemplateUserAccountActivated, serviceAccount.ID)
-
+	// Service accounts are created active, so suspension comes before
+	// activation.
 	notifyEnq.Clear()
 	//nolint:gocritic // Only the owner can change another account's status here.
 	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusSuspended)
 	require.NoError(t, err)
 	requireServiceAccountNotification(t, notifications.TemplateUserAccountSuspended, serviceAccount.ID)
+
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can change another account's status here.
+	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusActive)
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountActivated, serviceAccount.ID)
 
 	notifyEnq.Clear()
 	//nolint:gocritic // Only the owner can delete another account here.

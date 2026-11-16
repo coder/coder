@@ -75,6 +75,22 @@ export const UnmappedProviderType: Story = {
 	},
 };
 
+const MockOpenAIProviderWithCustomIcon = {
+	...MockOpenAIProviderState,
+	label: "DeepSeek",
+	providerDescriptor: {
+		...MockOpenAIProviderState.providerDescriptor,
+		display_name: "DeepSeek",
+		icon: "/icon/widgets.svg",
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		provider: MockOpenAIProviderWithCustomIcon,
+	},
+};
+
 // A missing (soft-deleted) provider shows "Unset" plus the "Unavailable"
 // notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {

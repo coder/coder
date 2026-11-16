@@ -1,9 +1,6 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
-	// Turn every default-on category off so nothing runs unless explicitly
-	// enabled below.
-	"categories": { "correctness": "off" },
 	"rules": {
 		// --- a11y (jsx-a11y) ---
 		"no-access-key": "error",
@@ -34,6 +31,7 @@
 		"lang": "error",
 		"media-has-caption": "error",
 		"click-events-have-key-events": "error",
+		"no-noninteractive-tabindex": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -111,6 +109,13 @@
 		"refs": "error",
 		"erasing-op": "error",
 		"no-unused-expressions": "error",
+		"static-components": "error",
+		"no-conditional-tests": "error",
+		"no-useless-fallback-in-spread": "error",
+		"no-noninteractive-element-interactions": "error",
+		"control-has-associated-label": "error",
+		"preserve-manual-memoization": "error",
+		"no-useless-spread": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -216,9 +221,25 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
+
+		// Correctness category rules with existing violations.
+		"require-mock-type-parameters": "off", // (xl)
+		"prefer-tag-over-role": "off", // (large)
+		"vitest/no-conditional-expect": "off", // (large)
+		"vitest/expect-expect": "off", // (large)
+		"set-state-in-effect": "off", // (medium)
+		"vitest/valid-title": "off", // (medium)
+		"no-thenable": "off", // (medium)
+		"no-new-array": "off", // (medium)
+		"vitest/require-to-throw-message": "off", // (small)
+		"globals": "off", // (small)
+		"no-static-element-interactions": "off", // (small)
+		"immutability": "off", // (small)
+		"vitest/valid-expect": "off", // (small)
+		"purity": "off", // (small)
+
 		"no-restricted-imports": [
 			"error",
 			{

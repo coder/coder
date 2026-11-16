@@ -17,6 +17,7 @@ export type ChatTreeContextValue = {
 	readonly onArchiveSuccess?: (chatId: string) => void;
 	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	readonly dragInstructionsId: string;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);

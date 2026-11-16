@@ -170,6 +170,10 @@ export const useResourceTypeFilterMenu = ({
 			label = "Chat Project Instructions";
 		}
 
+		if (type === "chat_project_skill") {
+			label = "Chat Project Skill";
+		}
+
 		if (type === "chat_operational_settings") {
 			label = "Chat Operational Settings";
 		}

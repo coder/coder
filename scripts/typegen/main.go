@@ -24,6 +24,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+//go:embed appfamilies.tstmpl
+var appFamiliesTemplate string
+
 //go:embed rbacobject.gotmpl
 var rbacObjectTemplate string
 
@@ -50,6 +53,7 @@ var databaseEnums = []string{
 func usage() {
 	_, _ = fmt.Println("Usage: typegen <type> [template]")
 	_, _ = fmt.Println("Types:")
+	_, _ = fmt.Println("  appfamilies            - Generate app family display names TypeScript")
 	_, _ = fmt.Println("  rbac <object|codersdk|typescript> - Generate RBAC related files")
 	_, _ = fmt.Println("  countries              - Generate countries TypeScript")
 	_, _ = fmt.Println("  dbenums                - Generate codersdk mirrors of database enums")
@@ -75,6 +79,8 @@ func main() {
 	// the same thing, but different format for the BE and the sdk.
 	// So the argument switches the go template to use.
 	switch strings.ToLower(flag.Args()[0]) {
+	case "appfamilies":
+		out, err = generateAppFamilies()
 	case "rbac":
 		if len(flag.Args()) < 2 {
 			usage()
@@ -123,6 +129,19 @@ func generateRBAC(tmpl string) ([]byte, error) {
 		return nil, err
 	}
 	return formatSource(out)
+}
+
+func generateAppFamilies() ([]byte, error) {
+	tmpl, err := template.New("appfamilies.tstmpl").Parse(appFamiliesTemplate)
+	if err != nil {
+		return nil, xerrors.Errorf("parse template: %w", err)
+	}
+
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, codersdk.AppFamilyDisplayNames()); err != nil {
+		return nil, xerrors.Errorf("execute template: %w", err)
+	}
+	return out.Bytes(), nil
 }
 
 func generateCountries() ([]byte, error) {

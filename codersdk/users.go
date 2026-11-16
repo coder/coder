@@ -83,7 +83,7 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
-	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	Status           UserStatus `json:"status" table:"status"`
 	LoginType        LoginType  `json:"login_type"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	// Deprecated: this value should be retrieved from
@@ -171,7 +171,8 @@ type CreateUserRequest struct {
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
-	// UserStatus defaults to UserStatusDormant.
+	// UserStatus defaults to UserStatusDormant. Service accounts default to
+	// UserStatusActive and can't be dormant.
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
