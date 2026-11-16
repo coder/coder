@@ -22,7 +22,7 @@ type Story = StoryObj<typeof TotalAgentHoursCard>;
 const hoverInfoIcon = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	await userEvent.hover(
-		canvas.getByRole("button", { name: "Total agent hours information" }),
+		canvas.getByRole("button", { name: "Total Agent Hours information" }),
 	);
 	return within(canvasElement.ownerDocument.body);
 };
@@ -90,7 +90,7 @@ export const ReachedSoftLimit: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 85% or more of your total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 85% or more of your total Agent Hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -110,7 +110,7 @@ export const ReachedAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your total Agent Hours for this license\. Contact sales to receive more Agent Hours\./,
 		);
 	},
 };
@@ -130,7 +130,7 @@ export const OverAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 120% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 120% of your total Agent Hours for this license\. Contact sales to receive more Agent Hours\./,
 		);
 	},
 };
@@ -151,7 +151,7 @@ export const ReachedAllocationByFraction: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your total Agent Hours for this license\. Contact sales to receive more Agent Hours\./,
 		);
 	},
 };
@@ -197,7 +197,7 @@ export const NearAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 99\.9% or more of your total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 99\.9% or more of your total Agent Hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -272,7 +272,7 @@ export const HardCap: Story = {
 		await expect(canvas.getByText("1,500")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent Hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
@@ -297,13 +297,13 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 		await expect(canvas.getByText("900.0")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent Hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 85% or more of your total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 85% or more of your total Agent Hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -322,13 +322,13 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 		await expect(canvas.getByText("1,200.0")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent Hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 120% of your total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 120% of your total Agent Hours for this license\. Contact sales to receive more Agent Hours\./,
 		);
 	},
 };
@@ -347,13 +347,13 @@ export const ReachedHardCap: Story = {
 		await expect(canvas.getByText("1,600.0")).toBeInTheDocument();
 		await expect(
 			canvas.getByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent Hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 160% of your total Agent hours for this license and reached the hard cap of 1,500 hours\. Contact sales to receive more Agent hours\./,
+			/You've used 160% of your total Agent Hours for this license and reached the hard cap of 1,500 hours\. Contact sales to receive more Agent Hours\./,
 		);
 	},
 };
@@ -373,13 +373,13 @@ export const ReachedCoincidentHardCap: Story = {
 		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
 		await expect(
 			canvas.getByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent Hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your total Agent hours for this license and reached the hard cap of 1,000 hours\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your total Agent Hours for this license and reached the hard cap of 1,000 hours\. Contact sales to receive more Agent Hours\./,
 		);
 	},
 };
@@ -395,7 +395,7 @@ export const Disabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByRole("heading", { name: "Total agent hours" }),
+			canvas.queryByRole("heading", { name: "Total Agent Hours" }),
 		).not.toBeInTheDocument();
 	},
 };

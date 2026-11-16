@@ -39,7 +39,7 @@ const EXPECT_COMMENT = "sentence-case-expect";
 // as "SSH" or "GitHub" are already allowed.
 const PROPER_NOUNS = [
 	// Coder products, features, and built-in role names.
-	"Agent hours",
+	"Agent Hours",
 	"AI Gateway",
 	"AI Gateway Proxy",
 	"AI Governance",

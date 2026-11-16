@@ -30,7 +30,7 @@ export const QueuedForCapacityCallout: React.FC = () => {
 			"Your team has reached your license’s limit for active agents.";
 	}
 	if (agentHoursHardLimit !== undefined) {
-		limitMessage = `Your team has reached the ${agentHoursHardLimit}-hour Agent hours hard limit.`;
+		limitMessage = `Your team has reached the ${agentHoursHardLimit}-hour Agent Hours hard limit.`;
 	}
 
 	let action: React.ReactNode = (

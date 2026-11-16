@@ -205,7 +205,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 	const statusText = isAgentHoursHardLimitExceeded
 		? "Limit exceeded"
 		: isAgentHoursExceeded
-			? "Agent hours exceeded"
+			? "Agent Hours exceeded"
 			: isAiGovernanceAddOnExceeded
 				? "Add-on exceeded"
 				: isExpired
