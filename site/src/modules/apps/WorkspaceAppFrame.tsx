@@ -26,16 +26,19 @@ type WorkspaceAppFrameProps = {
 	app: WorkspaceAppWithAgent;
 	// Keep the iframe mounted while hidden so callers can preserve app state.
 	active: boolean;
+	urlPath?: string;
 };
 
 export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 	workspace,
 	app,
 	active,
+	urlPath,
 }) => {
 	const link = useAppLink(app, {
 		agent: app.agent,
 		workspace,
+		urlPath,
 	});
 	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);

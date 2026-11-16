@@ -452,16 +452,22 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		startPendingTab(tabId);
 	};
 
-	const handleOpenWorkspaceAppTab = (app: TypesGen.WorkspaceApp) => {
+	const handleOpenWorkspaceAppTab = (
+		app: TypesGen.WorkspaceApp,
+		urlPath?: string,
+	) => {
 		if (!workspaceAgent) {
 			return;
 		}
 
+		// An open_preview result with a url_path gets its own tab, because the
+		// app tab at its root is a different view.
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) =>
 				tab.kind === "workspace_app" &&
 				tab.agentId === workspaceAgent.id &&
-				tab.appId === app.id,
+				tab.appId === app.id &&
+				(tab.urlPath ?? "") === (urlPath ?? ""),
 		);
 		if (existingTab) {
 			activateRightPanelTab(existingTab.id);
@@ -474,6 +480,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			label: app.display_name ?? app.slug,
 			agentId: workspaceAgent.id,
 			appId: app.id,
+			urlPath,
 		};
 
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);

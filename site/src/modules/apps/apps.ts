@@ -126,11 +126,12 @@ type GetAppHrefParams = {
 	agent: WorkspaceAgent;
 	token?: string;
 	accessUrl?: string;
+	urlPath?: string;
 };
 
 export const getAppHref = (
 	app: WorkspaceApp,
-	{ path, token, workspace, agent, host, accessUrl }: GetAppHrefParams,
+	{ path, token, workspace, agent, host, accessUrl, urlPath }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
 		// Sub-agent apps never get a token; `coder open app` refuses them too.
@@ -156,7 +157,13 @@ export const getAppHref = (
 	if (host && app.subdomain && app.subdomain_name) {
 		const baseUrl = `${location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
-		url.pathname = "/";
+		// A urlPath of "/?folder=x" splits into the pathname and search; an
+		// empty one keeps the root. IsPreviewURLPath in coderd validated that
+		// urlPath is a path and query only, so it cannot reach another origin.
+		const queryStart = urlPath?.indexOf("?") ?? -1;
+		url.pathname =
+			queryStart === -1 ? (urlPath ?? "/") : (urlPath?.slice(0, queryStart) ?? "/");
+		url.search = queryStart === -1 ? "" : (urlPath?.slice(queryStart) ?? "");
 		return url.toString();
 	}
 

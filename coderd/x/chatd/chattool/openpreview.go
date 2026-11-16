@@ -38,7 +38,7 @@ type OpenPreviewResult struct {
 	AppSlug   string `json:"app_slug,omitempty"`
 	// Path is the file or directory a file preview serves, with symlinks resolved.
 	Path string `json:"path,omitempty"`
-	// URLPath is the path and query a port preview opens at, such as
+	// URLPath is the path and query a port or app preview opens at, such as
 	// "/?folder=/home/coder". It is empty for the server's root.
 	URLPath string `json:"url_path,omitempty"`
 }
@@ -69,7 +69,7 @@ type OpenPreviewArgs struct {
 	Title   string `json:"title" description:"Short name for the preview shown in the user's preview selector, such as Docs site or Signup form. At most 80 characters."`
 	Port    *int   `json:"port,omitempty" description:"Port of an existing plain HTTP (not HTTPS) server, between 1000 and 65535. Do not combine with path or app."`
 	Path    string `json:"path,omitempty" description:"Absolute workspace path to an .html file or a directory containing index.html. Do not combine with port or app."`
-	URLPath string `json:"url_path,omitempty" description:"Path and query to open on the port's server, such as /?folder=/home/coder/project. Only with port. Defaults to /."`
+	URLPath string `json:"url_path,omitempty" description:"Path and query to open on the port's server or in the app, such as /?folder=/home/coder/project. Only with port or app. Defaults to /."`
 	App     string `json:"app,omitempty" description:"Slug of a subdomain coder_app on the workspace agent. Do not combine with port or path."`
 }
 
@@ -89,7 +89,7 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 		"open_preview",
 		"Offer an embedded preview or a workspace app to the user, who opens it from the chat. Pass a short title and exactly one of port, path or app. "+
 			"Use port for an existing HTTP web app; this does not start the app or wait for it to be ready. "+
-			"Add url_path to open the app at a path and query other than /, for example /?folder=/home/coder/project. "+
+			"Add url_path to open it at a path and query other than /, for example /?folder=/home/coder/project. "+
 			"Use path for an .html file or a directory containing index.html; the workspace agent publishes the files through Coder. "+
 			"A file publishes only that file. To include CSS, JavaScript, images, or other pages, publish their directory instead. "+
 			"Directory contents are published, so use a dedicated output directory without secrets. Directory listing is disabled. "+
@@ -132,8 +132,8 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				// URL path.
 				args.URLPath = ""
 			}
-			if args.URLPath != "" && !hasPort {
-				return fantasy.NewTextErrorResponse("url_path can only be used with port"), nil
+			if args.URLPath != "" && !hasPort && !hasApp {
+				return fantasy.NewTextErrorResponse("url_path can only be used with port or app"), nil
 			}
 			if args.URLPath != "" && !IsPreviewURLPath(args.URLPath) {
 				return fantasy.NewTextErrorResponse(fmt.Sprintf("url_path must start with a single /, contain only a path and query, have no backslashes, fragments or control characters, and be at most %d characters", maxPreviewURLPathLength)), nil
@@ -172,6 +172,7 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				}
 
 				result.AppSlug = args.App
+				result.URLPath = args.URLPath
 				return marshalToolResponse(result), nil
 			}
 
