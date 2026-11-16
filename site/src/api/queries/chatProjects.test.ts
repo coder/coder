@@ -202,13 +202,13 @@ describe("chat project mutations", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("refreshes the summaries and chat lists, not searches, after a pin change", async () => {
+	it("refreshes only the summaries after a pin change", async () => {
 		for (const factory of [pinChatProject, unpinChatProject]) {
 			const queryClient = seed();
 			queryClient.setQueryData(chatProjectSummariesKey, []);
 			await settle(factory(queryClient));
 			expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-			expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
+			expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
 			expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
 			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
 		}
@@ -277,17 +277,15 @@ describe("pinChatProject ordering", () => {
 	);
 	const setup = () => {
 		const queryClient = createTestQueryClient();
-		// Keeps the queries cached without an observer.
-		for (const key of [chatProjectSummariesKey, chatListFamilyKey]) {
-			queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY });
-		}
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
 		queryClient.setQueryData(chatProjectSummariesKey, [
 			mockLaunch,
 			mockBilling,
 			mockOps,
 		]);
-		const chatListKey = [...chatListFamilyKey, { q: "" }];
-		queryClient.setQueryData(chatListKey, {});
 		const requests: { id: string; settle: (error?: unknown) => void }[] = [];
 		const pin = vi.spyOn(API.experimental, "pinChatProject").mockImplementation(
 			(_organizationId, id) =>
@@ -314,7 +312,7 @@ describe("pinChatProject ordering", () => {
 			)
 				.toSorted((a, b) => a.pin_order - b.pin_order)
 				.map((s) => s.project.id);
-		return { queryClient, chatListKey, requests, pin, move, pinnedIds };
+		return { queryClient, requests, pin, move, pinnedIds };
 	};
 
 	it("sends queued moves one at a time, in order", async () => {
@@ -348,18 +346,6 @@ describe("pinChatProject ordering", () => {
 		await vi.waitFor(() => expect(requests).toHaveLength(2));
 		requests[1].settle();
 		await second;
-	});
-
-	it("refreshes only the summaries after a move, since no chat changes lists", async () => {
-		const { queryClient, chatListKey, requests, move } = setup();
-		const moved = move(mockOps, 1);
-		await vi.waitFor(() => expect(requests).toHaveLength(1));
-		requests[0].settle();
-		await moved;
-		expect(
-			queryClient.getQueryState(chatProjectSummariesKey)?.isInvalidated,
-		).toBe(true);
-		expect(queryClient.getQueryState(chatListKey)?.isInvalidated).toBe(false);
 	});
 });
 
