@@ -15,6 +15,7 @@ import {
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { hiddenTemplatesNote } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import { RetryButton } from "../RetryButton";
+import { FocusableTooltip } from "./FocusableTooltip";
 import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
 /** The most avatar tiles the members row shows, including the "+K" tile. */
@@ -157,20 +158,13 @@ export const ProjectDetailsPanelView: React.FC<
 						)}
 					</DetailRow>
 					<DetailRow label="Created">
-						<Tooltip>
-							{/* A button so keyboard users can focus it to read the full time. */}
-							<TooltipTrigger
-								type="button"
-								className="cursor-default rounded-sm bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-							>
-								<time dateTime={createdAt}>
-									{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
-								</time>
-							</TooltipTrigger>
-							<TooltipContent>
-								{formatDateTime(createdAt, DATE_FORMAT.FULL_DATETIME)}
-							</TooltipContent>
-						</Tooltip>
+						<FocusableTooltip
+							tooltip={formatDateTime(createdAt, DATE_FORMAT.FULL_DATETIME)}
+						>
+							<time dateTime={createdAt}>
+								{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
+							</time>
+						</FocusableTooltip>
 					</DetailRow>
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">
@@ -205,19 +199,16 @@ export const ProjectDetailsPanelView: React.FC<
 							</span>
 						)}
 						{hiddenTemplateCount > 0 && (
-							<Tooltip>
-								{/* A button so keyboard users can focus it to read the note. */}
-								<TooltipTrigger
-									type="button"
-									className="ml-2 cursor-default rounded-sm bg-transparent p-0 text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-								>
-									{hiddenTemplateCount} hidden{" "}
-									<span className="sr-only">templates</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									{hiddenTemplatesNote(hiddenTemplateCount)}
-								</TooltipContent>
-							</Tooltip>
+							<FocusableTooltip
+								className="ml-2 text-content-secondary"
+								tooltipClassName="max-w-xs"
+								tooltip={hiddenTemplatesNote(hiddenTemplateCount)}
+							>
+								{hiddenTemplateCount} hidden{" "}
+								<span className="sr-only">
+									{hiddenTemplateCount === 1 ? "template" : "templates"}
+								</span>
+							</FocusableTooltip>
 						)}
 					</DetailRow>
 					<DetailRow label="Skills">

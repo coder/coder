@@ -34,11 +34,14 @@ const serializeDefaultTemplate = (
 		),
 	]);
 
-/** Serializes saved or drafted templates for comparison. */
+/**
+ * Serializes template settings so that saved and drafted ones compare by
+ * content: the order of template IDs and of parameter keys is ignored.
+ */
 export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
 	JSON.stringify([
 		templates.limit_templates,
-		[...templates.template_ids].sort(),
+		templates.template_ids.toSorted(),
 		serializeDefaultTemplate(templates.default_template),
 	]);
 
@@ -72,11 +75,15 @@ export const templatesChange = (
 export const serializeValues = (values: ChatProjectTemplatesValues) =>
 	JSON.stringify({
 		...values,
-		templateIds: [...values.templateIds].sort(),
+		templateIds: values.templateIds.toSorted(),
 		defaultParameters: Object.entries(values.defaultParameters).sort(
 			([a], [b]) => a.localeCompare(b),
 		),
 	});
+
+/** Serializes only the default template and its default values. */
+const serializeDefaults = (values: ChatProjectTemplatesValues) =>
+	serializeValues({ ...values, limitTemplates: false, templateIds: [] });
 
 /**
  * Applies the draft's changes since `base` to `latest`, so saving the result
@@ -97,8 +104,6 @@ export const rebaseValues = (
 				!base.templateIds.includes(id) && !latest.templateIds.includes(id),
 		),
 	];
-	const serializeDefaults = (values: ChatProjectTemplatesValues) =>
-		serializeValues({ ...values, limitTemplates: false, templateIds: [] });
 	// The default template is saved as a whole, so the draft's wins when the
 	// user changed any part of it.
 	const defaults =

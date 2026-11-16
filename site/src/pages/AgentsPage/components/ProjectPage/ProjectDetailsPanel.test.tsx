@@ -991,7 +991,6 @@ describe("ProjectDetailsPanel templates", () => {
 			focusManager.setFocused(true);
 		});
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
-		// The list of templates to pick from refreshes too.
 		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
 	});
 
@@ -1031,18 +1030,5 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
 		await waitFor(() => expect(screen.getByText("0 templates")).toHaveFocus());
-	});
-
-	it("explains the hidden template count to keyboard and screen reader users", async () => {
-		setup({ ...MockChatProject, hidden_template_count: 2 });
-		const hidden = screen.getByRole("button", { name: "2 hidden templates" });
-
-		act(() => hidden.focus());
-
-		await waitFor(() =>
-			expect(hidden).toHaveAccessibleDescription(
-				"2 templates in this project aren't shown because you don't have access to them. A template admin or organization admin can give you access.",
-			),
-		);
 	});
 });

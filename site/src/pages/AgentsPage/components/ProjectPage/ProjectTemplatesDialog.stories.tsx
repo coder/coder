@@ -133,6 +133,10 @@ export const HiddenTemplates: Story = {
 	},
 };
 
+export const OneHiddenTemplate: Story = {
+	args: { project: { ...MockChatProject, hidden_template_count: 1 } },
+};
+
 export const Loading: Story = {
 	parameters: {
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
