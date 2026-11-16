@@ -17,6 +17,7 @@
           "properties": {
             "repo": {"type": "string", "minLength": 1},
             "tag": {"type": "string"},
+            "digest": {"type": "string"},
             "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
             "pullSecrets": {"type": "array", "items": {"type": "object"}}
           }

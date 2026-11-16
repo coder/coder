@@ -103,6 +103,10 @@ var testCases = []testCase{
 		name:          "partial_resources",
 		expectedError: "",
 	},
+	{
+		name:          "image_digest",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

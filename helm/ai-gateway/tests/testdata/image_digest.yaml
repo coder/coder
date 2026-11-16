@@ -1,0 +1,10 @@
+coder:
+  image:
+    tag: v2.36.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  env:
+    - name: CODER_URL
+      value: http://coder.default.svc.cluster.local:80
+aigateway:
+  keySecret:
+    name: ai-gateway-key
