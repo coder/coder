@@ -19,8 +19,9 @@ import (
 
 func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 	var (
-		regenVapidKeypairDBURL  string
-		regenVapidKeypairPgAuth string
+		regenVapidKeypairDBURL          string
+		regenVapidKeypairPgAuth         string
+		regenVapidKeypairEncryptionKeys []string
 	)
 	regenerateVapidKeypairCommand := &serpent.Command{
 		Use:    "regenerate-vapid-keypair",
@@ -67,6 +68,17 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 				_ = sqlDB.Close()
 			}()
 			db := database.New(sqlDB)
+			if len(regenVapidKeypairEncryptionKeys) > 0 {
+				if WrapDirectDatabaseStore == nil {
+					return xerrors.New("--external-token-encryption-keys requires an enterprise build of Coder")
+				}
+				db, err = WrapDirectDatabaseStore(ctx, db, regenVapidKeypairEncryptionKeys)
+				if err != nil {
+					return xerrors.Errorf("enable at-rest encryption: %w", err)
+				}
+			} else if err := requireNoActiveDBCryptKeys(ctx, db); err != nil {
+				return err
+			}
 
 			// Confirm that the user really wants to regenerate the VAPID keypair.
 			cliui.Infof(inv.Stdout, "Regenerating VAPID keypair...")
@@ -104,6 +116,13 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 			Env:         "CODER_PG_CONNECTION_AUTH",
 			Default:     "password",
 			Value:       serpent.EnumOf(&regenVapidKeypairPgAuth, codersdk.PostgresAuthDrivers...),
+		},
+		serpent.Option{
+			Name:        "External Token Encryption Keys",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
+			Flag:        "external-token-encryption-keys",
+			Description: "Encrypt the generated VAPID private key at rest with the deployment's external token encryption keys. Must be the same comma-separated list of base64-encoded keys passed to the server. Required when the database has at-rest encryption enabled. Enterprise builds only.",
+			Value:       serpent.StringArrayOf(&regenVapidKeypairEncryptionKeys),
 		},
 	)
 

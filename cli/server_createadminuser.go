@@ -25,12 +25,13 @@ import (
 	"github.com/coder/serpent"
 )
 
-// WrapCreateAdminUserStore is set by the enterprise CLI to wrap the direct
-// database connection used by `coder server create-admin-user` with dbcrypt
-// at-rest encryption. AGPL code cannot import enterprise packages, so the
-// enterprise CLI injects the implementation here. It is nil in AGPL-only
-// builds, where --external-token-encryption-keys is rejected.
-var WrapCreateAdminUserStore func(ctx context.Context, db database.Store, keys []string) (database.Store, error)
+// WrapDirectDatabaseStore is set by the enterprise CLI to wrap the direct
+// database connections used by maintenance commands that bypass the server
+// (`coder server create-admin-user`, `coder server regenerate-vapid-keypair`)
+// with dbcrypt at-rest encryption. AGPL code cannot import enterprise
+// packages, so the enterprise CLI injects the implementation here. It is nil
+// in AGPL-only builds, where --external-token-encryption-keys is rejected.
+var WrapDirectDatabaseStore func(ctx context.Context, db database.Store, keys []string) (database.Store, error)
 
 type organizationMembership struct {
 	OrganizationID   uuid.UUID `json:"organization_id"`
@@ -120,10 +121,10 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			}()
 			db := database.New(sqlDB)
 			if len(newUserEncryptionKeys) > 0 {
-				if WrapCreateAdminUserStore == nil {
+				if WrapDirectDatabaseStore == nil {
 					return xerrors.New("--external-token-encryption-keys requires an enterprise build of Coder")
 				}
-				db, err = WrapCreateAdminUserStore(ctx, db, newUserEncryptionKeys)
+				db, err = WrapDirectDatabaseStore(ctx, db, newUserEncryptionKeys)
 				if err != nil {
 					return xerrors.Errorf("enable at-rest encryption: %w", err)
 				}

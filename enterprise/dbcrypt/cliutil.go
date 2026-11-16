@@ -426,6 +426,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting site config secrets")
+	if err := rewriteSiteConfigSecrets(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -822,6 +827,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting site config secrets")
+	if err := rewriteSiteConfigSecrets(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -997,6 +1007,56 @@ func forEachSecretRow(ctx context.Context, sqlDB *sql.DB, scan secretRowScan, fn
 	}
 }
 
+// rewriteSiteConfigSecrets re-encrypts (or, when the store has no primary
+// cipher, decrypts) the DERP mesh key and the webpush VAPID private key.
+// targetDigest is the primary cipher digest, or "" when decrypting; values
+// already in the target state are skipped.
+func rewriteSiteConfigSecrets(ctx context.Context, log slog.Logger, store database.Store, targetDigest string) error {
+	cryptDB, ok := store.(*dbCrypt)
+	if !ok {
+		return xerrors.Errorf("developer error: store is not a dbcrypt store")
+	}
+
+	meshKeyID, err := cryptDB.siteConfigKeyID(ctx, derpMeshKeyKeyIDConfigKey)
+	if err != nil {
+		return xerrors.Errorf("get DERP mesh key key id: %w", err)
+	}
+	meshKey, err := cryptDB.GetDERPMeshKey(ctx)
+	switch {
+	case xerrors.Is(err, sql.ErrNoRows):
+		// No mesh key yet; nothing to rewrite.
+	case err != nil:
+		return xerrors.Errorf("get DERP mesh key: %w", err)
+	case meshKeyID.String == targetDigest && meshKeyID.Valid == (targetDigest != ""):
+		log.Debug(ctx, "skipping DERP mesh key", slog.F("cipher", targetDigest))
+	default:
+		if err := cryptDB.upsertDERPMeshKey(ctx, meshKey); err != nil {
+			return xerrors.Errorf("rewrite DERP mesh key: %w", err)
+		}
+		log.Debug(ctx, "rewrote DERP mesh key", slog.F("cipher", targetDigest))
+	}
+
+	vapidKeyID, err := cryptDB.siteConfigKeyID(ctx, webpushVAPIDPrivateKeyIDConfigKey)
+	if err != nil {
+		return xerrors.Errorf("get VAPID private key key id: %w", err)
+	}
+	vapidKeys, err := cryptDB.GetWebpushVAPIDKeys(ctx)
+	switch {
+	case err != nil:
+		return xerrors.Errorf("get webpush VAPID keys: %w", err)
+	case vapidKeys.VapidPrivateKey == "":
+		// No VAPID keys yet; nothing to rewrite.
+	case vapidKeyID.String == targetDigest && vapidKeyID.Valid == (targetDigest != ""):
+		log.Debug(ctx, "skipping webpush VAPID private key", slog.F("cipher", targetDigest))
+	default:
+		if err := cryptDB.UpsertWebpushVAPIDKeys(ctx, database.UpsertWebpushVAPIDKeysParams(vapidKeys)); err != nil {
+			return xerrors.Errorf("rewrite webpush VAPID keys: %w", err)
+		}
+		log.Debug(ctx, "rewrote webpush VAPID private key", slog.F("cipher", targetDigest))
+	}
+	return nil
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -1090,6 +1150,16 @@ UPDATE workspace_agents
 	SET environment_variables = NULL,
 		environment_variables_key_id = NULL
 	WHERE environment_variables_key_id IS NOT NULL;
+-- The DERP mesh key is regenerated at startup; HA workspace proxies
+-- re-register and receive the new key.
+DELETE FROM site_configs
+	WHERE key IN ('derp_mesh_key', 'derp_mesh_key_key_id')
+	AND EXISTS (SELECT 1 FROM site_configs WHERE key = 'derp_mesh_key_key_id');
+-- New VAPID keys are generated on demand; existing web push subscriptions
+-- are invalidated.
+DELETE FROM site_configs
+	WHERE key IN ('webpush_vapid_public_key', 'webpush_vapid_private_key', 'webpush_vapid_private_key_key_id')
+	AND EXISTS (SELECT 1 FROM site_configs WHERE key = 'webpush_vapid_private_key_key_id');
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
@@ -1137,12 +1207,15 @@ type AuditResult struct {
 // are plaintext values that carry no secret (and are therefore never
 // encrypted), such as the empty string. nonEmptyPredicate, when set, replaces
 // the default text-column emptiness check for columns of other types.
+// customCountQuery, when set, replaces the generated count query entirely,
+// for values whose key ID lives outside a column (site_configs rows).
 type auditTarget struct {
 	table             string
 	column            string
 	keyIDColumn       string
 	emptyValues       []string
 	nonEmptyPredicate string
+	customCountQuery  string
 }
 
 // auditTargets lists every column dbcrypt encrypts. Extend this list whenever
@@ -1161,6 +1234,8 @@ var auditTargets = []auditTarget{
 	{table: "workspace_build_parameters", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "workspace_resource_metadata", column: "value", keyIDColumn: "value_key_id", nonEmptyPredicate: "sensitive AND value IS NOT NULL AND value != ''"},
 	{table: "workspace_agents", column: "environment_variables", keyIDColumn: "environment_variables_key_id", nonEmptyPredicate: "environment_variables IS NOT NULL AND environment_variables != 'null'::jsonb AND environment_variables != '{}'::jsonb"},
+	{table: "site_configs", column: "derp_mesh_key", customCountQuery: "SELECT COUNT(*) FROM site_configs WHERE key = 'derp_mesh_key' AND value != '' AND NOT EXISTS (SELECT 1 FROM site_configs WHERE key = 'derp_mesh_key_key_id')"},
+	{table: "site_configs", column: "webpush_vapid_private_key", customCountQuery: "SELECT COUNT(*) FROM site_configs WHERE key = 'webpush_vapid_private_key' AND value != '' AND NOT EXISTS (SELECT 1 FROM site_configs WHERE key = 'webpush_vapid_private_key_key_id')"},
 	{table: "user_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "workspace_secrets", column: "value", keyIDColumn: "value_key_id"},
 	{table: "crypto_keys", column: "secret", keyIDColumn: "secret_key_id"},
@@ -1184,6 +1259,18 @@ var auditTargets = []auditTarget{
 func Audit(ctx context.Context, sqlDB *sql.DB) ([]AuditResult, error) {
 	results := make([]AuditResult, 0, len(auditTargets))
 	for _, target := range auditTargets {
+		if target.customCountQuery != "" {
+			var count int64
+			if err := sqlDB.QueryRowContext(ctx, target.customCountQuery).Scan(&count); err != nil {
+				return nil, xerrors.Errorf("count unencrypted rows in %s.%s: %w", target.table, target.column, err)
+			}
+			results = append(results, AuditResult{
+				Table:            target.table,
+				Column:           target.column,
+				UnencryptedCount: count,
+			})
+			continue
+		}
 		var (
 			predicate string
 			args      []any

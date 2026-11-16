@@ -1614,6 +1614,115 @@ func (db *dbCrypt) decryptEnvValues(envs *pqtype.NullRawMessage, digest sql.Null
 	return nil
 }
 
+// site_configs is a key/value table with no room for key_id columns, so the
+// dbcrypt key digest of an encrypted value is stored in an adjacent row named
+// <key>_key_id. A missing key_id row means the value is stored in plaintext.
+const (
+	derpMeshKeyKeyIDConfigKey         = "derp_mesh_key_key_id"
+	webpushVAPIDPrivateKeyIDConfigKey = "webpush_vapid_private_key_key_id"
+)
+
+// siteConfigKeyID reads the dbcrypt key digest row of a site_configs value.
+func (db *dbCrypt) siteConfigKeyID(ctx context.Context, configKey string) (sql.NullString, error) {
+	keyID, err := db.GetRuntimeConfig(ctx, configKey)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return sql.NullString{}, nil
+	}
+	if err != nil {
+		return sql.NullString{}, err
+	}
+	return sql.NullString{String: keyID, Valid: keyID != ""}, nil
+}
+
+// setSiteConfigKeyID stores or clears the dbcrypt key digest row of a
+// site_configs value.
+func (db *dbCrypt) setSiteConfigKeyID(ctx context.Context, configKey string, keyID sql.NullString) error {
+	if keyID.Valid {
+		return db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+			Key:   configKey,
+			Value: keyID.String,
+		})
+	}
+	return db.DeleteRuntimeConfig(ctx, configKey)
+}
+
+// GetDERPMeshKey decrypts the DERP mesh key, which authenticates servers and
+// workspace proxies to each other's embedded DERP relays (SEC-1491).
+func (db *dbCrypt) GetDERPMeshKey(ctx context.Context) (string, error) {
+	value, err := db.Store.GetDERPMeshKey(ctx)
+	if err != nil {
+		return "", err
+	}
+	keyID, err := db.siteConfigKeyID(ctx, derpMeshKeyKeyIDConfigKey)
+	if err != nil {
+		return "", xerrors.Errorf("get DERP mesh key key id: %w", err)
+	}
+	if err := db.decryptField(&value, keyID); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+func (db *dbCrypt) InsertDERPMeshKey(ctx context.Context, value string) error {
+	var keyID sql.NullString
+	if err := db.encryptField(&value, &keyID); err != nil {
+		return err
+	}
+	if err := db.Store.InsertDERPMeshKey(ctx, value); err != nil {
+		return err
+	}
+	return db.setSiteConfigKeyID(ctx, derpMeshKeyKeyIDConfigKey, keyID)
+}
+
+// upsertDERPMeshKey rewrites the mesh key at rest. Only `coder server
+// dbcrypt` maintenance sweeps use it; the product never rewrites the key.
+func (db *dbCrypt) upsertDERPMeshKey(ctx context.Context, value string) error {
+	var keyID sql.NullString
+	if err := db.encryptField(&value, &keyID); err != nil {
+		return err
+	}
+	if err := db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "derp_mesh_key",
+		Value: value,
+	}); err != nil {
+		return err
+	}
+	return db.setSiteConfigKeyID(ctx, derpMeshKeyKeyIDConfigKey, keyID)
+}
+
+// GetWebpushVAPIDKeys decrypts the private VAPID key; the public key is not
+// a secret and stays plaintext.
+func (db *dbCrypt) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	row, err := db.Store.GetWebpushVAPIDKeys(ctx)
+	if err != nil {
+		return database.GetWebpushVAPIDKeysRow{}, err
+	}
+	if row.VapidPrivateKey == "" {
+		return row, nil
+	}
+	keyID, err := db.siteConfigKeyID(ctx, webpushVAPIDPrivateKeyIDConfigKey)
+	if err != nil {
+		return database.GetWebpushVAPIDKeysRow{}, xerrors.Errorf("get VAPID private key key id: %w", err)
+	}
+	if err := db.decryptField(&row.VapidPrivateKey, keyID); err != nil {
+		return database.GetWebpushVAPIDKeysRow{}, err
+	}
+	return row, nil
+}
+
+func (db *dbCrypt) UpsertWebpushVAPIDKeys(ctx context.Context, params database.UpsertWebpushVAPIDKeysParams) error {
+	var keyID sql.NullString
+	if params.VapidPrivateKey != "" {
+		if err := db.encryptField(&params.VapidPrivateKey, &keyID); err != nil {
+			return err
+		}
+	}
+	if err := db.Store.UpsertWebpushVAPIDKeys(ctx, params); err != nil {
+		return err
+	}
+	return db.setSiteConfigKeyID(ctx, webpushVAPIDPrivateKeyIDConfigKey, keyID)
+}
+
 // encryptRawMessage is encryptExtra for non-null jsonb columns held as a bare
 // json.RawMessage.
 func (db *dbCrypt) encryptRawMessage(m *json.RawMessage, digest *sql.NullString) error {

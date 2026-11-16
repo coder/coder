@@ -17,7 +17,7 @@ import (
 // cannot import enterprise packages, so it exposes a hook instead. This runs
 // in init to avoid data races between parallel command constructions.
 func init() {
-	agplcli.WrapCreateAdminUserStore = func(ctx context.Context, db database.Store, keys []string) (database.Store, error) {
+	agplcli.WrapDirectDatabaseStore = func(ctx context.Context, db database.Store, keys []string) (database.Store, error) {
 		ks := make([][]byte, 0, len(keys))
 		for i, key := range keys {
 			dk, err := base64.StdEncoding.DecodeString(key)

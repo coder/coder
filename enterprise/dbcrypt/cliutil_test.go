@@ -865,6 +865,64 @@ func TestRotateWorkspaceAgentEnvironmentVariables(t *testing.T) {
 	}
 }
 
+// TestRotateSiteConfigSecrets covers the DERP mesh key and the webpush VAPID
+// private key in the site_configs key/value table, whose dbcrypt key digests
+// live in adjacent *_key_id rows (SEC-1491).
+func TestRotateSiteConfigSecrets(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	// The mesh key is written raw, bypassing dbcrypt, like a deployment that
+	// enabled encryption after first boot. The VAPID keys are written through
+	// dbcrypt under cipher A.
+	require.NoError(t, f.rawDB.InsertDERPMeshKey(f.ctx, "mesh-key-plaintext"))
+	require.NoError(t, f.cryptDBA.UpsertWebpushVAPIDKeys(f.ctx, database.UpsertWebpushVAPIDKeysParams{
+		VapidPublicKey:  "public",
+		VapidPrivateKey: "private-secret",
+	}))
+
+	f.rotate(t)
+
+	// Raw rows hold ciphertext under cipher B with key-id rows set.
+	meshKey, err := f.rawDB.GetDERPMeshKey(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, "mesh-key-plaintext", decryptRawString(t, f.cipherB, meshKey))
+	keyID, err := f.rawDB.GetRuntimeConfig(f.ctx, "derp_mesh_key_key_id")
+	require.NoError(t, err)
+	require.Equal(t, f.cipherB.HexDigest(), keyID)
+
+	vapid, err := f.rawDB.GetWebpushVAPIDKeys(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, "public", vapid.VapidPublicKey, "the public key is not a secret and stays plaintext")
+	require.Equal(t, "private-secret", decryptRawString(t, f.cipherB, vapid.VapidPrivateKey))
+	keyID, err = f.rawDB.GetRuntimeConfig(f.ctx, "webpush_vapid_private_key_key_id")
+	require.NoError(t, err)
+	require.Equal(t, f.cipherB.HexDigest(), keyID)
+
+	// Wrapped reads decrypt.
+	cryptDBB, err := dbcrypt.New(f.ctx, f.rawDB, f.cipherB)
+	require.NoError(t, err)
+	decryptedMeshKey, err := cryptDBB.GetDERPMeshKey(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, "mesh-key-plaintext", decryptedMeshKey)
+	decryptedVapid, err := cryptDBB.GetWebpushVAPIDKeys(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, "private-secret", decryptedVapid.VapidPrivateKey)
+
+	// Decrypt returns the values to plaintext and removes the key-id rows.
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	meshKey, err = f.rawDB.GetDERPMeshKey(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, "mesh-key-plaintext", meshKey)
+	_, err = f.rawDB.GetRuntimeConfig(f.ctx, "derp_mesh_key_key_id")
+	require.ErrorIs(t, err, sql.ErrNoRows, "key-id row must be removed after decrypt")
+	vapid, err = f.rawDB.GetWebpushVAPIDKeys(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, "private-secret", vapid.VapidPrivateKey)
+	_, err = f.rawDB.GetRuntimeConfig(f.ctx, "webpush_vapid_private_key_key_id")
+	require.ErrorIs(t, err, sql.ErrNoRows, "key-id row must be removed after decrypt")
+}
+
 // TestRotateGitSSHKey covers the gitsshkeys table (per-user Git SSH private
 // keys). Simulates rotating keys on a deployment where a soft-deleted
 // user's SSH key row is still present, since gitsshkeys rows are preserved
