@@ -342,6 +342,30 @@ jobs:
           service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
+      # Secrets can't be used in step conditions. The identity provider only
+      # accepts release tags, so dry runs from branches skip KMS signing.
+      - name: Check for GPG KMS signing key
+        id: gpg_kms
+        run: |
+          enabled=false
+          if [[ -n "$GPG_KMS_KEY" && "$GITHUB_REF" == refs/tags/* ]]; then
+            enabled=true
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+        env:
+          GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+
+      # release-signer@ for the KMS GPG key. Not exported, so the job's default
+      # credentials stay on the EV code signing account.
+      - name: Authenticate to Google Cloud (GPG signing)
+        id: gcloud_auth_gpg
+        if: steps.gpg_kms.outputs.enabled == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GPG_KMS_SERVICE_ACCOUNT }}
+          export_environment_variables: false
+
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
@@ -363,6 +387,8 @@ jobs:
           CODER_SIGN_DARWIN: "1"
           CODER_SIGN_GPG: "1"
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           CODER_WINDOWS_RESOURCES: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
@@ -641,6 +667,10 @@ jobs:
             detached_signature="${slim_binary}.asc"
             gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
             gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
+            # Cloud KMS signature, only present when GPG_KMS_KEY is set.
+            if [[ -f "./build/${slim_binary}.v2.asc" ]]; then
+              gcloud storage cp "./build/${slim_binary}.v2.asc" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.v2.asc"
+            fi
           done
 
       # Mint a short-lived installation token from the dedicated release
@@ -703,6 +733,8 @@ jobs:
           # from creating tags by the tag-create protection ruleset).
           GITHUB_TOKEN: ${{ steps.release_app_token.outputs.token }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
