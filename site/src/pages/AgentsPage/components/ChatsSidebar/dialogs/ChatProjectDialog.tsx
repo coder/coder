@@ -35,7 +35,7 @@ import {
 	chatProjectTemplatesValues,
 } from "./ChatProjectTemplatesFields";
 
-type ChatProjectTemplateFields =
+type TemplateRequestKeys =
 	| "limit_templates"
 	| "template_ids"
 	| "default_template";
@@ -50,12 +50,9 @@ export type ChatProjectFormValues = {
 	name: string;
 	description: string;
 	icon: string;
-} & Pick<CreateChatProjectRequest, ChatProjectTemplateFields>;
+} & Pick<CreateChatProjectRequest, TemplateRequestKeys>;
 
-type ChatProjectFormState = Omit<
-	ChatProjectFormValues,
-	ChatProjectTemplateFields
-> & {
+type ChatProjectFormState = Omit<ChatProjectFormValues, TemplateRequestKeys> & {
 	templates: ChatProjectTemplatesValues;
 };
 
