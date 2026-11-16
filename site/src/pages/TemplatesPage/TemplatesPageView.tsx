@@ -329,11 +329,8 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 					)
 				}
 			>
-				<PageHeaderTitle>
-					<div className="flex gap-2 items-center">
-						Templates
-						<TemplateHelpPopover />
-					</div>
+				<PageHeaderTitle tooltip={<TemplateHelpPopover />}>
+					Templates
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Select a template to create a workspace.

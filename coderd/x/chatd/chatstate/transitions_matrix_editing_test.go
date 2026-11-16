@@ -53,13 +53,14 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 		if from == chatstate.StateI1 {
 			// Interrupt without a message: an interrupt send stores a
 			// steer row, and every row here must share the queue lane.
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 				if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 					return err
 				}
 				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "seed"})
 				return err
-			}))
+			})
+			require.NoError(t, err)
 		}
 		var ids []int64
 		var bodies []string
@@ -71,12 +72,13 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 			bodies = append(bodies, body)
 		}
 		if from == chatstate.StateE1 {
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 				_, err := tx.FinishError(chatstate.FinishErrorInput{
 					LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
 				})
 				return err
-			}))
+			})
+			require.NoError(t, err)
 		}
 		seeded = seededChat{
 			chatID:               created.Chat.ID,
@@ -104,10 +106,11 @@ func seedPaused(t *testing.T, f *testFixture, extra int) seededChat {
 func pauseSeeded(t *testing.T, f *testFixture, seeded seededChat) seededChat {
 	t.Helper()
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return seeded
 }
 
