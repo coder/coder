@@ -784,17 +784,21 @@ func TestComputeAggregateHash_ChangesOnContent(t *testing.T) {
 }
 
 // coderd's jsonb storage cannot hold U+0000, so it is removed from skill
-// names and descriptions.
+// names and descriptions, plain or plugin.
 func TestResolver_SkillFrontmatterNULRemoved(t *testing.T) {
 	t.Parallel()
 	root := testutil.TempDirResolved(t)
 	meta := "---\nname: escaped-nul\ndescription: \"a\\0b\"\n---\nbody"
-	dir := filepath.Join(root, "skills", "escaped-nul")
-	mustWriteFile(t, filepath.Join(dir, "SKILL.md"), meta)
+	mustWriteFile(t, filepath.Join(root, "skills", "escaped-nul", "SKILL.md"), meta)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteFile(t, filepath.Join(pluginDir, "skills", "escaped-nul", "SKILL.md"), meta)
 
-	snap := (&agentcontext.Resolver{}).Resolve([]agentcontext.ScanRoot{{Path: root}})
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
 
-	skill := findResource(t, snap.Resources, agentcontext.KindSkill, dir)
-	require.Equal(t, agentcontext.StatusOK, skill.Status, skill.Error)
-	require.Equal(t, "ab", skill.Description)
+	for _, dir := range []string{filepath.Join(root, "skills", "escaped-nul"), filepath.Join(pluginDir, "skills", "escaped-nul")} {
+		skill := findResource(t, snap.Resources, agentcontext.KindSkill, dir)
+		require.Equal(t, agentcontext.StatusOK, skill.Status, skill.Error)
+		require.Equal(t, "ab", skill.Description)
+	}
 }

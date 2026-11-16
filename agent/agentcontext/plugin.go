@@ -25,6 +25,7 @@ import (
 // Agent Plugins (agent-plugins.org) manifest conventions.
 const (
 	pluginManifestFileName = "plugin.json"
+	pluginSkillsDirName    = "skills"
 	// pluginSchemaPrefix identifies a plugin.json that belongs to the
 	// Agent Plugins format rather than another tool.
 	pluginSchemaPrefix = "https://agent-plugins.org/schemas/"
@@ -35,6 +36,11 @@ const (
 	// (section 5.4); these caps are Coder's own.
 	maxPluginVersionRunes     = 64
 	maxPluginDescriptionRunes = 1024
+
+	// Agent Skills limits that spec section 7.1 applies to plugin
+	// skills.
+	maxPluginSkillNameRunes        = 64
+	maxPluginSkillDescriptionRunes = 1024
 )
 
 // maxReportedUnknownFields bounds how many unknown manifest keys are
@@ -323,9 +329,10 @@ func pluginContainersFor(rootPath string) []string {
 // discoverPlugin inspects dir as a plugin root. A rejected plugin is
 // reported as one non-OK KindPlugin resource, or as a warning on an OK
 // resource that already holds its Source. A valid plugin emits a
-// KindPlugin resource and claims its name in pluginNames. A valid
-// plugin whose name the same canonical root already holds emits
-// nothing, as does one whose Source is already held.
+// KindPlugin resource and one KindSkill per skill under skills/, and
+// claims its name in pluginNames. A valid plugin whose name the same
+// canonical root already holds emits nothing; one whose Source is
+// already held emits nothing and loads no skills.
 //
 // The root is canonicalized once and used for prefix checks, IDs, and
 // Source. Every path read inside the plugin must resolve within it.
@@ -411,11 +418,21 @@ func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, in
 	res.Name = manifest.Name
 	res.PluginVersion = manifest.Version
 	res.Description = manifest.Description
-	res.Error = strings.Join(manifest.Warnings, "; ")
+	warnings := manifest.Warnings
+
+	skills, warn := r.pluginSkills(pluginRoot, root, manifest.Name)
+	if warn != "" {
+		warnings = append(warnings, warn)
+	}
+
+	res.Error = strings.Join(warnings, "; ")
 	if !r.appendResource(out, index, res) {
 		return pluginValid
 	}
 	pluginNames[manifest.Name] = pluginRoot
+	for _, skill := range skills {
+		r.appendResource(out, index, skill)
+	}
 	return pluginValid
 }
 
@@ -504,4 +521,149 @@ func (r *Resolver) readPluginManifest(manifestPath string, info fs.FileInfo, plu
 	}
 	res.ContentHash = sha256.Sum256(data)
 	return data, true
+}
+
+// pluginSkillDir is a skill directory candidate inside a plugin's
+// skills/ container.
+type pluginSkillDir struct {
+	path string
+	// escapeErr is set when path is a symlink whose target leaves the
+	// plugin root.
+	escapeErr string
+}
+
+// pluginSkillDirs lists the skill directory candidates in the skills/
+// container under pluginDir. Per spec section 4.1, the container and
+// each skill directory may be symlinks whose targets stay inside
+// pluginRoot, the canonical form of pluginDir. A missing container is
+// silent; an escaping or non-directory container yields a warning. A
+// skill directory with a non-UTF-8 name or a path over
+// workspacesdk.MaxContextSourceBytes is skipped and counted in warning.
+func pluginSkillDirs(pluginDir, pluginRoot string) (container string, dirs []pluginSkillDir, warning string) {
+	container = filepath.Join(pluginDir, pluginSkillsDirName)
+	info, err := os.Lstat(container)
+	if err != nil {
+		return "", nil, ""
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(container)
+		if err != nil {
+			return "", nil, fmt.Sprintf("cannot resolve skills symlink: %v; skills not loaded", err)
+		}
+		if !pathHasPrefix(target, pluginRoot) {
+			return "", nil, fmt.Sprintf("skills symlink target %q escapes plugin root; skills not loaded", target)
+		}
+		if info, err = os.Stat(target); err != nil {
+			return "", nil, fmt.Sprintf("skills directory unreadable: %v; skills not loaded", err)
+		}
+	}
+	if !info.IsDir() {
+		return "", nil, "skills is not a directory; skills not loaded"
+	}
+	entries, err := os.ReadDir(container)
+	if err != nil {
+		return "", nil, fmt.Sprintf("skills directory unreadable: %v; skills not loaded", err)
+	}
+	invalidNames, longPaths := 0, 0
+	add := func(d pluginSkillDir) {
+		switch {
+		case !utf8.ValidString(filepath.Base(d.path)):
+			invalidNames++
+		case len(d.path) > workspacesdk.MaxContextSourceBytes:
+			longPaths++
+		default:
+			dirs = append(dirs, d)
+		}
+	}
+	for _, e := range entries {
+		dir := filepath.Join(container, e.Name())
+		if e.Type()&fs.ModeSymlink == 0 {
+			if e.IsDir() {
+				add(pluginSkillDir{path: dir})
+			}
+			continue
+		}
+		target, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			continue
+		}
+		if st, err := os.Stat(target); err != nil || !st.IsDir() {
+			continue
+		}
+		var escapeErr string
+		if !pathHasPrefix(target, pluginRoot) {
+			escapeErr = fmt.Sprintf("symlink target %q escapes plugin root %q", target, pluginRoot)
+		}
+		add(pluginSkillDir{path: dir, escapeErr: escapeErr})
+	}
+	var warnings []string
+	if invalidNames > 0 {
+		warnings = append(warnings, fmt.Sprintf("skill directories skipped because their names are not valid UTF-8: %d; rename them to load them", invalidNames))
+	}
+	if longPaths > 0 {
+		warnings = append(warnings, fmt.Sprintf("skill directories skipped because their paths are longer than %d bytes: %d; shorten them to load them", workspacesdk.MaxContextSourceBytes, longPaths))
+	}
+	return container, dirs, strings.Join(warnings, "; ")
+}
+
+// pluginSkills returns one KindSkill resource per skill directory in
+// pluginRoot's skills/ container that holds a SKILL.md, plus the
+// container warning. A skill directory or SKILL.md whose symlink
+// target leaves pluginRoot is emitted as StatusInvalid, as is a skill
+// that breaks the Agent Skills name or description limits.
+func (r *Resolver) pluginSkills(pluginRoot string, root ScanRoot, pluginName string) ([]Resource, string) {
+	_, dirs, warning := pluginSkillDirs(pluginRoot, pluginRoot)
+	var skills []Resource
+	for _, dir := range dirs {
+		meta := filepath.Join(dir.path, skillMetaFileName)
+		metaInfo, err := os.Lstat(meta)
+		if err != nil {
+			continue
+		}
+		if dir.escapeErr != "" {
+			skills = append(skills, Resource{
+				ID:         resourceID(KindSkill, dir.path),
+				Kind:       KindSkill,
+				Source:     dir.path,
+				SizeBytes:  safeUint64(metaInfo.Size()),
+				SourcePath: root.UserSource,
+				Status:     StatusInvalid,
+				Error:      dir.escapeErr,
+				PluginName: pluginName,
+			})
+			continue
+		}
+		res, ok := r.readSkillMeta(pluginRoot, meta, metaInfo, root.UserSource)
+		if !ok {
+			continue
+		}
+		if res.Status == StatusOK {
+			if msg := pluginSkillLimitError(res.Name, res.Description); msg != "" {
+				res.Status = StatusInvalid
+				res.Error = msg
+				res.Name = ""
+				res.Description = ""
+				res.Payload = nil
+			}
+		}
+		res.PluginName = pluginName
+		skills = append(skills, res)
+	}
+	return skills, warning
+}
+
+// pluginSkillLimitError checks a skill's name and description against
+// the Agent Skills length limits, counted in characters, and returns
+// the first violation or "".
+func pluginSkillLimitError(name, description string) string {
+	if n := utf8.RuneCountInString(name); n > maxPluginSkillNameRunes {
+		return fmt.Sprintf("skill name is %d characters, maximum is %d", n, maxPluginSkillNameRunes)
+	}
+	if strings.TrimSpace(description) == "" {
+		return "skill description is required"
+	}
+	if n := utf8.RuneCountInString(description); n > maxPluginSkillDescriptionRunes {
+		return fmt.Sprintf("skill description is %d characters, maximum is %d", n, maxPluginSkillDescriptionRunes)
+	}
+	return ""
 }

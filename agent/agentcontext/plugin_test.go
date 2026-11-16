@@ -396,7 +396,10 @@ func TestPlugin_DiscoveredFromContainers(t *testing.T) {
 	first := filepath.Join(root, "plugins", "alpha")
 	second := filepath.Join(root, ".agents", "plugins", "beta")
 	mustWritePlugin(t, first, "alpha")
+	mustWriteSkill(t, filepath.Join(first, "skills"), "deploy", "Deploy things")
+	require.NoError(t, os.MkdirAll(filepath.Join(first, "skills", "empty"), 0o700))
 	mustWritePlugin(t, second, "beta")
+	mustWriteSkill(t, filepath.Join(second, "skills"), "review", "Review things")
 	// A plain skill next to the containers is still a plain skill.
 	mustWriteSkill(t, filepath.Join(root, "skills"), "plain", "Plain skill")
 
@@ -409,15 +412,26 @@ func TestPlugin_DiscoveredFromContainers(t *testing.T) {
 		require.Equal(t, root, p.SourcePath)
 	}
 
+	deploy := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(first, "skills", "deploy"))
+	require.Equal(t, agentcontext.StatusOK, deploy.Status, deploy.Error)
+	require.Equal(t, "alpha", deploy.PluginName)
+	require.Equal(t, "deploy", deploy.Name)
+	require.Equal(t, "skill:"+filepath.Join(first, "skills", "deploy"), deploy.ID)
+
+	review := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(second, "skills", "review"))
+	require.Equal(t, "beta", review.PluginName)
+
 	plain := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(root, "skills", "plain"))
 	require.Empty(t, plain.PluginName)
-	require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 1)
+	// skills/empty has no SKILL.md and is not a skill.
+	require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 3)
 }
 
 func TestPlugin_RootIsPlugin(t *testing.T) {
 	t.Parallel()
 	root := testutil.TempDirResolved(t)
 	mustWritePlugin(t, root, "solo")
+	mustWriteSkill(t, filepath.Join(root, "skills"), "only", "Only skill")
 	// The plugin's own repository keeps its instruction files and
 	// other skill containers.
 	mustWriteFile(t, filepath.Join(root, "AGENTS.md"), "project rules")
@@ -433,11 +447,14 @@ func TestPlugin_RootIsPlugin(t *testing.T) {
 	}
 	require.ElementsMatch(t, []string{
 		"plugin:" + root,
+		"skill:" + filepath.Join(root, "skills", "only"),
 		"instruction_file:" + filepath.Join(root, "AGENTS.md"),
 		"skill:" + filepath.Join(root, ".agents", "skills", "extra"),
 	}, kinds)
 	extra := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(root, ".agents", "skills", "extra"))
 	require.Empty(t, extra.PluginName)
+	skill := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(root, "skills", "only"))
+	require.Equal(t, "solo", skill.PluginName)
 }
 
 // A plugin.json at a scan root that is not an Agent Plugins manifest, or
@@ -566,11 +583,38 @@ func TestPlugin_ForeignManifestInContainer(t *testing.T) {
 	}
 }
 
+// A scan root whose Agent Plugins manifest is rejected keeps its
+// instruction files and plugin containers, but its skills/ container
+// belongs to the plugin and is not loaded.
+func TestPlugin_RootWithInvalidManifestSkipsSkills(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	mustWriteFile(t, filepath.Join(root, "plugin.json"), pluginJSON(t, map[string]any{"name": "Not Valid"}))
+	mustWriteFile(t, filepath.Join(root, "AGENTS.md"), "still here")
+	mustWriteSkill(t, filepath.Join(root, "skills"), "owned", "Plugin skill")
+	mustWriteSkill(t, filepath.Join(root, ".agents", "skills"), "plain", "Plain skill")
+	child := filepath.Join(root, "plugins", "child")
+	mustWritePlugin(t, child, "child")
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, root)
+	require.Equal(t, agentcontext.StatusInvalid, plugin.Status)
+	childPlugin := findResource(t, snap.Resources, agentcontext.KindPlugin, child)
+	require.Equal(t, agentcontext.StatusOK, childPlugin.Status, childPlugin.Error)
+	instr := findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(root, "AGENTS.md"))
+	require.Equal(t, agentcontext.StatusOK, instr.Status)
+	skills := resourcesOfKind(snap, agentcontext.KindSkill)
+	require.Len(t, skills, 1)
+	require.Equal(t, filepath.Join(root, ".agents", "skills", "plain"), skills[0].Source)
+}
+
 func TestPlugin_RootIsPluginAndContainerChildEmittedOnce(t *testing.T) {
 	t.Parallel()
 	root := testutil.TempDirResolved(t)
 	pluginDir := filepath.Join(root, "plugins", "twice")
 	mustWritePlugin(t, pluginDir, "twice")
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "one", "One")
 	mustWriteFile(t, filepath.Join(pluginDir, "AGENTS.md"), "plugin rules")
 	// Plugin containers inside a plugin root are not scanned.
 	mustWritePlugin(t, filepath.Join(pluginDir, "plugins", "nested"), "nested")
@@ -590,6 +634,9 @@ func TestPlugin_RootIsPluginAndContainerChildEmittedOnce(t *testing.T) {
 			plugins := resourcesOfKind(snap, agentcontext.KindPlugin)
 			require.Len(t, plugins, 1)
 			require.Equal(t, agentcontext.StatusOK, plugins[0].Status, plugins[0].Error)
+			skills := resourcesOfKind(snap, agentcontext.KindSkill)
+			require.Len(t, skills, 1)
+			require.Equal(t, "twice", skills[0].PluginName)
 			instr := findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(pluginDir, "AGENTS.md"))
 			require.Equal(t, agentcontext.StatusOK, instr.Status)
 		})
@@ -634,6 +681,46 @@ func TestPlugin_SymlinkedManifestInsideRootAllowed(t *testing.T) {
 	require.Equal(t, "linked", plugin.Name)
 }
 
+func TestPlugin_SymlinkedSkillEscapeRejected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	// The target lives inside the scan root but outside the plugin
+	// root, so the plugin-root boundary must reject it.
+	mustWriteSkill(t, filepath.Join(root, "skills"), "escape", "Outside the plugin")
+	skillDir := filepath.Join(pluginDir, "skills", "escape")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(root, "skills", "escape", "SKILL.md"), filepath.Join(skillDir, "SKILL.md")))
+	// A symlink resolving inside the plugin root is fine.
+	mustWriteFile(t, filepath.Join(pluginDir, "docs", "inner.md"), "---\nname: inner\ndescription: Inner\n---\nbody")
+	innerDir := filepath.Join(pluginDir, "skills", "inner")
+	require.NoError(t, os.MkdirAll(innerDir, 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(pluginDir, "docs", "inner.md"), filepath.Join(innerDir, "SKILL.md")))
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+	require.Equal(t, agentcontext.StatusOK, plugin.Status, plugin.Error)
+
+	escaped := findResource(t, snap.Resources, agentcontext.KindSkill, skillDir)
+	require.Equal(t, agentcontext.StatusInvalid, escaped.Status)
+	require.Contains(t, escaped.Error, "escapes")
+	require.Equal(t, "p", escaped.PluginName)
+
+	inner := findResource(t, snap.Resources, agentcontext.KindSkill, innerDir)
+	require.Equal(t, agentcontext.StatusOK, inner.Status, inner.Error)
+	require.Equal(t, "p", inner.PluginName)
+
+	// The plain skill outside the plugin is discovered on its own.
+	plain := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(root, "skills", "escape"))
+	require.Equal(t, agentcontext.StatusOK, plain.Status)
+	require.Empty(t, plain.PluginName)
+}
+
 func TestPlugin_SymlinkedPluginDirSkipped(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
@@ -647,6 +734,109 @@ func TestPlugin_SymlinkedPluginDirSkipped(t *testing.T) {
 
 	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
 	require.Empty(t, snap.Resources)
+}
+
+func TestPlugin_SymlinkedSkillsContainer(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+
+	t.Run("InsideRootLoaded", func(t *testing.T) {
+		t.Parallel()
+		root := testutil.TempDirResolved(t)
+		pluginDir := filepath.Join(root, "plugins", "p")
+		mustWritePlugin(t, pluginDir, "p")
+		mustWriteSkill(t, filepath.Join(pluginDir, "real-skills"), "one", "One")
+		require.NoError(t, os.Symlink(filepath.Join(pluginDir, "real-skills"), filepath.Join(pluginDir, "skills")))
+
+		snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+		plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+		require.Equal(t, agentcontext.StatusOK, plugin.Status)
+		require.Empty(t, plugin.Error)
+		skill := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(pluginDir, "skills", "one"))
+		require.Equal(t, agentcontext.StatusOK, skill.Status, skill.Error)
+		require.Equal(t, "p", skill.PluginName)
+		require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 1)
+	})
+
+	t.Run("EscapingRootDisablesSkills", func(t *testing.T) {
+		t.Parallel()
+		root := testutil.TempDirResolved(t)
+		pluginDir := filepath.Join(root, "plugins", "p")
+		mustWritePlugin(t, pluginDir, "p")
+		// The target is inside the scan root but outside the plugin root.
+		outside := filepath.Join(root, "shared-skills")
+		mustWriteSkill(t, outside, "one", "One")
+		require.NoError(t, os.Symlink(outside, filepath.Join(pluginDir, "skills")))
+
+		snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+		plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+		require.Equal(t, agentcontext.StatusOK, plugin.Status)
+		require.Contains(t, plugin.Error, "escapes plugin root; skills not loaded")
+		require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
+	})
+
+	t.Run("MissingTargetWarns", func(t *testing.T) {
+		t.Parallel()
+		root := testutil.TempDirResolved(t)
+		pluginDir := filepath.Join(root, "plugins", "p")
+		mustWritePlugin(t, pluginDir, "p")
+		require.NoError(t, os.Symlink(filepath.Join(pluginDir, "missing"), filepath.Join(pluginDir, "skills")))
+
+		snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+		plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+		require.Equal(t, agentcontext.StatusOK, plugin.Status)
+		require.Contains(t, plugin.Error, "cannot resolve skills symlink")
+		require.Contains(t, plugin.Error, "; skills not loaded")
+		require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
+	})
+
+	t.Run("DanglingSkillDirIgnored", func(t *testing.T) {
+		t.Parallel()
+		root := testutil.TempDirResolved(t)
+		pluginDir := filepath.Join(root, "plugins", "p")
+		mustWritePlugin(t, pluginDir, "p")
+		require.NoError(t, os.MkdirAll(filepath.Join(pluginDir, "skills"), 0o755))
+		require.NoError(t, os.Symlink(filepath.Join(pluginDir, "missing"), filepath.Join(pluginDir, "skills", "s")))
+		mustWriteFile(t, filepath.Join(pluginDir, "file-target"), "not a directory")
+		require.NoError(t, os.Symlink(filepath.Join(pluginDir, "file-target"), filepath.Join(pluginDir, "skills", "f")))
+
+		snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+		plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+		require.Equal(t, agentcontext.StatusOK, plugin.Status)
+		require.Empty(t, plugin.Error)
+		require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
+	})
+}
+
+func TestPlugin_UnreadableSkillsDirWarns(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits do not block reads on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can read any directory")
+	}
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "one", "One")
+	skills := filepath.Join(pluginDir, "skills")
+	require.NoError(t, os.Chmod(skills, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(skills, 0o755) })
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+	require.Equal(t, agentcontext.StatusOK, plugin.Status)
+	require.Contains(t, plugin.Error, "skills directory unreadable")
+	require.Contains(t, plugin.Error, "; skills not loaded")
+	require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
 }
 
 // coderd rejects a push holding a Source longer than
@@ -697,6 +887,54 @@ func TestPlugin_LongSourcesSkipped(t *testing.T) {
 	require.Equal(t, filepath.Join(skills, "ok"), skillRows[0].Source)
 }
 
+func TestPlugin_SymlinkedSkillDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	require.NoError(t, os.MkdirAll(filepath.Join(pluginDir, "skills"), 0o755))
+	// inner resolves inside the plugin root.
+	mustWriteSkill(t, filepath.Join(pluginDir, "shared"), "inner", "Inner")
+	innerLink := filepath.Join(pluginDir, "skills", "inner")
+	require.NoError(t, os.Symlink(filepath.Join(pluginDir, "shared", "inner"), innerLink))
+	// escape resolves inside the scan root but outside the plugin root.
+	mustWriteSkill(t, filepath.Join(root, "elsewhere"), "escape", "Escape")
+	escapeLink := filepath.Join(pluginDir, "skills", "escape")
+	require.NoError(t, os.Symlink(filepath.Join(root, "elsewhere", "escape"), escapeLink))
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	inner := findResource(t, snap.Resources, agentcontext.KindSkill, innerLink)
+	require.Equal(t, agentcontext.StatusOK, inner.Status, inner.Error)
+	require.Equal(t, "inner", inner.Name)
+	require.Equal(t, "p", inner.PluginName)
+
+	escaped := findResource(t, snap.Resources, agentcontext.KindSkill, escapeLink)
+	require.Equal(t, agentcontext.StatusInvalid, escaped.Status)
+	require.Contains(t, escaped.Error, "escapes plugin root")
+	require.Empty(t, escaped.Payload)
+	require.Equal(t, "p", escaped.PluginName)
+	require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 2)
+}
+
+func TestPlugin_SkillsFileDisablesSkills(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteFile(t, filepath.Join(pluginDir, "skills"), "not a directory")
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+	require.Equal(t, agentcontext.StatusOK, plugin.Status)
+	require.Contains(t, plugin.Error, "skills is not a directory")
+	require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
+}
+
 func TestPlugin_NonRegularManifest(t *testing.T) {
 	t.Parallel()
 
@@ -714,6 +952,22 @@ func TestPlugin_NonRegularManifest(t *testing.T) {
 	})
 }
 
+func TestPlugin_SkillNameMismatchInvalid(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	skillDir := filepath.Join(pluginDir, "skills", "dir-name")
+	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), "---\nname: other-name\ndescription: x\n---\nbody")
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	skill := findResource(t, snap.Resources, agentcontext.KindSkill, skillDir)
+	require.Equal(t, agentcontext.StatusInvalid, skill.Status)
+	require.Contains(t, skill.Error, "does not match directory")
+	require.Equal(t, "p", skill.PluginName)
+}
+
 func TestPlugin_DuplicateNameAcrossRootsFirstWins(t *testing.T) {
 	t.Parallel()
 	first := testutil.TempDirResolved(t)
@@ -721,7 +975,9 @@ func TestPlugin_DuplicateNameAcrossRootsFirstWins(t *testing.T) {
 	firstPlugin := filepath.Join(first, "plugins", "dup")
 	secondPlugin := filepath.Join(second, "plugins", "dup-copy")
 	mustWritePlugin(t, firstPlugin, "dup")
+	mustWriteSkill(t, filepath.Join(firstPlugin, "skills"), "first", "First")
 	mustWritePlugin(t, secondPlugin, "dup")
+	mustWriteSkill(t, filepath.Join(secondPlugin, "skills"), "second", "Second")
 
 	snap := resolvePlugins(
 		agentcontext.ScanRoot{Path: first},
@@ -733,6 +989,34 @@ func TestPlugin_DuplicateNameAcrossRootsFirstWins(t *testing.T) {
 	loser := findResource(t, snap.Resources, agentcontext.KindPlugin, secondPlugin)
 	require.Equal(t, agentcontext.StatusInvalid, loser.Status)
 	require.Equal(t, `plugin name "dup" is already used by `+firstPlugin+`; rename one of the plugins`, loser.Error)
+
+	skills := resourcesOfKind(snap, agentcontext.KindSkill)
+	require.Len(t, skills, 1)
+	require.Equal(t, filepath.Join(firstPlugin, "skills", "first"), skills[0].Source)
+}
+
+func TestPlugin_SkillCoexistsWithPlainSkillOfSameName(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "shared", "From plugin")
+	mustWriteSkill(t, filepath.Join(root, "skills"), "shared", "Plain")
+	other := filepath.Join(root, "plugins", "q")
+	mustWritePlugin(t, other, "q")
+	mustWriteSkill(t, filepath.Join(other, "skills"), "shared", "From q")
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	skills := resourcesOfKind(snap, agentcontext.KindSkill)
+	require.Len(t, skills, 3)
+	var owners []string
+	for _, s := range skills {
+		require.Equal(t, agentcontext.StatusOK, s.Status, s.Error)
+		require.Equal(t, "shared", s.Name)
+		owners = append(owners, s.PluginName)
+	}
+	require.ElementsMatch(t, []string{"", "p", "q"}, owners)
 }
 
 func TestPlugin_DisabledEmitsNothingPluginRelated(t *testing.T) {
@@ -847,6 +1131,51 @@ func TestPlugin_SymlinkedContainerSkipped(t *testing.T) {
 	}
 }
 
+// When the resource count cap is hit, plugin rows survive ahead of
+// their skills, because coderd stores a plugin skill only alongside an
+// OK plugin with that name.
+func TestPlugin_CountCapKeepsPluginBeforeSkills(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "a", "A")
+	mustWriteSkill(t, filepath.Join(pluginDir, "skills"), "b", "B")
+
+	r := &agentcontext.Resolver{MaxResources: 2}
+	snap := r.ResolveContext(context.Background(), []agentcontext.ScanRoot{{Path: root}}, agentcontext.ResolveOptions{PluginsEnabled: true})
+
+	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
+	require.Equal(t, agentcontext.StatusOK, plugin.Status, plugin.Error)
+	a := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(pluginDir, "skills", "a"))
+	require.Equal(t, agentcontext.StatusOK, a.Status, a.Error)
+	b := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(pluginDir, "skills", "b"))
+	require.Equal(t, agentcontext.StatusExcluded, b.Status)
+}
+
+// A skill of a plugin that is not OK has no plugin to nest in, so the
+// skills of a plugin the count cap excludes are dropped.
+func TestPlugin_CountCapDropsSkillsOfExcludedPlugin(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	p1 := filepath.Join(root, "plugins", "p1")
+	p2 := filepath.Join(root, "plugins", "p2")
+	mustWritePlugin(t, p1, "p1")
+	mustWritePlugin(t, p2, "p2")
+	mustWriteSkill(t, filepath.Join(p1, "skills"), "a", "A")
+	mustWriteSkill(t, filepath.Join(p2, "skills"), "b", "B")
+
+	r := &agentcontext.Resolver{MaxResources: 1}
+	snap := r.ResolveContext(context.Background(), []agentcontext.ScanRoot{{Path: root}}, agentcontext.ResolveOptions{PluginsEnabled: true})
+
+	require.Equal(t, agentcontext.StatusOK, findResource(t, snap.Resources, agentcontext.KindPlugin, p1).Status)
+	require.Equal(t, agentcontext.StatusExcluded, findResource(t, snap.Resources, agentcontext.KindPlugin, p2).Status)
+	skills := resourcesOfKind(snap, agentcontext.KindSkill)
+	require.Len(t, skills, 1)
+	require.Equal(t, filepath.Join(p1, "skills", "a"), skills[0].Source)
+	require.Equal(t, agentcontext.StatusExcluded, skills[0].Status)
+}
+
 // coderd rejects a push that repeats a Source, so a skill directory
 // that is also a scan-root plugin yields one row: the one from the
 // earlier scan root. A plugin skipped this way claims no name, loads no
@@ -858,6 +1187,8 @@ func TestPlugin_SkillDirAlsoScanRootPlugin(t *testing.T) {
 	mustWriteSkill(t, skills, "foo", "Foo")
 	foo := filepath.Join(skills, "foo")
 	mustWritePlugin(t, foo, "foo")
+	mustWriteSkill(t, filepath.Join(foo, "skills"), "deploy", "Deploy")
+	deploy := filepath.Join(foo, "skills", "deploy")
 	nested := filepath.Join(foo, ".agents", "plugins", "nested")
 	mustWritePlugin(t, nested, "nested")
 	other := testutil.TempDirResolved(t)
@@ -887,8 +1218,15 @@ func TestPlugin_SkillDirAlsoScanRootPlugin(t *testing.T) {
 			require.False(t, slices.ContainsFunc(snap.Resources, func(res agentcontext.Resource) bool {
 				return res.Source == nested
 			}), "a plugin root's plugin containers are not scanned")
-			if tc.kind == agentcontext.KindSkill {
+			if tc.kind == agentcontext.KindPlugin {
+				skill := findResource(t, snap.Resources, agentcontext.KindSkill, deploy)
+				require.Equal(t, agentcontext.StatusOK, skill.Status)
+				require.Equal(t, "foo", skill.PluginName)
+			} else {
 				require.Empty(t, findResource(t, snap.Resources, agentcontext.KindSkill, foo).Error, "a valid plugin adds no warning")
+				require.False(t, slices.ContainsFunc(snap.Resources, func(res agentcontext.Resource) bool {
+					return res.Source == deploy
+				}), "a skipped plugin loads no skills")
 			}
 		})
 	}
@@ -900,6 +1238,7 @@ func TestPlugin_ValidPluginReplacesInvalidSkillAtSameDir(t *testing.T) {
 	foo := filepath.Join(root, ".agents", "skills", "foo")
 	mustWriteFile(t, filepath.Join(foo, "SKILL.md"), "---\nname: not-foo\ndescription: Foo\n---\nbody")
 	mustWritePlugin(t, foo, "foo")
+	mustWriteSkill(t, filepath.Join(foo, "skills"), "deploy", "Deploy")
 
 	snap := resolvePlugins(agentcontext.ScanRoot{Path: root}, agentcontext.ScanRoot{Path: foo})
 	var atFoo []agentcontext.Resource
@@ -911,6 +1250,9 @@ func TestPlugin_ValidPluginReplacesInvalidSkillAtSameDir(t *testing.T) {
 	require.Len(t, atFoo, 1)
 	require.Equal(t, agentcontext.KindPlugin, atFoo[0].Kind)
 	require.Equal(t, agentcontext.StatusOK, atFoo[0].Status)
+	deploy := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(foo, "skills", "deploy"))
+	require.Equal(t, agentcontext.StatusOK, deploy.Status)
+	require.Equal(t, "foo", deploy.PluginName)
 }
 
 // A rejected scan-root plugin at an OK skill's directory leaves the skill
@@ -970,6 +1312,56 @@ func TestPlugin_SkillDirAlsoScanRootPluginThroughSymlink(t *testing.T) {
 				}
 			}
 			require.Len(t, atFoo, 1)
+		})
+	}
+}
+
+// Spec section 7.1 applies the Agent Skills limits to plugin skills: a
+// description is required and capped at 1024 characters, and a name is
+// capped at 64.
+func TestPlugin_SkillLimits(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		skill       string
+		description string
+		errContains string
+	}{
+		{name: "name at limit", skill: strings.Repeat("a", 64), description: "ok"},
+		{name: "name over limit", skill: strings.Repeat("a", 65), description: "ok", errContains: "skill name is 65 characters, maximum is 64"},
+		{name: "description missing", skill: "nodesc", errContains: "skill description is required"},
+		{name: "description at limit", skill: "long", description: strings.Repeat("é", 1024)},
+		{name: "description over limit", skill: "long", description: strings.Repeat("é", 1025), errContains: "skill description is 1025 characters, maximum is 1024"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := testutil.TempDirResolved(t)
+			pluginDir := filepath.Join(root, "plugins", "p")
+			mustWritePlugin(t, pluginDir, "p")
+			meta := "---\nname: " + tc.skill + "\n"
+			if tc.description != "" {
+				meta += "description: " + tc.description + "\n"
+			}
+			meta += "---\nbody"
+			mustWriteFile(t, filepath.Join(pluginDir, "skills", tc.skill, "SKILL.md"), meta)
+			// Plain skills are not held to these limits.
+			mustWriteFile(t, filepath.Join(root, "skills", tc.skill, "SKILL.md"), meta)
+
+			snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+			skill := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(pluginDir, "skills", tc.skill))
+			require.Equal(t, "p", skill.PluginName)
+			if tc.errContains == "" {
+				require.Equal(t, agentcontext.StatusOK, skill.Status, skill.Error)
+				require.Equal(t, tc.skill, skill.Name)
+			} else {
+				require.Equal(t, agentcontext.StatusInvalid, skill.Status)
+				require.Equal(t, tc.errContains, skill.Error)
+				require.Empty(t, skill.Payload)
+			}
+			plain := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(root, "skills", tc.skill))
+			require.Equal(t, agentcontext.StatusOK, plain.Status, plain.Error)
 		})
 	}
 }
@@ -1062,6 +1454,7 @@ func TestPlugin_NameShadowedSkillDirIsPlugin(t *testing.T) {
 			mustWriteSkill(t, filepath.Join(root, ".agents", "skills"), "shared", "Second")
 			p := filepath.Join(root, ".agents", "skills", "shared")
 			mustWritePlugin(t, p, tc.manifestName)
+			mustWriteSkill(t, filepath.Join(p, "skills"), "deploy", "Deploy")
 
 			snap := resolvePlugins(agentcontext.ScanRoot{Path: root}, agentcontext.ScanRoot{Path: p})
 
@@ -1072,6 +1465,43 @@ func TestPlugin_NameShadowedSkillDirIsPlugin(t *testing.T) {
 			require.False(t, slices.ContainsFunc(snap.Resources, func(res agentcontext.Resource) bool {
 				return res.Kind == agentcontext.KindSkill && res.Source == p
 			}), "the hidden skill is not emitted")
+			deploy := filepath.Join(p, "skills", "deploy")
+			if tc.status == agentcontext.StatusOK {
+				skill := findResource(t, snap.Resources, agentcontext.KindSkill, deploy)
+				require.Equal(t, agentcontext.StatusOK, skill.Status, skill.Error)
+				require.Equal(t, "p", skill.PluginName)
+			} else {
+				require.False(t, slices.ContainsFunc(snap.Resources, func(res agentcontext.Resource) bool {
+					return res.Source == deploy
+				}), "a rejected plugin loads no skills")
+			}
 		})
 	}
+}
+
+// A plugin skill directory that links to a plain skill escapes the
+// plugin root. Its invalid row is keyed on its own Source, so it appears
+// next to the plain skill.
+func TestPlugin_SkillLinkToPlainSkillReported(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	mustWriteSkill(t, filepath.Join(root, ".agents", "skills"), "s", "Plain")
+	pluginDir := filepath.Join(root, "plugins", "p")
+	mustWritePlugin(t, pluginDir, "p")
+	require.NoError(t, os.MkdirAll(filepath.Join(pluginDir, "skills"), 0o755))
+	link := filepath.Join(pluginDir, "skills", "s")
+	require.NoError(t, os.Symlink(filepath.Join(root, ".agents", "skills", "s"), link))
+
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+
+	plain := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(root, ".agents", "skills", "s"))
+	require.Equal(t, agentcontext.StatusOK, plain.Status, plain.Error)
+	require.Empty(t, plain.PluginName)
+	escaped := findResource(t, snap.Resources, agentcontext.KindSkill, link)
+	require.Equal(t, agentcontext.StatusInvalid, escaped.Status)
+	require.Contains(t, escaped.Error, "escapes plugin root")
+	require.Equal(t, "p", escaped.PluginName)
 }
