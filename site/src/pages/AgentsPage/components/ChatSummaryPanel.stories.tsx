@@ -337,13 +337,6 @@ export const EarlierAttachmentsFailed: Story = {
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 		],
 	},
-	// The alert pushes Retry below the panel frame's fold.
-	play: async ({ canvasElement }) => {
-		const retry = await within(canvasElement).findByRole("button", {
-			name: "Retry",
-		});
-		retry.scrollIntoView();
-	},
 };
 
 export const EarlierAttachmentsRetrying: Story = {
