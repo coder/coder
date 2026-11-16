@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -194,60 +196,19 @@ func parsePluginManifest(data []byte) (m pluginManifest, recognized bool, err er
 		return pluginManifest{}, true, xerrors.Errorf("unsupported $schema %q; this agent supports only %q", schema, PluginSchemaV1)
 	}
 
-	rawName, ok := fields["name"]
-	if !ok {
+	if _, ok := fields["name"]; !ok {
 		return pluginManifest{}, true, xerrors.New("name is required")
 	}
-	if m.Name, ok = jsonString(rawName); !ok {
-		return pluginManifest{}, true, xerrors.New("name must be a string")
-	}
-	if err := workspacesdk.ValidatePluginName(m.Name); err != nil {
+	decoded, err := decodePluginManifest(fields)
+	if err != nil {
 		return pluginManifest{}, true, err
 	}
-
-	for _, key := range []string{"version", "description", "homepage", "repository", "license"} {
-		raw, ok := fields[key]
-		if !ok {
-			continue
-		}
-		value, ok := jsonString(raw)
-		if !ok {
-			return pluginManifest{}, true, xerrors.Errorf("%s must be a string", key)
-		}
-		switch key {
-		case "version":
-			m.Version = value
-		case "description":
-			m.Description = value
-		}
+	if err := workspacesdk.ValidatePluginName(string(decoded.Name)); err != nil {
+		return pluginManifest{}, true, err
 	}
-
-	if raw, ok := fields["keywords"]; ok {
-		var keywords []json.RawMessage
-		if err := json.Unmarshal(raw, &keywords); err != nil || keywords == nil {
-			return pluginManifest{}, true, xerrors.New("keywords must be an array of strings")
-		}
-		for _, keyword := range keywords {
-			if _, ok := jsonString(keyword); !ok {
-				return pluginManifest{}, true, xerrors.New("keywords must be an array of strings")
-			}
-		}
-	}
-
-	if raw, ok := fields["author"]; ok {
-		var author map[string]json.RawMessage
-		if err := json.Unmarshal(raw, &author); err != nil || author == nil {
-			return pluginManifest{}, true, xerrors.New("author must be an object")
-		}
-		for key, value := range author {
-			if _, known := pluginAuthorFields[key]; !known {
-				return pluginManifest{}, true, xerrors.Errorf("author contains unknown field %q", key)
-			}
-			if _, ok := jsonString(value); !ok {
-				return pluginManifest{}, true, xerrors.Errorf("author.%s must be a string", key)
-			}
-		}
-	}
+	m.Name = string(decoded.Name)
+	m.Version = string(decoded.Version)
+	m.Description = string(decoded.Description)
 
 	// Extension namespace values are not validated: spec section 8.1
 	// ignores namespaces a client does not implement.
@@ -278,22 +239,93 @@ func parsePluginManifest(data []byte) (m pluginManifest, recognized bool, err er
 	return m, true, nil
 }
 
-// pluginText sanitizes and caps a manifest string carried to coderd. It
-// also removes U+0000, which coderd's jsonb storage cannot hold.
-func pluginText(s string, maxRunes int) string {
-	return strutil.Truncate(codersdk.SanitizePromptText(strings.ReplaceAll(s, "\x00", "")), maxRunes)
+// pluginManifestJSON holds the typed fields of a 1.0.0 manifest.
+// $schema, extensions, and unknown keys are checked on the raw object.
+type pluginManifestJSON struct {
+	Name        manifestString    `json:"name"`
+	Version     manifestString    `json:"version"`
+	Description manifestString    `json:"description"`
+	Homepage    manifestString    `json:"homepage"`
+	Repository  manifestString    `json:"repository"`
+	License     manifestString    `json:"license"`
+	Keywords    *[]manifestString `json:"keywords"`
+	Author      *struct {
+		Name  manifestString `json:"name"`
+		Email manifestString `json:"email"`
+		URL   manifestString `json:"url"`
+	} `json:"author"`
 }
 
-// jsonString decodes raw as a JSON string. JSON null is not a string.
-func jsonString(raw json.RawMessage) (string, bool) {
-	if strings.TrimSpace(string(raw)) == "null" {
-		return "", false
+// manifestString is a manifest string field. Unlike string, it rejects
+// JSON null, which the schema does not allow.
+type manifestString string
+
+func (s *manifestString) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return &json.UnmarshalTypeError{Value: "null", Type: reflect.TypeFor[string]()}
 	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return "", false
+	return json.Unmarshal(data, (*string)(s))
+}
+
+// decodePluginManifest decodes the schema-defined keys of fields and
+// rejects values of the wrong type and unknown author keys.
+func decodePluginManifest(fields map[string]json.RawMessage) (pluginManifestJSON, error) {
+	// encoding/json matches keys case-insensitively, so only the exact
+	// schema keys are decoded.
+	known := make(map[string]json.RawMessage, len(pluginManifestFields))
+	for key, value := range fields {
+		if _, ok := pluginManifestFields[key]; ok {
+			known[key] = value
+		}
 	}
-	return s, true
+	data, err := json.Marshal(known)
+	if err != nil {
+		return pluginManifestJSON{}, xerrors.Errorf("encode manifest fields: %w", err)
+	}
+	var m pluginManifestJSON
+	if err := json.Unmarshal(data, &m); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return pluginManifestJSON{}, err
+		}
+		return pluginManifestJSON{}, manifestTypeError(typeErr.Field)
+	}
+	// A null keywords or author leaves its pointer nil.
+	if _, ok := fields["keywords"]; ok && m.Keywords == nil {
+		return pluginManifestJSON{}, manifestTypeError("keywords")
+	}
+	if _, ok := fields["author"]; ok && m.Author == nil {
+		return pluginManifestJSON{}, manifestTypeError("author")
+	}
+	if raw, ok := fields["author"]; ok {
+		var author map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &author); err != nil {
+			return pluginManifestJSON{}, manifestTypeError("author")
+		}
+		for _, key := range slices.Sorted(maps.Keys(author)) {
+			if _, known := pluginAuthorFields[key]; !known {
+				return pluginManifestJSON{}, xerrors.Errorf("author contains unknown field %q", key)
+			}
+		}
+	}
+	return m, nil
+}
+
+// manifestTypeError describes a manifest field whose value has the
+// wrong JSON type. field is a dotted path such as "author.name".
+func manifestTypeError(field string) error {
+	switch field {
+	case "keywords":
+		return xerrors.New("keywords must be an array of strings")
+	case "author":
+		return xerrors.New("author must be an object")
+	}
+	return xerrors.Errorf("%s must be a string", field)
+}
+
+// pluginText sanitizes and caps a manifest string carried to coderd.
+func pluginText(s string, maxRunes int) string {
+	return strutil.Truncate(codersdk.SanitizePromptText(withoutNUL(s)), maxRunes)
 }
 
 // pluginContainersFor returns the existing plugin-container
@@ -370,18 +402,21 @@ func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, in
 		r.appendResource(out, index, res)
 		return pluginRejected
 	}
-	res.SizeBytes = safeUint64(info.Size())
-	data, ok := r.readPluginManifest(manifestPath, info, pluginRoot, &res)
-	if !ok {
+	file, err := r.readPluginManifest(manifestPath, info, pluginRoot)
+	res.SizeBytes = file.size
+	res.ContentHash = file.hash
+	if err != nil {
 		if origin == pluginAtScanRoot {
-			logIgnored(res.Error)
+			logIgnored(err.Error())
 			return pluginAbsent
 		}
+		res.Status = errorStatus(err)
+		res.Error = err.Error()
 		r.appendResource(out, index, res)
 		return pluginRejected
 	}
 
-	manifest, recognized, err := parsePluginManifest(data)
+	manifest, recognized, err := parsePluginManifest(file.data)
 	if !recognized {
 		foreign := errors.As(err, new(*foreignManifestError))
 		if origin == pluginAtScanRoot || (origin == pluginInGenericContainer && foreign) {
@@ -471,37 +506,62 @@ func (r *Resolver) reportSymlinkedPluginDirs(container string, root ScanRoot, ou
 	}
 }
 
+// pluginManifestFile is a plugin.json as read by readPluginManifest.
+type pluginManifestFile struct {
+	data []byte
+	size uint64
+	// hash covers data, or the first MaxResourceBytes of an oversize
+	// file. It is zero when the file could not be read.
+	hash [32]byte
+}
+
+// resourceError is a failure to load a resource, reported with status.
+type resourceError struct {
+	status ResourceStatus
+	msg    string
+}
+
+func (e *resourceError) Error() string { return e.msg }
+
+// errorStatus returns the status a *resourceError in err carries, or
+// StatusInvalid.
+func errorStatus(err error) ResourceStatus {
+	var resErr *resourceError
+	if errors.As(err, &resErr) {
+		return resErr.status
+	}
+	return StatusInvalid
+}
+
 // readPluginManifest reads manifestPath after checking that it
 // resolves to a regular file inside pluginRoot and fits the
-// per-resource cap. It records size and content hash on res; on
-// failure it also sets res.Status and res.Error and returns false.
-func (r *Resolver) readPluginManifest(manifestPath string, info fs.FileInfo, pluginRoot string, res *Resource) ([]byte, bool) {
+// per-resource cap. The returned file carries the size and, when the
+// file could be read, the content hash even if err is non-nil; err is
+// a *resourceError that errorStatus maps to the resource status.
+func (r *Resolver) readPluginManifest(manifestPath string, info fs.FileInfo, pluginRoot string) (pluginManifestFile, error) {
+	file := pluginManifestFile{size: safeUint64(info.Size())}
 	readPath, readInfo, resolved, status, errMsg := resolveReadTarget(manifestPath, info, pluginRoot)
 	if !resolved {
-		res.Status = status
-		res.Error = errMsg
-		return nil, false
+		return file, &resourceError{status: status, msg: errMsg}
 	}
 	if !readInfo.Mode().IsRegular() {
-		res.Status = StatusInvalid
-		res.Error = "plugin.json is not a regular file"
-		return nil, false
+		return file, &resourceError{status: StatusInvalid, msg: "plugin.json is not a regular file"}
 	}
-	res.SizeBytes = safeUint64(readInfo.Size())
-	if res.SizeBytes > r.MaxResourceBytes {
-		res.Status = StatusOversize
-		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", readInfo.Size(), r.MaxResourceBytes)
+	file.size = safeUint64(readInfo.Size())
+	if file.size > r.MaxResourceBytes {
 		if data, err := readFileCapped(readPath, safeInt64(r.MaxResourceBytes)); err == nil {
-			res.ContentHash = sha256.Sum256(data)
+			file.hash = sha256.Sum256(data)
 		}
-		return nil, false
+		return file, &resourceError{
+			status: StatusOversize,
+			msg:    fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", readInfo.Size(), r.MaxResourceBytes),
+		}
 	}
 	data, err := os.ReadFile(readPath)
 	if err != nil {
-		res.Status = StatusUnreadable
-		res.Error = err.Error()
-		return nil, false
+		return file, &resourceError{status: StatusUnreadable, msg: err.Error()}
 	}
-	res.ContentHash = sha256.Sum256(data)
-	return data, true
+	file.data = data
+	file.hash = sha256.Sum256(data)
+	return file, nil
 }

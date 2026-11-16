@@ -800,9 +800,8 @@ func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSo
 		res.Error = err.Error()
 		return res, true
 	}
-	// coderd's jsonb storage cannot hold U+0000.
-	name = strings.ReplaceAll(name, "\x00", "")
-	description = strings.ReplaceAll(description, "\x00", "")
+	name = withoutNUL(name)
+	description = withoutNUL(description)
 	if name != parent {
 		res.Status = StatusInvalid
 		res.Error = fmt.Sprintf("front-matter name %q does not match directory %q", name, parent)
@@ -817,6 +816,12 @@ func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSo
 	res.Name = name
 	res.Payload = data
 	return res, true
+}
+
+// withoutNUL removes U+0000, which coderd's jsonb storage cannot hold,
+// from text sent to coderd.
+func withoutNUL(s string) string {
+	return strings.ReplaceAll(s, "\x00", "")
 }
 
 // emitSkillsFromContainer scans the immediate children of a

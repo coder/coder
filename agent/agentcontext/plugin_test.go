@@ -174,6 +174,21 @@ func TestPlugin_ManifestValidation(t *testing.T) {
 			errContains: "author.name must be a string",
 		},
 		{
+			name:   "keys differing only in case are unknown",
+			fields: map[string]any{"name": "cased", "Name": 5},
+			status: agentcontext.StatusOK,
+			check: func(t *testing.T, res agentcontext.Resource) {
+				require.Equal(t, "cased", res.Name)
+				require.Equal(t, `unknown field "Name" ignored`, res.Error)
+			},
+		},
+		{
+			name:        "author key differing only in case rejected",
+			fields:      map[string]any{"name": "auth", "author": map[string]any{"Name": "Ada"}},
+			status:      agentcontext.StatusInvalid,
+			errContains: `author contains unknown field "Name"`,
+		},
+		{
 			name:        "author not an object",
 			fields:      map[string]any{"name": "auth", "author": "Ada"},
 			status:      agentcontext.StatusInvalid,
@@ -660,7 +675,7 @@ func TestPlugin_LongSourcesSkipped(t *testing.T) {
 	const maxSource = workspacesdk.MaxContextSourceBytes
 	// deep is just long enough that a directory of longPluginNameLen
 	// bytes in .agents/plugins/ exceeds maxSource, while
-	// .agents/plugins/p/skills/ok stays under it.
+	// .agents/plugins/p stays under it.
 	const longPluginNameLen = 200
 	deep := testutil.TempDirResolved(t)
 	for len(deep)+len("/.agents/plugins/")+longPluginNameLen <= maxSource {
@@ -669,20 +684,12 @@ func TestPlugin_LongSourcesSkipped(t *testing.T) {
 	container := filepath.Join(deep, ".agents", "plugins")
 	pluginDir := filepath.Join(container, "p")
 	mustWritePlugin(t, pluginDir, "p")
-	skills := filepath.Join(pluginDir, "skills")
-	mustWriteSkill(t, skills, "ok", "OK")
-	require.LessOrEqual(t, len(filepath.Join(skills, "ok")), maxSource)
-	longSkill := filepath.Join(skills, strings.Repeat("s", maxSource-len(skills)))
-	require.Greater(t, len(longSkill), maxSource)
 	longPlugin := filepath.Join(container, strings.Repeat("q", longPluginNameLen))
 	require.Greater(t, len(longPlugin), maxSource)
-	for _, dir := range []string{longSkill, longPlugin} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			// macOS limits paths to 1024 bytes.
-			t.Skipf("filesystem rejects the long test path: %v", err)
-		}
+	if err := os.MkdirAll(longPlugin, 0o755); err != nil {
+		// macOS limits paths to 1024 bytes.
+		t.Skipf("filesystem rejects the long test path: %v", err)
 	}
-	mustWriteFile(t, filepath.Join(longSkill, "SKILL.md"), "---\nname: x\ndescription: x\n---\n")
 	mustWritePlugin(t, longPlugin, "q")
 
 	snap := resolvePlugins(agentcontext.ScanRoot{Path: deep})
@@ -691,10 +698,6 @@ func TestPlugin_LongSourcesSkipped(t *testing.T) {
 	require.Len(t, plugins, 1)
 	require.Equal(t, pluginDir, plugins[0].Source)
 	require.Equal(t, agentcontext.StatusOK, plugins[0].Status)
-	require.Contains(t, plugins[0].Error, fmt.Sprintf("skill directories skipped because their paths are longer than %d bytes: 1; shorten them to load them", maxSource))
-	skillRows := resourcesOfKind(snap, agentcontext.KindSkill)
-	require.Len(t, skillRows, 1)
-	require.Equal(t, filepath.Join(skills, "ok"), skillRows[0].Source)
 }
 
 func TestPlugin_NonRegularManifest(t *testing.T) {
@@ -790,9 +793,6 @@ func TestPlugin_InvalidUTF8NamesSkipped(t *testing.T) {
 	mustWritePlugin(t, filepath.Join(container, "bad\xffplugin"), "bad")
 	good := filepath.Join(container, "good")
 	mustWritePlugin(t, good, "good")
-	mustWriteSkill(t, filepath.Join(good, "skills"), "ok", "OK")
-	require.NoError(t, os.MkdirAll(filepath.Join(good, "skills", "bad\xffskill"), 0o755))
-	mustWriteFile(t, filepath.Join(good, "skills", "bad\xffskill", "SKILL.md"), "---\nname: x\ndescription: x\n---\n")
 
 	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
 
@@ -800,10 +800,6 @@ func TestPlugin_InvalidUTF8NamesSkipped(t *testing.T) {
 	require.Len(t, plugins, 1)
 	require.Equal(t, good, plugins[0].Source)
 	require.Equal(t, agentcontext.StatusOK, plugins[0].Status)
-	require.Contains(t, plugins[0].Error, "skill directories skipped because their names are not valid UTF-8: 1; rename them to load them")
-	skills := resourcesOfKind(snap, agentcontext.KindSkill)
-	require.Len(t, skills, 1)
-	require.Equal(t, filepath.Join(good, "skills", "ok"), skills[0].Source)
 }
 
 func TestPlugin_SymlinkedContainerSkipped(t *testing.T) {
