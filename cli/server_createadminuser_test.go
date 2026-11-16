@@ -288,4 +288,76 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.ErrorContains(t, err, "'email' failed on the 'email' tag")
 		require.ErrorContains(t, err, "'username' failed on the 'username' tag")
 	})
+
+	t.Run("RefusesPlaintextWhenDBCryptActive", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" || testing.Short() {
+			// Skip on non-Linux because it spawns a PostgreSQL instance.
+			t.SkipNow()
+		}
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer sqlDB.Close()
+		db := database.New(sqlDB)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Simulate a deployment with at-rest encryption enabled.
+		err = db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+			Number:          1,
+			ActiveKeyDigest: "0000000000000000000000000000000000000000000000000000000000000000",
+			Test:            "test",
+		})
+		require.NoError(t, err)
+
+		inv, _ := clitest.New(t,
+			"server", "create-admin-user",
+			"--postgres-url", connectionURL,
+			"--ssh-keygen-algorithm", "ed25519",
+			"--username", "plaintext",
+			"--email", "plaintext@example.com",
+			"--password", password,
+		)
+		inv.Stdout, inv.Stderr = io.Discard, io.Discard
+		err = inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "dbcrypt")
+
+		// No partial user should have been created.
+		_, err = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Email: "plaintext@example.com",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("EncryptionKeysRequireEnterprise", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" || testing.Short() {
+			// Skip on non-Linux because it spawns a PostgreSQL instance.
+			t.SkipNow()
+		}
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		inv, _ := clitest.New(t,
+			"server", "create-admin-user",
+			"--postgres-url", connectionURL,
+			"--ssh-keygen-algorithm", "ed25519",
+			"--username", username,
+			"--email", email,
+			"--password", password,
+			"--external-token-encryption-keys", "dGVzdC1rZXktMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+		)
+		inv.Stdout, inv.Stderr = io.Discard, io.Discard
+		err = inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "enterprise")
+	})
 }

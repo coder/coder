@@ -35,6 +35,15 @@ URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will 
 
 Type of auth to use when connecting to postgres.
 
+### --external-token-encryption-keys
+
+| Property    | Value                                              |
+|-------------|----------------------------------------------------|
+| Type        | <code>string-array</code>                          |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
+
+Encrypt the generated git SSH private key at rest with the deployment's external token encryption keys. Must be the same comma-separated list of base64-encoded keys passed to the server. Required when the database has at-rest encryption enabled. Enterprise builds only.
+
 ### --ssh-keygen-algorithm
 
 | Property    | Value                                    |

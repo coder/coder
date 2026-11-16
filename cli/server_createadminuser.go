@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sort"
@@ -23,6 +24,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
+
+// WrapCreateAdminUserStore is set by the enterprise CLI to wrap the direct
+// database connection used by `coder server create-admin-user` with dbcrypt
+// at-rest encryption. AGPL code cannot import enterprise packages, so the
+// enterprise CLI injects the implementation here. It is nil in AGPL-only
+// builds, where --external-token-encryption-keys is rejected.
+var WrapCreateAdminUserStore func(ctx context.Context, db database.Store, keys []string) (database.Store, error)
 
 type organizationMembership struct {
 	OrganizationID   uuid.UUID `json:"organization_id"`
@@ -48,6 +56,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 		newUserUsername           string
 		newUserEmail              string
 		newUserPassword           string
+		newUserEncryptionKeys     []string
 		formatter                 = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 				typed, ok := data.(createAdminUserResponse)
@@ -110,6 +119,17 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				_ = sqlDB.Close()
 			}()
 			db := database.New(sqlDB)
+			if len(newUserEncryptionKeys) > 0 {
+				if WrapCreateAdminUserStore == nil {
+					return xerrors.New("--external-token-encryption-keys requires an enterprise build of Coder")
+				}
+				db, err = WrapCreateAdminUserStore(ctx, db, newUserEncryptionKeys)
+				if err != nil {
+					return xerrors.Errorf("enable at-rest encryption: %w", err)
+				}
+			} else if err := requireNoActiveDBCryptKeys(ctx, db); err != nil {
+				return err
+			}
 
 			validateInputs := func(username, email, password string) error {
 				// Use the validator tags so we match the API's validation.
@@ -245,7 +265,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					CreatedAt:       dbtime.Now(),
 					UpdatedAt:       dbtime.Now(),
 					PrivateKey:      privateKey,
-					PrivateKeyKeyID: sql.NullString{}, // Plaintext; this CLI bypasses dbcrypt. Encrypted on next rotate.
+					PrivateKeyKeyID: sql.NullString{}, // Filled in by dbcrypt when encryption keys were provided.
 					PublicKey:       publicKey,
 				})
 				if err != nil {
@@ -313,6 +333,13 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			Value:       serpent.EnumOf(&newUserPgAuth, codersdk.PostgresAuthDrivers...),
 		},
 		serpent.Option{
+			Name:        "External Token Encryption Keys",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
+			Flag:        "external-token-encryption-keys",
+			Description: "Encrypt the generated git SSH private key at rest with the deployment's external token encryption keys. Must be the same comma-separated list of base64-encoded keys passed to the server. Required when the database has at-rest encryption enabled. Enterprise builds only.",
+			Value:       serpent.StringArrayOf(&newUserEncryptionKeys),
+		},
+		serpent.Option{
 			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
 			Flag:        "ssh-keygen-algorithm",
 			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
@@ -341,4 +368,24 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	formatter.AttachOptions(&createAdminUserCommand.Options)
 
 	return createAdminUserCommand
+}
+
+// requireNoActiveDBCryptKeys guards direct database writes: when the
+// deployment encrypts fields at rest, inserting without the encryption keys
+// would silently store the generated git SSH private key in plaintext
+// (SEC-1491).
+func requireNoActiveDBCryptKeys(ctx context.Context, db database.Store) error {
+	keys, err := db.GetDBCryptKeys(ctx)
+	if err != nil {
+		return xerrors.Errorf("check database encryption keys: %w", err)
+	}
+	for _, key := range keys {
+		if key.ActiveKeyDigest.Valid && !key.RevokedKeyDigest.Valid {
+			return xerrors.New(
+				"this database encrypts fields at rest with dbcrypt; refusing to write an unencrypted git SSH key. " +
+					"Provide the deployment's keys with --external-token-encryption-keys or CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
+			)
+		}
+	}
+	return nil
 }

@@ -7,6 +7,13 @@ USAGE:
   it to every organization.
 
 OPTIONS:
+      --external-token-encryption-keys string-array, $CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS
+          Encrypt the generated git SSH private key at rest with the
+          deployment's external token encryption keys. Must be the same
+          comma-separated list of base64-encoded keys passed to the server.
+          Required when the database has at-rest encryption enabled. Enterprise
+          builds only.
+
       --postgres-connection-auth password|awsiamrds, $CODER_PG_CONNECTION_AUTH (default: password)
           Type of auth to use when connecting to postgres.
 
