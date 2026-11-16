@@ -356,15 +356,21 @@ You can upload the template through the CLI, or through the Coder dashboard:
    > Upload "."? (yes/no) yes
    ```
 
-1. The Coder CLI tool gives progress information then prompts you to confirm:
+1. The Coder CLI tool shows progress information, then confirms that it created
+   the template and prints the command developers can use to create a workspace
+   from it:
 
    ```console
-   > Confirm create? (yes/no) yes
+   The template-tour template has been created at Nov 10 15:25:29! Developers can provision a workspace with this template using:
 
-   The template-tour template has been created! Developers can provision a workspace with this template using:
+     coder create --template="template-tour" --org="coder" [workspace name]
 
-   coder create --template="template-tour" [workspace name]
+   Updated version at Nov 10 15:25:29!
    ```
+
+   The `--org` value is the organization the template belongs to. `coder` is
+   the name of the
+   [default organization](../admin/users/organizations.md#the-default-organization).
 
 1. In your web browser, log in to your Coder dashboard, select **Templates**.
 
