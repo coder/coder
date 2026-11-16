@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
@@ -44,8 +45,8 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 
 	return (
 		<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
-			<div className="flex flex-col items-start gap-2">
-				<Label htmlFor={emailField.id}>
+			<div className="flex flex-col items-start">
+				<Label htmlFor={emailField.id} className="mb-2">
 					Email{" "}
 					<span className="text-xs text-content-destructive font-bold">*</span>
 				</Label>
@@ -62,18 +63,20 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 					aria-invalid={Boolean(emailField.error)}
 					aria-describedby={emailField.error ? emailErrorId : undefined}
 				/>
-				{emailField.error && (
-					<span
-						id={emailErrorId}
-						className="text-xs text-content-destructive text-left"
-					>
-						{emailField.helperText}
-					</span>
-				)}
+				<span
+					id={emailErrorId}
+					role="alert"
+					className={cn(
+						"text-xs text-content-destructive text-left",
+						emailField.error && "mt-2",
+					)}
+				>
+					{emailField.error && emailField.helperText}
+				</span>
 			</div>
 
-			<div className="flex flex-col items-start gap-2">
-				<Label htmlFor={passwordField.id}>
+			<div className="flex flex-col items-start">
+				<Label htmlFor={passwordField.id} className="mb-2">
 					Password{" "}
 					<span className="text-xs text-content-destructive font-bold">*</span>
 				</Label>
@@ -89,14 +92,16 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 					aria-invalid={Boolean(passwordField.error)}
 					aria-describedby={passwordField.error ? passwordErrorId : undefined}
 				/>
-				{passwordField.error && (
-					<span
-						id={passwordErrorId}
-						className="text-xs text-content-destructive text-left"
-					>
-						{passwordField.helperText}
-					</span>
-				)}
+				<span
+					id={passwordErrorId}
+					role="alert"
+					className={cn(
+						"text-xs text-content-destructive text-left",
+						passwordField.error && "mt-2",
+					)}
+				>
+					{passwordField.error && passwordField.helperText}
+				</span>
 			</div>
 
 			<Button size="lg" disabled={isSigningIn} className="w-full" type="submit">

@@ -31,11 +31,11 @@ They're specified by a URL, which can be to an image hosted on a content deliver
 - [**Authentication Providers**](../../admin/external-auth.md):
 
   - Use icons for external authentication providers to make them recognizable.
-    You can set an icon for each provider by setting the `CODER_EXTERNAL_AUTH_X_ICON` environment variable, where `X` is the number of the provider.
+    You can set an icon for each provider by setting the `CODER_EXTERNAL_AUTH_X_DISPLAY_ICON` environment variable, where `X` is the number of the provider.
 
     ```dotenv
-    CODER_EXTERNAL_AUTH_0_ICON=/icon/github.svg
-    CODER_EXTERNAL_AUTH_1_ICON=/icon/google.svg
+    CODER_EXTERNAL_AUTH_0_DISPLAY_ICON=/icon/github.svg
+    CODER_EXTERNAL_AUTH_1_DISPLAY_ICON=/icon/google.svg
     ```
 
 - [**Support Links**](../../admin/setup/appearance.md#support-links):

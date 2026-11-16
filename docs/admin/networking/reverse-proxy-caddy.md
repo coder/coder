@@ -17,7 +17,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 
    ```yaml
    services:
-   coder:
+     coder:
        image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
        environment:
            CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@database/${POSTGRES_DB:-coder}?sslmode=disable"
@@ -37,10 +37,10 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
        volumes:
            - /var/run/docker.sock:/var/run/docker.sock
        depends_on:
-           database:
+         database:
            condition: service_healthy
 
-   database:
+     database:
        image: "postgres:17"
        ports:
            - "5432:5432"
@@ -52,15 +52,15 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
            - coder_data:/var/lib/postgresql/data # Use "docker volume rm coder_coder_data" to reset Coder
        healthcheck:
            test:
-           [
+             [
                "CMD-SHELL",
                "pg_isready -U ${POSTGRES_USER:-username} -d ${POSTGRES_DB:-coder}",
-           ]
+             ]
            interval: 5s
            timeout: 5s
            retries: 5
 
-   caddy:
+     caddy:
        image: caddy:2.6.2
        ports:
            - "80:80"
@@ -132,7 +132,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
    }
 
    coder.example.com, *.coder.example.com {
-     reverse_proxy coder:7080
+     reverse_proxy localhost:3000
    }
    ```
 
@@ -150,7 +150,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 4. [Configure Coder](../setup/index.md) and change the following values:
 
    - `CODER_ACCESS_URL`: root domain (for example, `https://coder.example.com`)
-   - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (for example, `*.example.com`).
+   - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (for example, `*.coder.example.com`).
 
 5. Start the Caddy server:
 
