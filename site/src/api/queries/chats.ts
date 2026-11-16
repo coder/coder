@@ -101,7 +101,7 @@ type ChatListParams = Readonly<{
 	status: ChatListStatusFilter | "all";
 	statuses: readonly TypesGen.ChatStatus[];
 	sources: readonly TypesGen.ChatListSource[];
-	pinnedProjectsOnly: boolean;
+	excludeOwnProjectChats: boolean;
 }>;
 
 export type ChatListInput = Readonly<{
@@ -110,8 +110,12 @@ export type ChatListInput = Readonly<{
 	chatStatus?: ChatListStatusFilter;
 	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
-	/** Leaves out chats in projects the user has not pinned. */
-	pinnedProjectsOnly?: boolean;
+	/**
+	 * Leaves out the user's own unpinned chats in projects the user can use,
+	 * which project folders fetch for themselves. A folder's own list keeps
+	 * the flag in its key but never sends it.
+	 */
+	excludeOwnProjectChats?: boolean;
 }>;
 
 type ChatSearchParams = Readonly<{ q: string }>;
@@ -213,13 +217,13 @@ export const updateInfiniteChatsCache = (
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
  * runs independently on each page. Lists whose archive or status
- * filters exclude the chat are skipped, and so are pinned-projects-only lists
- * when the caller knows the user's project pins hide the chat.
+ * filters exclude the chat are skipped, and so are lists that exclude own
+ * project chats when the caller knows the chat is one.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
-	{ hiddenByProjectPins = false }: { hiddenByProjectPins?: boolean } = {},
+	{ isOwnProjectChat = false }: { isOwnProjectChat?: boolean } = {},
 ) => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
@@ -248,11 +252,11 @@ export const prependToInfiniteChatsCache = (
 			continue;
 		}
 		if (
-			hiddenByProjectPins &&
+			isOwnProjectChat &&
 			params !== null &&
 			typeof params === "object" &&
-			"pinnedProjectsOnly" in params &&
-			params.pinnedProjectsOnly === true
+			"excludeOwnProjectChats" in params &&
+			params.excludeOwnProjectChats === true
 		) {
 			continue;
 		}
@@ -1449,7 +1453,7 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	status: input?.chatStatus ?? "all",
 	statuses: canonicalizeChatListStatuses(input?.statuses ?? []),
 	sources: canonicalizeChatSources(input?.sources ?? []),
-	pinnedProjectsOnly: input?.pinnedProjectsOnly ?? false,
+	excludeOwnProjectChats: input?.excludeOwnProjectChats ?? false,
 });
 
 // Sidebar-emitted query shapes must match TestSearchChatsFrontendEmitted in
@@ -1507,7 +1511,9 @@ const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
 					project_id: projectId,
-					pinned_projects_only: params.pinnedProjectsOnly || undefined,
+					// A folder lists exactly the chats the flag leaves out.
+					exclude_own_project_chats:
+						(params.excludeOwnProjectChats && !projectId) || undefined,
 				},
 				signal,
 			),
@@ -1543,18 +1549,39 @@ export const projectFolderChatsKey = (
 	params: ChatListParams,
 ) => [...projectChatsKey(projectId), params] as const;
 
+// Watch events keep folder lists current, so a list fetched this recently,
+// for example ahead of the folder opening, is used as is.
+const PROJECT_FOLDER_STALE_TIME_MS = 30_000;
+
 /** Applies the sidebar's filters, so a folder lists what the sidebar would. */
 export const infiniteProjectFolderChats = (
 	projectId: string,
 	input: ChatListInput,
 ) => {
 	const params = toChatListParams(input);
-	return sidebarChatListOptions(
-		projectFolderChatsKey(projectId, params),
-		params,
-		projectId,
-	);
+	return {
+		...sidebarChatListOptions(
+			projectFolderChatsKey(projectId, params),
+			params,
+			projectId,
+		),
+		staleTime: PROJECT_FOLDER_STALE_TIME_MS,
+	};
 };
+
+/**
+ * Loads a closed folder's chats before the user opens it, so the folder
+ * opens with its chats instead of a skeleton. A recent list is reused, so
+ * hovering again sends no request.
+ */
+export const prefetchProjectFolderChats = (
+	queryClient: QueryClient,
+	projectId: string,
+	input: ChatListInput,
+) =>
+	queryClient.prefetchInfiniteQuery(
+		infiniteProjectFolderChats(projectId, input),
+	);
 
 /** Unarchived chats in one project, newest first. */
 export const projectChats = (projectId: string) => {

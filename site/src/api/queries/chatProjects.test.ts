@@ -82,12 +82,13 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 
-	it("refreshes the summaries and chat lists, not searches, after an unpin", async () => {
+	it("refreshes only the summaries after an unpin", async () => {
 		const queryClient = seed();
 		queryClient.setQueryData(chatProjectSummariesKey, []);
 		await settle(unpinChatProject(queryClient));
 		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-		expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
+		// No chat list depends on pins.
+		expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
 		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
 		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
 	});

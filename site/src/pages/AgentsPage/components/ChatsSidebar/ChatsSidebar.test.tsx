@@ -9,7 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { QueryClientProvider } from "react-query";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import {
 	afterEach,
@@ -21,6 +21,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
+import { chatEntityKey, projectChatsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -99,14 +100,15 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 type WrapperProps = React.PropsWithChildren<{
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
+	queryClient?: QueryClient;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
+	queryClient = createTestQueryClient(),
 }) => {
-	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
 		experiments: [],
@@ -212,7 +214,101 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
 		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+		// The folder lists the chats the sidebar's own list leaves out.
+		expect(requests[0].has("exclude_own_project_chats")).toBe(false);
 	});
+
+	it("opens the folder of an active chat that the sidebar's list leaves out", async () => {
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([]);
+			}),
+		);
+		const projectChat = buildChat({
+			id: "project-chat",
+			project_id: MockChatProject.id,
+		});
+		// The chat page loads the active chat into the cache.
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryDefaults(chatEntityKey(projectChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(projectChat.id), projectChat);
+
+		render(
+			<Wrapper
+				initialEntry={`/agents/${projectChat.id}`}
+				queryClient={queryClient}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId"
+						element={<ChatsSidebar {...defaultProps} chats={[]} />}
+					/>
+				</Routes>
+			</Wrapper>,
+		);
+
+		await waitFor(() =>
+			expect(requests.map((params) => params.get("project_id"))).toEqual([
+				MockChatProject.id,
+			]),
+		);
+	});
+
+	it.each(["hover", "focus"])(
+		"loads a closed folder's chats on %s, so opening it sends no request",
+		async (trigger) => {
+			const user = userEvent.setup();
+			const requests: URLSearchParams[] = [];
+			server.use(
+				http.get("/api/experimental/chats/projects", () =>
+					HttpResponse.json([MockChatProject]),
+				),
+				http.get("/api/v2/chats", ({ request }) => {
+					requests.push(new URL(request.url).searchParams);
+					return HttpResponse.json([
+						buildChat({
+							id: "folder-chat",
+							title: "Folder chat",
+							project_id: MockChatProject.id,
+						}),
+					]);
+				}),
+			);
+
+			// Test clients drop unobserved data at once, unlike the app's.
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryDefaults(projectChatsKey(MockChatProject.id), {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+
+			render(
+				<Wrapper queryClient={queryClient}>
+					<ChatsSidebar {...defaultProps} />
+				</Wrapper>,
+			);
+			const toggle = await screen.findByRole("button", {
+				name: `Expand ${MockChatProject.name}`,
+			});
+			if (trigger === "hover") {
+				await user.hover(toggle);
+			} else {
+				act(() => toggle.focus());
+			}
+			await waitFor(() => expect(requests).toHaveLength(1));
+			expect(requests[0].get("project_id")).toBe(MockChatProject.id);
+
+			await user.click(toggle);
+			await screen.findByRole("link", { name: /Folder chat/ });
+			expect(requests).toHaveLength(1);
+		},
+	);
 
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();

@@ -25,8 +25,10 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
+	chat as chatQuery,
 	findChatInListCaches,
 	infiniteChats,
+	infiniteProjectFolderChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
 	invalidateChatEntity,
@@ -148,10 +150,10 @@ const shouldInvalidateProjectSummaries = (
 	// A move out of a project leaves no project_id, but changes its counts.
 	(Boolean(chat.project_id) || eventKind === "project_change");
 
-// Sidebar lists leave out the user's own chats in projects the user has not
-// pinned, unless the chat itself is pinned. Chats shared with the user are
-// always listed. Without cached summaries, the list refetch decides.
-const isHiddenByProjectPins = (
+// The sidebar's chat list leaves out the user's own unpinned chats in
+// projects the user can use, which the summaries list; project folders fetch
+// those. Without cached summaries, the list refetch decides.
+const isOwnProjectChat = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 	currentUserId: string,
@@ -161,8 +163,7 @@ const isHiddenByProjectPins = (
 	chat.pin_order === 0 &&
 	queryClient
 		.getQueryData<TypesGen.ChatProjectSummary[]>(chatProjectSummariesKey)
-		?.find((summary) => summary.project.id === chat.project_id)?.pinned ===
-		false;
+		?.some((summary) => summary.project.id === chat.project_id) === true;
 
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (
@@ -232,9 +233,22 @@ const AgentsPageLayout: React.FC = () => {
 		};
 	}, []);
 
-	const chatsQuery = useInfiniteQuery(
-		infiniteChats(getSidebarChatListInput(sidebarFilters)),
-	);
+	const sidebarChatListInput = getSidebarChatListInput(sidebarFilters);
+	const chatsQuery = useInfiniteQuery(infiniteChats(sidebarChatListInput));
+	// The sidebar's list leaves out the user's own project chats, so the
+	// active chat may only be in its project folder's list, which watch events
+	// keep fresh too. Disabled so the layout only reads these caches.
+	const { data: activeChatEntity } = useQuery({
+		...chatQuery(agentId ?? ""),
+		enabled: false,
+	});
+	const activeFolderQuery = useInfiniteQuery({
+		...infiniteProjectFolderChats(
+			activeChatEntity?.project_id ?? "",
+			sidebarChatListInput,
+		),
+		enabled: false,
+	});
 	useOpenNotificationChat(chatsQuery.isLoading);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
@@ -458,7 +472,7 @@ const AgentsPageLayout: React.FC = () => {
 							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							prependToInfiniteChatsCache(queryClient, updatedChat, {
-								hiddenByProjectPins: isHiddenByProjectPins(
+								isOwnProjectChat: isOwnProjectChat(
 									queryClient,
 									updatedChat,
 									user.id,
@@ -569,7 +583,10 @@ const AgentsPageLayout: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		navigateAfterArchive,
-		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
+		activeChatChildren: (
+			chatList.find((c) => c.id === agentId) ??
+			activeFolderQuery.data?.pages.flat().find((c) => c.id === agentId)
+		)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,

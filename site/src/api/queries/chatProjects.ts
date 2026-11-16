@@ -3,7 +3,6 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
-	chatListFamilyKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 } from "./chats";
@@ -58,13 +57,10 @@ export const getPinnedProjectSummaries = (
 		.filter((summary) => summary.pinned)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-// The sidebar's chat list leaves out chats in unpinned projects, so a pin
-// change can add or remove chats from it. Project chat lists do not change.
+// Pins only choose which folders the sidebar shows. No chat list depends on
+// them, so a pin change refetches the summaries alone.
 const invalidateProjectPins = (queryClient: QueryClient) =>
-	Promise.all([
-		queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
-		queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
-	]);
+	queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey });
 
 /** Unpins a project, which also takes its chats out of the sidebar. */
 export const unpinChatProject = (queryClient: QueryClient) =>
