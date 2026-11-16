@@ -239,20 +239,33 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 }
 
 func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction, templateVersionID uuid.UUID) (codersdk.WorkspaceBuild, error) {
-	if workspace.DormantAt != nil {
-		_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
-		err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{
-			Dormant: false,
-		})
-		if err != nil {
-			return codersdk.WorkspaceBuild{}, xerrors.Errorf("activate workspace: %w", err)
-		}
+	if err := activateDormantWorkspace(inv, client, workspace); err != nil {
+		return codersdk.WorkspaceBuild{}, err
 	}
 	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, buildFlags, action, templateVersionID)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}
+	return createWorkspaceStartBuild(inv, client, workspace, req)
+}
 
+func activateDormantWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error {
+	if workspace.DormantAt == nil {
+		return nil
+	}
+	_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
+	err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{
+		Dormant: false,
+	})
+	if err != nil {
+		return xerrors.Errorf("activate workspace: %w", err)
+	}
+	return nil
+}
+
+// createWorkspaceStartBuild creates a start build from a request built by
+// buildWorkspaceStartRequest.
+func createWorkspaceStartBuild(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 	build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)

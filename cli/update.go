@@ -69,6 +69,13 @@ func (r *RootCmd) update() *serpent.Command {
 				return nil
 			}
 
+			// Build the start request before stopping so invalid parameter
+			// values fail while the workspace is still running.
+			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate, versionID)
+			if err != nil {
+				return err
+			}
+
 			stoppedForUpdate := false
 			// #17840: If the workspace is already running, we will stop it before
 			// updating. Simply performing a new start transition may not work if the
@@ -99,7 +106,10 @@ func (r *RootCmd) update() *serpent.Command {
 				stoppedForUpdate = true
 			}
 
-			build, err := startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate, versionID)
+			if err := activateDormantWorkspace(inv, client, workspace); err != nil {
+				return err
+			}
+			build, err := createWorkspaceStartBuild(inv, client, workspace, startReq)
 			if err != nil {
 				if stoppedForUpdate {
 					return xerrors.Errorf("start workspace after stopping (workspace is stopped; run 'coder start' to retry): %w", err)

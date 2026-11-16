@@ -109,6 +109,21 @@ func TestUpdate(t *testing.T) {
 		requireLatestBuildParameter(t, client, workspace, "xyz")
 	})
 
+	t.Run("InvalidParameterLeavesWorkspaceRunning", func(t *testing.T) {
+		t.Parallel()
+
+		client, member, workspace := newMutableParameterWorkspace(t)
+
+		inv, root := clitest.New(t, "update", workspace.Name, "-y", "--parameter", "not_a_parameter=xyz")
+		clitest.SetupConfig(t, member, root)
+		require.ErrorContains(t, inv.Run(), "is not present in the template")
+
+		// The workspace must not have been stopped before the error.
+		after := coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, workspace.LatestBuild.ID, after.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, after.LatestBuild.Transition)
+	})
+
 	t.Run("Stopped", func(t *testing.T) {
 		t.Parallel()
 
