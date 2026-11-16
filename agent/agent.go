@@ -503,9 +503,10 @@ func (a *agent) init() {
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
-	// engine's catalog changes (startup connect, .mcp.json edits).
+	// engine's catalog changes.
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	a.acpManager.SetOnChange(a.contextManager.Trigger)
+	a.mcpManager.SetSources(a.mcpConfigSources)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -531,6 +532,12 @@ func (a *agent) init() {
 	}()
 
 	go a.runLoop()
+}
+
+// mcpConfigSources returns the MCP config files the agent's MCP engine
+// loads.
+func (a *agent) mcpConfigSources() []agentmcp.ConfigSource {
+	return agentmcp.LegacySources(a.contextConfigAPI.MCPConfigFiles())
 }
 
 // initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
@@ -1438,8 +1445,8 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
-					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
+				if mcpErr := a.mcpManager.ReloadCurrent(a.gracefulCtx); mcpErr != nil {
+					a.logger.Warn(ctx, "failed to reload MCP servers", slog.F("trigger", "manifest"), slog.Error(mcpErr))
 				}
 			})
 			if err != nil {
