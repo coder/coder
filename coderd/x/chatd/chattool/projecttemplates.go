@@ -2,9 +2,7 @@ package chattool
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"maps"
 	"slices"
 
@@ -13,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -144,7 +143,7 @@ func loadChatProjectTemplates(ctx context.Context, db database.Store, projectID 
 		return nil, nil //nolint:nilnil // A nil project leaves the chat unrestricted.
 	}
 	project, err := db.GetChatProjectByID(ctx, projectID.UUID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		// Deleting a project detaches its chats, and an owner who lost
 		// access to the project also loses its limit.
 		return nil, nil //nolint:nilnil // A nil project leaves the chat unrestricted.
@@ -157,12 +156,6 @@ func loadChatProjectTemplates(ctx context.Context, db database.Store, projectID 
 		return nil, err
 	}
 	return &templates, nil
-}
-
-// allows reports whether the chat may use the template. A chat outside a
-// project may use any template.
-func (p *ProjectTemplates) allows(templateID uuid.UUID) bool {
-	return p == nil || p.Allows(templateID)
 }
 
 // isDefault reports whether the template is the project's default template.
