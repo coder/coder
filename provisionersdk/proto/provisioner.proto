@@ -401,6 +401,10 @@ message Metadata {
   // the owner is a delegated identity.
   string workspace_owner_root_user_id = 27;
   string workspace_owner_root_user_name = 28;
+  // The identity a delegated identity was created under: its root user, or
+  // another delegated identity in between. Empty unless the owner is a
+  // delegated identity.
+  string workspace_owner_parent_id = 29;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

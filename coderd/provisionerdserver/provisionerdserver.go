@@ -850,14 +850,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		// A template can tell that its workspace belongs to a delegated
-		// identity, and which user answers for it. Any other owner is their
-		// own root user.
+		// identity, which identity that was created under, and which user
+		// answers for it. Any other owner has no parent and is their own
+		// root user.
 		ownerDelegated := false
+		ownerParentID := ""
 		ownerRootUser := owner
 		identity, err := s.Database.GetDelegatedIdentityByID(ctx, owner.ID)
 		switch {
 		case err == nil:
 			ownerDelegated = true
+			ownerParentID = identity.ParentID.String()
 			ownerRootUser, err = s.Database.GetUserByID(ctx, identity.RootUserID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("get root user of the owner: %s", err))
@@ -946,6 +949,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					WorkspaceOwnerDelegated:       ownerDelegated,
+					WorkspaceOwnerParentId:        ownerParentID,
 					WorkspaceOwnerRootUserId:      ownerRootUser.ID.String(),
 					WorkspaceOwnerRootUserName:    ownerRootUser.Username,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,

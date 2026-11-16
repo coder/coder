@@ -113,11 +113,13 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.21:
 //   - Added `workspace_owner_delegated` (field 26),
-//     `workspace_owner_root_user_id` (field 27) and
-//     `workspace_owner_root_user_name` (field 28) to `provisioner.Metadata`.
-//     They tell a template that the workspace owner is a delegated identity,
-//     and which user answers for it. An owner who is not a delegated identity
-//     is their own root user.
+//     `workspace_owner_root_user_id` (field 27),
+//     `workspace_owner_root_user_name` (field 28) and
+//     `workspace_owner_parent_id` (field 29) to `provisioner.Metadata`. They
+//     tell a template that the workspace owner is a delegated identity, which
+//     identity it was created under, and which user answers for it. An owner
+//     who is not a delegated identity has no parent and is their own root
+//     user.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 21

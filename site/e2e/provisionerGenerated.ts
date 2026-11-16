@@ -463,6 +463,12 @@ export interface Metadata {
    */
   workspaceOwnerRootUserId: string;
   workspaceOwnerRootUserName: string;
+  /**
+   * The identity a delegated identity was created under: its root user, or
+   * another delegated identity in between. Empty unless the owner is a
+   * delegated identity.
+   */
+  workspaceOwnerParentId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1412,6 +1418,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerRootUserName !== "") {
       writer.uint32(226).string(message.workspaceOwnerRootUserName);
+    }
+    if (message.workspaceOwnerParentId !== "") {
+      writer.uint32(234).string(message.workspaceOwnerParentId);
     }
     return writer;
   },

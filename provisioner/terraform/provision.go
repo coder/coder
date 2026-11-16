@@ -537,6 +537,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_SSH_PRIVATE_KEY="+metadata.GetWorkspaceOwnerSshPrivateKey(),
 		"CODER_WORKSPACE_OWNER_LOGIN_TYPE="+metadata.GetWorkspaceOwnerLoginType(),
 		"CODER_WORKSPACE_OWNER_DELEGATED="+strconv.FormatBool(metadata.GetWorkspaceOwnerDelegated()),
+		"CODER_WORKSPACE_OWNER_PARENT_ID="+metadata.GetWorkspaceOwnerParentId(),
 		"CODER_WORKSPACE_OWNER_ROOT_USER_ID="+metadata.GetWorkspaceOwnerRootUserId(),
 		"CODER_WORKSPACE_OWNER_ROOT_USER_NAME="+metadata.GetWorkspaceOwnerRootUserName(),
 		"CODER_WORKSPACE_OWNER_RBAC_ROLES="+string(ownerRbacRoles),

@@ -35,9 +35,10 @@ script does not: a chat that runs under an identity, quota that counts
 against the root user, and the cleanup of identities nothing depends on.
 
 One more thing was checked by hand, on a development server with the
-provider branch: a template read `delegated = true` and the root user for a
-workspace of a delegated identity, and `delegated = false` with the owner as
-its own root user for a person's workspace.
+provider branch: a template read `delegated = true`, the parent and the root
+user for workspaces of a delegated identity and of a delegated identity below
+it, and `delegated = false`, no parent and the owner as its own root user for
+a person's workspace.
 
 ## What had to change that was not expected
 

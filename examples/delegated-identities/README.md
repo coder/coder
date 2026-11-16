@@ -51,13 +51,16 @@ return.
 ## What a template sees
 
 A template does not need to know about delegated identities. One that wants
-to tell can read three attributes of `data.coder_workspace_owner`:
+to tell can read four attributes of `data.coder_workspace_owner`:
 
-| Attribute        | The owner is a person | The owner is a delegated identity |
-|------------------|-----------------------|-----------------------------------|
-| `delegated`      | `false`               | `true`                            |
-| `root_user_id`   | The owner's ID        | The ID of its root user           |
-| `root_user_name` | The owner's username  | The username of its root user     |
+| Attribute        | The owner is a person | The owner is a delegated identity                   |
+|------------------|-----------------------|-----------------------------------------------------|
+| `delegated`      | `false`               | `true`                                              |
+| `parent_id`      | Empty                 | The ID of the identity it was created under         |
+| `root_user_id`   | The owner's ID        | The ID of its root user                             |
+| `root_user_name` | The owner's username  | The username of its root user                       |
+
+The parent is the root user, or another delegated identity in between.
 
 ```hcl
 data "coder_workspace_owner" "me" {}
