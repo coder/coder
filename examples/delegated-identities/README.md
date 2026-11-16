@@ -50,26 +50,60 @@ return.
 
 ## Try it
 
+From a checkout of this branch, start a development server with the
+experiment on. It creates an `admin` user and a `docker` template, and
+prints the alias to reach it with.
+
 ```sh
-# An identity under you. It may do nothing yet.
-coder identities create my-agent
+./scripts/develop.sh -- --experiments delegated-identities
+alias cdr=./scripts/coder-dev.sh
+```
+
+```sh
+# A delegated identity under you. It may do nothing yet.
+cdr identities create my-agent
 
 # A workspace on its behalf. You asked, and it owns the workspace.
-coder create my-agent/task-1 --template prebuilt --preset agent -y
+cdr create my-agent/task-1 --template docker --use-parameter-defaults -y
 
-# Inside, the command line is the identity.
-coder ssh my-agent/task-1 -- coder identities show me
+# You can enter it: it is shared with the accounts above its owner.
+cdr ssh my-agent/task-1
 
-# Let it read its workspaces. This applies to the credential it already has.
-coder identities update my-agent --scope workspace:read
+# Act as the identity. An administrator can make a token for it to try
+# this out. Without scopes it sees nothing.
+TOKEN=$(cdr tokens create --user my-agent --name demo 2>/dev/null | tail -1)
+cdr --token "$TOKEN" identities show me
+cdr --token "$TOKEN" list
 
-# A chat under the identity.
-coder exp api POST /api/v2/chats organization_id=<org> owner_id=<identity id> \
-  'content:=[{"type":"text","text":"Create a workspace."}]'
+# Let it read its workspaces. This applies to the token it already has.
+cdr identities update my-agent --scope workspace:read --scope template:read
+cdr --token "$TOKEN" list
+
+# What it was not given stays refused.
+cdr --token "$TOKEN" delete my-agent/task-1 -y
 
 # Clean up. An identity that owns something cannot be deleted.
-coder delete my-agent/task-1 -y
-coder identities delete my-agent
+cdr delete my-agent/task-1 -y
+cdr identities delete my-agent
+```
+
+The `docker` template gives the workspace no credential of its owner's, which
+is why the token above is made by hand. The template in this directory hands
+the owner's session token to the workspace, so the command line inside it is
+the identity:
+
+```sh
+coder create my-agent/task-1 --template prebuilt --preset agent -y
+coder ssh my-agent/task-1 -- coder identities show me
+```
+
+A chat under the identity needs a model to be configured. The Go test
+`TestDelegatedIdentitiesChat` runs one end to end. This request was not run
+by hand:
+
+```sh
+coder exp api POST /api/v2/chats organization_id=<org> owner_id=<identity id> \
+  'content:=[{"type":"text","text":"Create a workspace."}]'
 ```
 
 ## What is in the branch
