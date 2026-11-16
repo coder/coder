@@ -4,7 +4,6 @@ import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
-	chatListFamilyKey,
 	DEFAULT_CHAT_PAGE_LIMIT,
 	invalidateChatListQueries,
 	invalidateChatSearches,
@@ -193,19 +192,11 @@ const projectPinsMutationOptions = {
 const isLastProjectPinChange = (queryClient: QueryClient) =>
 	queryClient.isMutating({ mutationKey: projectPinsMutationKey }) <= 1;
 
-// The sidebar's chat list leaves out chats in unpinned projects, so pinning
-// or unpinning can add or remove chats from it; moving a pin cannot. Project
-// chat lists do not change.
-const invalidateProjectPins = (
-	queryClient: QueryClient,
-	{ changesChatList }: { changesChatList: boolean },
-) =>
-	Promise.all([
-		isLastProjectPinChange(queryClient) &&
-			queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
-		changesChatList &&
-			queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
-	]);
+const invalidateProjectPins = async (queryClient: QueryClient) => {
+	if (isLastProjectPinChange(queryClient)) {
+		await queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey });
+	}
+};
 
 type PinChatProjectVariables = {
 	project: TypesGen.ChatProject;
@@ -226,7 +217,7 @@ export const pinChatProject = (queryClient: QueryClient) =>
 		// put the project back while the request runs.
 		onMutate: async ({ project, pinOrder }: PinChatProjectVariables) => {
 			if (pinOrder === undefined) {
-				return { previousSummaries: undefined, isMove: false };
+				return { previousSummaries: undefined };
 			}
 			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
 			const previousSummaries = queryClient.getQueryData<
@@ -249,10 +240,7 @@ export const pinChatProject = (queryClient: QueryClient) =>
 							: { ...s, pinned: true, pin_order: order };
 					}),
 			);
-			return {
-				previousSummaries,
-				isMove: previousPinnedIds.includes(project.id),
-			};
+			return { previousSummaries };
 		},
 		onError: (_error, _variables, context) => {
 			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
@@ -262,10 +250,7 @@ export const pinChatProject = (queryClient: QueryClient) =>
 				);
 			}
 		},
-		onSettled: (_data, _error, _variables, context) =>
-			invalidateProjectPins(queryClient, {
-				changesChatList: !context?.isMove,
-			}),
+		onSettled: () => invalidateProjectPins(queryClient),
 	});
 
 /** Unpins a project, which also takes its chats out of the sidebar. */
@@ -300,8 +285,7 @@ export const unpinChatProject = (queryClient: QueryClient) =>
 				);
 			}
 		},
-		onSettled: () =>
-			invalidateProjectPins(queryClient, { changesChatList: true }),
+		onSettled: () => invalidateProjectPins(queryClient),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>

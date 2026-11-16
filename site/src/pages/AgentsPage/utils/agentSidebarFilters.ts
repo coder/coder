@@ -109,7 +109,7 @@ export const getSidebarChatListInput = (
 			: filters.chatStatuses,
 	chatStatus: filters.unread ? "unread" : undefined,
 	sources: filters.sources,
-	pinnedProjectsOnly: true,
+	excludeOwnProjectChats: true,
 });
 
 export const getAgentSidebarFilters = (
