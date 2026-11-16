@@ -12,11 +12,7 @@ import {
 	richParameters,
 	templateVersionPresets,
 } from "#/api/queries/templates";
-import type {
-	ChatProject,
-	ChatProjectDefaultTemplate,
-	Template,
-} from "#/api/typesGenerated";
+import type { ChatProject, Template } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -28,16 +24,21 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { NIL_UUID } from "../../utils/modelOptions";
 import {
 	ChatProjectTemplatesFields,
-	type ChatProjectTemplatesRequest,
 	type ChatProjectTemplatesValues,
 	chatProjectTemplatesRequest,
 	chatProjectTemplatesValues,
 	templatesValidationDetail,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
+import {
+	rebaseValues,
+	savedTemplates,
+	serializeTemplates,
+	serializeValues,
+	templatesChange,
+} from "./projectTemplatesDraft";
 
 type ProjectTemplatesDialogProps = {
 	readonly project: ChatProject;
@@ -124,64 +125,6 @@ type ProjectTemplatesFormProps = Omit<
 	readonly onCancel: () => void;
 };
 
-/** The project's saved templates, in the shape of a draft's request. */
-const savedTemplates = (project: ChatProject): ChatProjectTemplatesRequest => ({
-	limit_templates: project.limit_templates,
-	template_ids: project.templates.map(({ id }) => id),
-	default_template: project.default_template,
-});
-
-/**
- * Draft and server copies can list parameter keys in different orders, so
- * keys are sorted before comparing.
- */
-const serializeDefaultTemplate = (
-	template: ChatProjectDefaultTemplate | undefined,
-) =>
-	JSON.stringify([
-		template?.template_id ?? "",
-		template?.preset_id ?? "",
-		Object.entries(template?.parameters ?? {}).sort(([a], [b]) =>
-			a.localeCompare(b),
-		),
-	]);
-
-const serializeTemplates = (templates: ChatProjectTemplatesRequest) =>
-	JSON.stringify([
-		templates.limit_templates,
-		[...templates.template_ids].sort(),
-		serializeDefaultTemplate(templates.default_template),
-	]);
-
-/**
- * Returns what saving the draft changes about the templates it started
- * from. Only the user's own edits are saved, so a save never undoes a
- * template attached elsewhere, including the ones this user cannot see.
- */
-const templatesChange = (
-	base: ChatProjectTemplatesRequest,
-	draft: ChatProjectTemplatesRequest,
-): ChatProjectTemplatesChange => {
-	const limitChanged = draft.limit_templates !== base.limit_templates;
-	const defaultChanged =
-		serializeDefaultTemplate(draft.default_template) !==
-		serializeDefaultTemplate(base.default_template);
-	return {
-		attach: draft.template_ids.filter((id) => !base.template_ids.includes(id)),
-		detach: base.template_ids.filter((id) => !draft.template_ids.includes(id)),
-		...((limitChanged || defaultChanged) && {
-			request: {
-				...(limitChanged && { limit_templates: draft.limit_templates }),
-				...(defaultChanged && {
-					default_template: draft.default_template ?? {
-						template_id: NIL_UUID,
-					},
-				}),
-			},
-		}),
-	};
-};
-
 /**
  * Covers what a request for the draft's templates depends on: which of them
  * are eligible, their active versions, and their parameter mode.
@@ -199,52 +142,6 @@ const serializeEligibleTemplates = (
 			)
 			.sort(),
 	);
-
-const serializeValues = (values: ChatProjectTemplatesValues) =>
-	JSON.stringify({
-		...values,
-		templateIds: [...values.templateIds].sort(),
-		defaultParameters: Object.entries(values.defaultParameters).sort(
-			([a], [b]) => a.localeCompare(b),
-		),
-	});
-
-/**
- * Applies the draft's changes since `base` to `latest`. The result keeps the
- * user's edits and everything saved elsewhere, so saving it never undoes a
- * template that someone else attached or detached.
- */
-const rebaseValues = (
-	draft: ChatProjectTemplatesValues,
-	base: ChatProjectTemplatesValues,
-	latest: ChatProjectTemplatesValues,
-): ChatProjectTemplatesValues => {
-	const templateIds = [
-		...latest.templateIds.filter(
-			(id) => draft.templateIds.includes(id) || !base.templateIds.includes(id),
-		),
-		...draft.templateIds.filter(
-			(id) =>
-				!base.templateIds.includes(id) && !latest.templateIds.includes(id),
-		),
-	];
-	const serializeDefaults = (values: ChatProjectTemplatesValues) =>
-		serializeValues({ ...values, limitTemplates: false, templateIds: [] });
-	// The default template is saved as a whole, so the draft's wins when the
-	// user changed any part of it.
-	const defaults =
-		serializeDefaults(draft) === serializeDefaults(base) ? latest : draft;
-	return {
-		...(templateIds.includes(defaults.defaultTemplateId)
-			? defaults
-			: chatProjectTemplatesValues(undefined)),
-		limitTemplates:
-			draft.limitTemplates === base.limitTemplates
-				? latest.limitTemplates
-				: draft.limitTemplates,
-		templateIds,
-	};
-};
 
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onBeginCheck,
