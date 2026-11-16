@@ -855,15 +855,23 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents, codersdk.ExperimentOpenPreview}),
 	)
 	server.previewAppHostname = "*.apps.example.com"
 	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 	noPreviewsServer := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents, codersdk.ExperimentOpenPreview}),
 	)
 	noPreviewsServer.mcpHTTPClient = server.mcpHTTPClient
+	// Same as server, but without the open-preview experiment: the tool stays
+	// unoffered even with a preview app hostname.
+	noExperimentServer := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
+	)
+	noExperimentServer.previewAppHostname = "*.apps.example.com"
+	noExperimentServer.mcpHTTPClient = server.mcpHTTPClient
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
@@ -891,6 +899,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		replaceMCP bool
 		// noPreviews builds the turn on a server without a preview app hostname.
 		noPreviews bool
+		// noExperiment builds the turn on a server without the open-preview
+		// experiment, so the tool stays unoffered.
+		noExperiment bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -913,6 +924,13 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			prompt:     []string{advisorGuidance, acpSubagentPromptBlock},
 			want:       []string{"create_workspace", chatadvisor.ToolName},
 			dontWant:   []string{"open_preview"},
+		},
+		{
+			name:         "RootWithoutExperiment",
+			noExperiment: true,
+			prompt:       []string{advisorGuidance, acpSubagentPromptBlock},
+			want:         []string{"create_workspace", chatadvisor.ToolName},
+			dontWant:     []string{"open_preview"},
 		},
 		{
 			name:     "GeneralChild",
@@ -1049,6 +1067,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			turnServer := server
 			if tt.noPreviews {
 				turnServer = noPreviewsServer
+			}
+			if tt.noExperiment {
+				turnServer = noExperimentServer
 			}
 			env, err := turnServer.buildTurnEnvironment(ctx, generationPrepareInput{
 				Chat:     chat,

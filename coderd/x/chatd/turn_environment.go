@@ -2591,7 +2591,7 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	if p.previewAppHostname != "" {
+	if p.previewAppHostname != "" && p.experiments.Enabled(codersdk.ExperimentOpenPreview) {
 		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
 			AppHostname:         p.previewAppHostname,
 			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,

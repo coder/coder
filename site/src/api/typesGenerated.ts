@@ -5861,6 +5861,7 @@ export type Experiment =
 	| "mcp-server-http"
 	| "no_nats_pubsub"
 	| "notifications"
+	| "open-preview"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5942,6 +5943,7 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"no_nats_pubsub",
 	"notifications",
+	"open-preview",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
