@@ -43,11 +43,7 @@ export type ChatProjectTemplatesValues = {
 
 const noDefaultTemplate = "none";
 
-/**
- * A project's template settings: whether its chats are limited to its
- * templates, the IDs of the attached templates, and the default template.
- * The create request, the saved state, and a draft all take this shape.
- */
+/** The create request, the saved state, and a draft all take this shape. */
 export type ChatProjectTemplatesSettings = Required<
 	Pick<CreateChatProjectRequest, "limit_templates" | "template_ids">
 > &

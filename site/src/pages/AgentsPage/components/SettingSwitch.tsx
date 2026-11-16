@@ -25,7 +25,6 @@ export const SettingSwitch: React.FC<SettingSwitchProps> = ({
 		<div className="flex items-start justify-between gap-4">
 			<div className="flex flex-col gap-1">
 				<Label htmlFor={switchId}>{label}</Label>
-				{/* A div, because a description can hold paragraphs. */}
 				<div
 					id={descriptionId}
 					className="flex flex-col gap-1 text-xs text-content-secondary"
