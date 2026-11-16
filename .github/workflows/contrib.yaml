@@ -108,12 +108,22 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      # Writes signatures to coder/cla, which GITHUB_TOKEN can't reach.
+      - name: Generate coder-cla App token
+        id: cla_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.CODER_CLA_APP_ID }}
+          private-key: ${{ secrets.CODER_CLA_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: cla
+          permission-contents: write
+
       - name: cla
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # the below token should have repo scope and must be manually added by you in the repository's secret
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ steps.cla_token.outputs.token }}
         with:
           remote-organization-name: "coder"
           remote-repository-name: "cla"
