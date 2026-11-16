@@ -505,19 +505,6 @@ In each [scan root](#where-the-agent-looks), the agent treats these directories 
 - Each immediate subdirectory of `plugins/`
 - The scan root itself, when it holds a `plugin.json`
 
-A plugin keeps its skills in its `skills/` directory, one subdirectory per skill, each with a `SKILL.md` in the same format as other skills:
-
-```txt
-.agents/plugins/
-└── devtools/
-    ├── plugin.json
-    └── skills/
-        ├── format/
-        │   └── SKILL.md
-        └── lint/
-            └── SKILL.md
-```
-
 A plugin's `plugin.json` requires `$schema`, set to `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`, and `name`:
 
 ```json
@@ -557,4 +544,10 @@ For duplicate plugin names, the agent checks declared sources first, in the orde
 Within a scan root, `plugins/` comes before `.agents/plugins/`.
 The same scan root order decides which skill the agent keeps when two workspace skills outside a plugin share a name.
 When a scan root is itself a valid plugin, the agent does not look for other plugins inside it.
-None of an invalid plugin's skills load.
+An invalid plugin appears in the chat's context list with its error, and none of its skills load.
+
+### Plugin skills
+
+A plugin's skills live in its `skills/` directory, in the same [layout](#directory-structure) as workspace skills.
+Unlike a workspace skill, a plugin skill requires a `description`, up to 1,024 characters.
+A plugin skill without a valid description is reported as invalid, and the plugin's other skills still load.
