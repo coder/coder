@@ -68,6 +68,38 @@ responses and WebSockets through the relay.
 - **A process running as the daemon's user can read the daemon's memory**,
   and with it the key and the lease.
 
+## Availability, latency and load
+
+The relay puts the daemon in the path of every Coder API call and model call
+from its workspace, where it is not today. What that costs, as built:
+
+- **It fails closed.** There is no way around the daemon when the relay is
+  enforced. After a kill, the workspace's session token was refused for 60
+  seconds.
+- **A daemon restart interrupts the streams that run through it**, such as a
+  model response or a WebSocket. Today they survive it.
+- **A daemon can miss renewals for about 40 seconds.** A lease lasts a minute
+  and is renewed every 20 seconds. If the control plane cannot renew for
+  longer, requests are refused although the API is up.
+- **Renewing costs the database a read and a write** for each running
+  workspace every 20 seconds, next to the heartbeat the daemon's connection
+  already writes every 15 seconds. At 10,000 running workspaces that is about
+  500 more writes a second. Tying the lease to that connection would avoid
+  them.
+- **The workspace's clock has to agree with the control plane's.** A request
+  for a lease that was signed more than a minute away from the control
+  plane's time is refused, and the daemon judges by its own clock whether
+  its lease has run out. A challenge from the control plane would remove
+  both.
+- **A relayed request costs the control plane a signature check** and no
+  database query. AI Gateway is the exception: its check looks the API key up
+  once more for every request.
+- **Latency was only measured on one host**, without TLS, without concurrent
+  clients and without a streamed response.
+- **Processes that were started before the relay was turned on keep the
+  control plane's address** until they restart. In `log` mode they show up as
+  requests without a lease.
+
 ## What breaks when it is enforced
 
 - **Anything that takes the control plane's address from the template** and
