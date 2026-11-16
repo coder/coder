@@ -48,6 +48,34 @@ In all three the accounts above the identity can enter its workspaces,
 through workspace sharing, and the identity gets nothing of theirs in
 return.
 
+## What a template sees
+
+A template does not need to know about delegated identities. One that wants
+to tell can read three attributes of `data.coder_workspace_owner`:
+
+| Attribute        | The owner is a person | The owner is a delegated identity |
+|------------------|-----------------------|-----------------------------------|
+| `delegated`      | `false`               | `true`                            |
+| `root_user_id`   | The owner's ID        | The ID of its root user           |
+| `root_user_name` | The owner's username  | The username of its root user     |
+
+```hcl
+data "coder_workspace_owner" "me" {}
+
+# Label what an agent owns with the person who answers for it.
+locals {
+  labels = {
+    "coder.owner"     = data.coder_workspace_owner.me.name
+    "coder.root-user" = data.coder_workspace_owner.me.root_user_name
+    "coder.delegated" = tostring(data.coder_workspace_owner.me.delegated)
+  }
+}
+```
+
+The attributes need the branch `feat/workspace-owner-delegated-identity` of
+the Coder Terraform provider. With a released provider the template still
+works, and cannot tell.
+
 ## Try it
 
 From a checkout of this branch, start a development server with the

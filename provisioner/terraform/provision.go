@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -535,6 +536,9 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_SSH_PUBLIC_KEY="+metadata.GetWorkspaceOwnerSshPublicKey(),
 		"CODER_WORKSPACE_OWNER_SSH_PRIVATE_KEY="+metadata.GetWorkspaceOwnerSshPrivateKey(),
 		"CODER_WORKSPACE_OWNER_LOGIN_TYPE="+metadata.GetWorkspaceOwnerLoginType(),
+		"CODER_WORKSPACE_OWNER_DELEGATED="+strconv.FormatBool(metadata.GetWorkspaceOwnerDelegated()),
+		"CODER_WORKSPACE_OWNER_ROOT_USER_ID="+metadata.GetWorkspaceOwnerRootUserId(),
+		"CODER_WORKSPACE_OWNER_ROOT_USER_NAME="+metadata.GetWorkspaceOwnerRootUserName(),
 		"CODER_WORKSPACE_OWNER_RBAC_ROLES="+string(ownerRbacRoles),
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),

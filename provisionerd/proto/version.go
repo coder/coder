@@ -110,9 +110,17 @@ import "github.com/coder/coder/v2/apiversion"
 //     from the provisioner to coderd. `dependencies` is empty when the script
 //     has no prerequisites. `resource_address` is empty only for the legacy
 //     agent startup and shutdown scripts.
+//
+// API v1.21:
+//   - Added `workspace_owner_delegated` (field 26),
+//     `workspace_owner_root_user_id` (field 27) and
+//     `workspace_owner_root_user_name` (field 28) to `provisioner.Metadata`.
+//     They tell a template that the workspace owner is a delegated identity,
+//     and which user answers for it. An owner who is not a delegated identity
+//     is their own root user.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 20
+	CurrentMinor = 21
 )
 
 // CurrentVersion is the current provisionerd API version.

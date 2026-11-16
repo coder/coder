@@ -849,6 +849,23 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			})
 		}
 
+		// A template can tell that its workspace belongs to a delegated
+		// identity, and which user answers for it. Any other owner is their
+		// own root user.
+		ownerDelegated := false
+		ownerRootUser := owner
+		identity, err := s.Database.GetDelegatedIdentityByID(ctx, owner.ID)
+		switch {
+		case err == nil:
+			ownerDelegated = true
+			ownerRootUser, err = s.Database.GetUserByID(ctx, identity.RootUserID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("get root user of the owner: %s", err))
+			}
+		case !errors.Is(err, sql.ErrNoRows):
+			return nil, failJob(fmt.Sprintf("get delegated identity of the owner: %s", err))
+		}
+
 		allUserRoles, err := s.Database.GetAuthorizationUserRoles(ctx, owner.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner authorization roles: %s", err))
@@ -928,6 +945,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
+					WorkspaceOwnerDelegated:       ownerDelegated,
+					WorkspaceOwnerRootUserId:      ownerRootUser.ID.String(),
+					WorkspaceOwnerRootUserName:    ownerRootUser.Username,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
 					TemplateVersionModulesFile:    versionModulesFile,

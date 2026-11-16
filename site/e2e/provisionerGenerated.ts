@@ -452,6 +452,17 @@ export interface Metadata {
   runningAgentAuthTokens: RunningAgentAuthToken[];
   templateVersionId: string;
   templateVersionModulesFile: string;
+  /**
+   * Whether the workspace owner is a delegated identity: an identity created
+   * under a user that can never do more than that user.
+   */
+  workspaceOwnerDelegated: boolean;
+  /**
+   * The user who answers for the workspace owner. This is the owner, unless
+   * the owner is a delegated identity.
+   */
+  workspaceOwnerRootUserId: string;
+  workspaceOwnerRootUserName: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1392,6 +1403,15 @@ export const Metadata = {
     }
     if (message.templateVersionModulesFile !== "") {
       writer.uint32(202).string(message.templateVersionModulesFile);
+    }
+    if (message.workspaceOwnerDelegated !== false) {
+      writer.uint32(208).bool(message.workspaceOwnerDelegated);
+    }
+    if (message.workspaceOwnerRootUserId !== "") {
+      writer.uint32(218).string(message.workspaceOwnerRootUserId);
+    }
+    if (message.workspaceOwnerRootUserName !== "") {
+      writer.uint32(226).string(message.workspaceOwnerRootUserName);
     }
     return writer;
   },

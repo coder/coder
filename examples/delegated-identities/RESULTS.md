@@ -34,6 +34,11 @@ The Go tests cover the same ground without a cluster, and three things the
 script does not: a chat that runs under an identity, quota that counts
 against the root user, and the cleanup of identities nothing depends on.
 
+One more thing was checked by hand, on a development server with the
+provider branch: a template read `delegated = true` and the root user for a
+workspace of a delegated identity, and `delegated = false` with the owner as
+its own root user for a person's workspace.
+
 ## What had to change that was not expected
 
 - **A chat is owned by the identity, not by the person.** Chats attribute
@@ -61,6 +66,13 @@ against the root user, and the cleanup of identities nothing depends on.
   person's, no tokens for MCP servers. A template that requires an external
   sign-in refuses an identity. This is the subject of the second document,
   on access to other systems.
+- **The groups and roles a template is given are the identity's own**, not
+  its root user's. A template that decides by the owner's groups sees none
+  of the root user's.
+- **The form for a workspace's parameters does not know that the owner is a
+  delegated identity.** The new owner attributes are set when the workspace
+  is built. The form's preview comes from a separate module that would have
+  to learn them.
 - **Limits that no delegated identity can exceed** are not built.
 - **A second daemon under an identity inside a person's workspace** (level
   1 of the maturity model) is not built.
