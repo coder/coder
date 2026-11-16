@@ -63,6 +63,14 @@ func TestChatProjectTemplatesAudit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// A deprecated template is left out of the project but can still be
+	// detached, and the audit log records which template that was.
+	withDeprecated, err := owner.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{Name: "Audited Deprecated"})
+	require.NoError(t, err)
+	require.NoError(t, owner.AttachChatProjectTemplate(ctx, orgID, withDeprecated.ID, template.ID))
+	require.NoError(t, db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{ID: template.ID, Deprecated: "Use another template."}))
+	require.NoError(t, owner.DetachChatProjectTemplate(ctx, orgID, withDeprecated.ID, template.ID))
+
 	attached, detached := []any{template.ID.String()}, []any{}
 	requireTemplateAudits := func(project codersdk.ChatProject, status int, want ...audit.Map) {
 		t.Helper()
@@ -91,6 +99,10 @@ func TestChatProjectTemplatesAudit(t *testing.T) {
 		audit.Map{"template_ids": {Old: detached, New: attached}},
 	)
 	requireTemplateAudits(createdWithTemplate, http.StatusCreated,
+		audit.Map{"template_ids": {Old: detached, New: attached}},
+	)
+	requireTemplateAudits(withDeprecated, http.StatusNoContent,
+		audit.Map{"template_ids": {Old: attached, New: detached}},
 		audit.Map{"template_ids": {Old: detached, New: attached}},
 	)
 }
