@@ -491,6 +491,13 @@ func (s *server) Apply(
 		// Terraform can fail and apply and still need to store it's state.
 		// In this case, we return Complete with an explicit error message.
 		stateData, _ := os.ReadFile(statefilePath)
+		if scrubbed, scrubErr := scrubState(stateData); scrubErr == nil {
+			stateData = scrubbed
+		} else {
+			// A failed apply can leave a corrupt statefile behind; keep the
+			// error path resilient and persist it as-is for recovery.
+			sess.ProvisionLog(proto.LogLevel_WARN, "failed to scrub credentials from the Terraform state: "+scrubErr.Error())
+		}
 		return &proto.ApplyComplete{
 			State:   stateData,
 			Error:   errorMessage,

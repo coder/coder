@@ -584,6 +584,12 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
+	// Fail loudly rather than silently persisting credentials: the statefile
+	// was just written by Terraform, so it is always well-formed JSON.
+	stateContent, err = scrubState(stateContent)
+	if err != nil {
+		return nil, xerrors.Errorf("scrub statefile %q: %w", statefilePath, err)
+	}
 
 	return &proto.ApplyComplete{
 		State: stateContent,
