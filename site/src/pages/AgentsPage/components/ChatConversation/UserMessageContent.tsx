@@ -51,10 +51,15 @@ const renderUserChip = (
 				<SkillChip
 					source={block.skill_source}
 					name={block.skill_name}
+					pluginName={block.skill_plugin_name}
 					className={chipClassName}
 				/>
 			),
-			text: getSkillAlias(block.skill_source, block.skill_name),
+			text: getSkillAlias(
+				block.skill_source,
+				block.skill_name,
+				block.skill_plugin_name,
+			),
 		};
 	}
 
