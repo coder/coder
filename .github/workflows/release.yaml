@@ -93,6 +93,24 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
+      # Since the App-created tag flow (#32212), the annotated release tag is
+      # created by the release job after environment approval, and this job
+      # runs before it (release needs its dylib artifacts). version.sh cannot
+      # rely on the tag here, so pin the version from the workflow input; the
+      # release job later verifies the created tag matches this same input.
+      - name: Set version for release builds
+        if: ${{ !inputs.dry_run }}
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${INPUT_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "::error::version must look like v2.29.28, got '${INPUT_VERSION}'"
+            exit 1
+          fi
+          # version.sh output has no leading v.
+          echo "CODER_FORCE_VERSION=${INPUT_VERSION#v}" >> "$GITHUB_ENV"
+
       - name: Setup build tools
         run: |
           brew install bash gnu-getopt make
