@@ -205,4 +205,5 @@ Coder stores macOS and Linux logs at the following locations:
 | Agent             | `/tmp/coder-agent.log`           |
 
 > [!NOTE]
-> Logs are truncated once they reach 5&nbsp;MB in size.
+> The agent log rotates when it reaches 5&nbsp;MB in size, and Coder keeps up to 19 rotated files.
+> The startup and shutdown script log files in the workspace have no size limit.

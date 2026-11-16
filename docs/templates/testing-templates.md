@@ -99,7 +99,7 @@ jobs:
           coder_session_token: ${{ secrets.CODER_SESSION_TOKEN }}
 
       - name: Validate Terraform template
-        run: terraform validate
+        run: terraform init -backend=false && terraform validate
 
       - name: Get short commit SHA to use as template version name
         id: name

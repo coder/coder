@@ -41,7 +41,8 @@ coder:
     runAsUser: <project-specific UID> # Default: 1000, replace this with the correct UID for your project.
     runAsGroup: <project-specific GID> # Default: 1000, replace this with the correct GID for your project.
     readOnlyRootFilesystem: true # Default: false, this is often required in OpenShift environments.
-    seccompProfile: RuntimeDefault # Unchanged from default
+    seccompProfile:
+      type: RuntimeDefault # Unchanged from default
 ```
 
 - For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project user ID (UID) and project group ID (GID) with the following command:
@@ -292,7 +293,7 @@ These images can then be run without modifying the Security Context Constraints 
 Start from the default "Kubernetes" template:
 
 ```sh
-echo kubernetes | coderv2 templates init ./openshift-k8s
+coder templates init --id kubernetes ./openshift-k8s
 cd ./openshift-k8s
 ```
 

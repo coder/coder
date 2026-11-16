@@ -715,6 +715,92 @@ func (c *ExperimentalClient) OrganizationAISpendUsers(ctx context.Context, organ
 	return report, ReadBodyAsJSON(res, &report)
 }
 
+// OrganizationAISpendOverview is the AI spend of an organization over the
+// applied period, read from the daily spend aggregate. Count, Totals, and
+// Intervals cover every user with spend.
+type OrganizationAISpendOverview struct {
+	AISpendPeriodWindow
+	// Count is the number of users with spend in the period.
+	Count  int64                             `json:"count"`
+	Totals OrganizationAISpendOverviewTotals `json:"totals"`
+	// Intervals holds the daily spend, one interval per UTC day in the period
+	// (omitting days after the current day). Days without spend are zero. When
+	// the period includes the current day, its interval only has the spend
+	// recorded so far.
+	Intervals []OrganizationAISpendOverviewInterval `json:"intervals"`
+	// Users is the requested page, most spend first.
+	Users []OrganizationAISpendOverviewUser `json:"users"`
+}
+
+// OrganizationAISpendOverviewTotals summarizes the organization's spend in
+// the period.
+type OrganizationAISpendOverviewTotals struct {
+	// SpendMicros is the total spend of all users in the period.
+	SpendMicros int64 `json:"spend_micros"`
+	// MedianSpendMicros is the median spend across users with spend in the
+	// period. It is zero when no user has spend.
+	MedianSpendMicros int64 `json:"median_spend_micros"`
+}
+
+// OrganizationAISpendOverviewInterval is the spend of an organization over the
+// [StartTime, EndTime) interval.
+type OrganizationAISpendOverviewInterval struct {
+	StartTime   time.Time `json:"start_time" format:"date-time"`
+	EndTime     time.Time `json:"end_time" format:"date-time"`
+	SpendMicros int64     `json:"spend_micros"`
+}
+
+// OrganizationAISpendOverviewUser is one user's spend within an organization
+// overview.
+type OrganizationAISpendOverviewUser struct {
+	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	// SpendMicros is the user's total spend in the period, across all of
+	// their groups.
+	SpendMicros int64 `json:"spend_micros"`
+	// Groups are the groups the user's spend was attributed to, most spend
+	// first.
+	Groups []OrganizationAISpendOverviewGroup `json:"groups"`
+}
+
+// OrganizationAISpendOverviewGroup is a group that a user's spend was
+// attributed to in the period, and the amount attributed to it.
+type OrganizationAISpendOverviewGroup struct {
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupName        string    `json:"group_name"`
+	GroupDisplayName string    `json:"group_display_name"`
+	// SpendMicros is the user's spend attributed to this group in the period.
+	SpendMicros int64 `json:"spend_micros"`
+}
+
+// OrganizationAISpend returns the AI spend overview of the organization with
+// one page of users. The period bounds must be set together and be at
+// 00:00:00 UTC. When both are zero, they are omitted and the server uses the
+// current budget period.
+func (c *ExperimentalClient) OrganizationAISpend(ctx context.Context, organization uuid.UUID, period AISpendPeriodWindow, page OrganizationAISpendPage) (OrganizationAISpendOverview, error) {
+	filter := OrganizationAISpendDetailsFilter{
+		PeriodStart: period.PeriodStart,
+		PeriodEnd:   period.PeriodEnd,
+	}
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/spend", organization.String()),
+		nil,
+		filter.asRequestOption(),
+		page.asRequestOption(),
+	)
+	if err != nil {
+		return OrganizationAISpendOverview{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationAISpendOverview{}, ReadBodyAsError(res)
+	}
+	var overview OrganizationAISpendOverview
+	return overview, ReadBodyAsJSON(res, &overview)
+}
+
 type GroupAIBudget struct {
 	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
 	SpendLimitMicros int64     `json:"spend_limit_micros"`

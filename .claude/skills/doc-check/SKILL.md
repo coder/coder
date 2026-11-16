@@ -34,6 +34,7 @@ Authors run this skill on their own branch before they open or update a PR, so C
 ## Modes
 
 - **CI review.** The workflow prompt names the PR and the trigger. Post the review per [`output.md`](./output.md).
+  A CI review runs fewer lenses and reports fewer classes than the other modes. Refer to [CI review scope](#ci-review-scope).
 - **Author self-check.** You are the agent that wrote the change. Run the same review against your branch diff, fix every blocking finding, and report the rest to the user. Post nothing to GitHub.
 - **Focused review.** The prompt asks for one lens, such as `focus:accuracy`. Run triage, the change model, that persona, and the verifier. Say in the trace that the other lenses did not run.
 
@@ -60,7 +61,12 @@ Walk the [quick decision checklist](../../../docs/.style/content-guidelines.md#q
 
 ### 3. Run the deterministic checks
 
-Run the checks that exist for the files the change touches, and record each result.
+In CI review, skip this step.
+CI runs every check below on the same PR, in the `lint` and `lint-docs` jobs of `.github/workflows/ci.yaml`, and both jobs are required, so a failure already blocks the merge.
+For the same reason, run no test suite, build, or generator in CI review, including one the PR adds.
+Record the skip in the trace as one `deterministic_checks` entry: `{name: all, result: skipped, reason: "CI runs them"}`.
+
+In every other mode, run the checks that exist for the files the change touches, and record each result.
 Use the result instead of re-deriving it, and never contradict a check's output.
 
 - `make lint/emdash`
@@ -87,6 +93,7 @@ Do not read the PR description as truth: check each behavior claim in it against
 ### 5. Run the personas
 
 Run every persona in [`personas/`](./personas/) except the verifier, in the order of the table.
+In CI review, run only the four personas that [CI review scope](#ci-review-scope) names, and the rest of this step applies to those four.
 Each persona file says which rules to load and how to find them.
 
 | Persona           | File                                          | Skip when                                          |
@@ -102,6 +109,7 @@ Each persona file says which rules to load and how to find them.
 
 When you can spawn sub-agents and the prompt gives you a model configuration ID for them, run each persona as its own sub-agent with that ID, in parallel.
 Give each one the change model, the PR reference, its persona file, and the finding schema from [`output.md`](./output.md).
+In CI review, also tell it that this is a CI review and which classes to return, from [CI review scope](#ci-review-scope).
 Without a model configuration ID, run the personas yourself, one at a time.
 Never let a sub-agent run on a different model than the prompt names, because that hides how the configured model performs.
 
@@ -134,6 +142,25 @@ A finding the verifier rejects never reaches the author.
 Apply [Blocking](#blocking) to each surviving finding, then follow [`output.md`](./output.md).
 Every run ends with the run trace, even when there are no findings.
 
+## CI review scope
+
+CI reviews run on each PR as it changes, so a CI review does only the part of the review that finds docs that are wrong, missing, or broken.
+The author self-check still runs every lens and applies every class.
+
+In CI review:
+
+- Run the Fact Checker, the Cartographer, the Newcomer, and the Skeptic.
+  Do not run the Continuity Editor, the Reader Advocate, the Architect, or the Copy Editor.
+  List those four in the trace under `personas_skipped`, with the reason `not run in CI review`.
+- Keep only `wrong`, `missing`, and `broken` findings, and tell each persona to return only those classes and `adjacent`.
+  Drop a `rule`, `suggestion`, or `friction` finding before verification, and do not post it.
+- Leave an open thread or a summary item of another class from an earlier review as it is.
+
+The four lenses that do not run also find a few things that are wrong or broken.
+In CI review, the Fact Checker and the Cartographer run those checks.
+Each of the two persona files lists them under **Also in CI review**, and they are part of that persona's method whether you run it yourself or as a sub-agent.
+A check from those sections that was not run goes in the trace under `not_done`.
+
 ## Evidence
 
 A finding without evidence is a hunch, and a hunch costs the author more than it saves.
@@ -163,6 +190,8 @@ Everything else is a suggestion.
 A judgment call with no rule to cite never blocks.
 If it should block, the fix is a new rule in `docs/.style/`, not a stronger opinion in the review.
 This applies to class 4 only. A wrong claim, a missing fact the reader needs, and a broken page block without a style-guide rule.
+
+Class 4 does not apply in CI review, which does not run the lenses that feed it. Refer to [CI review scope](#ci-review-scope).
 
 ### What never blocks
 

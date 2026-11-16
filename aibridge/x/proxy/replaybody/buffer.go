@@ -30,32 +30,35 @@ type TeeBuffer struct {
 	closeErr  error
 }
 
-// NewRequest replaces r.Body and r.GetBody with a replayBody and returns the connected buffer.
+// NewRequest returns a shallow copy of the request and a TeeBuffer that retains
+// the bytes read from the copy's body. The original request is not modified and
+// shares Header, URL, and other fields with the copy.
 // HTTP/1 handlers must enable full duplex, or the server will drain the body before an early reply.
-func NewRequest(r *http.Request) *TeeBuffer {
+func NewRequest(in *http.Request) (*http.Request, *TeeBuffer) {
+	req := *in
 	// HTTP/2 uses ContentLength == 0 instead of nil or http.NoBody.
-	if r.Body == nil || r.Body == http.NoBody || r.ContentLength == 0 {
-		r.Body = http.NoBody
-		r.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
-		return newBuffer(http.NoBody)
+	if req.Body == nil || req.Body == http.NoBody || req.ContentLength == 0 {
+		req.Body = http.NoBody
+		req.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
+		return &req, newBuffer(http.NoBody)
 	}
 	// The server closes the original body after the handler returns.
 	// Closing the buffer must not close the original body.
-	b := newBuffer(io.NopCloser(r.Body))
-	r.Body = b.newBody()
-	r.GetBody = func() (io.ReadCloser, error) { return b.newBody(), nil }
-	return b
+	b := newBuffer(io.NopCloser(req.Body))
+	req.Body = b.newBody()
+	req.GetBody = func() (io.ReadCloser, error) { return b.newBody(), nil }
+	return &req, b
 }
 
 // NewResponse replaces response Body with a replayBody and returns the connected buffer.
 // It takes ownership of the original Body and closes it when the buffer is closed.
-func NewResponse(r *http.Response) *TeeBuffer {
-	if r.Body == nil || r.Body == http.NoBody {
-		r.Body = http.NoBody
+func NewResponse(resp *http.Response) *TeeBuffer {
+	if resp.Body == nil || resp.Body == http.NoBody {
+		resp.Body = http.NoBody
 		return newBuffer(http.NoBody)
 	}
-	b := newBuffer(r.Body)
-	r.Body = b.newBody()
+	b := newBuffer(resp.Body)
+	resp.Body = b.newBody()
 	return b
 }
 
