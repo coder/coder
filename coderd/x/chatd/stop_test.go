@@ -162,6 +162,10 @@ func TestStopHookDispatchFailureErrorsChat(t *testing.T) {
 func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server {
 	t.Helper()
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventStop {

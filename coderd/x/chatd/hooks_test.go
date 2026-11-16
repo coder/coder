@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -57,6 +58,10 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			skill,
 		}
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !isHookRequest(r) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
@@ -125,6 +130,14 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 	})
 }
 
+// isHookRequest reports whether r is a lifecycle hook delivery: a POST
+// carrying the dispatcher's bearer token. Package tests run in parallel and
+// a closed httptest server's port can be reused, so a consumer can also
+// receive requests from another test's client that is still retrying.
+func isHookRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+}
+
 func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server) *dispatch.Dispatcher {
 	t.Helper()
 	return dispatch.New(
@@ -159,7 +172,11 @@ func TestHookDispatcherRequiresExperiment(t *testing.T) {
 	})
 
 	var hookRequests atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		hookRequests.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -197,6 +214,10 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 	})
 	var received agenthooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
@@ -232,6 +253,10 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	require.NoError(t, err)
 	var received agenthooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"queued override"}},"model_context":"queued context","user_message":"queued notice"}`))
 		require.NoError(t, err)
@@ -355,6 +380,10 @@ func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventUserPromptSubmit {
@@ -416,6 +445,10 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	})
 	var received agenthooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -470,6 +503,10 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	var receivedMu sync.Mutex
 	received := make([]receivedHook, 0, 2)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
@@ -602,6 +639,10 @@ func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
 		chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
 		var received agenthooks.Request
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !isHookRequest(r) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"queued edit override"}},"model_context":"edit context","user_message":"edit notice"}`))
 			require.NoError(t, err)

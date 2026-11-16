@@ -68,6 +68,10 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 	var mu sync.Mutex
 	var received []agenthooks.PostToolUseData
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -197,6 +201,10 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	var postCalls atomic.Int32
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -285,6 +293,10 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	var failPostToolUse atomic.Bool
 	failPostToolUse.Store(true)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
@@ -371,6 +383,10 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	var postCalls atomic.Int32
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
@@ -445,6 +461,10 @@ func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
 	var mu sync.Mutex
 	var postToolUseIDs []string
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {
@@ -537,6 +557,10 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 	var mu sync.Mutex
 	results := map[string]string{}
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {

@@ -165,6 +165,10 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
 
 			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !isHookRequest(r) {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				body := `{}`
@@ -256,6 +260,10 @@ func startCompactionHookChat(
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {

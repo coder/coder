@@ -770,6 +770,10 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 			})
 			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !isHookRequest(r) {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				if request.Type != agenthooks.EventPreToolUse {
@@ -843,6 +847,10 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	var failSecond atomic.Bool
 	failSecond.Store(true)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {
@@ -1386,6 +1394,10 @@ func requireModelOnlyTextCount(ctx context.Context, t *testing.T, db database.St
 func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {
 	t.Helper()
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isHookRequest(r) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {

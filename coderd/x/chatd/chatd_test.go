@@ -11366,6 +11366,10 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		// A pre_tool_use dispatch failure errors admission before the
 		// step commits, so the call never reaches executeLocalTools.
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !isHookRequest(r) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			if request.Type != agenthooks.EventPreToolUse {
