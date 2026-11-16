@@ -1205,6 +1205,11 @@ func TestSkillInvocationPrompt(t *testing.T) {
 			want: "The user invoked the personal/notes skill for this message. Follow its instructions.",
 		},
 		{
+			name: "Plugin",
+			part: codersdk.ChatMessagePluginSkillInvocation("acme-tools", "triage"),
+			want: "The user invoked the plugin/acme-tools/triage skill for this message. Follow its instructions.",
+		},
+		{
 			name:            "WorkspaceDir",
 			part:            withDir,
 			chatWorkspaceID: boundWorkspace,

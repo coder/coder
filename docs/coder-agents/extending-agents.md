@@ -336,12 +336,13 @@ The same skill name can exist in more than one source.
 No source overrides another.
 Instead, each copy gets a qualified alias that names its source:
 
-| Source       | Qualified alias    |
-|--------------|--------------------|
-| Personal     | `personal/<name>`  |
-| Organization | `org/<name>`       |
-| Project      | `project/<name>`   |
-| Workspace    | `workspace/<name>` |
+| Source       | Qualified alias          |
+|--------------|--------------------------|
+| Personal     | `personal/<name>`        |
+| Organization | `org/<name>`             |
+| Project      | `project/<name>`         |
+| Workspace    | `workspace/<name>`       |
+| Plugin       | `plugin/<plugin>/<name>` |
 
 A workspace skill that sets `disable-model-invocation: true` isn't listed for the agent, so a listed skill that has the same name keeps its bare name.
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
@@ -505,19 +506,6 @@ In each [scan root](#where-the-agent-looks), the agent treats these directories 
 - Each immediate subdirectory of `plugins/`
 - The scan root itself, when it holds a `plugin.json`
 
-A plugin keeps its skills in its `skills/` directory, one subdirectory per skill, each with a `SKILL.md` in the same format as other skills:
-
-```txt
-.agents/plugins/
-└── devtools/
-    ├── plugin.json
-    └── skills/
-        ├── format/
-        │   └── SKILL.md
-        └── lint/
-            └── SKILL.md
-```
-
 A plugin's `plugin.json` requires `$schema`, set to `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`, and `name`:
 
 ```json
@@ -557,4 +545,14 @@ For duplicate plugin names, the agent checks declared sources first, in the orde
 Within a scan root, `plugins/` comes before `.agents/plugins/`.
 The same scan root order decides which skill the agent keeps when two workspace skills outside a plugin share a name.
 When a scan root is itself a valid plugin, the agent does not look for other plugins inside it.
-None of an invalid plugin's skills load.
+An invalid plugin appears in the chat's context list with its error, and none of its skills load.
+
+### Plugin skills
+
+A plugin's skills live in its `skills/` directory, in the same [layout](#directory-structure) as workspace skills.
+Unlike a workspace skill, a plugin skill requires a `description`, up to 1,024 characters.
+A plugin skill without a valid description is reported as invalid, and the plugin's other skills still load.
+The list of available skills in the agent's system prompt names each plugin skill's plugin.
+When a plugin skill shares its name with another skill, the agent needs its qualified alias, `plugin/<plugin>/<name>`.
+The `/` menu in the chat composer lists plugin skills in the **Workspace skills** group, always by their qualified alias.
+For the other qualified aliases, refer to [Skills with the same name](#skills-with-the-same-name).

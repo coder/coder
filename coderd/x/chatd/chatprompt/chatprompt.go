@@ -1067,8 +1067,12 @@ func workspaceFilePartToText(part codersdk.ChatMessagePart, chatWorkspaceID uuid
 }
 
 // SkillInvocationAlias returns the source-qualified name of the skill a
-// skill-invocation part invokes, such as "project/triage".
+// skill-invocation part invokes, such as "project/triage" or
+// "plugin/acme-tools/triage".
 func SkillInvocationAlias(part codersdk.ChatMessagePart) string {
+	if part.SkillSource == codersdk.ChatSkillSourcePlugin {
+		return string(part.SkillSource) + "/" + part.SkillPluginName + "/" + part.SkillName
+	}
 	return string(part.SkillSource) + "/" + part.SkillName
 }
 
@@ -1703,6 +1707,7 @@ var partNulFields = []partNulField{
 	{name: "ContextFileSkillMetaFile", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileSkillMetaFile }},
 	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
 	{name: "SkillSource", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.SkillSource) }},
+	{name: "SkillPluginName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillPluginName }},
 	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
 	{name: "WorkspaceFilePath", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFilePath }},
 	{name: "WorkspaceFileName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileName }},
