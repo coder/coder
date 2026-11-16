@@ -2435,10 +2435,18 @@ func TestCreateWorkspace_ProjectDefaultPresetLookupFails(t *testing.T) {
 		GetChatProjectByID(gomock.Any(), projectID).
 		Return(database.ChatProject{
 			ID:                             projectID,
-			TemplateIDs:                    []uuid.UUID{s.TemplateID},
+			LimitTemplates:                 true,
 			DefaultTemplateID:              uuid.NullUUID{UUID: s.TemplateID, Valid: true},
 			DefaultTemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		}, nil)
+	s.DB.EXPECT().
+		GetChatProjectTemplatesByProjectIDs(gomock.Any(), []uuid.UUID{projectID}).
+		Return([]database.GetChatProjectTemplatesByProjectIDsRow{{
+			ChatProjectTemplate: database.ChatProjectTemplate{ProjectID: projectID, TemplateID: s.TemplateID},
+		}}, nil)
+	s.DB.EXPECT().
+		GetTemplatesWithFilter(gomock.Any(), database.GetTemplatesWithFilterParams{IDs: []uuid.UUID{s.TemplateID}}).
+		Return([]database.Template{{ID: s.TemplateID}}, nil)
 	s.DB.EXPECT().
 		GetPresetsByTemplateVersionID(gomock.Any(), s.VersionID).
 		Return(nil, xerrors.New("connection reset"))

@@ -25,6 +25,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+const templateNotFoundMessage = "template not found; use list_templates to find available templates"
+
 // presetNotInTemplateMessage tells the model that preset_id does not belong
 // to the template's active version.
 const presetNotInTemplateMessage = "preset_id does not belong to the template's active version; " +
@@ -173,6 +175,12 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			// chat. Without this check the tool could silently
 			// bind a cross-org workspace to the chat.
 			tmpl, tmplErr := db.GetTemplateByID(ctx, templateID)
+			// A template the owner cannot read gets the same response as
+			// one that does not exist, so a template that is attached to
+			// the chat's project but hidden from the owner is not revealed.
+			if httpapi.Is404Error(tmplErr) {
+				return fantasy.NewTextErrorResponse(templateNotFoundMessage), nil
+			}
 			if tmplErr != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("look up template: %w", tmplErr).Error(),
@@ -191,7 +199,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			if !project.allows(tmpl.ID) {
+			if project != nil && !project.Allows(tmpl.ID) {
 				return fantasy.NewTextErrorResponse(projectTemplateNotAvailableMessage), nil
 			}
 
