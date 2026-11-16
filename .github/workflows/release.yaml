@@ -657,6 +657,10 @@ jobs:
             detached_signature="${slim_binary}.asc"
             gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
             gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
+            # Cloud KMS signature, only present when GPG_KMS_KEY is set.
+            if [[ -f "./build/${slim_binary}.v2.asc" ]]; then
+              gcloud storage cp "./build/${slim_binary}.v2.asc" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.v2.asc"
+            fi
           done
 
       # Mint a short-lived installation token from the dedicated release
