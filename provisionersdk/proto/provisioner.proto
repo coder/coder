@@ -405,6 +405,9 @@ message Metadata {
   // another delegated identity in between. Empty unless the owner is a
   // delegated identity.
   string workspace_owner_parent_id = 29;
+  // What whoever created a delegated identity said it is for. Coder does not
+  // verify these. Empty unless the owner is a delegated identity.
+  map<string, string> workspace_owner_labels = 30;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

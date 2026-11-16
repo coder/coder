@@ -469,6 +469,16 @@ export interface Metadata {
    * delegated identity.
    */
   workspaceOwnerParentId: string;
+  /**
+   * What whoever created a delegated identity said it is for. Coder does not
+   * verify these. Empty unless the owner is a delegated identity.
+   */
+  workspaceOwnerLabels: { [key: string]: string };
+}
+
+export interface Metadata_WorkspaceOwnerLabelsEntry {
+  key: string;
+  value: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1421,6 +1431,21 @@ export const Metadata = {
     }
     if (message.workspaceOwnerParentId !== "") {
       writer.uint32(234).string(message.workspaceOwnerParentId);
+    }
+    Object.entries(message.workspaceOwnerLabels).forEach(([key, value]) => {
+      Metadata_WorkspaceOwnerLabelsEntry.encode({ key: key as any, value }, writer.uint32(242).fork()).ldelim();
+    });
+    return writer;
+  },
+};
+
+export const Metadata_WorkspaceOwnerLabelsEntry = {
+  encode(message: Metadata_WorkspaceOwnerLabelsEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
     }
     return writer;
   },

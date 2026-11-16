@@ -7163,6 +7163,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
@@ -7174,12 +7178,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                  | Required | Restrictions | Description                                                                                                                                                                                                                           |
-|-------------------|-------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `name`            | string                                                | false    |              | Name becomes the username of the identity's account. One is made up when it is empty.                                                                                                                                                 |
-| `organization_id` | string                                                | false    |              | Organization ID is required when the parent is a user in more than one organization. An identity under an identity is in its parent's organization.                                                                                   |
-| `parent_id`       | string                                                | false    |              | Parent ID is the user or delegated identity to create the identity under. It defaults to the caller. Naming anyone who is not the caller or below the caller needs permission to create delegated identities across the organization. |
-| `scopes`          | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes is what the identity may do with the API. It can hold no more than its parent does.                                                                                                                                            |
+| Name               | Type                                                  | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|--------------------|-------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `labels`           | object                                                | false    |              | Labels say what the identity is for, as a flat map of strings. They cannot be changed later and must not hold secrets: they are shown wherever the identity is, including to templates. Keys that start with "coder." are reserved.   |
+| » `[any property]` | string                                                | false    |              |                                                                                                                                                                                                                                       |
+| `name`             | string                                                | false    |              | Name becomes the username of the identity's account. One is made up when it is empty.                                                                                                                                                 |
+| `organization_id`  | string                                                | false    |              | Organization ID is required when the parent is a user in more than one organization. An identity under an identity is in its parent's organization.                                                                                   |
+| `parent_id`        | string                                                | false    |              | Parent ID is the user or delegated identity to create the identity under. It defaults to the caller. Naming anyone who is not the caller or below the caller needs permission to create delegated identities across the organization. |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes is what the identity may do with the API. It can hold no more than its parent does.                                                                                                                                            |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -8203,6 +8209,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "all"
   ],
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
@@ -8218,20 +8228,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type                                                  | Required | Restrictions | Description                                                                                                            |
-|--------------------|-------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `created_at`       | string                                                | false    |              |                                                                                                                        |
-| `created_by`       | string                                                | false    |              | Created by differs from the parent when a trusted service created the identity under a member.                         |
-| `effective_scopes` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Effective scopes is what the identity may do now: its scopes, less whatever a delegated identity above it lacks.       |
-| `id`               | string                                                | false    |              | ID is also the ID of the account that is this identity.                                                                |
-| `name`             | string                                                | false    |              | Name is the username of the identity's account. Workspaces of the identity are addressed as name/workspace.            |
-| `organization_id`  | string                                                | false    |              |                                                                                                                        |
-| `parent_id`        | string                                                | false    |              | Parent ID is the user or delegated identity this identity acts under.                                                  |
-| `parent_name`      | string                                                | false    |              |                                                                                                                        |
-| `root_user_id`     | string                                                | false    |              | Root user ID is the user at the top of the chain of parents. The identity is judged with this user's roles and groups. |
-| `root_username`    | string                                                | false    |              |                                                                                                                        |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes is what the identity was given. An empty list grants nothing.                                                   |
-| `updated_at`       | string                                                | false    |              |                                                                                                                        |
+| Name               | Type                                                  | Required | Restrictions | Description                                                                                                                                                                                       |
+|--------------------|-------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                | false    |              |                                                                                                                                                                                                   |
+| `created_by`       | string                                                | false    |              | Created by differs from the parent when a trusted service created the identity under a member.                                                                                                    |
+| `effective_scopes` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Effective scopes is what the identity may do now: its scopes, less whatever a delegated identity above it lacks.                                                                                  |
+| `id`               | string                                                | false    |              | ID is also the ID of the account that is this identity.                                                                                                                                           |
+| `labels`           | object                                                | false    |              | Labels is what whoever created the identity said it is for, for example the session it serves. They are set at creation and never change. Coder does not verify them and decides nothing by them. |
+| » `[any property]` | string                                                | false    |              |                                                                                                                                                                                                   |
+| `name`             | string                                                | false    |              | Name is the username of the identity's account. Workspaces of the identity are addressed as name/workspace.                                                                                       |
+| `organization_id`  | string                                                | false    |              |                                                                                                                                                                                                   |
+| `parent_id`        | string                                                | false    |              | Parent ID is the user or delegated identity this identity acts under.                                                                                                                             |
+| `parent_name`      | string                                                | false    |              |                                                                                                                                                                                                   |
+| `root_user_id`     | string                                                | false    |              | Root user ID is the user at the top of the chain of parents. The identity is judged with this user's roles and groups.                                                                            |
+| `root_username`    | string                                                | false    |              |                                                                                                                                                                                                   |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes is what the identity was given. An empty list grants nothing.                                                                                                                              |
+| `updated_at`       | string                                                | false    |              |                                                                                                                                                                                                   |
 
 ## codersdk.DeleteExternalAuthByIDResponse
 

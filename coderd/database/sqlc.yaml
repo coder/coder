@@ -74,6 +74,9 @@ sql:
           - column: "chats.labels"
             go_type:
               type: "StringMap"
+          - column: "delegated_identities.labels"
+            go_type:
+              type: "StringMap"
           - column: "chats_expanded.labels"
             go_type:
               type: "StringMap"

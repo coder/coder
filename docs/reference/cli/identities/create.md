@@ -46,12 +46,20 @@ The delegated identity or user to create the identity under. It defaults to you.
 
 The organization of the identity, when its parent is in more than one.
 
+### --label
+
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
+
+A label that says what the identity is for, as key=value. Repeat for more. Labels cannot be changed later, are not verified, and must not hold secrets.
+
 ### -c, --column
 
-| Property | Value                                                                            |
-|----------|----------------------------------------------------------------------------------|
-| Type     | <code>[name\|parent\|root user\|scopes\|effective scopes\|created at\|id]</code> |
-| Default  | <code>name,parent,root user,scopes,effective scopes</code>                       |
+| Property | Value                                                                                    |
+|----------|------------------------------------------------------------------------------------------|
+| Type     | <code>[name\|parent\|root user\|scopes\|effective scopes\|labels\|created at\|id]</code> |
+| Default  | <code>name,parent,root user,scopes,effective scopes</code>                               |
 
 Columns to display in table output.
 

@@ -457,6 +457,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>created_by</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>labels</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>parent_id</code></td><td>Yes</td></tr>

@@ -35,8 +35,12 @@ type DelegatedIdentity struct {
 	// EffectiveScopes is what the identity may do now: its scopes, less
 	// whatever a delegated identity above it lacks.
 	EffectiveScopes []APIKeyScope `json:"effective_scopes"`
-	CreatedAt       time.Time     `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time     `json:"updated_at" format:"date-time"`
+	// Labels is what whoever created the identity said it is for, for
+	// example the session it serves. They are set at creation and never
+	// change. Coder does not verify them and decides nothing by them.
+	Labels    map[string]string `json:"labels"`
+	CreatedAt time.Time         `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time         `json:"updated_at" format:"date-time"`
 }
 
 // CreateDelegatedIdentityRequest creates a delegated identity. It returns a
@@ -58,6 +62,11 @@ type CreateDelegatedIdentityRequest struct {
 	// Scopes is what the identity may do with the API. It can hold no
 	// more than its parent does.
 	Scopes []APIKeyScope `json:"scopes,omitempty"`
+	// Labels say what the identity is for, as a flat map of strings.
+	// They cannot be changed later and must not hold secrets: they are
+	// shown wherever the identity is, including to templates. Keys that
+	// start with "coder." are reserved.
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // UpdateDelegatedIdentityRequest replaces what a delegated identity may do.

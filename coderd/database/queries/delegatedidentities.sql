@@ -7,6 +7,7 @@ INSERT INTO delegated_identities (
 	created_by,
 	name,
 	scopes,
+	labels,
 	created_at,
 	updated_at
 )
@@ -18,6 +19,7 @@ VALUES (
 	@created_by,
 	@name,
 	@scopes,
+	@labels,
 	@created_at,
 	@created_at
 )

@@ -244,6 +244,39 @@ func delegatedIdentityRequestScopes(requested []codersdk.APIKeyScope, parentChai
 	return scopes, nil
 }
 
+// delegatedIdentityReservedLabelPrefix starts the label keys that only Coder
+// may set.
+const delegatedIdentityReservedLabelPrefix = "coder."
+
+// delegatedIdentityRequestLabels validates the labels a delegated identity
+// is created with. Labels are a claim of whoever creates the identity. They
+// are fixed from then on, so that what an identity was for cannot be
+// rewritten.
+func delegatedIdentityRequestLabels(requested map[string]string) (database.StringMap, []codersdk.ValidationError) {
+	validations := httpapi.ValidateChatLabels(requested)
+	labels := make(database.StringMap, len(requested))
+	for key, value := range requested {
+		if strings.HasPrefix(key, delegatedIdentityReservedLabelPrefix) {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "labels",
+				Detail: fmt.Sprintf("label key %q starts with %q, which is reserved", key, delegatedIdentityReservedLabelPrefix),
+			})
+		}
+		labels[key] = value
+	}
+	return labels, validations
+}
+
+// delegatedIdentityLabels never returns nil, so that the API always shows a
+// map.
+func delegatedIdentityLabels(labels database.StringMap) map[string]string {
+	out := make(map[string]string, len(labels))
+	for key, value := range labels {
+		out[key] = value
+	}
+	return out
+}
+
 func delegatedIdentityScopes(scopes []rbac.ScopeName) []codersdk.APIKeyScope {
 	out := make([]codersdk.APIKeyScope, 0, len(scopes))
 	for _, scope := range scopes {
@@ -294,6 +327,7 @@ func (api *API) delegatedIdentitiesToSDK(ctx context.Context, identities []datab
 			CreatedBy:       identity.CreatedBy,
 			Scopes:          delegatedIdentityScopes(scopes),
 			EffectiveScopes: delegatedIdentityScopes(httpmw.DelegatedIdentityScopes(chain)),
+			Labels:          delegatedIdentityLabels(identity.Labels),
 			CreatedAt:       identity.CreatedAt,
 			UpdatedAt:       identity.UpdatedAt,
 		})
@@ -483,6 +517,15 @@ func (api *API) postDelegatedIdentity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	labels, validations := delegatedIdentityRequestLabels(req.Labels)
+	if len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid labels.",
+			Validations: validations,
+		})
+		return
+	}
+
 	name := req.Name
 	if name == "" {
 		name = "identity-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
@@ -542,6 +585,7 @@ func (api *API) postDelegatedIdentity(rw http.ResponseWriter, r *http.Request) {
 			CreatedBy:      callerID,
 			Name:           user.Username,
 			Scopes:         scopes,
+			Labels:         labels,
 			CreatedAt:      dbtime.Now(),
 		})
 		if err != nil {

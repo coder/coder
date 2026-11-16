@@ -9,8 +9,13 @@ USAGE:
   credentials where it is used: in a workspace created on its behalf.
 
 OPTIONS:
-  -c, --column [name|parent|root user|scopes|effective scopes|created at|id] (default: name,parent,root user,scopes,effective scopes)
+  -c, --column [name|parent|root user|scopes|effective scopes|labels|created at|id] (default: name,parent,root user,scopes,effective scopes)
           Columns to display in table output.
+
+      --label string-array
+          A label that says what the identity is for, as key=value. Repeat for
+          more. Labels cannot be changed later, are not verified, and must not
+          hold secrets.
 
       --org string
           The organization of the identity, when its parent is in more than one.

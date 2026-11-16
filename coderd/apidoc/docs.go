@@ -25027,6 +25027,13 @@ const docTemplate = `{
         "codersdk.CreateDelegatedIdentityRequest": {
             "type": "object",
             "properties": {
+                "labels": {
+                    "description": "Labels say what the identity is for, as a flat map of strings.\nThey cannot be changed later and must not hold secrets: they are\nshown wherever the identity is, including to templates. Keys that\nstart with \"coder.\" are reserved.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "name": {
                     "description": "Name becomes the username of the identity's account. One is made up\nwhen it is empty.",
                     "type": "string"
@@ -26176,6 +26183,13 @@ const docTemplate = `{
                     "description": "ID is also the ID of the account that is this identity.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "labels": {
+                    "description": "Labels is what whoever created the identity said it is for, for\nexample the session it serves. They are set at creation and never\nchange. Coder does not verify them and decides nothing by them.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "description": "Name is the username of the identity's account. Workspaces of the\nidentity are addressed as name/workspace.",

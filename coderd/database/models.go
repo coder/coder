@@ -5882,6 +5882,8 @@ type DelegatedIdentity struct {
 	Scopes    []string  `db:"scopes" json:"scopes"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// What whoever created the identity said it is for, as a flat map of strings, for example the session it serves. Set at creation and never changed. Coder does not verify it, so nothing is decided by it.
+	Labels StringMap `db:"labels" json:"labels"`
 }
 
 type ExternalAuthLink struct {

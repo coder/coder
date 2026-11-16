@@ -2753,6 +2753,7 @@ CREATE TABLE delegated_identities (
     scopes text[] DEFAULT '{}'::text[] NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT delegated_identities_not_own_parent CHECK ((parent_id <> id))
 );
 
@@ -2769,6 +2770,8 @@ COMMENT ON COLUMN delegated_identities.created_by IS 'Who created the identity. 
 COMMENT ON COLUMN delegated_identities.name IS 'The username the account was created with.';
 
 COMMENT ON COLUMN delegated_identities.scopes IS 'API key scope names. An empty list grants nothing. What the identity may do is these scopes, less whatever a parent identity lacks.';
+
+COMMENT ON COLUMN delegated_identities.labels IS 'What whoever created the identity said it is for, as a flat map of strings, for example the session it serves. Set at creation and never changed. Coder does not verify it, so nothing is decided by it.';
 
 CREATE TABLE files (
     hash character varying(64) NOT NULL,

@@ -4574,6 +4574,13 @@ export interface CreateDelegatedIdentityRequest {
 	 * more than its parent does.
 	 */
 	readonly scopes?: readonly APIKeyScope[];
+	/**
+	 * Labels say what the identity is for, as a flat map of strings.
+	 * They cannot be changed later and must not hold secrets: they are
+	 * shown wherever the identity is, including to templates. Keys that
+	 * start with "coder." are reserved.
+	 */
+	readonly labels?: Record<string, string>;
 }
 
 // From codersdk/users.go
@@ -5471,6 +5478,12 @@ export interface DelegatedIdentity {
 	 * whatever a delegated identity above it lacks.
 	 */
 	readonly effective_scopes: readonly APIKeyScope[];
+	/**
+	 * Labels is what whoever created the identity said it is for, for
+	 * example the session it serves. They are set at creation and never
+	 * change. Coder does not verify them and decides nothing by them.
+	 */
+	readonly labels: Record<string, string>;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

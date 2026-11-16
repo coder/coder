@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,6 +57,7 @@ type identityRow struct {
 	Root      string    `json:"-" table:"root user"`
 	Scopes    string    `json:"-" table:"scopes"`
 	Effective string    `json:"-" table:"effective scopes"`
+	Labels    string    `json:"-" table:"labels"`
 	Created   time.Time `json:"-" table:"created at"`
 	ID        string    `json:"-" table:"id"`
 }
@@ -71,6 +73,15 @@ func identityScopes(scopes []codersdk.APIKeyScope) string {
 	return strings.Join(names, ", ")
 }
 
+func identityLabels(labels map[string]string) string {
+	pairs := make([]string, 0, len(labels))
+	for key, value := range labels {
+		pairs = append(pairs, key+"="+value)
+	}
+	slices.Sort(pairs)
+	return strings.Join(pairs, ", ")
+}
+
 func identityRows(identities []codersdk.DelegatedIdentity) []identityRow {
 	rows := make([]identityRow, 0, len(identities))
 	for _, identity := range identities {
@@ -81,6 +92,7 @@ func identityRows(identities []codersdk.DelegatedIdentity) []identityRow {
 			Root:              identity.RootUsername,
 			Scopes:            identityScopes(identity.Scopes),
 			Effective:         identityScopes(identity.EffectiveScopes),
+			Labels:            identityLabels(identity.Labels),
 			Created:           identity.CreatedAt,
 			ID:                identity.ID.String(),
 		})
@@ -116,6 +128,7 @@ func (r *RootCmd) createIdentity() *serpent.Command {
 		scopes []string
 		parent string
 		org    string
+		labels []string
 	)
 	formatter := identityFormatter()
 	cmd := &serpent.Command{
@@ -136,6 +149,16 @@ func (r *RootCmd) createIdentity() *serpent.Command {
 			}
 			if len(inv.Args) == 1 {
 				req.Name = inv.Args[0]
+			}
+			if len(labels) > 0 {
+				req.Labels = make(map[string]string, len(labels))
+				for _, label := range labels {
+					key, value, ok := strings.Cut(label, "=")
+					if !ok || key == "" {
+						return xerrors.Errorf("label %q must be key=value", label)
+					}
+					req.Labels[key] = value
+				}
 			}
 			if parent != "" {
 				// The parent is an identity below the caller, or with
@@ -185,6 +208,11 @@ func (r *RootCmd) createIdentity() *serpent.Command {
 			Flag:        "org",
 			Description: "The organization of the identity, when its parent is in more than one.",
 			Value:       serpent.StringOf(&org),
+		},
+		{
+			Flag:        "label",
+			Description: "A label that says what the identity is for, as key=value. Repeat for more. Labels cannot be changed later, are not verified, and must not hold secrets.",
+			Value:       serpent.StringArrayOf(&labels),
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)

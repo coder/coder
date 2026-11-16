@@ -8,7 +8,7 @@ USAGE:
   With "me", show the delegated identity the command itself runs as.
 
 OPTIONS:
-  -c, --column [name|parent|root user|scopes|effective scopes|created at|id] (default: name,parent,root user,scopes,effective scopes)
+  -c, --column [name|parent|root user|scopes|effective scopes|labels|created at|id] (default: name,parent,root user,scopes,effective scopes)
           Columns to display in table output.
 
   -o, --output table|json (default: table)

@@ -524,6 +524,15 @@ func provisionEnv(
 		return nil, xerrors.Errorf("marshal owner rbac roles: %w", err)
 	}
 
+	ownerLabels := metadata.GetWorkspaceOwnerLabels()
+	if ownerLabels == nil {
+		ownerLabels = map[string]string{}
+	}
+	ownerLabelsJSON, err := json.Marshal(ownerLabels)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal owner labels: %w", err)
+	}
+
 	env = append(env,
 		"CODER_AGENT_URL="+metadata.GetCoderUrl(),
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(metadata.GetWorkspaceTransition().String()),
@@ -538,6 +547,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_LOGIN_TYPE="+metadata.GetWorkspaceOwnerLoginType(),
 		"CODER_WORKSPACE_OWNER_DELEGATED="+strconv.FormatBool(metadata.GetWorkspaceOwnerDelegated()),
 		"CODER_WORKSPACE_OWNER_PARENT_ID="+metadata.GetWorkspaceOwnerParentId(),
+		"CODER_WORKSPACE_OWNER_LABELS="+string(ownerLabelsJSON),
 		"CODER_WORKSPACE_OWNER_ROOT_USER_ID="+metadata.GetWorkspaceOwnerRootUserId(),
 		"CODER_WORKSPACE_OWNER_ROOT_USER_NAME="+metadata.GetWorkspaceOwnerRootUserName(),
 		"CODER_WORKSPACE_OWNER_RBAC_ROLES="+string(ownerRbacRoles),

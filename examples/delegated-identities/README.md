@@ -22,6 +22,9 @@ agent in it is to Coder.
   for an agent that acts on its own behalf.
 - **Creating one returns a record, not a credential.** The identity gets its
   credentials where it is used.
+- **It can carry labels** that say what it is for, such as the session it
+  serves. Whoever creates it sets them, and they never change. They are a
+  claim and nothing is decided by them.
 - **It is judged with three things**, read on every request:
   - its own ID, so it owns what it creates and cannot reach what its root
     user owns;
@@ -52,16 +55,19 @@ return.
 ## What a template sees
 
 A template does not need to know about delegated identities. One that wants
-to tell can read four attributes of `data.coder_workspace_owner`:
+to tell can read five attributes of `data.coder_workspace_owner`:
 
-| Attribute        | The owner is a person | The owner is a delegated identity                   |
-|------------------|-----------------------|-----------------------------------------------------|
-| `delegated`      | `false`               | `true`                                              |
-| `parent_id`      | Empty                 | The ID of the identity it was created under         |
-| `root_user_id`   | The owner's ID        | The ID of its root user                             |
-| `root_user_name` | The owner's username  | The username of its root user                       |
+| Attribute        | The owner is a person | The owner is a delegated identity                    |
+|------------------|-----------------------|------------------------------------------------------|
+| `delegated`      | `false`               | `true`                                               |
+| `parent_id`      | Empty                 | The ID of the identity it was created under          |
+| `root_user_id`   | The owner's ID        | The ID of its root user                              |
+| `root_user_name` | The owner's username  | The username of its root user                        |
+| `labels`         | Empty                 | What its creator said it is for, as a map of strings |
 
 The parent is the root user, or another delegated identity in between.
+Labels are whatever the creator of the identity set. Coder does not verify
+them, so a template treats them as untrusted input.
 
 ```hcl
 data "coder_workspace_owner" "me" {}
@@ -92,8 +98,9 @@ alias cdr=./scripts/coder-dev.sh
 ```
 
 ```sh
-# A delegated identity under you. It may do nothing yet.
-cdr identities create my-agent
+# A delegated identity under you. It may do nothing yet. The label says
+# what it is for.
+cdr identities create my-agent --label purpose=demo
 
 # A workspace on its behalf. You asked, and it owns the workspace.
 cdr create my-agent/task-1 --template docker --use-parameter-defaults -y

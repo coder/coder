@@ -32,10 +32,10 @@ A scope the identity may use with the Coder API, as API tokens name them. Repeat
 
 ### -c, --column
 
-| Property | Value                                                                            |
-|----------|----------------------------------------------------------------------------------|
-| Type     | <code>[name\|parent\|root user\|scopes\|effective scopes\|created at\|id]</code> |
-| Default  | <code>name,parent,root user,scopes,effective scopes</code>                       |
+| Property | Value                                                                                    |
+|----------|------------------------------------------------------------------------------------------|
+| Type     | <code>[name\|parent\|root user\|scopes\|effective scopes\|labels\|created at\|id]</code> |
+| Default  | <code>name,parent,root user,scopes,effective scopes</code>                               |
 
 Columns to display in table output.
 

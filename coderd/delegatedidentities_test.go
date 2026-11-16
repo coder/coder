@@ -104,6 +104,37 @@ func TestDelegatedIdentities(t *testing.T) {
 
 	_, err = aliceClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{Name: "agent-1"})
 	requireStatus(t, err, http.StatusConflict)
+
+	// Labels say what an identity is for. They are a claim of whoever
+	// creates it, are fixed from then on, and keys that start with
+	// "coder." are not the creator's to set.
+	require.Empty(t, identity.Labels)
+	require.NotNil(t, identity.Labels)
+	labeled, err := aliceClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{
+		Name:   "labeled",
+		Labels: map[string]string{"session": "s-123", "purpose": "review"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"session": "s-123", "purpose": "review"}, labeled.Labels)
+	shown, err := aliceClient.DelegatedIdentity(ctx, "labeled")
+	require.NoError(t, err)
+	require.Equal(t, labeled.Labels, shown.Labels)
+	_, err = aliceClient.UpdateDelegatedIdentity(ctx, "labeled", codersdk.UpdateDelegatedIdentityRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+	})
+	require.NoError(t, err)
+	shown, err = aliceClient.DelegatedIdentity(ctx, "labeled")
+	require.NoError(t, err)
+	require.Equal(t, labeled.Labels, shown.Labels, "changing what an identity may do leaves its labels alone")
+	for _, bad := range []map[string]string{
+		{"coder.session": "s-123"},
+		{"session": ""},
+		{"not a key": "x"},
+	} {
+		_, err = aliceClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{Labels: bad})
+		requireStatus(t, err, http.StatusBadRequest)
+	}
+	require.NoError(t, aliceClient.DeleteDelegatedIdentity(ctx, "labeled"))
 	_, err = aliceClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{
 		Scopes: []codersdk.APIKeyScope{"not:a-scope"},
 	})

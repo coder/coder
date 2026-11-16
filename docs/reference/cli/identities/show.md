@@ -24,10 +24,10 @@ With "me", show the delegated identity the command itself runs as.
 
 ### -c, --column
 
-| Property | Value                                                                            |
-|----------|----------------------------------------------------------------------------------|
-| Type     | <code>[name\|parent\|root user\|scopes\|effective scopes\|created at\|id]</code> |
-| Default  | <code>name,parent,root user,scopes,effective scopes</code>                       |
+| Property | Value                                                                                    |
+|----------|------------------------------------------------------------------------------------------|
+| Type     | <code>[name\|parent\|root user\|scopes\|effective scopes\|labels\|created at\|id]</code> |
+| Default  | <code>name,parent,root user,scopes,effective scopes</code>                               |
 
 Columns to display in table output.
 

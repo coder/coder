@@ -16791,7 +16791,7 @@ WITH RECURSIVE descendants AS (
 		descendants.depth < 32
 )
 SELECT
-	delegated_identities.id, delegated_identities.organization_id, delegated_identities.parent_id, delegated_identities.root_user_id, delegated_identities.created_by, delegated_identities.name, delegated_identities.scopes, delegated_identities.created_at, delegated_identities.updated_at
+	delegated_identities.id, delegated_identities.organization_id, delegated_identities.parent_id, delegated_identities.root_user_id, delegated_identities.created_by, delegated_identities.name, delegated_identities.scopes, delegated_identities.created_at, delegated_identities.updated_at, delegated_identities.labels
 FROM
 	delegated_identities
 	JOIN descendants ON descendants.id = delegated_identities.id
@@ -16824,6 +16824,7 @@ func (q *sqlQuerier) GetDelegatedIdentitiesByAncestorID(ctx context.Context, anc
 			pq.Array(&i.Scopes),
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Labels,
 		); err != nil {
 			return nil, err
 		}
@@ -16840,7 +16841,7 @@ func (q *sqlQuerier) GetDelegatedIdentitiesByAncestorID(ctx context.Context, anc
 
 const getDelegatedIdentityByID = `-- name: GetDelegatedIdentityByID :one
 SELECT
-	id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at
+	id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at, labels
 FROM
 	delegated_identities
 WHERE
@@ -16862,6 +16863,7 @@ func (q *sqlQuerier) GetDelegatedIdentityByID(ctx context.Context, id uuid.UUID)
 		pq.Array(&i.Scopes),
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Labels,
 	)
 	return i, err
 }
@@ -16890,7 +16892,7 @@ WITH RECURSIVE chain AS (
 		chain.depth < 32
 )
 SELECT
-	delegated_identities.id, delegated_identities.organization_id, delegated_identities.parent_id, delegated_identities.root_user_id, delegated_identities.created_by, delegated_identities.name, delegated_identities.scopes, delegated_identities.created_at, delegated_identities.updated_at
+	delegated_identities.id, delegated_identities.organization_id, delegated_identities.parent_id, delegated_identities.root_user_id, delegated_identities.created_by, delegated_identities.name, delegated_identities.scopes, delegated_identities.created_at, delegated_identities.updated_at, delegated_identities.labels
 FROM
 	delegated_identities
 	JOIN chain ON chain.id = delegated_identities.id
@@ -16920,6 +16922,7 @@ func (q *sqlQuerier) GetDelegatedIdentityChain(ctx context.Context, id uuid.UUID
 			pq.Array(&i.Scopes),
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Labels,
 		); err != nil {
 			return nil, err
 		}
@@ -16990,6 +16993,7 @@ INSERT INTO delegated_identities (
 	created_by,
 	name,
 	scopes,
+	labels,
 	created_at,
 	updated_at
 )
@@ -17002,9 +17006,10 @@ VALUES (
 	$6,
 	$7,
 	$8,
-	$8
+	$9,
+	$9
 )
-RETURNING id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at
+RETURNING id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at, labels
 `
 
 type InsertDelegatedIdentityParams struct {
@@ -17015,6 +17020,7 @@ type InsertDelegatedIdentityParams struct {
 	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
 	Name           string    `db:"name" json:"name"`
 	Scopes         []string  `db:"scopes" json:"scopes"`
+	Labels         StringMap `db:"labels" json:"labels"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -17027,6 +17033,7 @@ func (q *sqlQuerier) InsertDelegatedIdentity(ctx context.Context, arg InsertDele
 		arg.CreatedBy,
 		arg.Name,
 		pq.Array(arg.Scopes),
+		arg.Labels,
 		arg.CreatedAt,
 	)
 	var i DelegatedIdentity
@@ -17040,6 +17047,7 @@ func (q *sqlQuerier) InsertDelegatedIdentity(ctx context.Context, arg InsertDele
 		pq.Array(&i.Scopes),
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Labels,
 	)
 	return i, err
 }
@@ -17052,7 +17060,7 @@ SET
 	updated_at = $2
 WHERE
 	id = $3
-RETURNING id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at
+RETURNING id, organization_id, parent_id, root_user_id, created_by, name, scopes, created_at, updated_at, labels
 `
 
 type UpdateDelegatedIdentityScopesParams struct {
@@ -17074,6 +17082,7 @@ func (q *sqlQuerier) UpdateDelegatedIdentityScopes(ctx context.Context, arg Upda
 		pq.Array(&i.Scopes),
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Labels,
 	)
 	return i, err
 }
