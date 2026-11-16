@@ -93,7 +93,8 @@ module "agent-firewall" {
 
 - `allowlist` defines the URLs that the agent can access, in addition to the default URLs required for the agent to work.
   Rules use the format `"key=value [key=value ...]"`:
-  - `domain=github.com` - allows the domain and all its subdomains
+  - `domain=github.com` - allows only `github.com`, not its subdomains.
+    Add the `domain=*.github.com` rule below to allow subdomains.
   - `domain=*.github.com` - allows only subdomains (the specific domain is excluded)
   - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
   - `method=POST domain=api.example.com path=/users,/posts` - allows specific methods, domain, and paths

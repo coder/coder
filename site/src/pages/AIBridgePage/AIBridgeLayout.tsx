@@ -11,11 +11,8 @@ const AIBridgeLayout: React.FC<React.PropsWithChildren> = () => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
-				<PageHeaderTitle>
-					<div className="flex items-center gap-2">
-						<span>AI Gateway Logs</span>
-						<AIBridgeHelpPopover />
-					</div>
+				<PageHeaderTitle tooltip={<AIBridgeHelpPopover />}>
+					AI Gateway Logs
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Centralized auditing for LLM usage across your organization.

@@ -13,13 +13,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestMigration000642PinsOwnedProjects checks that the upgrade pins each
+// TestMigration000643PinsOwnedProjects checks that the upgrade pins each
 // owner's projects in sidebar order and leaves shared projects unpinned.
-func TestMigration000642PinsOwnedProjects(t *testing.T) {
+func TestMigration000643PinsOwnedProjects(t *testing.T) {
 	t.Parallel()
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 641)
+	stepTo(t, sqlDB, 642)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db := database.New(sqlDB)
@@ -40,7 +40,7 @@ func TestMigration000642PinsOwnedProjects(t *testing.T) {
 	insertProject(first.ID, uuid.MustParse("00000000-0000-4000-8000-000000000001"), "Banana", "{}")
 	insertProject(second.ID, uuid.New(), "Shared", `{"`+first.ID.String()+`":{"permissions":["read"]}}`)
 
-	up, err := os.ReadFile("000642_chat_project_pins.up.sql")
+	up, err := os.ReadFile("000643_chat_project_pins.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(up))
 	require.NoError(t, err)
