@@ -8,7 +8,9 @@ Multiple users can securely connect to a single Coder workspace for programming 
 
 ## Features
 
-Workspace sharing is available to all Coder users by default, but platform admins with a Premium subscription can choose to disable sharing within their organizations or for their entire deployment.
+Workspace sharing is available to all Coder users by default.
+Platform admins can disable sharing for the entire deployment with the `CODER_DISABLE_WORKSPACE_SHARING` setting.
+With a Premium subscription, admins can also set a sharing policy for each organization in organization settings.
 
 Owners of a workspace can grant access to other users or groups with scoped roles.
 
@@ -25,7 +27,8 @@ This is helpful in a number of scenarios, including:
 Workspaces can be shared through either the Coder CLI or UI.
 
 Before you begin, make sure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
-This is true by default if you are an open source software (OSS) user, but deployments with Premium licenses can be restricted by admins.
+This is true by default.
+Admins can restrict sharing for the entire deployment, or for each organization with a Premium license.
 
 ### CLI
 

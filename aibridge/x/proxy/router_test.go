@@ -71,6 +71,11 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}, &aibtestutil.MockProvider{NameStr: "openai"}},
 			errContains: `duplicate provider name: "openai"`,
 		},
+		{
+			name:        "MalformedBaseURL",
+			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai", URL: "http://upstream.example.test/%zz"}},
+			errContains: `configure provider "openai" base URL`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
