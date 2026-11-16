@@ -1409,73 +1409,57 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 // @Success 200 {object} codersdk.UserPreferenceSettings
 // @Router /api/v2/users/{user}/preferences [get]
 func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
-	)
-
-	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	ctx := r.Context()
+	settings, err := api.getUserPreferenceSettings(ctx, httpmw.UserParam(r).ID)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error reading user preference settings.",
 			Detail:  err.Error(),
 		})
 		return
 	}
+	httpapi.Write(ctx, rw, http.StatusOK, settings)
+}
 
-	shellToolMode, err := api.Database.GetUserShellToolDisplayMode(ctx, user.ID)
+func (api *API) getUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (codersdk.UserPreferenceSettings, error) {
+	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, userID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error reading user preference settings.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.UserPreferenceSettings{}, err
 	}
 
-	codeDiffMode, err := api.Database.GetUserCodeDiffDisplayMode(ctx, user.ID)
+	shellToolMode, err := api.Database.GetUserShellToolDisplayMode(ctx, userID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error reading user preference settings.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.UserPreferenceSettings{}, err
 	}
 
-	collapseAssistantSteps, err := api.Database.GetUserCollapseAssistantSteps(ctx, user.ID)
+	codeDiffMode, err := api.Database.GetUserCodeDiffDisplayMode(ctx, userID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error reading user preference settings.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.UserPreferenceSettings{}, err
 	}
 
-	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, user.ID)
+	collapseAssistantSteps, err := api.Database.GetUserCollapseAssistantSteps(ctx, userID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error reading user preference settings.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.UserPreferenceSettings{}, err
 	}
 
-	defaultLandingPage, err := api.Database.GetUserDefaultLandingPage(ctx, user.ID)
+	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, userID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error reading user preference settings.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.UserPreferenceSettings{}, err
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
+	defaultLandingPage, err := api.Database.GetUserDefaultLandingPage(ctx, userID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.UserPreferenceSettings{}, err
+	}
+
+	return codersdk.UserPreferenceSettings{
 		ThinkingDisplayMode:    sanitizeThinkingDisplayMode(thinkingMode),
 		ShellToolDisplayMode:   sanitizeShellToolDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:    sanitizeAgentDisplayMode(codeDiffMode),
 		CollapseAssistantSteps: collapseAssistantSteps,
 		AgentChatSendShortcut:  sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 		DefaultLandingPage:     sanitizeDefaultLandingPage(defaultLandingPage),
-	})
+	}, nil
 }
 
 // @Summary Update user preference settings

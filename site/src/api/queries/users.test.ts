@@ -1,11 +1,25 @@
 import { QueryClient } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
-import { defaultMetadataManager } from "#/hooks/useEmbeddedMetadata";
-import { logout, myAppearanceKey, updateAppearanceSettings } from "./users";
+import {
+	defaultMetadataManager,
+	MetadataManager,
+} from "#/hooks/useEmbeddedMetadata";
+import {
+	MockExperiments,
+	MockUserOwner,
+	MockUserPreferenceSettings,
+} from "#/testHelpers/entities";
+import {
+	logout,
+	myAppearanceKey,
+	preferenceSettings,
+	updateAppearanceSettings,
+} from "./users";
 
 const appearanceSettings = (
 	overrides: Partial<UserAppearanceSettings> = {},
@@ -128,20 +142,54 @@ describe("logout", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("clears the embedded user and experiments metadata", () => {
-		const clearMetadataByKey = vi.spyOn(
-			defaultMetadataManager,
-			"clearMetadataByKey",
+	it("clears embedded account data so another session fetches its own preferences", async () => {
+		const metadata = {
+			user: MockUserOwner,
+			experiments: MockExperiments,
+			userPreferences: {
+				...MockUserPreferenceSettings,
+				default_landing_page: "agents",
+			},
+		};
+		const nodes = Object.entries(metadata).map(([key, value]) => {
+			const node = document.createElement("meta");
+			node.setAttribute("data-logout-metadata", key);
+			node.setAttribute("content", JSON.stringify(value));
+			document.head.append(node);
+			return node;
+		});
+		const manager = new MetadataManager("data-logout-metadata");
+		vi.spyOn(defaultMetadataManager, "getMetadata").mockImplementation(
+			manager.getMetadata,
 		);
-
-		logout(new QueryClient()).onSettled?.(
-			undefined,
-			null,
-			undefined,
-			undefined,
+		vi.spyOn(defaultMetadataManager, "clearMetadataByKey").mockImplementation(
+			manager.clearMetadataByKey,
 		);
+		const queryClient = new QueryClient();
 
-		expect(clearMetadataByKey).toHaveBeenCalledWith("user");
-		expect(clearMetadataByKey).toHaveBeenCalledWith("experiments");
+		try {
+			expect(await queryClient.ensureQueryData(preferenceSettings())).toEqual(
+				metadata.userPreferences,
+			);
+			logout(queryClient).onSettled?.(undefined, null, undefined, undefined);
+
+			const cleared = manager.getMetadata();
+			expect(cleared.user.available).toBe(false);
+			expect(cleared.experiments.available).toBe(false);
+			expect(cleared.userPreferences.available).toBe(false);
+
+			const getPreference = vi
+				.spyOn(API, "getUserPreferenceSettings")
+				.mockResolvedValue(MockUserPreferenceSettings);
+			expect(await queryClient.ensureQueryData(preferenceSettings())).toEqual(
+				MockUserPreferenceSettings,
+			);
+			expect(getPreference).toHaveBeenCalledTimes(1);
+		} finally {
+			queryClient.clear();
+			for (const node of nodes) {
+				node.remove();
+			}
+		}
 	});
 });

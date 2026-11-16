@@ -16,6 +16,7 @@ You can choose whether Coder opens **Workspaces** or **Agents** when you open Co
 1. Under **Dashboard**, select **Workspaces** or **Agents** from **Default landing page**.
 
 Coder saves your selection immediately and uses it across devices when you sign in with the same account.
+If you change the setting in another tab or device, refresh an already-open Coder page before selecting the dashboard logo.
 **Workspaces** is the default, and links to specific pages still open those pages.
 If **Agents** isn't available to your account, you can't select it, and Coder opens **Workspaces** without changing a saved **Agents** selection.
 

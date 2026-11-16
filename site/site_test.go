@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	nethtml "golang.org/x/net/html"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -160,6 +162,142 @@ func TestInjection(t *testing.T) {
 	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
 
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
+}
+
+func TestUserPreferencesMetadata(t *testing.T) {
+	t.Parallel()
+
+	index, err := os.ReadFile("index.html")
+	require.NoError(t, err)
+	db, _ := dbtestutil.NewDB(t)
+	first := dbgen.User(t, db, database.User{})
+	second := dbgen.User(t, db, database.User{})
+	_, firstToken := dbgen.APIKey(t, db, database.APIKey{UserID: first.ID, ExpiresAt: time.Now().Add(time.Hour)})
+	_, secondToken := dbgen.APIKey(t, db, database.APIKey{UserID: second.ID, ExpiresAt: time.Now().Add(time.Hour)})
+
+	firstSettings := codersdk.UserPreferenceSettings{
+		DefaultLandingPage:    codersdk.DefaultLandingPageAgents,
+		ThinkingDisplayMode:   codersdk.ThinkingDisplayModeAuto,
+		AgentChatSendShortcut: codersdk.AgentChatSendShortcutEnter,
+	}
+	secondSettings := codersdk.UserPreferenceSettings{DefaultLandingPage: codersdk.DefaultLandingPageWorkspaces}
+	var failFetch atomic.Bool
+	var fetches atomic.Int64
+	var appearanceFetcher atomic.Pointer[appearance.Fetcher]
+	fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{ApplicationName: "Coder"}})
+	appearanceFetcher.Store(&fetcher)
+	handler, err := site.New(&site.Options{
+		Database:          db,
+		SiteFS:            fstest.MapFS{"index.html": &fstest.MapFile{Data: index}},
+		Telemetry:         telemetry.NewNoop(),
+		AppearanceFetcher: &appearanceFetcher,
+		UserPreferencesFetcher: func(ctx context.Context, userID uuid.UUID) (codersdk.UserPreferenceSettings, error) {
+			fetches.Add(1)
+			actor, ok := dbauthz.ActorFromContext(ctx)
+			if !ok || actor.ID != userID.String() {
+				return codersdk.UserPreferenceSettings{}, xerrors.Errorf("wrong preference actor for user %s", userID)
+			}
+			if failFetch.Load() {
+				return codersdk.UserPreferenceSettings{}, xerrors.Errorf("preferences unavailable for user %s", userID)
+			}
+			switch userID {
+			case first.ID:
+				return firstSettings, nil
+			case second.ID:
+				return secondSettings, nil
+			default:
+				return codersdk.UserPreferenceSettings{}, xerrors.Errorf("unexpected user %s", userID)
+			}
+		},
+	})
+	require.NoError(t, err)
+
+	metaValue := func(t *testing.T, body, property string) string {
+		t.Helper()
+		doc, err := nethtml.Parse(strings.NewReader(body))
+		require.NoError(t, err)
+		var content string
+		var found bool
+		var visit func(*nethtml.Node)
+		visit = func(node *nethtml.Node) {
+			if node.Type == nethtml.ElementNode && node.Data == "meta" {
+				for _, attr := range node.Attr {
+					if attr.Key == "property" && attr.Val == property {
+						found = true
+						for _, value := range node.Attr {
+							if value.Key == "content" {
+								content = value.Val
+							}
+						}
+						return
+					}
+				}
+			}
+			for child := node.FirstChild; child != nil; child = child.NextSibling {
+				visit(child)
+			}
+		}
+		visit(doc)
+		require.Truef(t, found, "missing %s meta tag", property)
+		return content
+	}
+
+	getHTML := func(token string) string {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		if token != "" {
+			r.Header.Set(codersdk.SessionTokenHeader, token)
+		}
+		rw := httptest.NewRecorder()
+		handler.ServeHTTP(rw, r)
+		require.Equal(t, http.StatusOK, rw.Code)
+		return rw.Body.String()
+	}
+
+	for _, tc := range []struct {
+		token    string
+		userID   uuid.UUID
+		settings codersdk.UserPreferenceSettings
+	}{
+		{token: firstToken, userID: first.ID, settings: firstSettings},
+		{token: secondToken, userID: second.ID, settings: secondSettings},
+	} {
+		body := getHTML(tc.token)
+		var got codersdk.UserPreferenceSettings
+		require.NoError(t, json.Unmarshal([]byte(metaValue(t, body, "userPreferences")), &got))
+		require.Equal(t, tc.settings, got)
+		var user codersdk.User
+		require.NoError(t, json.Unmarshal([]byte(metaValue(t, body, "user")), &user))
+		require.Equal(t, tc.userID, user.ID)
+	}
+
+	beforeAnonymous := fetches.Load()
+	body := getHTML("")
+	require.Empty(t, metaValue(t, body, "userPreferences"))
+	require.Empty(t, metaValue(t, body, "user"))
+	require.Equal(t, beforeAnonymous, fetches.Load())
+
+	failFetch.Store(true)
+	body = getHTML(firstToken)
+	require.Empty(t, metaValue(t, body, "userPreferences"))
+	var user codersdk.User
+	require.NoError(t, json.Unmarshal([]byte(metaValue(t, body, "user")), &user))
+	require.Equal(t, first.ID, user.ID)
+	require.NotEmpty(t, metaValue(t, body, "userAppearance"))
+	require.NotEmpty(t, metaValue(t, body, "appearance"))
+
+	withoutFetcher, err := site.New(&site.Options{
+		Database:  db,
+		SiteFS:    fstest.MapFS{"index.html": &fstest.MapFile{Data: index}},
+		Telemetry: telemetry.NewNoop(),
+	})
+	require.NoError(t, err)
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, firstToken)
+	rw := httptest.NewRecorder()
+	withoutFetcher.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+	require.Empty(t, metaValue(t, rw.Body.String(), "userPreferences"))
+	require.NotEmpty(t, metaValue(t, rw.Body.String(), "user"))
 }
 
 func TestInjectionUserAppearance(t *testing.T) {

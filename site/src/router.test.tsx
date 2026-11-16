@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { UserPreferenceSettings } from "#/api/typesGenerated";
+import { defaultMetadataManager } from "#/hooks/useEmbeddedMetadata";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockPermissions,
@@ -76,41 +77,90 @@ describe("dashboard landing page", () => {
 		},
 	);
 
-	it.each([false, true])(
-		"waits for the latest saved preference before leaving the root (cached: %s)",
-		async (cached) => {
-			const preference = createDeferred<UserPreferenceSettings>();
+	it.each([
+		{
+			preference: "workspaces",
+			agentsEnabled: true,
+			destination: "/workspaces",
+		},
+		{ preference: "agents", agentsEnabled: true, destination: "/agents" },
+		{ preference: "agents", agentsEnabled: false, destination: "/workspaces" },
+	] as const)(
+		"uses embedded $preference without a request (Agents available: $agentsEnabled)",
+		async ({ preference, agentsEnabled, destination }) => {
+			const metadata = defaultMetadataManager.getMetadata();
+			vi.spyOn(defaultMetadataManager, "getMetadata").mockReturnValue({
+				...metadata,
+				userPreferences: {
+					available: true,
+					value: {
+						...MockUserPreferenceSettings,
+						default_landing_page: preference,
+					},
+				},
+			});
 			const getPreference = vi
 				.spyOn(API, "getUserPreferenceSettings")
-				.mockReturnValue(preference.promise);
-			const { router, queryClient } = renderDashboardRoot(
-				cached ? "/workspaces" : "/",
-			);
-
-			if (cached) {
-				await screen.findByText("Workspaces");
-				queryClient.setQueryDefaults(preferenceSettingsKey, {
-					staleTime: Number.POSITIVE_INFINITY,
-				});
-				queryClient.setQueryData(
-					preferenceSettingsKey,
-					MockUserPreferenceSettings,
-				);
-				await act(() => router.navigate("/"));
-			}
-
-			await waitFor(() => expect(getPreference).toHaveBeenCalled());
-			expect(router.state.location.pathname).toBe("/");
-
-			preference.resolve({
-				...MockUserPreferenceSettings,
-				default_landing_page: "agents",
+				.mockResolvedValue(MockUserPreferenceSettings);
+			vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+				...MockPermissions,
+				createChat: agentsEnabled,
 			});
+			const { router } = renderDashboardRoot();
+
 			await waitFor(() => {
-				expect(router.state.location.pathname).toBe("/agents");
+				expect(router.state.location.pathname).toBe(destination);
 			});
+			expect(getPreference).not.toHaveBeenCalled();
+			expect(router.state.historyAction).toBe("REPLACE");
 		},
 	);
+
+	it("waits for preferences when neither metadata nor cached data is available", async () => {
+		const preference = createDeferred<UserPreferenceSettings>();
+		const getPreference = vi
+			.spyOn(API, "getUserPreferenceSettings")
+			.mockReturnValue(preference.promise);
+		const { router } = renderDashboardRoot();
+
+		await waitFor(() => expect(getPreference).toHaveBeenCalled());
+		expect(router.state.location.pathname).toBe("/");
+
+		preference.resolve({
+			...MockUserPreferenceSettings,
+			default_landing_page: "agents",
+		});
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents");
+		});
+	});
+
+	it("uses cached preferences without waiting for a background refresh", async () => {
+		const preference = createDeferred<UserPreferenceSettings>();
+		const getPreference = vi
+			.spyOn(API, "getUserPreferenceSettings")
+			.mockReturnValue(preference.promise);
+		const { router, queryClient } = renderDashboardRoot("/workspaces");
+		await screen.findByText("Workspaces");
+		queryClient.setQueryDefaults(preferenceSettingsKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
+		await act(() => router.navigate("/"));
+
+		await waitFor(() => expect(getPreference).toHaveBeenCalled());
+		expect(router.state.location.pathname).toBe("/workspaces");
+
+		const updated: UserPreferenceSettings = {
+			...MockUserPreferenceSettings,
+			default_landing_page: "agents",
+		};
+		preference.resolve(updated);
+		await waitFor(() => {
+			expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(updated);
+		});
+		expect(router.state.location.pathname).toBe("/workspaces");
+	});
 
 	it("falls back to Workspaces when Agents is unavailable", async () => {
 		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue({
@@ -128,38 +178,15 @@ describe("dashboard landing page", () => {
 		});
 	});
 
-	it.each([
-		{ cached: false, destination: "/workspaces" },
-		{ cached: true, destination: "/agents" },
-	])(
-		"falls back to $destination when preferences cannot be loaded (cached: $cached)",
-		async ({ cached, destination }) => {
-			const preference = createDeferred<UserPreferenceSettings>();
-			const getPreference = vi
-				.spyOn(API, "getUserPreferenceSettings")
-				.mockReturnValue(preference.promise);
-			const { router, queryClient } = renderDashboardRoot(
-				cached ? "/workspaces" : "/",
-			);
+	it("falls back to Workspaces when preferences cannot be loaded", async () => {
+		const getPreference = vi
+			.spyOn(API, "getUserPreferenceSettings")
+			.mockRejectedValue(new Error("Preferences unavailable"));
+		const { router } = renderDashboardRoot();
 
-			if (cached) {
-				await screen.findByText("Workspaces");
-				queryClient.setQueryData<UserPreferenceSettings>(
-					preferenceSettingsKey,
-					{
-						...MockUserPreferenceSettings,
-						default_landing_page: "agents",
-					},
-				);
-				await act(() => router.navigate("/"));
-			}
-
-			await waitFor(() => expect(getPreference).toHaveBeenCalled());
-			expect(router.state.location.pathname).toBe("/");
-			preference.reject(new Error("Preferences unavailable"));
-			await waitFor(() => {
-				expect(router.state.location.pathname).toBe(destination);
-			});
-		},
-	);
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/workspaces");
+		});
+		expect(getPreference).toHaveBeenCalledTimes(1);
+	});
 });

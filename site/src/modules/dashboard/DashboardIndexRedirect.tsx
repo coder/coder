@@ -9,11 +9,10 @@ export const DashboardIndexRedirect: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const query = useQuery({
 		...preferenceSettings(),
-		refetchOnMount: "always",
 		retry: false,
 	});
 
-	if (query.isFetching) {
+	if (query.isLoading) {
 		return <Loader />;
 	}
 

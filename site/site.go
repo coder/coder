@@ -80,6 +80,7 @@ type Options struct {
 	DocsURL                   string
 	BuildInfo                 codersdk.BuildInfoResponse
 	AppearanceFetcher         *atomic.Pointer[appearance.Fetcher]
+	UserPreferencesFetcher    func(context.Context, uuid.UUID) (codersdk.UserPreferenceSettings, error)
 	Entitlements              *entitlements.Set
 	Telemetry                 telemetry.Reporter
 	Logger                    slog.Logger
@@ -261,14 +262,15 @@ type htmlState struct {
 	ApplicationName string
 	LogoURL         string
 
-	BuildInfo      string
-	User           string
-	Entitlements   string
-	Appearance     string
-	UserAppearance string
-	Experiments    string
-	Regions        string
-	DocsURL        string
+	BuildInfo       string
+	User            string
+	Entitlements    string
+	Appearance      string
+	UserAppearance  string
+	UserPreferences string
+	Experiments     string
+	Regions         string
+	DocsURL         string
 
 	AIGatewayEnabled          string
 	UserSecretFilePathEnabled string
@@ -488,6 +490,18 @@ func (h *Handler) populateHTMLState(
 			state.UserAppearance = html.EscapeString(string(data))
 		}
 	})
+	if h.opts.UserPreferencesFetcher != nil {
+		wg.Go(func() {
+			preferences, err := h.opts.UserPreferencesFetcher(ctx, user.ID)
+			if err != nil {
+				return
+			}
+			data, err := json.Marshal(preferences)
+			if err == nil {
+				state.UserPreferences = html.EscapeString(string(data))
+			}
+		})
+	}
 	if h.Entitlements != nil {
 		wg.Go(func() {
 			state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))

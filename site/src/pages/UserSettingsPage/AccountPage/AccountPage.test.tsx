@@ -1,8 +1,10 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { UserPreferenceSettings } from "#/api/typesGenerated";
+import { defaultMetadataManager } from "#/hooks/useEmbeddedMetadata";
+import { DashboardIndexRedirect } from "#/modules/dashboard/DashboardIndexRedirect";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockEntitlements,
@@ -64,7 +66,7 @@ describe("AccountPage", () => {
 			{ initial: "workspaces", next: "agents", label: "Agents" },
 			{ initial: "agents", next: "workspaces", label: "Workspaces" },
 		] as const)(
-			"saves $next to the shared cache even when reloading fails",
+			"uses saved $next instead of embedded preferences when reloading fails",
 			async ({ initial, next, label }) => {
 				const user = userEvent.setup();
 				const settings = {
@@ -72,14 +74,28 @@ describe("AccountPage", () => {
 					default_landing_page: initial,
 				};
 				const updated = { ...settings, default_landing_page: next };
+				const metadata = defaultMetadataManager.getMetadata();
+				vi.spyOn(defaultMetadataManager, "getMetadata").mockReturnValue({
+					...metadata,
+					userPreferences: { available: true, value: settings },
+				});
 				const getPreference = vi
 					.spyOn(API, "getUserPreferenceSettings")
 					.mockResolvedValue(settings);
 				const update = vi
 					.spyOn(API, "updateUserPreferenceSettings")
 					.mockResolvedValue(updated);
-				const { queryClient } = renderWithAuth(<AccountPage />);
+				const { queryClient, router } = renderWithAuth(<AccountPage />, {
+					path: "/settings/account",
+					route: "/settings/account",
+					extraRoutes: [
+						{ path: "/", element: <DashboardIndexRedirect /> },
+						{ path: "/agents", element: <div>Agents</div> },
+						{ path: "/workspaces", element: <div>Workspaces</div> },
+					],
+				});
 				await screen.findByText(initial === "agents" ? "Agents" : "Workspaces");
+				expect(getPreference).not.toHaveBeenCalled();
 				getPreference.mockRejectedValue(new Error("Preferences unavailable"));
 
 				await user.click(
@@ -98,6 +114,12 @@ describe("AccountPage", () => {
 				expect(update).toHaveBeenCalledExactlyOnceWith({
 					default_landing_page: next,
 				});
+
+				await act(() => router.navigate("/"));
+				await waitFor(() => {
+					expect(router.state.location.pathname).toBe(`/${next}`);
+				});
+				expect(getPreference).toHaveBeenCalledTimes(1);
 			},
 		);
 
