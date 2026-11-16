@@ -40,6 +40,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
+import { useCachedChat } from "../../../hooks/useCachedChat";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -352,10 +353,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
+	// The sidebar's list leaves out the user's own project chats, and the chat
+	// page loads the active chat, so its cached entity names the project.
+	const activeChatEntity = useCachedChat(activeChatId);
 	// Folders default open for the active chat's project or the project page.
 	const activeProjectId =
-		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
-		viewedProjectId;
+		(activeChatId
+			? (chatById.get(activeChatId) ?? activeChatEntity)?.project_id
+			: undefined) ?? viewedProjectId;
 	const [seenActiveProjectId, setSeenActiveProjectId] =
 		useState(activeProjectId);
 	if (activeProjectId !== seenActiveProjectId) {

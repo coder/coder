@@ -3301,7 +3301,7 @@ class ExperimentalApiMethods {
 			offset?: number;
 			q?: string;
 			project_id?: string;
-			pinned_projects_only?: boolean;
+			exclude_own_project_chats?: boolean;
 		},
 		signal?: AbortSignal,
 	): Promise<TypesGen.Chat[]> => {
