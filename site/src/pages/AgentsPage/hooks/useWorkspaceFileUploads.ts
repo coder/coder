@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useMutation } from "react-query";
 import * as Yup from "yup";
@@ -116,33 +117,30 @@ const persistWorkspaceUploadDraft = (
 		} else {
 			localStorage.setItem(storageKey, JSON.stringify(responses));
 		}
+		return;
 	} catch {
 		toast.warning(
 			"Could not save workspace upload changes. Your draft may be outdated when you return to this chat.",
 			{ id: storageKey },
 		);
-		try {
-			const savedResponses = readWorkspaceUploadDraft(storageKey);
-			// Keep a saved subset, but discard references removed from this draft.
-			if (
-				!savedResponses ||
-				savedResponses.some(
-					(saved) =>
-						!responses.some(
-							(response) =>
-								response.path === saved.path &&
-								response.name === saved.name &&
-								response.size === saved.size &&
-								response.media_type === saved.media_type &&
-								response.workspace_id === saved.workspace_id,
-						),
-				)
-			) {
-				localStorage.removeItem(storageKey);
-			}
-		} catch {
-			// The in-memory draft remains usable if storage is unavailable.
-		}
+	}
+
+	// A failed save can leave removed uploads in storage.
+	const savedResponses = readWorkspaceUploadDraft(storageKey);
+	if (
+		savedResponses?.every(
+			(saved) =>
+				responses.filter((response) => isEqual(response, saved)).length >=
+				savedResponses.filter((response) => isEqual(response, saved)).length,
+		)
+	) {
+		return;
+	}
+
+	try {
+		localStorage.removeItem(storageKey);
+	} catch {
+		// The in-memory draft remains usable if storage is unavailable.
 	}
 };
 

@@ -556,6 +556,17 @@ describe("ChatPageInput", () => {
 				name: "does not restore removed files when saving the remaining uploads fails",
 			},
 			{
+				action: "remove",
+				reusePath: true,
+				sizeDelta: 1,
+				name: "does not restore a removed upload when another upload reused its path",
+			},
+			{
+				action: "remove",
+				reusePath: true,
+				name: "does not restore duplicate uploads after a failed removal",
+			},
+			{
 				action: "remove-unsaved",
 				name: "keeps saved files after unsaved removal",
 			},
@@ -563,7 +574,7 @@ describe("ChatPageInput", () => {
 				action: "remove-pending",
 				name: "keeps saved files after pending removal",
 			},
-		])("$name", async ({ action }) => {
+		])("$name", async ({ action, reusePath, sizeDelta = 0 }) => {
 			const user = userEvent.setup();
 			const onSend = vi
 				.fn()
@@ -572,8 +583,11 @@ describe("ChatPageInput", () => {
 			const warning = vi.spyOn(toast, "warning");
 			const mockRemainingFile = {
 				...mockUploadedFile,
-				path: `/home/coder/.coder/chats/${mockChat.id}/files/keep.tar`,
-				name: "keep.tar",
+				path: reusePath
+					? mockUploadedFile.path
+					: `/home/coder/.coder/chats/${mockChat.id}/files/keep.tar`,
+				name: reusePath ? mockUploadedFile.name : "keep.tar",
+				size: mockUploadedFile.size + sizeDelta,
 			};
 			const uploadFile = vi.mocked(API.experimental.uploadChatWorkspaceFile);
 			uploadFile.mockResolvedValueOnce(mockUploadedFile);
@@ -588,6 +602,7 @@ describe("ChatPageInput", () => {
 				...mockPendingUpload,
 				path: mockRemainingFile.path,
 				name: mockRemainingFile.name,
+				size: mockRemainingFile.size,
 			};
 			const props = { ...draftProps, onSend };
 			const firstVisit = renderChatPageInput(createChatStore(), props);
@@ -619,7 +634,7 @@ describe("ChatPageInput", () => {
 			});
 			if (action === "remove") {
 				await user.click(
-					screen.getByRole("button", { name: "Remove archive.tar" }),
+					screen.getAllByRole("button", { name: "Remove archive.tar" })[0],
 				);
 			} else {
 				await user.upload(
