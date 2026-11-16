@@ -1508,7 +1508,9 @@ const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 					q,
 					project_id: projectId,
 					// Sending the flag would drop the user's own chats from their
-					// folder. Folder keys keep it, so they match the sidebar list's.
+					// folder. Folder keys still carry it because
+					// copyFolderChatToSidebarList reuses their params as the sidebar
+					// list's key.
 					exclude_own_project_chats:
 						(params.excludeOwnProjectChats && !projectId) || undefined,
 				},
@@ -1611,6 +1613,13 @@ export const chat = (chatId: string) =>
 		queryKey: chatEntityKey(chatId),
 		queryFn: ({ signal }) => API.experimental.getChat(chatId, signal),
 	});
+
+/**
+ * Reads a chat that another view already loaded, such as the chat page's
+ * active chat. Disabled, so nothing built from these options fetches it.
+ */
+export const cachedChat = (chatId: string | undefined) =>
+	queryOptions({ ...chat(chatId ?? ""), enabled: false });
 
 export const getOpenChatPollInterval = (
 	data: TypesGen.Chat | undefined,

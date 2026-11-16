@@ -1149,7 +1149,6 @@ describe("AgentsPageLayout project chats", () => {
 			const mockProjectChat: Chat = {
 				...MockChat,
 				project_id: MockChatProject.id,
-				// The folder holds the fresher copy when the project has one.
 				children: projectPinned ? [] : [mockRunningSubagent],
 			};
 			vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
@@ -1183,10 +1182,8 @@ describe("AgentsPageLayout project chats", () => {
 			);
 			const archive = await screen.findByRole("menuitem", {
 				name: "Archive agent",
+				description: "Interrupt or wait for the agent to finish first.",
 			});
-			await waitFor(() =>
-				expect(archive).toHaveAttribute("aria-disabled", "true"),
-			);
 			await user.click(archive);
 			expect(updateChat).not.toHaveBeenCalled();
 		},
