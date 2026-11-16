@@ -658,27 +658,19 @@ WHERE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
         ELSE true
     END
-    -- The sidebar lists the viewer's own chat in a project only when the
-    -- viewer pinned the project or the chat. Chats shared with the viewer
-    -- are always listed: the sidebar files them under a pinned project or
-    -- lists them on their own. Filtering here, not after the query, keeps
+    -- Leaves out the viewer's own unpinned chats in projects the viewer can
+    -- use, which clients list per project with project_id. Project pins do
+    -- not change the result. Filtering here, not after the query, keeps
     -- cursor pages full.
     AND CASE
-        WHEN sqlc.narg('pinned_projects_only')::boolean THEN (
+        WHEN sqlc.narg('exclude_own_project_chats')::boolean THEN (
             chats_expanded.project_id IS NULL
             OR chats_expanded.owner_id != @viewer_id::uuid
             OR chats_expanded.pin_order > 0
-            OR EXISTS (
-                SELECT 1
-                FROM chat_project_pins
-                WHERE chat_project_pins.user_id = @viewer_id::uuid
-                    AND chat_project_pins.project_id = chats_expanded.project_id
-                    AND chat_project_pins.unpinned_at IS NULL
-            )
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
-            -- the sidebar is the only place left to find the chat. Same
-            -- access predicate as GetChatProjectSummariesByUserID.
+            -- no project list reaches the chat. Same access predicate as
+            -- GetChatProjectSummariesByUserID.
             OR NOT EXISTS (
                 SELECT 1
                 FROM chat_projects cp
