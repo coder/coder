@@ -207,37 +207,41 @@ describe("WorkspacesPageView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("shows the filter empty state instead of the no-permission empty state when a filter is active", async () => {
-		renderWithAuth(
-			<WorkspacesPageView
-				{...defaultProps}
-				canCreateWorkspace={false}
-				filter={createFilter(true)}
-			/>,
+	it.each([true, false])(
+		"resets an empty filter when workspace creation is allowed: %s",
+		async (canCreateWorkspace) => {
+			const user = userEvent.setup();
+			const filter = createFilter(true);
+			renderWithAuth(
+				<WorkspacesPageView
+					{...defaultProps}
+					canCreateWorkspace={canCreateWorkspace}
+					filter={filter}
+				/>,
+			);
+
+			await user.click(
+				await screen.findByRole("button", { name: "Reset filters" }),
+			);
+			expect(filter.update).toHaveBeenCalledWith("");
+		},
+	);
+
+	it("navigates to the dashboard from an invalid workspace page", async () => {
+		const user = userEvent.setup();
+		const { router } = renderWithAuth(
+			<WorkspacesPageView {...defaultProps} page={99} />,
+			{
+				path: "/workspaces",
+				route: "/workspaces?page=99",
+				extraRoutes: [{ path: "/", element: <div /> }],
+			},
 		);
 
-		await screen.findByRole("heading", {
-			name: /no workspaces match your search\./i,
-		});
-		expect(
-			screen.queryByText(/don't have permission to create workspaces/i),
-		).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: /new workspace/i }),
-		).not.toBeInTheDocument();
-	});
-
-	it("shows the filter empty state when the user can create workspaces but the filter matches nothing", async () => {
-		renderWithAuth(
-			<WorkspacesPageView {...defaultProps} filter={createFilter(true)} />,
+		await user.click(
+			await screen.findByRole("link", { name: "Go to dashboard" }),
 		);
-
-		await screen.findByRole("heading", {
-			name: /no workspaces match your search\./i,
-		});
-		expect(
-			screen.queryByText(/don't have permission to create workspaces/i),
-		).not.toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/");
 	});
 
 	it("restarts a running workspace from the overflow menu", async () => {

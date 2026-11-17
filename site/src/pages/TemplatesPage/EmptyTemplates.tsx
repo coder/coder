@@ -2,6 +2,7 @@ import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { Link } from "#/components/Link/Link";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
@@ -37,6 +38,7 @@ type EmptyTemplatesProps = {
 	templateBuilderEnabled: boolean;
 	examples: TemplateExample[];
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 };
 
 export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
@@ -44,9 +46,21 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	templateBuilderEnabled,
 	examples,
 	isUsingFilter,
+	onClearFilter,
 }) => {
 	if (isUsingFilter) {
-		return <TableEmpty message="No results matched your search" />;
+		return (
+			<TableEmpty
+				image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
+				message="No templates match your filters"
+				description="Broaden your search to explore more options."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Reset filters
+					</Button>
+				}
+			/>
+		);
 	}
 
 	const featuredExamples = findFeaturedExamples(examples);

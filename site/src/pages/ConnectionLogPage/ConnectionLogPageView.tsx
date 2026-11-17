@@ -1,4 +1,5 @@
 import type { ConnectionLog } from "#/api/typesGenerated";
+import { NoResultsIllustration } from "#/components/EmptyState/components/NoResultsIllustration";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -80,6 +81,7 @@ export const ConnectionLogPageView: React.FC<ConnectionLogPageViewProps> = ({
 									isLoading={isLoading}
 									isEmpty={isEmpty}
 									isNonInitialPage={isNonInitialPage}
+									isUsingFilter={filterProps.filter.used}
 								/>
 							</TableBody>
 						</Table>
@@ -108,6 +110,7 @@ type ConnectionLogTableBodyProps = {
 	isLoading: boolean;
 	isEmpty: boolean;
 	isNonInitialPage: boolean;
+	isUsingFilter: boolean;
 };
 
 const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
@@ -116,6 +119,7 @@ const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
 	isLoading,
 	isEmpty,
 	isNonInitialPage,
+	isUsingFilter,
 }) => {
 	// An error renders as an empty table.
 	if (error) {
@@ -130,7 +134,17 @@ const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
 		const emptyMessage = isNonInitialPage
 			? "No connection logs available on this page"
 			: "No connection logs available";
-		return <TableEmpty message={emptyMessage} />;
+		return (
+			<TableEmpty
+				image={<NoResultsIllustration className="-mb-5 h-auto max-w-full" />}
+				message={emptyMessage}
+				description={
+					!isNonInitialPage && !isUsingFilter
+						? "All we found were birds. Events will appear here as your team uses Coder."
+						: undefined
+				}
+			/>
+		);
 	}
 	if (!connectionLogs) {
 		return null;

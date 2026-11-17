@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import uFuzzy from "ufuzzy";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
+import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Input } from "#/components/Input/Input";
 import { Link } from "#/components/Link/Link";
@@ -135,7 +136,19 @@ const IconsPage: React.FC = () => {
 
 				<div className="flex flex-row gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (
-						<EmptyState message="No results matched your search" />
+						<EmptyState
+							image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
+							message="No icons match your search"
+							description="Broaden your search to explore more options."
+							cta={
+								<Button
+									variant="outline"
+									onClick={() => setSearchInputText("")}
+								>
+									Reset filters
+								</Button>
+							}
+						/>
 					)}
 					{searchedIcons.map((icon) => (
 						<CopyableValue key={icon.url} value={icon.url}>

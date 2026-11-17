@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Link } from "react-router";
 import { Button } from "#/components/Button/Button";
+import { AnnotationIllustration } from "#/components/EmptyState/components/AnnotationIllustration";
+import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
+import { NoAccessIllustration } from "./components/NoAccessIllustration";
+import { NoResultsIllustration } from "./components/NoResultsIllustration";
+import { NotFoundIllustration } from "./components/NotFoundIllustration";
 import { EmptyState } from "./EmptyState";
 
 const meta: Meta<typeof EmptyState> = {
@@ -25,5 +31,54 @@ export const Compact: Story = {
 		description: "It is easy, just click the button below",
 		cta: <Button>Create workspace</Button>,
 		isCompact: true,
+	},
+};
+
+export const Annotation: Story = {
+	args: {
+		image: <AnnotationIllustration className="-mb-5 h-auto max-w-full" />,
+		message: "Waiting on templates",
+		description:
+			"Workspaces are personal, customizable environments built from templates. Once your admin adds one, it'll show up here and you'll be ready to start.",
+		cta: <Button>Create a template</Button>,
+	},
+};
+
+export const Search: Story = {
+	args: {
+		image: <SearchIllustration className="-mb-5 h-auto max-w-full" />,
+		message: "No workspaces match your filters",
+		description: "Broaden your search to explore more options.",
+		cta: <Button>Reset filters</Button>,
+	},
+};
+
+export const NoEvents: Story = {
+	args: {
+		image: <NoResultsIllustration className="-mb-5 h-auto max-w-full" />,
+		message: "No audit logs available",
+		description:
+			"All we found were birds. Events will appear here as your team uses Coder.",
+	},
+};
+
+export const NotFound: Story = {
+	args: {
+		image: <NotFoundIllustration className="-mb-5 h-auto max-w-full" />,
+		message: "Page not found",
+		description: "This page doesn't exist or may have been moved.",
+		cta: (
+			<Button asChild>
+				<Link to="/">Go to dashboard</Link>
+			</Button>
+		),
+	},
+};
+
+export const NoAccess: Story = {
+	args: {
+		image: <NoAccessIllustration className="-mb-5 h-auto max-w-full" />,
+		message: "Missing permission",
+		description: "Contact your admin to request access.",
 	},
 };
