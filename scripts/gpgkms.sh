@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Runs github.com/coder/gpgkms (pinned by the tool directive in go.mod) with the
+# Runs github.com/coder/gpgkms (a go.mod tool dependency) with the
 # OpenPGP identity of the Cloud KMS release signing key.
 #
 # Usage: ./scripts/gpgkms.sh public-key|sign [flags...]
@@ -20,11 +20,9 @@ fi
 cmd="$1"
 shift
 
-bin_dir="$(mktemp -d)"
-trap 'rm -rf "$bin_dir"' EXIT
-(cd "$PROJECT_ROOT" && go build -o "$bin_dir/gpgkms" github.com/coder/gpgkms/cmd/gpgkms)
-
-"$bin_dir/gpgkms" "$cmd" \
+# go tool needs a working directory inside the module; it is not changed here
+# so relative paths in the arguments keep working.
+exec go tool github.com/coder/gpgkms/cmd/gpgkms "$cmd" \
 	-name "Coder Release Signing Key" \
 	-email "security@coder.com" \
 	-created "2026-11-16T00:00:00Z" \
