@@ -84,11 +84,9 @@ func (p RequestPayload) correlatingToolCallID() *string {
 		// Clients can append items that don't start a new turn after a tool
 		// result. For example, Codex appends a developer message recording an
 		// approved command prefix. Look past them to find the tool result.
-		switch item.Get(reqPathRole).String() {
-		case constDeveloper, constSystem:
-			continue
-		}
-		if item.Get(reqPathType).String() == constReasoning {
+		role := item.Get(reqPathRole).String()
+		itemType := item.Get(reqPathType).String()
+		if role == constDeveloper || role == constSystem || itemType == constReasoning {
 			continue
 		}
 
@@ -100,7 +98,7 @@ func (p RequestPayload) correlatingToolCallID() *string {
 		// Both function and custom (freeform) tool results reference the
 		// originating tool call by call_id. Codex sends custom_tool_call_output
 		// for custom tools such as apply_patch.
-		switch item.Get(reqPathType).String() {
+		switch itemType {
 		case constFunctionCallOutput, constCustomToolCallOutput:
 		default:
 			return nil
