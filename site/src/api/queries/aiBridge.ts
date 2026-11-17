@@ -1,9 +1,14 @@
-import { hashKey, type UseInfiniteQueryOptions } from "react-query";
+import {
+	hashKey,
+	queryOptions,
+	type UseInfiniteQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
+	AISpendPeriodWindow,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
 } from "#/api/typesGenerated";
@@ -81,6 +86,17 @@ export const paginatedOrganizationAISpend = (
 				: undefined,
 	};
 };
+
+/** The organization's AI spend over `period`, in whole UTC days. */
+export const organizationAISpendOverview = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+) =>
+	queryOptions({
+		queryKey: ["organizations", organizationId, "aiSpendOverview", period],
+		queryFn: () =>
+			API.experimental.getOrganizationAISpendOverview(organizationId, period),
+	});
 
 export const infiniteSessionThreads = (sessionId: string) => {
 	return {
