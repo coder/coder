@@ -117,6 +117,10 @@ export const workspaceSkillsFromChat = (
 type ChatPageTimelineProps = {
 	organizationId: string;
 	store: ChatStoreHandle;
+	// The chat record's status, which the timeline uses until the stream
+	// reports one. Without a status the timeline renders the latest turn as
+	// ended.
+	recordStatus?: TypesGen.ChatStatus;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	initialActiveTurnMaxMessageId?: number;
@@ -136,6 +140,7 @@ type ChatPageTimelineProps = {
 export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	organizationId,
 	store,
+	recordStatus,
 	chatFiles,
 	persistedError,
 	initialActiveTurnMaxMessageId,
@@ -153,7 +158,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const chatStatus = useChatSelector(store, selectChatStatus);
+	const chatStatus =
+		useChatSelector(store, selectChatStatus) ?? recordStatus ?? null;
 	const hasStream = useChatSelector(store, selectHasStreamState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
 		store,
@@ -433,7 +439,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				modelOverridesQuery,
 			);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
-	const chatStatus = useChatSelector(store, selectChatStatus);
+	// The chat record's status stands in until the stream reports one.
+	const chatStatus = useChatSelector(store, selectChatStatus) ?? chat.status;
 
 	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.

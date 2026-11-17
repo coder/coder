@@ -16,9 +16,18 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
+import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
+import {
+	MockCollapsedStepsPreferences,
+	MockWorkingMessages,
+} from "./ChatConversation/storyFixtures";
+import {
+	ChatPageInput,
+	ChatPageTimeline,
+	workspaceSkillsFromChat,
+} from "./ChatPageContent";
 
 const skillResource = (
 	name: string,
@@ -205,7 +214,59 @@ afterEach(() => {
 	Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
 });
 
+describe("ChatPageTimeline", () => {
+	it("renders the chat record's status until the stream reports one", async () => {
+		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockCollapsedStepsPreferences,
+		);
+		const store = createChatStore();
+		store.seed({
+			messages: MockWorkingMessages.slice(0, 5),
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 1,
+		});
+		renderWithAuth(
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="organization-id"
+					store={store}
+					recordStatus="running"
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={vi.fn()}
+					urlTransform={(url) => url}
+					mcpServers={[]}
+				/>
+			</MessageScroller.Provider>,
+		);
+		expect(
+			await screen.findByRole("button", { name: /^Working for/ }),
+		).toBeInTheDocument();
+
+		act(() => store.applyServerChatStatus("waiting"));
+		expect(
+			screen.getByRole("button", { name: /^Worked for/ }),
+		).toBeInTheDocument();
+	});
+});
+
 describe("ChatPageInput", () => {
+	it("uses the chat record's status until the stream reports one", async () => {
+		const store = createChatStore();
+		renderChatPageInput(store, {
+			chat: { ...MockChat, id: "", organization_id: "", status: "running" },
+		});
+		expect(
+			await screen.findByRole("button", { name: "Stop" }),
+		).toBeInTheDocument();
+
+		act(() => store.applyServerChatStatus("waiting"));
+		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+	});
+
 	describe.each([
 		{
 			viewer: "read-only viewer",

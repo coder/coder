@@ -620,6 +620,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							<ChatPageTimeline
 								organizationId={organizationId}
 								store={store}
+								recordStatus={chat.status}
 								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
