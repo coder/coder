@@ -8308,6 +8308,12 @@ WITH cleared AS (
         default_parameters = '{}'::jsonb
     WHERE id = $1::uuid
         AND default_template_id = $2::uuid
+        AND EXISTS (
+            SELECT 1
+            FROM chat_project_templates
+            WHERE project_id = $1::uuid
+                AND template_id = $2::uuid
+        )
 )
 DELETE FROM chat_project_templates
 WHERE project_id = $1::uuid
@@ -8322,6 +8328,7 @@ type DeleteChatProjectTemplateParams struct {
 
 // Detaches a template from a project. Detaching the default template also
 // clears the project's defaults, which only apply to an attached template.
+// Nothing changes when the template is not attached.
 func (q *sqlQuerier) DeleteChatProjectTemplate(ctx context.Context, arg DeleteChatProjectTemplateParams) (ChatProjectTemplate, error) {
 	row := q.db.QueryRowContext(ctx, deleteChatProjectTemplate, arg.ProjectID, arg.TemplateID)
 	var i ChatProjectTemplate

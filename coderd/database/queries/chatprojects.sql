@@ -133,6 +133,7 @@ RETURNING *;
 -- name: DeleteChatProjectTemplate :one
 -- Detaches a template from a project. Detaching the default template also
 -- clears the project's defaults, which only apply to an attached template.
+-- Nothing changes when the template is not attached.
 WITH cleared AS (
     UPDATE chat_projects
     SET
@@ -141,6 +142,12 @@ WITH cleared AS (
         default_parameters = '{}'::jsonb
     WHERE id = @project_id::uuid
         AND default_template_id = @template_id::uuid
+        AND EXISTS (
+            SELECT 1
+            FROM chat_project_templates
+            WHERE project_id = @project_id::uuid
+                AND template_id = @template_id::uuid
+        )
 )
 DELETE FROM chat_project_templates
 WHERE project_id = @project_id::uuid
