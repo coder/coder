@@ -361,7 +361,7 @@ const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
 	onChange,
 	disabled,
 }) => {
-	const presetId = useId();
+	const selectId = useId();
 	const presetsQuery = useQuery(templateVersionPresets(templateVersionId));
 
 	if (presetsQuery.data === undefined && presetsQuery.error) {
@@ -386,9 +386,9 @@ const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<Label htmlFor={presetId}>Default preset</Label>
+			<Label htmlFor={selectId}>Default preset</Label>
 			<Select value={value} onValueChange={onChange} disabled={disabled}>
-				<SelectTrigger id={presetId}>
+				<SelectTrigger id={selectId}>
 					<SelectValue placeholder="Select a preset" />
 				</SelectTrigger>
 				<SelectContent>

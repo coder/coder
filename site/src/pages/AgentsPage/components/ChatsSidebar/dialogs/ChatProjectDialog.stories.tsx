@@ -49,6 +49,7 @@ const mockInstanceTypeParameter: PreviewParameter = {
 };
 const mockOutOfRangeParameter: PreviewParameter = {
 	...MockValidationParameter,
+	default_value: { value: "500", valid: true },
 	value: { value: "500", valid: true },
 	diagnostics: [
 		{
@@ -338,7 +339,7 @@ export const DefaultTemplateParameters: Story = {
 	},
 	// Changes one value so the screenshot shows a project default, which can
 	// be reset, next to parameters that keep the template default. One of
-	// those has a value the template rejects.
+	// those has a default the template rejects.
 	play: async (context) => {
 		await pickDefaultParameters(context);
 		await userEvent.click(
