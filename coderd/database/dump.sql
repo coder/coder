@@ -800,7 +800,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token_key_id text,
     oauth_extra jsonb,
     oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
-    refresh_lease_expires_at timestamp with time zone
+    refresh_lease_expires_at timestamp with time zone,
+    oauth_extra_key_id text
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -810,6 +811,8 @@ COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of t
 COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
 
 COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+COMMENT ON COLUMN external_auth_links.oauth_extra_key_id IS 'The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.';
 
 CREATE FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF external_auth_links
     LANGUAGE plpgsql
@@ -5771,6 +5774,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY external_auth_links
+    ADD CONSTRAINT external_auth_links_oauth_extra_key_id_fkey FOREIGN KEY (oauth_extra_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;
