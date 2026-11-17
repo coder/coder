@@ -173,6 +173,10 @@ type sqlcQuerier interface {
 	DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
+	// Detaches a template from a project. Detaching the default template also
+	// clears the project's defaults, which only apply to an attached template.
+	// Nothing changes when the template is not attached.
+	DeleteChatProjectTemplate(ctx context.Context, arg DeleteChatProjectTemplateParams) (ChatProjectTemplate, error)
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
@@ -562,6 +566,12 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Lists the templates attached to the given projects, oldest attachment
+	// first. Deleted, deprecated, and agent-disabled templates are left out
+	// because no chat can use them, whoever asks. The rows are not filtered by
+	// the caller's access to each template, so callers must check that before
+	// exposing a template.
+	GetChatProjectTemplatesByProjectIDs(ctx context.Context, projectIds []uuid.UUID) ([]GetChatProjectTemplatesByProjectIDsRow, error)
 	// Entries match regardless of the actions they grant, so callers must
 	// authorize each row.
 	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
@@ -1284,6 +1294,11 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
+	// Attaches templates to a project and returns the new attachments. Templates
+	// that are already attached are skipped, so their rows keep their original
+	// created_by. Templates outside the project's organization are skipped too,
+	// so an attachment never crosses organizations.
+	InsertChatProjectTemplates(ctx context.Context, arg InsertChatProjectTemplatesParams) ([]ChatProjectTemplate, error)
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.

@@ -2356,6 +2356,15 @@ CREATE TABLE chat_project_memories (
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
 
+CREATE TABLE chat_project_templates (
+    project_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_templates IS 'Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.';
+
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2367,6 +2376,11 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    limit_templates boolean DEFAULT false NOT NULL,
+    default_template_id uuid,
+    default_template_version_preset_id uuid,
+    default_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_default_preset_or_parameters CHECK (((default_template_version_preset_id IS NULL) OR (default_parameters = '{}'::jsonb))),
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
@@ -2382,6 +2396,14 @@ COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the pro
 COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+COMMENT ON COLUMN chat_projects.limit_templates IS 'When true, the project''s chats can only use the templates in chat_project_templates, and none when it has no rows. When false, they can use every template their owner can use.';
+
+COMMENT ON COLUMN chat_projects.default_template_id IS 'Attached template recommended to the project''s chats. Ignored while the template is not attached.';
+
+COMMENT ON COLUMN chat_projects.default_template_version_preset_id IS 'Preset applied when a chat creates a workspace from the default template without choosing one.';
+
+COMMENT ON COLUMN chat_projects.default_parameters IS 'Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -3363,10 +3385,13 @@ CREATE TABLE skills (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     action boolean DEFAULT false NOT NULL,
     model_invocable boolean DEFAULT true NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
     CONSTRAINT skills_acl_only_on_organization_skills CHECK (((organization_id IS NOT NULL) OR ((group_acl = '{}'::jsonb) AND (user_acl = '{}'::jsonb)))),
     CONSTRAINT skills_action_project_only CHECK (((NOT action) OR (project_id IS NOT NULL))),
     CONSTRAINT skills_content_size CHECK ((octet_length(content) <= 65536)),
     CONSTRAINT skills_description_size CHECK ((octet_length(description) <= 4096)),
+    CONSTRAINT skills_display_name_length CHECK ((char_length(display_name) <= 64)),
+    CONSTRAINT skills_display_name_project_only CHECK (((display_name = ''::text) OR (project_id IS NOT NULL))),
     CONSTRAINT skills_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
     CONSTRAINT skills_name_size CHECK ((octet_length(name) <= 256)),
@@ -4721,6 +4746,9 @@ ALTER TABLE ONLY chat_project_instructions
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_pkey PRIMARY KEY (project_id, template_id);
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
@@ -5675,6 +5703,21 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_id_fkey FOREIGN KEY (default_template_id) REFERENCES templates(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_version_preset_id_fkey FOREIGN KEY (default_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
