@@ -121,10 +121,6 @@ type Manager struct {
 	runStartedCh chan struct{}
 
 	watcher *Watcher
-
-	// watchSyncMu serializes watcher syncs. It is acquired before mu,
-	// never while mu is held.
-	watchSyncMu sync.Mutex
 }
 
 // NewManager validates options and canonicalizes initial sources. The
@@ -252,16 +248,14 @@ func (m *Manager) Run(ctx context.Context) error {
 }
 
 // syncWatcher applies the current scan roots and resolve options to
-// watcher. Captures and syncs are serialized, so the last sync to run
-// always applies the newest state. m.mu must not be held.
+// watcher. The watcher reads them under its own lock, so m.mu must not
+// be held.
 func (m *Manager) syncWatcher(ctx context.Context, watcher *Watcher) {
-	m.watchSyncMu.Lock()
-	defer m.watchSyncMu.Unlock()
-	m.mu.Lock()
-	roots := m.scanRootsLocked()
-	opts := m.resolveOptionsLocked()
-	m.mu.Unlock()
-	watcher.Sync(ctx, roots, opts)
+	watcher.SyncLatest(ctx, func() ([]ScanRoot, ResolveOptions) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return m.scanRootsLocked(), m.resolveOptionsLocked()
+	})
 }
 
 // started returns a channel that is closed once Run has

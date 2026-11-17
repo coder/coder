@@ -29,6 +29,8 @@ export const isWatchedWorkspaceViewUnchanged = (
 	return (
 		prev.latest_build.id === next.latest_build.id &&
 		prev.latest_build.status === next.latest_build.status &&
+		prev.latest_build.job.logs_overflowed ===
+			next.latest_build.job.logs_overflowed &&
 		prev.health.healthy === next.health.healthy &&
 		prev.name === next.name &&
 		prev.owner_name === next.owner_name &&
@@ -37,6 +39,7 @@ export const isWatchedWorkspaceViewUnchanged = (
 		prevAgent?.name === nextAgent?.name &&
 		prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
 		prevAgent?.lifecycle_state === nextAgent?.lifecycle_state &&
+		prevAgent?.logs_overflowed === nextAgent?.logs_overflowed &&
 		prevApps.length === nextApps.length &&
 		prevApps.every((prevApp, index) => {
 			const nextApp = nextApps[index];
@@ -76,6 +79,7 @@ type _UncoveredAgentFields = Omit<
 	| "name"
 	| "expanded_directory"
 	| "lifecycle_state"
+	| "logs_overflowed"
 	// Fields below are intentionally not compared. They change
 	// frequently (stats, metadata) or are objects/arrays that would
 	// require deep comparison, and the UI does not read them.
@@ -93,7 +97,6 @@ type _UncoveredAgentFields = Omit<
 	| "environment_variables"
 	| "operating_system"
 	| "logs_length"
-	| "logs_overflowed"
 	| "directory"
 	| "version"
 	| "api_version"
