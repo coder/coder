@@ -89,7 +89,7 @@ export const RightPanelAddTabControl: React.FC<{
 	visibleSingletonTabs: readonly SingletonRightPanelTabId[];
 	onToggleSingletonTab: (tabId: SingletonRightPanelTabId) => void;
 	onNewTerminal: () => void;
-	onOpenWorkspaceApp: (app: WorkspaceApp) => void;
+	onOpenWorkspaceApp: (app: WorkspaceApp, urlPath?: string) => void;
 	onOpenCommandApp: (app: WorkspaceApp) => void;
 	onOpenPort: (selection: PortSelection) => void;
 }> = ({

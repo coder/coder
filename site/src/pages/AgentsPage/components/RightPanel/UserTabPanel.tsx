@@ -53,7 +53,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 				return null;
 			}
 
-			return <AppPanel workspace={workspace} app={app} />;
+			return <AppPanel workspace={workspace} app={app} urlPath={tab.urlPath} />;
 		}
 		case "port": {
 			const agent = workspace && findWorkspaceAgent(workspace, tab.agentId);
