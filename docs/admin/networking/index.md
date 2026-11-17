@@ -166,6 +166,10 @@ Set `browser_only` on the template with [`PATCH /api/v2/templates/{template}`](.
 Coder then refuses SSH, port forwarding and desktop IDE connections to workspaces built from that template, and leaves the other templates in the deployment alone.
 Coder Desktop does not list workspaces built from a browser-only template.
 
+The setting applies to new connections only.
+Connections that were open before you turned it on stay open until they close.
+After you turn it off, Coder Desktop lists the workspace again on the next update to that user's workspaces, such as a workspace start or stop.
+
 The deployment-wide setting still applies on top.
 While `CODER_BROWSER_ONLY` is set, every template refuses those connections regardless of its own setting.
 
