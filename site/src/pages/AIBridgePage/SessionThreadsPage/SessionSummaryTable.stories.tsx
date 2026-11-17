@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockAIBridgeSessionOrganization,
+	MockAIBridgeSessionOrganization2,
+	MockSession,
+} from "#/testHelpers/entities";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 
 const meta: Meta<typeof SessionSummaryTable> = {
@@ -182,5 +186,29 @@ export const NetworkSingleDomain: Story = {
 	play: async ({ canvas }) => {
 		await expect(canvas.getByText("api.github.com")).toBeInTheDocument();
 		await expect(canvas.queryByText(/more$/)).toBeNull();
+	},
+};
+
+export const OneOrganization: Story = {
+	args: {
+		...Default.args,
+		organizations: [MockAIBridgeSessionOrganization],
+	},
+};
+
+export const MultipleOrganizations: Story = {
+	args: {
+		...Default.args,
+		organizations: [
+			MockAIBridgeSessionOrganization,
+			MockAIBridgeSessionOrganization2,
+		],
+	},
+};
+
+export const OrganizationNotRecorded: Story = {
+	args: {
+		...Default.args,
+		organizations: [],
 	},
 };

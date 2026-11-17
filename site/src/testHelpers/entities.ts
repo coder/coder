@@ -41,6 +41,24 @@ export const MockOrganization2: TypesGen.Organization = {
 	default_org_member_roles: ["organization-workspace-access"],
 };
 
+export const MockAIBridgeSessionOrganization: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+		sources: ["workspace"],
+	};
+
+export const MockAIBridgeSessionOrganization2: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization2.id,
+		name: MockOrganization2.name,
+		display_name: MockOrganization2.display_name,
+		icon: MockOrganization2.icon,
+		sources: ["effective_group"],
+	};
+
 export const MockOrganization3: TypesGen.Organization = {
 	id: "my-organization-3-id",
 	name: "my-organization-3",

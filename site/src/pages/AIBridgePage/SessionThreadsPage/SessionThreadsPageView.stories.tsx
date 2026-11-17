@@ -3,6 +3,7 @@ import { expect, userEvent, waitFor } from "storybook/test";
 import type { AIBridgeSessionThreadsResponse } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
+	MockAIBridgeSessionOrganization,
 	MockAIBridgeThread,
 	MockSession,
 } from "#/testHelpers/entities";
@@ -45,6 +46,7 @@ const meta: Meta<typeof SessionThreadsPageView> = {
 		onFetchNextPage: noop,
 		isAISessionsEnabled: true,
 		isAISessionsEntitled: true,
+		showOrganizations: false,
 		onBackClicked: noop,
 	},
 };
@@ -53,6 +55,16 @@ export default meta;
 type Story = StoryObj<typeof SessionThreadsPageView>;
 
 export const Default: Story = {};
+
+export const WithOrganizations: Story = {
+	args: {
+		showOrganizations: true,
+		session: {
+			...mockSession,
+			organizations: [MockAIBridgeSessionOrganization],
+		},
+	},
+};
 
 export const SearchFiltersEvents: Story = {
 	args: {

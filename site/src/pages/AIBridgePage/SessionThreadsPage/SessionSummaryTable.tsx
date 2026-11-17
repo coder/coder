@@ -1,7 +1,9 @@
 import { BanIcon } from "lucide-react";
+import { Link as RouterLink } from "react-router";
 import type {
 	AIBridgeSessionNetworkCallSummary,
 	AIBridgeSessionNetworkDomain,
+	AIBridgeSessionOrganization,
 	MinimalUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -30,6 +32,9 @@ type SessionSummaryTableProps = {
 	initiator: MinimalUser;
 	client: string;
 	providers: readonly string[];
+	// organizations is undefined when organizations are hidden, which omits the
+	// row. An empty list renders as "Not recorded".
+	organizations?: readonly AIBridgeSessionOrganization[];
 	inputTokens: number;
 	outputTokens: number;
 	cacheReadTokens: number;
@@ -58,6 +63,7 @@ export const SessionSummaryTable = ({
 	initiator,
 	providers,
 	client,
+	organizations,
 	inputTokens,
 	outputTokens,
 	cacheReadTokens,
@@ -179,6 +185,35 @@ export const SessionSummaryTable = ({
 					))}
 				</dd>
 			</div>
+
+			{organizations !== undefined && (
+				<div className="flex items-start justify-between">
+					<dt className="shrink-0 font-normal whitespace-nowrap mt-1">
+						Organization
+					</dt>
+					<dd className="ml-4 min-w-0 text-content-primary flex flex-wrap gap-1">
+						{organizations.length === 0
+							? "Not recorded"
+							: organizations.map((org) => (
+									<Badge
+										key={org.id}
+										asChild
+										hover
+										className="max-w-full min-w-0"
+									>
+										<RouterLink to={`/organizations/${org.name}`}>
+											<span
+												className="truncate min-w-0"
+												title={org.display_name || org.name}
+											>
+												{org.display_name || org.name}
+											</span>
+										</RouterLink>
+									</Badge>
+								))}
+					</dd>
+				</div>
+			)}
 
 			<Separator />
 
