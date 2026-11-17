@@ -280,6 +280,8 @@ An administrator role that can view every project does not count.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
 
 **Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
+While it is on, **Display name** sets the button's label, such as "Security review" for a skill named `security-review`, up to 64 characters.
+An empty display name shows the skill name, and the `/` menu always uses the skill name.
 Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu, by typing its alias, or with an action button.
 
 The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
