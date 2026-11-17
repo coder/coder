@@ -422,9 +422,8 @@ export const NoReadableOrganizationIsNotFound: Story = {
 	},
 	parameters: { queries: [] },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText("This page could not be found."),
-		).toBeVisible();
+		await within(canvasElement).findByRole("heading", {
+			name: "Page not found",
+		});
 	},
 };
