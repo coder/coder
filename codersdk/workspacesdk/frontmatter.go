@@ -3,6 +3,7 @@ package workspacesdk
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
@@ -96,6 +97,49 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 	}
 
 	return name, description, body, nil
+}
+
+// MaxSkillCompatibilityRunes is the Agent Skills limit, in characters,
+// on a skill's compatibility frontmatter field.
+const MaxSkillCompatibilityRunes = 500
+
+// ValidateSkillOptionalFrontmatter checks the optional Agent Skills
+// frontmatter fields of a skill meta file: license and allowed-tools
+// must be strings, compatibility must be a string of 1 to
+// MaxSkillCompatibilityRunes characters, and metadata must map string
+// keys to string values. Absent fields and fields outside the Agent
+// Skills specification are not checked.
+func ValidateSkillOptionalFrontmatter(content string) error {
+	frontmatter, _, err := splitSkillFrontmatter(content)
+	if err != nil {
+		return err
+	}
+	for _, key := range []string{"license", "allowed-tools"} {
+		if _, _, err := frontmatterStringField(frontmatter, key); err != nil {
+			return err
+		}
+	}
+	compatibility, ok, err := frontmatterStringField(frontmatter, "compatibility")
+	if err != nil {
+		return err
+	}
+	if n := utf8.RuneCountInString(compatibility); ok && (n == 0 || n > MaxSkillCompatibilityRunes) {
+		return xerrors.Errorf("frontmatter field \"compatibility\" is %d characters, must be 1 to %d", n, MaxSkillCompatibilityRunes)
+	}
+	metadata, ok := frontmatter["metadata"]
+	if !ok {
+		return nil
+	}
+	fields, ok := metadata.(map[string]any)
+	if !ok {
+		return xerrors.New("frontmatter field \"metadata\" must be a mapping of strings to strings")
+	}
+	for key, value := range fields {
+		if _, ok := value.(string); !ok {
+			return xerrors.Errorf("frontmatter field \"metadata\" value for %q must be a string", key)
+		}
+	}
+	return nil
 }
 
 // SkillDisablesModelInvocation reports whether a skill meta file's
