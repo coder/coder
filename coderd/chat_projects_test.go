@@ -979,3 +979,89 @@ func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUI
 		Do()
 	return template, preset
 }
+
+func TestChatProjectWorkspaceTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, api := newChatProjectClientWithAPI(t)
+	db := api.Database
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+	orgID := firstUser.OrganizationID
+
+	allowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	other, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	// A project limits nothing until it opts in, whatever is attached.
+	unlimited, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:        "Unlimited",
+		TemplateIDs: []uuid.UUID{allowed.ID},
+	})
+	require.NoError(t, err)
+	limited, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:           "Limited",
+		LimitTemplates: true,
+		TemplateIDs:    []uuid.UUID{allowed.ID},
+	})
+	require.NoError(t, err)
+	workspace := func(templateID uuid.UUID) uuid.UUID {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        firstUser.UserID,
+			TemplateID:     templateID,
+		}).Do().Workspace.ID
+	}
+	allowedWorkspace, otherWorkspace := workspace(allowed.ID), workspace(other.ID)
+	createChat := func(projectID, workspaceID uuid.UUID) (codersdk.Chat, error) {
+		return client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
+			ProjectID:      &projectID,
+			WorkspaceID:    &workspaceID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "attach"}},
+		})
+	}
+	const notAllowed = "This template is not one of the templates the chat's project allows."
+	requireNotAllowed := func(err error) {
+		t.Helper()
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, notAllowed, sdkErr.Message)
+	}
+
+	_, err = createChat(unlimited.ID, otherWorkspace)
+	require.NoError(t, err)
+
+	_, err = createChat(limited.ID, otherWorkspace)
+	requireNotAllowed(err)
+	chat, err := createChat(limited.ID, allowedWorkspace)
+	require.NoError(t, err)
+	requireNotAllowed(client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &otherWorkspace}))
+	require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{WorkspaceID: &allowedWorkspace}))
+
+	// A request that moves the chat and binds a workspace is checked
+	// against the project the chat moves to, not the one it leaves.
+	moving := createIdleChat(ctx, t, client, api, orgID)
+	requireNotAllowed(client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID, WorkspaceID: &otherWorkspace}))
+	requireChatProjectID(ctx, t, client, moving.ID, nil)
+	require.NoError(t, client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID}))
+	require.NoError(t, client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &unlimited.ID, WorkspaceID: &otherWorkspace}))
+
+	// When that move is refused, the chat stays in a project the workspace
+	// was not checked against, so the binding must not be kept.
+	active := createIdleChat(ctx, t, client, api, orgID)
+	require.NoError(t, client.UpdateChat(ctx, active.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID}))
+	_ = createSubagentChat(t, api, active, database.ChatStatusRunning)
+	err = client.UpdateChat(ctx, active.ID, codersdk.UpdateChatRequest{ProjectID: &unlimited.ID, WorkspaceID: &otherWorkspace})
+	requireSDKError(t, err, http.StatusConflict)
+	active, err = client.GetChat(ctx, active.ID)
+	require.NoError(t, err)
+	require.Nil(t, active.WorkspaceID)
+
+	// The create_workspace tool binds through this path.
+	unbound := createChatInProject(t, client, orgID, &limited.ID)
+	_, _, err = coderd.ChatCreateWorkspace(api, ctx, firstUser.UserID, unbound.ID, codersdk.CreateWorkspaceRequest{
+		TemplateID: other.ID,
+		Name:       "not-attached",
+	})
+	require.ErrorContains(t, err, notAllowed)
+}
