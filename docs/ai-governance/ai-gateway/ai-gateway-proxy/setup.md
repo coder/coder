@@ -453,7 +453,7 @@ WARN  rejecting CONNECT request  host=... provider=... reason=missing_credential
 `reason=missing_credentials` means no `Proxy-Authorization` header was sent.
 `reason=invalid_credentials` means a header was sent but no token could be read from the password field.
 
-A `401 Unauthorized` from AI Gateway means the token was rejected as expired or invalid.
+If AI Gateway rejects the token as expired or invalid, it returns `403 Forbidden` with the body `unauthorized`.
 
 > [!NOTE]
 > Some clients might send the first request without credentials and retry on a `407` response.

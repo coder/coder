@@ -272,9 +272,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						<span className="truncate text-sm text-content-primary">
+						<h2 className="m-0 truncate text-sm text-content-primary">
 							{chatTitle}
-						</span>
+						</h2>
 						{isSharedChat && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"

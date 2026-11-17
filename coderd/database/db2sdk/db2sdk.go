@@ -1668,6 +1668,46 @@ func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) coder
 	}
 }
 
+func OrganizationAISpendOverviewUsers(rows []database.ListOrganizationAISpendPerUserRow) []codersdk.OrganizationAISpendOverviewUser {
+	users := make([]codersdk.OrganizationAISpendOverviewUser, 0, len(rows))
+	// userIndex maps a user to their position in users, which keeps the
+	// query's user order.
+	userIndex := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		i, ok := userIndex[row.UserID]
+		if !ok {
+			i = len(users)
+			userIndex[row.UserID] = i
+			users = append(users, codersdk.OrganizationAISpendOverviewUser{
+				UserID:      row.UserID,
+				Username:    row.Username,
+				Name:        row.Name,
+				AvatarURL:   row.AvatarURL,
+				SpendMicros: row.SpendMicros,
+				Groups:      []codersdk.OrganizationAISpendOverviewGroup{},
+			})
+		}
+		users[i].Groups = append(users[i].Groups, codersdk.OrganizationAISpendOverviewGroup{
+			GroupID:          row.GroupID,
+			GroupName:        row.GroupName,
+			GroupDisplayName: row.GroupDisplayName,
+			SpendMicros:      row.GroupSpendMicros,
+		})
+	}
+	return users
+}
+
+func OrganizationAISpendOverviewIntervals(rows []database.GetOrganizationAISpendPerDayRow) []codersdk.OrganizationAISpendOverviewInterval {
+	return slice.List(rows, func(row database.GetOrganizationAISpendPerDayRow) codersdk.OrganizationAISpendOverviewInterval {
+		start := row.Day.UTC()
+		return codersdk.OrganizationAISpendOverviewInterval{
+			StartTime:   start,
+			EndTime:     start.AddDate(0, 0, 1),
+			SpendMicros: row.SpendMicros,
+		}
+	})
+}
+
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
 	member := codersdk.GroupMemberAISpend{
 		UserID:           row.UserID,
@@ -2543,6 +2583,7 @@ func Skill(skill database.Skill) codersdk.Skill {
 		SkillMetadata: codersdk.SkillMetadata{
 			ID:             skill.ID,
 			Name:           skill.Name,
+			DisplayName:    skill.DisplayName,
 			Description:    skill.Description,
 			Enabled:        skill.Enabled,
 			Action:         skill.Action,
@@ -2562,6 +2603,7 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 		metadata = append(metadata, codersdk.SkillMetadata{
 			ID:             row.ID,
 			Name:           row.Name,
+			DisplayName:    row.DisplayName,
 			Description:    row.Description,
 			Enabled:        row.Enabled,
 			Action:         row.Action,

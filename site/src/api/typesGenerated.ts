@@ -3136,6 +3136,17 @@ export interface ChatMessagesResponse {
 	 * and when no prompt is at or before that message.
 	 */
 	readonly turn_start_id?: number;
+	/**
+	 * SnapshotVersion is the chat's snapshot version, a number that the
+	 * server increases each time it changes the chat's messages, queue or
+	 * status. The server sets it only when the request has neither
+	 * before_id nor after_id. Pass it as the stream's snapshot_version
+	 * parameter. The server reads this version before the page's messages
+	 * and queued messages, so the page can include changes made at a
+	 * higher version. The stream can send changes that are already in the
+	 * page.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3879,6 +3890,19 @@ export interface ChatStreamEvent {
 	 */
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	/**
+	 * HistoryReset is set on history_reset events of streams opened with a
+	 * snapshot_version.
+	 */
+	readonly history_reset?: ChatStreamHistoryReset;
+	/**
+	 * SnapshotVersion is set on the message, queue_update and history_reset
+	 * events of streams opened with a snapshot_version. It is the chat's
+	 * snapshot version when the change that the event reports was made. To
+	 * reconnect, open the stream with the highest one received from the
+	 * messages page or from events.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3904,6 +3928,20 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"retry",
 	"status",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatStreamHistoryReset identifies the messages that an edit deleted.
+ */
+export interface ChatStreamHistoryReset {
+	/**
+	 * FromMessageID is the ID of a message that was edited. The edit deleted
+	 * that message and every message after it. When managing history state,
+	 * delete every message with this ID or higher. The messages that follow
+	 * were written by the edit or after it and should be kept.
+	 */
+	readonly from_message_id: number;
+}
 
 // From codersdk/chats.go
 /**
@@ -4682,6 +4720,12 @@ export interface CreateSkillRequest {
 	 * Action is only accepted for project skills and defaults to false.
 	 */
 	readonly action?: boolean;
+	/**
+	 * DisplayName is only accepted for project skills. It must be a single
+	 * line of at most MaxSkillDisplayNameLength characters, and surrounding
+	 * whitespace is trimmed.
+	 */
+	readonly display_name?: string;
 	/**
 	 * ModelInvocable defaults to false when the content's frontmatter sets
 	 * disable-model-invocation: true, and to true otherwise.
@@ -5791,6 +5835,7 @@ export type Experiment =
 	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
+	| "agent-plugins"
 	| "chat-acp-subagents"
 	| "chat-automations"
 	| "chat-inline-mcp-servers"
@@ -5871,6 +5916,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
+	"agent-plugins",
 	"chat-acp-subagents",
 	"chat-automations",
 	"chat-inline-mcp-servers",
@@ -6415,6 +6461,8 @@ export type HealthCode =
 	| "EWP02"
 	| "EWP04"
 	| "EWP01"
+	| "EPS01"
+	| "EPS02"
 	| "EUNKNOWN"
 	| "EWS01"
 	| "EWS02"
@@ -6445,6 +6493,8 @@ export const HealthCodes: HealthCode[] = [
 	"EWP02",
 	"EWP04",
 	"EWP01",
+	"EPS01",
+	"EPS02",
 	"EUNKNOWN",
 	"EWS01",
 	"EWS02",
@@ -6466,6 +6516,7 @@ export type HealthSection =
 	| "DERP"
 	| "Database"
 	| "ProvisionerDaemons"
+	| "Pubsub"
 	| "Websocket"
 	| "WorkspaceProxy";
 
@@ -6474,6 +6525,7 @@ export const HealthSections: HealthSection[] = [
 	"DERP",
 	"Database",
 	"ProvisionerDaemons",
+	"Pubsub",
 	"Websocket",
 	"WorkspaceProxy",
 ];
@@ -6537,6 +6589,7 @@ export interface HealthcheckReport {
 	readonly database: DatabaseReport;
 	readonly workspace_proxy: WorkspaceProxyReport;
 	readonly provisioner_daemons: ProvisionerDaemonsReport;
+	readonly pubsub: PubsubReport;
 	/**
 	 * The Coder version of the server that the report was generated on.
 	 */
@@ -7095,6 +7148,14 @@ export const MaxInlineMCPServersBytes = 24576;
  * MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
  */
 export const MaxSecretsFileBytes = 1048576; // 1 MiB
+
+// From codersdk/skills.go
+/**
+ * MaxSkillDisplayNameLength is the maximum length of a skill display name,
+ * counted in Unicode code points after surrounding whitespace is trimmed, not
+ * in bytes or UTF-16 units.
+ */
+export const MaxSkillDisplayNameLength = 64;
 
 // From codersdk/usersecretvalidation.go
 /**
@@ -8052,6 +8113,96 @@ export interface OrganizationAISpendFilter {
 	 * matches usage without a recorded client.
 	 */
 	readonly client?: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverview is the AI spend of an organization over the
+ * applied period, read from the daily spend aggregate. Count, Totals, and
+ * Intervals cover every user with spend.
+ */
+export interface OrganizationAISpendOverview extends AISpendPeriodWindow {
+	/**
+	 * Count is the number of users with spend in the period.
+	 */
+	readonly count: number;
+	readonly totals: OrganizationAISpendOverviewTotals;
+	/**
+	 * Intervals holds the daily spend, one interval per UTC day in the period
+	 * (omitting days after the current day). Days without spend are zero. When
+	 * the period includes the current day, its interval only has the spend
+	 * recorded so far.
+	 */
+	readonly intervals: readonly OrganizationAISpendOverviewInterval[];
+	/**
+	 * Users is the requested page, most spend first.
+	 */
+	readonly users: readonly OrganizationAISpendOverviewUser[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewGroup is a group that a user's spend was
+ * attributed to in the period, and the amount attributed to it.
+ */
+export interface OrganizationAISpendOverviewGroup {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	/**
+	 * SpendMicros is the user's spend attributed to this group in the period.
+	 */
+	readonly spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewInterval is the spend of an organization over the
+ * [StartTime, EndTime) interval.
+ */
+export interface OrganizationAISpendOverviewInterval {
+	readonly start_time: string;
+	readonly end_time: string;
+	readonly spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewTotals summarizes the organization's spend in
+ * the period.
+ */
+export interface OrganizationAISpendOverviewTotals {
+	/**
+	 * SpendMicros is the total spend of all users in the period.
+	 */
+	readonly spend_micros: number;
+	/**
+	 * MedianSpendMicros is the median spend across users with spend in the
+	 * period. It is zero when no user has spend.
+	 */
+	readonly median_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewUser is one user's spend within an organization
+ * overview.
+ */
+export interface OrganizationAISpendOverviewUser {
+	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	/**
+	 * SpendMicros is the user's total spend in the period, across all of
+	 * their groups.
+	 */
+	readonly spend_micros: number;
+	/**
+	 * Groups are the groups the user's spend was attributed to, most spend
+	 * first.
+	 */
+	readonly groups: readonly OrganizationAISpendOverviewGroup[];
 }
 
 // From codersdk/aibridge.go
@@ -9062,6 +9213,17 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unregistered",
 ];
 
+// From healthsdk/healthsdk.go
+/**
+ * PubsubReport shows the health of the pubsub backend.
+ */
+export interface PubsubReport extends BaseReport {
+	/**
+	 * Backend is the pubsub implementation in use.
+	 */
+	readonly backend: string;
+}
+
 // From codersdk/experimentrules.go
 /**
  * PutExperimentRuleRequest replaces the runtime rule of one experiment.
@@ -10023,6 +10185,12 @@ export interface SkillMetadata {
 	readonly description: string;
 	readonly enabled: boolean;
 	/**
+	 * DisplayName labels a project skill's action. When it is empty, clients
+	 * show Name instead. It is always empty for personal and organization
+	 * skills.
+	 */
+	readonly display_name: string;
+	/**
 	 * Action reports whether a project skill is offered as a one-click
 	 * action above project composers. It is always false for personal and
 	 * organization skills.
@@ -10062,12 +10230,23 @@ export interface StatsCollectionConfig {
  */
 export interface StreamChatOptions {
 	/**
-	 * AfterID limits the initial snapshot to messages created
-	 * after the given ID. This is useful for relay connections
-	 * that only need live message_part events and can skip the
-	 * full message history.
+	 * AfterID is a message ID that selects the messages the stream sends
+	 * when it opens. The server uses it only when SnapshotVersion is unset.
+	 * When AfterID is the ID of a non-deleted message in the chat, the
+	 * stream sends only the non-deleted messages with a higher ID. When it
+	 * is unset or the ID of a deleted message in the chat, the stream sends
+	 * every non-deleted message, after a history_reset event if the chat
+	 * has a deleted message.
 	 */
 	readonly AfterID: number | null;
+	/**
+	 * SnapshotVersion is a snapshot version of the chat. When it is set,
+	 * the stream sends what changed at that version or later: each
+	 * non-deleted message written, a history_reset event for each edit,
+	 * and the queue if it changed. Set it to the highest one received in a
+	 * ChatMessagesResponse or a ChatStreamEvent.
+	 */
+	readonly SnapshotVersion: number;
 }
 
 // From codersdk/client.go
@@ -11372,6 +11551,11 @@ export interface UpdateSkillRequest {
 	 * off and false turns it on.
 	 */
 	readonly model_invocable?: boolean;
+	/**
+	 * DisplayName is only accepted for project skills. An empty value
+	 * clears it.
+	 */
+	readonly display_name?: string;
 }
 
 // From codersdk/templates.go
@@ -11517,6 +11701,11 @@ export interface UpdateUserAppearanceSettingsRequest {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+	/**
+	 * TerminalFontSize is optional for backward compatibility. When zero,
+	 * the server leaves the persisted terminal font size unchanged.
+	 */
+	readonly terminal_font_size?: number;
 }
 
 // From codersdk/chats.go
@@ -11967,6 +12156,11 @@ export interface UserAppearanceSettings {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+	/**
+	 * TerminalFontSize is the web terminal font size in pixels. Zero means
+	 * the user has not chosen a size, and the web terminal will use the default.
+	 */
+	readonly terminal_font_size: number;
 }
 
 // From codersdk/chats.go
