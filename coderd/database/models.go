@@ -5454,6 +5454,8 @@ type ChatContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 type ChatDebugRun struct {
@@ -6371,6 +6373,7 @@ type Skill struct {
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
 	Action         bool          `db:"action" json:"action"`
 	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
+	DisplayName    string        `db:"display_name" json:"display_name"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
@@ -6931,6 +6934,8 @@ type WorkspaceAgentContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 // Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.

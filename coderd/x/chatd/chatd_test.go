@@ -1788,7 +1788,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -1801,11 +1801,13 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 			},
 		})
 		return err
-	}))
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	_, err = rawDB.ExecContext(ctx,
 		"UPDATE chats SET requires_action_deadline_at = $1 WHERE id = $2",
 		time.Now().Add(-time.Hour), created.Chat.ID)
@@ -1872,10 +1874,11 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	deadWorkerID := uuid.New()
 	deadRunnerID := uuid.New()
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: deadWorkerID, RunnerID: deadRunnerID})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	// Simulate a chat left running by a dead replica with a stale
 	// heartbeat (well beyond the stale threshold).
 	_, err = rawDB.ExecContext(ctx,
@@ -5424,7 +5427,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -5432,8 +5435,9 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 				}),
 			})
 			return err
-		}))
-		chat, err := db.GetChatByID(ctx, chat.ID)
+		})
+		require.NoError(t, err)
+		chat, err = db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
@@ -5664,7 +5668,7 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -5672,8 +5676,9 @@ func TestActiveServer_ManualClear(t *testing.T) {
 				}),
 			})
 			return err
-		}))
-		chat, err := db.GetChatByID(ctx, chat.ID)
+		})
+		require.NoError(t, err)
+		chat, err = db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
@@ -9466,7 +9471,7 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 				// A worker acquires the chat, sees it interrupted, and
 				// abandons it before its runner starts.
 				machine := chatstate.NewChatMachine(db, ps, chat.ID)
-				require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					if _, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()}); err != nil {
 						return err
 					}
@@ -9475,7 +9480,8 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 					}
 					_, err := tx.Abandon(chatstate.AbandonInput{})
 					return err
-				}))
+				})
+				require.NoError(t, err)
 			}
 			chat, err = db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)

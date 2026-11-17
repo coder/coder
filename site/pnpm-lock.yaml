@@ -172,13 +172,13 @@ overrides:
   brace-expansion@<2: 1.1.21
   minimatch@>=10: 11.0.1
 
-patchedDependencies:
-  frimousse@0.4.0: 98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665
-
 importers:
 
   .:
     dependencies:
+      '@coder/frimousse':
+        specifier: 0.4.1
+        version: 0.4.1(react@19.3.1)(typescript@6.0.2)
       '@dnd-kit/abstract':
         specifier: 0.5.1
         version: 0.5.1
@@ -290,9 +290,6 @@ importers:
       formik:
         specifier: 2.4.9
         version: 2.4.9(@types/react@19.3.0)(react@19.3.1)
-      frimousse:
-        specifier: 0.4.0
-        version: 0.4.0(patch_hash=98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665)(react@19.3.1)(typescript@6.0.2)
       front-matter:
         specifier: 4.0.2
         version: 4.0.2
@@ -378,8 +375,8 @@ importers:
         specifier: 7.8.5
         version: 7.8.5
       sonner:
-        specifier: 2.0.7
-        version: 2.0.7(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 2.0.8
+        version: 2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       streamdown:
         specifier: 2.6.0
         version: 2.6.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)
@@ -775,6 +772,15 @@ packages:
 
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==, tarball: https://registry.npmjs.org/@chevrotain/types/-/types-11.1.2.tgz}
+
+  '@coder/frimousse@0.4.1':
+    resolution: {integrity: sha512-rjkXblZmqCa5rdfhd1ho11j/DautYGo2hBAzCnolKUTl4KNZB5mu8NdXjtJvF6AboqMzZ2HjZTcXlHZus5F2mg==, tarball: https://registry.npmjs.org/@coder/frimousse/-/frimousse-0.4.1.tgz}
+    peerDependencies:
+      react: ^18 || ^19
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@coder/pixel-storybook@0.3.0':
     resolution: {integrity: sha512-+M3tr9lfjN/B2v3XCYDeAcz4TqZnN80Xa1ezpBS1NejsmhGf6RePWDz9ksgLmHGJ0iCmAypjbCX8BFosOfYeoA==, tarball: https://registry.npmjs.org/@coder/pixel-storybook/-/pixel-storybook-0.3.0.tgz}
@@ -4635,15 +4641,6 @@ packages:
     resolution: {integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==, tarball: https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz}
     engines: {node: '>= 0.6'}
 
-  frimousse@0.4.0:
-    resolution: {integrity: sha512-wA/1Xt9UTk51wYNpy+EvHKPUA4jdm4NuEFzSNNZxqT0Nxrj4RFwYByjRMuaq4qSLOco/ikDCpLKesB8W1w2q+Q==, tarball: https://registry.npmjs.org/frimousse/-/frimousse-0.4.0.tgz}
-    peerDependencies:
-      react: ^18 || ^19
-      typescript: '>=5.1.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   front-matter@4.0.2:
     resolution: {integrity: sha512-I8ZuJ/qG92NWX8i5x1Y8qyj3vizhXS31OxjKDu3LKP+7/qBgfIKValiZIEwoVoJKUHlhWtYrktkxV1XsX+pPlg==, tarball: https://registry.npmjs.org/front-matter/-/front-matter-4.0.2.tgz}
 
@@ -6308,11 +6305,15 @@ packages:
     resolution: {integrity: sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==, tarball: https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.1.tgz}
     engines: {node: '>= 18'}
 
-  sonner@2.0.7:
-    resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==, tarball: https://registry.npmjs.org/sonner/-/sonner-2.0.7.tgz}
+  sonner@2.0.8:
+    resolution: {integrity: sha512-UM/ByIoFra8yzV75n1o0Puu0bw5U/9UNnDacrJNspekBewIfsQ3D6ez1nvlWpt7aTsO6rujQtifBpycwIivqlg==, tarball: https://registry.npmjs.org/sonner/-/sonner-2.0.8.tgz}
     peerDependencies:
+      '@types/react': ^18.0.0 || ^19.0.0
       react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==, tarball: https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.2.tgz}
@@ -7254,6 +7255,12 @@ snapshots:
       tough-cookie: 4.1.4
 
   '@chevrotain/types@11.1.2': {}
+
+  '@coder/frimousse@0.4.1(react@19.3.1)(typescript@6.0.2)':
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      typescript: 6.0.2
 
   '@coder/pixel-storybook@0.3.0(playwright-core@1.63.0)(storybook@10.6.2(@types/react@19.3.0)(prettier@3.4.1)(react@19.3.1))':
     dependencies:
@@ -10941,12 +10948,6 @@ snapshots:
 
   fresh@0.5.2: {}
 
-  frimousse@0.4.0(patch_hash=98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665)(react@19.3.1)(typescript@6.0.2):
-    dependencies:
-      react: 19.3.1
-    optionalDependencies:
-      typescript: 6.0.2
-
   front-matter@4.0.2:
     dependencies:
       js-yaml: 3.15.2
@@ -13093,10 +13094,12 @@ snapshots:
 
   smol-toml@1.9.1: {}
 
-  sonner@2.0.7(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  sonner@2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   source-map-js@1.2.2: {}
 

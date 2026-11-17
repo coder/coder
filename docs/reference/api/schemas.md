@@ -7402,6 +7402,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "action": true,
   "content": "string",
+  "display_name": "string",
   "model_invocable": true
 }
 ```
@@ -7412,6 +7413,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
 | `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.    |
 | `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
 
 ## codersdk.CreateTemplateRequest
@@ -10005,9 +10007,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                               |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agent-plugins`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -15234,6 +15236,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "display_name": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_invocable": true,
@@ -15250,6 +15253,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `content`         | string  | false    |              |                                                                                                                                                           |
 | `created_at`      | string  | false    |              |                                                                                                                                                           |
 | `description`     | string  | false    |              |                                                                                                                                                           |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
 | `enabled`         | boolean | false    |              |                                                                                                                                                           |
 | `id`              | string  | false    |              |                                                                                                                                                           |
 | `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
@@ -15263,6 +15267,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "action": true,
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "display_name": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_invocable": true,
@@ -15278,6 +15283,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
 | `created_at`      | string  | false    |              |                                                                                                                                                           |
 | `description`     | string  | false    |              |                                                                                                                                                           |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
 | `enabled`         | boolean | false    |              |                                                                                                                                                           |
 | `id`              | string  | false    |              |                                                                                                                                                           |
 | `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
@@ -17703,6 +17709,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 {
   "action": true,
   "content": "string",
+  "display_name": "string",
   "enabled": true,
   "model_invocable": true
 }
@@ -17714,6 +17721,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 |-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
 | `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                           |
 | `enabled`         | boolean | false    |              |                                                                                                                                                                       |
 | `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
 
@@ -17819,6 +17827,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 8,
   "theme_dark": "light",
   "theme_light": "light",
   "theme_mode": "sync",
@@ -17828,13 +17837,14 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
-|--------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
-| `theme_dark`       | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
-| `theme_light`      | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
-| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| Name                 | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
+|----------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| `terminal_font_size` | integer                                                | false    |              | Terminal font size is optional for backward compatibility. When zero, the server leaves the persisted terminal font size unchanged.                                                                                                                                                                                |
+| `theme_dark`         | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
+| `theme_light`        | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
+| `theme_mode`         | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
+| `theme_preference`   | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
@@ -18516,6 +18526,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_dark": "string",
   "theme_light": "string",
   "theme_mode": "",
@@ -18525,13 +18536,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
-| `theme_dark`       | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
-| `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
-| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+| Name                 | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|----------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `terminal_font_size` | integer                                                | false    |              | Terminal font size is the web terminal font size in pixels. Zero means the user has not chosen a size, and the web terminal will use the default.                                                                                                                                                                                         |
+| `theme_dark`         | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_light`        | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_mode`         | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_preference`   | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserChatCompactionThreshold
 
@@ -21600,9 +21612,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EPS01`, `EPS02`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 
@@ -22127,9 +22139,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Websocket`, `WorkspaceProxy` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Pubsub`, `Websocket`, `WorkspaceProxy` |
 
 ## healthsdk.HealthSettings
 
@@ -22458,6 +22470,18 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       }
     ]
   },
+  "pubsub": {
+    "backend": "string",
+    "dismissed": true,
+    "error": "string",
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
   "websocket": {
@@ -22530,6 +22554,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `pubsub`              | [healthsdk.PubsubReport](#healthsdkpubsubreport)                         | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`                | string                                                                   | false    |              | Time is the time the report was generated at.                                       |
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
@@ -22656,6 +22681,33 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 |----------------------|----------------------------------------------------------|----------|--------------|-------------|
 | `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
+
+## healthsdk.PubsubReport
+
+```json
+{
+  "backend": "string",
+  "dismissed": true,
+  "error": "string",
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                      | Required | Restrictions | Description                                  |
+|-------------|-------------------------------------------|----------|--------------|----------------------------------------------|
+| `backend`   | string                                    | false    |              | Backend is the pubsub implementation in use. |
+| `dismissed` | boolean                                   | false    |              |                                              |
+| `error`     | string                                    | false    |              |                                              |
+| `severity`  | [health.Severity](#healthseverity)        | false    |              |                                              |
+| `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                              |
 
 ## healthsdk.STUNReport
 

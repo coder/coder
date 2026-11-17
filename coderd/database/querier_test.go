@@ -1536,6 +1536,53 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 	})
 }
 
+// A deleted user's username can be reused, so the requester's own
+// workspaces must be matched by owner ID, not by owner username.
+func TestGetWorkspacesOrderIgnoresDeletedUserWithRequesterUsername(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	deletedWorkspace := func(owner database.User, name string) database.WorkspaceTable {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			Name:           name,
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			Deleted:        true,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionDelete,
+		}).Do().Workspace
+	}
+
+	formerUser := dbgen.User(t, db, database.User{Username: "reused-username"})
+	formerWorkspace := deletedWorkspace(formerUser, "aaa")
+	err := db.FavoriteWorkspace(ctx, formerWorkspace.ID)
+	require.NoError(t, err)
+	err = db.UpdateUserDeletedByID(ctx, formerUser.ID)
+	require.NoError(t, err)
+
+	requester := dbgen.User(t, db, database.User{Username: formerUser.Username})
+	requesterWorkspace := deletedWorkspace(requester, "zzz")
+
+	rows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		Deleted:        true,
+		OrganizationID: org.ID,
+		RequesterID:    requester.ID,
+	})
+	require.NoError(t, err)
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, row.Name)
+	}
+	require.Equal(t, []string{requesterWorkspace.Name, formerWorkspace.Name}, names,
+		"the requester's workspace sorts first, the former user's favorite does not")
+}
+
 func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -1777,6 +1824,104 @@ func TestChatContextHydration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, hashOther, gotOther.ContextAggregateHash)
 	require.False(t, gotOther.ContextDirtySince.Valid)
+}
+
+func TestChatContextResourcesCopyPluginName(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Status:            database.ChatStatusRunning,
+	})
+
+	upsert := func(source string, kind database.WorkspaceAgentContextBodyKind, status database.WorkspaceAgentContextResourceStatus, pluginName string) {
+		t.Helper()
+		_, err := db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agent.ID,
+			Source:           source,
+			BodyKind:         kind,
+			Body:             []byte(`{}`),
+			ContentHash:      []byte(source),
+			Status:           status,
+			PluginName:       pluginName,
+			Now:              dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+	pinnedPluginNames := func() map[string]string {
+		t.Helper()
+		rows, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		got := make(map[string]string, len(rows))
+		for _, r := range rows {
+			got[r.Source] = r.PluginName
+		}
+		return got
+	}
+
+	statusOK := database.WorkspaceAgentContextResourceStatusOk
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, statusOK, "acme")
+	upsert("/w/plugins/acme/skills/deploy", database.WorkspaceAgentContextBodyKindSkill, statusOK, "acme")
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "acme")
+	upsert("/w/AGENTS.md", database.WorkspaceAgentContextBodyKindInstructionFile, statusOK, "")
+	want := map[string]string{
+		"/w/plugins/acme":               "acme",
+		"/w/plugins/acme/skills/deploy": "acme",
+		"acme/echo":                     "acme",
+		"/w/AGENTS.md":                  "",
+	}
+
+	_, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       agent.ID,
+		AggregateHash: []byte{0x01},
+	})
+	require.NoError(t, err)
+	require.Equal(t, want, pinnedPluginNames(), "hydrate")
+
+	upsert("acme/other", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "acme")
+	_, err = db.SyncAgentChatsContextLiveResources(ctx, agent.ID)
+	require.NoError(t, err)
+	want["acme/other"] = "acme"
+	require.Equal(t, want, pinnedPluginNames(), "MCP sync")
+
+	// Same source, content hash, and status: only plugin_name differs.
+	upsert("acme/echo", database.WorkspaceAgentContextBodyKindMcpServer, statusOK, "renamed")
+	_, err = db.SyncAgentChatsContextLiveResources(ctx, agent.ID)
+	require.NoError(t, err)
+	want["acme/echo"] = "renamed"
+	require.Equal(t, want, pinnedPluginNames(), "MCP sync of a plugin_name change")
+
+	upsert("/w/plugins/acme", database.WorkspaceAgentContextBodyKindPlugin, database.WorkspaceAgentContextResourceStatusExcluded, "")
+	want["/w/plugins/acme"] = ""
+
+	require.NoError(t, db.DeleteChatContextResourcesByChatID(ctx, chat.ID))
+	require.NoError(t, db.InsertAgentContextResourcesIntoChat(ctx, database.InsertAgentContextResourcesIntoChatParams{
+		ChatID:  chat.ID,
+		AgentID: agent.ID,
+	}))
+	require.Equal(t, want, pinnedPluginNames(), "re-pin")
 }
 
 func TestGetAuthorizedChats(t *testing.T) {
@@ -12192,7 +12337,7 @@ func TestListAIBridgeClients(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		endedAt := dbtime.Now()
 
-		// The clients filter resolves a selected value with a prefix search and
+		// The clients filter resolves a selected value with a substring search and
 		// limit 1, so longer siblings recorded before the exact client must not
 		// win that single slot.
 		for _, client := range []string{
@@ -12228,6 +12373,12 @@ func TestListAIBridgeClients(t *testing.T) {
 			"claude-code-router",
 			"claude-code-web",
 		}, clients)
+
+		clients, err = db.ListAIBridgeClients(ctx, database.ListAIBridgeClientsParams{
+			Client: "CODE-CLI",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"claude-code-cli"}, clients)
 	})
 }
 

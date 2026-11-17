@@ -2493,13 +2493,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "description": "Literal model identifier substring, matched case-insensitively. Cannot be combined with q.",
                         "name": "model",
                         "in": "query"
                     }
@@ -25065,6 +25065,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. It must be a single\nline of at most MaxSkillDisplayNameLength characters, and surrounding\nwhitespace is trimmed.",
+                    "type": "string"
+                },
                 "model_invocable": {
                     "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
                     "type": "boolean"
@@ -26488,12 +26492,14 @@ const docTemplate = `{
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
                 "chat-acp-subagents",
-                "chat-automations"
+                "chat-automations",
+                "agent-plugins"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentAgentPlugins": "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.",
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
                 "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
@@ -26526,7 +26532,8 @@ const docTemplate = `{
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "Enables workspace-local ACP subagent tools in root chats.",
-                "Enables webhook and scheduled automations that deliver prompts to agent chats."
+                "Enables webhook and scheduled automations that deliver prompts to agent chats.",
+                "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -26545,7 +26552,8 @@ const docTemplate = `{
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
                 "ExperimentChatACPSubagents",
-                "ExperimentChatAutomations"
+                "ExperimentChatAutomations",
+                "ExperimentAgentPlugins"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -31504,6 +31512,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -31536,6 +31548,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
                     "type": "string"
                 },
                 "enabled": {
@@ -33445,6 +33461,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. An empty value\nclears it.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -33588,6 +33608,12 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is optional for backward compatibility. When zero,\nthe server leaves the persisted terminal font size unchanged.",
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
                 },
                 "theme_dark": {
                     "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
@@ -34201,6 +34227,10 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size, and the web terminal will use the default.",
+                    "type": "integer"
                 },
                 "theme_dark": {
                     "description": "Ignored when ThemeMode is \"single\"",
@@ -36251,7 +36281,9 @@ const docTemplate = `{
                 "EDERP03",
                 "EPD01",
                 "EPD02",
-                "EPD03"
+                "EPD03",
+                "EPS01",
+                "EPS02"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -36272,7 +36304,9 @@ const docTemplate = `{
                 "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
-                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated",
+                "CodePubsubNotConnected",
+                "CodePubsubServerNotRunning"
             ]
         },
         "health.Message": {
@@ -36511,7 +36545,8 @@ const docTemplate = `{
                 "Websocket",
                 "Database",
                 "WorkspaceProxy",
-                "ProvisionerDaemons"
+                "ProvisionerDaemons",
+                "Pubsub"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
@@ -36519,7 +36554,8 @@ const docTemplate = `{
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
                 "HealthSectionWorkspaceProxy",
-                "HealthSectionProvisionerDaemons"
+                "HealthSectionProvisionerDaemons",
+                "HealthSectionPubsub"
             ]
         },
         "healthsdk.HealthSettings": {
@@ -36555,6 +36591,9 @@ const docTemplate = `{
                 },
                 "provisioner_daemons": {
                     "$ref": "#/definitions/healthsdk.ProvisionerDaemonsReport"
+                },
+                "pubsub": {
+                    "$ref": "#/definitions/healthsdk.PubsubReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
@@ -36608,6 +36647,30 @@ const docTemplate = `{
             "properties": {
                 "provisioner_daemon": {
                     "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthsdk.PubsubReport": {
+            "type": "object",
+            "properties": {
+                "backend": {
+                    "description": "Backend is the pubsub implementation in use.",
+                    "type": "string"
+                },
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
