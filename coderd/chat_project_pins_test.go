@@ -46,7 +46,7 @@ func TestChatProjectPins(t *testing.T) {
 	require.NoError(t, client.UnpinChatProject(ctx, orgID, a.ID))
 	requirePinOrders(ctx, t, sqlDB, me, map[uuid.UUID]int32{c.ID: 1, b.ID: 2, a.ID: 0})
 
-	// Without an order, a re-pinned tombstone goes to the end and an
+	// Without an order, a re-pinned project goes to the end and an
 	// existing pin keeps its place.
 	require.NoError(t, client.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{}))
 	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID, codersdk.PinChatProjectRequest{}))
@@ -321,7 +321,7 @@ func newChatProjectPinsClient(t testing.TB) (*codersdk.ExperimentalClient, *sql.
 // pins.
 func chatProjectPinOrders(ctx context.Context, t testing.TB, sqlDB *sql.DB, userID uuid.UUID) map[uuid.UUID]int32 {
 	t.Helper()
-	rows, err := sqlDB.QueryContext(ctx, `SELECT project_id, pin_order FROM chat_project_pins WHERE user_id = $1 AND unpinned_at IS NULL`, userID)
+	rows, err := sqlDB.QueryContext(ctx, `SELECT project_id, pin_order FROM chat_project_pins WHERE user_id = $1`, userID)
 	require.NoError(t, err)
 	defer rows.Close()
 	pins := map[uuid.UUID]int32{}

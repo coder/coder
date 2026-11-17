@@ -1593,8 +1593,7 @@ type sqlcQuerier interface {
 	// re-authenticate under a new OIDC provider.
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
-	// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
-	// The source is kept so telemetry can tell which pins users removed.
+	// Deletes a pin and compacts the remaining pins to 1..N.
 	// Unpinning a project that is not pinned changes nothing. Like
 	// PinChatProject, pins the user can still see come first, and callers must
 	// hold the per-user pin lock.

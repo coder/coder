@@ -8280,7 +8280,7 @@ const insertChatProjectPin = `-- name: InsertChatProjectPin :exec
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT $1::uuid, $2::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
 FROM chat_project_pins
-WHERE user_id = $1::uuid AND unpinned_at IS NULL
+WHERE user_id = $1::uuid
 `
 
 type InsertChatProjectPinParams struct {
@@ -8319,7 +8319,7 @@ WITH current_pins AS (
         ) AS stale
         FROM chat_project_pins p
         JOIN chat_projects cp ON cp.id = p.project_id
-        WHERE p.user_id = $1::uuid AND p.unpinned_at IS NULL
+        WHERE p.user_id = $1::uuid
     ) pins
 ),
 ranked AS (
@@ -8339,15 +8339,14 @@ shifted AS (
     UPDATE chat_project_pins p
     SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
     FROM ranked CROSS JOIN target
-    WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id AND p.unpinned_at IS NULL
+    WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id
 )
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT $1::uuid, $2::uuid, target.position, 'user'
 FROM target
 ON CONFLICT (user_id, project_id) DO UPDATE SET
     pin_order = EXCLUDED.pin_order,
-    source = 'user',
-    unpinned_at = NULL
+    source = 'user'
 `
 
 type PinChatProjectParams struct {
@@ -8374,10 +8373,10 @@ func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParam
 }
 
 const unpinChatProject = `-- name: UnpinChatProject :exec
-WITH target AS (
-    SELECT project_id
-    FROM chat_project_pins
-    WHERE user_id = $1::uuid AND project_id = $2::uuid AND unpinned_at IS NULL
+WITH deleted AS (
+    DELETE FROM chat_project_pins
+    WHERE user_id = $1::uuid AND project_id = $2::uuid
+    RETURNING project_id
 ),
 updates AS (
     SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
@@ -8396,18 +8395,16 @@ updates AS (
                     AND organization_members.organization_id = cp.organization_id
             )
         )
-    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order, NULL::timestamptz AS unpinned_at
+    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
     JOIN chat_projects cp ON cp.id = p.project_id
-    WHERE p.user_id = $1::uuid AND p.unpinned_at IS NULL AND p.project_id <> $2::uuid
-    UNION ALL
-    SELECT project_id, 0, NOW() FROM target
+    WHERE p.user_id = $1::uuid AND p.project_id <> $2::uuid
 )
 UPDATE chat_project_pins p
-SET pin_order = updates.pin_order, unpinned_at = updates.unpinned_at
+SET pin_order = updates.pin_order
 FROM updates
-WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id AND p.unpinned_at IS NULL
-    AND EXISTS (SELECT 1 FROM target)
+WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id
+    AND EXISTS (SELECT 1 FROM deleted)
 `
 
 type UnpinChatProjectParams struct {
@@ -8416,8 +8413,7 @@ type UnpinChatProjectParams struct {
 	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
 }
 
-// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
-// The source is kept so telemetry can tell which pins users removed.
+// Deletes a pin and compacts the remaining pins to 1..N.
 // Unpinning a project that is not pinned changes nothing. Like
 // PinChatProject, pins the user can still see come first, and callers must
 // hold the per-user pin lock.
