@@ -113,7 +113,7 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 		closedCh:  make(chan struct{}),
 		runDoneCh: make(chan struct{}),
 	}
-	go cw.run()
+	go cw.run(w)
 	return cw, nil
 }
 
@@ -142,14 +142,20 @@ func (w *Watcher) Degraded() string {
 // recognized basename. Files that are themselves scan roots are
 // handled by watching their parent.
 //
-// Sync is idempotent and safe to call repeatedly. The lock is
-// released around the directory scan so concurrent Close,
-// schedule, and the run goroutine are not blocked by a slow
-// filesystem.
+// Sync is idempotent and safe to call repeatedly. It holds w.mu
+// throughout so concurrent Syncs apply in order. The event loop never
+// takes w.mu, so a slow filesystem delays only Close and Degraded.
 func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot, opts ResolveOptions) {
+	w.SyncLatest(ctx, func() ([]ScanRoot, ResolveOptions) { return roots, opts })
+}
+
+// SyncLatest is Sync with inputs read from capture under w.mu, so the
+// last Sync to run applies the newest inputs. capture must not call
+// into the Watcher.
+func (w *Watcher) SyncLatest(ctx context.Context, capture func() ([]ScanRoot, ResolveOptions)) {
 	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.closed {
-		w.mu.Unlock()
 		return
 	}
 	if w.watcher == nil {
@@ -163,22 +169,9 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot, opts ResolveOption
 		// Resync, AddSource, and RemoveSource still drive
 		// re-resolves; auto-updates on file edits simply
 		// do not happen until fsnotify recovers.
-		w.mu.Unlock()
 		return
 	}
-	w.mu.Unlock()
-
-	// collectDirs touches the filesystem (stat/ReadDir on every
-	// scan root and skill container). Compute the desired set
-	// outside the mutex so it does not block the run goroutine,
-	// Close, or schedule.
-	desired := w.collectDirs(roots, opts)
-
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.closed {
-		return
-	}
+	desired := w.collectDirs(capture())
 
 	var cur map[string]dirRole
 	if p := w.watched.Load(); p != nil {
@@ -265,17 +258,11 @@ func (w *Watcher) Close() error {
 
 // run forwards fsnotify events into the debounce timer. It exits
 // when Close is called or the underlying watcher is closed.
-func (w *Watcher) run() {
+// run takes fsw as an argument rather than reading w.watcher because it
+// must never take w.mu: Sync holds w.mu across fsnotify Add and Remove,
+// which on Windows wait on this loop.
+func (w *Watcher) run(fsw *fsnotify.Watcher) {
 	defer close(w.runDoneCh)
-	// Capture the watcher reference once. Close may set the
-	// field to nil concurrently; reading the captured local
-	// keeps the event loop safe through the race window.
-	w.mu.Lock()
-	fsw := w.watcher
-	w.mu.Unlock()
-	if fsw == nil {
-		return
-	}
 	for {
 		select {
 		case <-w.closedCh:

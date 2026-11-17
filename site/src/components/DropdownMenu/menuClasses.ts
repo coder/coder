@@ -9,6 +9,15 @@ export const menuContentClass = cn(
 	"data-[state=open]:data-[side=right]:slide-in-from-left-2 data-[state=open]:data-[side=top]:slide-in-from-bottom-2",
 );
 
+/**
+ * Account for p-2 padding and the 1px border so submenu rows align with
+ * their trigger and adjacent menus are separated by 4px.
+ */
+export const menuSubContentOffsets = {
+	sideOffset: 13,
+	alignOffset: -9,
+};
+
 export const menuItemClass = cn(
 	"relative flex cursor-default select-none items-center gap-2 rounded-sm",
 	"px-2 py-1.5 text-sm text-content-secondary font-medium outline-hidden",
@@ -17,6 +26,7 @@ export const menuItemClass = cn(
 	"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 	"data-disabled:pointer-events-none data-disabled:opacity-50",
 	"aria-disabled:opacity-50",
+	"data-[state=open]:bg-surface-secondary",
 	"[&>svg]:size-icon-sm [&>svg]:shrink-0",
 	"[&>img]:size-icon-sm [&>img]:shrink-0",
 );
