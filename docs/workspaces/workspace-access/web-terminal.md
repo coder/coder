@@ -82,12 +82,12 @@ The terminal uses reconnection tokens to maintain session state:
 
 ## Customization
 
-### Font Selection
+### Font selection
 
 You can customize the terminal font through your user settings:
 
 1. Select your avatar in the top-right corner
-2. Select **Settings** → **Appearance**
+2. Select **Account** > **Appearance**
 3. Choose from available fonts:
    - **Geist Mono** (default)
    - **IBM Plex Mono**
@@ -97,6 +97,14 @@ You can customize the terminal font through your user settings:
 
 The font change applies immediately to all open terminal sessions.
 
+### Font size
+
+You can customize the terminal font size through your user settings:
+
+1. Select your avatar in the top-right corner
+2. Select **Account** > **Appearance**
+3. Choose your preferred font size
+
 ### Rendering Engine
 
 Administrators can configure the terminal renderer for performance optimization:
@@ -104,7 +112,7 @@ Administrators can configure the terminal renderer for performance optimization:
 ```yaml
 # In your Coder deployment configuration
 client:
-  webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
+  webTerminalRenderer: "canvas" # Options: canvas, webgl, dom
 ```
 
 Or via environment variable:

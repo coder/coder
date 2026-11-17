@@ -357,6 +357,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/ai/model-prices/unpriced": {
+            "get": {
+                "description": "Returns, for each provider, the requested models with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List organization unpriced AI models",
+                "operationId": "list-organization-unpriced-ai-models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UnpricedAIModels"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/ai/spend": {
             "get": {
                 "description": "Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day, and with the current day only including the spend recorded so far), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.\nThe optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
@@ -2493,13 +2546,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "description": "Literal model identifier substring, matched case-insensitively. Cannot be combined with q.",
                         "name": "model",
                         "in": "query"
                     }
@@ -25081,6 +25134,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. It must be a single\nline of at most MaxSkillDisplayNameLength characters, and surrounding\nwhitespace is trimmed.",
+                    "type": "string"
+                },
                 "model_invocable": {
                     "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
                     "type": "boolean"
@@ -27078,12 +27135,12 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -27141,12 +27198,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -29064,12 +29121,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -29170,12 +29227,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -29318,12 +29375,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -31524,6 +31581,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -31556,6 +31617,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
                     "type": "string"
                 },
                 "enabled": {
@@ -32914,6 +32979,65 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UnpricedAIModel": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "description": "Model is the model the client requested.",
+                    "type": "string"
+                },
+                "provider_display_name": {
+                    "description": "ProviderDisplayName falls back to the provider name when unset.",
+                    "type": "string"
+                },
+                "provider_icon": {
+                    "description": "ProviderIcon is empty when the provider has no configured icon.",
+                    "type": "string"
+                },
+                "provider_name": {
+                    "description": "ProviderName is the name of the configured provider.",
+                    "type": "string"
+                },
+                "provider_type": {
+                    "description": "ProviderType is the type of the configured provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderType"
+                        }
+                    ]
+                },
+                "token_count": {
+                    "description": "TokenCount is the number of tokens used without a price in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UnpricedAIModels": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of models listed.",
+                    "type": "integer"
+                },
+                "models": {
+                    "description": "Models are ordered by unpriced token count, highest first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UnpricedAIModel"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.UpdateAIProviderRequest": {
             "type": "object",
             "properties": {
@@ -33465,6 +33589,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. An empty value\nclears it.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -33608,6 +33736,12 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is optional for backward compatibility. When zero,\nthe server leaves the persisted terminal font size unchanged.",
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
                 },
                 "theme_dark": {
                     "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
@@ -34140,12 +34274,12 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -34221,6 +34355,10 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size, and the web terminal will use the default.",
+                    "type": "integer"
                 },
                 "theme_dark": {
                     "description": "Ignored when ThemeMode is \"single\"",
