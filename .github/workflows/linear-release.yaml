@@ -1,10 +1,10 @@
 name: Linear Release
 
+# Disabled: every job needs LINEAR_ACCESS_KEY, which is not set (the linear environment has no
+# secrets). To turn the sync back on, store a Linear access key in the linear environment, give each
+# job `environment: linear`, and restore the push trigger on main and "release/2.[0-9]+".
 on:
-  push:
-    branches:
-      - main
-      - "release/2.[0-9]+"
+  workflow_dispatch:
 
 permissions:
   contents: read
