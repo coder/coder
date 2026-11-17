@@ -1,0 +1,496 @@
+# Builds one pull request's docs/ tree with docs-engine's offline export and
+# publishes it as its own site on the preview-only domain in the repository
+# variable DOCS_PREVIEW_DOMAIN (docs.cdr-preview.dev, so PR 123's head is
+# https://pr-123.docs.cdr-preview.dev):
+#
+#   pr-<number>.<domain>             the PR head, re-aliased per build
+#   pr-<number>-<sha:0:9>.<domain>   one per built commit
+#
+# docs-pr-preview-deploy.yaml calls this file as
+# coder/coder/.github/workflows/docs-pr-preview-publish.yaml@main, never by a
+# relative path. A pull_request run reads its workflow files from the pull
+# request, so its author can rewrite any job defined there. A file called at
+# main is read from main: a pull request decides whether these jobs run, not
+# what they do.
+#
+# No job here reads a GitHub secret. Both credentials stay in Google Cloud:
+# the docs-engine App's private key in Cloud KMS, which signs the token
+# request and never leaves KMS, and the Vercel token in Secret Manager. The
+# workload identity provider must accept a GitHub token only when both hold:
+#
+#   repository_id    == 440752086 (coder/coder)
+#   job_workflow_ref == coder/coder/.github/workflows/docs-pr-preview-publish.yaml@refs/heads/main
+#
+# job_workflow_ref names the file a job is defined in, so a copy of this file
+# on a branch or in a pull request does not match. repository_id is needed as
+# well: any repository can call a public reusable workflow, and
+# job_workflow_ref would still name this file.
+#
+# The caller is untrusted, so it passes no inputs. The pull request number and
+# commit come from the event, which GitHub writes. Other jobs in the caller's
+# run can replace an artifact, so each one is checked against a digest that
+# travels as a job output, which they cannot change.
+#
+# Compiling Markdown runs the engine's plugins over it, so PR content never
+# shares a job with an identity:
+#   engine  signs in to Google Cloud, mints a docs-engine read token and packs
+#           the engine source; never sees PR content.
+#   build   no identity and no secret. Builds the export from the engine and
+#           the PR's docs/.
+#   deploy  signs in to Google Cloud for the Vercel token. Takes only the
+#           static files from build, lays them out with the engine's own
+#           script, adds noindex, and deploys them prebuilt.
+#
+# Repository variables, none of them secret:
+#   DOCS_PREVIEW_DOMAIN                      the preview-only domain
+#   DOCS_PREVIEW_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
+#   DOCS_PREVIEW_ENGINE_SERVICE_ACCOUNT      may sign with the KMS key, nothing else
+#   DOCS_PREVIEW_DEPLOY_SERVICE_ACCOUNT      may read the Vercel token, nothing else
+#   DOCS_ENGINE_APP_CLIENT_ID                client ID of the docs-engine reader App
+#   DOCS_ENGINE_APP_KMS_KEY_VERSION          projects/<project>/locations/<location>/keyRings/<ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>,
+#                                            algorithm RSA_SIGN_PKCS1_2048_SHA256
+#   DOCS_PREVIEW_VERCEL_TOKEN_SECRET         projects/<project>/secrets/<secret>/versions/<version>
+name: docs-pr-preview-publish
+
+on:
+  workflow_call:
+    outputs:
+      short_sha:
+        description: The first 9 characters of the deployed commit, whose preview is pr-<number>-<short_sha>.<domain>
+        value: ${{ jobs.deploy.outputs.short_sha }}
+
+permissions: {}
+
+jobs:
+  engine:
+    # A caller can run this file on any event. Only an open pull request from
+    # a branch in this repository gets a preview.
+    if: github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # the Google Cloud identity that may sign with the KMS key
+    outputs:
+      digest: ${{ steps.pack.outputs.digest }}
+      domain: ${{ steps.domain.outputs.domain }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      # Checked first so a missing domain fails before the build. A vercel.app
+      # name is first-come across every Vercel account, so anyone could claim
+      # a preview's name before the deploy or after cleanup frees it.
+      - name: Check the preview domain
+        id: domain
+        env:
+          DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
+        run: |
+          set -euo pipefail
+          domain=$(printf '%s' "$DOCS_PREVIEW_DOMAIN" | tr '[:upper:]' '[:lower:]')
+          if [ -z "$domain" ] || [[ "$domain" =~ (^|\.)vercel\.app\.?$ ]] || ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_DOMAIN to a Coder-owned domain (not vercel.app)." >&2
+            exit 1
+          fi
+          echo "domain=${domain}" >> "$GITHUB_OUTPUT"
+
+      # A PR may move the pin and preview the result; one branched before the
+      # pin existed uses the default branch's. The default branch's pin is
+      # also the floor checked below.
+      - name: Read the pinned docs-engine commits
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PIN_SOURCE: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          read_pin() { gh api -H "Accept: application/vnd.github.raw" "repos/${REPO}/contents/docs/.engine-ref?ref=$1" | tr -d '[:space:]'; }
+          floor=$(read_pin "$DEFAULT_BRANCH")
+          ref=$(read_pin "$PIN_SOURCE") || ref="$floor"
+          for pin in "$ref" "$floor"; do
+            [[ "$pin" =~ ^[0-9a-f]{40}$ ]] || { echo "docs/.engine-ref must hold one full 40-hex commit SHA" >&2; exit 1; }
+          done
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "floor=${floor}" >> "$GITHUB_OUTPUT"
+
+      # Only the access token is needed, so no credentials file is written and
+      # nothing is exported to later steps.
+      - name: Authenticate to Google Cloud
+        id: gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.DOCS_PREVIEW_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DOCS_PREVIEW_ENGINE_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_lifetime: 300s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      # A GitHub App authenticates with a JWT signed by its private key. KMS
+      # signs the digest of that JWT, so the key never reaches the runner. The
+      # token it buys is limited to reading coder/docs-engine.
+      - name: Mint a docs-engine read token
+        id: app-token
+        env:
+          GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          KMS_KEY_VERSION: ${{ vars.DOCS_ENGINE_APP_KMS_KEY_VERSION }}
+          APP_CLIENT_ID: ${{ vars.DOCS_ENGINE_APP_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KMS_KEY_VERSION" =~ ^projects/[^/]+/locations/[^/]+/keyRings/[^/]+/cryptoKeys/[^/]+/cryptoKeyVersions/[0-9]+$ ]]; then
+            echo "::error::Set the repository variable DOCS_ENGINE_APP_KMS_KEY_VERSION to a Cloud KMS key version resource name." >&2
+            exit 1
+          fi
+          if ! [[ "$APP_CLIENT_ID" =~ ^[A-Za-z0-9]+$ ]]; then
+            echo "::error::Set the repository variable DOCS_ENGINE_APP_CLIENT_ID to the docs-engine reader App's client ID." >&2
+            exit 1
+          fi
+
+          # Prints the response body. On an HTTP error the body, which names
+          # the denied permission, goes to stderr instead.
+          request() {
+            local body
+            body=$(curl --fail-with-body -sS --retry 3 "$@") || {
+              printf '%s\n' "$body" >&2
+              return 1
+            }
+            printf '%s' "$body"
+          }
+          base64url() { base64 -w0 | tr '+/' '-_' | tr -d '='; }
+
+          # iat is backdated a minute for clock drift, as GitHub recommends.
+          now=$(date +%s)
+          header=$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | base64url)
+          claims=$(jq -jcn --arg iss "$APP_CLIENT_ID" --argjson now "$now" '{iat: ($now - 60), exp: ($now + 120), iss: $iss}' | base64url)
+          digest=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -binary | base64 -w0)
+          signature=$(request -X POST "https://cloudkms.googleapis.com/v1/${KMS_KEY_VERSION}:asymmetricSign" \
+            -H "Authorization: Bearer ${GCP_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$(jq -cn --arg digest "$digest" '{digest: {sha256: $digest}}')" | jq -er '.signature')
+          jwt="${header}.${claims}.$(printf '%s' "$signature" | tr '+/' '-_' | tr -d '=')"
+          echo "::add-mask::${jwt}"
+
+          github_api() {
+            request -H "Authorization: Bearer ${jwt}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" "$@"
+          }
+          installation=$(github_api "https://api.github.com/repos/coder/docs-engine/installation" | jq -er '.id')
+          token=$(github_api -X POST "https://api.github.com/app/installations/${installation}/access_tokens" \
+            --data '{"repositories":["docs-engine"],"permissions":{"contents":"read"}}' | jq -er '.token')
+          echo "::add-mask::${token}"
+          echo "token=${token}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out docs-engine
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: coder/docs-engine
+          token: ${{ steps.app-token.outputs.token }}
+          path: engine
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A fork's commit can be fetched by SHA through a public repository, so
+      # only a commit on docs-engine main may build. The deploy job runs this
+      # engine's script next to the Vercel token, so a pull request may not
+      # pick an engine older than the default branch's either: it could
+      # predate a fix in that script.
+      - name: Check the pin is on docs-engine main
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+          FLOOR: ${{ steps.ref.outputs.floor }}
+        run: |
+          set -euo pipefail
+          git -C engine merge-base --is-ancestor "$FLOOR" origin/main || { echo "::error::The default branch's docs/.engine-ref must name a commit on coder/docs-engine main" >&2; exit 1; }
+          git -C engine merge-base --is-ancestor "$REF" origin/main || { echo "::error::docs/.engine-ref must name a commit on coder/docs-engine main" >&2; exit 1; }
+          if ! git -C engine merge-base --is-ancestor "$FLOOR" "$REF"; then
+            echo "::notice::docs/.engine-ref is older than the default branch's pin, so this preview is built with the default branch's."
+            REF="$FLOOR"
+          fi
+          git -C engine checkout --quiet --detach "$REF"
+
+      - name: Pack the engine source
+        id: pack
+        run: |
+          set -euo pipefail
+          tar -C engine --exclude=.git -czf engine.tgz .
+          echo "digest=$(sha256sum engine.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the engine source
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-engine-source
+          path: engine.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Revoke the docs-engine read token
+        if: always() && steps.app-token.outputs.token != ''
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -sS --retry 3 -o /dev/null -X DELETE \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/installation/token || echo "::warning::Could not revoke the docs-engine read token; it expires within the hour."
+
+  build:
+    needs: engine
+    if: github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # No id-token here: this job runs PR content, and a job that can request
+    # an OIDC token from this file can sign in as either identity.
+    permissions:
+      contents: read
+    outputs:
+      site_digest: ${{ steps.pack.outputs.digest }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Download the engine source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-engine-source
+          path: ${{ runner.temp }}/engine-artifact
+
+      - name: Verify and unpack the engine source
+        env:
+          DIGEST: ${{ needs.engine.outputs.digest }}
+          ARTIFACT_DIR: ${{ runner.temp }}/engine-artifact
+        run: |
+          set -euo pipefail
+          echo "${DIGEST}  ${ARTIFACT_DIR}/engine.tgz" | sha256sum -c -
+          mkdir engine
+          tar -C engine -xzf "${ARTIFACT_DIR}/engine.tgz"
+
+      - name: Check out the pull request's docs/ tree
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: content
+          sparse-checkout: docs
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: engine/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+          package-manager-cache: false
+
+      - name: Install the engine's dependencies
+        working-directory: engine
+        run: pnpm install --frozen-lockfile
+
+      # docs/ holds no symbolic links. One added by a PR could pull files
+      # from elsewhere on this runner, such as the private engine source,
+      # into a public preview, whatever the pinned engine does with it.
+      - name: Build the static export
+        working-directory: engine
+        env:
+          DOCS_ROOT: ${{ github.workspace }}/content/docs
+        run: |
+          set -euo pipefail
+          if [ -L "$DOCS_ROOT" ] || [ ! -d "$DOCS_ROOT" ] || [ -n "$(find "$DOCS_ROOT" -type l -print -quit)" ]; then
+            echo "::error::docs/ must be a directory with no symbolic links in it." >&2
+            exit 1
+          fi
+          pnpm turbo run build --filter=@coder/offlinedocs
+
+      - name: Pack the static export
+        id: pack
+        env:
+          ARCHIVE: ${{ runner.temp }}/site.tgz
+        run: |
+          set -euo pipefail
+          tar -C engine/apps/offlinedocs/out -czf "$ARCHIVE" .
+          echo "digest=$(sha256sum "$ARCHIVE" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the static export
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-preview-site
+          path: ${{ runner.temp }}/site.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    needs: [engine, build]
+    if: github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: docs-preview
+    permissions:
+      id-token: write # the Google Cloud identity that may read the Vercel token
+      # Read only: the head check below. The caller's comment job posts the comment.
+      pull-requests: read
+    outputs:
+      short_sha: ${{ steps.deploy.outputs.short_sha }}
+    env:
+      # 59.x needs team access, which a project-scoped token lacks.
+      VERCEL_CLI_VERSION: 65.11.0
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      DOMAIN: ${{ needs.engine.outputs.domain }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Download the engine source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-engine-source
+          path: ${{ runner.temp }}/engine-artifact
+
+      # Another job in the run could have replaced the artifact, so only the
+      # engine job's digest decides whether this code may run here.
+      - name: Verify and unpack the engine source
+        env:
+          DIGEST: ${{ needs.engine.outputs.digest }}
+          ARTIFACT_DIR: ${{ runner.temp }}/engine-artifact
+        run: |
+          set -euo pipefail
+          echo "${DIGEST}  ${ARTIFACT_DIR}/engine.tgz" | sha256sum -c -
+          mkdir engine
+          tar -C engine -xzf "${ARTIFACT_DIR}/engine.tgz"
+
+      - name: Download the static export
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-preview-site
+          path: ${{ runner.temp }}/site-artifact
+
+      # The digest shows the archive is the build job's and not a replacement
+      # from another job in the run. It is still the output of the job that
+      # ran PR content, so anything but regular files and directories is
+      # refused before it is unpacked: a symbolic link could point the upload
+      # at a file on this runner. The error names no path, since a PR-chosen
+      # name could read as a workflow command. awk reads the whole listing, so
+      # tar cannot die of a closed pipe and hide a failed check.
+      - name: Verify and unpack the static export
+        env:
+          DIGEST: ${{ needs.build.outputs.site_digest }}
+          ARCHIVE: ${{ runner.temp }}/site-artifact/site.tgz
+        run: |
+          set -euo pipefail
+          echo "${DIGEST}  ${ARCHIVE}" | sha256sum -c -
+          unexpected=$(tar -tvzf "$ARCHIVE" | awk '$1 !~ /^[-d]/ {n++} END {print n + 0}')
+          if [ "$unexpected" -ne 0 ]; then
+            echo "::error::The static export holds a symbolic link or special file; refusing to deploy it." >&2
+            exit 1
+          fi
+          mkdir engine/apps/offlinedocs/out
+          tar -C engine/apps/offlinedocs/out --no-same-owner --no-same-permissions -xzf "$ARCHIVE"
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+          package-manager-cache: false
+
+      # build-output.mjs uses only Node built-ins and writes the routes and
+      # security headers (including the CSP) from the engine's vercel.json.
+      # The export is checked once more as unpacked, before it is copied.
+      - name: Lay out the Build Output API directory with noindex
+        working-directory: engine/apps/offlinedocs
+        run: |
+          set -euo pipefail
+          unexpected=$(find out ! -type f ! -type d -print -quit)
+          if [ -n "$unexpected" ]; then
+            echo "::error::The static export holds a symbolic link or special file; refusing to deploy it." >&2
+            exit 1
+          fi
+          node scripts/build-output.mjs
+          config=.vercel/output/config.json
+          jq '.routes = [{src: "^/(.*)$", headers: {"X-Robots-Tag": "noindex"}, continue: true}] + .routes' \
+            "$config" > "${config}.tmp"
+          mv "${config}.tmp" "$config"
+          jq -e '.routes[0].headers["X-Robots-Tag"] == "noindex"' "$config" >/dev/null
+
+      - name: Authenticate to Google Cloud
+        id: gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.DOCS_PREVIEW_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DOCS_PREVIEW_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_lifetime: 300s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Deploy and alias the preview
+        id: deploy
+        working-directory: engine/apps/offlinedocs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          VERCEL_TOKEN_SECRET: ${{ vars.DOCS_PREVIEW_VERCEL_TOKEN_SECRET }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          short_sha="${SHA:0:9}"
+          head_alias="pr-${PR_NUMBER}.${DOMAIN}"
+          commit_alias="pr-${PR_NUMBER}-${short_sha}.${DOMAIN}"
+
+          if ! [[ "$VERCEL_TOKEN_SECRET" =~ ^projects/[^/]+/secrets/[^/]+/versions/[^/]+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_VERCEL_TOKEN_SECRET to a Secret Manager version resource name." >&2
+            exit 1
+          fi
+          # Read in this step and never written to an output, so no other
+          # step holds it. On an HTTP error the body, which names the denied
+          # permission, is printed instead.
+          secret=$(curl --fail-with-body -sS --retry 3 \
+            -H "Authorization: Bearer ${GCP_ACCESS_TOKEN}" \
+            "https://secretmanager.googleapis.com/v1/${VERCEL_TOKEN_SECRET}:access") || {
+            printf '%s\n' "$secret" >&2
+            exit 1
+          }
+          VERCEL_TOKEN=$(printf '%s' "$secret" | jq -er '.payload.data' | base64 -d)
+          echo "::add-mask::${VERCEL_TOKEN}"
+
+          vc() { npx --yes "vercel@${VERCEL_CLI_VERSION}" "$@" --token="$VERCEL_TOKEN"; }
+          vercel_api() {
+            curl --fail-with-body -sS --retry 3 \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" "$@"
+          }
+          set_alias() {
+            vercel_api -X POST "https://api.vercel.com/v2/deployments/${deployment_id}/aliases?teamId=${VERCEL_ORG_ID}" \
+              --data "$(jq -cn --arg alias "$1" '{alias: $alias}')" >/dev/null
+            echo "Aliased https://$1"
+          }
+
+          vc pull --yes --environment=preview
+          # Vercel makes a project's first deployment production unless the
+          # target is named, so a preview is always deployed as one.
+          url=$(vc deploy --prebuilt --archive=tgz --yes --target=preview \
+            --meta pr="$PR_NUMBER" \
+            --meta sha="$SHA")
+          deployment_id=$(vercel_api "https://api.vercel.com/v13/deployments/${url#https://}?teamId=${VERCEL_ORG_ID}" | jq -er '.id')
+
+          set_alias "$commit_alias"
+          # A slower build of an older commit must not take the head alias back.
+          current_head=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
+          if [ "$current_head" = "$SHA" ]; then
+            set_alias "$head_alias"
+          else
+            echo "::notice::The PR head moved to ${current_head} during this build; ${head_alias} is left for that build."
+          fi
+
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"

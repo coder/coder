@@ -995,12 +995,17 @@ commit_count=0
 
 # One comment per PR: the deploy job posts nothing itself and hands its commit
 # to docs-preview.yaml, which posts only when a non-generated page or image
-# changed.
-deploy_job=$(awk '/^  deploy:/{on=1} /^  comment:/{on=0} on' "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml")
+# changed. The deploy job lives in docs-pr-preview-publish.yaml, which
+# docs-pr-preview-deploy.yaml calls; it is that file's last job.
+deploy_workflow="$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml"
+publish_workflow="$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-publish.yaml"
+deploy_job=$(awk '/^  deploy:/{on=1} on' "$publish_workflow")
 # shellcheck disable=SC2016 # the expected lines are literal workflow text.
-if ! grep -qF '/comments' <<<"$deploy_job" &&
+if [ -n "$deploy_job" ] &&
+	! grep -qF '/comments' <<<"$deploy_job" &&
 	! grep -qF 'pull-requests: write' <<<"$deploy_job" &&
-	grep -qF 'short_sha: ${{ needs.deploy.outputs.short_sha }}' "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml" &&
+	grep -qF 'value: ${{ jobs.deploy.outputs.short_sha }}' "$publish_workflow" &&
+	grep -qF 'short_sha: ${{ needs.preview.outputs.short_sha }}' "$deploy_workflow" &&
 	grep -qE '^      short_sha:' "$(dirname "${BASH_SOURCE[0]}")/docs-preview.yaml"; then
 	echo "PASS: the deploy job posts no comment and passes its commit to docs-preview.yaml"
 else
@@ -1026,12 +1031,12 @@ else
 fi
 
 # The comment links to a preview only once one exists: docs-preview.yaml
-# runs only when docs-pr-preview-deploy.yaml calls it after a deploy.
-deploy_workflow="$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml"
+# runs only when docs-pr-preview-deploy.yaml calls it after the preview job,
+# whose last job is the deploy.
 if grep -qE '^  workflow_call:' "$workflow" &&
 	! grep -qE '^  pull_request(_target)?:' "$workflow" &&
 	grep -qF 'uses: ./.github/workflows/docs-preview.yaml' "$deploy_workflow" &&
-	grep -qE '^    needs: \[?deploy' "$deploy_workflow"; then
+	grep -qE '^    needs: \[?preview' "$deploy_workflow"; then
 	echo "PASS: docs-preview comment runs only after a successful deploy"
 else
 	echo "FAIL: docs-preview.yaml can post preview links before a deploy succeeds"
@@ -1043,7 +1048,7 @@ fi
 # coder/docs-engine, so the engine job builds only commits on docs-engine main:
 # it checks out full history and fails before packing unless the pin is an
 # ancestor of origin/main.
-engine_job=$(awk '/^  engine:/{on=1} /^  build:/{on=0} on' "$deploy_workflow")
+engine_job=$(awk '/^  engine:/{on=1} /^  build:/{on=0} on' "$publish_workflow")
 # shellcheck disable=SC2016 # the expected lines are literal workflow text.
 if grep -qF 'fetch-depth: 0' <<<"$engine_job" &&
 	grep -qF 'git -C engine merge-base --is-ancestor "$REF" origin/main' <<<"$engine_job" &&
@@ -1051,6 +1056,33 @@ if grep -qF 'fetch-depth: 0' <<<"$engine_job" &&
 	echo "PASS: the engine job builds only commits on docs-engine main"
 else
 	echo "FAIL: docs/.engine-ref can pin a docs-engine commit that is not on main"
+	failures=$((failures + 1))
+fi
+
+# The build job compiles the PR's Markdown, so it must not be able to sign in
+# to Google Cloud: any job in docs-pr-preview-publish.yaml that may request an
+# OIDC token can act as either identity. It gets no id-token permission and
+# no environment.
+build_job=$(awk '/^  build:/{on=1} /^  deploy:/{on=0} on' "$publish_workflow")
+if [ -n "$build_job" ] &&
+	! grep -qE '^ +id-token:' <<<"$build_job" &&
+	! grep -qE '^ +environment:' <<<"$build_job"; then
+	echo "PASS: the job that builds PR content holds no identity"
+else
+	echo "FAIL: the job that builds PR content can sign in to Google Cloud"
+	failures=$((failures + 1))
+fi
+
+# The credentials stay in Google Cloud, released only to the workflow files
+# on main. A GitHub secret, even one scoped to the docs-preview environment,
+# can be read by any pull request that edits a workflow, so none of the
+# preview workflows may take one.
+preview_workflows=("$deploy_workflow" "$publish_workflow" "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-cleanup.yaml" "$workflow")
+if ! grep -qE '\$\{\{[^}]*secrets\.' "${preview_workflows[@]}" &&
+	! grep -qE '^ +secrets:' "${preview_workflows[@]}"; then
+	echo "PASS: the preview workflows read no GitHub secret"
+else
+	echo "FAIL: a preview workflow reads a GitHub secret"
 	failures=$((failures + 1))
 fi
 
