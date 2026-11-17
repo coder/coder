@@ -563,8 +563,8 @@ type sqlcQuerier interface {
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
 	// Aggregates pin usage over each active, non-system user's accessible
-	// projects. Grants count only when @acl_enabled, matching the summaries.
-	// No identifiers leave this query.
+	// projects. Grants count only when @acl_enabled and they include read,
+	// matching the summaries. No identifiers leave this query.
 	// A user has acted when their current pins show it: a user pin (left by
 	// pinning or reordering) or an unpinned owned project. Unpinning deletes
 	// the pin, so a user whose only action was unpinning projects shared with
@@ -577,7 +577,8 @@ type sqlcQuerier interface {
 	// longer see are never returned.
 	// Users who can use each project: the owner, granted users who are
 	// organization members, and members of granted groups (including the
-	// Everyone group). Counted only while project sharing is available;
+	// Everyone group). As in IsChatProjectUsableByUserID, only grants with
+	// read count. Counted only while project sharing is available;
 	// otherwise every project counts its owner alone. Suspended users cannot
 	// sign in, so they are not counted.
 	// Read through idx_chats_owner.

@@ -199,8 +199,14 @@ func TestChatProjectSummaries(t *testing.T) {
 	require.NoError(t, client.UpdateChat(ctx, archived.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
 	newChat(quiet, carol.ID, database.ChatStatusRunning, true, none)
 	require.NoError(t, client.DeleteOrganizationMember(ctx, orgID, carol.Username))
-	// A chat that is being stopped still counts as running.
+	// A chat that is being stopped still counts as running. A grant without
+	// read does not make alice a member.
 	stopping := share("Summary Stopping", nil, nil)
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       stopping.ID,
+		UserACL:  database.ChatACL{alice.ID.String(): {Permissions: []policy.Action{policy.ActionShare}}},
+		GroupACL: database.ChatACL{},
+	}))
 	interrupting := newChat(stopping, me, database.ChatStatusInterrupting, false, none)
 	// The Everyone group's ID is the organization ID.
 	everyone := share("Summary Everyone", nil, []uuid.UUID{orgID})
