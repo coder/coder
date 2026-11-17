@@ -15,8 +15,6 @@ Many sandbox runtimes boot in milliseconds, but in Coder the sandbox is a worksp
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the definitions above.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
 
-![Kernel isolation with gVisor, Kata, QEMU, Firecracker, or Edera. Network isolation with NetworkPolicy, OpenShell, a Squid proxy, or Cilium. Secrets isolation with scoped-down Coder tokens, OAuth, just-in-time tokens, workload identity, or service accounts.](../../images/templates/sandboxing/isolation-types.png)
-
 Each trait is independent, so you can combine only the ones your agents need.
 
 | Trait                                   | Options                                                       | Main tradeoff                                                          |
