@@ -781,7 +781,6 @@ func New(options *Options) *API {
 		OAuth2Configs:             oauthConfigs,
 		DocsURL:                   options.DeploymentValues.DocsURL.String(),
 		AppearanceFetcher:         &api.AppearanceFetcher,
-		UserPreferencesFetcher:    api.getUserPreferenceSettings,
 		BuildInfo:                 buildInfo,
 		Entitlements:              options.Entitlements,
 		Telemetry:                 options.Telemetry,

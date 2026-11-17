@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
@@ -2643,8 +2644,9 @@ func TestUserThemeMode(t *testing.T) {
 func TestUserCollapseAssistantSteps(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	user := coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
@@ -2667,6 +2669,15 @@ func TestUserCollapseAssistantSteps(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, collapse, updated.CollapseAssistantSteps)
+	}
+
+	// Preserve stored boolean spellings accepted by the previous SQL cast.
+	for _, stored := range []string{"yes", "on", " tr ", " YeS ", "1", "TrUe"} {
+		_, err := sqlDB.ExecContext(ctx, `UPDATE user_configs SET value = $1 WHERE user_id = $2 AND key = 'preference_collapse_assistant_steps'`, stored, user.UserID)
+		require.NoError(t, err)
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Truef(t, settings.CollapseAssistantSteps, "stored value %q", stored)
 	}
 }
 
@@ -2833,7 +2844,8 @@ func TestAgentChatSendShortcutPreference(t *testing.T) {
 func TestDefaultLandingPagePreference(t *testing.T) {
 	t.Parallel()
 
-	admin, db := coderdtest.NewWithDatabase(t, nil)
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	admin := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	firstUser := coderdtest.CreateFirstUser(t, admin)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -2859,6 +2871,18 @@ func TestDefaultLandingPagePreference(t *testing.T) {
 	otherSettings, err := other.GetUserPreferenceSettings(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, otherSettings.DefaultLandingPage)
+
+	// A malformed unrelated preference must not hide the saved landing page.
+	_, err = sqlDB.ExecContext(ctx, `INSERT INTO user_configs (user_id, key, value) VALUES ($1, 'preference_collapse_assistant_steps', $2)`, user.ID, "invalid")
+	require.NoError(t, err)
+	settings, err = fresh.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageAgents, settings.DefaultLandingPage)
+	require.False(t, settings.CollapseAssistantSteps)
+	settings, err = fresh.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DefaultLandingPageAgents, settings.DefaultLandingPage)
+	require.False(t, settings.CollapseAssistantSteps)
 
 	settings, err = fresh.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 		ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
@@ -2904,9 +2928,10 @@ func TestDefaultLandingPagePreference(t *testing.T) {
 	settings, err = fresh.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{})
 	require.NoError(t, err)
 	require.Equal(t, codersdk.DefaultLandingPageWorkspaces, settings.DefaultLandingPage)
-	stored, err := db.GetUserDefaultLandingPage(dbauthz.AsSystemRestricted(ctx), user.ID)
+	stored, err := db.GetUserPreferenceSettings(dbauthz.AsSystemRestricted(ctx), user.ID)
 	require.NoError(t, err)
-	require.Equal(t, "unknown", stored)
+	require.Equal(t, "unknown", stored.DefaultLandingPage)
+	require.Equal(t, "invalid", stored.CollapseAssistantSteps)
 }
 
 func TestAgentDisplayModePreferences(t *testing.T) {

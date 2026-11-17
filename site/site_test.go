@@ -164,25 +164,80 @@ func TestInjection(t *testing.T) {
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
+type userPreferencesStore struct {
+	database.Store
+	failRead atomic.Bool
+	reads    atomic.Int64
+}
+
+func (s *userPreferencesStore) GetUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserPreferenceSettingsRow, error) {
+	s.reads.Add(1)
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	if !ok || actor.ID != userID.String() {
+		return database.GetUserPreferenceSettingsRow{}, xerrors.Errorf("wrong preference actor for user %s", userID)
+	}
+	if s.failRead.Load() {
+		return database.GetUserPreferenceSettingsRow{}, xerrors.Errorf("preferences unavailable for user %s", userID)
+	}
+	return s.Store.GetUserPreferenceSettings(ctx, userID)
+}
+
 func TestUserPreferencesMetadata(t *testing.T) {
 	t.Parallel()
 
+	ctx := testutil.Context(t, testutil.WaitShort)
 	index, err := os.ReadFile("index.html")
 	require.NoError(t, err)
-	db, _ := dbtestutil.NewDB(t)
-	first := dbgen.User(t, db, database.User{})
-	second := dbgen.User(t, db, database.User{})
-	_, firstToken := dbgen.APIKey(t, db, database.APIKey{UserID: first.ID, ExpiresAt: time.Now().Add(time.Hour)})
-	_, secondToken := dbgen.APIKey(t, db, database.APIKey{UserID: second.ID, ExpiresAt: time.Now().Add(time.Hour)})
+	rawDB, _ := dbtestutil.NewDB(t)
+	first := dbgen.User(t, rawDB, database.User{})
+	second := dbgen.User(t, rawDB, database.User{})
+	_, firstToken := dbgen.APIKey(t, rawDB, database.APIKey{UserID: first.ID, ExpiresAt: time.Now().Add(time.Hour)})
+	_, secondToken := dbgen.APIKey(t, rawDB, database.APIKey{UserID: second.ID, ExpiresAt: time.Now().Add(time.Hour)})
 
 	firstSettings := codersdk.UserPreferenceSettings{
-		DefaultLandingPage:    codersdk.DefaultLandingPageAgents,
-		ThinkingDisplayMode:   codersdk.ThinkingDisplayModeAuto,
-		AgentChatSendShortcut: codersdk.AgentChatSendShortcutEnter,
+		ThinkingDisplayMode:    codersdk.ThinkingDisplayModePreview,
+		ShellToolDisplayMode:   codersdk.AgentDisplayModeAlwaysExpanded,
+		CodeDiffDisplayMode:    codersdk.AgentDisplayModeAuto,
+		CollapseAssistantSteps: true,
+		AgentChatSendShortcut:  codersdk.AgentChatSendShortcutModifierEnter,
+		DefaultLandingPage:     codersdk.DefaultLandingPageAgents,
 	}
-	secondSettings := codersdk.UserPreferenceSettings{DefaultLandingPage: codersdk.DefaultLandingPageWorkspaces}
-	var failFetch atomic.Bool
-	var fetches atomic.Int64
+	_, err = rawDB.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+		UserID: first.ID, ThinkingDisplayMode: string(firstSettings.ThinkingDisplayMode),
+	})
+	require.NoError(t, err)
+	_, err = rawDB.UpdateUserShellToolDisplayMode(ctx, database.UpdateUserShellToolDisplayModeParams{
+		UserID: first.ID, ShellToolDisplayMode: string(firstSettings.ShellToolDisplayMode),
+	})
+	require.NoError(t, err)
+	_, err = rawDB.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
+		UserID: first.ID, CodeDiffDisplayMode: string(firstSettings.CodeDiffDisplayMode),
+	})
+	require.NoError(t, err)
+	_, err = rawDB.UpdateUserCollapseAssistantSteps(ctx, database.UpdateUserCollapseAssistantStepsParams{
+		UserID: first.ID, CollapseAssistantSteps: firstSettings.CollapseAssistantSteps,
+	})
+	require.NoError(t, err)
+	_, err = rawDB.UpdateUserAgentChatSendShortcut(ctx, database.UpdateUserAgentChatSendShortcutParams{
+		UserID: first.ID, AgentChatSendShortcut: string(firstSettings.AgentChatSendShortcut),
+	})
+	require.NoError(t, err)
+	_, err = rawDB.UpdateUserDefaultLandingPage(ctx, database.UpdateUserDefaultLandingPageParams{
+		UserID: first.ID, DefaultLandingPage: string(firstSettings.DefaultLandingPage),
+	})
+	require.NoError(t, err)
+	secondSettings := codersdk.UserPreferenceSettings{
+		ThinkingDisplayMode:   codersdk.ThinkingDisplayModeAuto,
+		ShellToolDisplayMode:  codersdk.AgentDisplayModeAlwaysCollapsed,
+		AgentChatSendShortcut: codersdk.AgentChatSendShortcutEnter,
+		DefaultLandingPage:    codersdk.DefaultLandingPageWorkspaces,
+	}
+	db := &userPreferencesStore{Store: dbauthz.New(
+		rawDB,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		testutil.Logger(t),
+		coderdtest.AccessControlStorePointer(),
+	)}
 	var appearanceFetcher atomic.Pointer[appearance.Fetcher]
 	fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{ApplicationName: "Coder"}})
 	appearanceFetcher.Store(&fetcher)
@@ -191,24 +246,6 @@ func TestUserPreferencesMetadata(t *testing.T) {
 		SiteFS:            fstest.MapFS{"index.html": &fstest.MapFile{Data: index}},
 		Telemetry:         telemetry.NewNoop(),
 		AppearanceFetcher: &appearanceFetcher,
-		UserPreferencesFetcher: func(ctx context.Context, userID uuid.UUID) (codersdk.UserPreferenceSettings, error) {
-			fetches.Add(1)
-			actor, ok := dbauthz.ActorFromContext(ctx)
-			if !ok || actor.ID != userID.String() {
-				return codersdk.UserPreferenceSettings{}, xerrors.Errorf("wrong preference actor for user %s", userID)
-			}
-			if failFetch.Load() {
-				return codersdk.UserPreferenceSettings{}, xerrors.Errorf("preferences unavailable for user %s", userID)
-			}
-			switch userID {
-			case first.ID:
-				return firstSettings, nil
-			case second.ID:
-				return secondSettings, nil
-			default:
-				return codersdk.UserPreferenceSettings{}, xerrors.Errorf("unexpected user %s", userID)
-			}
-		},
 	})
 	require.NoError(t, err)
 
@@ -270,13 +307,13 @@ func TestUserPreferencesMetadata(t *testing.T) {
 		require.Equal(t, tc.userID, user.ID)
 	}
 
-	beforeAnonymous := fetches.Load()
+	beforeAnonymous := db.reads.Load()
 	body := getHTML("")
 	require.Empty(t, metaValue(t, body, "userPreferences"))
 	require.Empty(t, metaValue(t, body, "user"))
-	require.Equal(t, beforeAnonymous, fetches.Load())
+	require.Equal(t, beforeAnonymous, db.reads.Load())
 
-	failFetch.Store(true)
+	db.failRead.Store(true)
 	body = getHTML(firstToken)
 	require.Empty(t, metaValue(t, body, "userPreferences"))
 	var user codersdk.User
@@ -284,20 +321,6 @@ func TestUserPreferencesMetadata(t *testing.T) {
 	require.Equal(t, first.ID, user.ID)
 	require.NotEmpty(t, metaValue(t, body, "userAppearance"))
 	require.NotEmpty(t, metaValue(t, body, "appearance"))
-
-	withoutFetcher, err := site.New(&site.Options{
-		Database:  db,
-		SiteFS:    fstest.MapFS{"index.html": &fstest.MapFile{Data: index}},
-		Telemetry: telemetry.NewNoop(),
-	})
-	require.NoError(t, err)
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Header.Set(codersdk.SessionTokenHeader, firstToken)
-	rw := httptest.NewRecorder()
-	withoutFetcher.ServeHTTP(rw, r)
-	require.Equal(t, http.StatusOK, rw.Code)
-	require.Empty(t, metaValue(t, rw.Body.String(), "userPreferences"))
-	require.NotEmpty(t, metaValue(t, rw.Body.String(), "user"))
 }
 
 func TestInjectionUserAppearance(t *testing.T) {

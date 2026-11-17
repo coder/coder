@@ -1410,7 +1410,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 // @Router /api/v2/users/{user}/preferences [get]
 func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	settings, err := api.getUserPreferenceSettings(ctx, httpmw.UserParam(r).ID)
+	settings, err := api.Database.GetUserPreferenceSettings(ctx, httpmw.UserParam(r).ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error reading user preference settings.",
@@ -1418,48 +1418,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, settings)
-}
-
-func (api *API) getUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (codersdk.UserPreferenceSettings, error) {
-	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.UserPreferenceSettings{}, err
-	}
-
-	shellToolMode, err := api.Database.GetUserShellToolDisplayMode(ctx, userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.UserPreferenceSettings{}, err
-	}
-
-	codeDiffMode, err := api.Database.GetUserCodeDiffDisplayMode(ctx, userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.UserPreferenceSettings{}, err
-	}
-
-	collapseAssistantSteps, err := api.Database.GetUserCollapseAssistantSteps(ctx, userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.UserPreferenceSettings{}, err
-	}
-
-	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.UserPreferenceSettings{}, err
-	}
-
-	defaultLandingPage, err := api.Database.GetUserDefaultLandingPage(ctx, userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.UserPreferenceSettings{}, err
-	}
-
-	return codersdk.UserPreferenceSettings{
-		ThinkingDisplayMode:    sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:   sanitizeShellToolDisplayMode(shellToolMode),
-		CodeDiffDisplayMode:    sanitizeAgentDisplayMode(codeDiffMode),
-		CollapseAssistantSteps: collapseAssistantSteps,
-		AgentChatSendShortcut:  sanitizeAgentChatSendShortcut(agentChatSendShortcut),
-		DefaultLandingPage:     sanitizeDefaultLandingPage(defaultLandingPage),
-	}, nil
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserPreferenceSettings(settings))
 }
 
 // @Summary Update user preference settings
@@ -1534,108 +1493,71 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	var settings codersdk.UserPreferenceSettings
+	var settings database.GetUserPreferenceSettingsRow
 	err := api.Database.InTx(func(tx database.Store) error {
 		if params.ThinkingDisplayMode != "" {
-			updated, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+			_, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
 				UserID:              user.ID,
 				ThinkingDisplayMode: string(params.ThinkingDisplayMode),
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating thinking display mode.", err)
 			}
-			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(updated)
-		} else {
-			stored, err := tx.GetUserThinkingDisplayMode(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading thinking display mode.", err)
-			}
-			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(stored)
 		}
 
 		if params.ShellToolDisplayMode != "" {
-			updated, err := tx.UpdateUserShellToolDisplayMode(ctx, database.UpdateUserShellToolDisplayModeParams{
+			_, err := tx.UpdateUserShellToolDisplayMode(ctx, database.UpdateUserShellToolDisplayModeParams{
 				UserID:               user.ID,
 				ShellToolDisplayMode: string(params.ShellToolDisplayMode),
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating shell tool display mode.", err)
 			}
-			settings.ShellToolDisplayMode = sanitizeShellToolDisplayMode(updated)
-		} else {
-			stored, err := tx.GetUserShellToolDisplayMode(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading shell tool display mode.", err)
-			}
-			settings.ShellToolDisplayMode = sanitizeShellToolDisplayMode(stored)
 		}
 
 		if params.CodeDiffDisplayMode != "" {
-			updated, err := tx.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
+			_, err := tx.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
 				UserID:              user.ID,
 				CodeDiffDisplayMode: string(params.CodeDiffDisplayMode),
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating code diff display mode.", err)
 			}
-			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(updated)
-		} else {
-			stored, err := tx.GetUserCodeDiffDisplayMode(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading code diff display mode.", err)
-			}
-			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
 		}
 
 		if params.CollapseAssistantSteps != nil {
-			updated, err := tx.UpdateUserCollapseAssistantSteps(ctx, database.UpdateUserCollapseAssistantStepsParams{
+			_, err := tx.UpdateUserCollapseAssistantSteps(ctx, database.UpdateUserCollapseAssistantStepsParams{
 				UserID:                 user.ID,
 				CollapseAssistantSteps: *params.CollapseAssistantSteps,
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating user collapse assistant steps.", err)
 			}
-			settings.CollapseAssistantSteps = updated
-		} else {
-			stored, err := tx.GetUserCollapseAssistantSteps(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading collapse assistant steps.", err)
-			}
-			settings.CollapseAssistantSteps = stored
 		}
 
 		if params.AgentChatSendShortcut != "" {
-			updated, err := tx.UpdateUserAgentChatSendShortcut(ctx, database.UpdateUserAgentChatSendShortcutParams{
+			_, err := tx.UpdateUserAgentChatSendShortcut(ctx, database.UpdateUserAgentChatSendShortcutParams{
 				UserID:                user.ID,
 				AgentChatSendShortcut: string(params.AgentChatSendShortcut),
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating agent chat send shortcut.", err)
 			}
-			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(updated)
-		} else {
-			stored, err := tx.GetUserAgentChatSendShortcut(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading agent chat send shortcut.", err)
-			}
-			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(stored)
 		}
 
 		if params.DefaultLandingPage != "" {
-			updated, err := tx.UpdateUserDefaultLandingPage(ctx, database.UpdateUserDefaultLandingPageParams{
+			_, err := tx.UpdateUserDefaultLandingPage(ctx, database.UpdateUserDefaultLandingPageParams{
 				UserID:             user.ID,
 				DefaultLandingPage: string(params.DefaultLandingPage),
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating default landing page.", err)
 			}
-			settings.DefaultLandingPage = sanitizeDefaultLandingPage(updated)
-		} else {
-			stored, err := tx.GetUserDefaultLandingPage(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading default landing page.", err)
-			}
-			settings.DefaultLandingPage = sanitizeDefaultLandingPage(stored)
+		}
+		var err error
+		settings, err = tx.GetUserPreferenceSettings(ctx, user.ID)
+		if err != nil {
+			return newUserPreferenceSettingsAPIError("Error reading user preference settings.", err)
 		}
 		return nil
 	}, database.DefaultTXOptions().WithID("user_preference_settings"))
@@ -1652,7 +1574,7 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, settings)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserPreferenceSettings(settings))
 }
 
 type userPreferenceSettingsAPIError struct {
@@ -1685,45 +1607,6 @@ const (
 	agentDisplayModeValidationDetail      = "must be one of: auto, always_expanded, always_collapsed"
 	agentChatSendShortcutValidationDetail = "must be one of: enter, modifier_enter"
 )
-
-func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
-	mode := codersdk.ThinkingDisplayMode(raw)
-	if slices.Contains(codersdk.ValidThinkingDisplayModes, mode) {
-		return mode
-	}
-	return codersdk.ThinkingDisplayModeAuto
-}
-
-func sanitizeShellToolDisplayMode(raw string) codersdk.AgentDisplayMode {
-	mode := sanitizeAgentDisplayMode(raw)
-	if mode == "" {
-		return codersdk.AgentDisplayModeAlwaysCollapsed
-	}
-	return mode
-}
-
-func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
-	mode := codersdk.AgentDisplayMode(raw)
-	if slices.Contains(codersdk.ValidAgentDisplayModes, mode) {
-		return mode
-	}
-	return ""
-}
-
-func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
-	shortcut := codersdk.AgentChatSendShortcut(raw)
-	if slices.Contains(codersdk.ValidAgentChatSendShortcuts, shortcut) {
-		return shortcut
-	}
-	return codersdk.AgentChatSendShortcutEnter
-}
-
-func sanitizeDefaultLandingPage(raw string) codersdk.DefaultLandingPage {
-	if raw == string(codersdk.DefaultLandingPageAgents) {
-		return codersdk.DefaultLandingPageAgents
-	}
-	return codersdk.DefaultLandingPageWorkspaces
-}
 
 func isValidFontName(font codersdk.TerminalFontName) bool {
 	return slices.Contains(codersdk.TerminalFontNames, font)

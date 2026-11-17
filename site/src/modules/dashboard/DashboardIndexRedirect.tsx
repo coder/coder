@@ -1,7 +1,6 @@
 import { useQuery } from "react-query";
 import { Navigate } from "react-router";
 import { preferenceSettings } from "#/api/queries/users";
-import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 
 /** Resolves the dashboard root without changing explicit page links. */
@@ -9,13 +8,8 @@ export const DashboardIndexRedirect: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const query = useQuery({
 		...preferenceSettings(),
-		enabled: permissions.createChat,
-		retry: false,
+		enabled: false,
 	});
-
-	if (permissions.createChat && query.isLoading) {
-		return <Loader />;
-	}
 
 	return (
 		<Navigate
