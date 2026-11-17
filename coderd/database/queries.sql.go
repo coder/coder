@@ -8299,8 +8299,43 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const deleteChatProjectTemplate = `-- name: DeleteChatProjectTemplate :one
+WITH cleared AS (
+    UPDATE chat_projects
+    SET
+        default_template_id = NULL,
+        default_template_version_preset_id = NULL,
+        default_parameters = '{}'::jsonb
+    WHERE id = $1::uuid
+        AND default_template_id = $2::uuid
+)
+DELETE FROM chat_project_templates
+WHERE project_id = $1::uuid
+    AND template_id = $2::uuid
+RETURNING project_id, template_id, created_by, created_at
+`
+
+type DeleteChatProjectTemplateParams struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+// Detaches a template from a project. Detaching the default template also
+// clears the project's defaults, which only apply to an attached template.
+func (q *sqlQuerier) DeleteChatProjectTemplate(ctx context.Context, arg DeleteChatProjectTemplateParams) (ChatProjectTemplate, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatProjectTemplate, arg.ProjectID, arg.TemplateID)
+	var i ChatProjectTemplate
+	err := row.Scan(
+		&i.ProjectID,
+		&i.TemplateID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -8319,12 +8354,16 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
 
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE id = $1::uuid
 FOR UPDATE
@@ -8344,12 +8383,85 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
 
+const getChatProjectTemplatesByProjectIDs = `-- name: GetChatProjectTemplatesByProjectIDs :many
+SELECT
+    chat_project_templates.project_id, chat_project_templates.template_id, chat_project_templates.created_by, chat_project_templates.created_at,
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
+FROM chat_project_templates
+JOIN chat_projects ON chat_projects.id = chat_project_templates.project_id
+JOIN templates ON templates.id = chat_project_templates.template_id
+WHERE chat_project_templates.project_id = ANY($1::uuid[])
+    AND NOT templates.deleted
+    AND templates.deprecated = ''
+    AND templates.agents_allowed
+ORDER BY
+    chat_project_templates.project_id,
+    chat_project_templates.created_at,
+    chat_project_templates.template_id
+`
+
+type GetChatProjectTemplatesByProjectIDsRow struct {
+	ChatProjectTemplate ChatProjectTemplate `db:"chat_project_template" json:"chat_project_template"`
+	ChatProject         ChatProject         `db:"chat_project" json:"chat_project"`
+}
+
+// Lists the templates attached to the given projects, oldest attachment
+// first. Deleted, deprecated, and agent-disabled templates are left out
+// because no chat can use them, whoever asks. The rows are not filtered by
+// the caller's access to each template, so callers must check that before
+// exposing a template.
+func (q *sqlQuerier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, projectIds []uuid.UUID) ([]GetChatProjectTemplatesByProjectIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectTemplatesByProjectIDs, pq.Array(projectIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatProjectTemplatesByProjectIDsRow
+	for rows.Next() {
+		var i GetChatProjectTemplatesByProjectIDsRow
+		if err := rows.Scan(
+			&i.ChatProjectTemplate.ProjectID,
+			&i.ChatProjectTemplate.TemplateID,
+			&i.ChatProjectTemplate.CreatedBy,
+			&i.ChatProjectTemplate.CreatedAt,
+			&i.ChatProject.ID,
+			&i.ChatProject.OrganizationID,
+			&i.ChatProject.OwnerID,
+			&i.ChatProject.Name,
+			&i.ChatProject.Description,
+			&i.ChatProject.Icon,
+			&i.ChatProject.CreatedAt,
+			&i.ChatProject.UpdatedAt,
+			&i.ChatProject.UserACL,
+			&i.ChatProject.GroupACL,
+			&i.ChatProject.LimitTemplates,
+			&i.ChatProject.DefaultTemplateID,
+			&i.ChatProject.DefaultTemplateVersionPresetID,
+			&i.ChatProject.DefaultParameters,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
 FROM chat_projects
 WHERE chat_projects.owner_id = $1::uuid
     OR (
@@ -8397,6 +8509,10 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.LimitTemplates,
+			&i.DefaultTemplateID,
+			&i.DefaultTemplateVersionPresetID,
+			&i.DefaultParameters,
 		); err != nil {
 			return nil, err
 		}
@@ -8412,25 +8528,36 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 }
 
 const insertChatProject = `-- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
+INSERT INTO chat_projects (
+    id, organization_id, owner_id, name, description, icon,
+    limit_templates, default_template_id, default_template_version_preset_id, default_parameters
+)
 VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::text,
     $5::text,
-    $6::text
+    $6::text,
+    $7::boolean,
+    $8::uuid,
+    $9::uuid,
+    COALESCE($10::jsonb, '{}'::jsonb)
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type InsertChatProjectParams struct {
-	ID             uuid.NullUUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Icon           string        `db:"icon" json:"icon"`
+	ID                             uuid.NullUUID         `db:"id" json:"id"`
+	OrganizationID                 uuid.UUID             `db:"organization_id" json:"organization_id"`
+	OwnerID                        uuid.UUID             `db:"owner_id" json:"owner_id"`
+	Name                           string                `db:"name" json:"name"`
+	Description                    string                `db:"description" json:"description"`
+	Icon                           string                `db:"icon" json:"icon"`
+	LimitTemplates                 bool                  `db:"limit_templates" json:"limit_templates"`
+	DefaultTemplateID              uuid.NullUUID         `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID         `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              pqtype.NullRawMessage `db:"default_parameters" json:"default_parameters"`
 }
 
 func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error) {
@@ -8441,6 +8568,10 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		arg.LimitTemplates,
+		arg.DefaultTemplateID,
+		arg.DefaultTemplateVersionPresetID,
+		arg.DefaultParameters,
 	)
 	var i ChatProject
 	err := row.Scan(
@@ -8454,8 +8585,56 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
+}
+
+const insertChatProjectTemplates = `-- name: InsertChatProjectTemplates :many
+INSERT INTO chat_project_templates (project_id, template_id, created_by)
+SELECT $1::uuid, unnest($2::uuid[]), $3::uuid
+ON CONFLICT (project_id, template_id) DO NOTHING
+RETURNING project_id, template_id, created_by, created_at
+`
+
+type InsertChatProjectTemplatesParams struct {
+	ProjectID   uuid.UUID   `db:"project_id" json:"project_id"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	CreatedBy   uuid.UUID   `db:"created_by" json:"created_by"`
+}
+
+// Attaches templates to a project and returns the new attachments. Templates
+// that are already attached are skipped, so their rows keep their original
+// created_by.
+func (q *sqlQuerier) InsertChatProjectTemplates(ctx context.Context, arg InsertChatProjectTemplatesParams) ([]ChatProjectTemplate, error) {
+	rows, err := q.db.QueryContext(ctx, insertChatProjectTemplates, arg.ProjectID, pq.Array(arg.TemplateIDs), arg.CreatedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProjectTemplate
+	for rows.Next() {
+		var i ChatProjectTemplate
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.TemplateID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const isChatProjectUsableByUserID = `-- name: IsChatProjectUsableByUserID :one
@@ -8524,16 +8703,27 @@ SET
     name = $1::text,
     description = $2::text,
     icon = $3::text,
+    -- The template settings change only when the request sets them, so a
+    -- concurrent update that omits them cannot restore a stale snapshot.
+    limit_templates = COALESCE($4::boolean, limit_templates),
+    default_template_id = CASE WHEN $5::boolean THEN $6::uuid ELSE default_template_id END,
+    default_template_version_preset_id = CASE WHEN $5::boolean THEN $7::uuid ELSE default_template_version_preset_id END,
+    default_parameters = CASE WHEN $5::boolean THEN COALESCE($8::jsonb, '{}'::jsonb) ELSE default_parameters END,
     updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+WHERE id = $9::uuid
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type UpdateChatProjectByIDParams struct {
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Icon        string    `db:"icon" json:"icon"`
-	ID          uuid.UUID `db:"id" json:"id"`
+	Name                           string                `db:"name" json:"name"`
+	Description                    string                `db:"description" json:"description"`
+	Icon                           string                `db:"icon" json:"icon"`
+	LimitTemplates                 sql.NullBool          `db:"limit_templates" json:"limit_templates"`
+	UpdateDefaultTemplate          bool                  `db:"update_default_template" json:"update_default_template"`
+	DefaultTemplateID              uuid.NullUUID         `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID         `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              pqtype.NullRawMessage `db:"default_parameters" json:"default_parameters"`
+	ID                             uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
@@ -8541,6 +8731,11 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		arg.LimitTemplates,
+		arg.UpdateDefaultTemplate,
+		arg.DefaultTemplateID,
+		arg.DefaultTemplateVersionPresetID,
+		arg.DefaultParameters,
 		arg.ID,
 	)
 	var i ChatProject
@@ -8555,6 +8750,10 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
