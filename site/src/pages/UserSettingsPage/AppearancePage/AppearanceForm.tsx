@@ -7,7 +7,6 @@ import {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Label } from "#/components/Label/Label";
-import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	Select,
 	SelectContent,
@@ -20,7 +19,9 @@ import { Section } from "#/pages/UserSettingsPage/Section";
 import type { ConcreteThemeName } from "#/theme";
 import {
 	DEFAULT_TERMINAL_FONT,
+	DEFAULT_TERMINAL_FONT_SIZE,
 	terminalFontLabels,
+	terminalFontSizes,
 	terminalFonts,
 } from "#/theme/constants";
 import {
@@ -32,6 +33,7 @@ import {
 } from "#/theme/themeMode";
 import { SingleModeSection } from "./SingleModeSection";
 import { SyncModeSection } from "./SyncModeSection";
+import { TerminalPreview } from "./TerminalPreview";
 
 // Display Geist Mono (the default monospace font) first, then the rest
 // alphabetically. TerminalFontNames is auto-generated in alphabetical
@@ -44,6 +46,7 @@ const sortedTerminalFontNames = [
 type AppearanceFormValues = {
 	draft: ThemeModeDraft;
 	terminalFont: TerminalFontName;
+	terminalFontSize: number;
 };
 
 type AppearanceThemeMode = ThemeModeDraft["mode"];
@@ -66,8 +69,8 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	const [values, setValues] = useState(() => toFormValues(initialValues));
 	const themeModeId = useId();
 	const fontGroupId = useId();
-	const fontGroupLabelId = `${fontGroupId}-label`;
-	const fontGroupName = `${fontGroupId}-fonts`;
+	const fontFamilyId = `${fontGroupId}-family`;
+	const fontSizeId = `${fontGroupId}-size`;
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
@@ -77,6 +80,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 		theme_light,
 		theme_dark,
 		terminal_font,
+		terminal_font_size,
 	} = initialValues;
 
 	useEffect(() => {
@@ -89,6 +93,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			theme_light,
 			theme_dark,
 			terminal_font,
+			terminal_font_size,
 		});
 		setValues(next);
 	}, [
@@ -98,9 +103,10 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 		theme_light,
 		theme_dark,
 		terminal_font,
+		terminal_font_size,
 	]);
 
-	const { draft, terminalFont } = values;
+	const { draft, terminalFont, terminalFontSize } = values;
 
 	const submit = (next: AppearanceFormValues) => {
 		setValues(next);
@@ -128,7 +134,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 						light: draft.light,
 						dark: draft.dark,
 					};
-		submit({ draft: next, terminalFont });
+		submit({ ...values, draft: next });
 	};
 
 	const onSelectSyncSlot = (
@@ -139,18 +145,22 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			scheme === "light"
 				? { ...draft, light: theme }
 				: { ...draft, dark: theme };
-		submit({ draft: next, terminalFont });
+		submit({ ...values, draft: next });
 	};
 
 	const onSelectSingle = (theme: ConcreteThemeName) => {
 		submit({
+			...values,
 			draft: { ...draft, single: theme, mode: "single" },
-			terminalFont,
 		});
 	};
 
 	const onChangeTerminalFont = (nextTerminalFont: TerminalFontName) => {
-		submit({ draft, terminalFont: nextTerminalFont });
+		submit({ ...values, terminalFont: nextTerminalFont });
+	};
+
+	const onChangeTerminalFontSize = (nextTerminalFontSize: number) => {
+		submit({ ...values, terminalFontSize: nextTerminalFontSize });
 	};
 
 	return (
@@ -220,7 +230,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			<Section
 				title={
 					<div className="flex items-center gap-2">
-						<span id={fontGroupLabelId}>Terminal Font</span>
+						<span>Terminal</span>
 						<Spinner
 							loading={isUpdating}
 							size="sm"
@@ -230,27 +240,70 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 				}
 				layout="fluid"
 			>
-				<RadioGroup
-					aria-labelledby={fontGroupLabelId}
-					value={terminalFont}
-					name={fontGroupName}
-					onValueChange={(value) =>
-						onChangeTerminalFont(toTerminalFontName(value))
-					}
-				>
-					{sortedTerminalFontNames.map((name) => (
-						<div key={name} className="flex items-center space-x-2">
-							<RadioGroupItem value={name} id={`${fontGroupId}-${name}`} />
-							<Label
-								htmlFor={`${fontGroupId}-${name}`}
-								className="cursor-pointer font-normal"
-								style={{ fontFamily: terminalFonts[name] }}
-							>
-								{terminalFontLabels[name]}
+				<div className="flex flex-col gap-6">
+					<div className="flex gap-4">
+						<div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+							<Label htmlFor={fontFamilyId} className="text-sm font-medium">
+								Font
 							</Label>
+							<Select
+								value={terminalFont}
+								onValueChange={(value) =>
+									onChangeTerminalFont(toTerminalFontName(value))
+								}
+							>
+								<SelectTrigger
+									id={fontFamilyId}
+									className="w-full text-content-primary sm:w-48"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{sortedTerminalFontNames.map((name) => (
+										<SelectItem
+											key={name}
+											value={name}
+											style={{ fontFamily: terminalFonts[name] }}
+										>
+											{terminalFontLabels[name]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
-					))}
-				</RadioGroup>
+
+						<div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+							<Label htmlFor={fontSizeId} className="text-sm font-medium">
+								Font size
+							</Label>
+							<Select
+								value={String(terminalFontSize)}
+								onValueChange={(value) =>
+									onChangeTerminalFontSize(Number(value))
+								}
+							>
+								<SelectTrigger
+									id={fontSizeId}
+									className="w-full text-content-primary sm:w-48"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{terminalFontSizes.map((size) => (
+										<SelectItem key={size} value={String(size)}>
+											{size}px
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+
+					<TerminalPreview
+						fontFamily={terminalFonts[terminalFont]}
+						fontSize={terminalFontSize}
+					/>
+				</div>
 			</Section>
 		</form>
 	);
@@ -263,6 +316,7 @@ function toFormValues(settings: UserAppearanceSettings): AppearanceFormValues {
 			dark: settings.theme_dark,
 		}),
 		terminalFont: settings.terminal_font || DEFAULT_TERMINAL_FONT,
+		terminalFontSize: settings.terminal_font_size || DEFAULT_TERMINAL_FONT_SIZE,
 	};
 }
 
@@ -270,7 +324,10 @@ function toUpdateRequest(
 	values: AppearanceFormValues,
 	activeScheme: "dark" | "light",
 ): UpdateUserAppearanceSettingsRequest {
-	return draftToUpdate(values.draft, values.terminalFont, activeScheme);
+	return {
+		...draftToUpdate(values.draft, values.terminalFont, activeScheme),
+		terminal_font_size: values.terminalFontSize,
+	};
 }
 
 function isThemeMode(value: string): value is AppearanceThemeMode {
