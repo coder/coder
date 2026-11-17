@@ -4750,6 +4750,12 @@ export interface CreateSkillRequest {
 	 */
 	readonly action?: boolean;
 	/**
+	 * DisplayName is only accepted for project skills. It must be a single
+	 * line of at most MaxSkillDisplayNameLength characters, and surrounding
+	 * whitespace is trimmed.
+	 */
+	readonly display_name?: string;
+	/**
 	 * ModelInvocable defaults to false when the content's frontmatter sets
 	 * disable-model-invocation: true, and to true otherwise.
 	 */
@@ -7178,6 +7184,14 @@ export const MaxInlineMCPServersBytes = 24576;
  * MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
  */
 export const MaxSecretsFileBytes = 1048576; // 1 MiB
+
+// From codersdk/skills.go
+/**
+ * MaxSkillDisplayNameLength is the maximum length of a skill display name,
+ * counted in Unicode code points after surrounding whitespace is trimmed, not
+ * in bytes or UTF-16 units.
+ */
+export const MaxSkillDisplayNameLength = 64;
 
 // From codersdk/usersecretvalidation.go
 /**
@@ -10215,6 +10229,12 @@ export interface SkillMetadata {
 	readonly description: string;
 	readonly enabled: boolean;
 	/**
+	 * DisplayName labels a project skill's action. When it is empty, clients
+	 * show Name instead. It is always empty for personal and organization
+	 * skills.
+	 */
+	readonly display_name: string;
+	/**
 	 * Action reports whether a project skill is offered as a one-click
 	 * action above project composers. It is always false for personal and
 	 * organization skills.
@@ -11568,6 +11588,11 @@ export interface UpdateSkillRequest {
 	 */
 	readonly action?: boolean;
 	readonly model_invocable?: boolean;
+	/**
+	 * DisplayName is only accepted for project skills. An empty value
+	 * clears it.
+	 */
+	readonly display_name?: string;
 }
 
 // From codersdk/templates.go
@@ -11713,6 +11738,11 @@ export interface UpdateUserAppearanceSettingsRequest {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+	/**
+	 * TerminalFontSize is optional for backward compatibility. When zero,
+	 * the server leaves the persisted terminal font size unchanged.
+	 */
+	readonly terminal_font_size?: number;
 }
 
 // From codersdk/chats.go
@@ -12163,6 +12193,11 @@ export interface UserAppearanceSettings {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+	/**
+	 * TerminalFontSize is the web terminal font size in pixels. Zero means
+	 * the user has not chosen a size, and the web terminal will use the default.
+	 */
+	readonly terminal_font_size: number;
 }
 
 // From codersdk/chats.go

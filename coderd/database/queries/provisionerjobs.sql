@@ -326,27 +326,113 @@ WHERE
 	id = $1;
 
 -- name: GetProvisionerJobsToBeReaped :many
+WITH pending_requirements AS (
+	-- Requirement sets of pending jobs past the ordinary timeout. Jobs that
+	-- share an organization, provisioner type, and tags have the same
+	-- eligible daemons, and jobs usually share a few template tag sets, so
+	-- distinct sets are far fewer than pending jobs. Checking daemon
+	-- eligibility per set costs sets x daemons calls to the plpgsql
+	-- provisioner_tagset_contains function, which Postgres cannot inline,
+	-- instead of jobs x daemons.
+	SELECT DISTINCT organization_id, provisioner, tags
+	FROM provisioner_jobs
+	WHERE job_status = 'pending'::provisioner_job_status
+		AND updated_at < @pending_since
+),
+protected_requirements AS (
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM pending_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= @provisioner_seen_since::timestamptz
+			-- The running leg lets builds longer than the window count as
+			-- progress. Keep the legs as separate EXISTS so each is a range
+			-- scan on provisioner_jobs_worker_id_organization_id_completed_at_idx.
+			-- Keep in sync with HasProvisionerDaemonMakingProgress.
+			AND (
+				EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at >= @provisioner_progress_since::timestamptz
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at IS NULL
+						AND wj.updated_at >= @hung_since
+				)
+			)
+	)
+)
 SELECT
-	*
+	pj.*
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
 WHERE
 	(
 		-- If the job has not been started before @pending_since, reap it.
-		updated_at < @pending_since
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		pj.updated_at < @pending_since
+		AND pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		-- Unless it is pending and an eligible provisioner is online and
+		-- making progress.
+		AND NOT (
+			pj.job_status = 'pending'::provisioner_job_status
+			AND EXISTS (
+				SELECT 1
+				FROM protected_requirements pr
+				WHERE pr.organization_id = pj.organization_id
+					AND pr.provisioner = pj.provisioner
+					AND pr.tags = pj.tags
+			)
+		)
 	)
 	OR
 	(
 		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < @hung_since
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		pj.updated_at < @hung_since
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
 -- To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 ORDER BY random()
 LIMIT @max_jobs;
+
+-- name: HasProvisionerDaemonMakingProgress :one
+-- Returns true when any of the given daemons is making progress, using the
+-- progress rule from GetProvisionerJobsToBeReaped (keep the two in sync). It
+-- does not check heartbeat or eligibility, so callers must pass only online,
+-- eligible daemons.
+SELECT EXISTS (
+	SELECT 1
+	FROM provisioner_daemons pd
+	WHERE pd.id = ANY(@daemon_ids::uuid[])
+		AND (
+			EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at >= @provisioner_progress_since::timestamptz
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at IS NULL
+					AND wj.updated_at >= @hung_since::timestamptz
+			)
+		)
+)::bool AS making_progress;
 
 -- name: InsertProvisionerJobTimings :many
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
