@@ -1498,5 +1498,21 @@
   {
     "source": "user-guides/*",
     "destination": "workspaces/*"
+  },
+  {
+    "source": "get-started/customize-your-template",
+    "destination": "get-started"
+  },
+  {
+    "source": "get-started/customize-your-template/add-a-language",
+    "destination": "get-started"
+  },
+  {
+    "source": "get-started/customize-your-template/install-command-line-tools",
+    "destination": "get-started"
+  },
+  {
+    "source": "get-started/customize-your-template/authenticate-to-github",
+    "destination": "get-started"
   }
 ]
