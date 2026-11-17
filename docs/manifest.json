@@ -278,6 +278,11 @@
 							]
 						},
 						{
+							"title": "Disaster recovery",
+							"description": "Plan database backups and restores, and learn what users experience during a control plane outage.",
+							"path": "./install/operate/disaster-recovery.md"
+						},
+						{
 							"title": "Google Cloud to AWS federation",
 							"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
 							"path": "./install/operate/gcp-to-aws.md"
@@ -1546,6 +1551,11 @@
 							"description": "Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.",
 							"path": "./admin/security/database-encryption.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Cut off workspace access",
+							"description": "Stop users from reaching workspaces right away during a security incident, then restore access.",
+							"path": "./admin/security/cut-off-workspace-access.md"
 						},
 						{
 							"title": "Security - best practices",
