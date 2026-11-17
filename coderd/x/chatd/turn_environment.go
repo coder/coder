@@ -101,7 +101,7 @@ func (p turnEnvironment) stepReasoningProvenance() reasoningProvenance {
 }
 
 // effectiveMCPServerConfigs loads the chat's stored selection plus
-// owner-readable Force On configs at generation time, so stored lists
+// ACL-granted Force On configs at generation time, so stored lists
 // predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
 // Explore chats keep their immutable spawn-time snapshot instead.
 func (p *Server) effectiveMCPServerConfigs(
