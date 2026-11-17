@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	defaultSpendDays,
+	formatSpendDaysLabel,
 	fromPickerValue,
 	parseSpendDays,
 	toPickerNow,
@@ -46,6 +47,17 @@ describe("toSpendPeriod", () => {
 			period_start: "2026-03-06T00:00:00.000Z",
 			period_end: "2026-03-13T00:00:00.000Z",
 		});
+	});
+});
+
+describe("formatSpendDaysLabel", () => {
+	it.each([
+		["a single day", "2026-03-12", "2026-03-12", "Mar 12"],
+		["days in one month", "2026-03-06", "2026-03-12", "Mar 6-12"],
+		["days across months", "2026-02-27", "2026-03-12", "Feb 27 - Mar 12"],
+		["days across years", "2025-12-29", "2026-01-04", "Dec 29 - Jan 4"],
+	])("labels %s", (_, startDate, endDate, label) => {
+		expect(formatSpendDaysLabel({ startDate, endDate })).toBe(label);
 	});
 });
 
