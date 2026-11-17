@@ -46,7 +46,7 @@ If you encounter a situation where you need to override template settings for va
 1. Create a `terraform.tfvars` file in the template directory:
 
    ```tf
-   coder_image = newimage:tag
+   coder_image = "newimage:tag"
    ```
 
 1. Push the new template revision using Coder CLI:
