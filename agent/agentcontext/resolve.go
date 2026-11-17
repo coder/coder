@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -207,6 +208,7 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot, opts Re
 		}
 	}
 	resources, snapErrs = res.applyProviderCaps(resources, startIdx, totalBytes, snapErrs)
+	resources = withoutOrphanedPluginResources(resources)
 	// Rows past MaxResources are excluded stubs, so this cut keeps every
 	// row that is not.
 	if n := len(resources); n > workspacesdk.MaxContextResources {
@@ -337,9 +339,9 @@ func deduplicateSkills(resources []Resource) []Resource {
 // fixed container locations under it. With plugins enabled it also
 // contributes plugins from the fixed plugin containers. A root that is
 // itself a plugin, valid or rejected, keeps its instruction files,
-// .mcp.json, and skill containers. A valid plugin root's plugin
-// containers are not scanned, even when another resource holds its
-// Source. The walk goes no deeper.
+// .mcp.json, and other skill containers, but its skills/ belongs to the
+// plugin. A valid plugin root's plugin containers are not scanned, even
+// when another resource holds its Source. The walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, opts ResolveOptions, out *[]Resource, index *resourceIndex, pluginNames map[string]string) {
 	info, err := os.Stat(root.Path)
 	if err != nil {
@@ -354,8 +356,12 @@ func (r *Resolver) discoverIn(root ScanRoot, opts ResolveOptions, out *[]Resourc
 		}
 		return
 	}
+	var pluginSkillsContainer string
 	if opts.PluginsEnabled {
 		result := r.discoverPlugin(root.Path, root, out, index, pluginNames, pluginAtScanRoot)
+		if result != pluginAbsent {
+			pluginSkillsContainer = filepath.Join(root.Path, pluginSkillsDirName)
+		}
 		if result != pluginValid {
 			for _, container := range pluginContainersFor(root.Path) {
 				origin := pluginInAgentsContainer
@@ -368,6 +374,9 @@ func (r *Resolver) discoverIn(root ScanRoot, opts ResolveOptions, out *[]Resourc
 	}
 	r.discoverTopLevelFiles(root, out, index)
 	for _, container := range skillContainersFor(root.Path) {
+		if container == pluginSkillsContainer {
+			continue
+		}
 		r.emitSkillsFromContainer(container, root, out, index)
 	}
 }
@@ -859,11 +868,12 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 // append additional resources (e.g. MCP server tool lists) can
 // apply the same byte cap to the appended slice.
 func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
-	// Stable sort by (Kind asc, Source asc) so excluded
-	// resources are deterministic.
+	// Stable sort by (capRank, Source) so excluded resources are
+	// deterministic. capRank puts plugins ahead of skills, so a
+	// count cut that keeps a plugin's skills also keeps the plugin.
 	slices.SortStableFunc(resources, func(a, b Resource) int {
 		if a.Kind != b.Kind {
-			return int(a.Kind) - int(b.Kind)
+			return cmp.Compare(capRank(a.Kind), capRank(b.Kind))
 		}
 		return strings.Compare(a.Source, b.Source)
 	})
@@ -887,6 +897,34 @@ func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 		total += size
 	}
 	return resources, total
+}
+
+// withoutOrphanedPluginResources drops skills and MCP servers whose
+// PluginName names no StatusOK plugin in resources, such as those of
+// a plugin excluded by a cap.
+func withoutOrphanedPluginResources(resources []Resource) []Resource {
+	okPlugins := make(map[string]struct{})
+	for _, r := range resources {
+		if r.Kind == KindPlugin && r.Status == StatusOK {
+			okPlugins[r.Name] = struct{}{}
+		}
+	}
+	return slices.DeleteFunc(resources, func(r Resource) bool {
+		if r.Kind == KindPlugin || r.PluginName == "" {
+			return false
+		}
+		_, ok := okPlugins[r.PluginName]
+		return !ok
+	})
+}
+
+// capRank orders kinds for applyCaps: kind order, with KindPlugin
+// moved directly ahead of KindSkill.
+func capRank(kind ResourceKind) int {
+	if kind == KindPlugin {
+		return 2*int(KindSkill) - 1
+	}
+	return 2 * int(kind)
 }
 
 // applyProviderCaps enforces the count and remaining aggregate byte caps on
