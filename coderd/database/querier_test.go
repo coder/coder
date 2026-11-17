@@ -1536,6 +1536,53 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 	})
 }
 
+// A deleted user's username can be reused, so the requester's own
+// workspaces must be matched by owner ID, not by owner username.
+func TestGetWorkspacesOrderIgnoresDeletedUserWithRequesterUsername(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	deletedWorkspace := func(owner database.User, name string) database.WorkspaceTable {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			Name:           name,
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			Deleted:        true,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionDelete,
+		}).Do().Workspace
+	}
+
+	formerUser := dbgen.User(t, db, database.User{Username: "reused-username"})
+	formerWorkspace := deletedWorkspace(formerUser, "aaa")
+	err := db.FavoriteWorkspace(ctx, formerWorkspace.ID)
+	require.NoError(t, err)
+	err = db.UpdateUserDeletedByID(ctx, formerUser.ID)
+	require.NoError(t, err)
+
+	requester := dbgen.User(t, db, database.User{Username: formerUser.Username})
+	requesterWorkspace := deletedWorkspace(requester, "zzz")
+
+	rows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		Deleted:        true,
+		OrganizationID: org.ID,
+		RequesterID:    requester.ID,
+	})
+	require.NoError(t, err)
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, row.Name)
+	}
+	require.Equal(t, []string{requesterWorkspace.Name, formerWorkspace.Name}, names,
+		"the requester's workspace sorts first, the former user's favorite does not")
+}
+
 func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2308,6 +2355,141 @@ func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
 	usable, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
 	require.NoError(t, err)
 	require.False(t, usable)
+}
+
+// A PATCH that omits the template settings must not write back the project
+// snapshot it loaded, or it would undo a concurrent change to them.
+func TestUpdateChatProjectByIDKeepsOmittedTemplateSettings(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+	// Another request changes the settings after this one loaded the project.
+	_, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+		ID:                    project.ID,
+		Name:                  project.Name,
+		LimitTemplates:        sql.NullBool{Bool: true, Valid: true},
+		UpdateDefaultTemplate: true,
+		DefaultTemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		DefaultParameters:     pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"region":"us"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	renamed, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+		ID:   project.ID,
+		Name: "renamed",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "renamed", renamed.Name)
+	require.True(t, renamed.LimitTemplates)
+	require.Equal(t, uuid.NullUUID{UUID: tpl.ID, Valid: true}, renamed.DefaultTemplateID)
+	require.JSONEq(t, `{"region":"us"}`, string(renamed.DefaultParameters))
+}
+
+// Templates no chat can use are left out of a project's attachments for
+// every reader, so they are never counted as hidden from one of them.
+func TestGetChatProjectTemplatesByProjectIDsSkipsUnusableTemplates(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	attach := func(seed database.Template) database.Template {
+		seed.OrganizationID, seed.CreatedBy = org.ID, owner.ID
+		tpl := dbgen.Template(t, db, seed)
+		dbgen.ChatProjectTemplate(t, db, database.ChatProjectTemplate{ProjectID: project.ID, TemplateID: tpl.ID, CreatedBy: owner.ID})
+		return tpl
+	}
+	usable := attach(database.Template{AgentsAllowed: true})
+	attach(database.Template{AgentsAllowed: false})
+	deprecated := attach(database.Template{AgentsAllowed: true})
+	require.NoError(t, db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{ID: deprecated.ID, Deprecated: "Use another template."}))
+	deleted := attach(database.Template{AgentsAllowed: true})
+	require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{ID: deleted.ID, Deleted: true}))
+
+	rows, err := db.GetChatProjectTemplatesByProjectIDs(ctx, []uuid.UUID{project.ID})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, usable.ID, rows[0].ChatProjectTemplate.TemplateID)
+	require.Equal(t, owner.ID, rows[0].ChatProjectTemplate.CreatedBy)
+}
+
+// An attachment never crosses organizations, whichever caller asks for it,
+// so a template outside the project's organization is not attached.
+func TestInsertChatProjectTemplatesSkipsOtherOrganizations(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	local := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	foreign := dbgen.Template(t, db, database.Template{OrganizationID: otherOrg.ID, CreatedBy: owner.ID})
+
+	attached, err := db.InsertChatProjectTemplates(ctx, database.InsertChatProjectTemplatesParams{
+		ProjectID:   project.ID,
+		TemplateIDs: []uuid.UUID{local.ID, foreign.ID},
+		CreatedBy:   owner.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, attached, 1)
+	require.Equal(t, local.ID, attached[0].TemplateID)
+}
+
+// Detaching a template clears the project's defaults only when it removes an
+// attachment, so a detach that finds nothing leaves the project as it was.
+func TestDeleteChatProjectTemplateClearsDefaultsOnlyWhenDetached(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		DefaultTemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+	})
+	detach := database.DeleteChatProjectTemplateParams{ProjectID: project.ID, TemplateID: tpl.ID}
+
+	_, err := db.DeleteChatProjectTemplate(ctx, detach)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	project, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, tpl.ID, project.DefaultTemplateID.UUID)
+
+	dbgen.ChatProjectTemplate(t, db, database.ChatProjectTemplate{ProjectID: project.ID, TemplateID: tpl.ID, CreatedBy: owner.ID})
+	_, err = db.DeleteChatProjectTemplate(ctx, detach)
+	require.NoError(t, err)
+	project, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.False(t, project.DefaultTemplateID.Valid)
 }
 
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
@@ -12202,7 +12384,7 @@ func TestListAIBridgeClients(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		endedAt := dbtime.Now()
 
-		// The clients filter resolves a selected value with a prefix search and
+		// The clients filter resolves a selected value with a substring search and
 		// limit 1, so longer siblings recorded before the exact client must not
 		// win that single slot.
 		for _, client := range []string{
@@ -12238,6 +12420,12 @@ func TestListAIBridgeClients(t *testing.T) {
 			"claude-code-router",
 			"claude-code-web",
 		}, clients)
+
+		clients, err = db.ListAIBridgeClients(ctx, database.ListAIBridgeClientsParams{
+			Client: "CODE-CLI",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"claude-code-cli"}, clients)
 	})
 }
 

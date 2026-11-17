@@ -6,6 +6,8 @@ import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
+import { MockUserMember } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { CONCRETE_THEMES } from "#/theme";
 import { AppearanceForm } from "./AppearanceForm";
 
@@ -17,6 +19,7 @@ const baseSettings: UserAppearanceSettings = {
 	theme_light: "light",
 	theme_dark: "dark",
 	terminal_font: "",
+	terminal_font_size: 0,
 };
 
 const resolvedSubmit = () =>
@@ -104,6 +107,10 @@ const meta: Meta<typeof AppearanceForm> = {
 		activeScheme: "dark",
 		onSubmit: (update) => Promise.resolve(onUpdateTheme(update)),
 	},
+	parameters: {
+		user: MockUserMember,
+	},
+	decorators: [withAuthProvider],
 };
 
 export default meta;
@@ -141,6 +148,7 @@ export const SelectSingleLightDefault: Story = {
 				theme_light: "light",
 				theme_dark: "dark",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(
@@ -227,6 +235,7 @@ export const SelectSyncMode: Story = {
 				theme_light: "light",
 				theme_dark: "dark",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(dropdown).toHaveTextContent("Sync with system");
@@ -266,6 +275,7 @@ export const SelectSingleFromSync: Story = {
 				theme_light: "light-protan-deuter",
 				theme_dark: "dark-tritan",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(dropdown).toHaveTextContent("Single theme");
@@ -341,6 +351,7 @@ export const SelectDarkThemeInLightSyncSlot: Story = {
 				theme_light: "dark-tritan",
 				theme_dark: "dark",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(darkTritanopia).toBeChecked();
@@ -381,7 +392,9 @@ export const SelectTerminalFont: Story = {
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(await canvas.findByText("Fira Code"));
+		await user.click(await canvas.findByRole("combobox", { name: "Font" }));
+		const body = within(canvasElement.ownerDocument.body);
+		await user.click(await body.findByRole("option", { name: "Fira Code" }));
 
 		await waitFor(() => {
 			expect(args.onSubmit).toHaveBeenCalledWith({
@@ -390,6 +403,7 @@ export const SelectTerminalFont: Story = {
 				theme_light: "light",
 				theme_dark: "dark",
 				terminal_font: "fira-code",
+				terminal_font_size: 16,
 			});
 		});
 
@@ -406,10 +420,39 @@ export const SelectTerminalFont: Story = {
 			theme_light: "light",
 			theme_dark: "dark",
 			terminal_font: "fira-code",
+			terminal_font_size: 16,
 		});
 		expect(
 			await canvas.findByRole("radio", { name: /light default/i }),
 		).toBeChecked();
+	},
+};
+
+export const SelectTerminalFontSize: Story = {
+	args: {
+		initialValues: { ...baseSettings, theme_preference: "dark" },
+		onSubmit: resolvedSubmit(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("combobox", { name: "Font size" });
+		expect(trigger).toHaveTextContent("16px");
+
+		await user.click(trigger);
+		const body = within(canvasElement.ownerDocument.body);
+		await user.click(await body.findByRole("option", { name: "20px" }));
+
+		await waitFor(() => {
+			expect(args.onSubmit).toHaveBeenCalledWith({
+				theme_preference: "dark",
+				theme_mode: "single",
+				theme_light: "light",
+				theme_dark: "dark",
+				terminal_font: "geist-mono",
+				terminal_font_size: 20,
+			});
+		});
 	},
 };
 
@@ -500,6 +543,7 @@ export const LegacyAutoTritan: Story = {
 			theme_light: "",
 			theme_dark: "",
 			terminal_font: "",
+			terminal_font_size: 0,
 		},
 	},
 };
@@ -512,6 +556,7 @@ export const LegacyAuto: Story = {
 			theme_light: "",
 			theme_dark: "",
 			terminal_font: "",
+			terminal_font_size: 0,
 		},
 	},
 };

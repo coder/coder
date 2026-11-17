@@ -2,7 +2,11 @@ import type {
 	DeploymentConfig,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
-import { DEFAULT_TERMINAL_FONT, terminalFonts } from "#/theme/constants";
+import {
+	DEFAULT_TERMINAL_FONT,
+	DEFAULT_TERMINAL_FONT_SIZE,
+	terminalFonts,
+} from "#/theme/constants";
 
 export function getTerminalConfig(
 	config: DeploymentConfig | undefined,
@@ -15,5 +19,6 @@ export function getTerminalConfig(
 			process.env.NODE_ENV !== "development" ? proxyPathAppURL : undefined,
 		fontFamily:
 			terminalFonts[appearance?.terminal_font || DEFAULT_TERMINAL_FONT],
+		fontSize: appearance?.terminal_font_size || DEFAULT_TERMINAL_FONT_SIZE,
 	};
 }

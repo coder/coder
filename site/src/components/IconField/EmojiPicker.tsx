@@ -1,11 +1,11 @@
-import { cn } from "cn";
 import {
 	type EmojiPickerListCategoryHeaderProps,
 	type EmojiPickerListEmojiProps,
 	type EmojiPickerListRowProps,
 	EmojiPicker as Frimousse,
 	useSkinTone,
-} from "frimousse";
+} from "@coder/frimousse";
+import { cn } from "cn";
 import {
 	AppleIcon,
 	BlocksIcon,
