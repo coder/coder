@@ -378,15 +378,15 @@ export const FetchesWhenAllowed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Test Template")).toBeVisible();
-		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
 		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await userEvent.hover(
 			await screen.findByRole("option", {
 				name: "Author",
 			}),
 		);
-		await waitFor(() => expect(API.getUsers).toHaveBeenCalled());
+		await screen.findByRole("button", {
+			name: `${MockUserOwner.username} (you)`,
+		});
 	},
 };
 

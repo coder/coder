@@ -1,7 +1,7 @@
 import { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import {
-	getSelfUserFilterOptions,
+	getMeUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userOptions";
 import type { OptionsQueryClient } from "#/utils/filters";
@@ -76,19 +76,19 @@ describe("getUserFilterOptions", () => {
 	});
 });
 
-describe("getSelfUserFilterOptions", () => {
+describe("getMeUserFilterOptions", () => {
 	const me = { username: "alice", avatar_url: "/alice.png" };
 
 	it("returns only the current user without fetching", async () => {
-		const options = await getSelfUserFilterOptions("", me);
+		const options = await getMeUserFilterOptions("", me);
 
 		expect(options).toMatchObject([{ label: "alice (you)", value: "me" }]);
 	});
 
-	it("matches the self option by the me sentinel and username", async () => {
-		expect(await getSelfUserFilterOptions("me", me)).toHaveLength(1);
-		expect(await getSelfUserFilterOptions("ali", me)).toHaveLength(1);
-		expect(await getSelfUserFilterOptions("bob", me)).toHaveLength(0);
+	it("matches the current user by the me sentinel and username", async () => {
+		expect(await getMeUserFilterOptions("me", me)).toHaveLength(1);
+		expect(await getMeUserFilterOptions("ali", me)).toHaveLength(1);
+		expect(await getMeUserFilterOptions("bob", me)).toHaveLength(0);
 	});
 });
 

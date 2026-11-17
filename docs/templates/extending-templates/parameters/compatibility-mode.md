@@ -9,7 +9,7 @@ The classic flow is deprecated and will be removed in a future release, so templ
 
 ## Find templates that use compatibility mode
 
-Open the **Templates** page and select **Filters** > **Compatibility mode**, or search for `compatibility_mode:true`.
+Open the **Templates** page and select the filter icon, then select **Compatibility mode** under **Template is…** or search for `compatibility_mode:true`.
 
 ## Upgrade from parameter compatibility mode
 

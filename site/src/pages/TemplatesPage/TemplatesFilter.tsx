@@ -7,11 +7,11 @@ import {
 	isApiValidationError,
 } from "#/api/errors";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import {
-	getSelfUserFilterOptions,
+	getMeUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -21,19 +21,6 @@ import {
 } from "#/modules/dashboard/useDashboard";
 
 export const CLASSIC_PARAMETER_FLOW_FILTER = "compatibility_mode:true";
-
-export type TemplateFilterState = { filter: UseFilterResult };
-
-type UseTemplatesFilterOptions = {
-	searchParams: URLSearchParams;
-	onSearchParamsChange: (params: URLSearchParams) => void;
-};
-
-export const useTemplatesFilter = (
-	options: UseTemplatesFilterOptions,
-): TemplateFilterState => ({
-	filter: useFilter(options),
-});
 
 type TemplatesFilterProps = { filter: UseFilterResult; error?: unknown };
 
@@ -53,7 +40,7 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 				icon: <UserIcon />,
 				getOptions: permissions.viewAllUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
-					: (query) => getSelfUserFilterOptions(query, me),
+					: (query) => getMeUserFilterOptions(query, me),
 			},
 			{
 				key: "organization",

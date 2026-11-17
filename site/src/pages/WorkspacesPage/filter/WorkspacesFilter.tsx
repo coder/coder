@@ -16,7 +16,7 @@ import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import {
-	getSelfUserFilterOptions,
+	getMeUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -71,7 +71,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 				},
 				getOptions: canListUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
-					: (query) => getSelfUserFilterOptions(query, me),
+					: (query) => getMeUserFilterOptions(query, me),
 			},
 			{
 				key: "status",

@@ -1,27 +1,27 @@
 import { users } from "#/api/queries/users";
+import type { MinimalUser } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { OptionsQueryClient } from "#/utils/filters";
 import type { FilterOption } from "./FilterCombobox/types";
 
-// User suggestions are capped; the picker is a prefix search, not a full list.
 const USER_SUGGESTIONS_LIMIT = 25;
 
-type UserIdentity = Readonly<{ username: string; avatar_url?: string }>;
+type UserIdentity = Pick<MinimalUser, "username" | "avatar_url">;
 
 // The backend resolves the `me` sentinel for the current session.
-const selfUserOption = (me: UserIdentity): FilterOption => ({
+const meUserOption = (me: UserIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
 	appliedLabel: "me",
 	value: "me",
 	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-/** Suggests only the current user when listing other users is unavailable. */
-export const getSelfUserFilterOptions = async (
+/** Matches the current user's label or the `me` sentinel without fetching users. */
+export const getMeUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
 ): Promise<FilterOption[]> => {
-	const option = selfUserOption(me);
+	const option = meUserOption(me);
 	const normalized = query.trim().toLowerCase();
 	if (
 		normalized.length === 0 ||
@@ -33,7 +33,10 @@ export const getSelfUserFilterOptions = async (
 	return [];
 };
 
-/** Searches user suggestions, representing the current user with the `me` sentinel. */
+/**
+ * FilterCombobox invokes this loader from a query function, not during render.
+ * `fetchQuery` shares the users cache with other consumers.
+ */
 export const getUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -47,9 +50,9 @@ export const getUserFilterOptions = async (
 	);
 	// The users API also matches name and email, so a result for the current
 	// user keeps its option even when the query is not in its label.
-	const self = usersRes.users.some((user) => user.username === me.username)
-		? [selfUserOption(me)]
-		: await getSelfUserFilterOptions(query, me);
+	const meOptions = usersRes.users.some((user) => user.username === me.username)
+		? [meUserOption(me)]
+		: await getMeUserFilterOptions(query, me);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
 		.map<FilterOption>((user) => ({
@@ -60,5 +63,5 @@ export const getUserFilterOptions = async (
 			),
 		}));
 
-	return [...self, ...options];
+	return [...meOptions, ...options];
 };
