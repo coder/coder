@@ -348,6 +348,37 @@ export const richParameters = (versionId: string) => {
 	};
 };
 
+/**
+ * Query key for {@link dynamicParameters}. It sits under the template
+ * version's key, so invalidating a version also evaluates its parameters
+ * again.
+ */
+export const dynamicParametersKey = (
+	versionId: string,
+	ownerId: string,
+	inputs: Readonly<Record<string, string>>,
+) => [templateVersionRoot, versionId, "dynamicParameters", ownerId, inputs];
+
+/**
+ * Evaluates a template version's parameters for a workspace owner. A
+ * parameter without a value in `inputs` takes its default.
+ */
+export const dynamicParameters = (
+	versionId: string,
+	ownerId: string,
+	inputs: Readonly<Record<string, string>>,
+) => {
+	return {
+		queryKey: dynamicParametersKey(versionId, ownerId, inputs),
+		queryFn: () =>
+			API.getTemplateVersionDynamicParameters(versionId, {
+				id: 0,
+				owner_id: ownerId,
+				inputs,
+			}),
+	};
+};
+
 export const resources = (versionId: string) => {
 	return {
 		queryKey: [templateVersionRoot, versionId, "resources"],
