@@ -170,7 +170,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 						field={getFieldHelpers("email", {
 							helperText:
 								setupTokenRequired && authMethods?.github.enabled
-									? "To sign in with GitHub later, use your GitHub account's primary email."
+									? "To switch this account to GitHub sign-in later, use your GitHub account's primary email. You switch it under Account > Security."
 									: undefined,
 						})}
 						autoComplete="email"
