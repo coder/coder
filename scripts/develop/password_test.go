@@ -246,13 +246,12 @@ func TestSetupFirstUser(t *testing.T) {
 		require.Equal(t, devLogin{password: cfg.password, seeded: true}, again.adminLogin)
 	})
 
-	t.Run("OverrideDoesNotReplaceAStoredPassword", func(t *testing.T) {
+	t.Run("OverrideReplacesAStoredPasswordThatDiffers", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, nil)
 		cfg := &devConfig{configDir: t.TempDir(), password: "an-override-password-1"}
-		const stored = "a-password-stored-earlier-1"
-		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte(stored+"\n"), 0o600))
+		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte("a-password-stored-earlier-1\n"), 0o600))
 
 		_, err := setupFirstUser(ctx, testutil.Logger(t), cfg, client.URL.String())
 		require.NoError(t, err)
@@ -260,7 +259,7 @@ func TestSetupFirstUser(t *testing.T) {
 		got, ok, err := readPassword(cfg.passwordPath(adminPasswordFile))
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, stored, got)
+		require.Equal(t, cfg.password, got)
 	})
 
 	// oldInstance stands in for an instance from before passwords were
@@ -314,8 +313,9 @@ func TestSetupFirstUser(t *testing.T) {
 
 		// The password change revoked the session develop started
 		// with, so it must have saved a new one.
-		_, err = devClient.User(ctx, codersdk.Me)
+		me, err := devClient.User(ctx, codersdk.Me)
 		require.NoError(t, err)
+		require.Equal(t, "admin", me.Username)
 		saved, err := config.Root(cfg.configDir).Session().Read()
 		require.NoError(t, err)
 		require.Equal(t, devClient.SessionToken(), saved)
@@ -334,6 +334,51 @@ func TestSetupFirstUser(t *testing.T) {
 		t.Parallel()
 		client, cfg := oldInstance(t)
 		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
+
+		devClient, err := setupFirstUser(testutil.Context(t, testutil.WaitLong), testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		requireOldDefaultReplaced(t, client, cfg, devClient)
+	})
+
+	t.Run("OldDefaultIsReplacedWithASavedMemberSession", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, cfg := oldInstance(t)
+		// ./scripts/coder-dev.sh login saves its session in the same
+		// directory, so the saved session can be the member's.
+		resp, err := codersdk.New(client.URL).LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "member@coder.com",
+			Password: oldDefaultPassword,
+		})
+		require.NoError(t, err)
+		require.NoError(t, config.Root(cfg.configDir).Session().Write(resp.SessionToken))
+
+		devClient, err := setupFirstUser(ctx, testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		requireOldDefaultReplaced(t, client, cfg, devClient)
+	})
+
+	t.Run("OldDefaultIsReplacedWhenPasswordsAreStored", func(t *testing.T) {
+		t.Parallel()
+		// An older develop that recreates the database in the same
+		// checkout leaves the password files of this one in place.
+		client, cfg := oldInstance(t)
+		const admin, member = "a-stored-admin-password-1", "a-stored-member-password-1"
+		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte(admin+"\n"), 0o600))
+		require.NoError(t, os.WriteFile(cfg.passwordPath(memberPasswordFile), []byte(member+"\n"), 0o600))
+
+		devClient, err := setupFirstUser(testutil.Context(t, testutil.WaitLong), testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		requireOldDefaultReplaced(t, client, cfg, devClient)
+		require.Equal(t, admin, cfg.adminLogin.password)
+		require.Equal(t, member, cfg.memberLogin.password)
+	})
+
+	t.Run("AStoredOldDefaultIsReplaced", func(t *testing.T) {
+		t.Parallel()
+		client, cfg := oldInstance(t)
+		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte(oldDefaultPassword+"\n"), 0o600))
+		require.NoError(t, os.WriteFile(cfg.passwordPath(memberPasswordFile), []byte(oldDefaultPassword+"\n"), 0o600))
 
 		devClient, err := setupFirstUser(testutil.Context(t, testutil.WaitLong), testutil.Logger(t), cfg, client.URL.String())
 		require.NoError(t, err)
@@ -400,9 +445,18 @@ func TestSetupFirstUser(t *testing.T) {
 		require.NoError(t, os.Remove(cfg.passwordPath(adminPasswordFile)))
 		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
 
-		// A stored password that the server refuses gives the same error.
+		// A stored password that the server refuses, as after a change
+		// in the dashboard, has its own error. One run with the
+		// override replaces it.
 		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte("not-the-right-password-1\n"), 0o600))
 		_, err = setupFirstUser(ctx, logger, &devConfig{configDir: cfg.configDir}, client.URL.String())
-		require.ErrorIs(t, err, errUnknownAdminPassword)
+		require.ErrorIs(t, err, errRefusedAdminPassword)
+		_, err = setupFirstUser(ctx, logger, &devConfig{configDir: cfg.configDir, password: elsewhere}, client.URL.String())
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
+		again := &devConfig{configDir: cfg.configDir}
+		_, err = setupFirstUser(ctx, logger, again, client.URL.String())
+		require.NoError(t, err)
+		require.Equal(t, devLogin{password: elsewhere, seeded: true}, again.adminLogin)
 	})
 }

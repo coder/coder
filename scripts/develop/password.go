@@ -58,6 +58,13 @@ func loadOrCreatePassword(path string) (string, error) {
 	return password, nil
 }
 
+func replacePassword(path, password string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return xerrors.Errorf("remove password file %s: %w", path, err)
+	}
+	return storePassword(path, password)
+}
+
 func storePassword(path, password string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return xerrors.Errorf("create directory for %s: %w", path, err)

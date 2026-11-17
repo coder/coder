@@ -42,10 +42,10 @@ replace_old_default_passwords() {
 		return 0
 	fi
 	token="$(cat "$TOKEN_FILE")"
-	if [ ! -s "$MEMBER_PASSWORD_FILE" ] && replace_old_default member "$MEMBER_PASSWORD_FILE" "$token"; then
+	if replace_old_default member "$MEMBER_PASSWORD_FILE" "$token"; then
 		echo "Replaced the old default password of member@coder.com."
 	fi
-	if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ] || [ -s "$ADMIN_PASSWORD_FILE" ]; then
+	if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]; then
 		return 0
 	fi
 	if replace_old_default me "$ADMIN_PASSWORD_FILE" "$token"; then
@@ -63,17 +63,26 @@ restore_bootstrap_token() {
 	fi
 	if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]; then
 		password="$CODER_DEV_ADMIN_PASSWORD"
+		source="CODER_DEV_ADMIN_PASSWORD"
 	elif [ -s "$ADMIN_PASSWORD_FILE" ]; then
 		password="$(cat "$ADMIN_PASSWORD_FILE")"
+		source="$ADMIN_PASSWORD_FILE"
 	else
 		return 0
 	fi
-	CODER_SESSION_TOKEN=$(jq -n --arg password "$password" '{email: "admin@coder.com", password: $password}' |
-		curl -s -H "Content-Type: application/json" --data-binary @- http://coderd:3000/api/v2/users/login |
-		jq -r '.session_token // empty')
+	response=$(jq -n --arg password "$password" '{email: "admin@coder.com", password: $password}' |
+		curl -s -w '\n%{http_code}' -H "Content-Type: application/json" --data-binary @- http://coderd:3000/api/v2/users/login)
+	status=$(printf '%s\n' "$response" | tail -n 1)
+	CODER_SESSION_TOKEN=$(printf '%s\n' "$response" | sed '$d' | jq -r '.session_token // empty' 2>/dev/null || true)
 	if [ -z "$CODER_SESSION_TOKEN" ]; then
-		echo "Could not sign in as admin@coder.com to create a new bootstrap token." >&2
+		echo "Could not sign in as admin@coder.com to create a new bootstrap token: the server answered HTTP $status to the password from $source." >&2
+		echo "Set CODER_DEV_ADMIN_PASSWORD to the current admin password and start again, or remove the volumes of this environment to start fresh." >&2
 		exit 1
+	fi
+	if [ "$source" = "CODER_DEV_ADMIN_PASSWORD" ] && [ "$(cat "$ADMIN_PASSWORD_FILE" 2>/dev/null)" != "$password" ]; then
+		# The server just accepted the override, so it is stored for
+		# the starts after the variable is unset.
+		store_password "$ADMIN_PASSWORD_FILE" "$password"
 	fi
 	export CODER_SESSION_TOKEN
 	create_bootstrap_token
