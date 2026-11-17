@@ -47,7 +47,7 @@ export const Annotation: Story = {
 export const Search: Story = {
 	args: {
 		image: <SearchIllustration className="-mb-5 h-auto max-w-full" />,
-		message: "No results match your filters",
+		message: "No workspaces match your filters",
 		description: "Broaden your search to explore more options.",
 		cta: <Button>Reset filters</Button>,
 	},
