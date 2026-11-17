@@ -192,6 +192,10 @@ export type ChatStore = {
 		chatID: string,
 		status: TypesGen.ChatStatus,
 	) => void;
+	// Clears what a new connection sends again or what belongs to one visit:
+	// the stream output, the retry and reconnect states, the client error and
+	// the subagent statuses. The status and the turn error stay, so a reopened
+	// chat renders as the same turn until the stream reports.
 	resetTransientState: () => void;
 };
 
@@ -641,10 +645,8 @@ export const createChatStore = (): ChatStore => {
 		resetTransientState: () => {
 			if (
 				state.streamState === null &&
-				state.chatStatus === null &&
 				state.clientError === null &&
 				state.retryState === null &&
-				state.turnError === null &&
 				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
@@ -653,10 +655,8 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamState: null,
-				chatStatus: null,
 				clientError: null,
 				retryState: null,
-				turnError: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
 			}));

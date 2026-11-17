@@ -516,10 +516,10 @@ describe("applyMessagePart / applyMessageParts", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetTransientState", () => {
-	it("clears streamState, chatStatus, clientError, retryState, turnError, reconnectState, and subagentOverrides", () => {
+	it("clears streamState, clientError, retryState, reconnectState, and subagentOverrides, and keeps chatStatus and turnError", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
-		store.applyServerChatStatus("running");
+		store.applyServerChatStatus("error");
 		store.setTurnError({ kind: "generic", message: "turn failed" });
 		store.setClientError({
 			kind: "generic",
@@ -543,10 +543,13 @@ describe("resetTransientState", () => {
 
 		const state = store.getSnapshot();
 		expect(state.streamState).toBeNull();
-		expect(state.chatStatus).toBeNull();
+		expect(state.chatStatus).toBe("error");
 		expect(state.clientError).toBeNull();
 		expect(state.retryState).toBeNull();
-		expect(state.turnError).toBeNull();
+		expect(state.turnError).toEqual({
+			kind: "generic",
+			message: "turn failed",
+		});
 		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
