@@ -20,6 +20,12 @@ inputs:
     description: Git revision of indygreg/apple-platform-rs to build.
     required: false
     default: "0ebbd2ef3b96d5adccc30b1cad4deea38cd735c4"
+  toolchain:
+    description: >-
+      Rust toolchain version to build with. Pinned so that a new stable release
+      cannot change the compiler of the signing tool without a change here.
+    required: false
+    default: "1.100.0"
   use-cache:
     description: >-
       Restore and save the built binary with actions/cache. Signing jobs must
@@ -37,7 +43,7 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: /tmp/rcodesign-bin
-        key: rcodesign-pkcs11-${{ runner.os }}-${{ runner.arch }}-${{ inputs.rev }}-${{ hashFiles('.github/actions/install-rcodesign/pkcs11-single-init.patch') }}
+        key: rcodesign-pkcs11-${{ runner.os }}-${{ runner.arch }}-${{ inputs.rev }}-rust${{ inputs.toolchain }}-${{ hashFiles('.github/actions/install-rcodesign/pkcs11-single-init.patch') }}
 
     - name: Build rcodesign
       if: steps.cache-rcodesign.outputs.cache-hit != 'true'
@@ -45,11 +51,10 @@ runs:
       run: |
         set -euo pipefail
         if command -v rustup >/dev/null 2>&1; then
-          rustup toolchain install --profile minimal stable
-          rustup default stable
+          rustup toolchain install --profile minimal "$RUST_TOOLCHAIN"
         elif ! command -v cargo >/dev/null 2>&1; then
           ./.github/scripts/retry.sh -- curl --proto '=https' --tlsv1.2 -sSfL https://sh.rustup.rs -o /tmp/rustup-init.sh
-          sh /tmp/rustup-init.sh -y --profile minimal
+          sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN"
           rm /tmp/rustup-init.sh
         fi
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -61,7 +66,8 @@ runs:
         git -C "$src" checkout -q FETCH_HEAD
         git -C "$src" apply "$GITHUB_ACTION_PATH/pkcs11-single-init.patch"
 
-        ./.github/scripts/retry.sh -- cargo install \
+        # +toolchain fails if cargo is not rustup's, so the pin cannot be skipped.
+        ./.github/scripts/retry.sh -- cargo "+$RUST_TOOLCHAIN" install \
           --locked \
           --path "$src/apple-codesign" \
           --features pkcs11 \
@@ -71,6 +77,7 @@ runs:
         cp /tmp/rcodesign-install/bin/rcodesign /tmp/rcodesign-bin/rcodesign
       env:
         RCODESIGN_REV: ${{ inputs.rev }}
+        RUST_TOOLCHAIN: ${{ inputs.toolchain }}
 
     - name: Install rcodesign
       shell: bash
