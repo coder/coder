@@ -1209,10 +1209,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer closeBlockedUsersFunc()
 				}
 				if vals.AI.BridgeConfig.EmbeddedEnabled.Value() {
-					// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
-					// See AIGOV-447:
-					// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
-					aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
+					aibridgeReg := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, coderAPI.PrometheusRegistry)
 					aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
 					var unsubscribeProviderReload func()
 					aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
