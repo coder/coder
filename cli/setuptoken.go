@@ -30,15 +30,13 @@ func resolveSetupToken(
 	supplied string,
 	onTunnel bool,
 ) (string, error) {
-	if supplied != "" && len(supplied) < setupTokenMinLength {
-		return "", xerrors.Errorf("--setup-token must be at least %d characters", setupTokenMinLength)
-	}
 	if !onTunnel {
 		// A silent no-op would let an operator believe the first user
 		// is protected when it is not.
 		if supplied != "" {
 			cliui.Warnf(inv.Stderr, "--setup-token is ignored because an access URL is set. "+
-				"A setup token is required only on a try.coder.app tunnel.")
+				"A setup token is required only on a try.coder.app tunnel. "+
+				"To create the first user before the server can be reached, run coder server create-admin-user.")
 		}
 		return "", nil
 	}
@@ -55,6 +53,9 @@ func resolveSetupToken(
 	// A supplied token is not printed back. The operator already has
 	// it, and a script that starts the server would copy it into its log.
 	if supplied != "" {
+		if len(supplied) < setupTokenMinLength {
+			return "", xerrors.Errorf("--setup-token must be at least %d characters", setupTokenMinLength)
+		}
 		cliui.Infof(inv.Stdout, "A setup token is needed to create the first user. "+
 			"It was set with --setup-token or CODER_SETUP_TOKEN.")
 		return supplied, nil

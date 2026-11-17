@@ -64,13 +64,27 @@ func TestResolveSetupToken(t *testing.T) {
 			name:       "AccessURLIgnoresSuppliedTokenWithWarning",
 			supplied:   supplied,
 			wantToken:  requireNoToken,
+			wantStderr: "run coder server create-admin-user",
+		},
+		{
+			name:     "TunnelWithoutUsersRefusesShortSuppliedToken",
+			supplied: "tooshort",
+			onTunnel: true,
+			users:    ptrInt64(0),
+			wantErr:  "--setup-token must be at least 24 characters",
+		},
+		{
+			name:       "AccessURLIgnoresShortSuppliedTokenWithWarning",
+			supplied:   "tooshort",
+			wantToken:  requireNoToken,
 			wantStderr: "--setup-token is ignored because an access URL is set.",
 		},
 		{
-			name:     "ShortSuppliedTokenIsRefused",
-			supplied: "tooshort",
-			onTunnel: true,
-			wantErr:  "--setup-token must be at least 24 characters",
+			name:      "TunnelWithUsersIgnoresShortSuppliedToken",
+			supplied:  "tooshort",
+			onTunnel:  true,
+			users:     ptrInt64(1),
+			wantToken: requireNoToken,
 		},
 	}
 	for _, tt := range tests {
