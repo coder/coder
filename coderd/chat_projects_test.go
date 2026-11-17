@@ -1046,6 +1046,17 @@ func TestChatProjectWorkspaceTemplates(t *testing.T) {
 	require.NoError(t, client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID}))
 	require.NoError(t, client.UpdateChat(ctx, moving.ID, codersdk.UpdateChatRequest{ProjectID: &unlimited.ID, WorkspaceID: &otherWorkspace}))
 
+	// When that move is refused, the chat stays in a project the workspace
+	// was not checked against, so the binding must not be kept.
+	active := createIdleChat(ctx, t, client, api, orgID)
+	require.NoError(t, client.UpdateChat(ctx, active.ID, codersdk.UpdateChatRequest{ProjectID: &limited.ID}))
+	_ = createSubagentChat(t, api, active, database.ChatStatusRunning)
+	err = client.UpdateChat(ctx, active.ID, codersdk.UpdateChatRequest{ProjectID: &unlimited.ID, WorkspaceID: &otherWorkspace})
+	requireSDKError(t, err, http.StatusConflict)
+	active, err = client.GetChat(ctx, active.ID)
+	require.NoError(t, err)
+	require.Nil(t, active.WorkspaceID)
+
 	// The create_workspace tool binds through this path.
 	unbound := createChatInProject(t, client, orgID, &limited.ID)
 	_, _, err = coderd.ChatCreateWorkspace(api, ctx, firstUser.UserID, unbound.ID, codersdk.CreateWorkspaceRequest{
