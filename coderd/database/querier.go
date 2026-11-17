@@ -1468,10 +1468,13 @@ type sqlcQuerier interface {
 	// day. Users match GetOrganizationAISpendTotals.
 	ListOrganizationAISpendPerUser(ctx context.Context, arg ListOrganizationAISpendPerUserParams) ([]ListOrganizationAISpendPerUserRow, error)
 	// Returns one page of per-user AI spend for @organization_id over the
-	// [period_start, period_end) window, most expensive first, together with the
-	// providers, clients, and models each user spent through and the count and
-	// totals over every matching user. It must keep the same joins and predicates as
-	// ExportOrganizationAISpend so both report the same token usage.
+	// [period_start, period_end) window, most expensive first. Each user has one
+	// row per provider, model, and client they spent through, and every row
+	// carries the user's spend and the count and totals over every matching user.
+	// It must count the same token usage as the CSV export for the same filters.
+	// user_page keeps one row per user, so the page, count, and totals apply to users.
+	// Includes deleted providers, since usage still references them, and prefers
+	// the live provider when a name was reused.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationSkillMetadataByOrganizationIDRow, error)
 	ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error)

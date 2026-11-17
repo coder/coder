@@ -5697,6 +5697,30 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		}
 	})
 
+	t.Run("UserIDsAboveMax", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-users-user-ids-group",
+			Clock:     clock,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		var userIDs []uuid.UUID
+		for range 101 {
+			userIDs = append(userIDs, uuid.New())
+		}
+		_, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{UserIDs: userIDs}, codersdk.OrganizationAISpendPage{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "user_ids",
+			Detail: "user_ids has 101 entries, maximum is 100.",
+		}}, sdkErr.Validations)
+	})
+
 	t.Run("Report", func(t *testing.T) {
 		t.Parallel()
 		clock := quartz.NewMock(t)
@@ -5708,43 +5732,101 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			Database:  db,
 			Pubsub:    ps,
 		})
-		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+		inGroup := uuid.NullUUID{UUID: group.ID, Valid: true}
 		_, otherUser := coderdtest.CreateAnotherUser(t, adminClient, group.OrganizationID)
 
 		// targetUser: 1500 priced through two providers plus one unpriced
 		// usage without a client. otherUser: 3000, so they sort first. A
 		// usage without an effective group is excluded like the CSV.
 		for _, seed := range []struct {
-			user         codersdk.User
-			group        uuid.NullUUID
-			provider     string
-			providerName string
-			model        string
-			client       sql.NullString
-			cost         sql.NullInt64
+			user             codersdk.User
+			effectiveGroupID uuid.NullUUID
+			provider         string
+			providerName     string
+			model            string
+			client           sql.NullString
+			costMicros       sql.NullInt64
 		}{
-			{user: targetUser, group: groupID, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "vscode", Valid: true}, cost: sql.NullInt64{Int64: 1000, Valid: true}},
-			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4", cost: sql.NullInt64{Int64: 500, Valid: true}},
-			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4o"},
-			{user: otherUser, group: groupID, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "cursor", Valid: true}, cost: sql.NullInt64{Int64: 3000, Valid: true}},
-			{user: otherUser, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", cost: sql.NullInt64{Int64: 99_999, Valid: true}},
+			{user: targetUser, effectiveGroupID: inGroup, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "vscode", Valid: true}, costMicros: sql.NullInt64{Int64: 1000, Valid: true}},
+			{user: targetUser, effectiveGroupID: inGroup, provider: "openai", providerName: "openai-prod", model: "gpt-4", costMicros: sql.NullInt64{Int64: 500, Valid: true}},
+			{user: targetUser, effectiveGroupID: inGroup, provider: "openai", providerName: "openai-prod", model: "gpt-4o"},
+			{user: otherUser, effectiveGroupID: inGroup, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "cursor", Valid: true}, costMicros: sql.NullInt64{Int64: 3000, Valid: true}},
+			{user: otherUser, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", costMicros: sql.NullInt64{Int64: 99_999, Valid: true}},
 		} {
-			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				InitiatorID: seed.user.ID, Provider: seed.provider, ProviderName: seed.providerName, Model: seed.model, Client: seed.client, StartedAt: inMonth,
 			}, nil)
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: seed.group, CostMicros: seed.cost,
+				InterceptionID: interception.ID, CreatedAt: inMonth, EffectiveGroupID: seed.effectiveGroupID, CostMicros: seed.costMicros,
 			})
 		}
 
-		user := func(u codersdk.User, providers, clients, models []string, cost, unpriced int64) codersdk.OrganizationAISpendUser {
-			return codersdk.OrganizationAISpendUser{
-				UserID: u.ID, Username: u.Username, Name: u.Name, AvatarURL: u.AvatarURL,
-				CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
-			}
+		// withUser fills in the user's details, so each expected report below
+		// only lists the spend.
+		withUser := func(user codersdk.User, spend codersdk.OrganizationAISpendUser) codersdk.OrganizationAISpendUser {
+			spend.UserID = user.ID
+			spend.Username = user.Username
+			spend.Name = user.Name
+			spend.AvatarURL = user.AvatarURL
+			return spend
 		}
-		other := user(otherUser, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
-		target := user(targetUser, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
+		// No provider is configured, so each display name falls back to the
+		// provider name.
+		otherUserSpend := withUser(otherUser, codersdk.OrganizationAISpendUser{
+			CostMicros: 3000,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 3000},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "claude-4", CostMicros: 3000},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "cursor", CostMicros: 3000},
+			},
+		})
+		targetUserSpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
+			CostMicros:         1500,
+			UnpricedModelCount: 1,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 1000},
+				{Name: "openai-prod", DisplayName: "openai-prod", CostMicros: 500, HasUnpricedUsage: true},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "claude-4", CostMicros: 1000},
+				{Name: "gpt-4", CostMicros: 500},
+				{Name: "gpt-4o", HasUnpricedUsage: true},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "vscode", CostMicros: 1000},
+				{Name: "Unknown", CostMicros: 500, HasUnpricedUsage: true},
+			},
+		})
+		targetUserOpenAISpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
+			CostMicros:         500,
+			UnpricedModelCount: 1,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "openai-prod", DisplayName: "openai-prod", CostMicros: 500, HasUnpricedUsage: true},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "gpt-4", CostMicros: 500},
+				{Name: "gpt-4o", HasUnpricedUsage: true},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "Unknown", CostMicros: 500, HasUnpricedUsage: true},
+			},
+		})
+		targetUserClaudeSpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
+			CostMicros: 1000,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 1000},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "claude-4", CostMicros: 1000},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "vscode", CostMicros: 1000},
+			},
+		})
 		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}
 
 		t.Run("Default", func(t *testing.T) {
@@ -5756,8 +5838,8 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				AISpendPeriodWindow: window,
 				RetentionStart:      &defaultRetentionStart,
 				Count:               2,
-				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, UnpricedUsageCount: 1},
-				Users:               []codersdk.OrganizationAISpendUser{other, target},
+				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, HasUnpricedUsage: true},
+				Users:               []codersdk.OrganizationAISpendUser{otherUserSpend, targetUserSpend},
 			}, report)
 		})
 
@@ -5767,13 +5849,13 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			// Count and totals describe the whole window on every page.
 			first, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1})
 			require.NoError(t, err)
-			require.Equal(t, []codersdk.OrganizationAISpendUser{other}, first.Users)
+			require.Equal(t, []codersdk.OrganizationAISpendUser{otherUserSpend}, first.Users)
 			require.EqualValues(t, 2, first.Count)
 			require.EqualValues(t, 4500, first.Totals.CostMicros)
 
 			second, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1})
 			require.NoError(t, err)
-			require.Equal(t, []codersdk.OrganizationAISpendUser{target}, second.Users)
+			require.Equal(t, []codersdk.OrganizationAISpendUser{targetUserSpend}, second.Users)
 			require.EqualValues(t, 2, second.Count)
 			require.EqualValues(t, 4500, second.Totals.CostMicros)
 
@@ -5785,7 +5867,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				AISpendPeriodWindow: window,
 				RetentionStart:      &defaultRetentionStart,
 				Count:               2,
-				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, UnpricedUsageCount: 1},
+				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, HasUnpricedUsage: true},
 				Users:               []codersdk.OrganizationAISpendUser{},
 			}, empty)
 		})
@@ -5798,11 +5880,29 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				want   codersdk.OrganizationAISpendReport
 			}{
 				{
+					name:   "UserIDs",
+					filter: codersdk.OrganizationAISpendFilter{UserIDs: []uuid.UUID{targetUser.ID}},
+					want: codersdk.OrganizationAISpendReport{
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1500, HasUnpricedUsage: true},
+						Users: []codersdk.OrganizationAISpendUser{targetUserSpend},
+					},
+				},
+				{
+					// All usage is attributed to the test group, so another
+					// group matches none of it.
+					name:   "GroupID",
+					filter: codersdk.OrganizationAISpendFilter{GroupID: uuid.New()},
+					want: codersdk.OrganizationAISpendReport{
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart,
+						Users: []codersdk.OrganizationAISpendUser{},
+					},
+				},
+				{
 					name:   "ProviderName",
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
+						Users: []codersdk.OrganizationAISpendUser{targetUserOpenAISpend},
 					},
 				},
 				{
@@ -5810,7 +5910,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
-						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{otherUserSpend, targetUserClaudeSpend},
 					},
 				},
 				{
@@ -5818,15 +5918,15 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Client: "cursor"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 3000},
-						Users: []codersdk.OrganizationAISpendUser{other},
+						Users: []codersdk.OrganizationAISpendUser{otherUserSpend},
 					},
 				},
 				{
 					name:   "UnknownClient",
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
+						Users: []codersdk.OrganizationAISpendUser{targetUserOpenAISpend},
 					},
 				},
 				{
@@ -5836,7 +5936,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{targetUserClaudeSpend},
 					},
 				},
 				{
@@ -5881,8 +5981,8 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				csvTotal += cost
 			}
 			jsonCost := map[string]int64{}
-			for _, u := range report.Users {
-				jsonCost[u.UserID.String()] = u.CostMicros
+			for _, user := range report.Users {
+				jsonCost[user.UserID.String()] = user.CostMicros
 			}
 			require.Equal(t, csvCost, jsonCost)
 			require.Equal(t, csvTotal, report.Totals.CostMicros)
