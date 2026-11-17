@@ -15,17 +15,14 @@ function isUpdater<T>(next: React.SetStateAction<T>): next is (prev: T) => T {
 	return typeof next === "function";
 }
 
-/**
- * Options for `useLocalStorage`. Declare them with `localStorageOptions`.
- */
 type UseLocalStorageOptions<T> = {
 	storageKey: string;
 	codec: Codec<T>;
 };
 
 /**
- * Returns the options unchanged. It infers `T` from the codec, so options can
- * be declared once and passed to `useLocalStorage`.
+ * Identity helper that infers `T` from the codec, so options can be declared
+ * once at module scope and shared by every `useLocalStorage` call.
  */
 export function localStorageOptions<T>(
 	options: UseLocalStorageOptions<T>,
@@ -43,7 +40,7 @@ export function useLocalStorage<T>({
 }: UseLocalStorageOptions<T>): [T, React.Dispatch<React.SetStateAction<T>>] {
 	const store = useLocalStorageStore();
 
-	// A stable subscribe keeps useSyncExternalStore from resubscribing on every render.
+	// Memoized so useSyncExternalStore does not resubscribe on every render.
 	const subscribeToKey = useCallback(
 		(onChange: () => void) => store.subscribe(key, onChange),
 		[store, key],
@@ -79,7 +76,8 @@ export function booleanCodec(fallback: boolean): Codec<boolean> {
 /**
  * Codec for a JSON value validated by a Yup schema. Invalid stored values read
  * as `fallback`. Schema defaults fill fields older writers did not store. The
- * memo keeps the returned object stable until the stored value changes.
+ * parsed object keeps its identity until the stored string changes, so it is
+ * safe to use in dependency arrays.
  */
 export function jsonCodec<T>(schema: Yup.Schema<T>, fallback: T): Codec<T> {
 	let memo: { serialized: string | null; value: T } | undefined;

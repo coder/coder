@@ -7,8 +7,8 @@ import {
 	shouldPlayChime,
 } from "./chime";
 
-// jsdom does not provide navigator.locks, so this in-process mock mirrors the
-// Web Locks request() semantics that playChime relies on.
+// jsdom has no navigator.locks. This mock implements the request() semantics
+// playChime depends on, including ifAvailable.
 class MockLockManager {
 	private held = new Set<string>();
 
@@ -117,8 +117,8 @@ describe("playChime", () => {
 	});
 
 	it("second tab is blocked while first tab holds the lock", async () => {
-		// Two tabs call playChime for the same chatID. The first acquires
-		// the lock; the second sees ifAvailable=false and skips.
+		// Same chatID from two tabs: the first takes the lock, the second gets
+		// ifAvailable=false and skips.
 		playChime("chat-1");
 		playChime("chat-1");
 

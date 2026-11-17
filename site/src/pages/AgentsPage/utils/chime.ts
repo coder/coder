@@ -2,7 +2,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { booleanCodec, localStorageOptions } from "#/hooks/useLocalStorage";
 import { isTurnCompletedChatStatus } from "../components/ChatConversation/chatStore";
 
-// Disabled until the user opts in.
 export const chimeStorageOptions = localStorageOptions({
 	storageKey: "agents.chime-on-completion",
 	codec: booleanCodec(false),
@@ -98,8 +97,8 @@ export function playChime(chatID: string): void {
 }
 
 /**
- * Reports whether a status transition completes a running turn that the user
- * is not watching. The caller checks the chime preference.
+ * Reports whether a status transition completed a running turn the user is not
+ * looking at. Does not check the chime preference. Callers do that.
  */
 export function shouldPlayChime({
 	prevStatus,

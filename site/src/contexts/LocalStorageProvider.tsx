@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 /**
- * Read, write, and subscribe operations over serialized values, shared by the
- * `useLocalStorage` calls in one provider.
+ * Serialized key access shared by the `useLocalStorage` calls under one
+ * provider. Writes notify same-tab subscribers, since the native storage event
+ * only fires in other tabs.
  */
 type LocalStorageStore = {
 	read: (key: string) => string | null;
@@ -11,7 +12,6 @@ type LocalStorageStore = {
 	handleStorageEvent: (event: StorageEvent) => void;
 };
 
-/** Creates a store with no values. Each provider creates its own. */
 function createLocalStorageStore(): LocalStorageStore {
 	const listenersByKey = new Map<string, Set<() => void>>();
 
@@ -37,7 +37,8 @@ function createLocalStorageStore(): LocalStorageStore {
 				localStorage.setItem(key, serialized);
 			}
 		} catch {
-			// Storage can be unavailable or full. Subscribers re-read what it holds.
+			// localStorage can be unavailable or full. Notify anyway so subscribers
+			// re-read whatever it actually holds.
 		}
 
 		notify(key);
@@ -59,8 +60,8 @@ function createLocalStorageStore(): LocalStorageStore {
 		};
 	};
 
-	// Storage events come from other tabs. Subscribers re-read the key, so the
-	// event payload is not used as the value.
+	// Fired for writes from other tabs. A null key means storage was cleared.
+	// Subscribers re-read the key, so the event payload is ignored.
 	const handleStorageEvent = (event: StorageEvent): void => {
 		const changedKeys =
 			event.key === null ? [...listenersByKey.keys()] : [event.key];

@@ -1,6 +1,6 @@
 import { booleanCodec, localStorageOptions } from "#/hooks/useLocalStorage";
 
-/** Storage options for the chat full-width preference. Pass to `useLocalStorage`. */
+/** Storage options for the chat full-width preference. */
 export const chatFullWidthStorageOptions = localStorageOptions({
 	storageKey: "agents.chat-full-width",
 	codec: booleanCodec(false),
