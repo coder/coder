@@ -159,6 +159,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AuditableChatProjectInstructions:
 		return typed.ProjectName
+	case database.AuditableChatProjectTemplates:
+		return typed.ProjectName
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
 	case database.MCPServerConfig:
@@ -283,6 +285,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.AuditableChatProjectInstructions:
 		// One row per project, keyed by the project.
 		return typed.ProjectID
+	case database.AuditableChatProjectTemplates:
+		return typed.ProjectID
 	case database.ChatModelConfig:
 		return typed.ID
 	case database.MCPServerConfig:
@@ -380,6 +384,9 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatProjectMemory
 	case database.AuditableChatProjectInstructions:
 		return database.ResourceTypeChatProjectInstructions
+	case database.AuditableChatProjectTemplates:
+		// Attachments are part of the project, so they share its type.
+		return database.ResourceTypeChatProject
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
 	case database.MCPServerConfig:
@@ -487,6 +494,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.ChatProjectMemory:
 		return true
 	case database.AuditableChatProjectInstructions:
+		return true
+	case database.AuditableChatProjectTemplates:
 		return true
 	case database.ChatModelConfig:
 		return true
