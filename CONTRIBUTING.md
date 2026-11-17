@@ -270,9 +270,9 @@ Examples:
 - Bad: `feat(coderd): added feature X` (past tense)
 
 Scopes must reference a real path in the repository (a directory or file stem)
-and must contain all changed files. For example, use `coderd/database` if all
-changes are within that directory. If changes span multiple top-level
-directories, omit the scope.
+and must contain all changed files, except files under `docs/`. For example,
+use `coderd/database` if all changes are within that directory. If changes
+span multiple top-level directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
 [If applied, this commit will ...](https://cbea.ms/git-commit/).

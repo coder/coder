@@ -59,7 +59,7 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
+			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-data-[state=open]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
 		>
 			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
 		</Badge>
@@ -145,7 +145,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	const row = (
 		<li
 			className={cn(
-				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary",
+				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-data-[state=open]:bg-surface-secondary",
 				// A long press opens the context menu on touch screens, so it must
 				// not also select text.
 				actions && "select-none data-[state=open]:bg-surface-secondary",
@@ -179,7 +179,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					fallback={ownerName}
 					className={cn(
 						actions &&
-							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible group-data-[state=open]:invisible [@media(hover:none)]:invisible",
+							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-data-[state=open]:invisible group-data-[state=open]:invisible [@media(hover:none)]:invisible",
 					)}
 				/>
 				{actions && (

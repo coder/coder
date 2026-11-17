@@ -78,7 +78,7 @@ coder exp sync list --output json
 
 ### Workspace startup script hangs
 
-If the workspace startup scripts appear to 'hang', one or more of your startup scripts may be waiting for a dependency that never completes.
+If the workspace startup scripts appear to 'hang', one or more of your startup scripts might be waiting for a dependency that never completes.
 
 * Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
     > **Tip:**
@@ -108,4 +108,4 @@ adding edge (bar -> foo): cycle detected
 ```
 
 To fix this, review your dependency declarations and redesign them to remove the cycle.
-It may help to draw out the dependency graph to find the cycle.
+It can help to draw out the dependency graph to find the cycle.

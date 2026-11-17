@@ -64,6 +64,7 @@ unset ANTHROPIC_AUTH_TOKEN
 ```
 
 When you run Claude Code, it will prompt you to log in with your Anthropic account.
+To complete the sign-in from a workspace terminal, refer to [Sign in to Claude Code with a Claude subscription](../../../workspaces/workspace-access/claude-code-subscription.md#sign-in-interactively).
 
 ## Pre-configuring in Templates
 
@@ -87,7 +88,7 @@ Visit the [Claude Code module on the Coder Registry](https://registry.coder.com/
 The Claude Code VS Code extension is also supported.
 
 1. If pre-configured in the workspace environment variables (as shown above), it typically respects them.
-2. You may need to sign in once.
+2. You might need to sign in once.
    Afterwards, it respects the workspace environment variables.
 
 **References:**

@@ -17,6 +17,7 @@
           "properties": {
             "repo": {"type": "string", "minLength": 1},
             "tag": {"type": "string"},
+            "digest": {"type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$"},
             "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
             "pullSecrets": {"type": "array", "items": {"type": "object"}}
           }

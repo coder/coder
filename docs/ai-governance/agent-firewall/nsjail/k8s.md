@@ -109,7 +109,7 @@ bootstrap_extra_args = <<-EOT
 EOT
 ```
 
-This ensures Boundary can create user namespaces with nsjail.
+This makes sure Boundary can create user namespaces with nsjail.
 
 <a id="running-without-user-namespaces"></a>
 

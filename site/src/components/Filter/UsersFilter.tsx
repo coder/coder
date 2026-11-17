@@ -3,15 +3,8 @@ import {
 	MenuSkeleton,
 	type useFilter,
 } from "#/components/Filter/Filter";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "#/components/Filter/menu";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "#/components/Filter/SelectFilter";
-import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import type { UseFilterMenuResult } from "#/components/Filter/menu";
+import { SelectFilter } from "#/components/Filter/SelectFilter";
 import { docs } from "#/utils/docs";
 
 const userFilterQuery = {
@@ -19,41 +12,6 @@ const userFilterQuery = {
 	serviceAccount: "service_account:true",
 	all: "",
 };
-
-/** Account statuses available when filtering users and organization members. */
-export const userStatusOptions: SelectFilterOption[] = [
-	{
-		value: "active",
-		label: "Active",
-		startIcon: <StatusIndicatorDot variant="success" />,
-	},
-	{
-		value: "dormant",
-		label: "Dormant",
-		startIcon: <StatusIndicatorDot variant="warning" />,
-	},
-	{
-		value: "suspended",
-		label: "Suspended",
-		startIcon: <StatusIndicatorDot variant="inactive" />,
-	},
-];
-
-export const useStatusFilterMenu = ({
-	value,
-	onChange,
-}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	return useFilterMenu({
-		onChange,
-		value,
-		id: "status",
-		getSelectedOption: async () =>
-			userStatusOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => userStatusOptions,
-	});
-};
-
-type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
 const PRESET_FILTERS = [
 	{ query: userFilterQuery.active, name: "Active users" },
@@ -65,7 +23,7 @@ type UsersFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus?: {
-		status?: StatusFilterMenu;
+		status?: UseFilterMenuResult;
 	};
 };
 
@@ -89,7 +47,7 @@ export const UsersFilter: React.FC<UsersFilterProps> = ({
 	);
 };
 
-const StatusMenu = (menu: StatusFilterMenu) => {
+const StatusMenu = (menu: UseFilterMenuResult) => {
 	return (
 		<SelectFilter
 			label="Select a status"

@@ -61,7 +61,7 @@ Learn more about [change management](./change-management.md).
 > Template update policies are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Licensed template admins may want workspaces to always remain on the latest version of their parent template.
+Licensed template admins might want workspaces to always remain on the latest version of their parent template.
 To do so, enable **Template Update Policies** in the template's general settings.
 All non-admin users of the template will be forced to update their workspaces before starting them once the setting is applied.
 Workspaces which leverage autostart or start-on-connect will be automatically updated on the next startup.
@@ -134,7 +134,8 @@ While the setting is off, the workspace name field is disabled and the API rejec
 ## Delete templates
 
 You can delete a template using both the coder CLI and UI.
-Only [template admins and owners](../../admin/users/groups-roles.md#roles) can delete a template, and the template must not have any running workspaces associated to it.
+Only [template admins and owners](../../admin/users/groups-roles.md#roles) can delete a template, and the template must have no remaining workspaces associated with it, in any state.
+Prebuilt workspaces don't block deletion.
 
 In the UI, navigate to the template you want to delete, and select the dropdown in the right-hand corner of the page to delete the template.
 

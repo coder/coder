@@ -109,7 +109,7 @@ const IconsPage: React.FC = () => {
 				<div className="relative max-w-xs">
 					<SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-icon-xs text-content-secondary" />
 					<Input
-						aria-label="Filter"
+						aria-label="Search"
 						name="query"
 						placeholder="Search…"
 						value={searchInputText}
@@ -133,7 +133,7 @@ const IconsPage: React.FC = () => {
 					)}
 				</div>
 
-				<div className="flex flex-row gap-2 justify-center flex-wrap max-w-full mt-8">
+				<div className="flex gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (
 						<EmptyState message="No results matched your search" />
 					)}
@@ -149,7 +149,7 @@ const IconsPage: React.FC = () => {
 										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
 									)}
 								/>
-								<figcaption className="w-[88px] h-12 text-xs font-normal text-ellipsis text-center overflow-hidden">
+								<figcaption className="w-22 h-12 text-xs font-normal text-ellipsis text-center overflow-hidden">
 									{icon.description}
 								</figcaption>
 							</div>

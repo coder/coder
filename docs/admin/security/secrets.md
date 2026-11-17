@@ -12,7 +12,7 @@ For secret values that developers manage themselves, see [User secrets](../../wo
 ## Before you begin
 
 Your first attempt to use secrets with Coder should be your local method.
-You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets may be brought over.
+You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets can be brought over.
 
 Often, this workflow is simply:
 
@@ -35,8 +35,10 @@ Users can view their public key in their account settings:
 ![SSH keys in account settings](../../images/ssh-keys.png)
 
 > [!NOTE]
-> SSH keys are never stored in Coder workspaces, and are fetched only when SSH is invoked.
-> The keys are held in-memory and never written to disk.
+> SSH keys are fetched only when SSH is invoked.
+> For the duration of the SSH connection, the key is written to a temporary file, which is removed after SSH exits.
+> On Linux and macOS, the file is created with owner-only permissions (0600) in the operating system's temporary directory.
+> The key is not stored persistently.
 
 ## User secrets
 

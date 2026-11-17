@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import {
 	MessageScroller,
@@ -106,9 +106,10 @@ export const visibleRowsAfterLayout = async () => {
  * top of a describe that renders a transcript with renderTranscript.
  */
 export const setupMessageScrollerLayout = () => {
-	beforeAll(() => {
-		// jsdom does not implement Element.scrollTo.
-		Element.prototype.scrollTo = function (
+	beforeEach(() => {
+		const scrollTops = new WeakMap<Element, number>();
+		MockResizeObserver.reset();
+		vi.spyOn(Element.prototype, "scrollTo").mockImplementation(function (
 			this: Element,
 			options?: ScrollToOptions | number,
 			y?: number,
@@ -117,16 +118,7 @@ export const setupMessageScrollerLayout = () => {
 			if (top !== undefined) {
 				this.scrollTop = top;
 			}
-		};
-	});
-
-	afterAll(() => {
-		Reflect.deleteProperty(Element.prototype, "scrollTo");
-	});
-
-	beforeEach(() => {
-		const scrollTops = new WeakMap<Element, number>();
-		MockResizeObserver.reset();
+		});
 		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 		// jsdom runs requestAnimationFrame on the global setInterval. A frame
 		// requested under fake timers, as motion does, leaves that loop on

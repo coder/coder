@@ -19,7 +19,7 @@ AI Gateway solves 3 key problems:
 1. **Auditing and attribution**:
    all interactions with AI services, whether autonomous or human-initiated, are audited and attributed back to a user.
 1. **Centralized MCP administration**:
-   define a set of approved Model Context Protocol (MCP) servers and tools which your users may use.
+   define a set of approved Model Context Protocol (MCP) servers and tools which your users can use.
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.

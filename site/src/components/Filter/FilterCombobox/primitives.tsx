@@ -9,13 +9,16 @@ import {
 	useState,
 } from "react";
 import { Badge } from "#/components/Badge/Badge";
+import {
+	keyboardHighlightRingClassName,
+	useHighlightSource,
+} from "#/components/Command/useHighlightSource";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
 import {
 	Popover,
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-
 import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 
 // Primitive layer for `FilterCombobox`, built on cmdk (listbox, keyboard
@@ -125,6 +128,7 @@ export function FilterComboboxRoot({
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
+	const highlightSource = useHighlightSource();
 	// cmdk only reports highlight changes when its value is controlled.
 	const [highlightedValue, setHighlightedValue] = useState("");
 	const highlightedValueRef = useRef("");
@@ -158,6 +162,8 @@ export function FilterComboboxRoot({
 					label={label}
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
+					data-highlight-source={highlightSource.source}
+					onFocus={highlightSource.setToLastPageInput}
 					onKeyDown={(event) => {
 						// On Enter the cmdk root selects the highlighted row and cancels
 						// the focused button's click. A button takes Enter as a click
@@ -179,6 +185,7 @@ export function FilterComboboxRoot({
 					// Runs after the row's own handler, so the flag covers only the
 					// highlight that pointer move causes.
 					onPointerMove={() => {
+						highlightSource.setToPointer();
 						userNavigatingRef.current = false;
 					}}
 					onValueChange={(value) => {
@@ -293,8 +300,7 @@ export const FilterComboboxFlyoutContent: React.FC<
 			disablePortal
 			side="right"
 			align="start"
-			// Flush with the main panel, like `DropdownMenuSubContent`.
-			sideOffset={0}
+			sideOffset={4}
 			collisionPadding={0}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onCloseAutoFocus={(event) => event.preventDefault()}
@@ -302,7 +308,7 @@ export const FilterComboboxFlyoutContent: React.FC<
 			// one. Focus returning to the input must not close the flyout.
 			onInteractOutside={(event) => event.preventDefault()}
 			className={cn(
-				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden border-border p-2",
+				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden p-2",
 				className,
 			)}
 			{...props}
@@ -346,7 +352,8 @@ export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[selected=true]:ring-2 data-[selected=true]:ring-inset data-[selected=true]:ring-content-link data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				keyboardHighlightRingClassName,
 				className,
 			)}
 			{...props}
@@ -496,7 +503,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 					data-slot="combobox-chip-remove"
 					aria-label={resolvedRemoveLabel}
 					className={cn(
-						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+						"inline-flex shrink-0 items-center justify-center rounded-sm bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
@@ -538,7 +545,7 @@ export const FilterComboboxChipsInput: React.FC<
 			size={1}
 			className={cn(
 				chipRowItemHeightClassName,
-				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				"min-w-1 flex-auto field-sizing-content bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

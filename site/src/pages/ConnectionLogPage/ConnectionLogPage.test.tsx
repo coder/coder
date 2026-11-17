@@ -172,7 +172,7 @@ describe("ConnectionLogPage", () => {
 			const getConnectionLogsSpy = vi.spyOn(API, "getConnectionLogs");
 			getConnectionLogsSpy.mockClear();
 
-			const filterField = screen.getByLabelText("Filter");
+			const filterField = screen.getByLabelText("Search");
 			const query = "method:ssh status:ongoing";
 			await userEvent.type(filterField, query);
 

@@ -382,7 +382,9 @@ export const useFilterCombobox = ({
 	const isBrowsing = mode === "browsing";
 
 	const lastEmittedRef = useRef(value);
-	const prevChipKeysRef = useRef(chipKeys);
+	// Compared by content, so an equivalent chipKeys array with a new identity
+	// does not reconcile and drop pending typed text.
+	const prevChipKeysSignatureRef = useRef(chipKeys.join("\0"));
 	const highlightRef = useRef<FilterComboboxHighlight | null>(null);
 	const getHighlightedValue = () => highlightRef.current?.get() ?? "";
 	const setHighlightedValue = (value: string) => {
@@ -440,8 +442,10 @@ export const useFilterCombobox = ({
 	// the self-emit guard. It runs during the commit, so a key handled before
 	// passive effects flush already reads the caller's value.
 	useLayoutEffect(() => {
-		const chipKeysChanged = prevChipKeysRef.current !== chipKeys;
-		prevChipKeysRef.current = chipKeys;
+		const chipKeysSignature = chipKeys.join("\0");
+		const chipKeysChanged =
+			prevChipKeysSignatureRef.current !== chipKeysSignature;
+		prevChipKeysSignatureRef.current = chipKeysSignature;
 		const isExternal = value !== lastEmittedRef.current;
 		if (!isExternal && !chipKeysChanged) {
 			return;
@@ -553,7 +557,7 @@ export const useFilterCombobox = ({
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
-				category.optionsKey ?? category.key,
+				category.optionsKey,
 				category.getOptions,
 				"",
 				unfilteredOptionsEnabled ||
@@ -678,7 +682,7 @@ export const useFilterCombobox = ({
 
 	const activeOptionsQuery = useQuery(
 		filterComboboxOptions(
-			activeCategory?.optionsKey ?? activeCategoryKey ?? "",
+			activeCategory?.optionsKey ?? "",
 			activeCategory?.getOptions,
 			debouncedActiveOptionsQuery,
 			activeCategoryKey !== null,
@@ -725,7 +729,7 @@ export const useFilterCombobox = ({
 	const suggestionOptions = useQueries({
 		queries: optionLookupCategories.map((category) =>
 			filterComboboxOptions(
-				category.optionsKey ?? category.key,
+				category.optionsKey,
 				category.getOptions,
 				debouncedTypeaheadQuery,
 				debouncedTypeaheadQuery.length > 0 &&
@@ -1041,13 +1045,12 @@ export const useFilterCombobox = ({
 			: chipValues.map((chip) => (chip === replaced ? token : chip));
 	};
 
-	const toggledChips = (
-		token: string,
-		add = () =>
-			categoryForChip(token)?.singleSelect
-				? withCategoryOption(token)
-				: [...chipValues, token],
-	): string[] =>
+	const withValueSuggestion = (token: string) =>
+		categoryForChip(token)?.singleSelect
+			? withCategoryOption(token)
+			: [...chipValues, token];
+
+	const toggledChips = (token: string, add: () => string[]): string[] =>
 		chipValues.includes(token)
 			? chipValues.filter((chip) => chip !== token)
 			: add();
@@ -1077,7 +1080,10 @@ export const useFilterCombobox = ({
 		if (applyQueryOption(token)) {
 			return;
 		}
-		updateFromChips(toggledChips(token), "");
+		updateFromChips(
+			toggledChips(token, () => withValueSuggestion(token)),
+			"",
+		);
 		closeMenu();
 	};
 
@@ -1198,7 +1204,7 @@ export const useFilterCombobox = ({
 			return undefined;
 		}
 		const options = filterComboboxOptions(
-			category.optionsKey ?? category.key,
+			category.optionsKey,
 			category.getOptions,
 			"",
 			true,
@@ -1239,7 +1245,7 @@ export const useFilterCombobox = ({
 				unfilteredForMenuCheck(category),
 				queryClient.fetchQuery(
 					filterComboboxOptions(
-						category.optionsKey ?? category.key,
+						category.optionsKey,
 						category.getOptions,
 						text,
 						true,

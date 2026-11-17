@@ -4,9 +4,7 @@ export const SignInLayout: React.FC<React.PropsWithChildren> = ({
 	return (
 		<div className="grow basis-0 h-screen flex justify-center items-center">
 			<div className="flex flex-col items-center">
-				<div className="max-w-[385px] flex flex-col items-center">
-					{children}
-				</div>
+				<div className="max-w-96.25 flex flex-col items-center">{children}</div>
 				<div className="text-xs text-content-secondary pt-6">
 					&copy; {new Date().getFullYear()} Coder Technologies, Inc.
 				</div>

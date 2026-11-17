@@ -219,7 +219,7 @@ const ChatPaneMinimumRouteElement = () => (
 				</span>
 				<button
 					type="button"
-					className="size-7 shrink-0 rounded-full border-0 bg-content-link text-content-invert"
+					className="size-7 shrink-0 rounded-full bg-content-link text-content-invert"
 				>
 					Send
 				</button>

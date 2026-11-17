@@ -9,7 +9,7 @@ You can also manage the lifecycle of failed or inactive workspaces.
 
 ## Schedule
 
-Template [admins](../../admin/users/index.md) may define these default values:
+Template [admins](../../admin/users/index.md) can define these default values:
 
 - [**Default autostop**](../../workspaces/workspace-scheduling.md#autostop): How long a workspace runs without user activity before Coder automatically stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace restarts to apply template updates regardless of user activity.
@@ -22,7 +22,7 @@ Template [admins](../../admin/users/index.md) may define these default values:
 
 ## Allow users scheduling
 
-For templates where a uniform autostop duration is not appropriate, admins may allow users to define their own autostart and autostop schedules.
+For templates where a uniform autostop duration is not appropriate, admins can allow users to define their own autostart and autostop schedules.
 Admins can restrict the days of the week a workspace should automatically start to help manage infrastructure costs.
 
 ## Failure cleanup
@@ -62,10 +62,10 @@ Dormancy Auto-Deletion is only available for licensed customers.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Autostop requirement is a template setting that determines how often workspaces using the template must automatically stop.
-Autostop requirement ignores any active connections, and ensures that workspaces do not run in perpetuity when connections are left open inadvertently.
+Autostop requirement ignores any active connections, and guarantees that workspaces do not run in perpetuity when connections are left open inadvertently.
 
 Workspaces will apply the template autostop requirement on the given day in the user's timezone and specified quiet hours (see below).
-This ensures that workspaces will not be stopped during work hours.
+This makes sure that workspaces will not be stopped during work hours.
 
 The available options are "Days", which can be set to "Daily", "Saturday" or "Sunday", and "Weeks", which can be set to any number from 1 to 16.
 
@@ -77,9 +77,6 @@ When using "Saturday" or "Sunday", workspaces will be automatically stopped on S
 It cannot be changed from the default of 1 if you have selected "Daily" for "Days".
 When using a value greater than 1, workspaces will be automatically stopped every N weeks on the day specified by "Days" and the user's quiet hours.
 The autostop week is synchronized for all workspaces on the same template.
-
-Autostop requirement is disabled when the template is using the deprecated max lifetime feature.
-Templates can choose to use a max lifetime or an autostop requirement during the deprecation period, but only one can be used at a time.
 
 ## User quiet hours
 

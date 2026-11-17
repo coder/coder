@@ -3,16 +3,14 @@ import {
 	WorkerPoolContextProvider,
 	type WorkerPoolOptions,
 } from "@pierre/diffs/react";
+import { coderShikiThemes } from "#/components/SyntaxHighlighter/shikiTheme";
 
 type DiffsWorkerPoolProviderProps = {
 	children: React.ReactNode;
 };
 
 const highlighterOptions: WorkerInitializationRenderOptions = {
-	theme: {
-		dark: "github-dark-high-contrast",
-		light: "github-light",
-	},
+	theme: coderShikiThemes,
 };
 
 const getPoolSize = (): number => {

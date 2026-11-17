@@ -116,7 +116,7 @@ veloper.gserviceaccount.com  --include-email
 ```
 
 > [!NOTE]
-> Your `gcloud` client may needed elevated permissions to run this command.
+> Your `gcloud` client might need elevated permissions to run this command.
 
 ## 5. Set identity token in Coder control plane
 

@@ -7,7 +7,11 @@ import {
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
-import { userStatusOptions } from "#/components/Filter/UsersFilter";
+import {
+	getStatusFilterOptions,
+	getUserTypeFilterOptions,
+	USER_TYPE_CHIP_KEYS,
+} from "#/pages/UsersPage/filter/categoryOptions";
 
 const categories: FilterCategory[] = [
 	{
@@ -17,24 +21,18 @@ const categories: FilterCategory[] = [
 		icon: <CircleDotIcon />,
 		inlineOptions: true,
 		inlineOptionsIcons: true,
-		getOptions: async () => userStatusOptions,
+		getOptions: getStatusFilterOptions,
 	},
 	{
 		key: "attribute",
 		optionsKey: "members.attribute",
 		label: "User type",
 		icon: <TagIcon />,
-		chipKeys: ["service_account"],
+		chipKeys: USER_TYPE_CHIP_KEYS,
 		inlineOptions: true,
 		inlineOptionsLabel: "User type is…",
 		chipLabelOnly: true,
-		getOptions: async () => [
-			{
-				value: "service_account",
-				label: "Service account",
-				token: "service_account:true",
-			},
-		],
+		getOptions: getUserTypeFilterOptions,
 	},
 ];
 

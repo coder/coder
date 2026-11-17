@@ -47,6 +47,13 @@ test("sets a page title that identifies the page", async () => {
 	expect(document.title).toBe("Security - Settings - Coder");
 });
 
+test("nests section headings under the page heading", async () => {
+	await renderPage();
+	expect(
+		screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+	).toEqual(["Password", "Single Sign On"]);
+});
+
 test("update password successfully", async () => {
 	vi.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) =>
 		Promise.resolve(undefined),
@@ -86,10 +93,14 @@ test("update password when submit returns an unknown error", async () => {
 	});
 
 	const { user } = await renderPage();
+	// The live region exists before the error so screen readers announce it.
+	const errorRegion = screen.getByRole("alert");
+	expect(errorRegion).toBeEmptyDOMElement();
 	fillAndSubmitSecurityForm();
 
-	const errorMessage = await screen.findByText("Something went wrong.");
-	expect(errorMessage).toBeDefined();
+	await waitFor(() =>
+		expect(errorRegion).toHaveTextContent("Something went wrong."),
+	);
 	expect(API.updateUserPassword).toBeCalledTimes(1);
 	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 });

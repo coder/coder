@@ -11,7 +11,7 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, and so on).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what to route elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
 The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide.
@@ -87,6 +87,8 @@ The skill finds a persona's rules by reading this field, not by file path, so pa
 When you add a rule page, add the field.
 When you move a rule to a different page, check that the new page lists every persona that applied it.
 The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
+The CI review of a PR runs only the `accuracy`, `coverage`, and `learner` personas, so it applies only the rule pages that list one of them.
+The other personas run when an author uses the skill on their own branch.
 
 ## Add a Vale rule
 

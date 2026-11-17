@@ -116,7 +116,7 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 [Podman Desktop](https://podman-desktop.io) is a free graphical user interface (GUI) for the Podman container runtime.
 Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
@@ -167,7 +167,7 @@ Install the `coder` CLI to get started:
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 1. Use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 
@@ -355,7 +355,7 @@ When you're ready for other people to use it:
 
 ### Cannot connect to the Docker daemon
 
-When creating a workspace from a Docker template, you may see an error like:
+When creating a workspace from a Docker template, you might see an error like:
 
 ```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
@@ -364,7 +364,7 @@ Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:
 This usually means a container runtime is either not installed or not running on the machine where Coder is running.
 A runtime must be running before you create a workspace from a Docker-based template.
 
-If the runtime is running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+If the runtime is running but Coder still cannot connect, the daemon might expose its socket at a path other than `/var/run/docker.sock`.
 This is common with Colima on macOS and with rootless Docker on Linux.
 In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the control plane.
 

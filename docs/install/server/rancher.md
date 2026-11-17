@@ -44,7 +44,7 @@ For production deployments, we recommend using a managed PostgreSQL service:
 - [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/)
 - [DigitalOcean Managed PostgreSQL](https://www.digitalocean.com/products/managed-databases-postgresql)
 
-Ensure that your PostgreSQL service:
+Make sure that your PostgreSQL service:
 
 - Is running and accessible from your cluster
 - Is in the same network/project as your cluster

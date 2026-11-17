@@ -23,7 +23,7 @@ Admins and users who want to retain a conversation long after its last message s
 
 When your chats are auto-archived, you receive a digest notification listing the titles of the archived conversations and the auto-archive window currently configured.
 Because eligibility uses UTC day boundaries, in steady state this notification fires at most once per day (on the first tick after midnight UTC that finds newly eligible chats).
-A large backlog (initial enablement or bulk inactivity) may span multiple ticks, producing multiple notifications until the backlog drains.
+A large backlog (initial enablement or bulk inactivity) might span multiple ticks, producing multiple notifications until the backlog drains.
 
 Each digest lists at most 25 conversation titles.
 When a tick archives more than that, the notification names the first 25 and reports the remainder as a count.

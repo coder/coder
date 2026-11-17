@@ -98,13 +98,13 @@ The following are recommendations by the Coder team when performing the upgrade:
 - **Update integrations referencing deprecated API fields:**
   Code relying on `WorkspaceBuild.task_app_id` must migrate to `Task.WorkspaceAppID`, and any custom integrations built against 2.24 APIs should be validated against the new SDK
 - **Communicate audit-logging changes to security/compliance teams:**
-  From 2.25 onward, connection events moved into the Connection Log, and older audit entries may be pruned, which can affect security information and event management (SIEM) pipelines or compliance workflows
+  From 2.25 onward, connection events moved into the Connection Log, and older audit entries might be pruned, which can affect security information and event management (SIEM) pipelines or compliance workflows
 - **Validate workspace lifecycle automation:**
   Since updates now require stopping the workspace first, confirm that automated update jobs, scripts, or scheduled tasks still function correctly in this new model
 - **Retest agent and task automation built on early experimental features:**
-  Updates to agent readiness, permission checks, and lifecycle ordering may affect workflows developed against 2.24’s looser behaviors
+  Updates to agent readiness, permission checks, and lifecycle ordering might affect workflows developed against 2.24’s looser behaviors
 - **Monitor workspace, template, and Terraform build performance:**
-  New caching, indexes, and database (DB) optimizations may change build times.
+  New caching, indexes, and database (DB) optimizations might change build times.
   Observing performance post-upgrade helps catch regressions early
 - **Prepare user communications around Tasks and UI changes:**
   Tasks are now GA and more visible in the dashboard, and many UI improvements will be new to users coming from 2.24, so a brief internal announcement can smooth the transition

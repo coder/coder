@@ -4,7 +4,7 @@ import {
 	BoxIcon,
 	Building2Icon,
 	HammerIcon,
-	ListFilterIcon,
+	Settings2Icon,
 	UserIcon,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -17,6 +17,7 @@ import {
 import {
 	AuditActions,
 	BuildReasons,
+	type ResourceType,
 	ResourceTypes,
 } from "#/api/typesGenerated";
 import type { UseFilterResult } from "#/components/Filter/Filter";
@@ -27,7 +28,7 @@ import type {
 } from "#/components/Filter/FilterCombobox/types";
 import { getOrganizationFilterOptions } from "#/components/Filter/organizationOptions";
 import {
-	getSelfUserFilterOptions,
+	getMeUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -38,26 +39,31 @@ const presets: FilterOption[] = [
 	{
 		label: "Created workspaces",
 		value: "created_workspaces",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:workspace action:create",
 	},
 	{
 		label: "Added templates",
 		value: "added_templates",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:template action:create",
 	},
 	{
 		label: "Deleted users",
 		value: "deleted_users",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:user action:delete",
 	},
 	{
 		label: "Builds started by a user",
 		value: "user_builds",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:workspace_build action:start build_reason:initiator",
 	},
 	{
 		label: "User logins",
 		value: "user_logins",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:api_key action:login",
 	},
 ];
@@ -67,54 +73,23 @@ const actionOptions: FilterOption[] = AuditActions.filter(
 	(action) => !["connect", "disconnect", "open", "close"].includes(action),
 ).map((action) => ({ value: action, label: capitalize(action) }));
 
-const resourceOptions: FilterOption[] = ResourceTypes.map((type) => {
-	let label: string = capitalize(type);
+const resourceTypeLabels: Partial<Record<ResourceType, string>> = {
+	api_key: "API Key",
+	git_ssh_key: "Git SSH Key",
+	template_version: "Template Version",
+	workspace_build: "Workspace Build",
+	chat_instruction_settings: "Chat Instruction Settings",
+	chat_organization_system_prompt: "Chat Organization System Prompt",
+	chat_project_instructions: "Chat Project Instructions",
+	chat_project_skill: "Chat Project Skill",
+	chat_operational_settings: "Chat Operational Settings",
+	experiment_rule: "Experiment Rule",
+};
 
-	if (type === "api_key") {
-		label = "API Key";
-	}
-
-	if (type === "git_ssh_key") {
-		label = "Git SSH Key";
-	}
-
-	if (type === "template_version") {
-		label = "Template Version";
-	}
-
-	if (type === "workspace_build") {
-		label = "Workspace Build";
-	}
-
-	if (type === "chat_instruction_settings") {
-		label = "Chat Instruction Settings";
-	}
-
-	if (type === "chat_organization_system_prompt") {
-		label = "Chat Organization System Prompt";
-	}
-
-	if (type === "chat_project_instructions") {
-		label = "Chat Project Instructions";
-	}
-
-	if (type === "chat_project_skill") {
-		label = "Chat Project Skill";
-	}
-
-	if (type === "chat_operational_settings") {
-		label = "Chat Operational Settings";
-	}
-
-	if (type === "experiment_rule") {
-		label = "Experiment Rule";
-	}
-
-	return {
-		value: type,
-		label,
-	};
-});
+const resourceOptions: FilterOption[] = ResourceTypes.map((type) => ({
+	value: type,
+	label: resourceTypeLabels[type] ?? capitalize(type),
+}));
 
 type AuditFilterProps = { filter: UseFilterResult; error?: unknown };
 
@@ -126,6 +101,7 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 		const next: FilterCategory[] = [
 			{
 				key: "resource_type",
+				optionsKey: "audit.resource_type",
 				label: "Resource type",
 				aliases: ["resource"],
 				icon: <BoxIcon />,
@@ -133,21 +109,24 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 			},
 			{
 				key: "action",
+				optionsKey: "audit.action",
 				label: "Action",
 				icon: <ActivityIcon />,
 				getOptions: async () => actionOptions,
 			},
 			{
 				key: "username",
+				optionsKey: "audit.username",
 				label: "User",
 				aliases: ["user"],
 				icon: <UserIcon />,
 				getOptions: permissions.viewAllUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
-					: (query) => getSelfUserFilterOptions(query, me),
+					: (query) => getMeUserFilterOptions(query, me),
 			},
 			{
 				key: "build_reason",
+				optionsKey: "audit.build_reason",
 				label: "Build reason",
 				icon: <HammerIcon />,
 				getOptions: async () =>
@@ -174,9 +153,10 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 			key: "preset",
 			optionsKey: "audit.presets",
 			label: "Presets",
-			icon: <ListFilterIcon />,
 			chipKeys: [],
-			separatorBefore: true,
+			inlineOptions: true,
+			inlineOptionsLabel: "Show…",
+			inlineOptionsIcons: true,
 			getOptions: async () => presets,
 		});
 		return next.map((category) => ({ ...category, singleSelect: true }));
