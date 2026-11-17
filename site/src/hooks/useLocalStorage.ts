@@ -16,13 +16,22 @@ function isUpdater<T>(next: React.SetStateAction<T>): next is (prev: T) => T {
 }
 
 /**
- * Options for `useLocalStorage`. Consumers can check an options object with
- * `satisfies UseLocalStorageOptions<T>`.
+ * Options for `useLocalStorage`. Declare them with `localStorageOptions`.
  */
-export type UseLocalStorageOptions<T> = {
+type UseLocalStorageOptions<T> = {
 	storageKey: string;
 	codec: Codec<T>;
 };
+
+/**
+ * Returns the options unchanged. It infers `T` from the codec, so options can
+ * be declared once and passed to `useLocalStorage`.
+ */
+export function localStorageOptions<T>(
+	options: UseLocalStorageOptions<T>,
+): UseLocalStorageOptions<T> {
+	return options;
+}
 
 /**
  * Reads and writes a localStorage key. Consumers re-render on same-tab writes

@@ -1,13 +1,12 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { UseLocalStorageOptions } from "#/hooks/useLocalStorage";
-import { booleanCodec } from "#/hooks/useLocalStorage";
+import { booleanCodec, localStorageOptions } from "#/hooks/useLocalStorage";
 import { isTurnCompletedChatStatus } from "../components/ChatConversation/chatStore";
 
 // Disabled until the user opts in.
-export const chimeStorageOptions = {
+export const chimeStorageOptions = localStorageOptions({
 	storageKey: "agents.chime-on-completion",
 	codec: booleanCodec(false),
-} satisfies UseLocalStorageOptions<boolean>;
+});
 
 /**
  * Play the completion chime audio file. The file is a short,
