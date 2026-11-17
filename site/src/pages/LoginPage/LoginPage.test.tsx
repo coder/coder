@@ -70,7 +70,7 @@ describe("LoginPage", () => {
 		await waitFor(() => expect(errorRegion).toHaveTextContent(apiErrorMessage));
 	});
 
-	it("sets a non-empty document title", async () => {
+	it("sets the document title", async () => {
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
 		expect(document.title).toBe("Sign in to Coder");
