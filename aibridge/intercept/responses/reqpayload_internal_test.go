@@ -142,6 +142,14 @@ func TestCorrelatingToolCallID(t *testing.T) {
 			payload: []byte(`{"model":"gpt-5","input":[{"role":"system","content":"sys"},{"role":"developer","content":"dev"}]}`),
 		},
 		{
+			name:    "assistant message after tool result stops the walk",
+			payload: []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"r1"},{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "tool call after tool result stops the walk",
+			payload: []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"r1"},{"type":"function_call","call_id":"call_next","name":"exec","arguments":"{}"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
 			name:    "tool result missing call id followed by developer message does not fall back to older result",
 			payload: []byte(`{"model":"gpt-5","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"type":"function_call_output","output":"r2"},{"role":"developer","content":"dev"}]}`),
 		},
