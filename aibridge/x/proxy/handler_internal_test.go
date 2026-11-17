@@ -820,9 +820,12 @@ func TestForwardingRecordsInterception(t *testing.T) {
 		readError      bool
 		abort          bool
 		statuses       []int
-		wantStatus     int
-		wantError      recorder.ErrorType
-		wantHint       string
+		// body is the upstream response body.
+		body        string
+		wantStatus  int
+		wantError   recorder.ErrorType
+		wantMessage string
+		wantHint    string
 	}{
 		{
 			name:       "Success",
@@ -831,11 +834,51 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			wantHint:   utils.MaskSecret(userSecretKey),
 		},
 		{
-			name:       "UpstreamError",
-			statuses:   []int{http.StatusTooManyRequests},
-			wantStatus: http.StatusTooManyRequests,
-			wantError:  recorder.ErrorTypeFromStatus(http.StatusTooManyRequests),
-			wantHint:   utils.MaskSecret(userSecretKey),
+			name:        "UpstreamBadRequest",
+			statuses:    []int{http.StatusBadRequest},
+			body:        `{"error":{"message":"invalid model"}}`,
+			wantStatus:  http.StatusBadRequest,
+			wantError:   recorder.ErrorTypeBadRequest,
+			wantMessage: `{"error":{"message":"invalid model"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:        "UpstreamUnauthorized",
+			statuses:    []int{http.StatusUnauthorized},
+			body:        `{"error":{"message":"invalid api key"}}`,
+			wantStatus:  http.StatusUnauthorized,
+			wantError:   recorder.ErrorTypeUnauthorized,
+			wantMessage: `{"error":{"message":"invalid api key"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:        "UpstreamRateLimited",
+			statuses:    []int{http.StatusTooManyRequests},
+			body:        `{"error":{"message":"rate limited"}}`,
+			wantStatus:  http.StatusTooManyRequests,
+			wantError:   recorder.ErrorTypeRateLimited,
+			wantMessage: `{"error":{"message":"rate limited"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "UpstreamServerError",
+			statuses:   []int{http.StatusInternalServerError},
+			wantStatus: http.StatusInternalServerError,
+			wantError:  recorder.ErrorTypeServerError,
+			// An empty body falls back to the status text.
+			wantMessage: http.StatusText(http.StatusInternalServerError),
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "UpstreamOverloaded",
+			statuses:   []int{http.StatusServiceUnavailable},
+			body:       `{"error":{"message":"engine overloaded"}}`,
+			wantStatus: http.StatusServiceUnavailable,
+			// TODO: Interception mode records ErrorTypeOverloaded for OpenAI.
+			// https://linear.app/codercom/issue/AIGOV-811
+			wantError:   recorder.ErrorTypeServerError,
+			wantMessage: `{"error":{"message":"engine overloaded"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
 		},
 		{
 			name:       "PooledKey",
@@ -854,15 +897,17 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			transportError: true,
 			wantStatus:     http.StatusBadGateway,
 			wantError:      recorder.ErrorTypeUnknown,
+			wantMessage:    io.ErrClosedPipe.Error(),
 			wantHint:       utils.MaskSecret(userSecretKey),
 		},
 		{
-			name:       "ReadError",
-			readError:  true,
-			statuses:   []int{http.StatusOK},
-			wantStatus: http.StatusOK,
-			wantError:  recorder.ErrorTypeUnknown,
-			wantHint:   utils.MaskSecret(userSecretKey),
+			name:        "ReadError",
+			readError:   true,
+			statuses:    []int{http.StatusOK},
+			wantStatus:  http.StatusOK,
+			wantError:   recorder.ErrorTypeUnknown,
+			wantMessage: io.ErrUnexpectedEOF.Error(),
+			wantHint:    utils.MaskSecret(userSecretKey),
 		},
 		{
 			name:       "Abort",
@@ -871,7 +916,9 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			statuses:   []int{http.StatusOK},
 			wantStatus: http.StatusOK,
 			wantError:  recorder.ErrorTypeUnknown,
-			wantHint:   utils.MaskSecret(userSecretKey),
+			// The aborted copy records the upstream read error, not errForwardingAborted.
+			wantMessage: io.ErrUnexpectedEOF.Error(),
+			wantHint:    utils.MaskSecret(userSecretKey),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -885,6 +932,7 @@ func TestForwardingRecordsInterception(t *testing.T) {
 				if tc.readError {
 					_, _ = io.WriteString(w, "chunk")
 				}
+				_, _ = io.WriteString(w, tc.body)
 			}))
 			t.Cleanup(upstream.Close)
 
@@ -931,6 +979,7 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			end := rec.RecordedInterceptionEnd(starts[0].ID)
 			require.NotNil(t, end)
 			require.Equal(t, tc.wantError, end.ErrorType)
+			require.Equal(t, tc.wantMessage, end.ErrorMessage)
 			require.Equal(t, tc.wantHint, end.CredentialHint)
 		})
 	}
