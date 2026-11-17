@@ -150,7 +150,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 		if xerrors.As(err, &policyErr) {
 			// A user-scoped peer shares one connection across workspaces, so refuse only this tunnel.
 			c.logger.Debug(c.peerCtx, "tunnel refused by policy", slog.Error(err))
-			return c.Enqueue(&proto.CoordinateResponse{Error: policyErr.Error()})
+			return c.Enqueue(&proto.CoordinateResponse{Error: policyErr.CoordinateError()})
 		}
 		c.logger.Warn(c.peerCtx, "unauthorized request", slog.Error(err))
 		return agpl.AuthorizationError{Wrapped: err}

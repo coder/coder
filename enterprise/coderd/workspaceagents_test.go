@@ -203,7 +203,7 @@ func TestBlockNonBrowserTemplate(t *testing.T) {
 		}))
 		refusal, err := stream.Recv()
 		require.NoError(t, err)
-		require.Equal(t, "Non-browser connections are disabled for this template.", refusal.Error)
+		require.Equal(t, tailnet.TunnelRefusedError+": Non-browser connections are disabled for this template.", refusal.Error)
 
 		require.NoError(t, stream.Send(&tailnetproto.CoordinateRequest{
 			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(normal.sdkAgent.ID)},
