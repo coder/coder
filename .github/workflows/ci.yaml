@@ -1089,10 +1089,10 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
-      - name: Get Playwright version
-        id: playwright-version
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
         working-directory: site/
+        name: Get Playwright version
+        id: playwright-version
 
       # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
       # has been flakey historically.
@@ -1215,10 +1215,6 @@ jobs:
         with:
           run_install: true
           cache: true
-
-      - run: pnpm storybook:build
-        working-directory: site/
-        name: Build Storybook
 
       - run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
         working-directory: site/
