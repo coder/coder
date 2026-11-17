@@ -21,9 +21,10 @@
  * names ("GitHub") are never reported.
  *
  * For deliberate exceptions, put a comment containing
- * "sentence-case-expect" on the line above the text. Like
- * @ts-expect-error, the check fails when that line has nothing to report,
- * so stale exceptions do not accumulate.
+ * "sentence-case-expect" on the line above the text. Above a template
+ * literal that spans several lines, the comment applies to the whole
+ * literal. Like @ts-expect-error, the check fails when the comment has
+ * nothing to report, so stale exceptions do not accumulate.
  *
  * Usage:  node scripts/check-sentence-case.mjs [--fix]
  */
@@ -586,6 +587,8 @@ function joinJsxPieces(pieces, sourceText) {
 /**
  * Collects every displayed text node as its text plus the source position
  * of each character. Substitutions in template literals and JSX map to -1.
+ * Text from a string or template literal also has `start`, the position
+ * where the literal starts.
  */
 function collectTexts(sourceFile) {
 	const sourceText = sourceFile.text;
@@ -596,6 +599,7 @@ function collectTexts(sourceFile) {
 		texts.push({
 			text: sourceText.slice(start, end),
 			positions: Array.from({ length: end - start }, (_, i) => start + i),
+			start,
 		});
 	};
 	const visit = (node) => {
@@ -637,7 +641,7 @@ function collectTexts(sourceFile) {
 						literal.end - (isTail ? 1 : 2),
 					);
 				}
-				texts.push({ text, positions });
+				texts.push({ text, positions, start: node.getStart(sourceFile) });
 				break;
 			}
 		}
@@ -661,7 +665,8 @@ export function checkSource(fileName, sourceText) {
 		fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
 	);
 
-	// Expect comments apply to the line after the comment. Line numbers
+	// Expect comments apply to the line after the comment, and to every
+	// line of a template literal that starts on that line. Line numbers
 	// from the TypeScript API are zero-based; results are one-based.
 	const expectedLines = new Set();
 	sourceText.split("\n").forEach((line, index) => {
@@ -675,8 +680,16 @@ export function checkSource(fileName, sourceText) {
 	// Conditional JSX is checked once per rendered variant, so the same
 	// word can be reported more than once.
 	const reportedPositions = new Set();
-	for (const { text, positions } of collectTexts(sourceFile)) {
-		for (const { offset, word } of findTitleCaseWords(text)) {
+	for (const { text, positions, start } of collectTexts(sourceFile)) {
+		const words = findTitleCaseWords(text);
+		if (words.length === 0) {
+			continue;
+		}
+		const startLine =
+			start === undefined
+				? undefined
+				: sourceFile.getLineAndCharacterOfPosition(start).line;
+		for (const { offset, word } of words) {
 			const position = positions[offset];
 			if (reportedPositions.has(position)) {
 				continue;
@@ -684,8 +697,11 @@ export function checkSource(fileName, sourceText) {
 			reportedPositions.add(position);
 			const { line, character } =
 				sourceFile.getLineAndCharacterOfPosition(position);
-			if (expectedLines.has(line)) {
-				usedExpectations.add(line);
+			const expectedLine = [line, startLine].find((candidate) =>
+				expectedLines.has(candidate),
+			);
+			if (expectedLine !== undefined) {
+				usedExpectations.add(expectedLine);
 				continue;
 			}
 			issues.push({ position, line: line + 1, column: character + 1, word });

@@ -187,6 +187,19 @@ describe("checkSource", () => {
 		expect(fixedText).toBe(source);
 	});
 
+	it("honors expect comments above a multi-line template literal", () => {
+		const source = [
+			"// sentence-case-expect: sample code",
+			"const a = `func main() {",
+			"\tgo Generate(ch) // Launch Generate goroutine.",
+			"}`;",
+			'const b = "Create New Workspace";',
+		].join("\n");
+		const { issues, unusedExpectations } = checkSource("file.ts", source);
+		expect(issues.map(({ word }) => word)).toEqual(["New", "Workspace"]);
+		expect(unusedExpectations).toEqual([]);
+	});
+
 	it("reports expect comments that suppress nothing", () => {
 		const source = [
 			"const a = 1;",
