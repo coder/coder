@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 import {
 	booleanCodec,
-	type Codec,
 	localStorageOptions,
 	useLocalStorage,
 } from "#/hooks/useLocalStorage";
@@ -18,17 +17,17 @@ const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
 
-const rightPanelWidthCodec: Codec<number> = {
-	parse: (serialized) => {
-		const parsed = Number.parseInt(serialized ?? "", 10);
-		return Number.isNaN(parsed) || parsed < MIN_WIDTH ? DEFAULT_WIDTH : parsed;
-	},
-	serialize: (value) => String(value),
-};
-
 export const rightPanelWidthStorageOptions = localStorageOptions({
 	storageKey: RIGHT_PANEL_WIDTH_KEY,
-	codec: rightPanelWidthCodec,
+	codec: {
+		parse: (serialized) => {
+			const parsed = Number.parseInt(serialized ?? "", 10);
+			return Number.isNaN(parsed) || parsed < MIN_WIDTH
+				? DEFAULT_WIDTH
+				: parsed;
+		},
+		serialize: (value) => String(value),
+	},
 });
 
 const SNAP_THRESHOLD = 80;
