@@ -1,0 +1,8 @@
+# Hosts for the mirror+file: entries in ubuntu.sources. apt tries them in
+# priority order for each file and moves to the next host on any error.
+# Only list hosts that track the archive closely: a lagging host can lack the
+# exact package versions that an earlier apt step installed.
+# Plain http because the first apt step runs before ca-certificates is
+# installed; apt still verifies the signed indexes.
+http://archive.ubuntu.com/ubuntu/	priority:1
+http://azure.archive.ubuntu.com/ubuntu/	priority:2

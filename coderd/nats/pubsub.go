@@ -17,6 +17,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/quartz"
 )
 
@@ -168,6 +170,7 @@ type conn interface {
 	Close()
 	Flush() error
 	Subscribe(event string, handler natsgo.MsgHandler) (*natsgo.Subscription, error)
+	Status() natsgo.Status
 }
 
 // Pubsub is an embedded NATS-backed implementation of pubsub.Pubsub.
@@ -248,8 +251,8 @@ type localSub struct {
 	queue *pubsub.MsgQueue
 }
 
-// Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
-var _ pubsub.Pubsub = (*Pubsub)(nil)
+// Compile-time assertion that *Pubsub satisfies the pubsub.ReportingPubsub interface.
+var _ pubsub.ReportingPubsub = (*Pubsub)(nil)
 
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx. If
 // opts.Metrics is non-nil it is shared; otherwise an unregistered set is used.
@@ -345,7 +348,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 		}
 	}
 
-	ns, err := startEmbeddedServer(sopts)
+	ns, err := startEmbeddedServer(logger, sopts)
 	if err != nil {
 		return nil, err
 	}
@@ -470,6 +473,40 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 	}
 	p.metrics.RecordPublishSuccess(event, len(message))
 	return nil
+}
+
+// HealthReport implements pubsub.ReportingPubsub. It warns when the embedded
+// server is not running or any owned connection is not connected.
+func (p *Pubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	report := healthsdk.PubsubReport{
+		BaseReport: healthsdk.BaseReport{
+			Severity: health.SeverityOK,
+			Warnings: []health.Message{},
+		},
+		Backend: pubsub.BackendNATS,
+	}
+	if !p.Server.Running() {
+		report.Warnings = append(report.Warnings,
+			health.Messagef(health.CodePubsubServerNotRunning, "embedded NATS server is not running"))
+	}
+	for _, pool := range []struct {
+		name  string
+		conns []conn
+	}{
+		{name: "publish", conns: p.publishPool},
+		{name: "subscribe", conns: p.subscribePool},
+	} {
+		for i, c := range pool.conns {
+			if status := c.Status(); status != natsgo.CONNECTED {
+				report.Warnings = append(report.Warnings,
+					health.Messagef(health.CodePubsubNotConnected, "NATS %s connection %d is %s", pool.name, i, status))
+			}
+		}
+	}
+	if len(report.Warnings) > 0 {
+		report.Severity = health.SeverityWarning
+	}
+	return report
 }
 
 // Flush blocks until every publisher connection has flushed buffered

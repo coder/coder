@@ -7,7 +7,7 @@ const meta: Meta<typeof InlinePromptInput> = {
 	component: InlinePromptInput,
 	decorators: [
 		(Story) => (
-			<div className="w-[500px] rounded-lg bg-surface-primary p-4">
+			<div className="w-125 rounded-lg bg-surface-primary p-4">
 				<Story />
 			</div>
 		),

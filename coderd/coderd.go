@@ -169,7 +169,8 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           pubsub.Pubsub
+	// Note that a _reporting_ pubsub here is just one that can generate a health check of itself.
+	Pubsub pubsub.ReportingPubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
@@ -835,6 +836,9 @@ func New(options *Options) *API {
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
 				},
+				Pubsub: healthcheck.PubsubReportOptions{
+					Pubsub: options.Pubsub,
+				},
 				Progress: progress,
 			})
 		}
@@ -946,7 +950,6 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
-				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -1399,6 +1402,16 @@ func New(options *Options) *API {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			api.registerExperimentalOrganizationChatRoutes(r)
+			// These stay outside /skills, where {skillName} would capture them.
+			r.Route("/skill-settings", func(r chi.Router) {
+				r.Get("/", api.getOrganizationSkillSettings)
+				r.Put("/", api.putOrganizationSkillSettings)
+			})
+			r.Route("/members/{user}/skill-preferences", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
+				r.Get("/", api.getOrganizationSkillPreferences)
+				r.Patch("/", api.patchOrganizationSkillPreferences)
+			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {

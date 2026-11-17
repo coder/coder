@@ -12,6 +12,7 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { openChatListFirst } from "./pages/AgentsPage/utils/notificationWindow";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -320,6 +321,7 @@ const PremiumPage = lazy(
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
 const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
+const PubsubPage = lazy(() => import("./pages/HealthPage/PubsubPage"));
 const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
 const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
 const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
@@ -406,6 +408,12 @@ const AgentSettingsSkillsPage = lazy(
 	() =>
 		import(
 			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsSkillsPage/AgentSettingsSkillsPage"
+		),
+);
+const AgentSettingsMCPConnectionsPage = lazy(
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsMCPConnectionsPage/AgentSettingsMCPConnectionsPage"
 		),
 );
 const AgentSettingsAPIKeysPage = lazy(
@@ -563,6 +571,8 @@ const RedirectAIBridgeSession = () => {
 	const { sessionId } = useParams() as { sessionId: string };
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
+
+openChatListFirst();
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
@@ -811,6 +821,7 @@ export const router = createBrowserRouter(
 						<Route index element={<Navigate to="access-url" replace />} />
 						<Route path="access-url" element={<AccessURLPage />} />
 						<Route path="database" element={<DatabasePage />} />
+						<Route path="pubsub" element={<PubsubPage />} />
 						<Route path="derp" element={<DERPPage />} />
 						<Route path="derp/regions/:regionId" element={<DERPRegionPage />} />
 						<Route path="websocket" element={<WebsocketPage />} />
@@ -877,6 +888,10 @@ export const router = createBrowserRouter(
 							element={<AgentSettingsUserAgentsPage />}
 						/>
 						<Route path="skills" element={<AgentSettingsSkillsPage />} />
+						<Route
+							path="mcp-connections"
+							element={<AgentSettingsMCPConnectionsPage />}
+						/>
 						<Route
 							path="personal-skills"
 							element={<Navigate to="/agents/settings/skills" replace />}

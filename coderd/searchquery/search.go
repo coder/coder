@@ -229,6 +229,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 		CreatedBefore:    parser.Time3339Nano(values, time.Time{}, "created_before"),
 		GithubComUserID:  parser.Int64(values, 0, "github_com_user_id"),
 		LoginType:        httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
+		IncludeSystem:    parser.Boolean(values, false, "include_system"),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -561,7 +562,7 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 //     explicitly set)
 //   - has_unread: nullable boolean (filter by unread message status)
 //   - status: repeated or comma-separated chat_status enum value:
-//     waiting, running, error, requires_action, or interrupting
+//     waiting, running, error, requires_action, interrupting, or paused
 //   - pr_status: repeated or comma-separated list of draft, open,
 //     merged, closed, or none (no pull request)
 //   - diff_url: string (matches chats whose linked diff URL equals the

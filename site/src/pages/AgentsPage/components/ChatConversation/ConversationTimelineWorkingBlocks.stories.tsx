@@ -1,24 +1,43 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	fireEvent,
+	fn,
+	screen,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
 import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildStreamRenderState,
 	MockAttachmentWorkingMessages,
+	MockBrokenImageAttachmentMessages,
+	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockMixedAttachmentMessages,
 	MockPageFromAttachedFileMessages,
+	MockPendingToolMessage,
 	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockSearchAnswerAttachmentMessages,
 	MockTextBeforeSecondStepMessage,
+	MockUnansweredAttachmentMessages,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
@@ -56,7 +75,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		(Story) => (
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<MessageScroller.Root>
-					<MessageScroller.Viewport className="max-h-[600px] overflow-auto">
+					<MessageScroller.Viewport className="max-h-150 overflow-auto">
 						<MessageScroller.Content>
 							<Story />
 						</MessageScroller.Content>
@@ -288,6 +307,203 @@ export const AttachmentFoldsIntoBlockExpanded: Story = {
 	},
 };
 
+const openAttachmentsPill: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Attachments (4)" }),
+	);
+};
+
+export const TurnAttachmentsPill: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+};
+
+export const TurnAttachmentsPillOpen: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: openAttachmentsPill,
+};
+
+export const TurnAttachmentsPillOpenMobile: Story = {
+	globals: { viewport: { value: "mobile1", isRotated: false } },
+	// Pixel ignores the viewport global and needs its own phone width.
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: openAttachmentsPill,
+};
+
+// The preview opens over the popover, which stays open beneath it.
+export const TurnAttachmentsPillViewText: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: chatFileTextKey("findings-file"),
+				data: "# Findings\n\nThe dashboard matches the spec.",
+			},
+		],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+	},
+	play: async (context) => {
+		await openAttachmentsPill(context);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "findings.md View file" }),
+		);
+	},
+};
+
+const mockSpecFileMetadata = { ...MockChatFileMetadata, id: "spec-file" };
+
+// Only spec.pdf is still linked to the chat, so findings.md has expired.
+export const TurnAttachmentsPillExpiredFile: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatFiles: [mockSpecFileMetadata],
+	},
+	play: openAttachmentsPill,
+};
+
+export const TurnAttachmentsPillBrokenImage: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockBrokenImageAttachmentMessages,
+		),
+	},
+};
+
+// The running turn gets its pill once it settles; the answered turn before it
+// keeps its own.
+export const TurnAttachmentsPillRunningTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+		chatStatus: "running",
+	},
+};
+
+// A manual compaction runs the chat after the answer, which keeps its pill.
+export const TurnAttachmentsPillCompacting: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "compact",
+				tool_name: "chat_summarized",
+			},
+		]),
+	},
+};
+
+// Text streaming after the answer can still change the turn, so it shows no
+// pill until the chat stops.
+export const TurnAttachmentsPillContinuedTurn: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockMixedAttachmentMessages),
+		chatStatus: "running",
+		...buildStreamRenderState([{ type: "text", text: "One more check." }]),
+	},
+};
+
+const mockTrailingPendingToolMessage = { ...MockPendingToolMessage, id: 23 };
+
+// The pending client tool's result resumes the turn, so it has no pill yet.
+export const TurnAttachmentsPillRequiresAction: Story = {
+	args: {
+		chatStatus: "requires_action",
+		parsedMessages: parseMessagesWithMergedTools(
+			[...MockUnansweredAttachmentMessages, mockTrailingPendingToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
+		),
+	},
+};
+
+// The context-cleared row after the answer leaves the pill on the answer.
+export const TurnAttachmentsPillContextCleared: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockClearedAttachmentMessages),
+	},
+};
+
+// A turn that ends inside its working block shows the pill under the block.
+export const TurnAttachmentsPillWithoutAnswer: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+	},
+};
+
+// Expanded, the block of a turn without an answer keeps the pill under it.
+export const TurnAttachmentsPillWithoutAnswerExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 7s (4 steps)",
+			}),
+		);
+	},
+};
+
+// With steps shown, a turn that ends on an attachment hosts the pill there.
+export const TurnAttachmentsPillStepsShown: Story = {
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+	},
+};
+
+// Expanded, the block shows the answer's steps; the pill stays under the
+// answer text below it.
+export const TurnAttachmentsPillBlockExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockSearchAnswerAttachmentMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (4 steps)",
+			}),
+		);
+	},
+};
+
+// Until the streamed answer persists, a pill here would sit under the last
+// attachment.
+export const TurnAttachmentsPillLiveAnswer: Story = {
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUnansweredAttachmentMessages,
+		),
+		chatStatus: "waiting",
+		...buildStreamRenderState([
+			{ type: "text", text: "The dashboard matches the spec." },
+		]),
+	},
+};
+
 export const PlanAttachmentHidden: Story = {
 	parameters: {
 		queries: [
@@ -377,5 +593,143 @@ export const EditingBeforeAnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
 		editingMessageId: 1,
+	},
+};
+
+const mockSourcesAndAttachmentsMessages = MockMixedAttachmentMessages.map(
+	(message) =>
+		message.id === 23
+			? {
+					...message,
+					content: [
+						...(message.content ?? []),
+						...Array.from(
+							{ length: 5 },
+							(_, index): TypesGen.ChatSourcePart => ({
+								type: "source",
+								url: `https://example.com/docs/page-${index + 1}`,
+								title: `Reference page ${index + 1}`,
+							}),
+						),
+					],
+				}
+			: message,
+);
+
+export const SourcesAndAttachments: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			mockSourcesAndAttachmentsMessages,
+		),
+	},
+};
+
+const mockLongTitleSourcesMessages = mockSourcesAndAttachmentsMessages.map(
+	(message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "source"
+				? {
+						...part,
+						title: `Coder Agents reference for troubleshooting sources in a shared conversation: ${part.url}/verylongunbrokentokenthatneedstowraptomatchthenarrowpopover`,
+					}
+				: part,
+		),
+	}),
+);
+
+export const SourcesAndAttachmentsOpen: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(mockLongTitleSourcesMessages),
+	},
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "Sources (5)" }).focus();
+		await userEvent.keyboard("{Enter}");
+	},
+};
+
+export const SourcesAndAttachmentsOpenMobile: Story = {
+	...SourcesAndAttachmentsOpen,
+	globals: { viewport: { value: "mobile1", isRotated: false } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
+};
+
+const mockCitationsBeforeAnswerMessages = MockWebSearchAnswerMessages.flatMap(
+	(message) =>
+		message.id !== 6
+			? [message]
+			: [
+					{
+						...message,
+						content: (message.content ?? []).slice(0, -1),
+					},
+					{ ...message, id: 7, content: (message.content ?? []).slice(-1) },
+				],
+);
+
+export const CitationsBeforeAnswer: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			mockCitationsBeforeAnswerMessages,
+		),
+	},
+};
+
+export const CitationsBeforeAnswerOpen: Story = {
+	...CitationsBeforeAnswer,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Sources (2)" }),
+		);
+	},
+};
+
+export const CitationsBeforeAnswerWithoutFolding: Story = {
+	...CitationsBeforeAnswer,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockCollapsedStepsPreferences,
+					collapse_assistant_steps: false,
+				},
+			},
+		],
+	},
+};
+
+export const SourcesWithMissingTitleAndNonWebUrl: Story = {
+	...SourcesAndAttachmentsOpen,
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			mockSourcesAndAttachmentsMessages.map((message) =>
+				message.id === 23
+					? {
+							...message,
+							content: [
+								...(message.content ?? []).filter(
+									(part) => part.type !== "source",
+								),
+								{
+									type: "source",
+									url: "https://example.com/reference",
+									title: "",
+								},
+								{
+									type: "source",
+									url: "ftp://example.com/archive",
+									title: "Archived reference",
+								},
+							],
+						}
+					: message,
+			),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Sources (2)" }),
+		);
 	},
 };

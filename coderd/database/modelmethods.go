@@ -1023,6 +1023,14 @@ func (s Skill) RBACObject() rbac.Object {
 	return rbac.Object{ID: s.ID.String()}
 }
 
+// Excludes reports whether the member's choices remove the organization
+// skill from their chats. Choices apply only while the organization lets
+// members turn off organization skills, and the master switch also covers
+// skills added after it was set.
+func (p GetOrganizationSkillMemberPreferencesRow) Excludes(skillID uuid.UUID) bool {
+	return p.MembersCanDisableSkills && (p.AllSkillsDisabled || slices.Contains(p.DisabledSkillIDs, skillID))
+}
+
 func (s UserSecret) RBACObject() rbac.Object {
 	return rbac.ResourceUserSecret.WithID(s.ID).WithOwner(s.UserID.String())
 }

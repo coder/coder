@@ -9,7 +9,7 @@ Workspace proxies provide low-latency experiences for geo-distributed teams.
 > For more details, [contact your account team](https://coder.com/contact).
 
 Coder's networking does a best effort to make direct connections to a workspace.
-In situations where this is not possible, such as connections via the web terminal and [web IDEs](../../user-guides/workspace-access/index.md#other-web-ides), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
+In situations where this is not possible, such as connections via the web terminal and [web IDEs](../../workspaces/workspace-access/index.md#other-web-ides), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
 A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, and so on.
 Dashboard connections and API calls (for example, the workspaces list) are not served over workspace proxies.
@@ -54,7 +54,7 @@ If the proxy deployment is successful, `coder wsproxy ls` will show an `ok` stat
 ```sh
 $ coder wsproxy ls
 NAME              URL                         STATUS STATUS
-primary           https://dev.coder.com        ok
+primary           https://coder.example.com   ok
 brazil-saopaulo   https://brazil.example.com   ok
 europe-frankfurt  https://europe.example.com   ok
 sydney            https://sydney.example.com   ok

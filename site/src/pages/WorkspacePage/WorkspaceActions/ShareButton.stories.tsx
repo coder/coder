@@ -1,61 +1,154 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import { getWorkspaceSharingSettingsKey } from "#/api/queries/organizations";
 import { workspaceACLKey } from "#/api/queries/workspaces";
-import type { WorkspaceACL } from "#/api/typesGenerated";
+import type {
+	WorkspaceACL,
+	WorkspaceSharingSettings,
+} from "#/api/typesGenerated";
 import {
 	MockGroup,
-	MockUserMember,
-	MockUserOwner,
+	MockGroup2,
+	MockGroup3,
+	MockGroupWithoutMembers,
 	MockWorkspace,
+	MockWorkspaceUser,
+	MockWorkspaceUserAdmin,
 } from "#/testHelpers/entities";
 import { ShareButton } from "./ShareButton";
 
-const mockWorkspaceACL: WorkspaceACL = {
-	users: [
-		{ ...MockUserMember, role: "use" },
-		{ ...MockUserOwner, role: "admin" },
-		{
-			...MockUserMember,
-			id: "long-username-user",
-			username: "a-very-long-username-for-narrow-layouts",
-			role: "use",
-		},
+const mockSharingSettings: WorkspaceSharingSettings = {
+	sharing_disabled: false,
+	sharing_globally_disabled: false,
+	shareable_workspace_owners: "everyone",
+};
+
+const mockOverflowingACL: WorkspaceACL = {
+	users: [MockWorkspaceUserAdmin, MockWorkspaceUser],
+	group: [
+		{ ...MockGroup, role: "use" },
+		{ ...MockGroup2, role: "admin" },
+		{ ...MockGroup3, role: "use" },
+		{ ...MockGroupWithoutMembers, role: "use" },
 	],
-	group: [{ ...MockGroup, role: "use" }],
+};
+
+const openSharing = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Share" }),
+	);
+	await screen.findByRole("columnheader", { name: "Member" });
 };
 
 const meta: Meta<typeof ShareButton> = {
-	title: "pages/WorkspacePage/ShareButton",
+	title: "pages/WorkspacePage/WorkspaceActions/ShareButton",
 	component: ShareButton,
 	args: {
 		workspace: MockWorkspace,
 		canShareWorkspace: true,
-	},
-	parameters: {
-		queries: [
-			{
-				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
-				data: { sharing_disabled: false },
-			},
-			{ key: workspaceACLKey(MockWorkspace.id), data: mockWorkspaceACL },
-		],
-	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: /share/i }),
-		);
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof ShareButton>;
 
-export const Open: Story = {};
+export const EmptyACL: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{
+				key: workspaceACLKey(MockWorkspace.id),
+				data: { users: [], group: [] },
+			},
+		],
+	},
+	play: ({ canvasElement }) => openSharing(canvasElement),
+};
 
-export const OpenNarrowViewport: Story = {
+export const Loading: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceACL").mockReturnValue(new Promise(() => {}));
+	},
+	play: ({ canvasElement }) => openSharing(canvasElement),
+};
+
+export const ReadOnly: Story = {
+	args: {
+		canShareWorkspace: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{ key: workspaceACLKey(MockWorkspace.id), data: mockOverflowingACL },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await openSharing(canvasElement);
+		const list = screen.getByRole("region", {
+			name: "Shared workspace members and groups",
+		});
+		for (let i = 0; i < 10 && document.activeElement !== list; i++) {
+			await userEvent.tab();
+		}
+	},
+};
+
+export const OverflowingMembers: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{ key: workspaceACLKey(MockWorkspace.id), data: mockOverflowingACL },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await openSharing(canvasElement);
+		// Scroll so the screenshot shows rows passing under the sticky header.
+		screen.getAllByRole("row").at(-1)?.scrollIntoView({ block: "end" });
+	},
+};
+
+export const NarrowViewport: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{
+				key: workspaceACLKey(MockWorkspace.id),
+				data: {
+					...mockOverflowingACL,
+					users: [
+						...mockOverflowingACL.users,
+						{
+							...MockWorkspaceUser,
+							id: "long-username-user",
+							username: "a-very-long-username-for-narrow-layouts",
+						},
+					],
+				},
+			},
+		],
 	},
+	play: ({ canvasElement }) => openSharing(canvasElement),
 };

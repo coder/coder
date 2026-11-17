@@ -674,6 +674,34 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("missing"));
 	});
 
+	it("keeps pending typed text when re-rendered with equivalent categories", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: false });
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		let rerender = () => {};
+		// Builds a new categories array with the same keys on every render, like
+		// a caller that does not memoize them.
+		const Harness = () => {
+			const [, setRenderCount] = useState(0);
+			rerender = () => setRenderCount((count) => count + 1);
+			return (
+				<FilterCombobox
+					value=""
+					onChange={() => {}}
+					categories={[{ ...ownerCategory }]}
+					placeholder="Search and filter"
+				/>
+			);
+		};
+		render(<Harness />);
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+
+		await user.click(input);
+		await user.type(input, "pending");
+		act(() => rerender());
+
+		expect(input).toHaveValue("pending");
+	});
+
 	it("replaces the selected Workspace attribute", async () => {
 		const { user, onChange, filtersButton } = setup([attributesCategory]);
 

@@ -102,7 +102,7 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 					Configure external MCP servers that provide additional tools for Coder
 					Agents.{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/agents/platform-controls/mcp-servers")}
+						href={docs("/coder-agents/platform-controls/mcp-servers")}
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
@@ -135,7 +135,7 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table className="table-fixed min-w-[640px]" aria-label="MCP servers">
+			<Table className="table-fixed min-w-160" aria-label="MCP servers">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/2">Name</TableHead>

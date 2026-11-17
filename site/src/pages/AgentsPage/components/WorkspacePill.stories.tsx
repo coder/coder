@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { deploymentSSHConfigQueryKey } from "#/api/queries/deployment";
+import { apiKeyQueryKey } from "#/api/queries/users";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
+	MockDeploymentSSH,
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
 	MockStoppedWorkspace,
@@ -24,7 +27,7 @@ const externalApp: WorkspaceApp = {
 	slug: "jetbrains-gateway",
 	display_name: "JetBrains Gateway",
 	external: true,
-	url: "jetbrains-gateway://connect?$SESSION_TOKEN",
+	url: `jetbrains-gateway://connect#type=coder&url=${location.origin}&token=$SESSION_TOKEN`,
 	subdomain: false,
 	health: "disabled",
 	sharing_level: "owner",
@@ -38,7 +41,7 @@ const cursorApp: WorkspaceApp = {
 	slug: "cursor",
 	display_name: "Cursor",
 	external: true,
-	url: "cursor://coder.coder-remote/open?$SESSION_TOKEN",
+	url: `cursor://coder.coder-remote/open?url=${location.origin}&token=$SESSION_TOKEN`,
 	subdomain: false,
 	health: "disabled",
 	sharing_level: "owner",
@@ -46,6 +49,14 @@ const cursorApp: WorkspaceApp = {
 	open_in: "slim-window",
 	statuses: [],
 	icon: "/icon/cursor.svg",
+};
+
+const mockUntrustedApp: WorkspaceApp = {
+	...cursorApp,
+	id: "untrusted-app",
+	slug: "untrusted",
+	display_name: "Untrusted App",
+	url: "cursor://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
 };
 
 const hiddenApp: WorkspaceApp = {
@@ -97,6 +108,12 @@ const agentWithHiddenApp = {
 	apps: [externalApp, hiddenApp],
 };
 
+const mockAgentWithUntrustedApp = {
+	...MockWorkspaceAgent,
+	display_apps: [] as const,
+	apps: [cursorApp, mockUntrustedApp],
+};
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -135,7 +152,12 @@ export const WithAllApps: Story = {
 		...defaultProps,
 		workspace: MockWorkspace,
 		agent: agentWithApps,
-		sshCommand: "ssh coder.test-workspace",
+	},
+	parameters: {
+		queries: [
+			{ key: apiKeyQueryKey, data: { key: "mock-api-key" } },
+			{ key: deploymentSSHConfigQueryKey, data: MockDeploymentSSH },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -238,6 +260,20 @@ export const WithHiddenApp: Story = {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
+	},
+};
+
+export const WithUntrustedApp: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: mockAgentWithUntrustedApp,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByText("test-workspace"));
+		(await screen.findByRole("menuitem", { name: "Untrusted App" })).focus();
+		await screen.findByRole("tooltip");
 	},
 };
 

@@ -1,11 +1,16 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { getVisibleContent } from "./messageHelpers";
+import {
+	getMessageFileAttachments,
+	getVisibleContent,
+	type MessageAttachment,
+} from "./messageHelpers";
 import { isHiddenProviderExecutedPart } from "./messageParsing";
-import type { TimelineRow } from "./timelineRows";
+import type { TimelineMessageRow, TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
 	ParsedMessageEntry,
 	RenderBlock,
+	SourceLink,
 	StreamState,
 } from "./types";
 
@@ -97,12 +102,16 @@ export type GroupWorkingBlocksOptions = {
 	keptBlockKeys?: ReadonlySet<string>;
 };
 
+const CONTEXT_BOUNDARY_TOOLS: ReadonlySet<string> = new Set([
+	"chat_summarized",
+	"chat_cleared",
+]);
+
 /** Tools that need the user's attention or record a transcript boundary. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",
-	"chat_summarized",
-	"chat_cleared",
+	...CONTEXT_BOUNDARY_TOOLS,
 ]);
 
 /**
@@ -289,6 +298,184 @@ export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 		visibleBlocks.every((block) => block.type === "file")
 	);
 };
+
+const isContextBoundaryRow = (row: TimelineMessageRow): boolean =>
+	row.entry.parsed.tools.some((tool) => CONTEXT_BOUNDARY_TOOLS.has(tool.name));
+
+const isStepBlock = (block: RenderBlock) =>
+	block.type === "thinking" ||
+	block.type === "tool" ||
+	(block.type === "response" &&
+		Boolean(block.beforeProviderTool || block.narration));
+
+/** The row shows text after its last step; attached files are not steps. */
+const hasAnswer = (row: TimelineMessageRow): boolean => {
+	const { blocks, tools } = row.entry.parsed;
+	const { visibleBlocks } = getVisibleContent(blocks, tools);
+	return visibleBlocks
+		.slice(visibleBlocks.findLastIndex(isStepBlock) + 1)
+		.some((block) => block.type === "response");
+};
+
+/** Controls pill placement without exposing an unfinished turn's files or citations. */
+export type TurnPillOptions = {
+	/**
+	 * Collapsed steps hide attachment-only rows, so those rows never host the
+	 * turn's action pills.
+	 */
+	hidesAttachmentRows: boolean;
+	/** The chat may still add to its newest turn. */
+	isChatActive: boolean;
+	/** A streaming compaction adds no answer or file to a turn. */
+	isCompacting: boolean;
+};
+
+const splitIntoTurns = (
+	rows: readonly TimelineRow[],
+): TimelineMessageRow[][] => {
+	const turns: TimelineMessageRow[][] = [[]];
+	for (const row of rows) {
+		if (row.type !== "message") {
+			continue;
+		}
+
+		const { role } = row.entry.message;
+		if (role === "user") {
+			turns.push([]);
+		} else if (role === "assistant") {
+			turns[turns.length - 1].push(row);
+		}
+	}
+	return turns;
+};
+
+const canHostPill = (
+	row: TimelineMessageRow,
+	hidesAttachmentRows: boolean,
+): boolean => {
+	if (isContextBoundaryRow(row)) {
+		return false;
+	}
+	if (hidesAttachmentRows && isAgentAttachmentOnlyRow(row)) {
+		return false;
+	}
+	return true;
+};
+
+/**
+ * A running chat can still add files or text to its newest turn, even after
+ * an answer, so the pill waits for the chat to stop unless a compaction or
+ * context clear follows the answer.
+ */
+const hasNewestTurnEnded = (
+	turnRows: readonly TimelineMessageRow[],
+	pillRowIndex: number,
+	{ isChatActive, isCompacting }: TurnPillOptions,
+): boolean => {
+	if (!isChatActive) {
+		return true;
+	}
+	if (!hasAnswer(turnRows[pillRowIndex])) {
+		return false;
+	}
+	return (
+		isCompacting || turnRows.slice(pillRowIndex + 1).some(isContextBoundaryRow)
+	);
+};
+
+/**
+ * Files and deduplicated citations, keyed by each completed turn's last
+ * eligible assistant row.
+ */
+export const getTurnPillsByRow = (
+	rows: readonly TimelineRow[],
+	options: TurnPillOptions,
+): {
+	attachmentsByRow: ReadonlyMap<string, readonly MessageAttachment[]>;
+	sourcesByRow: ReadonlyMap<string, SourceLink[]>;
+} => {
+	const turns = splitIntoTurns(rows);
+	const attachmentsByRow = new Map<string, readonly MessageAttachment[]>();
+	const sourcesByRow = new Map<string, SourceLink[]>();
+	for (const [turnIndex, turnRows] of turns.entries()) {
+		const pillRowIndex = turnRows.findLastIndex((row) =>
+			canHostPill(row, options.hidesAttachmentRows),
+		);
+		if (
+			pillRowIndex === -1 ||
+			(turnIndex === turns.length - 1 &&
+				!hasNewestTurnEnded(turnRows, pillRowIndex, options))
+		) {
+			continue;
+		}
+
+		const attachments: MessageAttachment[] = [];
+		const sources = new Map<string, SourceLink>();
+		for (const row of turnRows) {
+			attachments.push(...getMessageFileAttachments(row.entry.message));
+			for (const source of row.entry.parsed.sources) {
+				const previous = sources.get(source.url);
+				if (
+					!previous ||
+					((!previous.title || previous.title === previous.url) && source.title)
+				) {
+					sources.set(source.url, source);
+				}
+			}
+		}
+
+		const rowKey = turnRows[pillRowIndex].key;
+		if (attachments.length > 0) {
+			attachmentsByRow.set(rowKey, attachments);
+		}
+		if (sources.size > 0) {
+			sourcesByRow.set(rowKey, [...sources.values()]);
+		}
+	}
+	return { attachmentsByRow, sourcesByRow };
+};
+
+const sliceEndsRow = (
+	row: TimelineRow,
+	{ pieceRange }: Required<RowSlice>,
+): boolean => {
+	if (row.type !== "message") {
+		return false;
+	}
+	const { blocks, tools } = row.entry.parsed;
+	return pieceRange.end === splitRowPieces(blocks, tools).pieces.length;
+};
+
+/**
+ * A pill row that ends inside a working block renders nothing below the
+ * block, so the block shows the row's pill.
+ */
+export const getBlockTurnAttachments = (
+	block: WorkingBlock,
+	rows: readonly TimelineRow[],
+	turnAttachmentsByRow: ReadonlyMap<string, readonly MessageAttachment[]>,
+): readonly MessageAttachment[] | undefined => {
+	for (const slice of block.slices) {
+		const row = rows[slice.rowIndex];
+		const attachments = turnAttachmentsByRow.get(row.key);
+		if (attachments && sliceEndsRow(row, slice)) {
+			return attachments;
+		}
+	}
+	return undefined;
+};
+
+/** A source pill whose host row ends inside a working block belongs below it. */
+export const getBlockSources = (
+	block: WorkingBlock,
+	rows: readonly TimelineRow[],
+	sourcesByRow: ReadonlyMap<string, SourceLink[]>,
+): SourceLink[] =>
+	block.slices.flatMap((slice) => {
+		const row = rows[slice.rowIndex];
+		const sources = sourcesByRow.get(row.key);
+		return sources && sliceEndsRow(row, slice) ? sources : [];
+	});
 
 /**
  * Pieces of a row that can fold, or undefined for a row that never folds and

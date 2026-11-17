@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -101,4 +103,24 @@ func TestChatSkillInvocation(t *testing.T) {
 	_, err = client.EditChatMessage(ctx, chat.ID, findUserMessage(t, messages).ID, codersdk.EditChatMessageRequest{Content: missing})
 	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)
+
+	// A queued-message edit resolves the skill body like a send.
+	queuedChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID: firstUser.OrganizationID, OwnerID: firstUser.UserID,
+		LastModelConfigID: chat.LastModelConfigID, Status: database.ChatStatusError,
+	})
+	queued := insertTestChatQueuedMessage(ctx, t, db, queuedChat.ID, queuedTextContent(t, "queued"), chat.LastModelConfigID)
+	err = client.EditChatQueuedMessage(ctx, queuedChat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{Content: missing})
+	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)
+	require.NoError(t, client.EditChatQueuedMessage(ctx, queuedChat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePersonal, SkillName: "notes"},
+		},
+	}))
+	row, err := db.GetChatQueuedMessageByID(dbauthz.AsSystemRestricted(ctx), database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: queuedChat.ID})
+	require.NoError(t, err)
+	var queuedParts []codersdk.ChatMessagePart
+	require.NoError(t, json.Unmarshal(row.Content, &queuedParts))
+	require.Equal(t, "Take notes.", queuedParts[0].SkillBody)
 }

@@ -21,7 +21,7 @@ import {
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
 
-const Separator = () => <div className="border-0 border-t border-solid my-1" />;
+const Separator = () => <div className="border-t my-1" />;
 
 type SessionSummaryTableProps = {
 	sessionId: string;
@@ -205,7 +205,7 @@ export const SessionSummaryTable = ({
 							<Link
 								size="sm"
 								href={docs(
-									"/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated",
+									"/ai-governance/ai-gateway/cost-controls#how-spend-is-calculated",
 								)}
 								target="_blank"
 								rel="noreferrer"

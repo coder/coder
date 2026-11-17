@@ -12,10 +12,10 @@ export const ToolResultImage: React.FC<{
 
 	return (
 		<>
-			<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border">
+			<div className="mt-1.5 overflow-hidden rounded-md border">
 				<button
 					type="button"
-					className="cursor-pointer bg-transparent p-0 border-none"
+					className="cursor-pointer bg-transparent p-0 border-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-content-link"
 					onClick={(event) => {
 						const onCloseAutoFocus = returnFocusTo(event.currentTarget);
 						openLightbox((close) => (

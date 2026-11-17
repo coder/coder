@@ -19,6 +19,7 @@ import {
 	orgSearchParam,
 	selectOrganization,
 } from "../MCPServersPage/organizationParam";
+import { MembersCanDisableSkillsSetting } from "./MembersCanDisableSkillsSetting";
 import { OrganizationSkillSharingDialog } from "./OrganizationSkillSharingDialog";
 import { readableSkillsOrganizations } from "./readableSkillsOrganizations";
 
@@ -152,7 +153,15 @@ const OrganizationSkills: React.FC<OrganizationSkillsProps> = ({
 								setSharingSkill({ name: skill.name, onCloseAutoFocus })
 						: undefined
 				}
-				toolbar={toolbar}
+				toolbar={
+					<div className="flex flex-col gap-6">
+						{toolbar}
+						<MembersCanDisableSkillsSetting
+							organizationId={organization.id}
+							canUpdate={access.update}
+						/>
+					</div>
+				}
 			/>
 			{sharingSkill && (
 				<OrganizationSkillSharingDialog

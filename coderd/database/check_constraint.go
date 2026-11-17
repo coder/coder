@@ -67,6 +67,7 @@ const (
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck                   CheckConstraint = "mcp_server_configs_availability_check"                     // mcp_server_configs
 	CheckMcpServerConfigsGroupAclIsObject                    CheckConstraint = "mcp_server_configs_group_acl_is_object"                    // mcp_server_configs
+	CheckMcpServerConfigsOauth2ClientRegistrationCheck       CheckConstraint = "mcp_server_configs_oauth2_client_registration_check"       // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                      CheckConstraint = "mcp_server_configs_transport_check"                        // mcp_server_configs
 	CheckMcpServerConfigsUserAclIsObject                     CheckConstraint = "mcp_server_configs_user_acl_is_object"                     // mcp_server_configs
 	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
@@ -78,6 +79,8 @@ const (
 	CheckSkillsActionProjectOnly                             CheckConstraint = "skills_action_project_only"                                // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
+	CheckSkillsDisplayNameLength                             CheckConstraint = "skills_display_name_length"                                // skills
+	CheckSkillsDisplayNameProjectOnly                        CheckConstraint = "skills_display_name_project_only"                          // skills
 	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills
 	CheckSkillsNameFormat                                    CheckConstraint = "skills_name_format"                                        // skills
 	CheckSkillsNameSize                                      CheckConstraint = "skills_name_size"                                          // skills

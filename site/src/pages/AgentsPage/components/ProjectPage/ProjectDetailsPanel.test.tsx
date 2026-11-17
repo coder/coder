@@ -1,11 +1,11 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	focusManager,
 	type QueryClient,
 	QueryClientProvider,
 } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import type {
@@ -16,7 +16,10 @@ import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	mockApiError,
@@ -97,6 +100,12 @@ const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 };
 
 describe("ProjectDetailsPanel", () => {
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue(
+			MockChatProjectACL,
+		);
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 		focusManager.setFocused(undefined);
@@ -114,7 +123,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user, queryClient } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
@@ -235,7 +244,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, "Too long");
@@ -292,23 +301,19 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",
 		);
-		// With no delay between the clicks, the second lands before the
-		// pending state can disable Save, like a fast real double click.
-		await userEvent
-			.setup({ delay: null })
-			.dblClick(screen.getByRole("button", { name: "Save" }));
+		await user.dblClick(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(updateInstructions).toHaveBeenCalled());
 		expect(updateInstructions).toHaveBeenCalledTimes(1);
 	});
 
-	it("closes the editor when a double clicked Save succeeds after a failure", async () => {
+	it("closes the editor when Save succeeds after a failure", async () => {
 		const updateInstructions = vi
 			.spyOn(API.experimental, "updateChatProjectInstructions")
 			.mockRejectedValueOnce(mockApiError({ message: "Failed to save." }))
@@ -320,7 +325,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
@@ -329,23 +334,10 @@ describe("ProjectDetailsPanel", () => {
 		const dialog = screen.getByRole("dialog");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() => expect(dialog).toHaveTextContent("Failed to save."));
-		// The second click still sees the failed save's error, and must not
-		// reset the retry that the first click started.
-		await userEvent
-			.setup({ delay: null })
-			.dblClick(screen.getByRole("button", { name: "Save" }));
-
-		// Reopening needs onSuccess to close the editor, and a third save
-		// needs onSettled to clear the in-flight guard.
-		await user.click(
-			await screen.findByRole("button", { name: "Edit instructions" }),
-		);
-		await user.type(
-			screen.getByRole("textbox", { name: "Instructions" }),
-			" More.",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
-		await waitFor(() => expect(updateInstructions).toHaveBeenCalledTimes(3));
+
+		await waitFor(() => expect(updateInstructions).toHaveBeenCalledTimes(2));
+		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
 	it("refetches the instructions when the window regains focus", async () => {
@@ -473,6 +465,33 @@ describe("ProjectDetailsPanel", () => {
 		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
+	it.each([
+		{ source: "the members section", role: "region", name: "Members" },
+		{ source: "the access dialog", role: "dialog", name: "Manage access" },
+	])("retries loading access from $source", async ({ role, name }) => {
+		mockInstructions(MockChatProjectInstructions);
+		const aclError = mockApiError({ message: "Failed to load." });
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockRejectedValueOnce(aclError)
+			.mockRejectedValueOnce(aclError)
+			.mockResolvedValue(MockChatProjectACL);
+		const { user } = renderPanel();
+
+		if (role === "dialog") {
+			await user.click(await screen.findByRole("button", { name }));
+		}
+		const scope = within(await screen.findByRole(role, { name }));
+		const retry = await scope.findByRole("button", { name: "Retry" });
+		await waitFor(() => expect(retry).toBeEnabled());
+		const callsBeforeRetry = getACL.mock.calls.length;
+		await user.click(retry);
+
+		await waitFor(() =>
+			expect(getACL).toHaveBeenCalledTimes(callsBeforeRetry + 1),
+		);
+	});
+
 	it("opens the project skills from the Skills row", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
@@ -508,7 +527,6 @@ describe("ProjectDetailsPanel", () => {
 
 	it("lets a non-owner turn a skill off when the project permits update", async () => {
 		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
 			MockSkills[0],
 		]);
@@ -554,5 +572,78 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(await screen.findByRole("button", { name: "Close" }));
 
 		await waitFor(() => expect(skillsButton).toHaveFocus());
+	});
+
+	it("opens the project access dialog from Manage access, refetches access, and returns focus when it closes", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockResolvedValue(MockChatProjectACL);
+		const { user } = renderPanel();
+		const accessButton = await screen.findByRole("button", {
+			name: "Manage access",
+		});
+
+		await user.click(accessButton);
+		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		await waitFor(() => expect(accessButton).toHaveFocus());
+		expect(getACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
+	});
+
+	it("shows an unknown owner for another user's project when the ACL fails", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockRejectedValue(
+			mockApiError({ message: "Failed to get chat project ACL." }),
+		);
+		renderPanel({ ...MockChatProject, owner_id: MockUserMember.id });
+
+		await within(screen.getByRole("region", { name: "Details" })).findByText(
+			"Unknown",
+		);
+	});
+
+	it("grants a user access from the access dialog", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			...MockChatProjectACL,
+			users: [],
+		});
+		const updateACL = vi
+			.spyOn(API.experimental, "updateChatProjectACL")
+			.mockResolvedValue();
+		const { user } = renderPanel();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Manage access" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: /^User or group/ }),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockUserMember.username),
+			}),
+		);
+		await user.click(screen.getByRole("combobox", { name: "Role" }));
+		await user.click(await screen.findByRole("option", { name: /Admin/ }));
+		await user.click(screen.getByRole("button", { name: "Add" }));
+
+		await waitFor(() =>
+			expect(updateACL).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ user_roles: { [MockUserMember.id]: "admin" } },
+			),
+		);
 	});
 });

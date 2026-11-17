@@ -144,7 +144,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 				>
 					<pre
 						className={cn(
-							"m-0 border-0 whitespace-pre-wrap break-all bg-transparent p-0 font-mono text-xs leading-5",
+							"m-0 whitespace-pre-wrap break-all bg-transparent p-0 font-mono text-xs leading-5",
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>

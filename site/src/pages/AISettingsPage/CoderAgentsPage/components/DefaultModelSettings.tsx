@@ -97,7 +97,7 @@ export const DefaultModelSettings: React.FC<DefaultModelSettingsProps> = ({
 								: "Select model"
 					}
 					emptyMessage="No enabled models found."
-					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
+					className="h-10 w-full justify-between rounded-md border border-solid bg-transparent px-3 text-sm"
 					contentClassName="min-w-72"
 				/>
 				<ModelOverrideAlerts

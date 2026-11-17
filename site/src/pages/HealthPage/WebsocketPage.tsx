@@ -62,7 +62,7 @@ const WebsocketPage = () => {
 
 				<section>
 					<SectionLabel>Body</SectionLabel>
-					<div className="bg-surface-secondary border border-solid border-border rounded-lg text-sm p-6 font-mono">
+					<div className="bg-surface-secondary border rounded-lg text-sm p-6 font-mono">
 						{websocket.body !== "" ? (
 							websocket.body
 						) : (
