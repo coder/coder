@@ -1328,9 +1328,9 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
-	// A pins two of four projects, unpins one and reorders one; B pins its
-	// only project; C has a shared project and no pins; D has no projects;
-	// suspended E is not counted.
+	// A pins two of four projects, unpinned the other two and reorders one;
+	// B pins its only project; C has a shared project and no pins; D has no
+	// projects; suspended E is not counted.
 	userA := dbgen.User(t, db, database.User{})
 	userB := dbgen.User(t, db, database.User{})
 	userC := dbgen.User(t, db, database.User{})
@@ -1340,12 +1340,11 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 	newProject := func(owner database.User) database.ChatProject {
 		return dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	}
-	a1, a2, a3, _ := newProject(userA), newProject(userA), newProject(userA), newProject(userA)
+	a1, a2, _, _ := newProject(userA), newProject(userA), newProject(userA), newProject(userA)
 	b1 := newProject(userB)
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userE.ID, ProjectID: newProject(userE).ID})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a1.ID})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a2.ID, Source: database.ChatProjectPinSourceUser})
-	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a3.ID, UnpinnedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userB.ID, ProjectID: b1.ID})
 	// A group from another organization does not give F, who is outside
 	// a1's organization, a project.
@@ -1362,15 +1361,15 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)
 	require.Equal(t, &telemetry.ChatProjectPinSummary{
-		UsersWithProjects:   3,
-		UsersWithTombstones: 1,
-		PinnedDefault:       2,
-		PinnedUser:          1,
-		TombstonesDefault:   1,
-		AllShare0:           1,
-		AllShare2650:        1,
-		AllShare100:         1,
-		ActedShare2650:      1,
+		UsersWithProjects:      3,
+		UsersWithUnpinnedOwned: 1,
+		PinnedDefault:          2,
+		PinnedUser:             1,
+		UnpinnedOwned:          2,
+		AllShare0:              1,
+		AllShare2650:           1,
+		AllShare100:            1,
+		ActedShare2650:         1,
 	}, snapshot.ChatProjectPins)
 
 	// With sharing disabled, C's grant no longer gives C a project.
