@@ -2613,13 +2613,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "description": "Literal model identifier substring, matched case-insensitively. Cannot be combined with q.",
                         "name": "model",
                         "in": "query"
                     }
@@ -25228,6 +25228,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. It must be a single\nline of at most MaxSkillDisplayNameLength characters, and surrounding\nwhitespace is trimmed.",
+                    "type": "string"
+                },
                 "model_invocable": {
                     "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
                     "type": "boolean"
@@ -31680,6 +31684,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -31712,6 +31720,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
                     "type": "string"
                 },
                 "enabled": {
@@ -33621,6 +33633,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. An empty value\nclears it.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -33764,6 +33780,12 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is optional for backward compatibility. When zero,\nthe server leaves the persisted terminal font size unchanged.",
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
                 },
                 "theme_dark": {
                     "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
@@ -34377,6 +34399,10 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size, and the web terminal will use the default.",
+                    "type": "integer"
                 },
                 "theme_dark": {
                     "description": "Ignored when ThemeMode is \"single\"",
