@@ -9,7 +9,7 @@ Verify an artifact before you install it or copy it into an internal mirror or r
 Each Coder release publishes the following verification data:
 
 - A checksum file signed with the Coder release key, a GNU Privacy Guard (GPG) key.
-  It covers every other file that the release pipeline uploads to the GitHub release.
+  It covers every file that the release pipeline uploads to the GitHub release.
 - Build provenance attestations in the [Supply-chain Levels for Software Artifacts (SLSA) provenance](https://slsa.dev/spec/v1.0/provenance) format, published as [GitHub artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations).
 - A software bill of materials (SBOM) for the container image in the [Software Package Data Exchange (SPDX)](https://spdx.dev/) JSON format.
   It's attached to the image as a signed attestation and to the GitHub release as a file.
@@ -97,7 +97,7 @@ The Coder release key signs the checksum file and the standalone CLI binaries.
 3. Confirm that the primary key fingerprint matches the published fingerprint:
 
    ```txt
-   TODO(security): publish the confirmed primary key fingerprint here.
+   21C9 6B1C B950 7188 74F6  4DBD 6A5A 671B 5E40 A3B9
    ```
 
 4. Import the key:
