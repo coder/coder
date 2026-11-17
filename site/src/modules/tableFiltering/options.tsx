@@ -100,8 +100,7 @@ export const OrganizationsMenu: React.FC<OrganizationsMenuProps> = ({
 }) => {
 	return (
 		<SelectFilter
-			label="Select an organization"
-			placeholder="All organizations"
+			label="Organization"
 			emptyText="No organizations found"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}

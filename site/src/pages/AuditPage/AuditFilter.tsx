@@ -125,8 +125,7 @@ type ActionMenuProps = {
 const ActionMenu: React.FC<ActionMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Select an action"
-			placeholder="All actions"
+			label="Action"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
@@ -207,8 +206,7 @@ type ResourceTypeMenuProps = {
 const ResourceTypeMenu: React.FC<ResourceTypeMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Select a resource type"
-			placeholder="All resource types"
+			label="Resource type"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}

@@ -122,7 +122,7 @@ describe("ConnectionLogPage", () => {
 
 			const user = userEvent.setup();
 			await user.click(
-				screen.getByRole("button", { name: "Filter by connection method" }),
+				screen.getByRole("button", { name: /^Connection method:/ }),
 			);
 			await user.click(
 				await screen.findByRole("option", { name: "Web Terminal" }),
@@ -152,7 +152,7 @@ describe("ConnectionLogPage", () => {
 
 			const user = userEvent.setup();
 			await user.click(
-				screen.getByRole("button", { name: "Filter by connection method" }),
+				screen.getByRole("button", { name: /^Connection method:/ }),
 			);
 			await user.click(await screen.findByRole("option", { name: "SSH" }));
 

@@ -74,8 +74,7 @@ export const ProviderFilter: React.FC<ProviderFilterProps> = ({
 }) => {
 	return (
 		<SelectFilter
-			label="Select provider"
-			placeholder="All providers"
+			label="Provider"
 			emptyText="No providers found"
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}

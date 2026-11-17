@@ -69,6 +69,8 @@ type ComboboxButtonProps = React.ComponentProps<"button"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
+	/** Visible label rendered before the value. */
+	label?: string;
 };
 
 export const ComboboxButton = ({
@@ -77,20 +79,26 @@ export const ComboboxButton = ({
 	width,
 	selectedOption,
 	placeholder,
+	label,
 	ref,
 	...props
 }: ComboboxButtonProps) => {
+	const value = selectedOption?.label ?? placeholder;
 	return (
 		<Button
 			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
 			style={{ flexBasis: width }}
 			variant="outline"
 			ref={ref}
+			aria-label={label ? `${label}: ${value}` : undefined}
 			{...props}
 		>
+			{label && (
+				<span className="shrink-0 text-content-secondary">{label}:</span>
+			)}
 			{selectedOption?.startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis grow">
-				{selectedOption?.label ?? placeholder}
+				{value}
 			</span>
 			<ChevronDownIcon className="size-icon-sm" />
 		</Button>

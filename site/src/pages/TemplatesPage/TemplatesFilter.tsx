@@ -114,10 +114,11 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 			error={error}
 			options={
 				<>
-					{userMenu && <UserMenu width={width} menu={userMenu} />}
+					{userMenu && (
+						<UserMenu label="Author" width={width} menu={userMenu} />
+					)}
 					<SelectFilter
-						placeholder="All organizations"
-						label="Select an organization"
+						label="Organization"
 						options={organizationMenu.searchOptions}
 						selectedOption={organizationMenu.selectedOption ?? undefined}
 						onSelect={organizationMenu.selectOption}

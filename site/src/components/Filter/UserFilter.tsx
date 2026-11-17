@@ -83,19 +83,18 @@ export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
 type UserMenuProps = {
 	menu: UserFilterMenu;
-	placeholder?: string;
+	label?: string;
 	width?: number;
 };
 
 export const UserMenu: React.FC<UserMenuProps> = ({
 	menu,
 	width,
-	placeholder,
+	label = "User",
 }) => {
 	return (
 		<SelectFilter
-			label="Select user"
-			placeholder={placeholder ?? "All users"}
+			label={label}
 			emptyText="No users found"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}

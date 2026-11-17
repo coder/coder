@@ -50,8 +50,7 @@ export const UsersFilter: React.FC<UsersFilterProps> = ({
 const StatusMenu = (menu: UseFilterMenuResult) => {
 	return (
 		<SelectFilter
-			label="Select a status"
-			placeholder="All statuses"
+			label="Status"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}

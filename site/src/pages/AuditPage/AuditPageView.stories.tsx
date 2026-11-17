@@ -158,7 +158,7 @@ const resourceTypeFilterStory = (
 		onResourceTypeChange.mockClear();
 
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Select a resource type" }),
+			canvas.getByRole("button", { name: /^Resource type:/ }),
 		);
 		const option = await screen.findByRole("option", { name: label });
 		await userEvent.click(option);

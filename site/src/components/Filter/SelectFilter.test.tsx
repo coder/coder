@@ -9,8 +9,7 @@ it("selects an option with the keyboard alone", async () => {
 	const onSelect = vi.fn();
 	render(
 		<SelectFilter
-			label="Select a status"
-			placeholder="All statuses"
+			label="Status"
 			options={[
 				{ label: "Active", value: "active" },
 				{ label: "Dormant", value: "dormant" },
@@ -31,8 +30,7 @@ it("names the search input with the search label", async () => {
 	const onValueChange = vi.fn();
 	render(
 		<SelectFilter
-			label="Select a status"
-			placeholder="All statuses"
+			label="Status"
 			options={[{ label: "Active", value: "active" }]}
 			onSelect={vi.fn()}
 			searchLabel="Search status"
@@ -45,7 +43,7 @@ it("names the search input with the search label", async () => {
 		/>,
 	);
 
-	await user.click(screen.getByRole("button", { name: "Select a status" }));
+	await user.click(screen.getByRole("button", { name: "Status: All" }));
 	await user.type(
 		await screen.findByRole("combobox", { name: "Search status" }),
 		"a",

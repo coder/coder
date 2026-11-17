@@ -109,7 +109,7 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 }) => {
 	return (
 		<form action={onSubmit}>
-			<div className="flex items-center gap-2">
+			<div className="flex items-end gap-2">
 				{children}
 				<Button disabled={disabled || isLoading} type="submit">
 					<Spinner loading={isLoading}>
@@ -123,12 +123,14 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 };
 
 type RoleSelectFieldProps = {
+	id?: string;
 	value: WorkspaceRole;
 	onChange: (value: WorkspaceRole) => void;
 	disabled?: boolean;
 };
 
 export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
+	id,
 	value,
 	onChange,
 	disabled,
@@ -140,6 +142,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			disabled={disabled}
 		>
 			<SelectTrigger
+				id={id}
 				className="w-40"
 				aria-label={getRoleSelectLabel("Role", value)}
 			>

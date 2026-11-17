@@ -49,8 +49,7 @@ type ModelFilterProps = {
 export const ModelFilter: React.FC<ModelFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Select model"
-			placeholder="All models"
+			label="Model"
 			emptyText="No models found"
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}

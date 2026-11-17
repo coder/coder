@@ -93,11 +93,7 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 				error={error}
 				options={
 					<>
-						<UserMenu
-							placeholder="All owners"
-							menu={menus.user}
-							width={width}
-						/>
+						<UserMenu label="Owner" menu={menus.user} width={width} />
 						<StatusMenu menu={menus.status} width={width} />
 						<MethodMenu menu={menus.method} width={width} />
 						{menus.organization && (
@@ -148,8 +144,7 @@ type StatusMenuProps = {
 const StatusMenu: React.FC<StatusMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Filter by session status"
-			placeholder="All sessions"
+			label="Session status"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
@@ -188,8 +183,7 @@ type MethodMenuProps = {
 const MethodMenu: React.FC<MethodMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Filter by connection method"
-			placeholder="All methods"
+			label="Connection method"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}

@@ -62,8 +62,7 @@ type ClientFilterProps = {
 export const ClientFilter: React.FC<ClientFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Select client"
-			placeholder="All clients"
+			label="Client"
 			emptyText="No clients found"
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}
