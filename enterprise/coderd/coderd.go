@@ -531,6 +531,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/organizations/{organization}/members/{user}/workspace-quota", api.workspaceQuota)
 		})
 
+		r.Group(func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance).
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				httpmw.ExtractOrganizationParam(api.Database),
+				httpmw.ExtractOrganizationMemberParam(api.Database),
+			)
+			r.Get("/organizations/{organization}/members/{user}/ai/spend", api.organizationMemberAISpendStatus)
+		})
+
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

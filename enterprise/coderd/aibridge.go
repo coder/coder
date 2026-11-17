@@ -1250,6 +1250,90 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get organization member AI spend
+// @ID get-organization-member-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID or name"
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {object} codersdk.OrganizationMemberAISpendStatus
+// @Router /api/v2/organizations/{organization}/members/{user}/ai/spend [get]
+func (api *API) organizationMemberAISpendStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	member := httpmw.OrganizationMemberParam(r)
+	logger := api.Logger.With(
+		slog.F("organization_id", org.ID),
+		slog.F("user_id", member.UserID),
+	)
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Resolve within this organization only, matching how AI Gateway
+	// attributes a request made in it. The resolver and spend queries
+	// authorize reading the user, so a caller who can see the membership
+	// but not the user gets a 404, as on the user spend endpoint.
+	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, member.UserID, uuid.NullUUID{UUID: org.ID, Valid: true}, budgetPolicy)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if !ok {
+		// The organization is deleted or no longer has the user as a member.
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+		UserID:           member.UserID,
+		EffectiveGroupID: effectiveGroup.GroupID,
+		PeriodStart:      periodWindow.Start,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		logger.Error(ctx, "failed to get user AI spend",
+			slog.F("effective_group_id", effectiveGroup.GroupID),
+			slog.Error(err),
+		)
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.OrganizationMemberAISpendStatus{
+		OrganizationID:   org.ID,
+		UserID:           member.UserID,
+		EffectiveGroupID: effectiveGroup.GroupID,
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		CurrentSpendMicros: spend.SpendMicros,
+	}
+	if effectiveGroup.Limit != nil {
+		resp.EffectiveBudget = &codersdk.AIBudgetLimit{
+			SpendLimitMicros: effectiveGroup.Limit.SpendLimitMicros,
+			LimitSource:      effectiveGroup.Limit.Source,
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // AISpendExportCSVHeader is the CSV column order for the AI spend export.
 var AISpendExportCSVHeader = []string{
 	"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",

@@ -13123,6 +13123,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `updated_at`      | string                                          | false    |              |             |
 | `user_id`         | string                                          | false    |              |             |
 
+## codersdk.OrganizationMemberAISpendStatus
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                         |
+|------------------------|--------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                   |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user in this organization. Null when no budget applies, leaving the user's spend unlimited.                 |
+| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group inside this organization that the spend is attributed to, falling back to the organization's Everyone group when no budget applies. |
+| `organization_id`      | string                                           | false    |              |                                                                                                                                                                     |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                               |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                             |
+| `user_id`              | string                                           | false    |              |                                                                                                                                                                     |
+
 ## codersdk.OrganizationMemberWithUserData
 
 ```json

@@ -8804,6 +8804,43 @@
 				]
 			}
 		},
+		"/api/v2/organizations/{organization}/members/{user}/ai/spend": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get organization member AI spend",
+				"operationId": "get-organization-member-ai-spend",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Organization ID or name",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "User ID, username, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.OrganizationMemberAISpendStatus"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/organizations/{organization}/members/{user}/chats/model-overrides": {
 			"get": {
 				"produces": ["application/json"],
@@ -26926,6 +26963,46 @@
 					}
 				},
 				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"user_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.OrganizationMemberAISpendStatus": {
+			"type": "object",
+			"properties": {
+				"current_spend_micros": {
+					"description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
+					"type": "integer"
+				},
+				"effective_budget": {
+					"description": "EffectiveBudget is the spend limit that applies to the user in this\norganization. Null when no budget applies, leaving the user's spend\nunlimited.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIBudgetLimit"
+						}
+					]
+				},
+				"effective_group_id": {
+					"description": "EffectiveGroupID is the group inside this organization that the spend\nis attributed to, falling back to the organization's Everyone group\nwhen no budget applies.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"period_end": {
+					"description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"period_start": {
+					"description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
 					"type": "string",
 					"format": "date-time"
 				},

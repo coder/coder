@@ -8339,6 +8339,34 @@ export interface OrganizationMember {
 	readonly roles: readonly SlimRole[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * OrganizationMemberAISpendStatus is a user's AI spend snapshot inside a
+ * single organization, resolved the same way AI Gateway resolves a request
+ * made in that organization.
+ */
+export interface OrganizationMemberAISpendStatus extends AISpendPeriodWindow {
+	readonly organization_id: string;
+	readonly user_id: string;
+	/**
+	 * EffectiveGroupID is the group inside this organization that the spend
+	 * is attributed to, falling back to the organization's Everyone group
+	 * when no budget applies.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is the spend limit that applies to the user in this
+	 * organization. Null when no budget applies, leaving the user's spend
+	 * unlimited.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the user's spend on their effective group over
+	 * the current budget period.
+	 */
+	readonly current_spend_micros: number;
+}
+
 // From codersdk/organizations.go
 export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly username: string;
