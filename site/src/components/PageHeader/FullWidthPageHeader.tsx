@@ -13,7 +13,7 @@ export const FullWidthPageHeader: React.FC<FullWidthPageHeaderProps> = ({
 		<header
 			data-testid="header"
 			className={cn(
-				"bg-surface-primary border-0 border-b border-solid border-border",
+				"bg-surface-primary border-b",
 				"text-sm p-6 flex items-center gap-12 flex-wrap z-10",
 				"lg:items-center flex-col lg:flex-row",
 				sticky && "sticky top-0",

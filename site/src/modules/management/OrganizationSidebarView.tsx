@@ -83,7 +83,7 @@ export const OrganizationSidebarView: React.FC<
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
-					<Command loop>
+					<Command loop label="Find organization">
 						<CommandInput placeholder="Find organization" />
 						<CommandList>
 							<CommandEmpty>No organization found.</CommandEmpty>

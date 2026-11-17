@@ -215,7 +215,7 @@ const ContextMcpServerIssues: React.FC<ContextMcpServerIssuesProps> = ({
 						asChild
 						size="sm"
 						showExternalIcon={false}
-						className="w-fit border-0 bg-transparent p-0 font-normal leading-4.5"
+						className="w-fit border-0 bg-transparent pl-0 font-normal leading-4.5"
 					>
 						<button type="button" onClick={onManageServers}>
 							Manage servers
@@ -522,7 +522,7 @@ export const ContextUsageIndicator: React.FC<{
 						) : (
 							<div
 								role="status"
-								className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+								className="mt-2 rounded-lg border border-dashed px-3 py-4 text-center"
 							>
 								<h3 className="m-0 text-xs font-semibold text-content-primary">
 									Context usage unavailable.
@@ -532,7 +532,7 @@ export const ContextUsageIndicator: React.FC<{
 					) : (
 						<div
 							role="status"
-							className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+							className="mt-2 rounded-lg border border-dashed px-3 py-4 text-center"
 						>
 							<h3 className="m-0 text-xs font-semibold text-content-primary">
 								Usage not available yet

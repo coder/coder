@@ -19,7 +19,7 @@ func TestValidateExternalURL(t *testing.T) {
 		"zed://ssh/coder.dev",
 		"vscode://coder.coder-remote/open?owner=me",
 		"jetbrains-gateway://connect#type=coder",
-		"coder://dev.coder.com/v0/open/ws/dev/agent/main/rdp",
+		"coder://coder.example.com/v0/open/ws/dev/agent/main/rdp",
 	}
 
 	invalidURLs := []string{

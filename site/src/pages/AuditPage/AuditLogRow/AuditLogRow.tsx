@@ -9,6 +9,7 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Collapsible,
 	CollapsibleContent,
+	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
@@ -62,26 +63,15 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 			data-testid={`audit-log-row-${auditLog.id}`}
 			clickable={shouldDisplayDiff}
 		>
-			<TableCell className="p-0! border-0 border-t text-base">
+			<TableCell className="p-0! border-t text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
+					{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Clicking the row is a mouse shortcut; keyboard users use the disclosure button. */}
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff &&
-								"relative cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+							shouldDisplayDiff && "relative cursor-pointer",
 						)}
-						{...(shouldDisplayDiff && {
-							tabIndex: 0,
-							role: "button",
-							"aria-expanded": isDiffOpen,
-							onClick: toggle,
-							onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
-								if (event.key === "Enter" || event.key === " ") {
-									event.preventDefault();
-									toggle();
-								}
-							},
-						})}
+						onClick={toggle}
 					>
 						<div className="flex items-center gap-4 flex-1">
 							<div className="flex items-center gap-4 w-full">
@@ -96,7 +86,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 									/>
 								) : (
 									<Avatar>
-										<NetworkIcon className="h-full w-full p-1" />
+										<NetworkIcon className="size-full p-1" />
 									</Avatar>
 								)}
 
@@ -229,9 +219,17 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 						</div>
 
 						{shouldDisplayDiff ? (
-							<div className="size-6 flex items-center justify-center">
-								<ChevronDownIcon open={isDiffOpen} />
-							</div>
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									aria-label="View changes"
+									// The row's own click handler would toggle a second time.
+									onClick={(e) => e.stopPropagation()}
+									className="size-6 flex items-center justify-center p-0 border-0 bg-transparent text-inherit rounded cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+								>
+									<ChevronDownIcon open={isDiffOpen} />
+								</button>
+							</CollapsibleTrigger>
 						) : (
 							<div className="ml-6" />
 						)}

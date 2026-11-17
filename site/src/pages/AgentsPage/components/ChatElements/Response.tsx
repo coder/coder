@@ -227,11 +227,11 @@ const createComponents = (
 					aria-hidden="true"
 					className={cn(
 						"mr-2 inline-flex size-4 shrink-0 items-center justify-center",
-						"rounded-sm border border-solid",
+						"rounded-sm border",
 						"align-middle relative -top-px",
 						checked
 							? "border-content-link bg-content-link text-white"
-							: "border-border bg-surface-primary",
+							: "bg-surface-primary",
 					)}
 				>
 					{checked && (
@@ -261,9 +261,7 @@ const createComponents = (
 		),
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
-		hr: () => (
-			<hr className="my-6 border-0 border-t border-solid border-border" />
-		),
+		hr: () => <hr className="my-6 border-t" />,
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
 		// The style carries the column alignment from the separator row.
@@ -312,7 +310,7 @@ const createComponents = (
 					// and rounding from its direct child, so the frame must stay
 					// on the outermost element rather than the ScrollArea.
 					const codeBlock = (
-						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
+						<div className="group/code-block relative my-4 overflow-hidden rounded-md border bg-surface-primary">
 							<ScrollArea
 								orientation="both"
 								scrollBarClassName="w-1.5"
@@ -374,7 +372,7 @@ export const Response = ({
 }: ResponseProps) => {
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
-		theme.palette.mode === "dark" ? "dark" : "light";
+		theme.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
 	const { markdown, inlineNodes } =
 		typeof children === "string"

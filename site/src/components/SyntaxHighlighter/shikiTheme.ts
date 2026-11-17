@@ -5,7 +5,7 @@ import {
 	type ThemesType,
 } from "@pierre/diffs";
 import type * as monaco from "monaco-editor";
-import themes from "#/theme";
+import { getMonacoTheme } from "#/theme/monaco";
 
 // Monarch token names used by our Monaco themes, mapped to the TextMate scopes
 // that Shiki grammars emit for the same constructs.
@@ -93,5 +93,5 @@ export const coderShikiThemes = {
 
 for (const mode of ["dark", "light"] as const) {
 	const name = coderShikiThemes[mode];
-	registerCustomTheme(name, () => toShikiTheme(name, themes[mode].monaco));
+	registerCustomTheme(name, () => toShikiTheme(name, getMonacoTheme(mode)));
 }

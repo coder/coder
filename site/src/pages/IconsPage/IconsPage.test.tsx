@@ -8,7 +8,7 @@ describe("IconsPage", () => {
 		const user = userEvent.setup();
 		render(<IconsPage />);
 
-		const filter = screen.getByRole("textbox", { name: "Filter" });
+		const filter = screen.getByRole("textbox", { name: "Search" });
 		await user.type(filter, "no-matching-icon");
 		await user.click(screen.getByRole("button", { name: "Reset filters" }));
 

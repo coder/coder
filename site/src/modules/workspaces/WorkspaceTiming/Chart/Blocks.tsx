@@ -34,13 +34,13 @@ export const Blocks: React.FC<BlocksProps> = ({ count }) => {
 	const nOfBlocks = hasSpacing ? count : nOfPossibleBlocks;
 
 	return (
-		<div ref={blocksRef} className="flex h-full w-full items-center gap-1">
+		<div ref={blocksRef} className="flex size-full items-center gap-1">
 			{Array.from({ length: nOfBlocks }, (_, i) => i + 1).map((n) => (
 				<div
 					key={n}
 					className={cn(
 						"h-4.5 min-w-5 shrink-0 flex-1 rounded",
-						"border border-solid border-content-link bg-content-link/15",
+						"border border-content-link bg-content-link/15",
 					)}
 				/>
 			))}

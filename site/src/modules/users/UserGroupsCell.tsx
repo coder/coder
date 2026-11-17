@@ -23,7 +23,7 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 					<PopoverTrigger asChild>
 						<button
 							type="button"
-							className="cursor-pointer bg-transparent border-0 p-0 text-inherit leading-none"
+							className="cursor-pointer bg-transparent p-0 text-inherit leading-none"
 							aria-label={
 								userGroups.length === 0
 									? "No groups"

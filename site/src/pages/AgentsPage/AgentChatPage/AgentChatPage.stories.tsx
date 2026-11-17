@@ -3149,9 +3149,26 @@ const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
 
 export const QueuedSendPromotesPreviousHead: Story = {
 	parameters: {
-		queries: buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
-			diffUrl: undefined,
-		}),
+		queries: [
+			...buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
+				diffUrl: undefined,
+			}),
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: promotedQueueHeadChat.owner_id,
+								organization_id: promotedQueueHeadChat.organization_id,
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);

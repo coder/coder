@@ -119,7 +119,7 @@ resource "coder_agent" "main" {
 Use the latest module version from the registry.
 
 > [!NOTE]
-> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
+> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.16.0 or later, and receive the credential as a workspace build secret.
 > Do not set `SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET` in the template yourself.
 > To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
@@ -218,6 +218,8 @@ Each pool's `dispatch_deadline` sets the spawn budget: how long a Claude Code wo
   If no runner starts within the budget, Anthropic offers the session again.
 - The budget starts when Anthropic issues the session's work order, so time in Anthropic's queue and time waiting for a provisioner both count.
 - When a build misses the budget, Agent Relay reports the failure to Anthropic, cancels the build if it's still running, and deletes the workspace.
+- When a build succeeds but the runner never starts, Agent Relay v0.16.0 or later lets Anthropic retry the session only on its first delivery, and only within `dispatch_deadline` of the build's creation.
+  Otherwise, it fails the session, so a broken template doesn't rebuild in a loop.
 
 For templates where the image pull and build regularly take longer than 5&nbsp;minutes, raise `dispatch_deadline`.
 

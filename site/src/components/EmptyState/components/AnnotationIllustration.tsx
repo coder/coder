@@ -5,7 +5,7 @@ import { useTheme } from "#/theme/context";
 export const AnnotationIllustration: React.FC<SVGProps<SVGSVGElement>> = (
 	props,
 ) => {
-	const dark = useTheme().palette.mode === "dark";
+	const dark = useTheme().mode === "dark";
 	const clipId = useId();
 	const maskId = useId();
 

@@ -33,8 +33,8 @@ export const NetworkCallBadges: React.FC<NetworkCallBadgesProps> = ({
 			<TooltipTrigger asChild>
 				<button
 					type="button"
-					aria-label="More info"
-					className="flex items-center whitespace-nowrap border-0 bg-transparent p-0 text-inherit"
+					aria-label={`Network requests: ${summary.total.toLocaleString("en-US")}, blocked: ${summary.blocked.toLocaleString("en-US")}`}
+					className="flex items-center whitespace-nowrap bg-transparent p-0 text-inherit"
 				>
 					<Badge className="rounded-e-none">
 						{summary.total.toLocaleString("en-US")}

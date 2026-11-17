@@ -119,7 +119,7 @@ export const CreateOrganizationPageView: React.FC<
 							canViewPremium={permissions.viewAllLicenses}
 						/>
 					) : (
-						<div className="border border-solid p-6 rounded-lg">
+						<div className="border p-6 rounded-lg">
 							<form
 								onSubmit={form.handleSubmit}
 								aria-label="Organization settings form"

@@ -54,7 +54,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 				aria-describedby={undefined}
 				onCloseAutoFocus={onCloseAutoFocus}
 			>
-				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
+				<DialogTitle className="px-4 py-3 border-b text-sm font-medium">
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">

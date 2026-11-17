@@ -67,7 +67,7 @@ export const StarterTemplates: React.FC<StarterTemplatesProps> = ({
 		<div className="flex items-start gap-8">
 			{starterTemplatesByTag && tags && (
 				<div className="sticky top-22 flex w-50.5 shrink-0 flex-col gap-4">
-					<h2 className="m-0 text-base font-normal text-content-primary">
+					<h2 className="m-0 text-base text-content-primary">
 						Choose a starter template
 					</h2>
 					<span className="text-xs font-semibold uppercase tracking-widest text-content-secondary">

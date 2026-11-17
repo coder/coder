@@ -31,7 +31,7 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 			sideOffset={sideOffset}
 			collisionPadding={16}
 			className={cn(
-				"z-50 w-72 rounded-md border border-solid bg-surface-primary",
+				"z-50 w-72 rounded-md border bg-surface-primary",
 				"text-content-primary shadow-md outline-hidden ease-out-strong",
 				"max-h-(--radix-popper-available-height) overflow-y-auto",
 				"origin-(--radix-popper-transform-origin)",

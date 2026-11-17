@@ -139,7 +139,7 @@ export const autostopDisplay = (
 					{" "}
 					because this workspace has enabled autostop. You can disable autostop
 					from this workspace&apos;s{" "}
-					<Link asChild showExternalIcon={false} size="sm" className="p-0">
+					<Link asChild showExternalIcon={false} size="sm" className="pl-0">
 						<RouterLink to="settings/schedule">schedule settings</RouterLink>
 					</Link>
 					.

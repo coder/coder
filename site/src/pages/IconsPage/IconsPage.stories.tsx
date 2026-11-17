@@ -18,7 +18,7 @@ export { Example as IconsPage };
 export const NoSearchResults: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.type(
-			within(canvasElement).getByRole("textbox", { name: "Filter" }),
+			within(canvasElement).getByRole("textbox", { name: "Search" }),
 			"no-matching-icon",
 		);
 	},

@@ -11,10 +11,11 @@ import { Slot } from "radix-ui";
 const buttonVariants = cva(
 	cn(
 		"group inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans",
-		"border-solid rounded-md transition-colors shrink-0",
+		"rounded-md transition-colors shrink-0",
 		"text-sm font-medium cursor-pointer no-underline",
 		"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 		"disabled:pointer-events-none disabled:text-content-disabled",
+		"aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled",
 		"[&:is(a):not([href])]:pointer-events-none [&:is(a):not([href])]:text-content-disabled",
 		"[&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg]:p-0.5",
 		"[&>img]:pointer-events-none [&>img]:shrink-0 [&>img]:p-0.5",
@@ -24,21 +25,22 @@ const buttonVariants = cva(
 			variant: {
 				default: cn(
 					"border-none bg-surface-invert-primary font-semibold text-content-invert",
-					"hover:bg-surface-invert-secondary",
-					"disabled:bg-surface-secondary",
+					"not-aria-disabled:hover:bg-surface-invert-secondary",
+					"disabled:bg-surface-secondary aria-disabled:bg-surface-secondary",
 				),
 				outline: cn(
-					"border border-border bg-transparent text-content-primary",
-					"hover:bg-surface-secondary",
+					"border bg-transparent text-content-primary",
+					"not-aria-disabled:hover:bg-surface-secondary",
 				),
 				subtle: cn(
 					"border-none bg-transparent text-content-secondary",
-					"hover:text-content-primary",
+					"not-aria-disabled:hover:text-content-primary",
 				),
 				destructive: cn(
 					"border border-border-destructive font-semibold text-content-primary bg-surface-destructive",
-					"hover:bg-transparent",
+					"not-aria-disabled:hover:bg-transparent",
 					"disabled:bg-transparent disabled:text-content-disabled",
+					"aria-disabled:bg-transparent aria-disabled:text-content-disabled",
 				),
 			},
 

@@ -5,7 +5,7 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 
 const NotFoundPage: React.FC = () => {
 	return (
-		<div className="w-full h-full flex justify-center items-center">
+		<div className="size-full flex justify-center items-center">
 			<EmptyState
 				image={<NotFoundIllustration className="-mb-5 h-auto max-w-full" />}
 				message="Page not found"

@@ -1488,21 +1488,6 @@ func (p *Server) Start() *Server {
 	return p
 }
 
-func subscribeWithInitialError(chatID uuid.UUID, message string) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	events := make(chan codersdk.ChatStreamEvent)
-	close(events)
-	return []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error:  &codersdk.ChatError{Message: message},
-	}}, events, func() {}, true
-}
-
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
 func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
@@ -1627,14 +1612,14 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 // the prompt forward). A future change should skip the file with a
 // user-facing warning, but that requires altering the FileResolver
 // contract.
-func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
+func (p *Server) chatFileResolver(model chatprovider.Model) chatprompt.FileResolver {
+	imageCap, hasImageCap := model.InlineImageCapBytes()
+	normalizedProvider := model.RouteProvider()
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
-		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&

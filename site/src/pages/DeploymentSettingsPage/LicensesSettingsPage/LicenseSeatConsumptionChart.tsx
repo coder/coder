@@ -48,7 +48,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 	LicenseSeatConsumptionChartProps
 > = ({ data, limit }) => {
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -59,7 +59,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 						<CollapsibleTrigger asChild>
 							<Button
 								className={cn(
-									"h-auto p-0 border-0 bg-transparent font-medium text-content-secondary",
+									"h-auto p-0 bg-transparent font-medium text-content-secondary",
 									"hover:bg-transparent hover:text-content-primary",
 									"[&[data-state=open]_svg]:rotate-90",
 								)}
@@ -131,7 +131,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-0 border-t border-solid">
+			<div className="p-6 border-t">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (
@@ -247,7 +247,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 						) : (
 							<div
 								className={cn(
-									"w-full h-full flex items-center justify-center",
+									"size-full flex items-center justify-center",
 									"text-content-secondary text-sm font-medium",
 								)}
 							>
@@ -255,7 +255,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}

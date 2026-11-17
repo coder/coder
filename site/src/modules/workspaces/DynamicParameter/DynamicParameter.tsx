@@ -622,7 +622,7 @@ const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 			{option.description && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
+						<InfoIcon className="size-3.5 text-content-secondary" />
 					</TooltipTrigger>
 					<TooltipContent side="right" sideOffset={10}>
 						{option.description}
@@ -911,7 +911,7 @@ export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
 					className={cn(
-						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid",
+						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5",
 						diagnostic.severity === "error"
 							? "text-content-primary border-border-destructive bg-content-destructive/15"
 							: "text-content-primary border-border-warning bg-content-warning/15",

@@ -106,6 +106,7 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 									<ComboboxContent
 										className="max-w-none min-w-[min(100%,320px)]"
 										align="start"
+										label="Search versions"
 									>
 										<ComboboxInput placeholder="Search versions…" />
 										<ComboboxList>
