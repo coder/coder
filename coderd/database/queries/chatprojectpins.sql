@@ -3,7 +3,7 @@
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT @user_id::uuid, @project_id::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
 FROM chat_project_pins
-WHERE user_id = @user_id::uuid AND unpinned_at IS NULL;
+WHERE user_id = @user_id::uuid;
 
 -- name: PinChatProject :exec
 -- Pins a project, or moves an already pinned project, to pin_order. Without
@@ -34,7 +34,7 @@ WITH current_pins AS (
         ) AS stale
         FROM chat_project_pins p
         JOIN chat_projects cp ON cp.id = p.project_id
-        WHERE p.user_id = @user_id::uuid AND p.unpinned_at IS NULL
+        WHERE p.user_id = @user_id::uuid
     ) pins
 ),
 ranked AS (
@@ -54,26 +54,24 @@ shifted AS (
     UPDATE chat_project_pins p
     SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
     FROM ranked CROSS JOIN target
-    WHERE p.user_id = @user_id::uuid AND p.project_id = ranked.project_id AND p.unpinned_at IS NULL
+    WHERE p.user_id = @user_id::uuid AND p.project_id = ranked.project_id
 )
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT @user_id::uuid, @project_id::uuid, target.position, 'user'
 FROM target
 ON CONFLICT (user_id, project_id) DO UPDATE SET
     pin_order = EXCLUDED.pin_order,
-    source = 'user',
-    unpinned_at = NULL;
+    source = 'user';
 
 -- name: UnpinChatProject :exec
--- Turns a pin into a tombstone and compacts the remaining pins to 1..N.
--- The source is kept so telemetry can tell which pins users removed.
+-- Deletes a pin and compacts the remaining pins to 1..N.
 -- Unpinning a project that is not pinned changes nothing. Like
 -- PinChatProject, pins the user can still see come first, and callers must
 -- hold the per-user pin lock.
-WITH target AS (
-    SELECT project_id
-    FROM chat_project_pins
-    WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid AND unpinned_at IS NULL
+WITH deleted AS (
+    DELETE FROM chat_project_pins
+    WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid
+    RETURNING project_id
 ),
 updates AS (
     SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
@@ -92,22 +90,20 @@ updates AS (
                     AND organization_members.organization_id = cp.organization_id
             )
         )
-    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order, NULL::timestamptz AS unpinned_at
+    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
     JOIN chat_projects cp ON cp.id = p.project_id
-    WHERE p.user_id = @user_id::uuid AND p.unpinned_at IS NULL AND p.project_id <> @project_id::uuid
-    UNION ALL
-    SELECT project_id, 0, NOW() FROM target
+    WHERE p.user_id = @user_id::uuid AND p.project_id <> @project_id::uuid
 )
 UPDATE chat_project_pins p
-SET pin_order = updates.pin_order, unpinned_at = updates.unpinned_at
+SET pin_order = updates.pin_order
 FROM updates
-WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id AND p.unpinned_at IS NULL
-    AND EXISTS (SELECT 1 FROM target);
+WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id
+    AND EXISTS (SELECT 1 FROM deleted);
 
 -- name: GetChatProjectSummariesByUserID :many
 -- Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
--- user's active pin and aggregates over the user's own top-level,
+-- user's pin and aggregates over the user's own top-level,
 -- non-archived chats. Entries match regardless of the actions they grant,
 -- so callers must authorize each row; pins on projects the user can no
 -- longer see are never returned.
@@ -202,7 +198,7 @@ FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
 LEFT JOIN chat_project_pins pins
-    ON pins.user_id = @user_id::uuid AND pins.project_id = chat_projects.id AND pins.unpinned_at IS NULL
+    ON pins.user_id = @user_id::uuid AND pins.project_id = chat_projects.id
 LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
@@ -235,17 +231,17 @@ WITH project_users AS (
 per_user AS (
     SELECT
         COUNT(*) AS projects,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0) AS pinned,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'migration') AS pinned_migration,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'default') AS pinned_default,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'user') AS pinned_user,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'migration') AS tombstones_migration,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'default') AS tombstones_default,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'user') AS tombstones_user,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL) AS tombstones
+        COUNT(pins.project_id) AS pinned,
+        COUNT(*) FILTER (WHERE pins.source = 'migration') AS pinned_migration,
+        COUNT(*) FILTER (WHERE pins.source = 'default') AS pinned_default,
+        COUNT(*) FILTER (WHERE pins.source = 'user') AS pinned_user,
+        -- Owners get a pin on every project when it is created or by the
+        -- upgrade migration, so an owned project without one was unpinned.
+        COUNT(*) FILTER (WHERE pins.project_id IS NULL AND chat_projects.owner_id = project_users.user_id) AS unpinned_owned
     FROM project_users
     JOIN users ON users.id = project_users.user_id
         AND users.status = 'active'::user_status AND users.deleted = false AND users.is_system = false
+    JOIN chat_projects ON chat_projects.id = project_users.project_id
     LEFT JOIN chat_project_pins pins
         ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
     GROUP BY project_users.user_id
@@ -254,7 +250,7 @@ per_user AS (
 bucketed AS (
     SELECT
         *,
-        tombstones > 0 OR pinned_user > 0 AS acted,
+        unpinned_owned > 0 OR pinned_user > 0 AS acted,
         CASE
             WHEN pinned = 0 THEN 0
             WHEN pinned = projects THEN 100
@@ -267,13 +263,11 @@ bucketed AS (
 )
 SELECT
     COUNT(*)::bigint AS users_with_projects,
-    COUNT(*) FILTER (WHERE tombstones > 0)::bigint AS users_with_tombstones,
+    COUNT(*) FILTER (WHERE unpinned_owned > 0)::bigint AS users_with_unpinned_owned,
     COALESCE(SUM(pinned_migration), 0)::bigint AS pinned_migration,
     COALESCE(SUM(pinned_default), 0)::bigint AS pinned_default,
     COALESCE(SUM(pinned_user), 0)::bigint AS pinned_user,
-    COALESCE(SUM(tombstones_migration), 0)::bigint AS tombstones_migration,
-    COALESCE(SUM(tombstones_default), 0)::bigint AS tombstones_default,
-    COALESCE(SUM(tombstones_user), 0)::bigint AS tombstones_user,
+    COALESCE(SUM(unpinned_owned), 0)::bigint AS unpinned_owned,
     COUNT(*) FILTER (WHERE bucket = 0)::bigint AS all_share_0,
     COUNT(*) FILTER (WHERE bucket = 25)::bigint AS all_share_1_25,
     COUNT(*) FILTER (WHERE bucket = 50)::bigint AS all_share_26_50,
