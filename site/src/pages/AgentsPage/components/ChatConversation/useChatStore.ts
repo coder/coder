@@ -324,10 +324,7 @@ export const useChatStore = (
 		pendingStatusResyncVersionRef.current = null;
 		setPendingStatusResync(false);
 		store.setQueuedMessages([]);
-		// Suppression entries are scoped to the current chat; clear
-		// them on chat change so a stale promote suppression doesn't
-		// hide queued messages in another chat.
-		store.clearSuppressedQueuedMessageIDs();
+		store.resetQueuedMessageTracking();
 	}, [chatID, store]);
 
 	useEffect(() => {
@@ -346,8 +343,8 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		// An optimistic promotion cache write must not clear suppression before
-		// a stale pre-promotion queue_update arrives.
+		// An optimistic promotion cache write must not clear the promoted IDs
+		// before a stale pre-promotion queue_update arrives.
 		if (isEqual(store.getSnapshot().queuedMessages, chatQueuedMessages ?? [])) {
 			return;
 		}
@@ -584,9 +581,7 @@ export const useChatStore = (
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
-							// Cache the store's filtered queue, not the raw
-							// event, so a promoted message suppressed by the
-							// store cannot reappear on REST re-hydration.
+							// Cache the accepted queue so REST hydration cannot restore stale rows.
 							writeQueuedMessagesToCache(
 								queryClient,
 								chatID,

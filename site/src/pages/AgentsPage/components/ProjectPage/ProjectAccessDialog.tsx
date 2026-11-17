@@ -183,7 +183,7 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 								</TableRow>
 							</TableHeader>
 							{/* Phones stack each row's role and actions under its name. */}
-							<TableBody className="max-sm:block max-sm:rounded-md max-sm:border max-sm:border-border max-sm:border-solid max-sm:[&>tr:last-child]:border-b-0 max-sm:[&>tr>td:first-child]:col-span-full max-sm:[&>tr>td:not(:first-child)]:pt-0 max-sm:[&>tr>td]:border-0! max-sm:[&>tr]:grid max-sm:[&>tr]:grid-cols-[minmax(0,1fr)_auto]">
+							<TableBody className="max-sm:block max-sm:rounded-md max-sm:border max-sm:[&>tr:last-child]:border-b-0 max-sm:[&>tr>td:first-child]:col-span-full max-sm:[&>tr>td:not(:first-child)]:pt-0 max-sm:[&>tr>td]:border-0! max-sm:[&>tr]:grid max-sm:[&>tr]:grid-cols-[minmax(0,1fr)_auto]">
 								{entries ? (
 									entries.map((entry) => (
 										<AccessRow
@@ -210,7 +210,7 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 						them individually.
 					</DialogDescription>
 				</div>
-				<DialogFooter className="border-t border-border px-6 py-4">
+				<DialogFooter className="border-t px-6 py-4">
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
 						Close
 					</Button>
@@ -280,8 +280,6 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 					triggerRef={triggerRef}
 					// The name is the label, then the selection the trigger shows.
 					triggerAriaLabelledBy={`${triggerId}-label ${triggerId}`}
-					// Its clear control would nest a button inside the trigger button.
-					clearable={false}
 					value={selection}
 					onChange={(selection) =>
 						setDraft((current) => ({ ...current, selection }))

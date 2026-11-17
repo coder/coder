@@ -30,9 +30,9 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 		<div
 			className={cn(
 				"flex flex-col pt-4 px-4 pb-6 rounded",
-				"bg-surface-secondary border border-solid",
+				"bg-surface-secondary border",
 				"cursor-pointer",
-				selected ? "border-border-pending" : "border-border",
+				selected && "border-border-pending",
 			)}
 			onClick={() => onSelect?.()}
 		>

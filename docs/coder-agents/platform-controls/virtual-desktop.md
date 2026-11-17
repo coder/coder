@@ -38,7 +38,7 @@ To change it, you need permission to edit that organization's models.
 1. Select **Save**.
 
 The **Computer use** row appears only while the `chat-virtual-desktop` experiment is enabled.
-The list shows the organization's enabled models that computer use supports: models from Anthropic and OpenAI AI providers, and Claude models from AWS Bedrock AI providers.
+The list shows the organization's enabled models that computer use supports: models from Anthropic, OpenAI, and OpenAI-compatible AI providers, and Claude models from AWS Bedrock AI providers.
 To add a model to the list, enable one of these models on the **Models** page.
 
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
@@ -49,10 +49,14 @@ Computer use is unavailable in a chat when the chat owner has no usable [credent
 It's also unavailable when it runs on the organization's default model and computer use doesn't support that model.
 OpenAI computer use requires the Responses API, so it fails on an OpenAI model whose **Use Responses API** override is set to Off.
 
+An OpenAI-compatible AI provider has no computer use tool of its own, so Coder offers computer use to the model as an ordinary tool and returns a screenshot after every action.
+Coder can't verify an arbitrary OpenAI-compatible model, so such a model keeps the warning icon.
+
 A warning icon next to the model selector means that Coder hasn't verified the model for computer use, or that the model's AI provider type is OpenAI and its **Use Responses API** override is set to Off.
 The icon reflects the selected model, or the organization's default model when no model is selected or the selected model no longer appears in the list.
 The warning doesn't block saving.
 Before you save, confirm that the model supports the provider's computer use tool.
+For an OpenAI-compatible AI provider, confirm instead that the model accepts images and calls tools.
 
 To turn the Responses API back on for a model whose AI provider type is OpenAI:
 

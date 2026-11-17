@@ -17,7 +17,7 @@ export const ToolResultMedia: React.FC<{ media: MediaToolResult }> = ({
 			</div>
 		)}
 		{media.text && (
-			<pre className="mt-1.5 whitespace-pre-wrap break-words text-xs text-content-secondary">
+			<pre className="mt-1.5 whitespace-pre-wrap wrap-break-word text-xs text-content-secondary">
 				{media.text}
 			</pre>
 		)}

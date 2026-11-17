@@ -47,7 +47,8 @@ import {
 } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { coarsePointerMediaQuery } from "#/utils/mobile";
+import { enterSendsAgentChatMessage } from "../../utils/agentChatSendShortcut";
 import {
 	resolveSkillTriggers,
 	type SkillSource,
@@ -370,24 +371,34 @@ const LockedFilePastePlugin: React.FC<{
 	return null;
 };
 
-// Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
-// capability, not viewport width, keeps narrow desktop windows usable.
-// Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
 const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
+	onSendAfterTurn?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
-}> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
+}> = function EnterKeyPlugin({ onEnter, onSendAfterTurn, sendShortcut }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
 		return editor.registerCommand(
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
+				const hasCmdOrCtrl = event?.metaKey || event?.ctrlKey;
+				const enterSends = enterSendsAgentChatMessage(
+					sendShortcut,
+					window.matchMedia(coarsePointerMediaQuery).matches,
+				);
+				if (
+					onSendAfterTurn &&
+					event &&
+					!event.shiftKey &&
+					(enterSends ? hasCmdOrCtrl : event.altKey && !hasCmdOrCtrl)
+				) {
+					event.preventDefault();
+					onSendAfterTurn();
+					return true;
+				}
 				const shouldInsertLineBreak =
-					event?.shiftKey ||
-					(!(event?.metaKey || event?.ctrlKey) &&
-						(window.matchMedia("(pointer: coarse)").matches ||
-							sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT));
+					event?.shiftKey || (!hasCmdOrCtrl && !enterSends);
 				if (shouldInsertLineBreak) {
 					event?.preventDefault();
 					editor.update(() => {
@@ -410,7 +421,7 @@ const EnterKeyPlugin: React.FC<{
 			},
 			COMMAND_PRIORITY_HIGH,
 		);
-	}, [editor, onEnter, sendShortcut]);
+	}, [editor, onEnter, onSendAfterTurn, sendShortcut]);
 
 	return null;
 };
@@ -643,6 +654,7 @@ type ChatMessageInputProps = Omit<
 	remountKey?: number;
 	rows?: number;
 	onEnter: () => void;
+	onSendAfterTurn?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
 	// Returns whether the file was routed anywhere (attachment or
 	// workspace upload). Refused files let the paste fall back to
@@ -822,6 +834,7 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
+	onSendAfterTurn,
 	sendShortcut,
 	onFilePaste,
 	allowTextAttachmentPaste,
@@ -1364,6 +1377,7 @@ const ChatMessageInput = ({
 				/>
 				<EnterKeyPlugin
 					onEnter={disabled ? undefined : onEnter}
+					onSendAfterTurn={disabled ? undefined : onSendAfterTurn}
 					sendShortcut={sendShortcut}
 				/>
 				<IOSBackspacePlugin />

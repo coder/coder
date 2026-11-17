@@ -64,7 +64,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 							target="_blank"
 							rel="noreferrer"
 							showExternalIcon={false}
-							className="p-0 text-xs"
+							className="pl-0 text-xs"
 						>
 							create your own
 						</Link>

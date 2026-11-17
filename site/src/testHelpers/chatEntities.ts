@@ -142,6 +142,20 @@ export const MockChatContextResourceFailures: ChatContext = {
 	],
 };
 
+/** A pinned context whose only resources are disconnected MCP servers. */
+export const MockChatContextMCPServerFailures: ChatContext = {
+	...MockChatContextClean,
+	resources: ["storybook", "playwright", "github"].map<ChatContextResource>(
+		(source) => ({
+			source,
+			kind: "mcp_server",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Failed to connect to MCP server.",
+		}),
+	),
+};
+
 export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
@@ -268,7 +282,14 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	id: 1,
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
+	busy_behavior: "queue",
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatQueuedMessageNotFoundError = {
+	isAxiosError: true,
+	status: 404,
+	response: { status: 404, data: { message: "Queued message not found." } },
 };
 
 // Spread for variants, such as a merged PR or a branch without a PR

@@ -87,8 +87,9 @@ The remote MCP server is an HTTP endpoint exposed by your Coder deployment at `/
 This enables MCP clients to connect to Coder without running the CLI locally.
 
 The endpoint implements the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) in stateless mode: it supports MCP specification versions from `2024-11-05` through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone server-event stream or explicit session termination, both permitted by the specification).
-The server exposes tools only.
-MCP resources, prompts, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
+The server exposes tools and prompts through the default toolset.
+Set the `toolset` query parameter to `chatgpt` to select the ChatGPT toolset, which does not include prompts.
+MCP resources, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
 
 ### Prerequisites
 
@@ -190,7 +191,7 @@ The MCP server exposes tools across several areas:
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
 - **Workspace interaction**: run commands, manage background processes, forward ports, list apps, and read logs
-- **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
+- **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models. By default, a message sent to a busy chat reaches the agent before its next model call. Interrupt the chat only to stop it, not to send it a message.
 - **User and system**: authenticated user details, organization memberships, and tar uploads
 
 The full, authoritative set of tools, including their names, descriptions, and arguments, is defined in Coder's [`toolsdk` package](../codersdk/toolsdk/toolsdk.go).

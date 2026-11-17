@@ -94,7 +94,7 @@ export const PortsMenuItem: React.FC<{
 				{label}
 			</DropdownMenuSubTrigger>
 			<DropdownMenuSubContent
-				className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5!"
+				className="w-56 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5!"
 				sideOffset={9}
 			>
 				<PortsList
@@ -182,7 +182,7 @@ const PortsList: React.FC<{
 				sharedPorts !== undefined &&
 				privateListeningPorts.length === 0 &&
 				sharedPorts.length === 0 && (
-					<p className="px-2 py-2 text-center text-xs text-content-tertiary">
+					<p className="px-2 py-2 text-center text-xs text-content-secondary">
 						No open ports detected.
 					</p>
 				)}
@@ -251,7 +251,7 @@ const ListeningPortItem: React.FC<{
 				<RadioIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{port.port}</span>
 				{port.process_name !== "" && (
-					<span className="truncate text-content-tertiary">
+					<span className="truncate text-content-secondary">
 						{port.process_name}
 					</span>
 				)}
@@ -273,7 +273,7 @@ const ListeningPortItem: React.FC<{
 				<RadioIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{port.port}</span>
 				{port.process_name !== "" && (
-					<span className="truncate text-content-tertiary">
+					<span className="truncate text-content-secondary">
 						{port.process_name}
 					</span>
 				)}
@@ -310,7 +310,7 @@ const SharedPortItem: React.FC<{
 			>
 				<ShareIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{share.port}</span>
-				<span className="truncate capitalize text-content-tertiary">
+				<span className="truncate capitalize text-content-secondary">
 					{share.share_level}
 				</span>
 			</DropdownMenuItem>
@@ -330,7 +330,7 @@ const SharedPortItem: React.FC<{
 			<a href={url} target="_blank" rel="noreferrer">
 				<ShareIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{share.port}</span>
-				<span className="truncate capitalize text-content-tertiary">
+				<span className="truncate capitalize text-content-secondary">
 					{share.share_level}
 				</span>
 				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />

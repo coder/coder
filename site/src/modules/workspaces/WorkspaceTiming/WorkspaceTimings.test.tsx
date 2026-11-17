@@ -19,7 +19,9 @@ describe("WorkspaceTimings", () => {
 			/>,
 		);
 		await user.click(
-			screen.getByRole("button", { name: "View run startup scripts details" }),
+			screen.getByRole("button", {
+				name: /^View run startup scripts details \d/,
+			}),
 		);
 
 		await user.click(screen.getByRole("textbox"));

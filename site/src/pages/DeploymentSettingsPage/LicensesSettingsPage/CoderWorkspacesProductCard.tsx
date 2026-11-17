@@ -22,10 +22,8 @@ export const CoderWorkspacesProductCard: React.FC<
 		: "Unlimited";
 
 	return (
-		<div className="min-w-[320px] flex-1 rounded-sm border border-solid border-border px-6 py-4">
-			<div className="text-sm font-medium text-content-primary">
-				Coder Workspaces
-			</div>
+		<div className="min-w-[320px] flex-1 rounded-sm border px-6 py-4">
+			<div className="text-sm text-content-primary">Coder Workspaces</div>
 			<div className="mt-3 text-xs">
 				<div className="flex items-center gap-1 font-medium text-content-secondary">
 					<span>Active seat usage</span>
@@ -34,7 +32,7 @@ export const CoderWorkspacesProductCard: React.FC<
 							<button
 								type="button"
 								aria-label="Active seat usage information"
-								className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+								className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 							>
 								<InfoIcon className="size-3" />
 							</button>
@@ -45,7 +43,7 @@ export const CoderWorkspacesProductCard: React.FC<
 						</TooltipContent>
 					</Tooltip>
 				</div>
-				<div className="mt-0.5 text-sm font-medium text-content-primary">
+				<div className="mt-0.5 text-sm text-content-primary">
 					{actualLabel} / {limitLabel}
 				</div>
 			</div>

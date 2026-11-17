@@ -200,7 +200,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 			<TableHead scope="row">
 				<AvatarData
 					title={
-						<span className="flex flex-row items-center gap-2">
+						<span className="flex items-center gap-2">
 							<Link
 								asChild
 								showExternalIcon={false}
@@ -329,11 +329,8 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 					)
 				}
 			>
-				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
-						Templates
-						<TemplateHelpPopover />
-					</div>
+				<PageHeaderTitle tooltip={<TemplateHelpPopover />}>
+					Templates
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Select a template to create a workspace.

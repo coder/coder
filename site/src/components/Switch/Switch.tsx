@@ -7,14 +7,16 @@ import { cn } from "cn";
 import { Switch as SwitchPrimitives } from "radix-ui";
 
 const switchVariants = cva(
-	`peer group/switch inline-flex shrink-0 cursor-pointer items-center overflow-hidden rounded-full border transition-colors
-	focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-	focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary
-	disabled:cursor-not-allowed aria-disabled:cursor-not-allowed
-	data-[state=checked]:border-0 data-[state=checked]:p-px
-	data-[state=unchecked]:border-border-control
-	data-[state=unchecked]:hover:enabled:not-aria-disabled:border-border-control-hover
-	data-[state=unchecked]:disabled:border-border data-[state=unchecked]:aria-disabled:border-border`,
+	cn(
+		"peer group/switch inline-flex shrink-0 cursor-pointer items-center overflow-hidden rounded-full border transition-colors",
+		"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+		"focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary",
+		"disabled:cursor-not-allowed aria-disabled:cursor-not-allowed",
+		"data-[state=checked]:border-0 data-[state=checked]:p-px",
+		"data-[state=unchecked]:border-border-control",
+		"data-[state=unchecked]:hover:enabled:not-aria-disabled:border-border-control-hover",
+		"data-[state=unchecked]:disabled:border-border data-[state=unchecked]:aria-disabled:border-border",
+	),
 	{
 		variants: {
 			size: {
@@ -29,15 +31,17 @@ const switchVariants = cva(
 );
 
 const thumbVariants = cva(
-	`pointer-events-none block rounded-full ring-0 transition
-	data-[state=checked]:shadow-[0_0_0_2.5rem] data-[state=checked]:shadow-surface-invert-primary
-	data-[state=checked]:group-hover/switch:group-enabled/switch:group-not-aria-disabled/switch:shadow-surface-invert-secondary
-	data-[state=checked]:data-disabled:shadow-surface-tertiary
-	data-[state=checked]:group-aria-disabled/switch:shadow-surface-tertiary
-	data-[state=unchecked]:translate-x-px data-[state=unchecked]:bg-border-control
-	data-[state=unchecked]:group-hover/switch:group-enabled/switch:group-not-aria-disabled/switch:bg-border-control-hover
-	data-[state=unchecked]:data-disabled:bg-border
-	data-[state=unchecked]:group-aria-disabled/switch:bg-border`,
+	cn(
+		"pointer-events-none block rounded-full ring-0 transition",
+		"data-[state=checked]:shadow-[0_0_0_2.5rem] data-[state=checked]:shadow-surface-invert-primary",
+		"data-[state=checked]:group-hover/switch:group-enabled/switch:group-not-aria-disabled/switch:shadow-surface-invert-secondary",
+		"data-[state=checked]:data-disabled:shadow-surface-tertiary",
+		"data-[state=checked]:group-aria-disabled/switch:shadow-surface-tertiary",
+		"data-[state=unchecked]:translate-x-px data-[state=unchecked]:bg-border-control",
+		"data-[state=unchecked]:group-hover/switch:group-enabled/switch:group-not-aria-disabled/switch:bg-border-control-hover",
+		"data-[state=unchecked]:data-disabled:bg-border",
+		"data-[state=unchecked]:group-aria-disabled/switch:bg-border",
+	),
 	{
 		variants: {
 			size: {

@@ -609,6 +609,7 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		"CODER_AI_BUDGET_PERIOD":                  {},
 		"CODER_AI_BUDGET_POLICY":                  {},
 		"CODER_AI_GATEWAY_ENABLED":                {},
+		"CODER_AI_GATEWAY_EMBEDDED_ENABLED":       {},
 		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS": {},
 		"CODER_AI_GATEWAY_RETENTION":              {},
 
@@ -616,6 +617,7 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		"CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY": {},
 		"CODER_PROMETHEUS_COLLECT_AGENT_STATS":      {},
 		"CODER_PROMETHEUS_COLLECT_DB_METRICS":       {},
+		"CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS":  {},
 	}
 
 	dv := codersdk.DeploymentValues{}

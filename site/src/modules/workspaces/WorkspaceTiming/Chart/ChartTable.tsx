@@ -120,7 +120,7 @@ export const ChartTableRow: React.FC<ChartTableRowProps> = ({
 				scope="row"
 				className="px-(--section-padding) py-2.5 text-right font-medium"
 			>
-				<span className="block w-[calc(var(--y-axis-width)-2*var(--section-padding))] overflow-hidden text-ellipsis whitespace-nowrap">
+				<span className="block w-[calc(var(--y-axis-width)-2*var(--section-padding))] truncate">
 					{label}
 				</span>
 			</th>

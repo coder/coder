@@ -50,7 +50,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 	const titleId = useId();
 
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -66,10 +66,10 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 					</header>
 
 					<CollapsibleContent
-						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-							[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary
-						`}
+						className={cn(
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180",
+							"[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary",
+						)}
 					>
 						<p>
 							A user is considered "engaged" if they initiate a connection to
@@ -91,7 +91,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-0 border-t border-solid">
+			<div className="p-6 border-t">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (
@@ -143,8 +143,9 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={(props) => (
 											<ChartTooltipContent
+												{...props}
 												className="font-medium text-content-secondary"
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
@@ -159,7 +160,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
@@ -189,16 +190,16 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={cn(
+									"size-full flex items-center justify-center",
+									"text-content-secondary text-sm font-medium",
+								)}
 							>
 								No data available
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}
@@ -217,7 +218,7 @@ const DisclosureTrigger: React.FC<React.ComponentProps<typeof Button>> = ({
 }) => (
 	<Button
 		className={cn(
-			"h-auto p-0 border-0 bg-transparent font-medium text-content-secondary",
+			"h-auto p-0 bg-transparent font-medium text-content-secondary",
 			"hover:bg-transparent hover:text-content-primary",
 			"[&[data-state=open]_svg]:rotate-90",
 			className,
@@ -250,10 +251,7 @@ const UserEngagementTable: React.FC<UserEngagementTableProps> = ({ data }) => (
 				<TableBody>
 					{data.map((d) => (
 						<TableRow key={d.date}>
-							<TableHead
-								scope="row"
-								className="border-0 border-t border-border border-solid font-medium"
-							>
+							<TableHead scope="row" className="border-t font-medium">
 								{formatDate(new Date(d.date), {
 									hour: undefined,
 									minute: undefined,

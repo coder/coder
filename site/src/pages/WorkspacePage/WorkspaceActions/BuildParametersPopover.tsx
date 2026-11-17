@@ -53,7 +53,7 @@ export const BuildParametersPopover: React.FC<BuildParametersPopoverProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="bg-surface-secondary border-surface-quaternary w-[304px]"
+				className="bg-surface-secondary border-surface-quaternary w-76"
 			>
 				<BuildParametersPopoverContent
 					workspace={workspace}
