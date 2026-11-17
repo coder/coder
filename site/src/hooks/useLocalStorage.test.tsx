@@ -216,69 +216,6 @@ describe("useLocalStorage", () => {
 
 		expect(result.current[0]).toBe(firstValue);
 	});
-
-	describe("debounceMs", () => {
-		beforeEach(() => {
-			vi.useFakeTimers();
-		});
-
-		it("updates the value immediately and delays the storage write", () => {
-			const key = "test.debounce";
-			const { result } = renderLocalStorageHook(() =>
-				useLocalStorage(key, booleanCodec(false), { debounceMs: 500 }),
-			);
-
-			act(() => result.current[1](true));
-
-			expect(result.current[0]).toBe(true);
-			expect(localStorage.getItem(key)).toBeNull();
-
-			act(() => {
-				vi.advanceTimersByTime(500);
-			});
-
-			expect(localStorage.getItem(key)).toBe("true");
-		});
-
-		it("flushes a pending write on pagehide", () => {
-			const key = "test.debounce-pagehide";
-			const { result } = renderLocalStorageHook(() =>
-				useLocalStorage(key, booleanCodec(false), { debounceMs: 500 }),
-			);
-
-			act(() => result.current[1](true));
-			act(() => {
-				window.dispatchEvent(new Event("pagehide"));
-			});
-
-			expect(localStorage.getItem(key)).toBe("true");
-		});
-
-		it("flushes a pending write on unmount", () => {
-			const key = "test.debounce-unmount";
-			const { result, unmount } = renderLocalStorageHook(() =>
-				useLocalStorage(key, booleanCodec(false), { debounceMs: 500 }),
-			);
-
-			act(() => result.current[1](true));
-			unmount();
-
-			expect(localStorage.getItem(key)).toBe("true");
-		});
-
-		it("flushes a pending write when the key changes", () => {
-			const { result, rerender } = renderLocalStorageHook(
-				({ key }: { key: string }) =>
-					useLocalStorage(key, booleanCodec(false), { debounceMs: 500 }),
-				{ initialProps: { key: "test.debounce-key-a" } },
-			);
-
-			act(() => result.current[1](true));
-			rerender({ key: "test.debounce-key-b" });
-
-			expect(localStorage.getItem("test.debounce-key-a")).toBe("true");
-		});
-	});
 });
 
 describe("getLocalStorageValue", () => {
@@ -295,12 +232,14 @@ describe("getLocalStorageValue", () => {
 		).toBe(true);
 	});
 
-	it("reflects a debounced write that has not flushed yet", () => {
-		const key = "test.getter-pending";
-		vi.useFakeTimers();
-		const { result, unmount } = renderLocalStorageHook(() => ({
+	it("reflects a value kept in memory after a failed write", () => {
+		const key = "test.getter-unsaved";
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("quota", "QuotaExceededError");
+		});
+		const { result } = renderLocalStorageHook(() => ({
 			store: useLocalStorageStore(),
-			value: useLocalStorage(key, booleanCodec(false), { debounceMs: 500 }),
+			value: useLocalStorage(key, booleanCodec(false)),
 		}));
 
 		act(() => result.current.value[1](true));
@@ -308,8 +247,5 @@ describe("getLocalStorageValue", () => {
 		expect(
 			getLocalStorageValue(result.current.store, key, booleanCodec(false)),
 		).toBe(true);
-		expect(localStorage.getItem(key)).toBeNull();
-		unmount();
-		vi.useRealTimers();
 	});
 });

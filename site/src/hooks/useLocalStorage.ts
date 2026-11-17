@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type * as Yup from "yup";
 import {
 	type LocalStorageStore,
@@ -15,8 +15,9 @@ export type Codec<T> = {
 };
 
 /**
- * Reads and parses a key without subscribing, reflecting unflushed writes. Use
- * it when a component reads once per render and does not need to update.
+ * Reads and parses a key without subscribing, reflecting values kept in memory
+ * after a failed write. Use it when a component reads once per render and does
+ * not need to update.
  */
 export function getLocalStorageValue<T>(
 	store: LocalStorageStore,
@@ -32,16 +33,13 @@ function isUpdater<T>(next: React.SetStateAction<T>): next is (prev: T) => T {
 
 /**
  * Reads and writes a localStorage key. Consumers re-render on same-tab writes
- * and on cross-tab storage events. With `debounceMs`, only the storage write
- * is delayed; pending writes flush on `pagehide`, unmount, and key change.
+ * and on cross-tab storage events.
  */
 export function useLocalStorage<T>(
 	key: string,
 	codec: Codec<T>,
-	options?: { debounceMs?: number },
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
 	const store = useLocalStorageStore();
-	const debounceMs = options?.debounceMs ?? 0;
 
 	// A stable subscribe keeps useSyncExternalStore from resubscribing on every render.
 	const subscribeToKey = useCallback(
@@ -52,22 +50,12 @@ export function useLocalStorage<T>(
 		store.readSerialized(key),
 	);
 
-	useEffect(() => {
-		const flushOnPageHide = () => store.flushWrite(key);
-		window.addEventListener("pagehide", flushOnPageHide);
-
-		return () => {
-			window.removeEventListener("pagehide", flushOnPageHide);
-			store.flushWrite(key);
-		};
-	}, [store, key]);
-
 	const setValue = (next: React.SetStateAction<T>) => {
 		const value = isUpdater(next)
 			? next(codec.parse(store.readSerialized(key)))
 			: next;
 
-		store.commitSerialized(key, codec.serialize(value), debounceMs);
+		store.commitSerialized(key, codec.serialize(value));
 	};
 
 	return [codec.parse(serialized), setValue];

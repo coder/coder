@@ -1,29 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 /**
- * A key's value while it differs from localStorage. A key with no entry reads
- * from localStorage directly.
- */
-type Entry =
-	| {
-			state: "pending";
-			serialized: string | null;
-			timer: ReturnType<typeof setTimeout>;
-	  }
-	| { state: "unsaved"; serialized: string | null };
-
-/**
  * Read, write, and subscribe operations over serialized values, shared by the
  * `useLocalStorage` calls in one provider.
  */
 export type LocalStorageStore = {
 	readSerialized: (key: string) => string | null;
-	commitSerialized: (
-		key: string,
-		serialized: string | null,
-		debounceMs: number,
-	) => void;
-	flushWrite: (key: string) => void;
+	commitSerialized: (key: string, serialized: string | null) => void;
 	subscribe: (key: string, onChange: () => void) => () => void;
 	handleStorageEvent: (event: StorageEvent) => void;
 };
@@ -31,7 +14,8 @@ export type LocalStorageStore = {
 /** Creates a store with no values. Each provider creates its own. */
 function createLocalStorageStore(): LocalStorageStore {
 	const listenersByKey = new Map<string, Set<() => void>>();
-	const entries = new Map<string, Entry>();
+	// Values whose write failed. They stay in memory until storage changes for the key.
+	const unsavedWrites = new Map<string, { serialized: string | null }>();
 
 	const notify = (key: string) => {
 		for (const listener of listenersByKey.get(key) ?? []) {
@@ -40,9 +24,9 @@ function createLocalStorageStore(): LocalStorageStore {
 	};
 
 	const readSerialized = (key: string): string | null => {
-		const entry = entries.get(key);
-		if (entry) {
-			return entry.serialized;
+		const unsaved = unsavedWrites.get(key);
+		if (unsaved) {
+			return unsaved.serialized;
 		}
 
 		try {
@@ -52,46 +36,17 @@ function createLocalStorageStore(): LocalStorageStore {
 		}
 	};
 
-	// Failed writes stay in memory as unsaved until storage changes for the key.
-	const writeToStorage = (key: string, serialized: string | null): void => {
+	const commitSerialized = (key: string, serialized: string | null): void => {
 		try {
 			if (serialized === null) {
 				localStorage.removeItem(key);
 			} else {
 				localStorage.setItem(key, serialized);
 			}
+
+			unsavedWrites.delete(key);
 		} catch {
-			entries.set(key, { state: "unsaved", serialized });
-		}
-	};
-
-	const flushWrite = (key: string): void => {
-		const entry = entries.get(key);
-		if (entry?.state !== "pending") {
-			return;
-		}
-
-		clearTimeout(entry.timer);
-		entries.delete(key);
-		writeToStorage(key, entry.serialized);
-	};
-
-	const commitSerialized = (
-		key: string,
-		serialized: string | null,
-		debounceMs: number,
-	): void => {
-		const entry = entries.get(key);
-		if (entry?.state === "pending") {
-			clearTimeout(entry.timer);
-		}
-		entries.delete(key);
-
-		if (debounceMs > 0) {
-			const timer = setTimeout(() => flushWrite(key), debounceMs);
-			entries.set(key, { state: "pending", serialized, timer });
-		} else {
-			writeToStorage(key, serialized);
+			unsavedWrites.set(key, { serialized });
 		}
 
 		notify(key);
@@ -114,15 +69,13 @@ function createLocalStorageStore(): LocalStorageStore {
 	};
 
 	// Storage events come from other tabs. Re-reading localStorage, not the
-	// event payload, supplies the value. A pending local write still wins.
+	// event payload, supplies the value.
 	const handleStorageEvent = (event: StorageEvent): void => {
 		const changedKeys =
 			event.key === null ? [...listenersByKey.keys()] : [event.key];
 
 		for (const key of changedKeys) {
-			if (entries.get(key)?.state === "unsaved") {
-				entries.delete(key);
-			}
+			unsavedWrites.delete(key);
 			notify(key);
 		}
 	};
@@ -130,7 +83,6 @@ function createLocalStorageStore(): LocalStorageStore {
 	return {
 		readSerialized,
 		commitSerialized,
-		flushWrite,
 		subscribe,
 		handleStorageEvent,
 	};
