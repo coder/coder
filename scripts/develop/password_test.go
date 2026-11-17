@@ -183,6 +183,17 @@ func TestSetupFirstUser(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	}
 
+	t.Run("SendsSetupToken", func(t *testing.T) {
+		t.Parallel()
+		const token = "0123456789abcdefghijklmnopqrstuv"
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, &coderdtest.Options{SetupToken: token})
+		cfg := &devConfig{configDir: t.TempDir(), setupToken: token}
+
+		_, err := setupFirstUser(ctx, testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+	})
+
 	t.Run("GeneratesStoresAndReuses", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

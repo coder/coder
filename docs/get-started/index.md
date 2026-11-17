@@ -191,6 +191,8 @@ If it doesn't open automatically, go to <http://localhost:3000>.
 If your control plane is on a network or cloud device, or you are having trouble viewing the page, locate the web UI URL in Coder logs in your terminal.
 It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
 It's one of the first lines of output, so you might have to scroll up to find it.
+When you use this URL, the setup page asks for a setup token.
+Copy it from the line that starts with `Setup token:` in the same output.
 
 This section includes some of the quicker ways to install Coder.
 For more detailed options, visit the [Install](../install/index.md) page.
