@@ -229,9 +229,11 @@ export const createChatStore = (): ChatStore => {
 	let nextPendingRowID = Number.MAX_SAFE_INTEGER;
 	// The pending actions whose requests resolved.
 	let resolvedActionIDs = new Set<number>();
-	// The highest IDs stored. User content above them is new.
+	// The highest message ID and the queued row IDs that the store has
+	// received. User content with other IDs is new. The server can deliver a
+	// steer row before an older queue row, so rows have no highest ID.
 	let highestMessageID = 0;
-	let highestQueuedID = 0;
+	const storedQueuedIDs = new Set<number>();
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -286,8 +288,9 @@ export const createChatStore = (): ChatStore => {
 	};
 
 	// A send's queued row or delivered message counts once, whichever comes
-	// first, by a row ID above highestQueuedID. A user message without a row,
-	// from a direct send or an edit, counts by an ID above highestMessageID.
+	// first, by a row ID that is not in storedQueuedIDs. A user message without
+	// a row, from a direct send or an edit, counts by an ID above
+	// highestMessageID.
 	const countNewUserContent = (
 		messages: readonly TypesGen.ChatMessage[],
 		rows: readonly TypesGen.ChatQueuedMessage[],
@@ -297,18 +300,22 @@ export const createChatStore = (): ChatStore => {
 				role === "user" &&
 				(queuedID === undefined
 					? id > highestMessageID
-					: queuedID > highestQueuedID),
-		).length + rows.filter((row) => row.id > highestQueuedID).length;
+					: !storedQueuedIDs.has(queuedID)),
+		).length + rows.filter((row) => !storedQueuedIDs.has(row.id)).length;
 
-	const raiseHighestIDs = (
+	const recordStoredIDs = (
 		messages: readonly TypesGen.ChatMessage[],
 		rows: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
-		for (const { id, queued_message_id: queuedID = 0 } of messages) {
+		for (const { id, queued_message_id: queuedID } of messages) {
 			highestMessageID = Math.max(highestMessageID, id);
-			highestQueuedID = Math.max(highestQueuedID, queuedID);
+			if (queuedID !== undefined) {
+				storedQueuedIDs.add(queuedID);
+			}
 		}
-		highestQueuedID = Math.max(highestQueuedID, ...rows.map((row) => row.id));
+		for (const row of rows) {
+			storedQueuedIDs.add(row.id);
+		}
 	};
 
 	// An edit of M ends when M is gone and a later user message is stored;
@@ -320,7 +327,7 @@ export const createChatStore = (): ChatStore => {
 		storedQueue?: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
 		const newUserContent = countNewUserContent(messages, storedQueue ?? []);
-		raiseHighestIDs(messages, storedQueue ?? []);
+		recordStoredIDs(messages, storedQueue ?? []);
 		const endedEdits = state.pendingEntries.filter(
 			({ action }) =>
 				action.kind === "edit" &&
@@ -345,7 +352,7 @@ export const createChatStore = (): ChatStore => {
 	const seed = (page: TypesGen.ChatMessagesResponse): void => {
 		syncedSnapshotVersion = page.snapshot_version ?? 0;
 		historyResetVersion = syncedSnapshotVersion;
-		raiseHighestIDs(page.messages, page.queued_messages);
+		recordStoredIDs(page.messages, page.queued_messages);
 		setState((current) => ({
 			...current,
 			messagesByID: buildMessageMap(page.messages),

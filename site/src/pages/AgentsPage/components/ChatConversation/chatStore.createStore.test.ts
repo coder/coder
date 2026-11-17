@@ -898,6 +898,25 @@ describe("pending actions", () => {
 		]);
 	});
 
+	it("ends both sends when a steer send is delivered before an older queued send", () => {
+		const store = seededStore([mockFirstMessage], [], "running");
+		addPending(store, pendingSend("one", "queue"));
+		addPending(store, pendingSend("two", "steer"));
+
+		// One read reports both: the server delivered steer row 13, and row
+		// 12 is still queued.
+		store.batch(() => {
+			store.upsertDurableMessages([delivered(2, "two", 13)]);
+			store.setQueuedMessages([makeQueuedMessage(12, "one")]);
+		});
+
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "user:two"],
+			queue: ["queue:one"],
+		});
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
 	it("queues a send behind an earlier pending message", () => {
 		const store = seededStore([mockFirstMessage], [], "waiting");
 		addPending(store, pendingSend("one"));
