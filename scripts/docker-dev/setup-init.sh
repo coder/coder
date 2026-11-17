@@ -28,7 +28,8 @@ create_bootstrap_token() {
 	# Delete existing token if it exists (in case file was lost but token exists).
 	# Without --delete the token is only expired and keeps its name.
 	$CODER tokens delete --delete "$TOKEN_NAME" 2>/dev/null || true
-	# Create new token with no expiry
+	# A lifetime of 0 gives the default token lifetime of the server,
+	# which is 7 days unless it is configured.
 	TOKEN=$($CODER tokens create --name "$TOKEN_NAME" --lifetime 0)
 	echo "$TOKEN" >"$TOKEN_FILE"
 	echo "Bootstrap token created and saved."
@@ -53,36 +54,57 @@ replace_old_default_passwords() {
 	fi
 }
 
-# Changing the admin password deletes every token of the admin, so the
-# stored bootstrap token can stop working while the password is known.
+# admin_sign_in PASSWORD
+# Sets CODER_SESSION_TOKEN, and status for the message of the caller.
+admin_sign_in() {
+	response=$(jq -n --arg password "$1" '{email: "admin@coder.com", password: $password}' |
+		curl -s -w '\n%{http_code}' -H "Content-Type: application/json" --data-binary @- http://coderd:3000/api/v2/users/login)
+	status=$(printf '%s\n' "$response" | tail -n 1)
+	CODER_SESSION_TOKEN=$(printf '%s\n' "$response" | sed '$d' | jq -r '.session_token // empty' 2>/dev/null || true)
+	[ -n "$CODER_SESSION_TOKEN" ]
+}
+
+# Changing the admin password deletes every token of the admin, and the
+# bootstrap token expires, so the stored token can stop working while
+# the password is known.
 restore_bootstrap_token() {
 	if [ -s "$TOKEN_FILE" ] && curl -s -o /dev/null -w "%{http_code}" \
 		-H "Coder-Session-Token: $(cat "$TOKEN_FILE")" \
 		http://coderd:3000/api/v2/users/me | grep -q "200"; then
 		return 0
 	fi
+	source=""
 	if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]; then
 		password="$CODER_DEV_ADMIN_PASSWORD"
 		source="CODER_DEV_ADMIN_PASSWORD"
 	elif [ -s "$ADMIN_PASSWORD_FILE" ]; then
 		password="$(cat "$ADMIN_PASSWORD_FILE")"
 		source="$ADMIN_PASSWORD_FILE"
+	fi
+	if [ -n "$source" ] && admin_sign_in "$password"; then
+		if [ "$source" = "CODER_DEV_ADMIN_PASSWORD" ] && [ "$(cat "$ADMIN_PASSWORD_FILE" 2>/dev/null)" != "$password" ]; then
+			# The server just accepted the override, so it is stored for
+			# the starts after the variable is unset.
+			store_password "$ADMIN_PASSWORD_FILE" "$password"
+		fi
 	else
-		return 0
-	fi
-	response=$(jq -n --arg password "$password" '{email: "admin@coder.com", password: $password}' |
-		curl -s -w '\n%{http_code}' -H "Content-Type: application/json" --data-binary @- http://coderd:3000/api/v2/users/login)
-	status=$(printf '%s\n' "$response" | tail -n 1)
-	CODER_SESSION_TOKEN=$(printf '%s\n' "$response" | sed '$d' | jq -r '.session_token // empty' 2>/dev/null || true)
-	if [ -z "$CODER_SESSION_TOKEN" ]; then
-		echo "Could not sign in as admin@coder.com to create a new bootstrap token: the server answered HTTP $status to the password from $source." >&2
-		echo "Set CODER_DEV_ADMIN_PASSWORD to the current admin password and start again, or remove the volumes of this environment to start fresh." >&2
-		exit 1
-	fi
-	if [ "$source" = "CODER_DEV_ADMIN_PASSWORD" ] && [ "$(cat "$ADMIN_PASSWORD_FILE" 2>/dev/null)" != "$password" ]; then
-		# The server just accepted the override, so it is stored for
-		# the starts after the variable is unset.
-		store_password "$ADMIN_PASSWORD_FILE" "$password"
+		reason="this environment does not know the admin password"
+		if [ -n "$source" ]; then
+			reason="the server answered HTTP $status to the password from $source"
+		fi
+		# An environment created before passwords were generated can only
+		# be signed in to with the old default once its token has expired.
+		# An override says what the admin password is, so the old default
+		# is not tried against it.
+		if [ "$source" = "CODER_DEV_ADMIN_PASSWORD" ] || ! admin_sign_in "$OLD_DEFAULT_PASSWORD"; then
+			echo "Could not sign in as admin@coder.com to create a new bootstrap token: $reason." >&2
+			echo "Set CODER_DEV_ADMIN_PASSWORD to the current admin password and start again, or remove the volumes of this environment to start fresh." >&2
+			if [ "$source" = "CODER_DEV_ADMIN_PASSWORD" ]; then
+				echo "If the admin still has the old default password, unset CODER_DEV_ADMIN_PASSWORD and start again." >&2
+			fi
+			exit 1
+		fi
+		echo "Signed in as admin@coder.com with the old default password to replace it."
 	fi
 	export CODER_SESSION_TOKEN
 	create_bootstrap_token
@@ -115,6 +137,11 @@ $CODER login http://coderd:3000 \
 	--first-user-password="$PASSWORD" \
 	--first-user-full-name="Admin User" \
 	--first-user-trial=false
+if [ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]; then
+	# The server just accepted the override, so it is stored for the
+	# starts after the variable is unset.
+	store_password "$ADMIN_PASSWORD_FILE" "$PASSWORD"
+fi
 
 # Step 2: Create or retrieve bootstrap token
 if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
