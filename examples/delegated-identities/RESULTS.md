@@ -34,11 +34,24 @@ The Go tests cover the same ground without a cluster, and three things the
 script does not: a chat that runs under an identity, quota that counts
 against the root user, and the cleanup of identities nothing depends on.
 
-One more thing was checked by hand, on a development server with the
-provider branch: a template read `delegated = true`, the parent, the root
-user and the labels for workspaces of a delegated identity and of a delegated
-identity below it, and `delegated = false`, no parent, no labels and the owner
-as its own root user for a person's workspace.
+Two more things were checked by hand, on a development server.
+
+With the provider branch, a template read `delegated = true`, the parent, the
+root user and the labels for workspaces of a delegated identity and of a
+delegated identity below it, and `delegated = false`, no parent, no labels and
+the owner as its own root user for a person's workspace.
+
+The token a template hands to a workspace is held to the scopes of the
+delegated identity that owns it. A member created two delegated identities,
+one with the `template:read` scope and one with no scopes, and a workspace on
+behalf of each from a template that puts
+`data.coder_workspace_owner.me.session_token` in the workspace. The member
+then entered both over SSH. In the first, `coder templates list` showed the
+templates the member sees. In the second it showed none, and fetching a
+template by its ID answered 404. Listing is not refused without the scope:
+Coder answers with an empty list. The token in each workspace belonged to the
+delegated identity. Swapping the scopes of the two identities swapped the
+results on the next request, with the same tokens and no rebuild.
 
 ## What had to change that was not expected
 
