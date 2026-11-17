@@ -28816,7 +28816,7 @@
 					"type": "boolean"
 				},
 				"content": {
-					"description": "Content is the SKILL.md file. Its `disable-model-invocation`\nfrontmatter key agrees with `model_invocable`, so other tools read the\nfile the same way. When the uploaded file says otherwise, the server\nsets the key in the content it returns.",
+					"description": "Content is the SKILL.md file, with its `disable-model-invocation`\nfrontmatter key set to agree with `model_invocable`. A stored file\nwhose key the server cannot set, such as one with a list value, is\nreturned unchanged. Uploads reject such a value.",
 					"type": "string"
 				},
 				"created_at": {

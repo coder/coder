@@ -10003,10 +10003,10 @@ export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
  */
 export interface Skill extends SkillMetadata {
 	/**
-	 * Content is the SKILL.md file. Its `disable-model-invocation`
-	 * frontmatter key agrees with `model_invocable`, so other tools read the
-	 * file the same way. When the uploaded file says otherwise, the server
-	 * sets the key in the content it returns.
+	 * Content is the SKILL.md file, with its `disable-model-invocation`
+	 * frontmatter key set to agree with `model_invocable`. A stored file
+	 * whose key the server cannot set, such as one with a list value, is
+	 * returned unchanged. Uploads reject such a value.
 	 */
 	readonly content: string;
 }

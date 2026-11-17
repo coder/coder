@@ -332,19 +332,17 @@ In the API, the setting is the `model_invocable` field, which is on by default.
 When you create or update a skill through the API without setting `model_invocable`, Coder reads the `disable-model-invocation` frontmatter key that Claude Code, Cursor, and VS Code use:
 
 - `disable-model-invocation: true` makes the skill manual-only, and `disable-model-invocation: false` turns automatic use back on.
-  The value must be the YAML boolean `true` or `false`, not a quoted string.
+  The value must be the YAML boolean `true` or `false`.
+  Coder ignores other words and quoted strings, such as `yes` or `"true"`, so check `model_invocable` in the response to confirm the setting.
+  Coder rejects an upload when it can't replace the value with `true` or `false`, for example when the value is a list.
 - A `model_invocable` value in the request takes priority over the key.
 - New content without the key leaves the setting as it was.
 
-Coder stores the file as you upload it and keeps the setting in `model_invocable`.
-The content that Coder returns matches the setting: its frontmatter sets `disable-model-invocation: true` only when the skill is manual-only.
-This applies to the API and to **Download** and **Export all**, so other tools also treat the file of a manual-only skill as manual-only.
-
-When the file you uploaded doesn't match the setting, Coder changes the value of the key in the content it returns, or adds the key to the frontmatter.
+The `SKILL.md` content that Coder returns matches the setting, in the API and when you select **Download** or **Export all**.
+Its frontmatter sets `disable-model-invocation: true` only when the skill is manual-only, so other tools also treat that file as manual-only.
+If the file you uploaded says otherwise, Coder changes the value of the key in the content it returns, or adds the key.
 The rest of the file stays as you uploaded it.
 Adding the key makes the content about 30&nbsp;bytes larger, so content that you download at the 64&nbsp;KB limit can be too large to upload again.
-
-Coder rejects an upload if it can't change the `disable-model-invocation` value to `true` or `false`, for example when the value is a list.
 
 ### Skills with the same name
 
