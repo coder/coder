@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -57,11 +56,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
 			skill,
 		}
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !isHookRequest(r) {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
@@ -72,8 +67,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			require.NotNil(t, request.Meta.TurnID)
 			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only"}`))
 			require.NoError(t, err)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 
 		server := newHookTestServer(t, db, ps, consumer)
 		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -108,11 +102,10 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			LastModelConfigID: model.ID,
 		})
 
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, _ *http.Request) {
 			_, err := w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
 			require.NoError(t, err)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 
 		server := newHookTestServer(t, db, ps, consumer)
 		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -130,20 +123,32 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 	})
 }
 
-// isHookRequest reports whether r is a lifecycle hook delivery: a POST
-// carrying the dispatcher's bearer token. Package tests run in parallel and
-// a closed httptest server's port can be reused, so a consumer can also
-// receive requests from another test's client that is still retrying.
-func isHookRequest(r *http.Request) bool {
-	return r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+// hookConsumer is a test hook consumer that serves its handler only at a
+// path unique to it. Package tests run in parallel and a closed httptest
+// server's port can be reused, so a consumer can also receive requests from
+// another test's client still targeting that address. Those miss the path
+// and get 404 without reaching the handler.
+type hookConsumer struct {
+	server *httptest.Server
+	url    string
 }
 
-func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server) *dispatch.Dispatcher {
+func newHookConsumer(t *testing.T, handler http.HandlerFunc) *hookConsumer {
+	t.Helper()
+	path := "/hooks/" + uuid.NewString()
+	mux := http.NewServeMux()
+	mux.Handle("POST "+path, handler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return &hookConsumer{server: server, url: server.URL + path}
+}
+
+func newHookDispatcher(t *testing.T, _ database.Store, consumer *hookConsumer) *dispatch.Dispatcher {
 	t.Helper()
 	return dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		consumer.Client(),
-		consumer.URL,
+		consumer.server.Client(),
+		consumer.url,
 		false,
 		"test-hook-secret-32-bytes-minimum!!",
 		time.Second,
@@ -153,7 +158,7 @@ func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server
 	)
 }
 
-func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, consumer *httptest.Server) *chatd.Server {
+func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, consumer *hookConsumer) *chatd.Server {
 	t.Helper()
 	return newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
@@ -172,15 +177,10 @@ func TestHookDispatcherRequiresExperiment(t *testing.T) {
 	})
 
 	var hookRequests atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, _ *http.Request) {
 		hookRequests.Add(1)
 		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
@@ -213,16 +213,11 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 	var received agenthooks.Request
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	server := newHookTestServer(t, db, ps, consumer)
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:  chat.ID,
@@ -252,16 +247,11 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 	var received agenthooks.Request
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"queued override"}},"model_context":"queued context","user_message":"queued notice"}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	server := newHookTestServer(t, db, ps, consumer)
 
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -338,14 +328,13 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("running")},
 			})
 			require.NoError(t, err)
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			consumer := newHookConsumer(t, func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(test.statusCode)
 				if test.response != "" {
 					_, err := w.Write([]byte(test.response))
 					require.NoError(t, err)
 				}
-			}))
-			t.Cleanup(consumer.Close)
+			})
 			server := newHookTestServer(t, db, ps, consumer)
 			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 				ChatID:       chat.ID,
@@ -379,11 +368,7 @@ func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventUserPromptSubmit {
@@ -395,8 +380,7 @@ func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -444,15 +428,10 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 	var received agenthooks.Request
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	server := newHookTestServer(t, db, ps, consumer)
 
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -502,11 +481,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	}
 	var receivedMu sync.Mutex
 	received := make([]receivedHook, 0, 2)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
@@ -520,8 +495,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 		}
 		_, err = w.Write([]byte(response))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	server := newHookTestServer(t, db, ps, consumer)
 
 	chatFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
@@ -638,16 +612,11 @@ func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
 		var received agenthooks.Request
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !isHookRequest(r) {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"queued edit override"}},"model_context":"edit context","user_message":"edit notice"}`))
 			require.NoError(t, err)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		server := newHookTestServer(t, db, ps, consumer)
 
 		require.NoError(t, server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
@@ -671,11 +640,10 @@ func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, _ *http.Request) {
 			_, err := w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
 			require.NoError(t, err)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		server := newHookTestServer(t, db, ps, consumer)
 
 		err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
@@ -702,7 +670,7 @@ func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		_, err := db.DeleteChatQueuedMessageReturningCount(r.Context(), database.DeleteChatQueuedMessageReturningCountParams{
 			ID: queued.ID, ChatID: chat.ID,
 		})
@@ -713,8 +681,7 @@ func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 		})
 		require.NoError(t, err)
 		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	server := newHookTestServer(t, db, ps, consumer)
 
 	err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
@@ -741,12 +708,11 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 	var dispatched atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, _ *http.Request) {
 		dispatched.Add(1)
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	server := newHookTestServer(t, db, ps, consumer)
 
 	_, err := server.EditMessage(ctx, chatd.EditMessageOptions{
@@ -790,7 +756,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		received := make(chan agenthooks.Request, 8)
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&request)) {
 				w.WriteHeader(http.StatusBadRequest)
@@ -799,8 +765,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 			received <- request
 			_, err := w.Write([]byte(`{}`))
 			assert.NoError(t, err)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 			cfg.Limits = limits

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -164,11 +163,7 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 			model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
 
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if !isHookRequest(r) {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
+			consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				body := `{}`
@@ -177,8 +172,7 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 				}
 				_, err := w.Write([]byte(body))
 				require.NoError(t, err)
-			}))
-			t.Cleanup(consumer.Close)
+			})
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
@@ -259,11 +253,7 @@ func startCompactionHookChat(
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isHookRequest(r) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {
@@ -278,8 +268,7 @@ func startCompactionHookChat(
 			_, err := w.Write([]byte(body))
 			require.NoError(t, err)
 		}
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)

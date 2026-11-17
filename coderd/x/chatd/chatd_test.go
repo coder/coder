@@ -11365,11 +11365,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		// A pre_tool_use dispatch failure errors admission before the
 		// step commits, so the call never reaches executeLocalTools.
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !isHookRequest(r) {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			if request.Type != agenthooks.EventPreToolUse {
@@ -11378,8 +11374,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: org.ID,
@@ -14898,15 +14893,14 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 	t.Run("PostToolUseHookFailureFailsTurn", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			if err := json.NewDecoder(r.Body).Decode(&request); err == nil && request.Type == agenthooks.EventPostToolUse {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			_, _ = w.Write([]byte(`{}`))
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		var calls atomic.Int32
 		h := newHarness(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if !req.Stream {
