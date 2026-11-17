@@ -1000,7 +1000,7 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		}
 	}
 	if hasUser && cfg.password == "" {
-		replaced, err := replaceOldDefaultAdmin(ctx, client, adminPath)
+		replaced, err := replaceOldDefaultAdmin(ctx, serverURL, adminPath)
 		if err != nil {
 			logger.Warn(ctx, "failed to replace the old default password of admin@coder.com", slog.Error(err))
 		}
@@ -1020,6 +1020,7 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		// not know.
 		var err error
 		password := cfg.password
+		refused := errUnknownAdminPassword
 		switch {
 		case password != "":
 		case hasUser:
@@ -1031,6 +1032,7 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 			if !ok {
 				return nil, errUnknownAdminPassword
 			}
+			refused = errRefusedAdminPassword
 		default:
 			password, err = loadOrCreatePassword(adminPath)
 			if err != nil {
@@ -1059,7 +1061,7 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		})
 		if err != nil {
 			if apiErr, ok := codersdk.AsError(err); ok && hasUser && apiErr.StatusCode() == http.StatusUnauthorized {
-				return nil, errUnknownAdminPassword
+				return nil, refused
 			}
 			return nil, xerrors.Errorf("login: %w", err)
 		}
@@ -1072,10 +1074,11 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 			return nil, xerrors.Errorf("writing url: %w", err)
 		}
 		if cfg.password != "" {
-			// Without a stored password develop cannot sign in once the
-			// session expires, unless the flag is passed on every run.
-			if _, ok, err := readPassword(adminPath); err == nil && !ok {
-				if err := storePassword(adminPath, password); err != nil {
+			// The server just accepted the override, so it is stored for
+			// the runs after the session expires. A stored password that
+			// differs is one the server no longer accepts.
+			if stored, ok, err := readPassword(adminPath); err != nil || !ok || stored != password {
+				if err := replacePassword(adminPath, password); err != nil {
 					logger.Warn(ctx, "failed to store the admin password", slog.Error(err))
 				}
 			}
@@ -1129,6 +1132,9 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 var errUnknownAdminPassword = xerrors.New("cannot sign in as admin@coder.com: develop.sh does not know the password of this instance: " +
 	"run once with --password and the current password, or save it in .coderv2/" + adminPasswordFile + ", or run with --db-reset to start fresh")
 
+var errRefusedAdminPassword = xerrors.New("cannot sign in as admin@coder.com: the server refused the password stored in .coderv2/" + adminPasswordFile + ": " +
+	"run once with --password and the current password to replace it, or run with --db-reset to start fresh")
+
 func (c *devConfig) checkPasswordFiles() error {
 	if c.skipSetup {
 		return nil
@@ -1142,41 +1148,49 @@ func (c *devConfig) checkPasswordFiles() error {
 	return err
 }
 
-// replaceOldDefaultAdmin signs in with the old default when develop has
-// no session, because the password can only be changed by a signed-in
-// user.
-func replaceOldDefaultAdmin(ctx context.Context, client *codersdk.Client, path string) (bool, error) {
-	if _, ok, err := readPassword(path); err != nil || ok {
-		return false, err
-	}
-	if client.SessionToken() == "" {
-		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    "admin@coder.com",
-			Password: oldDefaultPassword,
-		})
-		if err != nil {
-			if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusUnauthorized {
-				return false, nil
-			}
-			return false, xerrors.Errorf("sign in with the old default password: %w", err)
+// replaceOldDefaultAdmin signs in with the old default instead of using
+// the saved session, because the saved session can belong to another
+// user and the change applies to the user that is signed in.
+func replaceOldDefaultAdmin(ctx context.Context, serverURL *url.URL, path string) (bool, error) {
+	client := codersdk.New(serverURL)
+	resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		Email:    "admin@coder.com",
+		Password: oldDefaultPassword,
+	})
+	if err != nil {
+		if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusUnauthorized {
+			return false, nil
 		}
-		client.SetSessionToken(resp.SessionToken)
-		defer client.SetSessionToken("")
+		return false, xerrors.Errorf("sign in with the old default password: %w", err)
 	}
+	client.SetSessionToken(resp.SessionToken)
 	return replaceOldDefault(ctx, client, codersdk.Me, path)
 }
 
-// replaceOldDefault gives an existing user a generated password when
-// its password is still the old default, which is public. The server
-// checks the old password, so a password that was changed by hand is
-// kept. It reports false when the user keeps its password.
+// replaceOldDefault gives an existing user the stored password, or a
+// generated one, when its password is still the old default, which is
+// public. The server checks the old password, so a password that was
+// changed by hand is kept. A stored password does not show that the
+// user has it: an older develop can recreate the user with the old
+// default in the same checkout. It reports false when the user keeps
+// its password.
 func replaceOldDefault(ctx context.Context, client *codersdk.Client, user, path string) (bool, error) {
-	if _, ok, err := readPassword(path); err != nil || ok {
-		return false, err
-	}
-	password, err := loadOrCreatePassword(path)
+	password, stored, err := readPassword(path)
 	if err != nil {
 		return false, err
+	}
+	if stored && password == oldDefaultPassword {
+		// The server refuses a new password that equals the current one.
+		if err := os.Remove(path); err != nil {
+			return false, xerrors.Errorf("remove password file %s: %w", path, err)
+		}
+		stored = false
+	}
+	if !stored {
+		password, err = loadOrCreatePassword(path)
+		if err != nil {
+			return false, err
+		}
 	}
 	err = client.UpdateUserPassword(ctx, user, codersdk.UpdateUserPasswordRequest{
 		OldPassword: oldDefaultPassword,
@@ -1185,10 +1199,12 @@ func replaceOldDefault(ctx context.Context, client *codersdk.Client, user, path 
 	if err == nil {
 		return true, nil
 	}
-	// A stored password that the server did not accept would be shown
-	// in the banner and tried at the next sign-in.
-	if rmErr := os.Remove(path); rmErr != nil {
-		return false, xerrors.Errorf("remove unused password file %s: %w", path, rmErr)
+	if !stored {
+		// A generated password that the server did not accept would be
+		// shown in the banner and tried at the next sign-in.
+		if rmErr := os.Remove(path); rmErr != nil {
+			return false, xerrors.Errorf("remove unused password file %s: %w", path, rmErr)
+		}
 	}
 	if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusBadRequest {
 		for _, v := range apiErr.Validations {

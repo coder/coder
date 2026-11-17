@@ -34,22 +34,44 @@ create_password_file() {
 	)
 }
 
+# store_password FILE VALUE
+store_password() {
+	(
+		umask 077
+		printf '%s' "$2" >"$1"
+	)
+}
+
 # replace_old_default USER FILE TOKEN
-# The server checks the old password, so a password that was changed by
-# hand is kept. Returns 0 only when the password was replaced.
+# Gives the user the stored password, or a generated one, when its
+# password is still the old default. The server checks the old password,
+# so a password that was changed by hand is kept. A stored password does
+# not show that the user has it. Returns 0 only when the password was
+# replaced.
 replace_old_default() {
+	if [ -s "$2" ] && [ "$(cat "$2")" = "$OLD_DEFAULT_PASSWORD" ]; then
+		# The server refuses a new password that equals the current one.
+		rm -f "$2"
+	fi
+	stored=0
+	if [ -s "$2" ]; then
+		stored=1
+	fi
 	create_password_file "$2"
-	status=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-		-H "Coder-Session-Token: $3" \
-		-H "Content-Type: application/json" \
-		--data "{\"old_password\":\"$OLD_DEFAULT_PASSWORD\",\"password\":\"$(cat "$2")\"}" \
-		"http://coderd:3000/api/v2/users/$1/password")
+	status=$(jq -n --arg old "$OLD_DEFAULT_PASSWORD" --arg new "$(cat "$2")" '{old_password: $old, password: $new}' |
+		curl -s -o /dev/null -w "%{http_code}" -X PUT \
+			-H "Coder-Session-Token: $3" \
+			-H "Content-Type: application/json" \
+			--data-binary @- \
+			"http://coderd:3000/api/v2/users/$1/password")
 	if [ "$status" = "204" ]; then
 		return 0
 	fi
-	# A stored password that the server did not accept would be printed
-	# as the login.
-	rm -f "$2"
+	if [ "$stored" = 0 ]; then
+		# A generated password that the server did not accept would be
+		# printed as the login.
+		rm -f "$2"
+	fi
 	if [ "$status" != "400" ]; then
 		echo "Could not replace the password of $1: the server answered HTTP $status." >&2
 	fi
