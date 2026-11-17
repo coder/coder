@@ -100,13 +100,14 @@ INSERT INTO
 		initiator_id,
 		job_id,
 		provisioner_state,
+		provisioner_state_key_id,
 		deadline,
 		max_deadline,
 		reason,
 		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
@@ -138,7 +139,19 @@ UPDATE
 	workspace_builds
 SET
 	provisioner_state = @provisioner_state::bytea,
+	provisioner_state_key_id = sqlc.narg('provisioner_state_key_id'),
 	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
+
+-- name: UpdateEncryptedWorkspaceBuildProvisionerState :exec
+-- Updates only the provisioner state columns on a row and leaves updated_at
+-- as it is. Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+-- rows in place.
+UPDATE
+	workspace_builds
+SET
+	provisioner_state = @provisioner_state::bytea,
+	provisioner_state_key_id = sqlc.narg('provisioner_state_key_id')
 WHERE id = @id::uuid;
 
 -- name: UpdateWorkspaceBuildNotifiedAutostopDeadline :exec
@@ -291,6 +304,7 @@ GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
 -- accessible to template administrators.
 SELECT
 	workspace_builds.provisioner_state,
+	workspace_builds.provisioner_state_key_id,
 	templates.id AS template_id,
 	templates.organization_id AS template_organization_id,
 	templates.user_acl,
@@ -303,6 +317,25 @@ INNER JOIN
 	templates ON templates.id = workspaces.template_id
 WHERE
 	workspace_builds.id = @workspace_build_id;
+
+-- name: GetWorkspaceBuildProvisionerStateKeyIDs :many
+-- Returns a page of workspace builds that hold provisioner state across the
+-- deployment, ordered by id, along with the key each state is stored with.
+-- Pass the last returned id as after_id to fetch the next page. Used only by
+-- the dbcrypt key rotation utility.
+SELECT
+	id,
+	provisioner_state_key_id
+FROM
+	workspace_builds
+WHERE
+	provisioner_state IS NOT NULL
+	AND provisioner_state != ''::bytea
+	AND id > @after_id::uuid
+ORDER BY
+	id
+LIMIT
+	@limit_count::int;
 
 -- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
 SELECT

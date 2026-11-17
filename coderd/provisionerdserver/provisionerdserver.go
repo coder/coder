@@ -1410,9 +1410,10 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 
 			if jobType.WorkspaceBuild.State != nil {
 				err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-					ID:               input.WorkspaceBuildID,
-					UpdatedAt:        s.timeNow(),
-					ProvisionerState: jobType.WorkspaceBuild.State,
+					ID:                    input.WorkspaceBuildID,
+					UpdatedAt:             s.timeNow(),
+					ProvisionerState:      jobType.WorkspaceBuild.State,
+					ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will set as required
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build state: %w", err)
@@ -2278,9 +2279,10 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update provisioner job: %w", err)
 		}
 		err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-			ID:               workspaceBuild.ID,
-			ProvisionerState: jobType.WorkspaceBuild.State,
-			UpdatedAt:        now,
+			ID:                    workspaceBuild.ID,
+			ProvisionerState:      jobType.WorkspaceBuild.State,
+			ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will set as required
+			UpdatedAt:             now,
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace build provisioner state: %w", err)

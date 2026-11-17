@@ -428,9 +428,10 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 						return xerrors.Errorf("get previous workspace build provisioner state: %w", err)
 					}
 					err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-						ID:               build.ID,
-						UpdatedAt:        dbtime.Now(),
-						ProvisionerState: prevStateRow.ProvisionerState,
+						ID:                    build.ID,
+						UpdatedAt:             dbtime.Now(),
+						ProvisionerState:      prevStateRow.ProvisionerState,
+						ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will set as required
 					})
 					if err != nil {
 						return xerrors.Errorf("update workspace build by id: %w", err)

@@ -22150,6 +22150,46 @@ func TestGetWorkspaceSecretsPaginates(t *testing.T) {
 	require.Equal(t, 3, pages)
 }
 
+func TestGetWorkspaceBuildProvisionerStateKeyIDsPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	workspace := database.WorkspaceTable{OrganizationID: org.ID, OwnerID: user.ID}
+
+	// A build without provisioner state must not be listed.
+	dbfake.WorkspaceBuild(t, db, workspace).Do()
+	var want []uuid.UUID
+	for range 5 {
+		build := dbfake.WorkspaceBuild(t, db, workspace).ProvisionerState([]byte("state")).Do().Build
+		want = append(want, build.ID)
+	}
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetWorkspaceBuildProvisionerStateKeyIDs(ctx, database.GetWorkspaceBuildProvisionerStateKeyIDsParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, build := range page {
+			got = append(got, build.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every build with provisioner state is listed once, in id order")
+	require.Equal(t, 3, pages)
+}
+
 func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
 	t.Parallel()
 

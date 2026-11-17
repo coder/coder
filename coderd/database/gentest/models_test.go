@@ -66,9 +66,11 @@ func TestViewSubsetWorkspaceBuild(t *testing.T) {
 	// ProvisionerState is intentionally excluded from the
 	// workspace_build_with_user view to avoid loading multi-MB Terraform
 	// state blobs on hot paths. Callers that need it use
-	// GetWorkspaceBuildProvisionerStateByID instead.
+	// GetWorkspaceBuildProvisionerStateByID instead. Its dbcrypt key ID
+	// column travels with it.
 	excludedFields := map[string]bool{
-		"ProvisionerState": true,
+		"ProvisionerState":      true,
+		"ProvisionerStateKeyID": true,
 	}
 
 	var filtered []string

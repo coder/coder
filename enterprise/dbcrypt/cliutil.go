@@ -261,6 +261,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting workspace build provisioner state")
+	if err := rewriteWorkspaceBuildStates(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -506,6 +511,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting workspace build provisioner state")
+	if err := rewriteWorkspaceBuildStates(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -520,6 +530,85 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 // workspaceSecretsPageSize bounds how many workspace secrets Rotate and
 // Decrypt hold in memory at once.
 const workspaceSecretsPageSize = 1000
+
+// keyIDPageSize bounds how many rows Rotate and Decrypt list at once when
+// they look up the key each value is stored with.
+const keyIDPageSize = 100
+
+// rewriteWorkspaceBuildStates saves the provisioner state of every workspace
+// build again through cryptDB, which stores it with wantKeyID. Builds whose
+// state is already stored with wantKeyID are skipped. Rotate passes the digest
+// of the primary cipher. Decrypt passes "", because it stores values
+// unencrypted.
+func rewriteWorkspaceBuildStates(ctx context.Context, log slog.Logger, cryptDB database.Store, wantKeyID string) error {
+	afterID := uuid.Nil
+	for {
+		page, err := cryptDB.GetWorkspaceBuildProvisionerStateKeyIDs(ctx, database.GetWorkspaceBuildProvisionerStateKeyIDsParams{
+			AfterID:    afterID,
+			LimitCount: keyIDPageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list workspace builds with provisioner state after id=%s: %w", afterID, err)
+		}
+		for _, build := range page {
+			if build.ProvisionerStateKeyID.String == wantKeyID {
+				log.Debug(ctx, "skipping workspace build provisioner state", slog.F("build_id", build.ID), slog.F("key_id", wantKeyID))
+				continue
+			}
+			if err := rewriteWorkspaceBuildState(ctx, cryptDB, build.ID, wantKeyID); err != nil {
+				return xerrors.Errorf("rewrite provisioner state for build %s: %w", build.ID, err)
+			}
+			log.Debug(ctx, "rewrote workspace build provisioner state", slog.F("build_id", build.ID), slog.F("key_id", wantKeyID))
+		}
+		if len(page) < keyIDPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1].ID
+	}
+}
+
+// buildStateRewriteAttempts is how many times rewriteWorkspaceBuildState
+// tries a build whose state keeps changing before it gives up.
+const buildStateRewriteAttempts = 3
+
+// rewriteWorkspaceBuildState saves the provisioner state of one workspace
+// build again. The control plane can store new state for the build while the
+// sweep runs, so the state is read and written in one repeatable read
+// transaction. If the row changes after the read, Postgres fails the write
+// instead of replacing the new state, and the build is read again.
+func rewriteWorkspaceBuildState(ctx context.Context, cryptDB database.Store, buildID uuid.UUID, wantKeyID string) error {
+	var err error
+	for attempt := 0; attempt < buildStateRewriteAttempts; attempt++ {
+		err = cryptDB.InTx(func(tx database.Store) error {
+			return rewriteWorkspaceBuildStateInTx(ctx, tx, buildID, wantKeyID)
+		}, &database.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+		})
+		if !database.IsSerializedError(err) {
+			return err
+		}
+	}
+	return err
+}
+
+// rewriteWorkspaceBuildStateInTx is the body of the transaction that
+// rewriteWorkspaceBuildState runs.
+func rewriteWorkspaceBuildStateInTx(ctx context.Context, tx database.Store, buildID uuid.UUID, wantKeyID string) error {
+	state, err := tx.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+	if err != nil {
+		return xerrors.Errorf("get provisioner state: %w", err)
+	}
+	if state.ProvisionerStateKeyID.String == wantKeyID {
+		// The state changed since it was listed and is already stored with
+		// wantKeyID.
+		return nil
+	}
+	return tx.UpdateEncryptedWorkspaceBuildProvisionerState(ctx, database.UpdateEncryptedWorkspaceBuildProvisionerStateParams{
+		ID:                    buildID,
+		ProvisionerState:      state.ProvisionerState,
+		ProvisionerStateKeyID: sql.NullString{}, // Set by cryptDB.
+	})
+}
 
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
@@ -578,6 +667,13 @@ UPDATE ai_providers
 	SET settings = NULL,
 		settings_key_id = NULL
 	WHERE settings_key_id IS NOT NULL;
+-- Terraform state cannot be recovered without the encryption keys. Clear it
+-- rather than leaving unreadable ciphertext; affected workspaces must be
+-- rebuilt and may leave orphaned cloud resources behind.
+UPDATE workspace_builds
+	SET provisioner_state = NULL,
+		provisioner_state_key_id = NULL
+	WHERE provisioner_state_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;

@@ -1162,6 +1162,89 @@ func (db *dbCrypt) UpdateGitSSHKey(ctx context.Context, params database.UpdateGi
 	return key, nil
 }
 
+// InsertWorkspaceBuild encrypts the provisioner state before it is stored.
+func (db *dbCrypt) InsertWorkspaceBuild(ctx context.Context, params database.InsertWorkspaceBuildParams) error {
+	if err := db.encryptBytes(&params.ProvisionerState, &params.ProvisionerStateKeyID); err != nil {
+		return err
+	}
+	return db.Store.InsertWorkspaceBuild(ctx, params)
+}
+
+func (db *dbCrypt) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, params database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	if err := db.encryptBytes(&params.ProvisionerState, &params.ProvisionerStateKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateWorkspaceBuildProvisionerStateByID(ctx, params)
+}
+
+// UpdateEncryptedWorkspaceBuildProvisionerState is a maintenance-only query
+// used by `coder server dbcrypt` sweeps.
+func (db *dbCrypt) UpdateEncryptedWorkspaceBuildProvisionerState(ctx context.Context, params database.UpdateEncryptedWorkspaceBuildProvisionerStateParams) error {
+	if err := db.encryptBytes(&params.ProvisionerState, &params.ProvisionerStateKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateEncryptedWorkspaceBuildProvisionerState(ctx, params)
+}
+
+func (db *dbCrypt) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
+	row, err := db.Store.GetWorkspaceBuildProvisionerStateByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceBuildProvisionerStateByIDRow{}, err
+	}
+	if err := db.decryptBytes(&row.ProvisionerState, row.ProvisionerStateKeyID); err != nil {
+		return database.GetWorkspaceBuildProvisionerStateByIDRow{}, err
+	}
+	return row, nil
+}
+
+// encryptBytes encrypts a bytea field in place. Unlike encryptField, the
+// ciphertext is stored raw rather than base64-encoded, since bytea columns
+// hold arbitrary bytes and provisioner state can be multiple megabytes.
+// Empty values are stored as-is.
+func (db *dbCrypt) encryptBytes(field *[]byte, digest *sql.NullString) error {
+	if db.ciphers == nil || db.primaryCipherDigest == "" {
+		return nil
+	}
+	if field == nil || digest == nil {
+		return xerrors.Errorf("developer error: encryptBytes called with nil argument")
+	}
+	if len(*field) == 0 {
+		return nil
+	}
+	encrypted, err := db.ciphers[db.primaryCipherDigest].Encrypt(*field)
+	if err != nil {
+		return err
+	}
+	*field = encrypted
+	*digest = sql.NullString{String: db.primaryCipherDigest, Valid: true}
+	return nil
+}
+
+// decryptBytes reverses encryptBytes. A NULL digest means the value was
+// stored in plaintext and is returned as-is. If the value fails to decrypt,
+// a DecryptFailedError is returned.
+func (db *dbCrypt) decryptBytes(field *[]byte, digest sql.NullString) error {
+	if field == nil {
+		return xerrors.Errorf("developer error: decryptBytes called with nil field")
+	}
+	if !digest.Valid || digest.String == "" {
+		// This field is not encrypted.
+		return nil
+	}
+	key, ok := db.ciphers[digest.String]
+	if !ok {
+		return &DecryptFailedError{
+			Inner: xerrors.Errorf("no cipher with digest %q", digest.String),
+		}
+	}
+	decrypted, err := key.Decrypt(*field)
+	if err != nil {
+		return &DecryptFailedError{Inner: err}
+	}
+	*field = decrypted
+	return nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
