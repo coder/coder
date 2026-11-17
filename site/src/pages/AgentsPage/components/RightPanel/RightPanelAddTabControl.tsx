@@ -5,6 +5,7 @@ import {
 	GlobeIcon,
 	LayoutGridIcon,
 	MonitorIcon,
+	NetworkIcon,
 	PlusIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
@@ -47,6 +48,7 @@ const singletonTabMenuEntries: readonly {
 	{ id: "browser", label: "Browser", icon: <GlobeIcon /> },
 	{ id: "desktop", label: "Desktop", icon: <MonitorIcon /> },
 	{ id: "debug", label: "Debug", icon: <BugIcon /> },
+	{ id: "preview", label: "Preview", icon: <NetworkIcon /> },
 ];
 
 // usePortsData requires a workspace and agent, which are optional props on the
