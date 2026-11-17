@@ -599,7 +599,7 @@ require (
 )
 
 require (
-	github.com/coder/gpgkms v0.1.2 // indirect
+	github.com/coder/gpgkms v0.2.0 // indirect
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
 	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect

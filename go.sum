@@ -329,8 +329,8 @@ github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322 h1:m0lPZjlQ7vdVp
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322/go.mod h1:rOLFDDVKVFiDqZFXoteXc97YXx7kFi9kYqR+2ETPkLQ=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs24WOxc3PBvygSNTQurm0PYPujJjLLOzs0=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
-github.com/coder/gpgkms v0.1.2 h1:Q1pjKgEzkExq4DIU3qKNUkEUGbXFwln1Mx6tPLspM8w=
-github.com/coder/gpgkms v0.1.2/go.mod h1:Kx5c1B1xARHMBAOcr3eoTRLWdksEY0S6TGfwqAGlaZs=
+github.com/coder/gpgkms v0.2.0 h1:K0ZdTbNV31+2pZNqPlbukfS54pXfyA5wuW9Ly8HnpgI=
+github.com/coder/gpgkms v0.2.0/go.mod h1:Kx5c1B1xARHMBAOcr3eoTRLWdksEY0S6TGfwqAGlaZs=
 github.com/coder/guts v1.7.0 h1:TaZ/PR9wgN8dlbcckaWV1MxkkuEFZRwSRwBBEm8dYXs=
 github.com/coder/guts v1.7.0/go.mod h1:30SShdvpmsauNlsNjECRB5AppScjYk08rf2ZVpH3MFg=
 github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714 h1:j7tyq3rv0ZXkbyy/BE5K3lYiIqEsV8sDTiTjpLLxjiw=
