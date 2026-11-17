@@ -2365,16 +2365,13 @@ COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories 
 CREATE TABLE chat_project_pins (
     user_id uuid NOT NULL,
     project_id uuid NOT NULL,
-    pin_order integer DEFAULT 0 NOT NULL,
+    pin_order integer NOT NULL,
     source chat_project_pin_source NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    unpinned_at timestamp with time zone,
-    CONSTRAINT chat_project_pins_pin_order_check CHECK ((((unpinned_at IS NULL) AND (pin_order > 0)) OR ((unpinned_at IS NOT NULL) AND (pin_order = 0))))
+    CONSTRAINT chat_project_pins_pin_order_check CHECK ((pin_order > 0))
 );
 
 COMMENT ON TABLE chat_project_pins IS 'Per-user pinned chat projects. Pins can outlive project access, so readers must check access.';
-
-COMMENT ON COLUMN chat_project_pins.unpinned_at IS 'When the user unpinned the project. A row with this set is a tombstone kept for telemetry, not a pin.';
 
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -5245,7 +5242,7 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
-CREATE INDEX idx_chat_project_pins_user_order ON chat_project_pins USING btree (user_id, pin_order) WHERE (unpinned_at IS NULL);
+CREATE INDEX idx_chat_project_pins_user_order ON chat_project_pins USING btree (user_id, pin_order);
 
 CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 

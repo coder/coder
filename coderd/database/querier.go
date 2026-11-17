@@ -568,7 +568,7 @@ type sqlcQuerier interface {
 	// Users act on pins by pinning, reordering, or unpinning a project.
 	GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error)
 	// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
-	// user's active pin and aggregates over the user's own top-level,
+	// user's pin and aggregates over the user's own top-level,
 	// non-archived chats. Entries match regardless of the actions they grant,
 	// so callers must authorize each row; pins on projects the user can no
 	// longer see are never returned.
@@ -1610,8 +1610,7 @@ type sqlcQuerier interface {
 	// re-authenticate under a new OIDC provider.
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
-	// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
-	// The source is kept so telemetry can tell which pins users removed.
+	// Deletes a pin and compacts the remaining pins to 1..N.
 	// Unpinning a project that is not pinned changes nothing. Like
 	// PinChatProject, pins the user can still see come first, and callers must
 	// hold the per-user pin lock.
