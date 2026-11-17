@@ -1046,6 +1046,15 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		if err := cfgRoot.URL().Write(apiURL); err != nil {
 			return nil, xerrors.Errorf("writing url: %w", err)
 		}
+		if cfg.password != "" {
+			// Without a stored password develop cannot sign in once the
+			// session expires, unless the flag is passed on every run.
+			if _, ok, err := readPassword(adminPath); err == nil && !ok {
+				if err := storePassword(adminPath, password); err != nil {
+					logger.Warn(ctx, "failed to store the admin password", slog.Error(err))
+				}
+			}
+		}
 		cfg.adminLogin = devLogin{password: password, fromFlag: cfg.password != "", seeded: true}
 	} else {
 		cfg.adminLogin = cfg.knownLogin(ctx, logger, "admin@coder.com", adminPath, cfg.password)
@@ -1093,7 +1102,7 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 }
 
 var errUnknownAdminPassword = xerrors.New("cannot sign in as admin@coder.com: develop.sh does not know the password of this instance: " +
-	"run with --db-reset to start fresh, or pass the current password with --password")
+	"run once with --password and the current password, or save it in .coderv2/" + adminPasswordFile + ", or run with --db-reset to start fresh")
 
 func (c *devConfig) checkPasswordFiles() error {
 	if c.skipSetup {

@@ -52,21 +52,28 @@ func loadOrCreatePassword(path string) (string, error) {
 	if err != nil {
 		return "", xerrors.Errorf("generate password: %w", err)
 	}
+	if err := storePassword(path, password); err != nil {
+		return "", err
+	}
+	return password, nil
+}
+
+func storePassword(path, password string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return "", xerrors.Errorf("create directory for %s: %w", path, err)
+		return xerrors.Errorf("create directory for %s: %w", path, err)
 	}
 	// O_EXCL makes a second develop that starts at the same moment fail
 	// instead of replacing a password the first one is about to use.
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return "", xerrors.Errorf("create password file %s: %w", path, err)
+		return xerrors.Errorf("create password file %s: %w", path, err)
 	}
 	if _, err := f.WriteString(password + "\n"); err != nil {
 		_ = f.Close()
-		return "", xerrors.Errorf("write password file %s: %w", path, err)
+		return xerrors.Errorf("write password file %s: %w", path, err)
 	}
 	if err := f.Close(); err != nil {
-		return "", xerrors.Errorf("close password file %s: %w", path, err)
+		return xerrors.Errorf("close password file %s: %w", path, err)
 	}
-	return password, nil
+	return nil
 }

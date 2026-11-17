@@ -218,7 +218,7 @@ func TestSetupFirstUser(t *testing.T) {
 		require.Equal(t, cfg.memberLogin, again.memberLogin)
 	})
 
-	t.Run("OverrideIsUsedAndNotStored", func(t *testing.T) {
+	t.Run("OverrideIsStoredWhenNoPasswordIs", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, nil)
@@ -227,12 +227,40 @@ func TestSetupFirstUser(t *testing.T) {
 		_, err := setupFirstUser(ctx, testutil.Logger(t), cfg, client.URL.String())
 		require.NoError(t, err)
 
-		require.NoFileExists(t, cfg.passwordPath(adminPasswordFile))
 		require.NoError(t, signIn(t, client, "admin@coder.com", cfg.password))
 		require.True(t, cfg.adminLogin.fromFlag)
 		// The override is for the admin only.
 		requireUnauthorized(t, signIn(t, client, "member@coder.com", cfg.password))
 		require.NoError(t, signIn(t, client, "member@coder.com", cfg.memberLogin.password))
+
+		stored, ok, err := readPassword(cfg.passwordPath(adminPasswordFile))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, cfg.password, stored)
+
+		// The next run needs neither the flag nor the saved session.
+		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
+		again := &devConfig{configDir: cfg.configDir}
+		_, err = setupFirstUser(ctx, testutil.Logger(t), again, client.URL.String())
+		require.NoError(t, err)
+		require.Equal(t, devLogin{password: cfg.password, seeded: true}, again.adminLogin)
+	})
+
+	t.Run("OverrideDoesNotReplaceAStoredPassword", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, nil)
+		cfg := &devConfig{configDir: t.TempDir(), password: "an-override-password-1"}
+		const stored = "a-password-stored-earlier-1"
+		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte(stored+"\n"), 0o600))
+
+		_, err := setupFirstUser(ctx, testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		require.NoError(t, signIn(t, client, "admin@coder.com", cfg.password))
+		got, ok, err := readPassword(cfg.passwordPath(adminPasswordFile))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, stored, got)
 	})
 
 	// oldInstance stands in for an instance from before passwords were
@@ -335,11 +363,12 @@ func TestSetupFirstUser(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		const elsewhere = "a-password-set-elsewhere-1"
 
-		// The first run uses an override, so no admin file is written.
-		// It stands in for an instance whose users predate the files.
+		// With both files removed, this stands in for an instance whose
+		// passwords were set some other way.
 		first := &devConfig{configDir: t.TempDir(), password: elsewhere}
 		_, err := setupFirstUser(ctx, logger, first, client.URL.String())
 		require.NoError(t, err)
+		require.NoError(t, os.Remove(first.passwordPath(adminPasswordFile)))
 		require.NoError(t, os.Remove(first.passwordPath(memberPasswordFile)))
 
 		// With a saved session develop carries on. The server refuses
@@ -360,6 +389,16 @@ func TestSetupFirstUser(t *testing.T) {
 		_, err = setupFirstUser(ctx, logger, &devConfig{configDir: cfg.configDir}, client.URL.String())
 		require.ErrorIs(t, err, errUnknownAdminPassword)
 		require.NoFileExists(t, cfg.passwordPath(adminPasswordFile))
+
+		// One run with the override is enough. It is stored, so the
+		// run after it signs in without the flag.
+		_, err = setupFirstUser(ctx, logger, &devConfig{configDir: cfg.configDir, password: elsewhere}, client.URL.String())
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
+		_, err = setupFirstUser(ctx, logger, &devConfig{configDir: cfg.configDir}, client.URL.String())
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(cfg.passwordPath(adminPasswordFile)))
+		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
 
 		// A stored password that the server refuses gives the same error.
 		require.NoError(t, os.WriteFile(cfg.passwordPath(adminPasswordFile), []byte("not-the-right-password-1\n"), 0o600))
