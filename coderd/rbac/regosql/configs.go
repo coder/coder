@@ -28,7 +28,9 @@ func userACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
 
 func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
+		// Qualified because template queries join template_versions, which
+		// also has an id column.
+		sqltypes.StringVarMatcher("t.id :: text", []string{"input", "object", "id"}),
 		sqltypes.StringVarMatcher("t.organization_id :: text", []string{"input", "object", "org_owner"}),
 		// Templates have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
