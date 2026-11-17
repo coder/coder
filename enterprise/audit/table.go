@@ -521,7 +521,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"limit_templates":                    ActionTrack,
 		"default_template_id":                ActionTrack,
 		"default_template_version_preset_id": ActionTrack,
-		"default_parameters":                 ActionTrack,
+		"default_parameters":                 ActionSecret, // Parameter values may contain credentials.
 		"user_acl":                           ActionTrack,
 		"group_acl":                          ActionTrack,
 	},
