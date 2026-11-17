@@ -16,6 +16,13 @@ reject_old_default() {
 	fi
 }
 
+# warn_password_not_generated EMAIL
+warn_password_not_generated() {
+	echo "This environment did not generate the password of $1." >&2
+	echo "If it is still the old public default, anyone who can reach this instance can sign in as that user." >&2
+	echo "Remove this environment's volumes to start fresh, or change the password in the dashboard." >&2
+}
+
 # create_password_file FILE
 # A stored password is never replaced, because a user was created with it.
 create_password_file() {

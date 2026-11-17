@@ -18,6 +18,7 @@ print_admin_login() {
 	elif [ -s "$ADMIN_PASSWORD_FILE" ]; then
 		echo "Admin login: admin@coder.com / $(cat "$ADMIN_PASSWORD_FILE")"
 	else
+		warn_password_not_generated admin@coder.com
 		echo "Admin login: admin@coder.com (password was not set by this environment)"
 	fi
 }

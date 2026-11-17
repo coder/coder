@@ -27,9 +27,7 @@ elif $CODER users show member >/dev/null 2>&1; then
 	# setup-init writes the password file only when it creates the first
 	# user, so an environment created before passwords were generated has
 	# the member but no file.
-	echo "This environment did not generate the password of member@coder.com." >&2
-	echo "If it is still the old public default, anyone who can reach this instance can sign in as that user." >&2
-	echo "Remove this environment's volumes to start fresh, or change the password in the dashboard." >&2
+	warn_password_not_generated member@coder.com
 	echo "Member login: member@coder.com (password was not set by this environment)"
 	echo "=== Users setup complete ==="
 	exit 0
