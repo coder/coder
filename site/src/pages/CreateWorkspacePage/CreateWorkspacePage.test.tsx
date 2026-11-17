@@ -533,6 +533,101 @@ describe("CreateWorkspacePage", () => {
 				MockPreviewParameter7,
 			);
 		});
+
+		// Answers the latest request the client sent with the given parameters.
+		const respondToLatestRequest = async (
+			mockPublisher: MockWebSocketServer,
+			sentCount: number,
+			parameters: PreviewParameter[],
+		) => {
+			await waitFor(() => {
+				expect(mockPublisher.clientSentData).toHaveLength(sentCount);
+			});
+			const request = JSON.parse(
+				mockPublisher.clientSentData[sentCount - 1] as string,
+			);
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: request.id,
+							parameters,
+							diagnostics: [],
+						}),
+					}),
+				);
+			});
+			return request.inputs as Record<string, string>;
+		};
+
+		it("keeps edits after a blocked submit attempt", async () => {
+			const parameters = [MockPreviewParameter1, MockPreviewParameter7];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
+
+			await editParameters({ name: MockPreviewParameter1.name, value: "new" });
+			await respondToLatestRequest(mockPublisher, 1, parameters);
+
+			// The workspace name is empty, so validation blocks this submit.
+			const submitButton = within(screen.getByTestId("form")).getByRole(
+				"button",
+				{ name: /create workspace/i },
+			);
+			await waitFor(() => expect(submitButton).toBeEnabled());
+			await userEvent.click(submitButton);
+			expect(API.createWorkspace).not.toHaveBeenCalled();
+
+			await editParameters({ name: MockPreviewParameter7.name, value: "x" });
+			const inputs = await respondToLatestRequest(mockPublisher, 2, parameters);
+
+			expect(inputs).toEqual({
+				[MockPreviewParameter1.name]: "new",
+				[MockPreviewParameter7.name]: "x",
+			});
+			await checkParameters(
+				{ name: MockPreviewParameter1.name, value: "new" },
+				{ name: MockPreviewParameter7.name, value: "x" },
+			);
+		});
+
+		it("sends cleared parameters as empty values", async () => {
+			const parameters = [MockPreviewParameter1, MockPreviewParameter7];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
+
+			await editParameters({ name: MockPreviewParameter1.name, value: "" });
+			await respondToLatestRequest(mockPublisher, 1, parameters);
+			await editParameters({ name: MockPreviewParameter7.name, value: "x" });
+			const inputs = await respondToLatestRequest(mockPublisher, 2, parameters);
+
+			expect(inputs).toEqual({
+				[MockPreviewParameter1.name]: "",
+				[MockPreviewParameter7.name]: "x",
+			});
+		});
+
+		it("keeps edits to parameters with dots in their names", async () => {
+			const dottedParameter: PreviewParameter = {
+				...MockPreviewParameter1,
+				name: "region.zone",
+				display_name: "Region zone",
+			};
+			const parameters = [dottedParameter];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
+
+			await editParameters({
+				name: dottedParameter.name,
+				display_name: dottedParameter.display_name,
+				value: "new",
+			});
+			await respondToLatestRequest(mockPublisher, 1, parameters);
+
+			await checkParameters({ name: dottedParameter.name, value: "new" });
+		});
 	});
 
 	describe("Dynamic Parameter Types", () => {
