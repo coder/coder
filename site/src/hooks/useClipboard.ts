@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "#/components/Toaster/toast";
 
-const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
 const DIALOG_SELECTOR = 'dialog[open], [role="dialog"], [role="alertdialog"]';
 export const HTTP_FALLBACK_DATA_ID = "http-fallback";
@@ -28,8 +27,8 @@ export type UseClipboardResult = Readonly<{
 
 	/**
 	 * Indicates whether the UI should show a successfully-copied status to the
-	 * user. When flipped to true, this will eventually flip to false, with no
-	 * action from the user.
+	 * user. Once true, it stays true until the user's next pointer press or key
+	 * press, so the confirmation never disappears on a timer (WCAG 2.2.1).
 	 *
 	 * ---
 	 *
@@ -61,12 +60,18 @@ export const useClipboard = (
 			return;
 		}
 
-		const timeoutId = window.setTimeout(() => {
+		const dismiss = () => {
 			setSuccessToken((current) =>
 				current === successToken ? undefined : current,
 			);
-		}, CLIPBOARD_TIMEOUT_MS);
-		return () => window.clearTimeout(timeoutId);
+		};
+		// Capture so components that stop propagation still dismiss it.
+		document.addEventListener("pointerdown", dismiss, true);
+		document.addEventListener("keydown", dismiss, true);
+		return () => {
+			document.removeEventListener("pointerdown", dismiss, true);
+			document.removeEventListener("keydown", dismiss, true);
+		};
 	}, [successToken]);
 
 	const copyToClipboard = useCallback(
