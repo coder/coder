@@ -2493,13 +2493,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "description": "Literal model identifier substring, matched case-insensitively. Cannot be combined with q.",
                         "name": "model",
                         "in": "query"
                     }
@@ -33593,6 +33593,12 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is optional for backward compatibility. When zero,\nthe server leaves the persisted terminal font size unchanged.",
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
+                },
                 "theme_dark": {
                     "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
                     "type": "string",
@@ -34205,6 +34211,10 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size, and the web terminal will use the default.",
+                    "type": "integer"
                 },
                 "theme_dark": {
                     "description": "Ignored when ThemeMode is \"single\"",
