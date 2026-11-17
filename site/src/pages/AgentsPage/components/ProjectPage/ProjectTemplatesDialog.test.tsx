@@ -105,14 +105,14 @@ describe("ProjectTemplatesDialog", () => {
 				default_template: {
 					template_id: MockTemplate.id,
 					parameters: {
-						[MockTemplateVersionParameter1.name]: "",
-						[MockTemplateVersionParameter2.name]: "old",
+						[MockPreviewParameter1.name]: "",
+						[MockPreviewParameter2.name]: "old",
 					},
 				},
 			},
 		});
 
-		const second = await findParameterInput(MockTemplateVersionParameter2.name);
+		const second = await findParameterInput(MockPreviewParameter2.display_name);
 		await user.clear(second);
 		await user.type(second, "new");
 		await user.click(screen.getByRole("button", { name: /Save/ }));
@@ -125,8 +125,8 @@ describe("ProjectTemplatesDialog", () => {
 					default_template: {
 						template_id: MockTemplate.id,
 						parameters: {
-							[MockTemplateVersionParameter1.name]: "",
-							[MockTemplateVersionParameter2.name]: "new",
+							[MockPreviewParameter1.name]: "",
+							[MockPreviewParameter2.name]: "new",
 						},
 					},
 				},
@@ -183,7 +183,7 @@ describe("ProjectTemplatesDialog", () => {
 		default_template: {
 			template_id: MockTemplate.id,
 			parameters: {
-				[MockTemplateVersionParameter1.name]: "kept",
+				[MockPreviewParameter1.name]: "kept",
 				removed_parameter: "gone",
 			},
 		},
@@ -206,7 +206,7 @@ describe("ProjectTemplatesDialog", () => {
 				request: {
 					default_template: {
 						template_id: MockTemplate.id,
-						parameters: { [MockTemplateVersionParameter1.name]: "kept" },
+						parameters: { [MockPreviewParameter1.name]: "kept" },
 					},
 				},
 			}),
@@ -218,7 +218,7 @@ describe("ProjectTemplatesDialog", () => {
 			project: mockProjectWithRemovedParameter,
 		});
 
-		const kept = await findParameterInput(MockTemplateVersionParameter1.name);
+		const kept = await findParameterInput(MockPreviewParameter1.display_name);
 		await user.type(kept, "!");
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
@@ -230,7 +230,7 @@ describe("ProjectTemplatesDialog", () => {
 					default_template: {
 						template_id: MockTemplate.id,
 						parameters: {
-							[MockTemplateVersionParameter1.name]: "kept!",
+							[MockPreviewParameter1.name]: "kept!",
 							removed_parameter: "gone",
 						},
 					},
@@ -276,21 +276,21 @@ describe("ProjectTemplatesDialog", () => {
 				default_template: {
 					template_id: MockTemplate.id,
 					parameters: {
-						[MockTemplateVersionParameter1.name]: "",
-						[MockTemplateVersionParameter2.name]: "old",
+						[MockPreviewParameter1.name]: "",
+						[MockPreviewParameter2.name]: "old",
 					},
 				},
 			},
 		});
 
-		const second = await findParameterInput(MockTemplateVersionParameter2.name);
+		const second = await findParameterInput(MockPreviewParameter2.display_name);
 		await user.clear(second);
 		await user.type(second, "new");
 		rerenderWithProject({
 			...mockProjectWithDefault,
 			default_template: {
 				template_id: MockTemplate.id,
-				parameters: { [MockTemplateVersionParameter2.name]: "other" },
+				parameters: { [MockPreviewParameter2.name]: "other" },
 			},
 		});
 		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
@@ -304,8 +304,8 @@ describe("ProjectTemplatesDialog", () => {
 					default_template: {
 						template_id: MockTemplate.id,
 						parameters: {
-							[MockTemplateVersionParameter1.name]: "",
-							[MockTemplateVersionParameter2.name]: "new",
+							[MockPreviewParameter1.name]: "",
+							[MockPreviewParameter2.name]: "new",
 						},
 					},
 				},
@@ -336,18 +336,18 @@ describe("ProjectTemplatesDialog", () => {
 				...mockProjectWithDefault,
 				default_template: {
 					template_id: MockTemplate.id,
-					parameters: { [MockTemplateVersionParameter1.name]: "" },
+					parameters: { [MockPreviewParameter1.name]: "" },
 				},
 			},
 		});
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Use template default for ${MockTemplateVersionParameter1.name}`,
+				name: `Use template default for ${MockPreviewParameter1.display_name}`,
 			}),
 		);
 		expect(
-			screen.getByRole("group", { name: MockTemplateVersionParameter1.name }),
+			screen.getByRole("group", { name: MockPreviewParameter1.display_name }),
 		).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
@@ -452,13 +452,13 @@ describe("ProjectTemplatesDialog", () => {
 				default_template: {
 					template_id: MockTemplate.id,
 					parameters: {
-						[MockTemplateVersionParameter1.name]: "a",
-						[MockTemplateVersionParameter2.name]: "b",
+						[MockPreviewParameter1.name]: "a",
+						[MockPreviewParameter2.name]: "b",
 					},
 				},
 			},
 		});
-		const first = await findParameterInput(MockTemplateVersionParameter1.name);
+		const first = await findParameterInput(MockPreviewParameter1.display_name);
 		await user.clear(first);
 		await user.type(first, "a");
 
@@ -467,11 +467,11 @@ describe("ProjectTemplatesDialog", () => {
 			...mockProjectWithDefault,
 			default_template: {
 				template_id: MockTemplate.id,
-				parameters: { [MockTemplateVersionParameter1.name]: "z" },
+				parameters: { [MockPreviewParameter1.name]: "z" },
 			},
 		});
 		await user.type(
-			await findParameterInput(MockTemplateVersionParameter1.name),
+			await findParameterInput(MockPreviewParameter1.display_name),
 			"!",
 		);
 		await user.click(screen.getByRole("button", { name: /Save/ }));
@@ -483,7 +483,7 @@ describe("ProjectTemplatesDialog", () => {
 				request: {
 					default_template: {
 						template_id: MockTemplate.id,
-						parameters: { [MockTemplateVersionParameter1.name]: "z!" },
+						parameters: { [MockPreviewParameter1.name]: "z!" },
 					},
 				},
 			}),
@@ -558,7 +558,7 @@ describe("ProjectTemplatesDialog", () => {
 
 		await screen.findByRole("button", { name: "Retry" });
 		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
-		const first = await findParameterInput(MockTemplateVersionParameter1.name);
+		const first = await findParameterInput(MockPreviewParameter1.display_name);
 		await user.clear(first);
 		await user.type(first, "x");
 		const save = screen.getByRole("button", { name: /Save/ });
@@ -572,7 +572,7 @@ describe("ProjectTemplatesDialog", () => {
 				request: {
 					default_template: {
 						template_id: MockTemplate.id,
-						parameters: { [MockTemplateVersionParameter1.name]: "x" },
+						parameters: { [MockPreviewParameter1.name]: "x" },
 					},
 				},
 			}),
