@@ -5742,8 +5742,6 @@ type ChatProjectPin struct {
 	PinOrder  int32                `db:"pin_order" json:"pin_order"`
 	Source    ChatProjectPinSource `db:"source" json:"source"`
 	CreatedAt time.Time            `db:"created_at" json:"created_at"`
-	// When the user unpinned the project. A row with this set is a tombstone kept for telemetry, not a pin.
-	UnpinnedAt sql.NullTime `db:"unpinned_at" json:"unpinned_at"`
 }
 
 type ChatQueuedMessage struct {
