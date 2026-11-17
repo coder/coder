@@ -110,6 +110,9 @@ type Manager struct {
 	// Guarded by mu.
 	ready bool
 
+	// pluginsEnabled is applied to every resolve pass. Guarded by mu.
+	pluginsEnabled bool
+
 	// running tracks Run lifetime.
 	running      bool
 	closed       bool
@@ -135,7 +138,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 	resolver := opts.Resolver
 	if resolver == nil {
-		resolver = &Resolver{}
+		resolver = &Resolver{Logger: opts.Logger.Named("resolver")}
 	}
 
 	m := &Manager{
@@ -471,6 +474,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
+	opts := m.resolveOptionsLocked()
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
@@ -478,7 +482,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveContext(ctx, roots, opts)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot whose SnapshotError is set to
@@ -584,6 +588,11 @@ func (m *Manager) SetReady() {
 	m.resolveAndBroadcast(context.Background())
 }
 
+// resolveOptionsLocked requires m.mu.
+func (m *Manager) resolveOptionsLocked() ResolveOptions {
+	return ResolveOptions{PluginsEnabled: m.pluginsEnabled}
+}
+
 // scanRootsLocked returns the list of ScanRoots to feed the
 // resolver and watcher. Roots are ordered by descending skill priority so
 // duplicate skill names honor user-declared source order before built-in and
@@ -658,6 +667,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
+	opts := m.resolveOptionsLocked()
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
@@ -665,7 +675,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveContext(ctx, roots, opts)
 	if err := ctx.Err(); err != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot. Publishing it would replace the live

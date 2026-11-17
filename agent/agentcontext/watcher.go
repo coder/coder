@@ -353,6 +353,21 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	return out
 }
 
+// immediateSubdirs omits symlinks, including symlinks to directories.
+func immediateSubdirs(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, filepath.Join(dir, e.Name()))
+		}
+	}
+	return out
+}
+
 // existingAncestor returns the deepest existing ancestor of
 // path, or "" if no ancestor exists (e.g. an entirely missing
 // drive on Windows).
