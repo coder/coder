@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -317,19 +316,4 @@ func validateChatProjectDefaultTemplate(
 	}
 	fields.parameters = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
 	return fields, nil
-}
-
-// chatProjectAllowsTemplate reports whether a chat in the project may bind a
-// workspace that uses the template. ctx must be authorized as the chat's
-// owner, because the limit only admits attached templates the owner can
-// access.
-func (api *API) chatProjectAllowsTemplate(ctx context.Context, project database.ChatProject, templateID uuid.UUID) (bool, error) {
-	if !project.LimitTemplates {
-		return true, nil
-	}
-	templates, err := chattool.LoadProjectTemplates(ctx, api.Database, project)
-	if err != nil {
-		return false, err
-	}
-	return templates.Allows(templateID), nil
 }
