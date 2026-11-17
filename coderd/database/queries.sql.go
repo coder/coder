@@ -1912,9 +1912,9 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
-	-- Filter client (prefix match to allow B-tree index usage).
+	-- Filter client (case-insensitive substring match).
 	AND CASE
-		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE $1::text || '%'
+		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list clients
@@ -2058,9 +2058,9 @@ FROM
 WHERE
 	-- Remove inflight interceptions (ones which lack an ended_at value).
 	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter model
+	-- Filter model (case-insensitive substring match).
 	AND CASE
-		WHEN $1::text != '' THEN aibridge_interceptions.model LIKE $1::text || '%'
+		WHEN $1::text != '' THEN aibridge_interceptions.model ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list models that are relevant
@@ -27583,37 +27583,103 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 }
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+WITH pending_requirements AS (
+	-- Requirement sets of pending jobs past the ordinary timeout. Jobs that
+	-- share an organization, provisioner type, and tags have the same
+	-- eligible daemons, and jobs usually share a few template tag sets, so
+	-- distinct sets are far fewer than pending jobs. Checking daemon
+	-- eligibility per set costs sets x daemons calls to the plpgsql
+	-- provisioner_tagset_contains function, which Postgres cannot inline,
+	-- instead of jobs x daemons.
+	SELECT DISTINCT organization_id, provisioner, tags
+	FROM provisioner_jobs
+	WHERE job_status = 'pending'::provisioner_job_status
+		AND updated_at < $1
+),
+protected_requirements AS (
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM pending_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= $4::timestamptz
+			-- The running leg lets builds longer than the window count as
+			-- progress. Keep the legs as separate EXISTS so each is a range
+			-- scan on provisioner_jobs_worker_id_organization_id_completed_at_idx.
+			-- Keep in sync with HasProvisionerDaemonMakingProgress.
+			AND (
+				EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at >= $5::timestamptz
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at IS NULL
+						AND wj.updated_at >= $2
+				)
+			)
+	)
+)
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
 WHERE
 	(
 		-- If the job has not been started before @pending_since, reap it.
-		updated_at < $1
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		pj.updated_at < $1
+		AND pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		-- Unless it is pending and an eligible provisioner is online and
+		-- making progress.
+		AND NOT (
+			pj.job_status = 'pending'::provisioner_job_status
+			AND EXISTS (
+				SELECT 1
+				FROM protected_requirements pr
+				WHERE pr.organization_id = pj.organization_id
+					AND pr.provisioner = pj.provisioner
+					AND pr.tags = pj.tags
+			)
+		)
 	)
 	OR
 	(
 		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < $2
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		pj.updated_at < $2
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
 ORDER BY random()
 LIMIT $3
 `
 
 type GetProvisionerJobsToBeReapedParams struct {
-	PendingSince time.Time `db:"pending_since" json:"pending_since"`
-	HungSince    time.Time `db:"hung_since" json:"hung_since"`
-	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+	PendingSince             time.Time `db:"pending_since" json:"pending_since"`
+	HungSince                time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs                  int32     `db:"max_jobs" json:"max_jobs"`
+	ProvisionerSeenSince     time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
+	ProvisionerProgressSince time.Time `db:"provisioner_progress_since" json:"provisioner_progress_since"`
 }
 
 // To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped,
+		arg.PendingSince,
+		arg.HungSince,
+		arg.MaxJobs,
+		arg.ProvisionerSeenSince,
+		arg.ProvisionerProgressSince,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -27655,6 +27721,48 @@ func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetPr
 		return nil, err
 	}
 	return items, nil
+}
+
+const hasProvisionerDaemonMakingProgress = `-- name: HasProvisionerDaemonMakingProgress :one
+SELECT EXISTS (
+	SELECT 1
+	FROM provisioner_daemons pd
+	WHERE pd.id = ANY($1::uuid[])
+		AND (
+			EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at >= $2::timestamptz
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at IS NULL
+					AND wj.updated_at >= $3::timestamptz
+			)
+		)
+)::bool AS making_progress
+`
+
+type HasProvisionerDaemonMakingProgressParams struct {
+	DaemonIds                []uuid.UUID `db:"daemon_ids" json:"daemon_ids"`
+	ProvisionerProgressSince time.Time   `db:"provisioner_progress_since" json:"provisioner_progress_since"`
+	HungSince                time.Time   `db:"hung_since" json:"hung_since"`
+}
+
+// Returns true when any of the given daemons is making progress, using the
+// progress rule from GetProvisionerJobsToBeReaped (keep the two in sync). It
+// does not check heartbeat or eligibility, so callers must pass only online,
+// eligible daemons.
+func (q *sqlQuerier) HasProvisionerDaemonMakingProgress(ctx context.Context, arg HasProvisionerDaemonMakingProgressParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasProvisionerDaemonMakingProgress, pq.Array(arg.DaemonIds), arg.ProvisionerProgressSince, arg.HungSince)
+	var making_progress bool
+	err := row.Scan(&making_progress)
+	return making_progress, err
 }
 
 const insertProvisionerJob = `-- name: InsertProvisionerJob :one
@@ -29942,7 +30050,7 @@ func (q *sqlQuerier) DeleteOrganizationMemberDisabledSkill(ctx context.Context, 
 const deleteOrganizationSkillByOrganizationIDAndName = `-- name: DeleteOrganizationSkillByOrganizationIDAndName :one
 DELETE FROM skills
 WHERE organization_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type DeleteOrganizationSkillByOrganizationIDAndNameParams struct {
@@ -29968,6 +30076,7 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -29975,7 +30084,7 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 const deleteProjectSkillByProjectIDAndName = `-- name: DeleteProjectSkillByProjectIDAndName :one
 DELETE FROM skills
 WHERE project_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type DeleteProjectSkillByProjectIDAndNameParams struct {
@@ -30001,6 +30110,7 @@ func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, a
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30008,7 +30118,7 @@ func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, a
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
 WHERE user_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type DeleteUserSkillByUserIDAndNameParams struct {
@@ -30034,12 +30144,13 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getOrganizationSkillByIDForUpdate = `-- name: GetOrganizationSkillByIDForUpdate :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE id = $1::uuid AND organization_id IS NOT NULL
 FOR UPDATE
@@ -30063,12 +30174,13 @@ func (q *sqlQuerier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id u
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getOrganizationSkillByOrganizationIDAndName = `-- name: GetOrganizationSkillByOrganizationIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE organization_id = $1::uuid AND name = $2
 `
@@ -30096,6 +30208,7 @@ func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Con
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30137,7 +30250,7 @@ func (q *sqlQuerier) GetOrganizationSkillMemberPreferences(ctx context.Context, 
 }
 
 const getProjectSkillByIDForUpdate = `-- name: GetProjectSkillByIDForUpdate :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE id = $1::uuid AND project_id IS NOT NULL
 FOR UPDATE
@@ -30161,12 +30274,13 @@ func (q *sqlQuerier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.U
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getProjectSkillByProjectIDAndName = `-- name: GetProjectSkillByProjectIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE project_id = $1::uuid AND name = $2
 `
@@ -30194,12 +30308,13 @@ func (q *sqlQuerier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg 
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE user_id = $1::uuid AND name = $2
 `
@@ -30227,6 +30342,7 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30254,7 +30370,7 @@ func (q *sqlQuerier) InsertOrganizationMemberDisabledSkill(ctx context.Context, 
 const insertOrganizationSkill = `-- name: InsertOrganizationSkill :one
 INSERT INTO skills (id, organization_id, name, description, content, model_invocable, group_acl, user_acl)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, true), $7, $8)
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type InsertOrganizationSkillParams struct {
@@ -30295,24 +30411,26 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const insertProjectSkill = `-- name: InsertProjectSkill :one
-INSERT INTO skills (id, project_id, name, description, content, action, model_invocable)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, false), COALESCE($7::boolean, true))
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+INSERT INTO skills (id, project_id, name, description, content, action, model_invocable, display_name)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, false), COALESCE($7::boolean, true), COALESCE($8::text, ''))
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type InsertProjectSkillParams struct {
-	ID             uuid.UUID    `db:"id" json:"id"`
-	ProjectID      uuid.UUID    `db:"project_id" json:"project_id"`
-	Name           string       `db:"name" json:"name"`
-	Description    string       `db:"description" json:"description"`
-	Content        string       `db:"content" json:"content"`
-	Action         sql.NullBool `db:"action" json:"action"`
-	ModelInvocable sql.NullBool `db:"model_invocable" json:"model_invocable"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	ProjectID      uuid.UUID      `db:"project_id" json:"project_id"`
+	Name           string         `db:"name" json:"name"`
+	Description    string         `db:"description" json:"description"`
+	Content        string         `db:"content" json:"content"`
+	Action         sql.NullBool   `db:"action" json:"action"`
+	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
+	DisplayName    sql.NullString `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
@@ -30324,6 +30442,7 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 		arg.Content,
 		arg.Action,
 		arg.ModelInvocable,
+		arg.DisplayName,
 	)
 	var i Skill
 	err := row.Scan(
@@ -30341,6 +30460,7 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30348,7 +30468,7 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 const insertUserSkill = `-- name: InsertUserSkill :one
 INSERT INTO skills (id, user_id, name, description, content, model_invocable)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, true))
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type InsertUserSkillParams struct {
@@ -30385,6 +30505,7 @@ func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillPar
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30446,7 +30567,7 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 
 const listProjectSkillMetadataByProjectID = `-- name: ListProjectSkillMetadataByProjectID :many
 SELECT
-    id, project_id, name, description, enabled, action, model_invocable, created_at, updated_at
+    id, project_id, name, display_name, description, enabled, action, model_invocable, created_at, updated_at
 FROM skills
 WHERE project_id = $1::uuid
 ORDER BY name ASC
@@ -30456,6 +30577,7 @@ type ListProjectSkillMetadataByProjectIDRow struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
 	Name           string        `db:"name" json:"name"`
+	DisplayName    string        `db:"display_name" json:"display_name"`
 	Description    string        `db:"description" json:"description"`
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	Action         bool          `db:"action" json:"action"`
@@ -30477,6 +30599,7 @@ func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, pr
 			&i.ID,
 			&i.ProjectID,
 			&i.Name,
+			&i.DisplayName,
 			&i.Description,
 			&i.Enabled,
 			&i.Action,
@@ -30557,7 +30680,7 @@ SET
     user_acl   = $2,
     updated_at = now()
 WHERE id = $3::uuid AND organization_id IS NOT NULL
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateOrganizationSkillACLByIDParams struct {
@@ -30584,6 +30707,7 @@ func (q *sqlQuerier) UpdateOrganizationSkillACLByID(ctx context.Context, arg Upd
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30597,7 +30721,7 @@ SET
     model_invocable = COALESCE($4::boolean, model_invocable),
     updated_at  = now()
 WHERE organization_id = $5::uuid AND name = $6
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateOrganizationSkillByOrganizationIDAndNameParams struct {
@@ -30634,6 +30758,7 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30646,9 +30771,10 @@ SET
     enabled     = COALESCE($3::boolean, enabled),
     model_invocable = COALESCE($4::boolean, model_invocable),
     action      = COALESCE($5::boolean, action),
+    display_name = COALESCE($6::text, display_name),
     updated_at  = now()
-WHERE project_id = $6::uuid AND name = $7
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+WHERE project_id = $7::uuid AND name = $8
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateProjectSkillByProjectIDAndNameParams struct {
@@ -30657,6 +30783,7 @@ type UpdateProjectSkillByProjectIDAndNameParams struct {
 	Enabled        sql.NullBool   `db:"enabled" json:"enabled"`
 	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
 	Action         sql.NullBool   `db:"action" json:"action"`
+	DisplayName    sql.NullString `db:"display_name" json:"display_name"`
 	ProjectID      uuid.UUID      `db:"project_id" json:"project_id"`
 	Name           string         `db:"name" json:"name"`
 }
@@ -30668,6 +30795,7 @@ func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, a
 		arg.Enabled,
 		arg.ModelInvocable,
 		arg.Action,
+		arg.DisplayName,
 		arg.ProjectID,
 		arg.Name,
 	)
@@ -30687,6 +30815,7 @@ func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, a
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30700,7 +30829,7 @@ SET
     model_invocable = COALESCE($4::boolean, model_invocable),
     updated_at  = now()
 WHERE user_id = $5::uuid AND name = $6
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateUserSkillByUserIDAndNameParams struct {
@@ -30737,6 +30866,7 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -34921,7 +35051,8 @@ SELECT
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
-	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font_size'), '0')::int AS terminal_font_size
 FROM
 	user_configs
 WHERE
@@ -34931,16 +35062,18 @@ WHERE
 		'theme_mode',
 		'theme_light',
 		'theme_dark',
-		'terminal_font'
+		'terminal_font',
+		'terminal_font_size'
 	)
 `
 
 type GetUserAppearanceSettingsRow struct {
-	ThemePreference string `db:"theme_preference" json:"theme_preference"`
-	ThemeMode       string `db:"theme_mode" json:"theme_mode"`
-	ThemeLight      string `db:"theme_light" json:"theme_light"`
-	ThemeDark       string `db:"theme_dark" json:"theme_dark"`
-	TerminalFont    string `db:"terminal_font" json:"terminal_font"`
+	ThemePreference  string `db:"theme_preference" json:"theme_preference"`
+	ThemeMode        string `db:"theme_mode" json:"theme_mode"`
+	ThemeLight       string `db:"theme_light" json:"theme_light"`
+	ThemeDark        string `db:"theme_dark" json:"theme_dark"`
+	TerminalFont     string `db:"terminal_font" json:"terminal_font"`
+	TerminalFontSize int32  `db:"terminal_font_size" json:"terminal_font_size"`
 }
 
 func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error) {
@@ -34952,6 +35085,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 		&i.ThemeLight,
 		&i.ThemeDark,
 		&i.TerminalFont,
+		&i.TerminalFontSize,
 	)
 	return i, err
 }
@@ -36255,6 +36389,33 @@ type UpdateUserTerminalFontParams struct {
 
 func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserTerminalFontSize = `-- name: UpdateUserTerminalFontSize :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'terminal_font_size', ($2::int)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = ($2::int)::text
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'terminal_font_size'
+RETURNING user_id, key, value
+`
+
+type UpdateUserTerminalFontSizeParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	TerminalFontSize int32     `db:"terminal_font_size" json:"terminal_font_size"`
+}
+
+func (q *sqlQuerier) UpdateUserTerminalFontSize(ctx context.Context, arg UpdateUserTerminalFontSizeParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTerminalFontSize, arg.UserID, arg.TerminalFontSize)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
@@ -43833,9 +43994,9 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- Favorited workspaces should show up first only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_id = $25 THEN 0 ELSE 1 END ASC,
 		-- Workspaces you own should show up first.
-		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $25 THEN 0 ELSE 1 END ASC,
 		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
