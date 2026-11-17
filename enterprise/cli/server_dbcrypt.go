@@ -201,6 +201,9 @@ func (*RootCmd) dbcryptDeleteCmd() *serpent.Command {
 			msg := `All encrypted data will be deleted from the database:
 - Encrypted user OAuth access and refresh tokens
 - Encrypted user Git authentication access and refresh tokens
+- Encrypted Terraform state of workspace builds. You must rebuild the
+  affected workspaces, and resources that earlier builds created might be
+  left behind in your infrastructure.
 
 Are you sure you want to continue?`
 			if _, err := cliui.Prompt(inv, cliui.PromptOptions{

@@ -420,9 +420,10 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
 	if len(b.provisionerState) > 0 {
 		err = b.db.UpdateWorkspaceBuildProvisionerStateByID(ownerCtx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-			ID:               resp.Build.ID,
-			UpdatedAt:        dbtime.Now(),
-			ProvisionerState: b.provisionerState,
+			ID:                    resp.Build.ID,
+			UpdatedAt:             dbtime.Now(),
+			ProvisionerState:      b.provisionerState,
+			ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will set as required
 		})
 		require.NoError(b.t, err, "update provisioner state")
 	}

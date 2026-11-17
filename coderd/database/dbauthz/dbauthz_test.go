@@ -5407,6 +5407,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().UpdateWorkspaceBuildCostByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("UpdateEncryptedWorkspaceBuildProvisionerState", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateEncryptedWorkspaceBuildProvisionerStateParams{ID: uuid.New(), ProvisionerState: []byte("state")}
+		dbm.EXPECT().UpdateEncryptedWorkspaceBuildProvisionerState(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("UpdateWorkspaceBuildProvisionerStateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
 		arg := database.UpdateWorkspaceBuildProvisionerStateByIDParams{ID: b.ID, ProvisionerState: []byte("testing")}
@@ -5425,6 +5430,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceBuildsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceBuildProvisionerStateKeyIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceBuildProvisionerStateKeyIDsParams{AfterID: uuid.New(), LimitCount: 100}
+		dbm.EXPECT().GetWorkspaceBuildProvisionerStateKeyIDs(gomock.Any(), arg).Return([]database.GetWorkspaceBuildProvisionerStateKeyIDsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildParametersByBuildIDsAndNames", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams{

@@ -1172,6 +1172,11 @@ type sqlcQuerier interface {
 	// Provisioner state contains sensitive Terraform state and should only be
 	// accessible to template administrators.
 	GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (GetWorkspaceBuildProvisionerStateByIDRow, error)
+	// Returns a page of workspace builds that hold provisioner state across the
+	// deployment, ordered by id, along with the key each state is stored with.
+	// Pass the last returned id as after_id to fetch the next page. Used only by
+	// the dbcrypt key rotation utility.
+	GetWorkspaceBuildProvisionerStateKeyIDs(ctx context.Context, arg GetWorkspaceBuildProvisionerStateKeyIDsParams) ([]GetWorkspaceBuildProvisionerStateKeyIDsRow, error)
 	GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]GetWorkspaceBuildStatsByTemplatesRow, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
@@ -1708,6 +1713,10 @@ type sqlcQuerier interface {
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
 	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
+	// Updates only the provisioner state columns on a row and leaves updated_at
+	// as it is. Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+	// rows in place.
+	UpdateEncryptedWorkspaceBuildProvisionerState(ctx context.Context, arg UpdateEncryptedWorkspaceBuildProvisionerStateParams) error
 	// Updates only the encrypted columns on a row. Used by the dbcrypt key
 	// rotation utility to re-encrypt or decrypt rows in place.
 	// Cleared rows are skipped: they hold no value, and a row cleared between
