@@ -100,6 +100,17 @@ export const chatProjectTemplatesRequest = (
 const templateLabel = (template: Template) =>
 	template.display_name || template.name;
 
+/** Explains why the templates list has nothing left to pick. */
+const noTemplatesMessage = (optionCount: number, selectedCount: number) => {
+	if (optionCount === 0) {
+		return "No templates in this organization allow agents.";
+	}
+	if (optionCount === selectedCount) {
+		return "Every template is selected.";
+	}
+	return "No matching templates.";
+};
+
 type ChatProjectTemplatesFieldsProps = {
 	/** Templates in the project's organization that allow agents. */
 	readonly templates: readonly Template[] | undefined;
@@ -164,7 +175,7 @@ export const ChatProjectTemplatesFields: React.FC<
 						Select all
 					</Button>
 				</div>
-				{templates ? (
+				{templates && (
 					<MultiSelectCombobox
 						commandProps={{ label: "Templates" }}
 						options={options}
@@ -175,19 +186,14 @@ export const ChatProjectTemplatesFields: React.FC<
 						placeholder="Select templates"
 						emptyIndicator={
 							<p className="m-0 text-center text-sm text-content-secondary">
-								{options.length === 0
-									? "No templates in this organization allow agents."
-									: options.length === value.templateIds.length
-										? "Every template is selected."
-										: "No matching templates."}
+								{noTemplatesMessage(options.length, value.templateIds.length)}
 							</p>
 						}
 						disabled={disabled}
 						hidePlaceholderWhenSelected
 					/>
-				) : (
-					!templatesError && <Skeleton className="h-10 w-full" />
 				)}
+				{!templates && !templatesError && <Skeleton className="h-10 w-full" />}
 				{/* Shown with cached templates too, since a failed refetch means
 				    the list may be out of date. */}
 				{Boolean(templatesError) && (
@@ -284,14 +290,6 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 }) => {
 	const presetKindId = useId();
 	const parametersKindId = useId();
-	const presetId = useId();
-	const presetsQuery = useQuery({
-		...templateVersionPresets(template.active_version_id),
-		enabled: value.defaultsKind === "preset",
-	});
-	// The server returns null rather than [] for a version without presets.
-	const presets =
-		presetsQuery.data === undefined ? undefined : (presetsQuery.data ?? []);
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -322,43 +320,17 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 					</Label>
 				</div>
 			</RadioGroup>
-			{value.defaultsKind === "preset" ? (
-				presets ? (
-					presets.length === 0 ? (
-						<p className="m-0 text-sm text-content-secondary">
-							This template has no presets.
-						</p>
-					) : (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor={presetId}>Default preset</Label>
-							<Select
-								value={value.defaultPresetId}
-								onValueChange={(id) =>
-									onChange({ ...value, defaultPresetId: id })
-								}
-								disabled={disabled}
-							>
-								<SelectTrigger id={presetId}>
-									<SelectValue placeholder="Select a preset" />
-								</SelectTrigger>
-								<SelectContent>
-									{presets.map((preset) => (
-										<SelectItem key={preset.ID} value={preset.ID}>
-											{preset.Name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-					)
-				) : presetsQuery.error ? (
-					<p role="alert" className="m-0 text-sm text-content-destructive">
-						{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
-					</p>
-				) : (
-					<Skeleton className="h-10 w-full" />
-				)
-			) : (
+			{value.defaultsKind === "preset" && (
+				<ChatProjectDefaultPreset
+					templateVersionId={template.active_version_id}
+					value={value.defaultPresetId}
+					onChange={(defaultPresetId) =>
+						onChange({ ...value, defaultPresetId })
+					}
+					disabled={disabled}
+				/>
+			)}
+			{value.defaultsKind === "parameters" && (
 				// Keyed by version, so another template or a new active version
 				// never shows the previous one's parameters.
 				<ChatProjectDefaultParameters
@@ -371,6 +343,62 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 					disabled={disabled}
 				/>
 			)}
+		</div>
+	);
+};
+
+type ChatProjectDefaultPresetProps = {
+	readonly templateVersionId: string;
+	/** Empty when no preset is selected. */
+	readonly value: string;
+	readonly onChange: (presetId: string) => void;
+	readonly disabled: boolean;
+};
+
+const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
+	templateVersionId,
+	value,
+	onChange,
+	disabled,
+}) => {
+	const presetId = useId();
+	const presetsQuery = useQuery(templateVersionPresets(templateVersionId));
+
+	if (presetsQuery.data === undefined && presetsQuery.error) {
+		return (
+			<p role="alert" className="m-0 text-sm text-content-destructive">
+				{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
+			</p>
+		);
+	}
+	if (presetsQuery.data === undefined) {
+		return <Skeleton className="h-10 w-full" />;
+	}
+	// The server returns null rather than [] for a version without presets.
+	const presets = presetsQuery.data ?? [];
+	if (presets.length === 0) {
+		return (
+			<p className="m-0 text-sm text-content-secondary">
+				This template has no presets.
+			</p>
+		);
+	}
+
+	return (
+		<div className="flex flex-col gap-2">
+			<Label htmlFor={presetId}>Default preset</Label>
+			<Select value={value} onValueChange={onChange} disabled={disabled}>
+				<SelectTrigger id={presetId}>
+					<SelectValue placeholder="Select a preset" />
+				</SelectTrigger>
+				<SelectContent>
+					{presets.map((preset) => (
+						<SelectItem key={preset.ID} value={preset.ID}>
+							{preset.Name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 		</div>
 	);
 };
