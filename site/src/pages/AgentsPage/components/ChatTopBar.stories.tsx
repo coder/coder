@@ -1,6 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Outlet, useLocation } from "react-router";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
@@ -90,6 +98,42 @@ export default meta;
 type Story = StoryObj<typeof ChatTopBar>;
 
 export const Default: Story = {};
+
+export const WithProject: Story = {
+	args: { chat: { ...MockChat, project_id: MockChatProject.id } },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+};
+
+const mockProjectWithIcon: TypesGen.ChatProject = {
+	...MockChatProject,
+	icon: "/icon/code.svg",
+};
+
+export const WithProjectIcon: Story = {
+	args: { chat: { ...MockChat, project_id: MockChatProject.id } },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [mockProjectWithIcon] }],
+	},
+};
+
+export const ProjectTooltip: Story = {
+	...WithProject,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("link", { name: MockChatProject.name }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const WithUnavailableProject: Story = {
+	args: { chat: { ...MockChat, project_id: MockChatProject.id } },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+};
 
 export const SharedChat: Story = {
 	args: {
