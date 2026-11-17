@@ -391,7 +391,6 @@ Refer to [OIDC authentication](../admin/users/oidc-auth/index.md).
 
 An open-source alternative to Terraform.
 Coder deployments can run a custom Terraform binary such as OpenTofu, though custom Terraform binaries are not officially supported.
-Refer to [Provisioning with OpenTofu](../admin/integrations/opentofu.md).
 
 ### Organization
 
