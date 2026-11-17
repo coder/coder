@@ -62,7 +62,7 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 		<div>
 			<div className="flex items-start gap-8">
 				{/* top-28 (112px) is a sum of nav height (72px) and TemplateLayout's LinkTabs' mb-10 (40px) */}
-				<div className="sticky top-28 w-60 shrink-0 overflow-auto rounded-lg border border-surface-quaternary py-1">
+				<div className="sticky top-28 max-h-[calc(100vh-8rem)] w-60 shrink-0 overflow-auto rounded-lg border border-surface-quaternary py-1">
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
@@ -88,7 +88,7 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 				</div>
 
 				<div
-					className="flex flex-1 flex-col gap-4"
+					className="flex min-w-0 flex-1 flex-col gap-4"
 					data-testid="template-files-content"
 				>
 					{Object.keys(currentFiles)
