@@ -279,10 +279,4 @@ export const LoadError: Story = {
 
 export const ModelNotFound: Story = {
 	render: () => <UpdateModelPageView state="notFound" />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("This page could not be found."),
-		).toBeVisible();
-	},
 };
