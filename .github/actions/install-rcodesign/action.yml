@@ -1,0 +1,80 @@
+name: Install rcodesign
+description: |
+  Install the rcodesign (apple-codesign) binary with PKCS#11 support enabled
+  so darwin binaries can be signed with an Apple Developer certificate whose
+  private key lives in Google Cloud KMS.
+
+  PKCS#11 support is not in a published apple-codesign release (latest is
+  0.29.0) and is gated behind the optional "pkcs11" cargo feature, so we build
+  rcodesign from source at a pinned revision and cache the resulting binary.
+  We also apply pkcs11-single-init.patch (the apple-codesign/src portion of
+  https://github.com/indygreg/apple-platform-rs/pull/350) because without it
+  the module is initialized twice per process and signing fails with
+  CKR_CRYPTOKI_ALREADY_INITIALIZED.
+
+  TODO: switch back to a prebuilt release tarball once a release containing
+  PKCS#11 support and the initialization fix is published with the feature
+  enabled.
+inputs:
+  rev:
+    description: Git revision of indygreg/apple-platform-rs to build.
+    required: false
+    default: "0ebbd2ef3b96d5adccc30b1cad4deea38cd735c4"
+  use-cache:
+    description: >-
+      Restore and save the built binary with actions/cache. Signing jobs must
+      pass "false": Depot caches are shared across branches, so a pull request
+      could plant a binary under the same key that a signing job would then run
+      with the signing credentials.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Cache rcodesign binary
+      id: cache-rcodesign
+      if: inputs.use-cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: /tmp/rcodesign-bin
+        key: rcodesign-pkcs11-${{ runner.os }}-${{ runner.arch }}-${{ inputs.rev }}-${{ hashFiles('.github/actions/install-rcodesign/pkcs11-single-init.patch') }}
+
+    - name: Build rcodesign
+      if: steps.cache-rcodesign.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if command -v rustup >/dev/null 2>&1; then
+          rustup toolchain install --profile minimal stable
+          rustup default stable
+        elif ! command -v cargo >/dev/null 2>&1; then
+          ./.github/scripts/retry.sh -- curl --proto '=https' --tlsv1.2 -sSfL https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y --profile minimal
+          rm /tmp/rustup-init.sh
+        fi
+        export PATH="$HOME/.cargo/bin:$PATH"
+
+        src=/tmp/apple-platform-rs-src
+        rm -rf "$src"
+        git init -q "$src"
+        ./.github/scripts/retry.sh -- git -C "$src" fetch -q --depth 1 https://github.com/indygreg/apple-platform-rs.git "$RCODESIGN_REV"
+        git -C "$src" checkout -q FETCH_HEAD
+        git -C "$src" apply "$GITHUB_ACTION_PATH/pkcs11-single-init.patch"
+
+        ./.github/scripts/retry.sh -- cargo install \
+          --locked \
+          --path "$src/apple-codesign" \
+          --features pkcs11 \
+          --bin rcodesign \
+          --root /tmp/rcodesign-install
+        mkdir -p /tmp/rcodesign-bin
+        cp /tmp/rcodesign-install/bin/rcodesign /tmp/rcodesign-bin/rcodesign
+      env:
+        RCODESIGN_REV: ${{ inputs.rev }}
+
+    - name: Install rcodesign
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo install -m 0755 /tmp/rcodesign-bin/rcodesign /usr/bin/rcodesign
+        rcodesign --version

@@ -23,5 +23,7 @@ allowBuilds:
   ssh2: true
   storybook-addon-remix-react-router: false
 
-patchedDependencies:
-  frimousse@0.4.0: patches/frimousse@0.4.0.patch
+# pnpm holds back versions published in the last day. This exact version was
+# published from coder/frimousse by trusted publishing on 2026-11-16.
+minimumReleaseAgeExclude:
+  - '@coder/frimousse@0.4.1'

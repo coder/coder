@@ -27043,37 +27043,103 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 }
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+WITH pending_requirements AS (
+	-- Requirement sets of pending jobs past the ordinary timeout. Jobs that
+	-- share an organization, provisioner type, and tags have the same
+	-- eligible daemons, and jobs usually share a few template tag sets, so
+	-- distinct sets are far fewer than pending jobs. Checking daemon
+	-- eligibility per set costs sets x daemons calls to the plpgsql
+	-- provisioner_tagset_contains function, which Postgres cannot inline,
+	-- instead of jobs x daemons.
+	SELECT DISTINCT organization_id, provisioner, tags
+	FROM provisioner_jobs
+	WHERE job_status = 'pending'::provisioner_job_status
+		AND updated_at < $1
+),
+protected_requirements AS (
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM pending_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= $4::timestamptz
+			-- The running leg lets builds longer than the window count as
+			-- progress. Keep the legs as separate EXISTS so each is a range
+			-- scan on provisioner_jobs_worker_id_organization_id_completed_at_idx.
+			-- Keep in sync with HasProvisionerDaemonMakingProgress.
+			AND (
+				EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at >= $5::timestamptz
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at IS NULL
+						AND wj.updated_at >= $2
+				)
+			)
+	)
+)
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
 WHERE
 	(
 		-- If the job has not been started before @pending_since, reap it.
-		updated_at < $1
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		pj.updated_at < $1
+		AND pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		-- Unless it is pending and an eligible provisioner is online and
+		-- making progress.
+		AND NOT (
+			pj.job_status = 'pending'::provisioner_job_status
+			AND EXISTS (
+				SELECT 1
+				FROM protected_requirements pr
+				WHERE pr.organization_id = pj.organization_id
+					AND pr.provisioner = pj.provisioner
+					AND pr.tags = pj.tags
+			)
+		)
 	)
 	OR
 	(
 		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < $2
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		pj.updated_at < $2
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
 ORDER BY random()
 LIMIT $3
 `
 
 type GetProvisionerJobsToBeReapedParams struct {
-	PendingSince time.Time `db:"pending_since" json:"pending_since"`
-	HungSince    time.Time `db:"hung_since" json:"hung_since"`
-	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+	PendingSince             time.Time `db:"pending_since" json:"pending_since"`
+	HungSince                time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs                  int32     `db:"max_jobs" json:"max_jobs"`
+	ProvisionerSeenSince     time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
+	ProvisionerProgressSince time.Time `db:"provisioner_progress_since" json:"provisioner_progress_since"`
 }
 
 // To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped,
+		arg.PendingSince,
+		arg.HungSince,
+		arg.MaxJobs,
+		arg.ProvisionerSeenSince,
+		arg.ProvisionerProgressSince,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -27115,6 +27181,48 @@ func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetPr
 		return nil, err
 	}
 	return items, nil
+}
+
+const hasProvisionerDaemonMakingProgress = `-- name: HasProvisionerDaemonMakingProgress :one
+SELECT EXISTS (
+	SELECT 1
+	FROM provisioner_daemons pd
+	WHERE pd.id = ANY($1::uuid[])
+		AND (
+			EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at >= $2::timestamptz
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at IS NULL
+					AND wj.updated_at >= $3::timestamptz
+			)
+		)
+)::bool AS making_progress
+`
+
+type HasProvisionerDaemonMakingProgressParams struct {
+	DaemonIds                []uuid.UUID `db:"daemon_ids" json:"daemon_ids"`
+	ProvisionerProgressSince time.Time   `db:"provisioner_progress_since" json:"provisioner_progress_since"`
+	HungSince                time.Time   `db:"hung_since" json:"hung_since"`
+}
+
+// Returns true when any of the given daemons is making progress, using the
+// progress rule from GetProvisionerJobsToBeReaped (keep the two in sync). It
+// does not check heartbeat or eligibility, so callers must pass only online,
+// eligible daemons.
+func (q *sqlQuerier) HasProvisionerDaemonMakingProgress(ctx context.Context, arg HasProvisionerDaemonMakingProgressParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasProvisionerDaemonMakingProgress, pq.Array(arg.DaemonIds), arg.ProvisionerProgressSince, arg.HungSince)
+	var making_progress bool
+	err := row.Scan(&making_progress)
+	return making_progress, err
 }
 
 const insertProvisionerJob = `-- name: InsertProvisionerJob :one
@@ -34381,7 +34489,8 @@ SELECT
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
-	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font_size'), '0')::int AS terminal_font_size
 FROM
 	user_configs
 WHERE
@@ -34391,16 +34500,18 @@ WHERE
 		'theme_mode',
 		'theme_light',
 		'theme_dark',
-		'terminal_font'
+		'terminal_font',
+		'terminal_font_size'
 	)
 `
 
 type GetUserAppearanceSettingsRow struct {
-	ThemePreference string `db:"theme_preference" json:"theme_preference"`
-	ThemeMode       string `db:"theme_mode" json:"theme_mode"`
-	ThemeLight      string `db:"theme_light" json:"theme_light"`
-	ThemeDark       string `db:"theme_dark" json:"theme_dark"`
-	TerminalFont    string `db:"terminal_font" json:"terminal_font"`
+	ThemePreference  string `db:"theme_preference" json:"theme_preference"`
+	ThemeMode        string `db:"theme_mode" json:"theme_mode"`
+	ThemeLight       string `db:"theme_light" json:"theme_light"`
+	ThemeDark        string `db:"theme_dark" json:"theme_dark"`
+	TerminalFont     string `db:"terminal_font" json:"terminal_font"`
+	TerminalFontSize int32  `db:"terminal_font_size" json:"terminal_font_size"`
 }
 
 func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error) {
@@ -34412,6 +34523,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 		&i.ThemeLight,
 		&i.ThemeDark,
 		&i.TerminalFont,
+		&i.TerminalFontSize,
 	)
 	return i, err
 }
@@ -35715,6 +35827,33 @@ type UpdateUserTerminalFontParams struct {
 
 func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserTerminalFontSize = `-- name: UpdateUserTerminalFontSize :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'terminal_font_size', ($2::int)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = ($2::int)::text
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'terminal_font_size'
+RETURNING user_id, key, value
+`
+
+type UpdateUserTerminalFontSizeParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	TerminalFontSize int32     `db:"terminal_font_size" json:"terminal_font_size"`
+}
+
+func (q *sqlQuerier) UpdateUserTerminalFontSize(ctx context.Context, arg UpdateUserTerminalFontSizeParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTerminalFontSize, arg.UserID, arg.TerminalFontSize)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
