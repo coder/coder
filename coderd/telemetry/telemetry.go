@@ -2553,18 +2553,18 @@ type ChatProjectPinSummary struct {
 	PinnedDefault          int64 `json:"pinned_default"`
 	PinnedUser             int64 `json:"pinned_user"`
 	UnpinnedOwned          int64 `json:"unpinned_owned"`
-	AllShare0           int64 `json:"all_share_0"`
-	AllShare125         int64 `json:"all_share_1_25"`
-	AllShare2650        int64 `json:"all_share_26_50"`
-	AllShare5175        int64 `json:"all_share_51_75"`
-	AllShare7699        int64 `json:"all_share_76_99"`
-	AllShare100         int64 `json:"all_share_100"`
-	ActedShare0         int64 `json:"acted_share_0"`
-	ActedShare125       int64 `json:"acted_share_1_25"`
-	ActedShare2650      int64 `json:"acted_share_26_50"`
-	ActedShare5175      int64 `json:"acted_share_51_75"`
-	ActedShare7699      int64 `json:"acted_share_76_99"`
-	ActedShare100       int64 `json:"acted_share_100"`
+	AllShare0              int64 `json:"all_share_0"`
+	AllShare125            int64 `json:"all_share_1_25"`
+	AllShare2650           int64 `json:"all_share_26_50"`
+	AllShare5175           int64 `json:"all_share_51_75"`
+	AllShare7699           int64 `json:"all_share_76_99"`
+	AllShare100            int64 `json:"all_share_100"`
+	ActedShare0            int64 `json:"acted_share_0"`
+	ActedShare125          int64 `json:"acted_share_1_25"`
+	ActedShare2650         int64 `json:"acted_share_26_50"`
+	ActedShare5175         int64 `json:"acted_share_51_75"`
+	ActedShare7699         int64 `json:"acted_share_76_99"`
+	ActedShare100          int64 `json:"acted_share_100"`
 }
 
 // UserSecretsSummary contains deployment-wide aggregates about user
