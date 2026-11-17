@@ -588,7 +588,15 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
-		defer func() {
+		var reportMu sync.Mutex
+		reported := false
+		report := func(reason codersdk.DisconnectReason) {
+			reportMu.Lock()
+			defer reportMu.Unlock()
+			if reported {
+				return
+			}
+			reported = true
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
 			if s.isClosing() {
 				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
@@ -608,6 +616,13 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				RxBytes: st.RxBytes(),
 				TxBytes: st.TxBytes(),
 			})
+		}
+		// Non-PTY processes outlive the client like OpenSSH, so report the
+		// disconnect when the connection closes, not when the process exits.
+		stop := context.AfterFunc(ctx, func() { report(codersdk.DisconnectReasonClientClosed) })
+		defer func() {
+			stop()
+			report(reason)
 		}()
 	}
 
