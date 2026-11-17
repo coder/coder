@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -991,7 +993,7 @@ func TestChatProjectWorkspaceTemplates(t *testing.T) {
 	orgID := firstUser.OrganizationID
 
 	allowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
-	other, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	other, otherPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
 	// A project limits nothing until it opts in, whatever is attached.
 	unlimited, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
 		Name:        "Unlimited",
@@ -1064,4 +1066,22 @@ func TestChatProjectWorkspaceTemplates(t *testing.T) {
 		Name:       "not-attached",
 	})
 	require.ErrorContains(t, err, notAllowed)
+
+	// A preset picks the prebuilt workspace to claim, whichever template the
+	// request names, so a preset of another template is held to the limit.
+	var claimer prebuilds.Claimer = fixedPrebuildClaimer{workspaceID: otherWorkspace}
+	api.PrebuildsClaimer.Store(&claimer)
+	_, _, err = coderd.ChatCreateWorkspace(api, ctx, firstUser.UserID, unbound.ID, codersdk.CreateWorkspaceRequest{
+		TemplateID:              allowed.ID,
+		TemplateVersionPresetID: otherPreset.ID,
+		Name:                    "claimed",
+	})
+	require.ErrorContains(t, err, notAllowed)
+}
+
+// fixedPrebuildClaimer claims the same prebuilt workspace for every preset.
+type fixedPrebuildClaimer struct{ workspaceID uuid.UUID }
+
+func (c fixedPrebuildClaimer) Claim(context.Context, database.Store, time.Time, uuid.UUID, string, uuid.UUID, sql.NullString, sql.NullTime, sql.NullInt64) (*uuid.UUID, error) {
+	return &c.workspaceID, nil
 }
