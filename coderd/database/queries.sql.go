@@ -8595,22 +8595,27 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 
 const insertChatProjectTemplates = `-- name: InsertChatProjectTemplates :many
 INSERT INTO chat_project_templates (project_id, template_id, created_by)
-SELECT $1::uuid, unnest($2::uuid[]), $3::uuid
+SELECT chat_projects.id, templates.id, $1::uuid
+FROM chat_projects
+JOIN templates ON templates.organization_id = chat_projects.organization_id
+WHERE chat_projects.id = $2::uuid
+    AND templates.id = ANY($3::uuid[])
 ON CONFLICT (project_id, template_id) DO NOTHING
 RETURNING project_id, template_id, created_by, created_at
 `
 
 type InsertChatProjectTemplatesParams struct {
+	CreatedBy   uuid.UUID   `db:"created_by" json:"created_by"`
 	ProjectID   uuid.UUID   `db:"project_id" json:"project_id"`
 	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
-	CreatedBy   uuid.UUID   `db:"created_by" json:"created_by"`
 }
 
 // Attaches templates to a project and returns the new attachments. Templates
 // that are already attached are skipped, so their rows keep their original
-// created_by.
+// created_by. Templates outside the project's organization are skipped too,
+// so an attachment never crosses organizations.
 func (q *sqlQuerier) InsertChatProjectTemplates(ctx context.Context, arg InsertChatProjectTemplatesParams) ([]ChatProjectTemplate, error) {
-	rows, err := q.db.QueryContext(ctx, insertChatProjectTemplates, arg.ProjectID, pq.Array(arg.TemplateIDs), arg.CreatedBy)
+	rows, err := q.db.QueryContext(ctx, insertChatProjectTemplates, arg.CreatedBy, arg.ProjectID, pq.Array(arg.TemplateIDs))
 	if err != nil {
 		return nil, err
 	}

@@ -119,9 +119,14 @@ WHERE owner_id = @owner_id::uuid;
 -- name: InsertChatProjectTemplates :many
 -- Attaches templates to a project and returns the new attachments. Templates
 -- that are already attached are skipped, so their rows keep their original
--- created_by.
+-- created_by. Templates outside the project's organization are skipped too,
+-- so an attachment never crosses organizations.
 INSERT INTO chat_project_templates (project_id, template_id, created_by)
-SELECT @project_id::uuid, unnest(@template_ids::uuid[]), @created_by::uuid
+SELECT chat_projects.id, templates.id, @created_by::uuid
+FROM chat_projects
+JOIN templates ON templates.organization_id = chat_projects.organization_id
+WHERE chat_projects.id = @project_id::uuid
+    AND templates.id = ANY(@template_ids::uuid[])
 ON CONFLICT (project_id, template_id) DO NOTHING
 RETURNING *;
 
