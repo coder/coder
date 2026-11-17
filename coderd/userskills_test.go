@@ -318,9 +318,10 @@ func TestSkillValidationAndConflicts(t *testing.T) {
 				assert.Equal(t, "No skill fields to update.", sdkErr.Message)
 			})
 
-			// Only project skills can be actions, so personal and
-			// organization routes reject the field even when it is false.
-			t.Run("ActionRejected", func(t *testing.T) {
+			// Only project skills can be actions or have display names, so
+			// personal and organization routes reject those fields even
+			// when they are false or empty.
+			t.Run("ProjectFieldsRejected", func(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
@@ -334,6 +335,17 @@ func TestSkillValidationAndConflicts(t *testing.T) {
 					_, err = owner.update(ctx, "action-rejected", codersdk.UpdateSkillRequest{Action: ptr.Ref(action)})
 					sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
 					assert.Equal(t, "Only project skills can be actions.", sdkErr.Message)
+				}
+				_, err = owner.create(ctx, codersdk.CreateSkillRequest{
+					Content:     userSkillMarkdown("display-name-rejected", "Valid", "Body."),
+					DisplayName: ptr.Ref("Display name"),
+				})
+				sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
+				assert.Equal(t, "Only project skills can have display names.", sdkErr.Message)
+				for _, displayName := range []string{"Display name", ""} {
+					_, err = owner.update(ctx, "action-rejected", codersdk.UpdateSkillRequest{DisplayName: ptr.Ref(displayName)})
+					sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
+					assert.Equal(t, "Only project skills can have display names.", sdkErr.Message)
 				}
 			})
 
@@ -671,9 +683,10 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	assert.Contains(t, triggerDef, fmt.Sprintf("skill_limit constant int := %d;", skills.MaxPersonalSkillsPerUser))
 
 	constraints := map[database.CheckConstraint]string{
-		database.CheckSkillsNameSize:    fmt.Sprintf("octet_length(name) <= %d", skills.MaxPersonalSkillNameBytes),
-		database.CheckSkillsNameFormat:  "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
-		database.CheckSkillsContentSize: fmt.Sprintf("octet_length(content) <= %d", skills.MaxPersonalSkillSizeBytes),
+		database.CheckSkillsNameSize:          fmt.Sprintf("octet_length(name) <= %d", skills.MaxPersonalSkillNameBytes),
+		database.CheckSkillsNameFormat:        "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
+		database.CheckSkillsContentSize:       fmt.Sprintf("octet_length(content) <= %d", skills.MaxPersonalSkillSizeBytes),
+		database.CheckSkillsDisplayNameLength: fmt.Sprintf("char_length(display_name) <= %d", codersdk.MaxSkillDisplayNameLength),
 	}
 	for constraint, expected := range constraints {
 		t.Run(string(constraint), func(t *testing.T) {
