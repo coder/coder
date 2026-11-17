@@ -12810,6 +12810,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendClient
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                     |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend from the client over the period.                                                |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage from the client was recorded without a price.                |
+| `name`               | string  | false    |              | Name is the client recorded on the intercepted request. Usage without a recorded client is reported as Unknown. |
+
+## codersdk.OrganizationAISpendModel
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                   |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend on the model over the period.                                 |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage of the model was recorded without a price. |
+| `name`               | string  | false    |              | Name is the model the client requested.                                                       |
+
 ## codersdk.OrganizationAISpendOverview
 
 ```json
@@ -12944,6 +12980,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_id`      | string                                                                                          | false    |              |                                                                                   |
 | `username`     | string                                                                                          | false    |              |                                                                                   |
 
+## codersdk.OrganizationAISpendProvider
+
+```json
+{
+  "cost_micros": 0,
+  "display_name": "string",
+  "has_unpriced_usage": true,
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name                 | Type                                               | Required | Restrictions | Description                                                                                           |
+|----------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer                                            | false    |              | Cost micros is the priced spend through the provider over the period.                                 |
+| `display_name`       | string                                             | false    |              | Display name falls back to the provider name when unset.                                              |
+| `has_unpriced_usage` | boolean                                            | false    |              | Has unpriced usage reports whether any token usage through the provider was recorded without a price. |
+| `icon`               | string                                             | false    |              | Icon is empty when the provider has no configured icon.                                               |
+| `name`               | string                                             | false    |              | Name is the name of the configured provider.                                                          |
+| `type`               | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Type is omitted when the provider name was never configured.                                          |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -12954,23 +13014,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "retention_start": "2019-08-24T14:15:22Z",
   "totals": {
     "cost_micros": 0,
-    "unpriced_usage_count": 0
+    "has_unpriced_usage": true
   },
   "users": [
     {
       "avatar_url": "string",
-      "clients": [
-        "string"
+      "client_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "cost_micros": 0,
-      "models": [
-        "string"
+      "model_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "name": "string",
-      "providers": [
-        "string"
+      "provider_spend": [
+        {
+          "cost_micros": 0,
+          "display_name": "string",
+          "has_unpriced_usage": true,
+          "icon": "string",
+          "name": "string",
+          "type": "openai"
+        }
       ],
-      "unpriced_usage_count": 0,
+      "unpriced_model_count": 0,
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
       "username": "string"
     }
@@ -12994,34 +13069,49 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "cost_micros": 0,
-  "unpriced_usage_count": 0
+  "has_unpriced_usage": true
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                          |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
-| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
-| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+| Name                 | Type    | Required | Restrictions | Description                                                                               |
+|----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend of every matching user.                                   |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any matching token usage was recorded without a price. |
 
 ## codersdk.OrganizationAISpendUser
 
 ```json
 {
   "avatar_url": "string",
-  "clients": [
-    "string"
+  "client_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "cost_micros": 0,
-  "models": [
-    "string"
+  "model_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "name": "string",
-  "providers": [
-    "string"
+  "provider_spend": [
+    {
+      "cost_micros": 0,
+      "display_name": "string",
+      "has_unpriced_usage": true,
+      "icon": "string",
+      "name": "string",
+      "type": "openai"
+    }
   ],
-  "unpriced_usage_count": 0,
+  "unpriced_model_count": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
   "username": "string"
 }
@@ -13029,17 +13119,17 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
-|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
-| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
-| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
-| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
-| `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
-| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
-| `user_id`              | string          | false    |              |                                                                                                                                                   |
-| `username`             | string          | false    |              |                                                                                                                                                   |
+| Name                   | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                              |
+|------------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`           | string                                                                                | false    |              |                                                                                                                                                                                                                          |
+| `client_spend`         | array of [codersdk.OrganizationAISpendClient](#codersdkorganizationaispendclient)     | false    |              | Client spend is the user's spend per client, most expensive first. Usage without a recorded client is reported as Unknown.                                                                                               |
+| `cost_micros`          | integer                                                                               | false    |              | Cost micros is the user's priced spend over the period.                                                                                                                                                                  |
+| `model_spend`          | array of [codersdk.OrganizationAISpendModel](#codersdkorganizationaispendmodel)       | false    |              | Model spend is the user's spend per model, most expensive first.                                                                                                                                                         |
+| `name`                 | string                                                                                | false    |              |                                                                                                                                                                                                                          |
+| `provider_spend`       | array of [codersdk.OrganizationAISpendProvider](#codersdkorganizationaispendprovider) | false    |              | Provider spend is the user's spend per configured provider, most expensive first.                                                                                                                                        |
+| `unpriced_model_count` | integer                                                                               | false    |              | Unpriced model count is the number of models the user spent through with token usage recorded without a price, so CostMicros is a lower bound when it is above zero. A model used through several providers counts once. |
+| `user_id`              | string                                                                                | false    |              |                                                                                                                                                                                                                          |
+| `username`             | string                                                                                | false    |              |                                                                                                                                                                                                                          |
 
 ## codersdk.OrganizationChatModelsResponse
 
