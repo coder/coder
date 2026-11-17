@@ -16,6 +16,7 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockDropdownParameter,
+	MockDynamicParametersResponseWithError,
 	MockOrganization2,
 	MockSliderParameter,
 	MockSwitchParameter,
@@ -46,15 +47,6 @@ const mockInstanceTypeParameter: PreviewParameter = {
 	...MockDropdownParameter,
 	value: MockDropdownParameter.default_value,
 };
-const mockParameters: DynamicParametersResponse = {
-	id: 0,
-	diagnostics: [],
-	parameters: [
-		mockInstanceTypeParameter,
-		MockSliderParameter,
-		MockSwitchParameter,
-	],
-};
 const mockOutOfRangeParameter: PreviewParameter = {
 	...MockValidationParameter,
 	value: { value: "500", valid: true },
@@ -65,6 +57,16 @@ const mockOutOfRangeParameter: PreviewParameter = {
 			detail: "",
 			extra: { code: "" },
 		},
+	],
+};
+const mockParameters: DynamicParametersResponse = {
+	id: 0,
+	diagnostics: [],
+	parameters: [
+		mockInstanceTypeParameter,
+		mockOutOfRangeParameter,
+		MockSliderParameter,
+		MockSwitchParameter,
 	],
 };
 const meta = {
@@ -335,7 +337,8 @@ export const DefaultTemplateParameters: Story = {
 		],
 	},
 	// Changes one value so the screenshot shows a project default, which can
-	// be reset, next to parameters that keep the template default.
+	// be reset, next to parameters that keep the template default. One of
+	// those has a value the template rejects.
 	play: async (context) => {
 		await pickDefaultParameters(context);
 		await userEvent.click(
@@ -346,8 +349,8 @@ export const DefaultTemplateParameters: Story = {
 	},
 };
 
-/** The evaluation reports a problem with the template and with a value. */
-export const DefaultTemplateParameterDiagnostics: Story = {
+/** The evaluation fails as a whole, so it returns no parameters. */
+export const DefaultTemplateEvaluationFailed: Story = {
 	parameters: {
 		queries: [
 			...meta.parameters.queries,
@@ -362,18 +365,8 @@ export const DefaultTemplateParameterDiagnostics: Story = {
 					{},
 				),
 				data: {
-					id: 0,
-					diagnostics: [
-						{
-							severity: "warning",
-							summary:
-								"This template version is missing required metadata to support dynamic parameters.",
-							detail:
-								"To restore full functionality, please re-import the terraform as a new template version.",
-							extra: { code: "" },
-						},
-					],
-					parameters: [mockOutOfRangeParameter],
+					...MockDynamicParametersResponseWithError,
+					parameters: [],
 				} satisfies DynamicParametersResponse,
 			},
 		],

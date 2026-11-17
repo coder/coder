@@ -19,6 +19,7 @@ import {
 	MockDropdownParameter,
 	MockOrganization2,
 	MockPreviewParameter1,
+	MockSwitchParameter,
 	MockTemplate,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -527,14 +528,11 @@ const mockPreset: Preset = {
 	Icon: "",
 };
 const mockEvaluateRoute = `/api/v2/templateversions/${mockFirstTemplate.active_version_id}/dynamic-parameters/evaluate`;
-const mockEvaluation: DynamicParametersResponse = {
-	id: 0,
-	diagnostics: [],
-	parameters: [MockDropdownParameter, MockPreviewParameter1],
-};
-
 describe("ChatProjectDialog templates", () => {
-	/** Returns the bodies of the parameter evaluations requested so far. */
+	/**
+	 * Returns the bodies of the parameter evaluations requested so far. The
+	 * template has a monitoring switch only for the medium instance type.
+	 */
 	const useTemplateHandlers = () => {
 		const evaluations: DynamicParametersRequest[] = [];
 		server.use(
@@ -547,8 +545,19 @@ describe("ChatProjectDialog templates", () => {
 			http.post<never, DynamicParametersRequest>(
 				mockEvaluateRoute,
 				async ({ request }) => {
-					evaluations.push(await request.json());
-					return HttpResponse.json(mockEvaluation);
+					const evaluation = await request.json();
+					evaluations.push(evaluation);
+					return HttpResponse.json({
+						id: 0,
+						diagnostics: [],
+						parameters: [
+							MockDropdownParameter,
+							MockPreviewParameter1,
+							...(evaluation.inputs[MockDropdownParameter.name] === "t3.medium"
+								? [MockSwitchParameter]
+								: []),
+						],
+					} satisfies DynamicParametersResponse);
 				},
 			),
 		);
@@ -622,13 +631,19 @@ describe("ChatProjectDialog templates", () => {
 		});
 	});
 
-	const pickInstanceType = async (
+	const openParameterValues = async (
 		user: ReturnType<typeof userEvent.setup>,
-		name: string,
 	) => {
 		await startCreate(user);
 		await pickDefaultTemplate(user, "Docker");
 		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
+	};
+
+	const pickInstanceType = async (
+		user: ReturnType<typeof userEvent.setup>,
+		name: string,
+	) => {
+		await openParameterValues(user);
 		const parameter = await screen.findByRole("group", {
 			name: MockDropdownParameter.display_name,
 		});
@@ -636,42 +651,34 @@ describe("ChatProjectDialog templates", () => {
 		await user.click(screen.getByRole("option", { name }));
 	};
 
-	it("submits only the default parameter values that were changed", async () => {
-		useTemplateHandlers();
+	it("saves a default for a parameter that another changed value adds", async () => {
+		const evaluations = useTemplateHandlers();
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await pickInstanceType(user, "t3.small");
+		await pickInstanceType(user, "t3.medium");
+		await user.click(
+			await screen.findByRole("switch", {
+				name: MockSwitchParameter.display_name,
+			}),
+		);
 		await user.click(screen.getByRole("button", { name: "Create project" }));
 
+		const instanceType = { [MockDropdownParameter.name]: "t3.medium" };
+		const parameters = { ...instanceType, [MockSwitchParameter.name]: "false" };
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
-					default_template: {
-						template_id: mockFirstTemplate.id,
-						parameters: { [MockDropdownParameter.name]: "t3.small" },
-					},
+					default_template: { template_id: mockFirstTemplate.id, parameters },
 				}),
 			);
 		});
-	});
-
-	it("evaluates the template again with a changed parameter value", async () => {
-		const evaluations = useTemplateHandlers();
-		const user = userEvent.setup();
-		renderDialog();
-
-		await pickInstanceType(user, "t3.small");
-
 		await waitFor(() => {
 			expect(evaluations).toEqual([
 				{ id: 0, owner_id: MockUserOwner.id, inputs: {} },
-				{
-					id: 0,
-					owner_id: MockUserOwner.id,
-					inputs: { [MockDropdownParameter.name]: "t3.small" },
-				},
+				{ id: 0, owner_id: MockUserOwner.id, inputs: instanceType },
+				{ id: 0, owner_id: MockUserOwner.id, inputs: parameters },
 			]);
 		});
 	});
@@ -681,9 +688,7 @@ describe("ChatProjectDialog templates", () => {
 		const user = userEvent.setup();
 		renderDialog();
 
-		await startCreate(user);
-		await pickDefaultTemplate(user, "Docker");
-		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
+		await openParameterValues(user);
 		const parameter = await screen.findByRole("group", {
 			name: MockPreviewParameter1.display_name,
 		});

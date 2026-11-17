@@ -348,11 +348,7 @@ export const richParameters = (versionId: string) => {
 	};
 };
 
-/**
- * Query key for {@link dynamicParameters}. It sits under the template
- * version's key, so invalidating a version also evaluates its parameters
- * again.
- */
+/** Query key for {@link dynamicParameters}. */
 export const dynamicParametersKey = (
 	versionId: string,
 	ownerId: string,
