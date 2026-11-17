@@ -101,6 +101,127 @@ The workspace agent token, `CODER_AGENT_TOKEN`, can't call this endpoint.
 
 For a script that keeps extending the deadline while a job runs, refer to [Manually send workspace activity](../reference/index.md#workspace-agents).
 
+#### Keep coding agents running
+
+A template admin can make a workspace stay running while a coding agent works, with no user action.
+The examples in this section do this for Claude Code and Herdr with the [Claude Code](https://registry.coder.com/modules/coder/claude-code) and [Herdr](https://registry.coder.com/modules/gojnimer6553/herdr) registry modules.
+
+Both examples use a startup script that creates a [scoped token](../admin/users/sessions-tokens.md#api-key-scopes) for the workspace.
+The script uses the owner's session token from the workspace build once, to create a token that can only read and extend this workspace.
+It also installs a `coder-keepalive` helper that moves the deadline to one hour from now when the deadline is closer than 50&nbsp;minutes.
+The helper never shortens the deadline, and it never moves the deadline past the template's maximum workspace runtime.
+
+Add this script to the template:
+
+```tf
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+resource "coder_script" "keepalive" {
+  agent_id     = coder_agent.main.id
+  display_name = "Keep-alive token"
+  run_on_start = true
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    export CODER_URL='${data.coder_workspace.me.access_url}'
+    export CODER_SESSION_TOKEN='${data.coder_workspace_owner.me.session_token}'
+    name='keepalive-${data.coder_workspace.me.id}'
+    dir="$HOME/.config/coder-keepalive"
+    mkdir -p "$dir" "$HOME/.local/bin"
+    chmod 700 "$dir"
+    coder tokens remove "$name" > /dev/null 2>&1 || true
+    echo "$${CODER_URL%/}/api/v2/workspaces/${data.coder_workspace.me.id}" > "$dir/url"
+    (umask 077 && coder tokens create --name "$name" --lifetime 168h \
+      --scope workspace:read --scope workspace:update \
+      --allow 'workspace:${data.coder_workspace.me.id}' > "$dir/token")
+
+    cat > "$HOME/.local/bin/coder-keepalive" << 'HELPER'
+    #!/usr/bin/env bash
+    # Moves the workspace deadline to KEEPALIVE_WINDOW minutes from now when it
+    # is closer than that. Never shortens the deadline. Runs at most once a minute.
+    set -u
+    dir="$HOME/.config/coder-keepalive"
+    token=$(cat "$dir/token" 2> /dev/null) || exit 0
+    now=$(date +%s)
+    last=$(cat "$dir/last" 2> /dev/null || echo 0)
+    [ $((now - last)) -lt 60 ] && exit 0
+    echo "$now" > "$dir/last"
+
+    url=$(cat "$dir/url")
+    ws=$(curl -fsS --max-time 5 -H "Coder-Session-Token: $token" "$url?include_related=latest_build") || exit 0
+    deadline=$(jq -r '.latest_build.deadline // empty' <<< "$ws")
+    max=$(jq -r '.latest_build.max_deadline // empty' <<< "$ws")
+    [ -n "$deadline" ] || exit 0 # Autostop is off.
+
+    target=$((now + $${KEEPALIVE_WINDOW:-60} * 60))
+    [ -n "$max" ] && [ "$(date -d "$max" +%s)" -lt "$target" ] && target=$(date -d "$max" +%s)
+    # The API rejects deadlines less than 30 minutes away.
+    [ $((target - now)) -ge 1800 ] || exit 0
+    [ "$(date -d "$deadline" +%s)" -lt $((target - 600)) ] || exit 0
+
+    curl -fsS --max-time 5 -o /dev/null -X PUT "$url/extend" \
+      -H "Coder-Session-Token: $token" \
+      -d "{\"deadline\": \"$(date -u -d "@$target" +%Y-%m-%dT%H:%M:%SZ)\"}"
+    HELPER
+    chmod 755 "$HOME/.local/bin/coder-keepalive"
+  EOT
+}
+```
+
+The helper needs `curl`, `jq`, and GNU `date` in the workspace image.
+The owner's session token is part of the script, so the workspace agent can read it.
+Only the scoped token is saved in the workspace, and the script replaces it each time the workspace starts.
+Deleting the workspace doesn't delete the token, but the token can't reach any other workspace and expires after 7&nbsp;days.
+
+To extend the deadline while Claude Code works, add hooks that run the helper with the module's `managed_settings`:
+
+```tf
+module "claude-code" {
+  source            = "registry.coder.com/coder/claude-code/coder"
+  version           = "5.5.2"
+  agent_id          = coder_agent.main.id
+  anthropic_api_key = "xxxx-xxxxx-xxxx"
+
+  managed_settings = {
+    hooks = {
+      for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"] : event => [{
+        hooks = [{ type = "command", command = "cat > /dev/null; $HOME/.local/bin/coder-keepalive" }]
+      }]
+    }
+  }
+}
+```
+
+Claude Code runs the hooks when you send a prompt and before and after each tool call.
+A single tool call that runs for longer than 50&nbsp;minutes can still reach the deadline.
+
+To extend the deadline while any agent in Herdr works, start a loop that checks `herdr agent list` with the module's `post_start_script`:
+
+```tf
+module "herdr" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/gojnimer6553/herdr/coder"
+  version  = "1.0.0"
+  agent_id = coder_agent.main.id
+
+  post_start_script = <<-EOT
+    #!/usr/bin/env bash
+    # While any agent in Herdr is working, keep the workspace running.
+    nohup flock -n "$HOME/.config/coder-keepalive.lock" bash -c '
+      while true; do
+        if herdr agent list 2> /dev/null | grep -q "\"agent_status\":\"working\""; then
+          "$HOME/.local/bin/coder-keepalive"
+        fi
+        sleep 60
+      done' > /dev/null 2>&1 &
+  EOT
+}
+```
+
+When the agents stop working, the helper stops extending the deadline, and the workspace stops at its deadline.
+
 ## Autostop requirement
 
 > [!NOTE]
