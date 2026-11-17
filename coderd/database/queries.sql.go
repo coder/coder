@@ -1912,9 +1912,9 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
-	-- Filter client (prefix match to allow B-tree index usage).
+	-- Filter client (case-insensitive substring match).
 	AND CASE
-		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE $1::text || '%'
+		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list clients
@@ -2058,9 +2058,9 @@ FROM
 WHERE
 	-- Remove inflight interceptions (ones which lack an ended_at value).
 	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter model
+	-- Filter model (case-insensitive substring match).
 	AND CASE
-		WHEN $1::text != '' THEN aibridge_interceptions.model LIKE $1::text || '%'
+		WHEN $1::text != '' THEN aibridge_interceptions.model ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list models that are relevant
@@ -8299,8 +8299,50 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const deleteChatProjectTemplate = `-- name: DeleteChatProjectTemplate :one
+WITH cleared AS (
+    UPDATE chat_projects
+    SET
+        default_template_id = NULL,
+        default_template_version_preset_id = NULL,
+        default_parameters = '{}'::jsonb
+    WHERE id = $1::uuid
+        AND default_template_id = $2::uuid
+        AND EXISTS (
+            SELECT 1
+            FROM chat_project_templates
+            WHERE project_id = $1::uuid
+                AND template_id = $2::uuid
+        )
+)
+DELETE FROM chat_project_templates
+WHERE project_id = $1::uuid
+    AND template_id = $2::uuid
+RETURNING project_id, template_id, created_by, created_at
+`
+
+type DeleteChatProjectTemplateParams struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+// Detaches a template from a project. Detaching the default template also
+// clears the project's defaults, which only apply to an attached template.
+// Nothing changes when the template is not attached.
+func (q *sqlQuerier) DeleteChatProjectTemplate(ctx context.Context, arg DeleteChatProjectTemplateParams) (ChatProjectTemplate, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatProjectTemplate, arg.ProjectID, arg.TemplateID)
+	var i ChatProjectTemplate
+	err := row.Scan(
+		&i.ProjectID,
+		&i.TemplateID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -8319,12 +8361,16 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
 
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE id = $1::uuid
 FOR UPDATE
@@ -8344,12 +8390,85 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
 
+const getChatProjectTemplatesByProjectIDs = `-- name: GetChatProjectTemplatesByProjectIDs :many
+SELECT
+    chat_project_templates.project_id, chat_project_templates.template_id, chat_project_templates.created_by, chat_project_templates.created_at,
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
+FROM chat_project_templates
+JOIN chat_projects ON chat_projects.id = chat_project_templates.project_id
+JOIN templates ON templates.id = chat_project_templates.template_id
+WHERE chat_project_templates.project_id = ANY($1::uuid[])
+    AND NOT templates.deleted
+    AND templates.deprecated = ''
+    AND templates.agents_allowed
+ORDER BY
+    chat_project_templates.project_id,
+    chat_project_templates.created_at,
+    chat_project_templates.template_id
+`
+
+type GetChatProjectTemplatesByProjectIDsRow struct {
+	ChatProjectTemplate ChatProjectTemplate `db:"chat_project_template" json:"chat_project_template"`
+	ChatProject         ChatProject         `db:"chat_project" json:"chat_project"`
+}
+
+// Lists the templates attached to the given projects, oldest attachment
+// first. Deleted, deprecated, and agent-disabled templates are left out
+// because no chat can use them, whoever asks. The rows are not filtered by
+// the caller's access to each template, so callers must check that before
+// exposing a template.
+func (q *sqlQuerier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, projectIds []uuid.UUID) ([]GetChatProjectTemplatesByProjectIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectTemplatesByProjectIDs, pq.Array(projectIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatProjectTemplatesByProjectIDsRow
+	for rows.Next() {
+		var i GetChatProjectTemplatesByProjectIDsRow
+		if err := rows.Scan(
+			&i.ChatProjectTemplate.ProjectID,
+			&i.ChatProjectTemplate.TemplateID,
+			&i.ChatProjectTemplate.CreatedBy,
+			&i.ChatProjectTemplate.CreatedAt,
+			&i.ChatProject.ID,
+			&i.ChatProject.OrganizationID,
+			&i.ChatProject.OwnerID,
+			&i.ChatProject.Name,
+			&i.ChatProject.Description,
+			&i.ChatProject.Icon,
+			&i.ChatProject.CreatedAt,
+			&i.ChatProject.UpdatedAt,
+			&i.ChatProject.UserACL,
+			&i.ChatProject.GroupACL,
+			&i.ChatProject.LimitTemplates,
+			&i.ChatProject.DefaultTemplateID,
+			&i.ChatProject.DefaultTemplateVersionPresetID,
+			&i.ChatProject.DefaultParameters,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
 FROM chat_projects
 WHERE chat_projects.owner_id = $1::uuid
     OR (
@@ -8397,6 +8516,10 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.LimitTemplates,
+			&i.DefaultTemplateID,
+			&i.DefaultTemplateVersionPresetID,
+			&i.DefaultParameters,
 		); err != nil {
 			return nil, err
 		}
@@ -8412,25 +8535,36 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 }
 
 const insertChatProject = `-- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
+INSERT INTO chat_projects (
+    id, organization_id, owner_id, name, description, icon,
+    limit_templates, default_template_id, default_template_version_preset_id, default_parameters
+)
 VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::text,
     $5::text,
-    $6::text
+    $6::text,
+    $7::boolean,
+    $8::uuid,
+    $9::uuid,
+    COALESCE($10::jsonb, '{}'::jsonb)
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type InsertChatProjectParams struct {
-	ID             uuid.NullUUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Icon           string        `db:"icon" json:"icon"`
+	ID                             uuid.NullUUID         `db:"id" json:"id"`
+	OrganizationID                 uuid.UUID             `db:"organization_id" json:"organization_id"`
+	OwnerID                        uuid.UUID             `db:"owner_id" json:"owner_id"`
+	Name                           string                `db:"name" json:"name"`
+	Description                    string                `db:"description" json:"description"`
+	Icon                           string                `db:"icon" json:"icon"`
+	LimitTemplates                 bool                  `db:"limit_templates" json:"limit_templates"`
+	DefaultTemplateID              uuid.NullUUID         `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID         `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              pqtype.NullRawMessage `db:"default_parameters" json:"default_parameters"`
 }
 
 func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error) {
@@ -8441,6 +8575,10 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		arg.LimitTemplates,
+		arg.DefaultTemplateID,
+		arg.DefaultTemplateVersionPresetID,
+		arg.DefaultParameters,
 	)
 	var i ChatProject
 	err := row.Scan(
@@ -8454,8 +8592,61 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
+}
+
+const insertChatProjectTemplates = `-- name: InsertChatProjectTemplates :many
+INSERT INTO chat_project_templates (project_id, template_id, created_by)
+SELECT chat_projects.id, templates.id, $1::uuid
+FROM chat_projects
+JOIN templates ON templates.organization_id = chat_projects.organization_id
+WHERE chat_projects.id = $2::uuid
+    AND templates.id = ANY($3::uuid[])
+ON CONFLICT (project_id, template_id) DO NOTHING
+RETURNING project_id, template_id, created_by, created_at
+`
+
+type InsertChatProjectTemplatesParams struct {
+	CreatedBy   uuid.UUID   `db:"created_by" json:"created_by"`
+	ProjectID   uuid.UUID   `db:"project_id" json:"project_id"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+// Attaches templates to a project and returns the new attachments. Templates
+// that are already attached are skipped, so their rows keep their original
+// created_by. Templates outside the project's organization are skipped too,
+// so an attachment never crosses organizations.
+func (q *sqlQuerier) InsertChatProjectTemplates(ctx context.Context, arg InsertChatProjectTemplatesParams) ([]ChatProjectTemplate, error) {
+	rows, err := q.db.QueryContext(ctx, insertChatProjectTemplates, arg.CreatedBy, arg.ProjectID, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProjectTemplate
+	for rows.Next() {
+		var i ChatProjectTemplate
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.TemplateID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const isChatProjectUsableByUserID = `-- name: IsChatProjectUsableByUserID :one
@@ -8524,16 +8715,27 @@ SET
     name = $1::text,
     description = $2::text,
     icon = $3::text,
+    -- The template settings change only when the request sets them, so a
+    -- concurrent update that omits them cannot restore a stale snapshot.
+    limit_templates = COALESCE($4::boolean, limit_templates),
+    default_template_id = CASE WHEN $5::boolean THEN $6::uuid ELSE default_template_id END,
+    default_template_version_preset_id = CASE WHEN $5::boolean THEN $7::uuid ELSE default_template_version_preset_id END,
+    default_parameters = CASE WHEN $5::boolean THEN COALESCE($8::jsonb, '{}'::jsonb) ELSE default_parameters END,
     updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+WHERE id = $9::uuid
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type UpdateChatProjectByIDParams struct {
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Icon        string    `db:"icon" json:"icon"`
-	ID          uuid.UUID `db:"id" json:"id"`
+	Name                           string                `db:"name" json:"name"`
+	Description                    string                `db:"description" json:"description"`
+	Icon                           string                `db:"icon" json:"icon"`
+	LimitTemplates                 sql.NullBool          `db:"limit_templates" json:"limit_templates"`
+	UpdateDefaultTemplate          bool                  `db:"update_default_template" json:"update_default_template"`
+	DefaultTemplateID              uuid.NullUUID         `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID         `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              pqtype.NullRawMessage `db:"default_parameters" json:"default_parameters"`
+	ID                             uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
@@ -8541,6 +8743,11 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		arg.LimitTemplates,
+		arg.UpdateDefaultTemplate,
+		arg.DefaultTemplateID,
+		arg.DefaultTemplateVersionPresetID,
+		arg.DefaultParameters,
 		arg.ID,
 	)
 	var i ChatProject
@@ -8555,6 +8762,10 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
@@ -29510,7 +29721,7 @@ func (q *sqlQuerier) DeleteOrganizationMemberDisabledSkill(ctx context.Context, 
 const deleteOrganizationSkillByOrganizationIDAndName = `-- name: DeleteOrganizationSkillByOrganizationIDAndName :one
 DELETE FROM skills
 WHERE organization_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type DeleteOrganizationSkillByOrganizationIDAndNameParams struct {
@@ -29536,6 +29747,7 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -29543,7 +29755,7 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 const deleteProjectSkillByProjectIDAndName = `-- name: DeleteProjectSkillByProjectIDAndName :one
 DELETE FROM skills
 WHERE project_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type DeleteProjectSkillByProjectIDAndNameParams struct {
@@ -29569,6 +29781,7 @@ func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, a
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -29576,7 +29789,7 @@ func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, a
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
 WHERE user_id = $1::uuid AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type DeleteUserSkillByUserIDAndNameParams struct {
@@ -29602,12 +29815,13 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getOrganizationSkillByIDForUpdate = `-- name: GetOrganizationSkillByIDForUpdate :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE id = $1::uuid AND organization_id IS NOT NULL
 FOR UPDATE
@@ -29631,12 +29845,13 @@ func (q *sqlQuerier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id u
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getOrganizationSkillByOrganizationIDAndName = `-- name: GetOrganizationSkillByOrganizationIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE organization_id = $1::uuid AND name = $2
 `
@@ -29664,6 +29879,7 @@ func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Con
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -29705,7 +29921,7 @@ func (q *sqlQuerier) GetOrganizationSkillMemberPreferences(ctx context.Context, 
 }
 
 const getProjectSkillByIDForUpdate = `-- name: GetProjectSkillByIDForUpdate :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE id = $1::uuid AND project_id IS NOT NULL
 FOR UPDATE
@@ -29729,12 +29945,13 @@ func (q *sqlQuerier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.U
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getProjectSkillByProjectIDAndName = `-- name: GetProjectSkillByProjectIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE project_id = $1::uuid AND name = $2
 `
@@ -29762,12 +29979,13 @@ func (q *sqlQuerier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg 
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 FROM skills
 WHERE user_id = $1::uuid AND name = $2
 `
@@ -29795,6 +30013,7 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -29822,7 +30041,7 @@ func (q *sqlQuerier) InsertOrganizationMemberDisabledSkill(ctx context.Context, 
 const insertOrganizationSkill = `-- name: InsertOrganizationSkill :one
 INSERT INTO skills (id, organization_id, name, description, content, model_invocable, group_acl, user_acl)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, true), $7, $8)
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type InsertOrganizationSkillParams struct {
@@ -29863,24 +30082,26 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const insertProjectSkill = `-- name: InsertProjectSkill :one
-INSERT INTO skills (id, project_id, name, description, content, action, model_invocable)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, false), COALESCE($7::boolean, true))
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+INSERT INTO skills (id, project_id, name, description, content, action, model_invocable, display_name)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, false), COALESCE($7::boolean, true), COALESCE($8::text, ''))
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type InsertProjectSkillParams struct {
-	ID             uuid.UUID    `db:"id" json:"id"`
-	ProjectID      uuid.UUID    `db:"project_id" json:"project_id"`
-	Name           string       `db:"name" json:"name"`
-	Description    string       `db:"description" json:"description"`
-	Content        string       `db:"content" json:"content"`
-	Action         sql.NullBool `db:"action" json:"action"`
-	ModelInvocable sql.NullBool `db:"model_invocable" json:"model_invocable"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	ProjectID      uuid.UUID      `db:"project_id" json:"project_id"`
+	Name           string         `db:"name" json:"name"`
+	Description    string         `db:"description" json:"description"`
+	Content        string         `db:"content" json:"content"`
+	Action         sql.NullBool   `db:"action" json:"action"`
+	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
+	DisplayName    sql.NullString `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
@@ -29892,6 +30113,7 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 		arg.Content,
 		arg.Action,
 		arg.ModelInvocable,
+		arg.DisplayName,
 	)
 	var i Skill
 	err := row.Scan(
@@ -29909,6 +30131,7 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -29916,7 +30139,7 @@ func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSk
 const insertUserSkill = `-- name: InsertUserSkill :one
 INSERT INTO skills (id, user_id, name, description, content, model_invocable)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, COALESCE($6::boolean, true))
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type InsertUserSkillParams struct {
@@ -29953,6 +30176,7 @@ func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillPar
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30014,7 +30238,7 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 
 const listProjectSkillMetadataByProjectID = `-- name: ListProjectSkillMetadataByProjectID :many
 SELECT
-    id, project_id, name, description, enabled, action, model_invocable, created_at, updated_at
+    id, project_id, name, display_name, description, enabled, action, model_invocable, created_at, updated_at
 FROM skills
 WHERE project_id = $1::uuid
 ORDER BY name ASC
@@ -30024,6 +30248,7 @@ type ListProjectSkillMetadataByProjectIDRow struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
 	Name           string        `db:"name" json:"name"`
+	DisplayName    string        `db:"display_name" json:"display_name"`
 	Description    string        `db:"description" json:"description"`
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	Action         bool          `db:"action" json:"action"`
@@ -30045,6 +30270,7 @@ func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, pr
 			&i.ID,
 			&i.ProjectID,
 			&i.Name,
+			&i.DisplayName,
 			&i.Description,
 			&i.Enabled,
 			&i.Action,
@@ -30125,7 +30351,7 @@ SET
     user_acl   = $2,
     updated_at = now()
 WHERE id = $3::uuid AND organization_id IS NOT NULL
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateOrganizationSkillACLByIDParams struct {
@@ -30152,6 +30378,7 @@ func (q *sqlQuerier) UpdateOrganizationSkillACLByID(ctx context.Context, arg Upd
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30165,7 +30392,7 @@ SET
     model_invocable = COALESCE($4::boolean, model_invocable),
     updated_at  = now()
 WHERE organization_id = $5::uuid AND name = $6
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateOrganizationSkillByOrganizationIDAndNameParams struct {
@@ -30202,6 +30429,7 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30214,9 +30442,10 @@ SET
     enabled     = COALESCE($3::boolean, enabled),
     model_invocable = COALESCE($4::boolean, model_invocable),
     action      = COALESCE($5::boolean, action),
+    display_name = COALESCE($6::text, display_name),
     updated_at  = now()
-WHERE project_id = $6::uuid AND name = $7
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+WHERE project_id = $7::uuid AND name = $8
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateProjectSkillByProjectIDAndNameParams struct {
@@ -30225,6 +30454,7 @@ type UpdateProjectSkillByProjectIDAndNameParams struct {
 	Enabled        sql.NullBool   `db:"enabled" json:"enabled"`
 	ModelInvocable sql.NullBool   `db:"model_invocable" json:"model_invocable"`
 	Action         sql.NullBool   `db:"action" json:"action"`
+	DisplayName    sql.NullString `db:"display_name" json:"display_name"`
 	ProjectID      uuid.UUID      `db:"project_id" json:"project_id"`
 	Name           string         `db:"name" json:"name"`
 }
@@ -30236,6 +30466,7 @@ func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, a
 		arg.Enabled,
 		arg.ModelInvocable,
 		arg.Action,
+		arg.DisplayName,
 		arg.ProjectID,
 		arg.Name,
 	)
@@ -30255,6 +30486,7 @@ func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, a
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -30268,7 +30500,7 @@ SET
     model_invocable = COALESCE($4::boolean, model_invocable),
     updated_at  = now()
 WHERE user_id = $5::uuid AND name = $6
-RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable, display_name
 `
 
 type UpdateUserSkillByUserIDAndNameParams struct {
@@ -30305,6 +30537,7 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		&i.UserACL,
 		&i.Action,
 		&i.ModelInvocable,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -43432,9 +43665,9 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- Favorited workspaces should show up first only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_id = $25 THEN 0 ELSE 1 END ASC,
 		-- Workspaces you own should show up first.
-		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $25 THEN 0 ELSE 1 END ASC,
 		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
