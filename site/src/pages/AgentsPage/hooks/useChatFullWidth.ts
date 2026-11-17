@@ -16,5 +16,5 @@ export function chatWidthClass(fullWidth: boolean): string {
  * required.
  */
 export function useChatFullWidth(): [boolean, (v: boolean) => void] {
-	return useLocalStorage(KEY, booleanCodec(false));
+	return useLocalStorage({ storageKey: KEY, codec: booleanCodec(false) });
 }

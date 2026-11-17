@@ -170,10 +170,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		return false;
 	};
 	const webPush = useWebpushNotifications();
-	const [chimeEnabled, setChimeEnabledState] = useLocalStorage(
-		CHIME_PREFERENCE_KEY,
-		chimeEnabledCodec,
-	);
+	const [chimeEnabled, setChimeEnabledState] = useLocalStorage({
+		storageKey: CHIME_PREFERENCE_KEY,
+		codec: chimeEnabledCodec,
+	});
 
 	// The highlight state persists on its history entry, so only a location
 	// key that differs from the one at mount is a fresh New chat click.

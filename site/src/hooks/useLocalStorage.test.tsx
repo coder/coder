@@ -36,7 +36,7 @@ describe("useLocalStorage", () => {
 
 	it("reads the fallback when the key is absent", () => {
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage("test.absent", booleanCodec(true)),
+			useLocalStorage({ storageKey: "test.absent", codec: booleanCodec(true) }),
 		);
 		expect(result.current[0]).toBe(true);
 	});
@@ -44,8 +44,8 @@ describe("useLocalStorage", () => {
 	it("updates every consumer of a key in the same tab", () => {
 		const key = "test.same-tab";
 		const { result } = renderLocalStorageHook(() => ({
-			first: useLocalStorage(key, booleanCodec(false)),
-			second: useLocalStorage(key, booleanCodec(false)),
+			first: useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
+			second: useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
 		}));
 
 		act(() => result.current.first[1](true));
@@ -58,7 +58,7 @@ describe("useLocalStorage", () => {
 	it("updates consumers when another tab writes the key", () => {
 		const key = "test.cross-tab";
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, booleanCodec(false)),
+			useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
 		);
 
 		act(() => {
@@ -73,7 +73,7 @@ describe("useLocalStorage", () => {
 		const key = "test.clear";
 		localStorage.setItem(key, "true");
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, booleanCodec(false)),
+			useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
 		);
 
 		act(() => {
@@ -87,7 +87,7 @@ describe("useLocalStorage", () => {
 	it("ignores storage events for other keys", () => {
 		const key = "test.other-key";
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, booleanCodec(false)),
+			useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
 		);
 
 		act(() => {
@@ -101,7 +101,7 @@ describe("useLocalStorage", () => {
 	it("composes consecutive functional updates", () => {
 		const key = "test.consecutive";
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, counterCodec),
+			useLocalStorage({ storageKey: key, codec: counterCodec }),
 		);
 
 		act(() => {
@@ -119,7 +119,7 @@ describe("useLocalStorage", () => {
 			throw new DOMException("quota", "QuotaExceededError");
 		});
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, booleanCodec(false)),
+			useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
 		);
 
 		act(() => result.current[1](true));
@@ -136,7 +136,7 @@ describe("useLocalStorage", () => {
 				throw new DOMException("quota", "QuotaExceededError");
 			});
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, booleanCodec(false)),
+			useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
 		);
 		act(() => result.current[1](true));
 
@@ -154,7 +154,10 @@ describe("useLocalStorage", () => {
 			throw new DOMException("denied", "SecurityError");
 		});
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage("test.access-denied", booleanCodec(true)),
+			useLocalStorage({
+				storageKey: "test.access-denied",
+				codec: booleanCodec(true),
+			}),
 		);
 		expect(result.current[0]).toBe(true);
 	});
@@ -167,7 +170,7 @@ describe("useLocalStorage", () => {
 		};
 		localStorage.setItem(key, "stored");
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, nullableCodec),
+			useLocalStorage({ storageKey: key, codec: nullableCodec }),
 		);
 
 		act(() => result.current[1](null));
@@ -180,7 +183,7 @@ describe("useLocalStorage", () => {
 		const key = "test.unknown-fields";
 		localStorage.setItem(key, JSON.stringify({ enabled: true, future: 1 }));
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, stateCodec),
+			useLocalStorage({ storageKey: key, codec: stateCodec }),
 		);
 
 		act(() => result.current[1]((prev) => ({ ...prev, enabled: false })));
@@ -195,7 +198,7 @@ describe("useLocalStorage", () => {
 		const key = "test.invalid-json";
 		localStorage.setItem(key, JSON.stringify({ enabled: "yes" }));
 		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage(key, stateCodec),
+			useLocalStorage({ storageKey: key, codec: stateCodec }),
 		);
 		expect(result.current[0]).toEqual({ enabled: false });
 	});
@@ -204,7 +207,7 @@ describe("useLocalStorage", () => {
 		const key = "test.stable-object";
 		localStorage.setItem(key, JSON.stringify({ enabled: true }));
 		const { result, rerender } = renderLocalStorageHook(() =>
-			useLocalStorage(key, stateCodec),
+			useLocalStorage({ storageKey: key, codec: stateCodec }),
 		);
 		const firstValue = result.current[0];
 

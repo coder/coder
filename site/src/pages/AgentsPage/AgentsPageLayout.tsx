@@ -160,10 +160,10 @@ export const chatCostIdToInvalidate = (
 const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
-	const [chimeEnabled] = useLocalStorage(
-		CHIME_PREFERENCE_KEY,
-		chimeEnabledCodec,
-	);
+	const [chimeEnabled] = useLocalStorage({
+		storageKey: CHIME_PREFERENCE_KEY,
+		codec: chimeEnabledCodec,
+	});
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();

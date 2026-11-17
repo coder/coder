@@ -11,10 +11,10 @@ export function useAgentChatPanelPreference(): {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [sidebarPanelPreference, setSidebarPanelPreference] = useLocalStorage(
-		RIGHT_PANEL_OPEN_KEY,
-		rightPanelOpenCodec,
-	);
+	const [sidebarPanelPreference, setSidebarPanelPreference] = useLocalStorage({
+		storageKey: RIGHT_PANEL_OPEN_KEY,
+		codec: rightPanelOpenCodec,
+	});
 	// Below the lg breakpoint, chat and the right panel are mutually
 	// exclusive, so a panel left open on a wide window would hide chat
 	// as soon as the window narrows. Suppression hides the panel while

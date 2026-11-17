@@ -59,10 +59,10 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
 
-	const [internalChimeEnabled, setInternalChimeEnabled] = useLocalStorage(
-		CHIME_PREFERENCE_KEY,
-		chimeEnabledCodec,
-	);
+	const [internalChimeEnabled, setInternalChimeEnabled] = useLocalStorage({
+		storageKey: CHIME_PREFERENCE_KEY,
+		codec: chimeEnabledCodec,
+	});
 	const internalWebPush = useWebpushNotifications();
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;

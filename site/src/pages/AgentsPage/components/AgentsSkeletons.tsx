@@ -160,10 +160,10 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  * structure during the brief Suspense fallback.
  */
 export const AgentChatPageSkeleton: React.FC = () => {
-	const [rightPanelOpen] = useLocalStorage(
-		RIGHT_PANEL_OPEN_KEY,
-		rightPanelOpenCodec,
-	);
+	const [rightPanelOpen] = useLocalStorage({
+		storageKey: RIGHT_PANEL_OPEN_KEY,
+		codec: rightPanelOpenCodec,
+	});
 	const rightPanelWidth = getRightPanelWidth();
 	const [chatFullWidth] = useChatFullWidth();
 
