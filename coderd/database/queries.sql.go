@@ -1912,9 +1912,9 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
-	-- Filter client (prefix match to allow B-tree index usage).
+	-- Filter client (case-insensitive substring match).
 	AND CASE
-		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE $1::text || '%'
+		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list clients
@@ -2058,9 +2058,9 @@ FROM
 WHERE
 	-- Remove inflight interceptions (ones which lack an ended_at value).
 	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter model
+	-- Filter model (case-insensitive substring match).
 	AND CASE
-		WHEN $1::text != '' THEN aibridge_interceptions.model LIKE $1::text || '%'
+		WHEN $1::text != '' THEN aibridge_interceptions.model ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list models that are relevant
