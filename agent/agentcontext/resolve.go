@@ -977,6 +977,13 @@ type Resource struct {
 	// ACPHarness contains capabilities and options without the ACP adapter
 	// launch command.
 	ACPHarness *workspacesdk.ACPHarness
+	// PluginName is the name of the Agent Plugin a KindSkill or
+	// KindMCPServer resource belongs to; empty for everything else,
+	// including KindPlugin, whose name is in Name.
+	PluginName string
+	// PluginVersion is the manifest version for KindPlugin, sanitized
+	// and capped at maxPluginVersionRunes.
+	PluginVersion string
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the
