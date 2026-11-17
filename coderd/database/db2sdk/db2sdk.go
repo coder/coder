@@ -359,6 +359,7 @@ func UserPreferenceSettings(row database.GetUserPreferenceSettingsRow) codersdk.
 	// Preserve the boolean spellings accepted by the previous SQL cast.
 	var collapseAssistantSteps bool
 	switch strings.ToLower(strings.TrimSpace(row.CollapseAssistantSteps)) {
+	// spellchecker:ignore-next-line
 	case "1", "t", "tr", "tru", "true", "y", "ye", "yes", "on":
 		collapseAssistantSteps = true
 	}
