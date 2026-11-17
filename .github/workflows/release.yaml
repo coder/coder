@@ -787,6 +787,9 @@ jobs:
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
     environment: release-publish
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the coder-package-publisher App's JWT
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -795,14 +798,18 @@ jobs:
 
       - name: Generate coder-package-publisher App token
         id: publisher_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          kms-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: packages
           # repository_dispatch needs contents: write on the target repository.
-          permission-contents: write
+          permissions: |
+            contents: write
 
       - name: Send repository-dispatch event
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
@@ -818,6 +825,9 @@ jobs:
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
     environment: release-publish
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the coder-package-publisher App's JWT
 
     steps:
       - name: Harden Runner
@@ -827,14 +837,18 @@ jobs:
 
       - name: Generate coder-package-publisher App token
         id: publisher_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          kms-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: homebrew-coder
-          permission-contents: write
-          permission-pull-requests: write
+          permissions: |
+            contents: write
+            pull_requests: write
 
       - name: Update homebrew
         env:
