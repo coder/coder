@@ -31,7 +31,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useLocalStorage } from "#/hooks/useLocalStorage";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { CHIME_PREFERENCE_KEY, chimeEnabledCodec } from "../utils/chime";
+import { chimeStorageOptions } from "../utils/chime";
 
 type AgentPageHeaderProps = {
 	children?: React.ReactNode;
@@ -59,10 +59,8 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
 
-	const [internalChimeEnabled, setInternalChimeEnabled] = useLocalStorage({
-		storageKey: CHIME_PREFERENCE_KEY,
-		codec: chimeEnabledCodec,
-	});
+	const [internalChimeEnabled, setInternalChimeEnabled] =
+		useLocalStorage(chimeStorageOptions);
 	const internalWebPush = useWebpushNotifications();
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;

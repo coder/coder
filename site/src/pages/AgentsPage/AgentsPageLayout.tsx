@@ -75,12 +75,7 @@ import {
 	getSidebarChatListInput,
 } from "./utils/agentSidebarFilters";
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
-import {
-	CHIME_PREFERENCE_KEY,
-	chimeEnabledCodec,
-	playChime,
-	shouldPlayChime,
-} from "./utils/chime";
+import { chimeStorageOptions, playChime, shouldPlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
 import { useOpenNotificationChat } from "./utils/notificationWindow";
 
@@ -160,10 +155,7 @@ export const chatCostIdToInvalidate = (
 const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
-	const [chimeEnabled] = useLocalStorage({
-		storageKey: CHIME_PREFERENCE_KEY,
-		codec: chimeEnabledCodec,
-	});
+	const [chimeEnabled] = useLocalStorage(chimeStorageOptions);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();

@@ -49,7 +49,7 @@ import {
 	buildChatInputContent,
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
-import { CHIME_PREFERENCE_KEY, chimeEnabledCodec } from "../utils/chime";
+import { chimeStorageOptions } from "../utils/chime";
 import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
@@ -170,10 +170,8 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		return false;
 	};
 	const webPush = useWebpushNotifications();
-	const [chimeEnabled, setChimeEnabledState] = useLocalStorage({
-		storageKey: CHIME_PREFERENCE_KEY,
-		codec: chimeEnabledCodec,
-	});
+	const [chimeEnabled, setChimeEnabledState] =
+		useLocalStorage(chimeStorageOptions);
 
 	// The highlight state persists on its history entry, so only a location
 	// key that differs from the one at mount is a fresh New chat click.

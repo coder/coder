@@ -45,7 +45,7 @@ import AgentsPageLayout, {
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS } from "./utils/agentSidebarFilters";
-import { CHIME_PREFERENCE_KEY } from "./utils/chime";
+import { chimeStorageOptions } from "./utils/chime";
 
 const ChatPage = () => {
 	const { agentId = "" } = useParams();
@@ -246,7 +246,7 @@ describe("AgentsPageLayout completion chime", () => {
 	};
 
 	it("plays the chime when a running turn completes and the preference is on", async () => {
-		localStorage.setItem(CHIME_PREFERENCE_KEY, "true");
+		localStorage.setItem(chimeStorageOptions.storageKey, "true");
 		const publishChatWatchEvent = await renderRunningChat();
 
 		publishChatWatchEvent(completedEvent);
