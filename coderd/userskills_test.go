@@ -209,8 +209,8 @@ func TestSkillsCRUD(t *testing.T) {
 func TestSkillFrontmatterDisablesModelInvocation(t *testing.T) {
 	t.Parallel()
 
-	withKey := func(name, body string) string {
-		return fmt.Sprintf("---\nname: %s\ndisable-model-invocation: true\ndescription: Manual skill\n---\n\n%s\n", name, body)
+	withKey := func(name, body string, disable bool) string {
+		return fmt.Sprintf("---\nname: %s\ndisable-model-invocation: %t\ndescription: Manual skill\n---\n\n%s\n", name, disable, body)
 	}
 	withoutKey := func(name, body string) string {
 		return userSkillMarkdown(name, "Manual skill", body)
@@ -223,39 +223,55 @@ func TestSkillFrontmatterDisablesModelInvocation(t *testing.T) {
 			owner, _ := tc.setup(t, nil)
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
-			created, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withKey("manual", "Body.")})
+			created, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withKey("manual", "Body.", true)})
 			require.NoError(t, err)
 			assert.False(t, created.ModelInvocable)
-			assert.Equal(t, withoutKey("manual", "Body."), created.Content)
+			assert.Equal(t, withKey("manual", "Body.", true), created.Content)
 
+			// An explicit field wins, and the returned file follows it.
 			explicit, err := owner.create(ctx, codersdk.CreateSkillRequest{
-				Content:        withKey("explicit", "Body."),
+				Content:        withKey("explicit", "Body.", true),
 				ModelInvocable: ptr.Ref(true),
 			})
 			require.NoError(t, err)
 			assert.True(t, explicit.ModelInvocable)
-			assert.Equal(t, withoutKey("explicit", "Body."), explicit.Content)
+			assert.Equal(t, withKey("explicit", "Body.", false), explicit.Content)
 
-			// Content without the key leaves the setting unchanged.
+			// Flow-style frontmatter reads the same as in a workspace skill.
+			flow, err := owner.create(ctx, codersdk.CreateSkillRequest{
+				Content: "---\n{name: flow, disable-model-invocation: true, description: Manual skill}\n---\n\nBody.\n",
+			})
+			require.NoError(t, err)
+			assert.False(t, flow.ModelInvocable)
+
+			// Content without the key leaves the setting unchanged, so the
+			// returned file gains the key.
 			edited, err := owner.update(ctx, "manual", codersdk.UpdateSkillRequest{Content: ptr.Ref(withoutKey("manual", "Edited."))})
 			require.NoError(t, err)
 			assert.False(t, edited.ModelInvocable)
+			assert.Equal(t, strings.Replace(withoutKey("manual", "Edited."), "---\n", "---\ndisable-model-invocation: true\n", 1), edited.Content)
 
 			// disable-model-invocation: false turns automatic use back on.
 			reenabled, err := owner.update(ctx, "manual", codersdk.UpdateSkillRequest{
-				Content: ptr.Ref(strings.Replace(withKey("manual", "Edited."), ": true", ": false", 1)),
+				Content: ptr.Ref(withKey("manual", "Edited.", false)),
 			})
 			require.NoError(t, err)
 			assert.True(t, reenabled.ModelInvocable)
-			assert.Equal(t, withoutKey("manual", "Edited."), reenabled.Content)
+			assert.Equal(t, withKey("manual", "Edited.", false), reenabled.Content)
+
+			// Changing only the setting changes the file that the API returns.
+			_, err = owner.update(ctx, "manual", codersdk.UpdateSkillRequest{ModelInvocable: ptr.Ref(false)})
+			require.NoError(t, err)
+			got, err := owner.get(ctx, "manual")
+			require.NoError(t, err)
+			assert.Equal(t, withKey("manual", "Edited.", true), got.Content)
 
 			automatic, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withoutKey("automatic", "Body.")})
 			require.NoError(t, err)
 			require.True(t, automatic.ModelInvocable)
-			marked, err := owner.update(ctx, "automatic", codersdk.UpdateSkillRequest{Content: ptr.Ref(withKey("automatic", "Edited."))})
+			marked, err := owner.update(ctx, "automatic", codersdk.UpdateSkillRequest{Content: ptr.Ref(withKey("automatic", "Edited.", true))})
 			require.NoError(t, err)
 			assert.False(t, marked.ModelInvocable)
-			assert.Equal(t, withoutKey("automatic", "Edited."), marked.Content)
 		})
 	}
 }
@@ -315,6 +331,13 @@ func TestSkillValidationAndConflicts(t *testing.T) {
 					name:            "TooLarge",
 					content:         strings.Repeat("a", skills.MaxPersonalSkillSizeBytes+1),
 					expectedMessage: "Skill content is too large.",
+				},
+				{
+					// Coder could not turn this value into true or false
+					// when model_invocable changes.
+					name:            "InvocationKeyNotBoolean",
+					content:         "---\nname: invocation-key\ndisable-model-invocation: [true]\n---\n\nBody.",
+					expectedMessage: "Invalid disable-model-invocation key.",
 				},
 			}
 			for _, tt := range tests {

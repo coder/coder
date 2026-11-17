@@ -4,7 +4,9 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
@@ -52,6 +54,9 @@ var (
 	ErrSkillTooLarge = xerrors.New("skill is too large")
 	// ErrSkillDescriptionTooLarge indicates that the description is too large.
 	ErrSkillDescriptionTooLarge = xerrors.New("skill description is too large")
+	// ErrSkillInvocationKeyInvalid indicates that the frontmatter spells
+	// disable-model-invocation in a way that cannot be set to true or false.
+	ErrSkillInvocationKeyInvalid = xerrors.New("invalid disable-model-invocation key")
 	// ErrSkillNotFound indicates that a skill lookup did not match any alias.
 	ErrSkillNotFound = xerrors.New("skill not found")
 	// ErrSkillAmbiguous indicates that a skill lookup matched multiple sources.
@@ -150,116 +155,189 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 // Cursor, and VS Code use to mark a skill that only users may invoke.
 const disableModelInvocationKey = "disable-model-invocation"
 
-// RemoveDisableModelInvocation removes the top-level disable-model-invocation
-// key from the frontmatter of raw skill Markdown. disable is the key's value
-// when it is a YAML boolean, and nil when the key is absent or holds any
-// other value. Stored skills keep that setting in their model_invocable
-// column, so removing the key keeps the stored file from disagreeing with
-// the column. raw should already have passed ParsePersonalSkillMarkdown.
+// WithModelInvocable returns raw skill Markdown whose frontmatter agrees with
+// modelInvocable: disable-model-invocation reads as true exactly when
+// modelInvocable is false. workspacesdk.SkillDisableModelInvocationValue is
+// the only judge of what a file says, so a stored skill and a workspace
+// skill read the same file the same way.
 //
-// The key is found through the parsed YAML, so quoted and spaced spellings
-// count. content is raw unchanged when the key is absent, or when removing
-// its lines would change any other frontmatter field, as in flow-style
-// frontmatter such as {name: x, disable-model-invocation: true}.
-func RemoveDisableModelInvocation(raw string) (content string, disable *bool) {
-	const bom = "\xef\xbb\xbf"
-	prefix := ""
-	rest := raw
-	if strings.HasPrefix(raw, bom) {
-		prefix, rest = bom, raw[len(bom):]
-	}
-	// SplitAfter keeps each line's newline, so joining the lines restores
-	// the original bytes, including CRLF line endings.
-	lines := strings.SplitAfter(rest, "\n")
-	if strings.TrimSpace(lines[0]) != "---" {
-		return raw, nil
-	}
-	closingIdx := -1
-	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "---" {
-			closingIdx = i
-			break
-		}
-	}
-	if closingIdx < 0 {
-		return raw, nil
+// Stored skills keep the setting in their model_invocable column and the
+// file as uploaded, so this runs on the file that leaves the server. Content
+// that already agrees is returned unchanged. Otherwise the value of an
+// existing top-level key is replaced, or the key is added before the first
+// one, and every other byte is kept. ok is false, and content is raw, when
+// no such edit leaves the other frontmatter fields as they were.
+func WithModelInvocable(raw string, modelInvocable bool) (content string, ok bool) {
+	disable := !modelInvocable
+	if disabled, _ := workspacesdk.SkillDisableModelInvocationValue(raw); disabled == disable {
+		return raw, true
 	}
 
-	frontmatter := lines[1:closingIdx]
-	start, end, disable, ok := disableModelInvocationLines(frontmatter)
+	start, end, ok := frontmatterSpan(raw)
 	if !ok {
-		return raw, nil
+		return raw, false
 	}
-	kept := append(slices.Clone(frontmatter[:start]), frontmatter[end:]...)
-	if !sameFrontmatterWithoutKey(frontmatter, kept, disableModelInvocationKey) {
-		return raw, disable
-	}
-	return prefix + lines[0] + strings.Join(kept, "") + strings.Join(lines[closingIdx:], ""), disable
-}
-
-// disableModelInvocationLines finds the disable-model-invocation key in the
-// top-level mapping of frontmatter lines. It returns the half-open range of
-// lines that hold the key and its value, and the value when it is a YAML
-// boolean. ok is false when the frontmatter does not parse or lacks the key.
-func disableModelInvocationLines(frontmatter []string) (start, end int, disable *bool, ok bool) {
+	frontmatter := raw[start:end]
 	var doc yaml.Node
-	if err := yaml.Unmarshal([]byte(strings.Join(frontmatter, "")), &doc); err != nil {
-		return 0, 0, nil, false
+	if err := yaml.Unmarshal([]byte(frontmatter), &doc); err != nil {
+		return raw, false
 	}
-	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return 0, 0, nil, false
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 {
+		return raw, false
 	}
-	mapping := doc.Content[0].Content
-	for i := 0; i+1 < len(mapping); i += 2 {
-		key, value := mapping[i], mapping[i+1]
-		if key.Kind != yaml.ScalarNode || key.Value != disableModelInvocationKey {
-			continue
-		}
-		if value.Kind == yaml.ScalarNode && value.ShortTag() == "!!bool" {
-			var b bool
-			if err := value.Decode(&b); err == nil {
-				disable = &b
-			}
-		}
-		// yaml.Node lines are 1-based. The value ends where the next key
-		// starts; unindented comments and blank lines just before that key
-		// belong to it.
-		start, end = key.Line-1, len(frontmatter)
-		if i+2 < len(mapping) {
-			end = mapping[i+2].Line - 1
-		}
-		for end > start+1 && isTopLevelCommentOrBlank(frontmatter[end-1]) {
-			end--
-		}
-		if start < 0 || end > len(frontmatter) || start >= end {
-			return 0, 0, disable, false
-		}
-		return start, end, disable, true
+	mapping := doc.Content[0]
+	if mapping.Kind != yaml.MappingNode || len(mapping.Content) == 0 {
+		return raw, false
 	}
-	return 0, 0, nil, false
+
+	value := strconv.FormatBool(disable)
+	var edited string
+	if node := mappingValue(mapping, disableModelInvocationKey); node != nil {
+		edited, ok = replaceScalar(frontmatter, node, value)
+	} else {
+		newline := "\n"
+		if strings.HasSuffix(raw[:start], "\r\n") {
+			newline = "\r\n"
+		}
+		edited, ok = insertFirstEntry(frontmatter, mapping, disableModelInvocationKey+": "+value, newline)
+	}
+	// The edit goes by the position YAML reported for a node, so check the
+	// result instead of trusting the position: the other fields must decode
+	// as before, and the file must now say what was asked.
+	if !ok || !sameFieldsExcept(frontmatter, edited, disableModelInvocationKey) {
+		return raw, false
+	}
+	content = raw[:start] + edited + raw[end:]
+	if disabled, _ := workspacesdk.SkillDisableModelInvocationValue(content); disabled != disable {
+		return raw, false
+	}
+	return content, true
 }
 
-// sameFrontmatterWithoutKey reports whether kept decodes to the same YAML
-// mapping as original with key removed, and no longer has key.
-func sameFrontmatterWithoutKey(original, kept []string, key string) bool {
+// ValidateModelInvocationKey reports whether WithModelInvocable can make raw
+// agree with either setting. Uploads that fail are rejected, so a later
+// change to model_invocable never leaves the file saying the opposite. raw
+// should already have passed ParsePersonalSkillMarkdown.
+func ValidateModelInvocationKey(raw string) error {
+	for _, modelInvocable := range []bool{true, false} {
+		if _, ok := WithModelInvocable(raw, modelInvocable); !ok {
+			return xerrors.Errorf(
+				"frontmatter key %q must be a top-level true or false: %w",
+				disableModelInvocationKey,
+				ErrSkillInvocationKeyInvalid,
+			)
+		}
+	}
+	return nil
+}
+
+// frontmatterSpan returns the byte range of the YAML between the frontmatter
+// delimiters of raw skill Markdown. It finds the delimiters the way
+// workspacesdk.ParseSkillFrontmatter does.
+func frontmatterSpan(raw string) (start, end int, ok bool) {
+	offset := len(raw) - len(strings.TrimPrefix(raw, "\xef\xbb\xbf"))
+	// SplitAfter keeps each line's newline, so line lengths add up to byte
+	// offsets in raw.
+	lines := strings.SplitAfter(raw[offset:], "\n")
+	if strings.TrimSpace(lines[0]) != "---" {
+		return 0, 0, false
+	}
+	offset += len(lines[0])
+	start = offset
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			return start, offset, true
+		}
+		offset += len(line)
+	}
+	return 0, 0, false
+}
+
+// mappingValue returns the value node of key in a YAML mapping node, or nil
+// when the mapping does not spell the key out.
+func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if k := mapping.Content[i]; k.Kind == yaml.ScalarNode && k.Value == key {
+			return mapping.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// replaceScalar replaces the source text of a scalar node in text with value.
+// It handles a plain or quoted scalar on one line without escapes. ok is
+// false for any other spelling, such as an empty or tagged value.
+func replaceScalar(text string, node *yaml.Node, value string) (edited string, ok bool) {
+	if node.Kind != yaml.ScalarNode || node.Value == "" {
+		return "", false
+	}
+	offset, ok := yamlOffset(text, node.Line, node.Column)
+	if !ok {
+		return "", false
+	}
+	for _, quote := range []string{"", `"`, "'"} {
+		if old := quote + node.Value + quote; strings.HasPrefix(text[offset:], old) {
+			return text[:offset] + value + text[offset+len(old):], true
+		}
+	}
+	return "", false
+}
+
+// insertFirstEntry adds entry in front of the first key of the top-level
+// mapping in text. In a block mapping the entry takes its own line with the
+// first key's indentation. In a flow mapping, such as {name: x}, it goes
+// inside the braces.
+func insertFirstEntry(text string, mapping *yaml.Node, entry, newline string) (edited string, ok bool) {
+	first := mapping.Content[0]
+	offset, ok := yamlOffset(text, first.Line, first.Column)
+	if !ok {
+		return "", false
+	}
+	if mapping.Style&yaml.FlowStyle != 0 {
+		return text[:offset] + entry + ", " + text[offset:], true
+	}
+	indent := text[len(strings.TrimRight(text[:offset], " ")):offset]
+	return text[:offset] + entry + newline + indent + text[offset:], true
+}
+
+// yamlOffset returns the byte offset in text of a yaml.Node position: a
+// 1-based line and a 1-based column counted in characters. Lines end where
+// the YAML scanner ends them, which includes a lone carriage return and the
+// Unicode line breaks NEL, LS, and PS, so splitting on "\n" is not enough.
+func yamlOffset(text string, line, column int) (offset int, ok bool) {
+	atLine, atColumn := 1, 1
+	for offset < len(text) {
+		if atLine == line && atColumn == column {
+			return offset, true
+		}
+		r, size := utf8.DecodeRuneInString(text[offset:])
+		if r == '\r' && strings.HasPrefix(text[offset+size:], "\n") {
+			size++
+		}
+		switch r {
+		case '\n', '\r', '\u0085', '\u2028', '\u2029':
+			atLine, atColumn = atLine+1, 1
+		default:
+			atColumn++
+		}
+		offset += size
+	}
+	return offset, atLine == line && atColumn == column
+}
+
+// sameFieldsExcept reports whether two frontmatter texts decode to the same
+// YAML mapping once key is set aside.
+func sameFieldsExcept(original, edited, key string) bool {
 	var want, got map[string]any
-	if err := yaml.Unmarshal([]byte(strings.Join(original, "")), &want); err != nil {
+	if err := yaml.Unmarshal([]byte(original), &want); err != nil {
 		return false
 	}
-	if err := yaml.Unmarshal([]byte(strings.Join(kept, "")), &got); err != nil {
+	if err := yaml.Unmarshal([]byte(edited), &got); err != nil {
 		return false
 	}
 	delete(want, key)
-	if len(want) == 0 && len(got) == 0 {
-		return true
-	}
+	delete(got, key)
 	return reflect.DeepEqual(want, got)
-}
-
-// isTopLevelCommentOrBlank reports whether line is blank or a comment that
-// starts in the first column.
-func isTopLevelCommentOrBlank(line string) bool {
-	return strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#")
 }
 
 // SourceSkills holds the skills found in one source.

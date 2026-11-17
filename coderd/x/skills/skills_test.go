@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func TestParsePersonalSkillMarkdown(t *testing.T) {
@@ -321,104 +321,122 @@ func TestLookup(t *testing.T) {
 	}
 }
 
-func TestRemoveDisableModelInvocation(t *testing.T) {
+func TestWithModelInvocable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		raw         string
-		wantContent string
-		wantDisable *bool
+		name           string
+		raw            string
+		modelInvocable bool
+		// want is the returned content. Empty means the frontmatter cannot
+		// be edited, so raw comes back with ok false.
+		want string
 	}{
 		{
-			name:        "Absent",
-			raw:         "---\nname: my-skill\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n---\nBody.\n",
+			name:           "AgreeingContentIsUnchanged",
+			raw:            "---\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n---\nBody.\n",
 		},
 		{
-			name:        "True",
-			raw:         "---\nname: my-skill\ndisable-model-invocation: true\ndescription: Does a thing\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
+			name: "AddsKey",
+			raw:  "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			want: "---\ndisable-model-invocation: true\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
 		},
 		{
-			name:        "False",
-			raw:         "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n---\nBody.\n",
-			wantDisable: ptr.Ref(false),
+			name: "AddsKeyWithCRLFAndBOM",
+			raw:  "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
+			want: "\xef\xbb\xbf---\r\ndisable-model-invocation: true\r\nname: my-skill\r\n---\r\nBody.\r\n",
 		},
 		{
-			// Only YAML booleans count, matching the browser import.
-			name:        "StringIsIgnoredAndRemoved",
-			raw:         "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n---\nBody.\n",
+			name: "AddsKeyWithFirstKeyIndentation",
+			raw:  "---\n# Skill.\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+			want: "---\n# Skill.\n  disable-model-invocation: true\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
 		},
 		{
-			name:        "CRLFAndBOM",
-			raw:         "\xef\xbb\xbf---\r\nname: my-skill\r\ndisable-model-invocation: true\r\n---\r\nBody.\r\n",
-			wantContent: "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
-			wantDisable: ptr.Ref(true),
+			name:           "ReplacesTrue",
+			raw:            "---\nname: my-skill\ndisable-model-invocation: true # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndisable-model-invocation: false # Ask first.\ndescription: Does a thing\n---\nBody.\n",
 		},
 		{
-			name:        "MultiLineValue",
-			raw:         "---\nname: my-skill\ndisable-model-invocation:\n  - nested\ndescription: Does a thing\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			name: "ReplacesFalse",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
 		},
 		{
-			name:        "BodyMentionIsKept",
-			raw:         "---\nname: my-skill\n---\ndisable-model-invocation: true\n",
-			wantContent: "---\nname: my-skill\n---\ndisable-model-invocation: true\n",
+			// A second key would make the frontmatter unparsable.
+			name:           "ReplacesValueOfQuotedKey",
+			raw:            "---\nname: my-skill\n\"disable-model-invocation\" : true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n\"disable-model-invocation\" : false\n---\nBody.\n",
 		},
 		{
-			name:        "QuotedKey",
-			raw:         "---\nname: my-skill\n\"disable-model-invocation\": true\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
+			// Only YAML booleans count, so the quoted string reads as unset.
+			name: "ReplacesQuotedString",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
 		},
 		{
-			name:        "SpaceBeforeColon",
-			raw:         "---\nname: my-skill\ndisable-model-invocation : true\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
+			// YAML counts columns in characters, not bytes, so the accented
+			// letter before the key matters.
+			name:           "ReplacesInFlowStyle",
+			raw:            "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: true, license: MIT}\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: false, license: MIT}\n---\nBody.\n",
 		},
 		{
-			name:        "LastKey",
-			raw:         "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
-		},
-		{
-			// A comment above the next key belongs to that key.
-			name:        "NextKeyCommentIsKept",
-			raw:         "---\nname: my-skill\ndisable-model-invocation: true\n# What it does.\ndescription: Does a thing\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\n# What it does.\ndescription: Does a thing\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
+			name: "AddsKeyInFlowStyle",
+			raw:  "---\n{name: my-skill, description: Does a thing}\n---\nBody.\n",
+			want: "---\n{disable-model-invocation: true, name: my-skill, description: Does a thing}\n---\nBody.\n",
 		},
 		{
 			// A quoted value can wrap onto a line that looks like the key.
-			name:        "WrappedValueIsKept",
-			raw:         "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: true\n---\nBody.\n",
-			wantContent: "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
+			name:           "WrappedValueIsKept",
+			raw:            "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: false\n---\nBody.\n",
 		},
 		{
-			// Flow-style frontmatter cannot be edited line by line, so the
-			// content stays as uploaded while the setting still applies.
-			name:        "FlowStyleIsKept",
-			raw:         "---\n{name: my-skill, disable-model-invocation: true}\n---\nBody.\n",
-			wantContent: "---\n{name: my-skill, disable-model-invocation: true}\n---\nBody.\n",
-			wantDisable: ptr.Ref(true),
+			// YAML ends a line at U+2028, so the key is on its fourth line.
+			name:           "UnicodeLineBreakBeforeKey",
+			raw:            "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// The value comes from a merge, so there is no key to replace.
+			// A key in the mapping itself overrides the merged one.
+			name:           "MergedKeyIsOverridden",
+			raw:            "---\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndisable-model-invocation: false\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "ListValueCannotBeEdited",
+			raw:  "---\nname: my-skill\ndisable-model-invocation:\n  - nested\n---\nBody.\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			content, disable := skills.RemoveDisableModelInvocation(tt.raw)
-			require.Equal(t, tt.wantContent, content)
-			require.Equal(t, tt.wantDisable, disable)
-			_, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+			content, ok := skills.WithModelInvocable(tt.raw, tt.modelInvocable)
+			if tt.want == "" {
+				require.False(t, ok)
+				require.Equal(t, tt.raw, content)
+				return
+			}
+			require.True(t, ok)
+			require.Equal(t, tt.want, content)
+
+			// The edit changes nothing but the setting.
+			require.Equal(t, !tt.modelInvocable, workspacesdk.SkillDisablesModelInvocation(content))
+			before, err := skills.ParsePersonalSkillMarkdown([]byte(tt.raw))
 			require.NoError(t, err)
+			after, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+			require.NoError(t, err)
+			require.Equal(t, before, after)
 		})
 	}
 }

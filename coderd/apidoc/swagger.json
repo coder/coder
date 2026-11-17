@@ -22696,7 +22696,7 @@
 					"type": "string"
 				},
 				"model_invocable": {
-					"description": "ModelInvocable defaults to true, or to false when the content\nfrontmatter has `disable-model-invocation: true`. The server removes\nthat frontmatter key before storing the content.",
+					"description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
 					"type": "boolean"
 				}
 			}
@@ -28816,6 +28816,7 @@
 					"type": "boolean"
 				},
 				"content": {
+					"description": "Content is the SKILL.md file. Its `disable-model-invocation`\nfrontmatter key agrees with `model_invocable`, so other tools read the\nfile the same way. When the uploaded file says otherwise, the server\nsets the key in the content it returns.",
 					"type": "string"
 				},
 				"created_at": {
@@ -30693,7 +30694,7 @@
 					"type": "boolean"
 				},
 				"model_invocable": {
-					"description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets `disable-model-invocation` to a boolean: true turns it\noff and false turns it on. The server removes that frontmatter key\nbefore storing the content.",
+					"description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets `disable-model-invocation` to a boolean: true turns it\noff and false turns it on.",
 					"type": "boolean"
 				}
 			}

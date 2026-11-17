@@ -4681,9 +4681,8 @@ export interface CreateSkillRequest {
 	 */
 	readonly action?: boolean;
 	/**
-	 * ModelInvocable defaults to true, or to false when the content
-	 * frontmatter has `disable-model-invocation: true`. The server removes
-	 * that frontmatter key before storing the content.
+	 * ModelInvocable defaults to false when the content's frontmatter sets
+	 * disable-model-invocation: true, and to true otherwise.
 	 */
 	readonly model_invocable?: boolean;
 }
@@ -10003,6 +10002,12 @@ export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
  * content.
  */
 export interface Skill extends SkillMetadata {
+	/**
+	 * Content is the SKILL.md file. Its `disable-model-invocation`
+	 * frontmatter key agrees with `model_invocable`, so other tools read the
+	 * file the same way. When the uploaded file says otherwise, the server
+	 * sets the key in the content it returns.
+	 */
 	readonly content: string;
 }
 
@@ -11361,8 +11366,7 @@ export interface UpdateSkillRequest {
 	/**
 	 * ModelInvocable is left unchanged when unset, unless the new content
 	 * frontmatter sets `disable-model-invocation` to a boolean: true turns it
-	 * off and false turns it on. The server removes that frontmatter key
-	 * before storing the content.
+	 * off and false turns it on.
 	 */
 	readonly model_invocable?: boolean;
 }
