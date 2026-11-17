@@ -37,6 +37,13 @@ describe(TemplateCard.name, () => {
 		expect(onSelectDocker).toHaveBeenCalledTimes(1);
 	});
 
+	it("names each details link after its template", () => {
+		renderCards();
+		expect(
+			screen.getByRole("link", { name: /Kubernetes Pods/ }),
+		).toHaveAccessibleName(/^View details for Kubernetes Pods/);
+	});
+
 	it("selects once with Space and once per arrow key", async () => {
 		const { onSelectDocker, onSelectKubernetes } = renderCards();
 		await userEvent.tab();

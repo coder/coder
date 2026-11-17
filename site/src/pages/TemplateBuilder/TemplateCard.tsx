@@ -65,7 +65,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 						target="_blank"
 						className="text-xs font-normal"
 					>
-						View details
+						View details <span className="sr-only">for {name}</span>
 					</Link>
 				</div>
 			</div>
