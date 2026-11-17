@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
@@ -41,7 +43,7 @@ func resolveSetupToken(
 		return "", nil
 	}
 
-	// nolint:gocritic // User count requires system privileges
+	//nolint:gocritic // User count requires system privileges
 	userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		return "", xerrors.Errorf("get user count: %w", err)
