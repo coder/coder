@@ -731,14 +731,12 @@ describe("ChatProjectDialog templates", () => {
 		await pickInstanceType(user, "t3.small");
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
+		expect(
+			screen.getByRole("group", { name: "Parameter values" }),
+		).toHaveFocus();
 		const parameters = { [MockDropdownParameter.name]: "t3.small" };
 		await waitFor(() => {
 			expect(evaluations.at(-1)?.inputs).toEqual(parameters);
-		});
-		await waitFor(() => {
-			expect(
-				screen.getByRole("group", { name: "Parameter values" }),
-			).toHaveFocus();
 		});
 		await user.click(screen.getByRole("button", { name: "Create project" }));
 		await waitFor(() => {

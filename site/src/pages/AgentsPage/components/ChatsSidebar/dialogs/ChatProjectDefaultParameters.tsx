@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { getErrorMessage } from "#/api/errors";
 import { dynamicParameters } from "#/api/queries/templates";
 import type { PreviewParameter } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useDebouncedValue } from "#/hooks/debounce";
@@ -66,25 +67,25 @@ export const ChatProjectDefaultParameters: React.FC<
 			{/* Shown with cached parameters too, since a failed refetch means they
 			    may be out of date. */}
 			{evaluation.error && (
-				<ErrorAlert
-					error={evaluation.error}
-					showDebugDetail={false}
+				<Alert
+					severity="error"
 					actions={
 						<RetryButton
 							size="sm"
 							variant="outline"
 							isRetrying={evaluation.isFetching}
 							onRetry={() => {
-								void evaluation.refetch().then(({ isSuccess }) => {
-									// The button goes away once the parameters load.
-									if (isSuccess) {
-										groupRef.current?.focus();
-									}
-								});
+								void evaluation.refetch();
+								// Retry goes away while the parameters load again.
+								groupRef.current?.focus();
 							}}
 						/>
 					}
-				/>
+				>
+					<AlertDescription>
+						{getErrorMessage(evaluation.error, "Failed to load parameters.")}
+					</AlertDescription>
+				</Alert>
 			)}
 			{diagnostics.length > 0 && <Diagnostics diagnostics={diagnostics} />}
 			{evaluation.data &&
