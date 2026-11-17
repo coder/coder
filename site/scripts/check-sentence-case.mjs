@@ -131,7 +131,45 @@ const EXCLUDED_FILE_PATTERNS = [
 	/^src\/pages\/CoderCupPage\/roster\.ts$/,
 ];
 
-const properNounWords = PROPER_NOUNS.map((noun) => noun.split(" "));
+// Proper nouns as lists of words, keyed by their first word, so a token is
+// compared only with the nouns that can start at it.
+const properNounsByFirstWord = new Map();
+for (const noun of PROPER_NOUNS) {
+	const words = noun.split(" ");
+	const nouns = properNounsByFirstWord.get(words[0]) ?? [];
+	nouns.push(words);
+	properNounsByFirstWord.set(words[0], nouns);
+}
+
+/**
+ * Returns true when `word` is `nounWord`, a hyphenated compound of it like
+ * "Anthropic-compatible", or its possessive like "Coder's".
+ */
+function matchesNounWord(word, nounWord) {
+	return (
+		word === nounWord ||
+		word.startsWith(`${nounWord}-`) ||
+		word === `${nounWord}'s` ||
+		word === `${nounWord}’s`
+	);
+}
+
+/**
+ * Returns the proper nouns whose first word matches `word`, looked up by
+ * each first word that matchesNounWord accepts for it.
+ */
+function properNounsStartingAt(word) {
+	const firstWords = [word];
+	if (word.endsWith("'s") || word.endsWith("’s")) {
+		firstWords.push(word.slice(0, -2));
+	}
+	for (let i = word.indexOf("-"); i !== -1; i = word.indexOf("-", i + 1)) {
+		firstWords.push(word.slice(0, i));
+	}
+	return firstWords.flatMap(
+		(firstWord) => properNounsByFirstWord.get(firstWord) ?? [],
+	);
+}
 
 // Surrounding punctuation that is not part of a word, such as quotes,
 // brackets, and sentence punctuation.
@@ -168,19 +206,11 @@ export function findTitleCaseWords(text) {
 
 	// Indexes of tokens that belong to a proper noun.
 	const properNounTokens = new Set();
-	for (const nounWords of properNounWords) {
-		for (let i = 0; i + nounWords.length <= tokens.length; i++) {
-			const matches = nounWords.every((w, j) => {
-				// Also match a hyphenated compound like "Anthropic-compatible"
-				// and a possessive like "Coder's".
-				const word = tokens[i + j].word;
-				return (
-					word === w ||
-					word.startsWith(`${w}-`) ||
-					word === `${w}'s` ||
-					word === `${w}’s`
-				);
-			});
+	for (let i = 0; i < tokens.length; i++) {
+		for (const nounWords of properNounsStartingAt(tokens[i].word)) {
+			const matches =
+				i + nounWords.length <= tokens.length &&
+				nounWords.every((w, j) => matchesNounWord(tokens[i + j].word, w));
 			if (matches) {
 				for (let j = 0; j < nounWords.length; j++) {
 					properNounTokens.add(i + j);
