@@ -20,12 +20,12 @@ export const MCPServerIconStack: React.FC<MCPServerIconStackProps> = ({
 					<MCPServerIcon
 						iconUrl={server.icon_url}
 						variant="circle"
-						className="size-4"
+						className="size-3.5"
 					/>
 				</span>
 			))}
 			{servers.length > ICON_STACK_MAX && (
-				<span className="relative z-0 -ml-1.5 inline-flex size-icon-sm items-center justify-center rounded-full text-2xs font-medium text-content-secondary border border-surface-primary">
+				<span className="relative z-0 -ml-1.5 inline-flex size-4 items-center justify-center rounded-full text-2xs font-medium text-content-secondary border border-surface-primary">
 					<span className="inline-flex size-full items-center justify-center rounded-full bg-surface-secondary">
 						+{servers.length - ICON_STACK_MAX}
 					</span>
