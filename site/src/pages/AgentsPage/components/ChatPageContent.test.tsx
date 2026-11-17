@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockUserChatCompactionThresholds,
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
@@ -403,6 +410,269 @@ describe("ChatPageInput", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
+	});
+
+	describe("workspace upload drafts", () => {
+		const mockChat = {
+			...MockChat,
+			id: "workspace-upload-chat",
+			organization_id: "",
+			workspace_id: MockWorkspace.id,
+		};
+		const mockUploadedFile: TypesGen.UploadChatWorkspaceFileResponse = {
+			path: `/home/coder/.coder/chats/${mockChat.id}/files/archive.tar`,
+			name: "archive.tar",
+			size: 16,
+			media_type: "application/x-tar",
+			workspace_id: MockWorkspace.id,
+		};
+		const draftProps = {
+			chat: mockChat,
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			initialValue: "Review this file",
+		};
+		const mockPendingUpload = {
+			path: mockUploadedFile.path,
+			name: mockUploadedFile.name,
+			size: mockUploadedFile.size,
+			mediaType: mockUploadedFile.media_type,
+			workspaceId: mockUploadedFile.workspace_id,
+		};
+
+		beforeEach(() => {
+			localStorage.clear();
+			vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+				MockUserPreferenceSettings,
+			);
+			vi.spyOn(
+				API.experimental,
+				"getUserChatCompactionThresholds",
+			).mockResolvedValue(MockUserChatCompactionThresholds);
+			vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
+				prompts: [],
+			});
+			vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue(
+				mockUploadedFile,
+			);
+		});
+
+		afterEach(() => localStorage.clear());
+
+		it.each(["send", "remove"])(
+			"restores completed uploads after a failed send and remount until %s",
+			async (action) => {
+				const user = userEvent.setup();
+				const onSend = vi
+					.fn()
+					.mockRejectedValueOnce(new Error("Message could not be sent."))
+					.mockResolvedValue(undefined);
+				const props = { ...draftProps, onSend };
+				const firstVisit = renderChatPageInput(createChatStore(), props);
+
+				await user.upload(
+					await screen.findByTestId("chat-attachment-file-input"),
+					new File([new Uint8Array(16)], "archive.tar", {
+						type: "application/x-tar",
+					}),
+				);
+				await user.click(screen.getByRole("button", { name: "Send" }));
+				await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+				expect(onSend.mock.calls[0][0].workspaceUploads).toEqual([
+					mockPendingUpload,
+				]);
+				firstVisit.unmount();
+
+				const secondVisit = renderChatPageInput(createChatStore(), props);
+				if (action === "remove") {
+					await user.click(
+						await screen.findByRole("button", { name: "Remove archive.tar" }),
+					);
+				} else {
+					await user.click(await screen.findByRole("button", { name: "Send" }));
+					await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+					expect(onSend.mock.calls[1][0].workspaceUploads).toEqual([
+						mockPendingUpload,
+					]);
+				}
+				secondVisit.unmount();
+
+				renderChatPageInput(createChatStore(), props);
+				await user.click(await screen.findByRole("button", { name: "Send" }));
+				await waitFor(() =>
+					expect(onSend).toHaveBeenCalledTimes(action === "remove" ? 2 : 3),
+				);
+				expect(onSend).toHaveBeenLastCalledWith(
+					expect.objectContaining({ workspaceUploads: undefined }),
+				);
+				expect(API.experimental.uploadChatWorkspaceFile).toHaveBeenCalledOnce();
+			},
+		);
+
+		it("keeps compose uploads out of message edits without clearing the draft", async () => {
+			const user = userEvent.setup();
+			const onSend = vi
+				.fn()
+				.mockRejectedValueOnce(new Error("Message could not be sent."))
+				.mockResolvedValue(undefined);
+			const props = { ...draftProps, onSend };
+			const firstVisit = renderChatPageInput(createChatStore(), props);
+			await user.upload(
+				await screen.findByTestId("chat-attachment-file-input"),
+				new File([new Uint8Array(16)], "archive.tar", {
+					type: "application/x-tar",
+				}),
+			);
+			await user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+			firstVisit.unmount();
+
+			const editVisit = renderChatPageInput(createChatStore(), {
+				...props,
+				editingTarget: { kind: "history", id: 1 },
+			});
+			await user.click(
+				await screen.findByRole("button", { name: "Save Edit" }),
+			);
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+			expect(onSend.mock.calls[1][0].workspaceUploads).toBeUndefined();
+			editVisit.unmount();
+
+			renderChatPageInput(createChatStore(), props);
+			await user.click(await screen.findByRole("button", { name: "Send" }));
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(3));
+			expect(onSend.mock.calls[2][0].workspaceUploads).toEqual([
+				mockPendingUpload,
+			]);
+		});
+
+		it.each([
+			{
+				action: "add",
+				name: "keeps saved files when saving an additional upload fails",
+			},
+			{
+				action: "remove",
+				name: "does not restore removed files when saving the remaining uploads fails",
+			},
+			{
+				action: "remove",
+				reusePath: true,
+				sizeDelta: 1,
+				name: "does not restore a removed upload when another upload reused its path",
+			},
+			{
+				action: "remove",
+				reusePath: true,
+				name: "does not restore duplicate uploads after a failed removal",
+			},
+			{
+				action: "remove-unsaved",
+				name: "keeps saved files after unsaved removal",
+			},
+			{
+				action: "remove-pending",
+				name: "keeps saved files after pending removal",
+			},
+		])("$name", async ({ action, reusePath, sizeDelta = 0 }) => {
+			const user = userEvent.setup();
+			const onSend = vi
+				.fn()
+				.mockRejectedValueOnce(new Error("Message could not be sent."))
+				.mockResolvedValue(undefined);
+			const warning = vi.spyOn(toast, "warning");
+			const mockRemainingFile = {
+				...mockUploadedFile,
+				path: reusePath
+					? mockUploadedFile.path
+					: `/home/coder/.coder/chats/${mockChat.id}/files/keep.tar`,
+				name: reusePath ? mockUploadedFile.name : "keep.tar",
+				size: mockUploadedFile.size + sizeDelta,
+			};
+			const uploadFile = vi.mocked(API.experimental.uploadChatWorkspaceFile);
+			uploadFile.mockResolvedValueOnce(mockUploadedFile);
+			if (action === "remove-pending") {
+				uploadFile.mockImplementationOnce(
+					() => new Promise<TypesGen.UploadChatWorkspaceFileResponse>(() => {}),
+				);
+			} else {
+				uploadFile.mockResolvedValueOnce(mockRemainingFile);
+			}
+			const mockPendingRemainingUpload = {
+				...mockPendingUpload,
+				path: mockRemainingFile.path,
+				name: mockRemainingFile.name,
+				size: mockRemainingFile.size,
+			};
+			const props = { ...draftProps, onSend };
+			const firstVisit = renderChatPageInput(createChatStore(), props);
+			const savedFiles =
+				action === "remove"
+					? [mockUploadedFile, mockRemainingFile]
+					: [mockUploadedFile];
+			await user.upload(
+				await screen.findByTestId("chat-attachment-file-input"),
+				savedFiles.map(
+					(file) =>
+						new File([new Uint8Array(file.size)], file.name, {
+							type: file.media_type,
+						}),
+				),
+			);
+			await waitFor(() =>
+				expect(
+					JSON.parse(
+						localStorage.getItem(
+							`agents.workspace-upload-draft.${mockChat.id}.${mockChat.workspace_id}`,
+						) ?? "[]",
+					),
+				).toEqual(savedFiles),
+			);
+
+			vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+				throw new DOMException("Storage is full.", "QuotaExceededError");
+			});
+			if (action === "remove") {
+				await user.click(
+					screen.getAllByRole("button", { name: "Remove archive.tar" })[0],
+				);
+			} else {
+				await user.upload(
+					screen.getByTestId("chat-attachment-file-input"),
+					new File([new Uint8Array(16)], "keep.tar", {
+						type: "application/x-tar",
+					}),
+				);
+				if (action === "remove-unsaved") {
+					await waitFor(() => expect(warning).toHaveBeenCalledOnce());
+				}
+				if (action !== "add") {
+					await user.click(
+						screen.getByRole("button", { name: "Remove keep.tar" }),
+					);
+				}
+			}
+			if (action !== "remove-pending") {
+				await waitFor(() => expect(warning).toHaveBeenCalled());
+			}
+			await user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+			expect(onSend.mock.calls[0][0].workspaceUploads).toEqual(
+				action === "add"
+					? [mockPendingUpload, mockPendingRemainingUpload]
+					: action === "remove"
+						? [mockPendingRemainingUpload]
+						: [mockPendingUpload],
+			);
+			firstVisit.unmount();
+
+			renderChatPageInput(createChatStore(), props);
+			await user.click(await screen.findByRole("button", { name: "Send" }));
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+			expect(onSend.mock.calls[1][0].workspaceUploads).toEqual(
+				action === "remove" ? undefined : [mockPendingUpload],
+			);
+		});
 	});
 
 	it("rehydrates edited workspace file references only from the bound workspace", async () => {
