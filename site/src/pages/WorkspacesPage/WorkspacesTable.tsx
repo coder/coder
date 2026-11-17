@@ -124,9 +124,9 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					{/* A td, not a th: the select-all control does not label the column. */}
 					<TableCell className={cn("w-0", hideHeaders && "invisible")}>
 						{!isLoading && (
-							<div className="flex">
-								<Tooltip>
-									<TooltipTrigger asChild>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="flex">
 										<Checkbox
 											disabled={
 												checkableWorkspaces.length === 0 &&
@@ -148,10 +148,10 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 											aria-label="Select all workspaces"
 											className="my-0"
 										/>
-									</TooltipTrigger>
-									<TooltipContent>Select all workspaces</TooltipContent>
-								</Tooltip>
-							</div>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent>Select all workspaces</TooltipContent>
+							</Tooltip>
 						)}
 					</TableCell>
 					<TableHead className={cn("w-1/3", isEmpty && "invisible")}>
