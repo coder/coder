@@ -121,9 +121,7 @@ describe("ConnectionLogPage", () => {
 			await renderPage();
 
 			const user = userEvent.setup();
-			await user.click(
-				screen.getByRole("button", { name: /^Connection method:/ }),
-			);
+			await user.click(screen.getByRole("button", { name: /^Method:/ }));
 			await user.click(
 				await screen.findByRole("option", { name: "Web Terminal" }),
 			);
@@ -151,9 +149,7 @@ describe("ConnectionLogPage", () => {
 			);
 
 			const user = userEvent.setup();
-			await user.click(
-				screen.getByRole("button", { name: /^Connection method:/ }),
-			);
+			await user.click(screen.getByRole("button", { name: /^Method:/ }));
 			await user.click(await screen.findByRole("option", { name: "SSH" }));
 
 			await waitFor(() =>

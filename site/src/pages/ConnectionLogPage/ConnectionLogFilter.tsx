@@ -144,7 +144,7 @@ type StatusMenuProps = {
 const StatusMenu: React.FC<StatusMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Session status"
+			label="Status"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
@@ -183,7 +183,7 @@ type MethodMenuProps = {
 const MethodMenu: React.FC<MethodMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Connection method"
+			label="Method"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}

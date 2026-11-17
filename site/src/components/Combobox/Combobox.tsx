@@ -90,11 +90,13 @@ export const ComboboxButton = ({
 			style={{ flexBasis: width }}
 			variant="outline"
 			ref={ref}
-			aria-label={label ? `${label}: ${value}` : undefined}
+			aria-label={label && (value ? `${label}: ${value}` : label)}
 			{...props}
 		>
 			{label && (
-				<span className="shrink-0 text-content-secondary">{label}:</span>
+				<>
+					<span className="shrink-0 text-content-secondary">{label}:</span>{" "}
+				</>
 			)}
 			{selectedOption?.startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis grow">

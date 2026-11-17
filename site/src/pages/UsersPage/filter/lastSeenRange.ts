@@ -54,7 +54,7 @@ const overDays = (days: number): LastSeenPreset => ({
 const allTime: LastSeenPreset = {
 	id: ALL_TIME_PRESET_ID,
 	label: "All time",
-	placeholder: "Last seen",
+	placeholder: "All time",
 	range: (now) => ({ start: EPOCH, end: now }),
 	filter: {},
 };

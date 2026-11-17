@@ -195,7 +195,7 @@ describe("AddWorkspaceUserOrGroup", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("adds a member through its visibly labeled fields", async () => {
+	it("submits the selected member and role", async () => {
 		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
 		vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
 			members: [MockOrganizationMember],
