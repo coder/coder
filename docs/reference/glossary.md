@@ -39,7 +39,8 @@ Refer to [Agent Firewall](../ai-governance/agent-firewall/index.md).
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
 The provider's orchestration and AI inference stay cloud-hosted.
 A worker process inside the workspace executes the agent's tool calls.
-In [early access](./feature-stages.md#early-access-features).
+In [beta](./feature-stages.md#beta).
+This feature requires a Premium license.
 Refer to [Agent Relay](../agent-relay/index.md).
 
 ### AI Gateway
@@ -109,7 +110,7 @@ The self-hosted platform that provisions and manages remote development environm
 ### Coder Agents
 
 The native, self-hosted AI product for delegating development work and research to coding agents.
-The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the Representational State Transfer (REST) API.
+The agent loop runs in the control plane, and developers work through the dashboard or the Representational State Transfer (REST) API.
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
 Refer to [Coder Agents](../coder-agents/index.md).
 
@@ -470,7 +471,8 @@ Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### Quiet hours
 
-A window during which forced autostops do not run, so they do not interrupt a developer who is working.
+A daily time, from the user's own schedule or the deployment default, when Coder runs the forced stops that a template's autostop requirement calls for.
+Forced stops run at the start of the user's quiet hours, so that they do not interrupt a developer who is working.
 Refer to [Workspace scheduling](../workspaces/workspace-scheduling.md).
 
 ## R

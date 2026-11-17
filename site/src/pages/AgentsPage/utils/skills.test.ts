@@ -31,6 +31,7 @@ const skill = (
 	description,
 	enabled: true,
 	action: false,
+	display_name: "",
 	model_invocable: true,
 	created_at: now,
 	updated_at: now,

@@ -1,0 +1,87 @@
+# Creates a release/X.Y branch at a commit that is already on main.
+#
+# Only the coder-release-publisher App may create release branches (ruleset "Release branch
+# creation"), and its key is only available in the release-refs environment, which needs a
+# release manager other than the one who dispatched this run to approve it. So a release branch
+# can only start from reviewed code, and only with two release managers.
+name: Create release branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release line to branch, e.g. 2.40 (creates release/2.40).
+        type: string
+        required: true
+      commit:
+        description: Full SHA of a commit on main to branch from.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  create:
+    name: Create release/${{ inputs.version }}
+    # The release-refs environment only accepts main, and only main may dispatch this.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: release-refs
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Check inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must look like 2.40, got '${VERSION}'"
+            exit 1
+          fi
+          if [[ ! "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit must be a full 40-character SHA, got '${COMMIT}'"
+            exit 1
+          fi
+
+          # The commit must be on main: comparing it to main is "identical" or "ahead" (main contains it).
+          status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${COMMIT}...main" --jq .status)"
+          if [[ "${status}" != "identical" && "${status}" != "ahead" ]]; then
+            echo "::error::${COMMIT} is not on main (compare status: ${status})"
+            exit 1
+          fi
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/release/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::release/${VERSION} already exists"
+            exit 1
+          fi
+
+      - name: Generate release App token
+        id: app_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: coder
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Create release branch
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/heads/release/${VERSION}" -f sha="${COMMIT}" >/dev/null
+          echo "Created release/${VERSION} at ${COMMIT}."

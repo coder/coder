@@ -43,6 +43,8 @@ export type SkillFormValues = {
 	body: string;
 	/** Project skills only: offers the skill above project composers. */
 	action?: boolean;
+	/** Project skills only: labels the action instead of the name. */
+	displayName?: string;
 	/** Lets agents find and load the skill on their own. */
 	modelInvocable?: boolean;
 };
@@ -59,6 +61,7 @@ export const emptySkillFormValues: SkillFormValues = {
 export const emptyProjectSkillFormValues: SkillFormValues = {
 	...emptySkillFormValues,
 	action: false,
+	displayName: "",
 };
 
 type SkillSearchMetadata = {
@@ -249,6 +252,7 @@ export const skillFormValuesFromSkill = (
 			description: skill.description,
 			body: parsed.values.body,
 			action: skill.action,
+			displayName: skill.display_name,
 			modelInvocable: skill.model_invocable,
 		},
 	};
