@@ -94,17 +94,7 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 					</p>
 				)}
 				{earlierAttachmentsError ? (
-					<ErrorAlert
-						error={earlierAttachmentsError}
-						actions={
-							<RetryButton
-								variant="outline"
-								size="sm"
-								isRetrying={isRetrying}
-								onRetry={onRetry}
-							/>
-						}
-					/>
+					<AttachmentsErrorAlert isRetrying={isRetrying} onRetry={onRetry} />
 				) : null}
 			</CollapsibleContent>
 		</Collapsible>

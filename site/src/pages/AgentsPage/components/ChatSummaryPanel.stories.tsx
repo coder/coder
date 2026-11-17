@@ -322,13 +322,6 @@ export const EarlierAttachmentsFailed: Story = {
 			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
 		],
 	},
-	// The alert pushes Retry below the panel frame's fold.
-	play: async ({ canvasElement }) => {
-		const retry = await within(canvasElement).findByRole("button", {
-			name: "Retry",
-		});
-		retry.scrollIntoView();
-	},
 };
 
 export const EarlierAttachmentsRetrying: Story = {
@@ -385,12 +378,6 @@ export const EarlierAttachmentsRefetchAfterFailedRetry: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatAttachments")
 			.mockRejectedValueOnce(mockAttachmentsError)
-			.mockRejectedValueOnce(
-				mockApiError({
-					message: "Failed to get chat attachments.",
-					detail: "context deadline exceeded",
-				}),
-			)
 			.mockReturnValue(new Promise(() => {}));
 	},
 	render: renderWithLatestMessages,
@@ -401,9 +388,19 @@ export const EarlierAttachmentsRefetchAfterFailedRetry: Story = {
 		],
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(await canvas.findByRole("button", { name: "Retry" }));
-		await canvas.findByText("context deadline exceeded");
+		const retry = await within(canvasElement).findByRole("button", {
+			name: "Retry",
+		});
+		// The alert text is the same before and after the Retry, so hold the
+		// Retry response to wait for the button to disable, then re-enable.
+		const retryResponse = createDeferred<TypesGen.ChatAttachmentsResponse>();
+		spyOn(API.experimental, "getChatAttachments").mockReturnValueOnce(
+			retryResponse.promise,
+		);
+		await userEvent.click(retry);
+		await waitFor(() => expect(retry).toBeDisabled());
+		retryResponse.reject(mockAttachmentsError);
+		await waitFor(() => expect(retry).toBeEnabled());
 		onlineManager.setOnline(false);
 		onlineManager.setOnline(true);
 	},

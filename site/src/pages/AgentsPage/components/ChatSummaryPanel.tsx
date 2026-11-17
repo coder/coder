@@ -5,16 +5,9 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useChatAttachments } from "../hooks/useChatAttachments";
 import { ChatAttachments } from "./ChatAttachments";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
-import {
-	type ChatStore,
-	selectOldestStoredMessageID,
-	useChatMessages,
-	useChatSelector,
-} from "./ChatConversation/chatStore";
+import type { ChatStore } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getEarlierMessageAttachments,
-	getMessageAttachments,
 	partFileIds,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
@@ -46,44 +39,17 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
 
-	const messages = useChatMessages(store);
-	const oldestLoadedMessageId = useChatSelector(
+	const {
+		messages,
+		earlierAttachments,
+		attachments,
+		earlierAttachmentsRequest,
+	} = useChatAttachments({
+		chatId,
 		store,
-		selectOldestStoredMessageID,
-	);
-	const earlierAttachmentsQuery = useQuery({
-		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
-		enabled: isVisible && hasMoreMessages,
+		hasMoreMessages,
+		enabled: isVisible,
 	});
-	const earlierAttachments =
-		hasMoreMessages && earlierAttachmentsQuery.data
-			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
-			: [];
-	// A retry clears the error of a query with no data, so keep the retried
-	// error until the retry settles, unless older messages have loaded since
-	// and moved the query to a new `beforeId`.
-	const [retriedFailure, setRetriedFailure] = useState<{
-		beforeId: number | undefined;
-		error: unknown;
-	}>();
-	const retriedError =
-		retriedFailure && retriedFailure.beforeId === oldestLoadedMessageId
-			? retriedFailure.error
-			: null;
-	const earlierAttachmentsError =
-		hasMoreMessages && !earlierAttachmentsQuery.data
-			? (earlierAttachmentsQuery.error ?? retriedError)
-			: null;
-	const isLoadingEarlierAttachments =
-		hasMoreMessages &&
-		!earlierAttachmentsQuery.data &&
-		!earlierAttachmentsError;
-
-	const attachments = [
-		...getMessageAttachments(messages),
-		...earlierAttachments,
-	];
-
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
