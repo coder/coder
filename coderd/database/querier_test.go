@@ -1536,6 +1536,53 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 	})
 }
 
+// A deleted user's username can be reused, so the requester's own
+// workspaces must be matched by owner ID, not by owner username.
+func TestGetWorkspacesOrderIgnoresDeletedUserWithRequesterUsername(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	deletedWorkspace := func(owner database.User, name string) database.WorkspaceTable {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			Name:           name,
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			Deleted:        true,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionDelete,
+		}).Do().Workspace
+	}
+
+	formerUser := dbgen.User(t, db, database.User{Username: "reused-username"})
+	formerWorkspace := deletedWorkspace(formerUser, "aaa")
+	err := db.FavoriteWorkspace(ctx, formerWorkspace.ID)
+	require.NoError(t, err)
+	err = db.UpdateUserDeletedByID(ctx, formerUser.ID)
+	require.NoError(t, err)
+
+	requester := dbgen.User(t, db, database.User{Username: formerUser.Username})
+	requesterWorkspace := deletedWorkspace(requester, "zzz")
+
+	rows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		Deleted:        true,
+		OrganizationID: org.ID,
+		RequesterID:    requester.ID,
+	})
+	require.NoError(t, err)
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, row.Name)
+	}
+	require.Equal(t, []string{requesterWorkspace.Name, formerWorkspace.Name}, names,
+		"the requester's workspace sorts first, the former user's favorite does not")
+}
+
 func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -12202,7 +12249,7 @@ func TestListAIBridgeClients(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		endedAt := dbtime.Now()
 
-		// The clients filter resolves a selected value with a prefix search and
+		// The clients filter resolves a selected value with a substring search and
 		// limit 1, so longer siblings recorded before the exact client must not
 		// win that single slot.
 		for _, client := range []string{
@@ -12238,6 +12285,12 @@ func TestListAIBridgeClients(t *testing.T) {
 			"claude-code-router",
 			"claude-code-web",
 		}, clients)
+
+		clients, err = db.ListAIBridgeClients(ctx, database.ListAIBridgeClientsParams{
+			Client: "CODE-CLI",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"claude-code-cli"}, clients)
 	})
 }
 
