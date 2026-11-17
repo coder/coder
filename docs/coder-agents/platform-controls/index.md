@@ -149,7 +149,7 @@ When the Agent Hours hard limit is reached, additional agents queue under the co
 
 AI Gateway budgets cap each user's AI spend, including Coder Agents chats, over a monthly period.
 Coder sets budgets per group, and the deployment policy selects the group with the largest spend limit when a user belongs to several budgeted groups.
-A per-user override takes priority over all group budgets.
+A per-user override takes priority over the group budgets in its assigned group's organization, and a chat uses the budgets of the chat's organization.
 
 Budgets are the only spend cap for Coder Agents chats.
 Chats no longer enforce a separate limit of their own, and existing native limit values are not migrated to budgets.

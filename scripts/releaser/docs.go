@@ -144,7 +144,7 @@ func renderCalendarTable(rows []calendarRow) string {
 		latestW, "Latest Release")
 	// Separator.
 	_, _ = fmt.Fprintf(&b, "|%s|%s|%s|%s|\n",
-		strings.Repeat("-", nameW+1),
+		strings.Repeat("-", nameW+2),
 		strings.Repeat("-", dateW+2),
 		strings.Repeat("-", statusW+2),
 		strings.Repeat("-", latestW+2))
