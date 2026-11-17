@@ -3677,10 +3677,11 @@ class ExperimentalApiMethods {
 	getOrganizationAISpendOverview = async (
 		organizationId: string,
 		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
 	): Promise<TypesGen.OrganizationAISpendOverview> => {
 		const response = await this.axios.get<TypesGen.OrganizationAISpendOverview>(
 			`/api/experimental/organizations/${organizationId}/ai/spend`,
-			{ params: period },
+			{ params: { ...period, limit } },
 		);
 		return response.data;
 	};

@@ -15,6 +15,7 @@ import {
 	toPickerNow,
 	toPickerValue,
 } from "./spendDays";
+import { TopSpendersCard } from "./TopSpendersCard";
 import { TotalSpendCard } from "./TotalSpendCard";
 
 type OverviewTabProps = {
@@ -25,6 +26,7 @@ type OverviewTabProps = {
 	overviewError: Error | null;
 	unpricedModels: readonly UnpricedAIModel[] | undefined;
 	isUnpricedModelsLoading: boolean;
+	canViewSessions: boolean;
 };
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -35,6 +37,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	overviewError,
 	unpricedModels,
 	isUnpricedModelsLoading,
+	canViewSessions,
 }) => {
 	return (
 		<div className="flex flex-col gap-6">
@@ -74,6 +77,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 						</div>
 						<SpendTrendsCard days={days} intervals={overview?.intervals} />
 					</div>
+					<TopSpendersCard
+						overview={overview}
+						canViewSessions={canViewSessions}
+					/>
 				</div>
 			)}
 		</div>

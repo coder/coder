@@ -27,6 +27,7 @@ const meta = {
 		overviewError: null,
 		unpricedModels: MockUnpricedAIModels.models,
 		isUnpricedModelsLoading: false,
+		canViewSessions: true,
 	},
 } satisfies Meta<typeof AISpendPageView>;
 
@@ -57,6 +58,7 @@ export const NoSpend: Story = {
 				...interval,
 				spend_micros: 0,
 			})),
+			users: [],
 		},
 		unpricedModels: [],
 	},
