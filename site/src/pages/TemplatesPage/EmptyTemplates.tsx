@@ -52,7 +52,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 		return (
 			<TableEmpty
 				image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
-				message="No results match your filters"
+				message="No templates match your filters"
 				description="Broaden your search to explore more options."
 				cta={
 					<Button variant="outline" onClick={onClearFilter}>

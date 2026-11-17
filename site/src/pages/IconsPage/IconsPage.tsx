@@ -138,7 +138,7 @@ const IconsPage: React.FC = () => {
 					{searchedIcons.length === 0 && (
 						<EmptyState
 							image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
-							message="No results match your filters"
+							message="No icons match your search"
 							description="Broaden your search to explore more options."
 							cta={
 								<Button

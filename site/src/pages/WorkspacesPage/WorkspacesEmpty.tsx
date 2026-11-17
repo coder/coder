@@ -35,7 +35,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 		return (
 			<EmptyState
 				image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
-				message="No results match your filters"
+				message="No workspaces match your filters"
 				description="Broaden your search to explore more options."
 				cta={
 					<Button variant="outline" onClick={onClearFilter}>
