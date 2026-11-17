@@ -21,7 +21,7 @@ You need:
 
 ## What carries over
 
-Dev Box runs dev boxes in a Microsoft-owned subscription and connects them to your network through a network connection.
+Dev Box runs dev boxes in a Microsoft-owned subscription environment and connects them to your network through a network connection.
 Coder has no vendor-hosted control plane.
 You run the [control plane](../architecture.md), and each [template](../../../templates/index.md) provisions workspaces in your own Azure subscription with Terraform.
 
