@@ -1411,14 +1411,16 @@ func TestPlugin_SkillDirAlsoScanRootPluginThroughSymlink(t *testing.T) {
 }
 
 // Spec section 7.1 applies the Agent Skills limits to plugin skills: a
-// description is required and capped at 1024 characters, and a name is
-// capped at 64.
+// description is required and capped at 1024 characters, a name is
+// capped at 64, and the optional frontmatter fields must match their
+// Agent Skills types and limits.
 func TestPlugin_SkillLimits(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name        string
 		skill       string
 		description string
+		extra       string
 		errContains string
 	}{
 		{name: "name at limit", skill: strings.Repeat("a", 64), description: "ok"},
@@ -1426,6 +1428,12 @@ func TestPlugin_SkillLimits(t *testing.T) {
 		{name: "description missing", skill: "nodesc", errContains: "skill description is required"},
 		{name: "description at limit", skill: "long", description: strings.Repeat("é", 1024)},
 		{name: "description over limit", skill: "long", description: strings.Repeat("é", 1025), errContains: "skill description is 1025 characters, maximum is 1024"},
+		{name: "optional fields valid", skill: "opt", description: "ok", extra: "license: MIT\nallowed-tools: Bash Read\ncompatibility: " + strings.Repeat("é", 500) + "\nmetadata:\n  author: me\n"},
+		{name: "compatibility over limit", skill: "opt", description: "ok", extra: "compatibility: " + strings.Repeat("é", 501) + "\n", errContains: `frontmatter field "compatibility" is 501 characters, must be 1 to 500`},
+		{name: "compatibility empty", skill: "opt", description: "ok", extra: "compatibility: \"\"\n", errContains: `frontmatter field "compatibility" is 0 characters, must be 1 to 500`},
+		{name: "license not a string", skill: "opt", description: "ok", extra: "license: [MIT]\n", errContains: `frontmatter field "license" must be a string`},
+		{name: "metadata not a mapping", skill: "opt", description: "ok", extra: "metadata: x\n", errContains: `frontmatter field "metadata" must be a mapping of strings to strings`},
+		{name: "metadata value not a string", skill: "opt", description: "ok", extra: "metadata:\n  version: 2\n", errContains: `frontmatter field "metadata" value for "version" must be a string`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1437,7 +1445,7 @@ func TestPlugin_SkillLimits(t *testing.T) {
 			if tc.description != "" {
 				meta += "description: " + tc.description + "\n"
 			}
-			meta += "---\nbody"
+			meta += tc.extra + "---\nbody"
 			mustWriteFile(t, filepath.Join(pluginDir, "skills", tc.skill, "SKILL.md"), meta)
 			// Plain skills are not held to these limits.
 			mustWriteFile(t, filepath.Join(root, "skills", tc.skill, "SKILL.md"), meta)
