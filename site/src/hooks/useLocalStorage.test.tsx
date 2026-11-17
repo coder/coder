@@ -113,7 +113,7 @@ describe("useLocalStorage", () => {
 		expect(localStorage.getItem(key)).toBe("2");
 	});
 
-	it("keeps the in-memory value when a write fails", () => {
+	it("keeps the stored value when a write fails", () => {
 		const key = "test.failed-write";
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
 			throw new DOMException("quota", "QuotaExceededError");
@@ -124,29 +124,8 @@ describe("useLocalStorage", () => {
 
 		act(() => result.current[1](true));
 
-		expect(result.current[0]).toBe(true);
-		expect(localStorage.getItem(key)).toBeNull();
-	});
-
-	it("adopts another tab's value after a failed write", () => {
-		const key = "test.failed-write-cross-tab";
-		const setItem = vi
-			.spyOn(Storage.prototype, "setItem")
-			.mockImplementation(() => {
-				throw new DOMException("quota", "QuotaExceededError");
-			});
-		const { result } = renderLocalStorageHook(() =>
-			useLocalStorage({ storageKey: key, codec: booleanCodec(false) }),
-		);
-		act(() => result.current[1](true));
-
-		setItem.mockRestore();
-		act(() => {
-			localStorage.setItem(key, "false");
-			dispatchCrossTabStorageEvent(key);
-		});
-
 		expect(result.current[0]).toBe(false);
+		expect(localStorage.getItem(key)).toBeNull();
 	});
 
 	it("reads the fallback when storage access throws", () => {

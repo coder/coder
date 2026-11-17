@@ -14,8 +14,6 @@ type LocalStorageStore = {
 /** Creates a store with no values. Each provider creates its own. */
 function createLocalStorageStore(): LocalStorageStore {
 	const listenersByKey = new Map<string, Set<() => void>>();
-	// Values whose write failed. They stay in memory until storage changes for the key.
-	const unsavedWrites = new Map<string, { serialized: string | null }>();
 
 	const notify = (key: string) => {
 		for (const listener of listenersByKey.get(key) ?? []) {
@@ -24,11 +22,6 @@ function createLocalStorageStore(): LocalStorageStore {
 	};
 
 	const readSerialized = (key: string): string | null => {
-		const unsaved = unsavedWrites.get(key);
-		if (unsaved) {
-			return unsaved.serialized;
-		}
-
 		try {
 			return localStorage.getItem(key);
 		} catch {
@@ -43,10 +36,8 @@ function createLocalStorageStore(): LocalStorageStore {
 			} else {
 				localStorage.setItem(key, serialized);
 			}
-
-			unsavedWrites.delete(key);
 		} catch {
-			unsavedWrites.set(key, { serialized });
+			// Storage can be unavailable or full. Subscribers re-read what it holds.
 		}
 
 		notify(key);
@@ -68,14 +59,13 @@ function createLocalStorageStore(): LocalStorageStore {
 		};
 	};
 
-	// Storage events come from other tabs. Re-reading localStorage, not the
-	// event payload, supplies the value.
+	// Storage events come from other tabs. Subscribers re-read the key, so the
+	// event payload is not used as the value.
 	const handleStorageEvent = (event: StorageEvent): void => {
 		const changedKeys =
 			event.key === null ? [...listenersByKey.keys()] : [event.key];
 
 		for (const key of changedKeys) {
-			unsavedWrites.delete(key);
 			notify(key);
 		}
 	};
