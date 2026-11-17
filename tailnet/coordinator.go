@@ -260,7 +260,18 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 	}
 
 	if err := pr.auth.Authorize(ctx, req); err != nil {
-		return AuthorizationError{Wrapped: err}
+		var policyErr TunnelPolicyError
+		if !xerrors.As(err, &policyErr) {
+			return AuthorizationError{Wrapped: err}
+		}
+		// A user-scoped peer shares one connection across workspaces, so refuse only this tunnel.
+		c.logger.Debug(ctx, "tunnel refused by policy", slog.F("peer_id", p.id), slog.Error(err))
+		select {
+		case pr.resps <- &proto.CoordinateResponse{Error: policyErr.Error()}:
+			return nil
+		default:
+			return ErrWouldBlock
+		}
 	}
 
 	if req.UpdateSelf != nil {

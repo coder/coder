@@ -134,12 +134,10 @@ func TestBlockNonBrowserTemplate(t *testing.T) {
 
 	// The user-scoped tailnet endpoint spans every template the user can
 	// reach, so the template setting has to be enforced per tunnel rather than
-	// on the endpoint as a whole.
+	// on the endpoint as a whole. Refusing one tunnel must not drop the others.
 	t.Run("UserTailnet", func(t *testing.T) {
 		t.Parallel()
 
-		// The coordinator logs the refusal at error level, as it does for any
-		// unauthorized tunnel request.
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		connLogger := connectionlog.NewFake()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -156,16 +154,17 @@ func TestBlockNonBrowserTemplate(t *testing.T) {
 				},
 			},
 		})
-		r := setupWorkspaceAgent(t, client, user, 0)
+		browserOnly := setupWorkspaceAgent(t, client, user, 0)
+		normal := setupWorkspaceAgent(t, client, user, 0)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Template settings are admin-only.
-		_, err := client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+		_, err := client.UpdateTemplateMeta(ctx, browserOnly.workspace.TemplateID, codersdk.UpdateTemplateMeta{
 			BrowserOnly: new(true),
 		})
 		require.NoError(t, err)
 
-		u, err := client.URL.Parse("/api/v2/tailnet?version=2.0")
+		u, err := client.URL.Parse("/api/v2/tailnet?version=" + tailnetproto.CurrentVersion.String())
 		require.NoError(t, err)
 		//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
@@ -184,16 +183,44 @@ func TestBlockNonBrowserTemplate(t *testing.T) {
 			logger,
 		)
 		require.NoError(t, err)
+
+		updates, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{
+			WorkspaceOwnerId: tailnet.UUIDToByteSlice(user.UserID),
+		})
+		require.NoError(t, err)
+		update, err := updates.Recv()
+		require.NoError(t, err)
+		var listed []uuid.UUID
+		for _, ws := range update.UpsertedWorkspaces {
+			listed = append(listed, uuid.UUID(ws.Id))
+		}
+		require.Equal(t, []uuid.UUID{normal.workspace.ID}, listed)
+
 		stream, err := rpcClient.Coordinate(ctx)
 		require.NoError(t, err)
 		require.NoError(t, stream.Send(&tailnetproto.CoordinateRequest{
-			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(r.sdkAgent.ID)},
+			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(browserOnly.sdkAgent.ID)},
 		}))
+		refusal, err := stream.Recv()
+		require.NoError(t, err)
+		require.Equal(t, "Non-browser connections are disabled for this template.", refusal.Error)
+
+		require.NoError(t, stream.Send(&tailnetproto.CoordinateRequest{
+			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(normal.sdkAgent.ID)},
+		}))
+		for reachable := false; !reachable; {
+			msg, err := stream.Recv()
+			require.NoError(t, err)
+			require.Empty(t, msg.Error)
+			for _, peer := range msg.PeerUpdates {
+				reachable = reachable || uuid.UUID(peer.Id) == normal.sdkAgent.ID
+			}
+		}
 
 		require.Eventually(t, func() bool {
 			return connLogger.Contains(t, database.UpsertConnectionLogParams{
-				WorkspaceID:      r.workspace.ID,
-				AgentName:        r.sdkAgent.Name,
+				WorkspaceID:      browserOnly.workspace.ID,
+				AgentName:        browserOnly.sdkAgent.Name,
 				ConnectionMethod: database.ConnectionLogMethodTunnel,
 				Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
 				UserID:           uuid.NullUUID{UUID: user.UserID, Valid: true},
