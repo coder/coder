@@ -2410,6 +2410,41 @@ func TestInsertChatProjectTemplatesSkipsOtherOrganizations(t *testing.T) {
 	require.Equal(t, local.ID, attached[0].TemplateID)
 }
 
+// Detaching a template clears the project's defaults only when it removes an
+// attachment, so a detach that finds nothing leaves the project as it was.
+func TestDeleteChatProjectTemplateClearsDefaultsOnlyWhenDetached(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		DefaultTemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+	})
+	detach := database.DeleteChatProjectTemplateParams{ProjectID: project.ID, TemplateID: tpl.ID}
+
+	_, err := db.DeleteChatProjectTemplate(ctx, detach)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	project, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, tpl.ID, project.DefaultTemplateID.UUID)
+
+	dbgen.ChatProjectTemplate(t, db, database.ChatProjectTemplate{ProjectID: project.ID, TemplateID: tpl.ID, CreatedBy: owner.ID})
+	_, err = db.DeleteChatProjectTemplate(ctx, detach)
+	require.NoError(t, err)
+	project, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.False(t, project.DefaultTemplateID.Valid)
+}
+
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

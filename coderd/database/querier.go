@@ -175,6 +175,7 @@ type sqlcQuerier interface {
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
 	// Detaches a template from a project. Detaching the default template also
 	// clears the project's defaults, which only apply to an attached template.
+	// Nothing changes when the template is not attached.
 	DeleteChatProjectTemplate(ctx context.Context, arg DeleteChatProjectTemplateParams) (ChatProjectTemplate, error)
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
