@@ -4,6 +4,10 @@ title: Agent Firewall
 
 Agent Firewall is a process-level firewall that restricts and audits what autonomous programs, such as AI agents, can access and use.
 
+> [!IMPORTANT]
+> Agent Firewall is being phased out in favor of more comprehensive approaches to sandboxing workspaces.
+> To isolate the kernel, network, and secrets of AI agents, refer to [Sandboxing agents](../../templates/extending-templates/sandboxing-agents.md).
+
 ![Screenshot of Agent Firewall blocking a process](../../images/guides/ai-agents/boundary.png)Example of Agent Firewall blocking a process.
 
 > [!NOTE]

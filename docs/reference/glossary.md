@@ -32,6 +32,8 @@ Refer to the [Agent API reference](./agent-api/index.md).
 A process-level firewall that enforces domain and verb allowlists on AI agent processes inside a workspace and streams audit logs to `coderd`.
 It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
 This feature requires a Premium license.
+Agent Firewall is being phased out.
+To sandbox AI agents, refer to [Sandboxing agents](../templates/extending-templates/sandboxing-agents.md).
 Refer to [Agent Firewall](../ai-governance/agent-firewall/index.md).
 
 ### Agent Relay
