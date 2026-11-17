@@ -14,7 +14,7 @@ November 15, 2024
 ## Overview
 
 This guide demonstrates how to test and publish Coder templates in a Continuous Integration (CI) pipeline using the [coder/setup-action](https://github.com/coder/setup-coder).
-This workflow ensures your templates are validated, tested, and promoted seamlessly.
+This workflow makes sure your templates are validated, tested, and promoted seamlessly.
 
 ## Prerequisites
 
@@ -99,7 +99,7 @@ jobs:
           coder_session_token: ${{ secrets.CODER_SESSION_TOKEN }}
 
       - name: Validate Terraform template
-        run: terraform validate
+        run: terraform init -backend=false && terraform validate
 
       - name: Get short commit SHA to use as template version name
         id: name

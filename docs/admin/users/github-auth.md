@@ -15,7 +15,7 @@ To the best of our knowledge, Coder, the company, does not gain access to this d
 > [!IMPORTANT]
 > Installation of the default GitHub app grants Coder (the company) access to your organization's GitHub data.
 >
-> For production environments, we strongly recommend that you [configure your own GitHub OAuth app](#step-1-configure-the-oauth-application-in-github) to ensure that your data is not shared with Coder (the company).
+> For production environments, we strongly recommend that you [configure your own GitHub OAuth app](#step-1-configure-the-oauth-application-in-github) to make sure that your data is not shared with Coder (the company).
 
 To use the default configuration:
 
@@ -49,7 +49,7 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 > [!NOTE]
 > After you disable the default GitHub provider, the **Sign in with GitHub** button might still appear on your login page even though the authentication flow is disabled.
 >
-> To completely hide the GitHub sign-in button, you must disable the default provider and ensure you don't have a custom GitHub OAuth app configured.
+> To completely hide the GitHub sign-in button, you must disable the default provider and make sure you don't have a custom GitHub OAuth app configured.
 
 ## Step 1: Configure the OAuth application in GitHub
 

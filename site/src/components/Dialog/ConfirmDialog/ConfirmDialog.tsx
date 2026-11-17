@@ -95,7 +95,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 			}}
 		>
 			<DialogContent
-				variant={type === "delete" ? "destructive" : "default"}
+				variant={type === "delete" ? "destructive" : undefined}
 				data-testid="dialog"
 				onOpenAutoFocus={onOpenAutoFocus}
 				onCloseAutoFocus={onCloseAutoFocus}

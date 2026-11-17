@@ -43,7 +43,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 				tabIndex={viewportTabIndex}
 				role={viewportAriaLabel ? "region" : undefined}
 				aria-label={viewportAriaLabel}
-				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
+				className={cn("size-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
 			</ScrollAreaPrimitive.Viewport>
@@ -80,7 +80,7 @@ const ScrollBar: React.FC<
 		<ScrollAreaPrimitive.ScrollAreaScrollbar
 			orientation={orientation}
 			className={cn(
-				"border-0 border-solid border-border flex touch-none select-none transition-colors",
+				"flex touch-none select-none transition-colors",
 				orientation === "vertical" &&
 					"h-full w-2.5 border-l border-l-transparent p-px",
 				orientation === "horizontal" &&

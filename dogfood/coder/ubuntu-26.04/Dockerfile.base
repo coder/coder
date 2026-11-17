@@ -5,12 +5,16 @@ SHELL ["/bin/bash", "-c"]
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
 
-# Updated certificates are necessary to use the teraswitch mirror.
-# This must be ran before copying in configuration since the config replaces
-# the default mirror with teraswitch.
-# Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
-# and unminimize to include man pages.
-RUN apt-get update && \
+# Copy the mirror list and its retry settings before the first apt step, so
+# that every apt step uses them.
+COPY dogfood/coder/ubuntu-26.04/files/etc/apt/ubuntu-mirrors.txt /etc/apt/ubuntu-mirrors.txt
+COPY dogfood/coder/ubuntu-26.04/files/etc/apt/apt.conf.d/80-retries /etc/apt/apt.conf.d/80-retries
+
+# Install ca-certificates before copying in files/, whose third-party apt
+# sources use HTTPS. Also enable the en_US.UTF-8 locale so that we don't
+# generate multiple locales and unminimize to include man pages.
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|mirror+file:/etc/apt/ubuntu-mirrors.txt|g; s|http://security.ubuntu.com/ubuntu/|mirror+file:/etc/apt/ubuntu-mirrors.txt|g' /etc/apt/sources.list.d/ubuntu.sources && \
+	apt-get update && \
 	apt-get install --yes ca-certificates locales unminimize && \
 	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
 	locale-gen && \
@@ -25,9 +29,7 @@ RUN mkdir -p /etc/sudoers.d && \
 	chmod 750 /etc/sudoers.d/ && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
-# Use more reliable mirrors for Ubuntu packages
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
-	apt-get update --quiet && apt-get install --yes \
+RUN apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
 	apt-utils \

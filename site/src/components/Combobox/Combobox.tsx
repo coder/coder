@@ -99,6 +99,8 @@ export const ComboboxButton = ({
 
 type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
+	/** Accessible name for the search input. */
+	label?: string;
 };
 
 export const ComboboxContent = ({
@@ -106,6 +108,7 @@ export const ComboboxContent = ({
 	className,
 	ref,
 	shouldFilter,
+	label,
 	onOpenAutoFocus,
 	...props
 }: ComboboxContentProps) => {
@@ -115,7 +118,7 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"flex w-auto flex-col overflow-y-hidden border-border text-sm",
+				"flex w-auto flex-col overflow-y-hidden text-sm",
 				className,
 			)}
 			onOpenAutoFocus={(event) => {
@@ -133,6 +136,7 @@ export const ComboboxContent = ({
 			<Command
 				ref={commandRef}
 				shouldFilter={shouldFilter}
+				label={label}
 				className="min-h-0 flex-1"
 			>
 				{children}

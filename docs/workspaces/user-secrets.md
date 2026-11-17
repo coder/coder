@@ -83,7 +83,7 @@ If the file already exists, Coder overwrites the contents and leaves the existin
 > Coder never deletes secret files it has written for you.
 > If you remove a secret, change its file path, or clear the file target, the previous file stays in your workspace until you delete it.
 > To remove a stale file, open a terminal in your workspace and run `rm <path>`.
-> Rebuilding the workspace may clear stale files when your template recreates the filesystem.
+> Rebuilding the workspace might clear stale files when your template recreates the filesystem.
 
 Coder rejects a second secret that uses a file path you already use.
 Two different paths can still resolve to the same absolute path (for example `~/config` and `/home/coder/config`).

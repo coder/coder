@@ -8,10 +8,14 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/skratchdot/open-golang/open"
@@ -41,7 +45,8 @@ const vscodeDesktopName = "VS Code Desktop"
 
 // externalSessionTokenPlaceholder is the literal substring in an external
 // workspace-app URL that the CLI replaces with the user's session token
-// when the app belongs to a trusted (top-level) agent.
+// when the app belongs to a top-level agent and its URL is trusted (see
+// sessionTokenDestinationTrusted).
 const externalSessionTokenPlaceholder = "$SESSION_TOKEN"
 
 func (r *RootCmd) openVSCode() *serpent.Command {
@@ -392,12 +397,27 @@ func (r *RootCmd) openApp() *serpent.Command {
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
 			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
-			externalSubAgentApp := foundApp.External && agt.ParentID.Valid
-			if foundApp.External && !agt.ParentID.Valid {
-				// Template-defined apps run on a top-level agent and are
-				// admin-authored, so their URLs are trusted. Substitute the
-				// session token placeholder so the OS open handler receives
-				// a usable URL.
+			if foundApp.External && strings.Contains(appURL, externalSessionTokenPlaceholder) {
+				// Sub-agent external app URLs are set at runtime, so they
+				// never receive the session token.
+				if agt.ParentID.Valid {
+					cliui.Warnf(inv.Stderr,
+						"This app was registered from inside the workspace rather than from the workspace template. "+
+							"Inspect the URL below carefully and, if you trust the source, substitute the $SESSION_TOKEN placeholder "+
+							"with your session token and manually open it:")
+					_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
+					return nil
+				}
+				// Template-defined apps only receive the session token when
+				// they open a known Coder IDE handler pointed at this
+				// deployment, matching the dashboard.
+				if !sessionTokenDestinationTrusted(appURL, sessionTokenOrigins(ctx, client)) {
+					cliui.Warnf(inv.Stderr,
+						"This app's URL isn't trusted to sign you in to Coder, so your session token was not added. "+
+							"If this app should sign you in, ask your template administrator to fix its URL:")
+					_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
+					return nil
+				}
 				appURL = strings.ReplaceAll(appURL, externalSessionTokenPlaceholder, client.SessionToken())
 			}
 
@@ -406,18 +426,6 @@ func (r *RootCmd) openApp() *serpent.Command {
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 			if insideAWorkspace {
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
-				return nil
-			}
-
-			// Sub-agent external app URLs are set at runtime. Only open
-			// sub-agent URLs that don't contain the placeholder to prevent
-			// token exfiltration.
-			if externalSubAgentApp && strings.Contains(appURL, externalSessionTokenPlaceholder) {
-				cliui.Warnf(inv.Stderr,
-					"This app was registered from inside the workspace rather than from the workspace template. "+
-						"Inspect the URL below carefully and, if you trust the source, substitute the $SESSION_TOKEN placeholder "+
-						"with your session token and manually open it:")
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
 				return nil
 			}
@@ -685,4 +693,206 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		u.Path = "/"
 	}
 	return u.String()
+}
+
+type sessionTokenHandler struct {
+	// base is the scheme and authority, matched case-insensitively.
+	base string
+	// path runs through the first required param, matched exactly.
+	path string
+}
+
+// sessionTokenHandlers are the only deep-link handlers that may receive the
+// session token. Keep in sync with SESSION_TOKEN_HANDLERS in
+// site/src/modules/apps/apps.ts.
+var sessionTokenHandlers = func() []sessionTokenHandler {
+	var handlers []sessionTokenHandler
+	for _, scheme := range []string{
+		"vscode",
+		"vscode-insiders",
+		"windsurf",
+		"devin",
+		"cursor",
+		"kiro",
+		"positron",
+		"antigravity",
+		"antigravity-ide",
+	} {
+		for _, p := range []string{"/open?", "/openDevContainer?"} {
+			handlers = append(handlers, sessionTokenHandler{base: scheme + "://coder.coder-remote", path: p})
+		}
+	}
+	return append(handlers,
+		sessionTokenHandler{base: "jetbrains://gateway", path: "/coder?"},
+		sessionTokenHandler{base: "jetbrains://gateway", path: "/com.coder.toolbox?"},
+		// Gateway also handles non-Coder providers, such as `type=ssh`.
+		sessionTokenHandler{base: "jetbrains-gateway://connect", path: "#type=coder&"},
+	)
+}()
+
+// sessionTokenOrigins returns the origins that external app links may send
+// the session token to: the URL the CLI is logged in to and, when the server
+// reports one, the deployment's dashboard URL.
+func sessionTokenOrigins(ctx context.Context, client *codersdk.Client) []string {
+	origins := []string{urlOrigin(client.URL)}
+	// Without build info, only links to the URL the CLI uses are trusted.
+	buildInfo, err := client.BuildInfo(ctx)
+	if err != nil {
+		return origins
+	}
+	if u, err := url.Parse(buildInfo.DashboardURL); err == nil && u.Host != "" {
+		origins = append(origins, urlOrigin(u))
+	}
+	return origins
+}
+
+// sessionTokenDestinationTrusted reports whether appURL opens a known Coder
+// handler, its only `url` param is one of origins, and the placeholder is its
+// only `token`. It mirrors isSessionTokenDestinationTrusted in
+// site/src/modules/apps/apps.ts, which documents each check. Both test suites
+// run the cases in site/src/modules/apps/sessionTokenDestinationCases.json, so
+// add new cases there.
+func sessionTokenDestinationTrusted(appURL string, origins []string) bool {
+	// IDEs and browsers strip some control characters, so `ur\tl` could
+	// become a second `url` param after this check.
+	if !utf8.ValidString(appURL) ||
+		strings.IndexFunc(appURL, unicode.IsControl) != -1 ||
+		strings.Count(appURL, externalSessionTokenPlaceholder) != 1 {
+		return false
+	}
+	handlerIdx := slices.IndexFunc(sessionTokenHandlers, func(h sessionTokenHandler) bool {
+		return len(appURL) >= len(h.base) &&
+			asciiLower(appURL[:len(h.base)]) == h.base &&
+			strings.HasPrefix(appURL[len(h.base):], h.path)
+	})
+	if handlerIdx == -1 {
+		return false
+	}
+	handler := sessionTokenHandlers[handlerIdx]
+	params := appURL[len(handler.base)+strings.IndexAny(handler.path, "?#")+1:]
+	// A later `#` would hide params from IDEs that read only the query.
+	if strings.Contains(params, "#") {
+		return false
+	}
+	// The placeholder must be the raw `token` entry, and names must be
+	// literal because JetBrains Gateway doesn't decode them.
+	entries := strings.Split(params, "&")
+	if !slices.Contains(entries, "token="+externalSessionTokenPlaceholder) {
+		return false
+	}
+	for _, entry := range entries {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.Contains(name, "%") {
+			return false
+		}
+	}
+	// IDEs decode values twice, so check that view too and reject leftovers.
+	decoded, err := url.PathUnescape(params)
+	if err != nil || !utf8.ValidString(decoded) || strings.Contains(decoded, "%") {
+		return false
+	}
+	return hasTrustedSessionTokenParams(params, origins) &&
+		hasTrustedSessionTokenParams(decoded, origins)
+}
+
+// hasTrustedSessionTokenParams reports whether every name in rawQuery appears
+// once, `token` is the placeholder, and `url` is one of origins.
+func hasTrustedSessionTokenParams(rawQuery string, origins []string) bool {
+	values, ok := parseSearchParams(rawQuery)
+	if !ok {
+		return false
+	}
+	for _, v := range values {
+		if len(v) != 1 {
+			return false
+		}
+	}
+	return values.Get("token") == externalSessionTokenPlaceholder &&
+		isTrustedBareOrigin(values.Get("url"), origins)
+}
+
+// parseSearchParams parses rawQuery like URLSearchParams, which IDEs use. It
+// drops one leading `?`, so `??url=a&url=b` can't hide the duplicate `url`
+// behind a `?url` name, and splits on `&` only, so a `;` in a value is kept
+// rather than rejected as url.ParseQuery does. Unlike URLSearchParams, it
+// rejects invalid percent escapes.
+func parseSearchParams(rawQuery string) (url.Values, bool) {
+	values := url.Values{}
+	for _, entry := range strings.Split(strings.TrimPrefix(rawQuery, "?"), "&") {
+		if entry == "" {
+			continue
+		}
+		rawName, rawValue, _ := strings.Cut(entry, "=")
+		name, err := url.QueryUnescape(rawName)
+		if err != nil {
+			return nil, false
+		}
+		value, err := url.QueryUnescape(rawValue)
+		if err != nil {
+			return nil, false
+		}
+		values.Add(name, value)
+	}
+	return values, true
+}
+
+// bareOriginRegex matches a URL that is only an origin, optionally with a
+// trailing slash. A path could reach a workspace app on this deployment, and
+// userinfo can hide a different host from IDEs that decode it again.
+var bareOriginRegex = regexp.MustCompile(`(?i)^[a-z][a-z\d+.-]*://[^/\\?#@\s]+/?$`)
+
+func isTrustedBareOrigin(rawURL string, origins []string) bool {
+	if !bareOriginRegex.MatchString(rawURL) {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	// Browsers map non-ASCII hosts through IDNA, which this comparison doesn't
+	// model, so only ASCII hosts are trusted.
+	if strings.IndexFunc(u.Hostname(), func(r rune) bool { return r > unicode.MaxASCII }) != -1 {
+		return false
+	}
+	origin := urlOrigin(u)
+	return origin != "" && slices.Contains(origins, origin)
+}
+
+// urlOrigin returns the scheme, host, and non-default port of u, with ASCII
+// letters lowercased and the port in canonical form, like a browser origin.
+// Unicode case folding would turn hosts such as `codİng.com` into a
+// different, trusted host. It returns "" when the port is out of range.
+func urlOrigin(u *url.URL) string {
+	scheme := asciiLower(u.Scheme)
+	host := asciiLower(u.Hostname())
+	port := u.Port()
+	if port != "" {
+		n, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return ""
+		}
+		port = strconv.FormatUint(n, 10)
+	}
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		port = ""
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port != "" {
+		host += ":" + port
+	}
+	return scheme + "://" + host
+}
+
+// asciiLower lowercases ASCII letters only, so non-ASCII characters that
+// Unicode folds to ASCII, such as the Kelvin sign, never match a handler.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
 }

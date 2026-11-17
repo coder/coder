@@ -4,7 +4,7 @@ title: Users
 
 By default, Coder is accessible via password authentication.
 For production deployments, we recommend using a single sign-on (SSO) authentication provider with multi-factor authentication (MFA).
-It is your responsibility to ensure the auth provider enforces MFA correctly.
+It is your responsibility to make sure the auth provider enforces MFA correctly.
 
 <a id="configuring-sso"></a>
 
@@ -55,7 +55,7 @@ Dormant accounts do not count towards the total number of licensed seats in a Co
 When a user's account is marked as _suspended_ in Coder, it means that the account has been temporarily deactivated, and the user is unable to access the platform.
 
 Only user administrators or owners have the necessary permissions to manage suspended accounts and decide whether to lift the suspension and allow the user back into the Coder environment.
-This level of control ensures that administrators can enforce security measures and handle any compliance-related issues promptly.
+This level of control makes sure that administrators can enforce security measures and handle any compliance-related issues promptly.
 
 Similar to dormant users, suspended users do not count towards the total number of licensed seats.
 
@@ -170,7 +170,7 @@ In the Coder UI, you can filter your users using pre-defined filters or by utili
 The examples provided below demonstrate how to use the Coder's filter query:
 
 - To find active users, use the filter `status:active`.
-- To find admin users, use the filter `role:admin`.
+- To find users with the Owner role, use the filter `role:owner`.
 - To find users who have not been active since July 2023: `status:active last_seen_before:"2023-07-01T00:00:00Z"`
 - To find users who were created between January 1 and January 18, 2023: `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
 - To find users who login using Github: `login_type:github`
@@ -190,7 +190,7 @@ The following filters are supported:
 - `status` - Indicates the status of the user.
   It can be either `active`, `dormant` or `suspended`.
 - `role` - Represents the role of the user.
-  You can refer to the [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole) for a list of supported user roles.
+  For a list of supported user roles, refer to the [Roles](groups-roles.md#roles) section.
 - `last_seen_before` and `last_seen_after` - The last time a user has used the platform (for example, logging in, any API requests, connecting to workspaces).
   Uses the RFC3339Nano format.
 - `created_before` and `created_after` - The time a user was created.

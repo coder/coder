@@ -136,17 +136,17 @@ See [Template Optimization](./platform-controls/template-optimization.md) for th
 ### Plan for change between releases
 
 Coder Agents is generally available.
-However, APIs, behavior, and configuration may change between releases.
+However, APIs, behavior, and configuration might change between releases.
 As always, you should review [release notes](https://github.com/coder/coder/releases) and the [changelog](https://coder.com/changelog) before upgrading, so changes do not affect production.
 
 ### Use HTTPS for push notifications
 
 Coder Agents use browser push notifications to alert you when a task completes or needs attention.
 Most browsers require a secure (HTTPS) origin for the [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API) to work.
-If your access URL uses plain HTTP, push notifications may not function.
+If your access URL uses plain HTTP, push notifications might not function.
 
 This does not affect agents themselves, only the browser notification delivery.
-If you terminate TLS at a reverse proxy, ensure the [access URL](../admin/setup/index.md) is configured with an `https://` scheme.
+If you terminate TLS at a reverse proxy, make sure the [access URL](../admin/setup/index.md) is configured with an `https://` scheme.
 
 ### Set a deployment-wide system prompt
 
@@ -232,11 +232,15 @@ This is useful for building automations such as:
 
 **Quick example — create a Coder Agent via the API:**
 
+Replace `<your-org-id>` with the ID of an organization you belong to.
+To find the ID, run `coder organizations list` and copy the value in the `id` column.
+
 ```sh
 curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [
       {"type": "text", "text": "Fix the failing tests in the auth service"}
     ]

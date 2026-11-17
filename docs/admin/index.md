@@ -50,7 +50,7 @@ For any information not strictly contained in these sections, refer to our [freq
 
 ### Dotfiles / personalization
 
-- Users may have their own specific preferences relating to shell prompt, custom keybindings, color schemes, and more.
+- Users might have their own specific preferences relating to shell prompt, custom keybindings, color schemes, and more.
   Users can leverage Coder's [dotfiles support](../workspaces/workspace-dotfiles.md) or create their own script to personalize their workspace.
   Be aware that users with root permissions in their workspace can override almost all of the previous configuration.
 - Managed by: Individual Users

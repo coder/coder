@@ -3075,6 +3075,7 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				description: "Personal compact skill",
 				enabled: true,
 				action: false,
+				display_name: "",
 				model_invocable: true,
 				created_at: "2024-01-01T00:00:00Z",
 				updated_at: "2024-01-01T00:00:00Z",
@@ -3149,9 +3150,26 @@ const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
 
 export const QueuedSendPromotesPreviousHead: Story = {
 	parameters: {
-		queries: buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
-			diffUrl: undefined,
-		}),
+		queries: [
+			...buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
+				diffUrl: undefined,
+			}),
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: promotedQueueHeadChat.owner_id,
+								organization_id: promotedQueueHeadChat.organization_id,
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
@@ -3165,6 +3183,7 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			role: "user",
 			created_at: "2024-01-01T00:01:00Z",
 			content: [{ type: "text", text: "Queued head prompt" }],
+			queued_message_id: 41,
 		};
 		const followUp: TypesGen.ChatQueuedMessage = {
 			...MockChatQueuedMessage,

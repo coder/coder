@@ -2,7 +2,7 @@
 title: Troubleshoot templates
 ---
 
-Occasionally, you may run into scenarios where a workspace is created, but the agent is either not connected or the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) has failed or timed out.
+Occasionally, you might run into scenarios where a workspace is created, but the agent is either not connected or the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) has failed or timed out.
 
 ## Agent connection issues
 
@@ -15,8 +15,8 @@ $ coder ssh myworkspace
 
 While troubleshooting steps vary by resource, here are some general best practices:
 
-- Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
-- Ensure the resource can `curl` your Coder [access URL](../admin/setup/index.md#access-url)
+- Make sure the resource has `curl` installed (alternatively, `wget` or `busybox`)
+- Make sure the resource can `curl` your Coder [access URL](../admin/setup/index.md#access-url)
 - Manually connect to the resource and check the agent logs (for example, `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
@@ -26,7 +26,7 @@ While troubleshooting steps vary by resource, here are some general best practic
 
 ## Startup script issues
 
-Depending on the contents of the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1), and whether or not the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior-1) is set to blocking or non-blocking, you may notice issues related to the startup script.
+Depending on the contents of the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1), and whether or not the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior-1) is set to blocking or non-blocking, you might notice issues related to the startup script.
 In this section we will cover common scenarios and how to resolve them.
 
 ### Unable to access workspace, startup script is still running
@@ -44,16 +44,16 @@ Note that the workspace must be updated after changing this option.
 
 ### Your workspace may be incomplete
 
-If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings may be missing from your workspace.
+If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings might be missing from your workspace.
 This can happen if the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is still running or has exited with a non-zero status (see [startup script error](#startup-script-exited-with-an-error)).
-No action is necessary, but you may want to [start a new shell session](#session-was-started-before-the-startup-script-finished) after it has completed or check the [startup script logs](#debug-the-startup-script) to see if there are any issues.
+No action is necessary, but you might want to [start a new shell session](#session-was-started-before-the-startup-script-finished) after it has completed or check the [startup script logs](#debug-the-startup-script) to see if there are any issues.
 
 ### Session was started before the startup script finished
 
-The web terminal may show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) finished, but the startup script has since finished.
-This message can safely be dismissed, however, be aware that your preferred shell or dotfiles may not yet be activated for this shell session.
+The web terminal might show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) finished, but the startup script has since finished.
+This message can safely be dismissed, however, be aware that your preferred shell or dotfiles might not yet be activated for this shell session.
 You can either start a new session or source your dotfiles manually.
-Note that starting a new session means that commands running in the terminal will be terminated and you may lose unsaved work.
+Note that starting a new session means that commands running in the terminal will be terminated and you might lose unsaved work.
 
 Examples for activating your preferred shell or sourcing your dotfiles:
 
@@ -80,7 +80,7 @@ Common causes for startup script errors:
 The simplest way to debug the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is to open the workspace in the Coder dashboard and select "Show startup log" (if not already visible).
 This will show all the output from the script.
 Another option is to view the log file inside the workspace (usually `/tmp/coder-startup-script.log`).
-If the logs don't indicate what's going on or going wrong, you can increase verbosity by adding `set -x` to the top of the startup script (note that this will show all commands run and may output sensitive information).
+If the logs don't indicate what's going on or going wrong, you can increase verbosity by adding `set -x` to the top of the startup script (note that this will show all commands run and might output sensitive information).
 Alternatively, you can add `echo` statements to show what's going on.
 
 Here's a short example of an informative startup script:
@@ -121,7 +121,7 @@ See our [guide on optimizing workspace build times](../workspaces/speed-up-templ
 
 If a Docker-based template fails to provision with an error like `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`, the Coder host cannot reach the Docker socket.
 Confirm that Docker is installed and running on the host.
-If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon may expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
+If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon might expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
 Refer to [Cannot connect to the Docker daemon](../install/server/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
 
 ## Docker Workspaces on Raspberry Pi OS

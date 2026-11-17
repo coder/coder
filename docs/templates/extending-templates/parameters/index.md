@@ -209,7 +209,7 @@ It's important to note that making these changes can lead to discrepancies in pa
 
 Consequently, workspace users will be prompted to select the new value from a pop-up window or by using the command-line interface.
 While this additional interactive step might seem like an interruption, it serves a crucial purpose.
-It prevents workspace users from becoming trapped with outdated template versions, ensuring they can smoothly update their workspace without any hindrances.
+It prevents workspace users from becoming trapped with outdated template versions, making sure they can smoothly update their workspace without any hindrances.
 
 Example:
 
@@ -298,6 +298,8 @@ data "coder_parameter" "force_rebuild" {
 
 ## Autofill parameters from a URL
 
-When the template doesn't specify default values, Coder looks for URL query parameters with the form `param.<name>=<value>` to autofill parameters.
+When a URL query parameter `param.<name>=<value>` matches a parameter that is not ephemeral, the workspace creation form fills in that value, even when the template sets a default.
+For dropdown and radio parameters, the value must match one of the options, or the form uses the template default.
+Ephemeral parameters always use the template default.
 
 This feature enables platform teams to create pre-filled workspace creation links.

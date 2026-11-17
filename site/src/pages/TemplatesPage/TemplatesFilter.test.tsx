@@ -2,22 +2,33 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useSearchParams } from "react-router";
-import { filterComboboxOptions } from "#/components/Filter/FilterCombobox/queries";
+import { useFilter } from "#/components/Filter/Filter";
+import { WorkspacesFilter } from "#/pages/WorkspacesPage/filter/WorkspacesFilter";
 import { MockNoPermissions } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import { TemplatesFilter, useTemplatesFilter } from "./TemplatesFilter";
+import { TemplatesFilter } from "./TemplatesFilter";
 
-const Harness = ({ onChange }: { onChange: (query: string) => void }) => {
+const Harness = ({
+	onChange,
+	page = "templates",
+}: {
+	onChange: (query: string) => void;
+	page?: "templates" | "workspaces";
+}) => {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const { filter } = useTemplatesFilter({
+	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: (params) => {
 			onChange(params.get("filter") ?? "");
 			setSearchParams(params);
 		},
 	});
-	return <TemplatesFilter filter={filter} />;
+	return page === "workspaces" ? (
+		<WorkspacesFilter filter={filter} error={undefined} />
+	) : (
+		<TemplatesFilter filter={filter} />
+	);
 };
 
 describe("TemplatesFilter", () => {
@@ -36,21 +47,30 @@ describe("TemplatesFilter", () => {
 	it("keeps template options separate from cached workspace attributes", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
-		const { queryClient } = renderWithAuth(<Harness onChange={onChange} />);
-		const { queryKey } = filterComboboxOptions(
-			"attribute",
-			undefined,
-			"",
-			true,
+		const { queryClient, router } = renderWithAuth(
+			<Harness page="workspaces" onChange={onChange} />,
+			{
+				path: "/workspaces",
+				route: "/workspaces",
+				extraRoutes: [
+					{ path: "/templates", element: <Harness onChange={onChange} /> },
+				],
+			},
 		);
-		queryClient.setQueryDefaults(queryKey, {
-			staleTime: Number.POSITIVE_INFINITY,
+		queryClient.setDefaultOptions({
+			queries: {
+				...queryClient.getDefaultOptions().queries,
+				staleTime: Number.POSITIVE_INFINITY,
+				gcTime: Number.POSITIVE_INFINITY,
+			},
 		});
-		await act(async () => {
-			queryClient.setQueryData(queryKey, [
-				{ label: "Dormant", value: "dormant", token: "dormant:true" },
-			]);
-		});
+		await user.click(await screen.findByRole("button", { name: "Filters" }));
+		await user.click(await screen.findByRole("option", { name: "Outdated" }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("outdated:true"),
+		);
+
+		await act(() => router.navigate("/templates"));
 		await user.click(await screen.findByRole("button", { name: "Filters" }));
 		await user.click(await screen.findByRole("option", { name: "Deprecated" }));
 		await waitFor(() =>
@@ -79,27 +99,40 @@ describe("TemplatesFilter", () => {
 		);
 	});
 
-	it("lets users without list permission filter by themselves without fetching users", async () => {
-		server.use(
-			http.post("/api/v2/authcheck", () =>
-				HttpResponse.json(MockNoPermissions),
-			),
-		);
-		const getUsers = vi.fn();
-		server.use(
-			http.get("/api/v2/users", () => {
-				getUsers();
-				return HttpResponse.json({ users: [], count: 0 });
-			}),
-		);
-		const user = userEvent.setup();
-		const onChange = vi.fn();
-		renderWithAuth(<Harness onChange={onChange} />);
-		await user.click(await screen.findByRole("button", { name: "Filters" }));
-		await screen.findByRole("option", { name: "Author" });
-		await user.keyboard("{Home}{ArrowRight}");
-		await user.click(await screen.findByRole("option", { name: /\(you\)/ }));
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("author:me"));
-		expect(getUsers).not.toHaveBeenCalled();
-	});
+	it.each([true, false])(
+		"loads authors on demand with list permission %s",
+		async (viewAllUsers) => {
+			server.use(
+				http.post("/api/v2/authcheck", () =>
+					HttpResponse.json({ ...MockNoPermissions, viewAllUsers }),
+				),
+			);
+			const getUsers = vi.fn();
+			server.use(
+				http.get("/api/v2/users", () => {
+					getUsers();
+					return HttpResponse.json({ users: [], count: 0 });
+				}),
+			);
+			const user = userEvent.setup();
+			const onChange = vi.fn();
+			renderWithAuth(<Harness onChange={onChange} />);
+			const filtersButton = await screen.findByRole("button", {
+				name: "Filters",
+			});
+			expect(getUsers).not.toHaveBeenCalled();
+			await user.click(filtersButton);
+			await screen.findByRole("option", { name: "Author" });
+			await user.keyboard("{Home}{ArrowRight}");
+			await user.click(await screen.findByRole("option", { name: /\(you\)/ }));
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("author:me"),
+			);
+			if (viewAllUsers) {
+				expect(getUsers).toHaveBeenCalled();
+			} else {
+				expect(getUsers).not.toHaveBeenCalled();
+			}
+		},
+	);
 });

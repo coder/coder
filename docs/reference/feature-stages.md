@@ -31,7 +31,7 @@ Coder sometimes releases early access features that are available for use, but a
 You shouldn't use early access features in production because they might cause performance or stability issues.
 Early access features can be mostly feature-complete, but require further internal testing and remain in the early access stage for at least one month.
 
-Coder may make significant changes or revert features to a feature flag at any time.
+Coder can make significant changes or revert features to a feature flag at any time.
 
 If you plan to activate an early access feature, we suggest that you use a staging deployment.
 
@@ -39,7 +39,7 @@ If you plan to activate an early access feature, we suggest that you use a stagi
 
 Use the [Coder CLI](./cli/server/index.md#--experiments) `--experiments` flag to enable early access features:
 
-- Enable all early access features:
+- Enable every early access feature that Coder marks as safe to opt in to:
 
   ```sh
   coder server --experiments=*
@@ -50,6 +50,12 @@ Use the [Coder CLI](./cli/server/index.md#--experiments) `--experiments` flag to
   ```sh
   coder server --experiments=feature1,feature2
   ```
+
+The `*` value does not enable every experiment.
+It enables only the experiments that Coder marks as safe to opt in to.
+To enable any other experiment, name it in the `--experiments` value.
+To list the experiments that `*` enables, call the [Get safe experiments](./api/general.md#get-safe-experiments) endpoint.
+The response is an object that holds the names in its `safe` array.
 
 You can also use the `CODER_EXPERIMENTS` [environment variable](../admin/setup/index.md).
 
@@ -164,7 +170,7 @@ They might contain minor bugs, but are generally ready for use.
 
 Beta features are often ready for general availability within two-three releases.
 You should test beta features in staging environments.
-You can use beta features in production, but should set expectations and inform users that some features may be incomplete.
+You can use beta features in production, but should set expectations and inform users that some features might be incomplete.
 
 We keep documentation about beta features up-to-date with the latest information, including planned features, limitations, and workarounds.
 If you encounter an issue, contact your [Coder account team](https://coder.com/contact), reach out on [Discord](https://discord.gg/coder), or create a [GitHub issues](https://github.com/coder/coder/issues) if there isn't one already.

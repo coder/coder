@@ -41,7 +41,8 @@ In order for clients to be able to establish direct connections:
   See [Session Traversal Utilities for Network Address Translation (STUN) and NAT](./stun.md) for more details on how this process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN.
-    This involves sending UDP packets outbound on `udp/3478` to the configured [STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses).
+    This involves sending UDP packets outbound to the port of each configured [STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses).
+    The default servers are Google's, which listen on `udp/19302`.
     If either the agent or the client are unable to send and receive User Datagram Protocol (UDP) packets to a STUN server, then direct connections will not be possible.
   - Both agents and clients will then establish a [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on ephemeral (high) ports.
     If a firewall between the client and the agent blocks this UDP traffic, direct connections will not be possible.
@@ -67,7 +68,6 @@ This is useful when debugging connectivity issues between the workspace agent an
 ## Web Apps
 
 The control plane relays dashboard-initiated connections between the user and the workspace.
-Web terminal <-> workspace connections are an exception and may be direct.
 
 In general, [port forwarded](./port-forwarding.md) web apps are faster than dashboard-accessed web apps.
 
@@ -83,6 +83,7 @@ See [STUN and NAT](./stun.md) for more information on how this process works.
 
 If a direct connection is not available (for example, client or server is behind NAT), Coder will use a relayed connection.
 By default, [Coder uses Google's public STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses), but this can be disabled or changed for [Air-gapped deployments](../../install/prepare/airgap.md).
+To run your own STUN server, refer to [Self-host a STUN server](./self-hosted-stun.md).
 
 ### Relayed connections
 
@@ -97,7 +98,7 @@ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/defaul
 
 #### Custom Relays
 
-If you want lower latency than what Tailscale offers or want additional DERP relays for air-gapped deployments, you may run custom DERP servers.
+If you want lower latency than what Tailscale offers or want additional DERP relays for air-gapped deployments, you can run custom DERP servers.
 Refer to [Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server) to learn how to set them up.
 
 After you have custom DERP servers, you can launch Coder with them like so:
@@ -117,6 +118,20 @@ After you have custom DERP servers, you can launch Coder with them like so:
           "HostName": "your-hostname.com"
         }
       ]
+    },
+    "2": {
+      "RegionID": 2,
+      "RegionCode": "mystun",
+      "RegionName": "My STUN",
+      "Nodes": [
+        {
+          "Name": "2",
+          "RegionID": 2,
+          "HostName": "stun.example.com",
+          "STUNOnly": true,
+          "STUNPort": 3478
+        }
+      ]
     }
   }
 }
@@ -125,6 +140,8 @@ After you have custom DERP servers, you can launch Coder with them like so:
 ```sh
 coder server --derp-config-path derpmap.json
 ```
+
+A node with `"STUNOnly": true` serves STUN requests only and doesn't relay traffic.
 
 ### Dashboard connections
 
@@ -214,13 +231,13 @@ To improve latency and user experience:
 - **Deploy workspace proxies**:
   Place [proxies](./workspace-proxies.md) in regions closer to users, connecting back to your single control plane deployment.
 - **Use P2P connections**:
-  Ensure network configurations permit direct connections.
+  Make sure network configurations permit direct connections.
 - **Strategic placement**:
   Deploy your control plane in a region where most users work.
 - **Network configuration**:
   Optimize routing between users and workspaces.
 - **Check firewall rules**:
-  Ensure they don't block necessary Coder connections.
+  Make sure they don't block necessary Coder connections.
 
 For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](./troubleshooting.md).
 

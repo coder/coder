@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
-import type { TemplateFilterState } from "#/pages/TemplatesPage/TemplatesFilter";
 import {
 	MockTemplate,
 	MockUserOwner,
@@ -54,7 +54,7 @@ const templates = [
 	}),
 );
 
-const filterState = getDefaultFilterProps<TemplateFilterState>({
+const { filter } = getDefaultFilterProps<{ filter: UseFilterResult }>({
 	values: {},
 });
 
@@ -64,7 +64,7 @@ const meta = {
 	parameters: { user: MockUserOwner },
 	decorators: [withDashboardProvider, withAuthProvider],
 	args: {
-		filterState,
+		filter,
 		templates,
 		isLoading: false,
 		error: undefined,
@@ -208,13 +208,10 @@ export const Empty: Story = {
 export const FilteredEmpty: Story = {
 	args: {
 		templates: [],
-		filterState: {
-			...filterState,
-			filter: {
-				...filterState.filter,
-				query: "missing",
-				used: true,
-			},
+		filter: {
+			...filter,
+			query: "missing",
+			used: true,
 		},
 	},
 	play: async ({ canvasElement }) => {

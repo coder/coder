@@ -229,6 +229,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 		CreatedBefore:    parser.Time3339Nano(values, time.Time{}, "created_before"),
 		GithubComUserID:  parser.Int64(values, 0, "github_com_user_id"),
 		LoginType:        httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
+		IncludeSystem:    parser.Boolean(values, false, "include_system"),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

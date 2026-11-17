@@ -17,7 +17,7 @@ Okta is an identity provider that can be used for OpenID Connect (OIDC) Single S
 To configure custom claims in Okta to support syncing roles and groups with Coder, you must first have setup an Okta application with [OIDC working with Coder](index.md).
 From here, we will add additional claims for Coder to use for syncing groups and roles.
 
-You may use a hybrid of the following approaches.
+You can use a hybrid of the following approaches.
 
 ## (Easiest) Sync using Okta Groups
 

@@ -16,7 +16,7 @@ module "coder-base" {
   # Modules take in variables and can provision infrastructure
   vpc_name            = "devex-3"
   subnet_tags         = { "name": data.coder_workspace.me.name }
-  code_server_version = 4.14.1
+  code_server_version = "4.14.1"
 }
 
 resource "coder_agent" "dev" {
@@ -60,6 +60,7 @@ module "claude-code" {
 
 Each agent module accepts its own authentication and configuration variables.
 Visit the module's page in the [Coder Registry](https://registry.coder.com/modules) for the full list.
+To let developers use a Claude subscription with Claude Code, refer to [Sign in to Claude Code with a Claude subscription](../../workspaces/workspace-access/claude-code-subscription.md).
 
 To delegate work to an agent that runs in the Coder control plane instead of in the workspace, use [Coder Agents](../../coder-agents/index.md).
 
@@ -79,6 +80,7 @@ To force Coder to re-download modules on every workspace build instead of using 
 
 > [!WARNING]
 > Disabling module caching makes workspace builds slower and less predictable, since Terraform re-resolves and downloads every module on each build.
+> Builds also stop reusing the [provider lock file](../../workspaces/speed-up-templates.md#template-lock-file) that Coder keeps when you publish the template version.
 > This isn't recommended for production templates.
 
 ## Offline installations
@@ -129,7 +131,7 @@ Air-gapped users can clone the [coder/registry](https://github.com/coder/registr
 
    ```tf
    module "module-name" {
-     source = "https://example.jfrog.io/tf__coder/module-name/coder"
+     source = "example.jfrog.io/tf__coder/module-name/coder"
      version = "1.0.0"
      agent_id = coder_agent.example.id
      ...

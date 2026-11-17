@@ -4,6 +4,7 @@ import { UploadIcon } from "lucide-react";
 import { createContext, use, useId, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import * as Yup from "yup";
+import { MaxSkillDisplayNameLength } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -14,11 +15,17 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { formatKiB } from "#/utils/fileSize";
+import {
+	countCharacters,
+	getFormHelpers,
+	maxCharacters,
+} from "#/utils/formUtils";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	buildSkillMarkdown,
@@ -131,6 +138,12 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		body: Yup.string().test("body-required", "Body is required.", (value) =>
 			Boolean(value?.trim()),
 		),
+		// Saves skip the display name while the action is off, so a hidden
+		// value never blocks a save.
+		displayName: Yup.string().when("action", {
+			is: true,
+			then: () => maxCharacters("Display name", MaxSkillDisplayNameLength),
+		}),
 	});
 
 	const validate = (values: SkillFormValues): FormikErrors<SkillFormValues> => {
@@ -159,6 +172,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 				name: values.name.trim(),
 				description: values.description.trim(),
 				body: values.body.trim(),
+				displayName: values.displayName?.trim(),
 			};
 			onSubmit(normalizedValues, buildSkillMarkdown(normalizedValues), () =>
 				setSubmitting(false),
@@ -364,7 +378,7 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 	};
 
 	return (
-		<div className="flex flex-col gap-3 rounded-md border border-border p-4">
+		<div className="flex flex-col gap-3 rounded-md border p-4">
 			<div className="flex flex-col gap-1">
 				<Label htmlFor={importId}>Import from SKILL.md</Label>
 				<p className="m-0 text-xs text-content-secondary">
@@ -381,7 +395,7 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 				disabled={isBusy}
 				minRows={4}
 				maxRows={10}
-				className="w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50"
+				className="w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50"
 			/>
 			{importStatus && (
 				<Alert severity={importStatus.kind}>
@@ -554,7 +568,7 @@ export const SkillEditorBodyField: React.FC<SkillEditorBodyFieldProps> = ({
 				aria-invalid={Boolean(bodyError)}
 				aria-describedby={bodyError ? bodyErrorId : undefined}
 				className={cn(
-					"w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
+					"w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
 					bodyError && "border-border-destructive",
 					readOnly && "bg-surface-secondary",
 				)}
@@ -577,7 +591,7 @@ export const SkillEditorBodyField: React.FC<SkillEditorBodyFieldProps> = ({
 	);
 };
 
-/** The action and automatic-use switches of a project skill. */
+/** The action, display name, and automatic-use settings of a project skill. */
 export const SkillEditorProjectSettings: React.FC = () => {
 	const { form, readOnly, isBusy } = useSkillEditorContext();
 	return (
@@ -591,6 +605,7 @@ export const SkillEditorProjectSettings: React.FC = () => {
 					void form.setFieldValue("action", checked)
 				}
 			/>
+			{form.values.action && <SkillEditorDisplayNameField />}
 			<SkillSettingSwitch
 				label="Agents can use it automatically"
 				description="When off, agents use the skill only when someone invokes it."
@@ -601,6 +616,24 @@ export const SkillEditorProjectSettings: React.FC = () => {
 				}
 			/>
 		</>
+	);
+};
+
+const SkillEditorDisplayNameField: React.FC = () => {
+	const { form, readOnly, isBusy } = useSkillEditorContext();
+	return (
+		<FormField
+			field={getFormHelpers(form)("displayName", {
+				helperText: "Shown on the action button. Uses the name when empty.",
+				maxLength: MaxSkillDisplayNameLength,
+				measureLength: countCharacters,
+			})}
+			label="Display name"
+			placeholder={form.values.name.trim() || "Review database query"}
+			readOnly={readOnly}
+			disabled={isBusy}
+			className={cn(readOnly && "bg-surface-secondary")}
+		/>
 	);
 };
 
@@ -746,7 +779,7 @@ const SkillEditorDialogFooter: React.FC<SkillEditorDialogFooterProps> = ({
 }) => {
 	const { mode, readOnly, isBusy } = useSkillEditorFormState();
 	return (
-		<DialogFooter className="border-t border-border px-6 py-4">
+		<DialogFooter className="border-t px-6 py-4">
 			<Button
 				ref={closeButtonRef}
 				variant="outline"

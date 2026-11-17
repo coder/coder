@@ -179,6 +179,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
+	model = p.withQuickgenParamFallback(model, out.route.Provider.ID)
 	out.reasoningRejected = &atomic.Bool{}
 	model = p.withEncryptedReasoningFallback(model, spec.chat.ID, out.reasoningRejected)
 

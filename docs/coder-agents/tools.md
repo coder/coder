@@ -20,6 +20,12 @@ Each turn of a conversation follows the same loop:
 
 Tool calls and their results are visible in the chat timeline, so you can always inspect what the agent did and why.
 
+When an answer cites web pages, select **Sources** in the message action bar after the turn finishes.
+The list shows each citation's title or URL and, for HTTP and HTTPS pages, its host.
+Other source URLs appear in full.
+Each web search row also shows the pages that search found, including pages the answer did not cite.
+Only HTTP and HTTPS sources open as links.
+
 Two properties hold for every built-in tool:
 
 - **Your permissions apply.**
@@ -176,7 +182,7 @@ For templates that work with defaults, the agent skips straight to `create_works
 | `template_id` | string | Required. The template universally unique identifier (UUID) from `list_templates`  |
 | `name`        | string | Optional workspace name. One is generated if omitted                               |
 | `parameters`  | object | Optional template parameter values from `read_template`                            |
-| `preset_id`   | string | Optional preset UUID. Applies preset parameters and may claim a prebuilt workspace |
+| `preset_id`   | string | Optional preset UUID. Applies preset parameters and can claim a prebuilt workspace |
 
 Guardrails:
 

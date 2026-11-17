@@ -129,7 +129,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2">
+				<div className="flex items-center gap-2">
 					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*

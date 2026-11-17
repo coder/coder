@@ -28,7 +28,7 @@ import type {
 } from "#/components/Filter/FilterCombobox/types";
 import { getOrganizationFilterOptions } from "#/components/Filter/organizationOptions";
 import {
-	getSelfUserFilterOptions,
+	getMeUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -122,7 +122,7 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 				icon: <UserIcon />,
 				getOptions: permissions.viewAllUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
-					: (query) => getSelfUserFilterOptions(query, me),
+					: (query) => getMeUserFilterOptions(query, me),
 			},
 			{
 				key: "build_reason",

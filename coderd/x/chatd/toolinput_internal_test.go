@@ -36,15 +36,15 @@ func TestPartitionToolCallsValidatesSchema(t *testing.T) {
 		input   string
 		wantErr string
 	}{
-		{input: `{}`, wantErr: `missing properties: ["target"]`},
-		{input: `{"target":{}}`, wantErr: `missing properties: ["path"]`},
-		{input: `{"target":{"path":1}}`, wantErr: `want "string"`},
-		{input: `{"target":{"path":"a"},"count":1.5}`, wantErr: `want "integer"`},
-		{input: `null`, wantErr: `want "object"`},
-		{input: `[]`, wantErr: `want "object"`},
-		{input: `{"target":{"path":"a"},"parameters":{"cpu":42}}`, wantErr: `want "string"`},
-		{input: `{"target":{"path":"a"},"targets":[{"first":{}}]}`, wantErr: `missing properties: ["path"]`},
-		{input: `{"target":{"path":"a"},"nested":{"first":{"cpu":42}}}`, wantErr: `want "string"`},
+		{input: `{}`, wantErr: `validating root: required: missing properties: ["target"]`},
+		{input: `{"target":{}}`, wantErr: `validating /properties/target: required: missing properties: ["path"]`},
+		{input: `{"target":{"path":1}}`, wantErr: `validating /properties/target/properties/path: type: 1 has type "integer", want "string"`},
+		{input: `{"target":{"path":"a"},"count":1.5}`, wantErr: `validating /properties/count: type: 1.5 has type "number", want "integer"`},
+		{input: `null`, wantErr: `validating root: type: <invalid reflect.Value> has type "null", want "object"`},
+		{input: `[]`, wantErr: `validating root: type: [] has type "array", want "object"`},
+		{input: `{"target":{"path":"a"},"parameters":{"cpu":42}}`, wantErr: `validating /properties/parameters/additionalProperties: type: 42 has type "integer", want "string"`},
+		{input: `{"target":{"path":"a"},"targets":[{"first":{}}]}`, wantErr: `validating /properties/targets/items/additionalProperties: required: missing properties: ["path"]`},
+		{input: `{"target":{"path":"a"},"nested":{"first":{"cpu":42}}}`, wantErr: `validating /properties/nested/additionalProperties/additionalProperties: type: 42 has type "integer", want "string"`},
 		{input: `{"target":{"path":"a"},"extra":1}`},
 		{input: `{"target":{"path":"a"},"count":1,"parameters":{"cpu":"2","CPU":"4"},"targets":[{"first":{"path":"b"}}],"nested":{"first":{"cpu":"2"}}}`},
 	} {
@@ -60,7 +60,9 @@ func TestPartitionToolCallsValidatesSchema(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Empty(t, allowed)
 				require.Len(t, rejected, 1)
-				require.ErrorContains(t, rejected[0].Result.(fantasy.ToolResultOutputContentError).Error, tt.wantErr)
+				err := rejected[0].Result.(fantasy.ToolResultOutputContentError).Error
+				require.EqualError(t, err, "This tool call was not executed because its input is invalid: "+tt.wantErr+
+					". Retry with a JSON object matching the tool schema, including all required properties and their declared types.")
 			} else {
 				require.Empty(t, rejected)
 				require.Equal(t, []fantasy.ToolCallContent{call}, allowed)

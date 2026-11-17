@@ -73,7 +73,7 @@ export const CATEGORY_HOVER_DELAY_MS = 300;
 const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
-	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
+	"text-content-primary **:data-[slot=combobox-chip-remove]:text-content-secondary";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
@@ -360,7 +360,7 @@ export function FilterCombobox({
 				<FilterComboboxInputGroup
 					className={cn(className, mobileOverlay && mobileOverlayClassName)}
 				>
-					<InputGroupAddon className="self-stretch items-start border-0 border-r border-solid border-border p-0">
+					<InputGroupAddon className="self-stretch items-start border-r p-0">
 						<InputGroupButton
 							type="button"
 							variant="subtle"
@@ -561,7 +561,7 @@ export function FilterCombobox({
 								data-slot="filter-mobile-panel"
 								className={cn(
 									menuMaxHeightClassName,
-									"flex w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md",
+									"flex w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border bg-surface-primary p-2 shadow-md",
 								)}
 							>
 								{categoryOptionsList ?? (
@@ -572,7 +572,9 @@ export function FilterCombobox({
 					) : (
 						<FilterComboboxFlyoutRoot onDismiss={actions.dismiss}>
 							<div
-								className="relative flex items-start gap-1 overflow-visible"
+								// The before/after strips fill the gap to the flyout on
+								// either side, so crossing it does not fire onMouseLeave.
+								className="relative flex items-start gap-1 overflow-visible before:absolute before:inset-y-0 before:right-full before:w-1 after:absolute after:inset-y-0 after:left-full after:w-1"
 								onMouseLeave={() => {
 									updateFlyoutCategory(null);
 									setHighlightedCategoryKey(undefined);
@@ -627,7 +629,7 @@ export function FilterCombobox({
 
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 const INLINE_GROUP_CLASS =
-	"mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0";
+	"mt-2 border-t pt-2 first:mt-0 first:border-t-0 first:pt-0";
 
 // Categories with more options than this get a search field in their panel.
 export const SEARCHABLE_OPTION_COUNT = 10;
@@ -798,7 +800,7 @@ function MainPanel({
 			data-slot="filter-main-panel"
 			className={cn(
 				menuMaxHeightClassName,
-				"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border border-border bg-surface-primary p-2 shadow-md sm:w-64",
+				"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border bg-surface-primary p-2 shadow-md sm:w-64",
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
@@ -878,7 +880,7 @@ function MainPanel({
 							<FilterComboboxItem
 								className={cn(
 									OPTION_ITEM_CLASS,
-									(!showIcon || selected) && "text-content-primary",
+									selected && "text-content-primary",
 								)}
 								key={token}
 								value={token}
@@ -939,7 +941,7 @@ function FlyoutSearch({
 	navigatesList,
 }: FlyoutSearchProps) {
 	return (
-		<div className="-mx-2 -mt-2 mb-2 flex items-center border-b border-border px-3">
+		<div className="-mx-2 -mt-2 mb-2 flex items-center border-b px-3">
 			<SearchIcon
 				aria-hidden
 				className="mr-2 size-icon-sm shrink-0 opacity-50"
@@ -947,7 +949,7 @@ function FlyoutSearch({
 			<input
 				{...passwordManagerIgnoreProps}
 				aria-label={`Search ${label}`}
-				className="h-10 w-full border-0 bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
+				className="h-10 w-full bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
 				placeholder={`Search ${label.toLowerCase()}…`}
 				value={value}
 				onChange={(event) => onChange(event.currentTarget.value)}
@@ -989,7 +991,7 @@ function FlyoutScopeToggle({
 }: FlyoutScopeToggleProps) {
 	const id = useId();
 	return (
-		<div className="-mx-2 -mb-2 mt-2 flex items-start gap-2 border-t border-border px-3 py-2.5">
+		<div className="-mx-2 -mb-2 mt-2 flex items-start gap-2 border-t px-3 py-2.5">
 			<Switch
 				id={id}
 				size="sm"
