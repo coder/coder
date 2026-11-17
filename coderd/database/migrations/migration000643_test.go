@@ -50,7 +50,7 @@ func TestMigration000643PinsOwnedProjects(t *testing.T) {
 		require.NoError(t, sqlDB.QueryRowContext(ctx, `
 			SELECT array_agg(chat_projects.name || ':' || pin_order || ':' || source ORDER BY pin_order)
 			FROM chat_project_pins JOIN chat_projects ON chat_projects.id = chat_project_pins.project_id
-			WHERE user_id = $1 AND unpinned_at IS NULL`, userID).Scan(&got))
+			WHERE user_id = $1`, userID).Scan(&got))
 		return got
 	}
 	require.Equal(t, []string{"apple:1:migration", "Banana:2:migration", "banana:3:migration", "cherry:4:migration"}, pins(first.ID))
