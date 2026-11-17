@@ -89,10 +89,13 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 					rpty.metrics.WithLabelValues("output_reader").Add(1)
 				}
 				// Could have been killed externally or failed to start at all (command
-				// not found for example).
-				// TODO: Should we check the process's exit code in case the command was
-				//       invalid?
-				rpty.Close(nil)
+				// not found for example).  If the reconnecting pty is already closing
+				// this is a no-op.
+				if exitErr := waitForExit(process); exitErr != nil {
+					rpty.Close(exitErr)
+				} else {
+					rpty.Close(nil)
+				}
 				break
 			}
 			part := buffer[:read]
@@ -191,6 +194,11 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 
 	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
 	if state != StateReady {
+		// A finished session has replayed its output above, which is all a
+		// connection to it gets.
+		if _, ok := errors.AsType[*ExitError](err); ok {
+			return nil
+		}
 		return err
 	}
 
@@ -231,8 +239,9 @@ func (rpty *bufferedReconnectingPTY) doAttach(connID string, conn net.Conn) erro
 	return nil
 }
 
-func (rpty *bufferedReconnectingPTY) Wait() {
-	_, _ = rpty.state.waitForState(StateClosing)
+func (rpty *bufferedReconnectingPTY) Wait() error {
+	_, err := rpty.state.waitForState(StateClosing)
+	return err
 }
 
 func (rpty *bufferedReconnectingPTY) Close(err error) {

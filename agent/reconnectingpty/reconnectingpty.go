@@ -3,6 +3,8 @@ package reconnectingpty
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os/exec"
@@ -27,10 +29,62 @@ const (
 	// able to start up the daemon and for the buffered pty to start.
 	attachTimeout = 30 * time.Second
 
+	// defaultTimeout is how long a reconnecting pty stays up without any
+	// attached connections, and how long a finished session is retained.
+	defaultTimeout = 5 * time.Minute
+
+	// exitWaitTimeout bounds how long to wait for the process to report its
+	// exit status once its output has ended.
+	exitWaitTimeout = 5 * time.Second
+
 	// xterm256Color is the terminal type exposed to commands running in the web
 	// terminal.
 	xterm256Color = "xterm-256color"
 )
+
+// ExitError is the close reason of a reconnecting pty whose process exited on
+// its own, as opposed to being closed by a timeout or agent shutdown. A
+// finished session never starts a new process; connections to it replay any
+// retained output and then close.
+type ExitError struct {
+	// ExitCode is nil when the exit code is unknown, for example with the
+	// screen backend.
+	ExitCode *int
+}
+
+func (e *ExitError) Error() string {
+	if e.ExitCode == nil {
+		return "process exited"
+	}
+	return fmt.Sprintf("process exited with code %d", *e.ExitCode)
+}
+
+// waitForExit waits a bounded amount of time for process to exit and returns
+// the resulting ExitError, or nil if it is still running.
+func waitForExit(process pty.Process) *ExitError {
+	done := make(chan error, 1)
+	go func() {
+		done <- process.Wait()
+	}()
+	timer := time.NewTimer(exitWaitTimeout)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		if err == nil {
+			code := 0
+			return &ExitError{ExitCode: &code}
+		}
+		var exitErr *exec.ExitError
+		// A negative code means the process was killed by a signal.
+		if errors.As(err, &exitErr) && exitErr.ExitCode() >= 0 {
+			code := exitErr.ExitCode()
+			return &ExitError{ExitCode: &code}
+		}
+		return &ExitError{}
+	case <-timer.C:
+		return nil
+	}
+}
 
 // withTerminalEnv returns env with the terminal type and UTF-8 character locale expected by the web terminal.
 func withTerminalEnv(env []string) []string {
@@ -109,9 +163,10 @@ type ReconnectingPTY interface {
 	// from the ptty.  If the context ends or the process dies the connection will
 	// be detached.
 	Attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error
-	// Wait waits for the reconnecting pty to close.  The underlying process might
-	// still be exiting.
-	Wait()
+	// Wait waits for the reconnecting pty to close and returns the reason it
+	// closed, which is an *ExitError if the process exited on its own.  The
+	// underlying process might still be exiting.
+	Wait() error
 	// Close kills the reconnecting pty process.
 	Close(err error)
 }
@@ -119,11 +174,10 @@ type ReconnectingPTY interface {
 // New sets up a new reconnecting pty that wraps the provided command.  Any
 // errors with starting are returned on Attach().  The reconnecting pty will
 // close itself (and all connections to it) if nothing is attached for the
-// duration of the timeout, if the context ends, or the process exits (buffered
-// backend only).
+// duration of the timeout, if the context ends, or the process exits.
 func New(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) ReconnectingPTY {
 	if options.Timeout == 0 {
-		options.Timeout = 5 * time.Minute
+		options.Timeout = defaultTimeout
 	}
 	// Screen seems flaky on Darwin.  Locally the tests pass 100% of the time (100
 	// runs) but in CI screen often incorrectly claims the session name does not
