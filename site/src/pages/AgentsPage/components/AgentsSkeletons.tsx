@@ -2,7 +2,10 @@ import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useLocalStorage } from "#/hooks/useLocalStorage";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import {
+	chatFullWidthStorageOptions,
+	chatWidthClass,
+} from "../utils/chatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 import {
 	RIGHT_PANEL_OPEN_KEY,
@@ -165,7 +168,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 		codec: rightPanelOpenCodec,
 	});
 	const rightPanelWidth = getRightPanelWidth();
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 
 	return (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1">

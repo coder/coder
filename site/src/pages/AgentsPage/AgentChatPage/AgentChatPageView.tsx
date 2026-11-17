@@ -7,6 +7,7 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getAgentBrowserApp } from "#/modules/apps/apps";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
@@ -24,7 +25,6 @@ import {
 	useChatSelector,
 	type useChatStore,
 } from "../components/ChatConversation/chatStore";
-
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
@@ -46,7 +46,10 @@ import { UserTabPanel } from "../components/RightPanel/UserTabPanel";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import {
+	chatFullWidthStorageOptions,
+	chatWidthClass,
+} from "../utils/chatFullWidth";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -909,7 +912,7 @@ export const AgentChatPageLoadingView: React.FC<
 	onPlanModeToggle,
 	showRightPanel,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 	return (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">

@@ -15,10 +15,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	isWorkspaceUploadInProgress,
@@ -29,6 +29,10 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
+import {
+	chatFullWidthStorageOptions,
+	chatWidthClass,
+} from "../utils/chatFullWidth";
 import { resolveChatCompactionThreshold } from "../utils/compactionTriggers";
 import {
 	getProviderForModelOption,
@@ -153,7 +157,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	mcpServers,
 	footer,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
