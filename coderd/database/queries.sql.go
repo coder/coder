@@ -8302,25 +8302,25 @@ WITH project_users AS (
 per_user AS (
     SELECT
         COUNT(*) AS projects,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0) AS pinned,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'migration') AS pinned_migration,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'default') AS pinned_default,
-        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'user') AS pinned_user,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'migration') AS tombstones_migration,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'default') AS tombstones_default,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'user') AS tombstones_user,
-        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL) AS tombstones
+        COUNT(pins.project_id) AS pinned,
+        COUNT(*) FILTER (WHERE pins.source = 'migration') AS pinned_migration,
+        COUNT(*) FILTER (WHERE pins.source = 'default') AS pinned_default,
+        COUNT(*) FILTER (WHERE pins.source = 'user') AS pinned_user,
+        -- Owners get a pin on every project when it is created or by the
+        -- upgrade migration, so an owned project without one was unpinned.
+        COUNT(*) FILTER (WHERE pins.project_id IS NULL AND chat_projects.owner_id = project_users.user_id) AS unpinned_owned
     FROM project_users
     JOIN users ON users.id = project_users.user_id
         AND users.status = 'active'::user_status AND users.deleted = false AND users.is_system = false
+    JOIN chat_projects ON chat_projects.id = project_users.project_id
     LEFT JOIN chat_project_pins pins
         ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
     GROUP BY project_users.user_id
 ),
 bucketed AS (
     SELECT
-        projects, pinned, pinned_migration, pinned_default, pinned_user, tombstones_migration, tombstones_default, tombstones_user, tombstones,
-        tombstones > 0 OR pinned_user > 0 AS acted,
+        projects, pinned, pinned_migration, pinned_default, pinned_user, unpinned_owned,
+        unpinned_owned > 0 OR pinned_user > 0 AS acted,
         CASE
             WHEN pinned = 0 THEN 0
             WHEN pinned = projects THEN 100
@@ -8333,13 +8333,11 @@ bucketed AS (
 )
 SELECT
     COUNT(*)::bigint AS users_with_projects,
-    COUNT(*) FILTER (WHERE tombstones > 0)::bigint AS users_with_tombstones,
+    COUNT(*) FILTER (WHERE unpinned_owned > 0)::bigint AS users_with_unpinned_owned,
     COALESCE(SUM(pinned_migration), 0)::bigint AS pinned_migration,
     COALESCE(SUM(pinned_default), 0)::bigint AS pinned_default,
     COALESCE(SUM(pinned_user), 0)::bigint AS pinned_user,
-    COALESCE(SUM(tombstones_migration), 0)::bigint AS tombstones_migration,
-    COALESCE(SUM(tombstones_default), 0)::bigint AS tombstones_default,
-    COALESCE(SUM(tombstones_user), 0)::bigint AS tombstones_user,
+    COALESCE(SUM(unpinned_owned), 0)::bigint AS unpinned_owned,
     COUNT(*) FILTER (WHERE bucket = 0)::bigint AS all_share_0,
     COUNT(*) FILTER (WHERE bucket = 25)::bigint AS all_share_1_25,
     COUNT(*) FILTER (WHERE bucket = 50)::bigint AS all_share_26_50,
@@ -8356,26 +8354,24 @@ FROM bucketed
 `
 
 type GetChatProjectPinTelemetryRow struct {
-	UsersWithProjects   int64 `db:"users_with_projects" json:"users_with_projects"`
-	UsersWithTombstones int64 `db:"users_with_tombstones" json:"users_with_tombstones"`
-	PinnedMigration     int64 `db:"pinned_migration" json:"pinned_migration"`
-	PinnedDefault       int64 `db:"pinned_default" json:"pinned_default"`
-	PinnedUser          int64 `db:"pinned_user" json:"pinned_user"`
-	TombstonesMigration int64 `db:"tombstones_migration" json:"tombstones_migration"`
-	TombstonesDefault   int64 `db:"tombstones_default" json:"tombstones_default"`
-	TombstonesUser      int64 `db:"tombstones_user" json:"tombstones_user"`
-	AllShare0           int64 `db:"all_share_0" json:"all_share_0"`
-	AllShare125         int64 `db:"all_share_1_25" json:"all_share_1_25"`
-	AllShare2650        int64 `db:"all_share_26_50" json:"all_share_26_50"`
-	AllShare5175        int64 `db:"all_share_51_75" json:"all_share_51_75"`
-	AllShare7699        int64 `db:"all_share_76_99" json:"all_share_76_99"`
-	AllShare100         int64 `db:"all_share_100" json:"all_share_100"`
-	ActedShare0         int64 `db:"acted_share_0" json:"acted_share_0"`
-	ActedShare125       int64 `db:"acted_share_1_25" json:"acted_share_1_25"`
-	ActedShare2650      int64 `db:"acted_share_26_50" json:"acted_share_26_50"`
-	ActedShare5175      int64 `db:"acted_share_51_75" json:"acted_share_51_75"`
-	ActedShare7699      int64 `db:"acted_share_76_99" json:"acted_share_76_99"`
-	ActedShare100       int64 `db:"acted_share_100" json:"acted_share_100"`
+	UsersWithProjects      int64 `db:"users_with_projects" json:"users_with_projects"`
+	UsersWithUnpinnedOwned int64 `db:"users_with_unpinned_owned" json:"users_with_unpinned_owned"`
+	PinnedMigration        int64 `db:"pinned_migration" json:"pinned_migration"`
+	PinnedDefault          int64 `db:"pinned_default" json:"pinned_default"`
+	PinnedUser             int64 `db:"pinned_user" json:"pinned_user"`
+	UnpinnedOwned          int64 `db:"unpinned_owned" json:"unpinned_owned"`
+	AllShare0              int64 `db:"all_share_0" json:"all_share_0"`
+	AllShare125            int64 `db:"all_share_1_25" json:"all_share_1_25"`
+	AllShare2650           int64 `db:"all_share_26_50" json:"all_share_26_50"`
+	AllShare5175           int64 `db:"all_share_51_75" json:"all_share_51_75"`
+	AllShare7699           int64 `db:"all_share_76_99" json:"all_share_76_99"`
+	AllShare100            int64 `db:"all_share_100" json:"all_share_100"`
+	ActedShare0            int64 `db:"acted_share_0" json:"acted_share_0"`
+	ActedShare125          int64 `db:"acted_share_1_25" json:"acted_share_1_25"`
+	ActedShare2650         int64 `db:"acted_share_26_50" json:"acted_share_26_50"`
+	ActedShare5175         int64 `db:"acted_share_51_75" json:"acted_share_51_75"`
+	ActedShare7699         int64 `db:"acted_share_76_99" json:"acted_share_76_99"`
+	ActedShare100          int64 `db:"acted_share_100" json:"acted_share_100"`
 }
 
 // Aggregates pin usage over each active, non-system user's accessible
@@ -8387,13 +8383,11 @@ func (q *sqlQuerier) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled 
 	var i GetChatProjectPinTelemetryRow
 	err := row.Scan(
 		&i.UsersWithProjects,
-		&i.UsersWithTombstones,
+		&i.UsersWithUnpinnedOwned,
 		&i.PinnedMigration,
 		&i.PinnedDefault,
 		&i.PinnedUser,
-		&i.TombstonesMigration,
-		&i.TombstonesDefault,
-		&i.TombstonesUser,
+		&i.UnpinnedOwned,
 		&i.AllShare0,
 		&i.AllShare125,
 		&i.AllShare2650,
@@ -8496,7 +8490,7 @@ FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
 LEFT JOIN chat_project_pins pins
-    ON pins.user_id = $2::uuid AND pins.project_id = chat_projects.id AND pins.unpinned_at IS NULL
+    ON pins.user_id = $2::uuid AND pins.project_id = chat_projects.id
 LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
@@ -8520,7 +8514,7 @@ type GetChatProjectSummariesByUserIDRow struct {
 }
 
 // Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
-// user's active pin and aggregates over the user's own top-level,
+// user's pin and aggregates over the user's own top-level,
 // non-archived chats. Entries match regardless of the actions they grant,
 // so callers must authorize each row; pins on projects the user can no
 // longer see are never returned.
@@ -8577,7 +8571,7 @@ const insertChatProjectPin = `-- name: InsertChatProjectPin :exec
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT $1::uuid, $2::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
 FROM chat_project_pins
-WHERE user_id = $1::uuid AND unpinned_at IS NULL
+WHERE user_id = $1::uuid
 `
 
 type InsertChatProjectPinParams struct {
@@ -8614,7 +8608,7 @@ WITH current_pins AS (
         ) AS stale
         FROM chat_project_pins p
         JOIN chat_projects cp ON cp.id = p.project_id
-        WHERE p.user_id = $1::uuid AND p.unpinned_at IS NULL
+        WHERE p.user_id = $1::uuid
     ) pins
 ),
 ranked AS (
@@ -8634,15 +8628,14 @@ shifted AS (
     UPDATE chat_project_pins p
     SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
     FROM ranked CROSS JOIN target
-    WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id AND p.unpinned_at IS NULL
+    WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id
 )
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT $1::uuid, $2::uuid, target.position, 'user'
 FROM target
 ON CONFLICT (user_id, project_id) DO UPDATE SET
     pin_order = EXCLUDED.pin_order,
-    source = 'user',
-    unpinned_at = NULL
+    source = 'user'
 `
 
 type PinChatProjectParams struct {
@@ -8669,10 +8662,10 @@ func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParam
 }
 
 const unpinChatProject = `-- name: UnpinChatProject :exec
-WITH target AS (
-    SELECT project_id
-    FROM chat_project_pins
-    WHERE user_id = $1::uuid AND project_id = $2::uuid AND unpinned_at IS NULL
+WITH deleted AS (
+    DELETE FROM chat_project_pins
+    WHERE user_id = $1::uuid AND project_id = $2::uuid
+    RETURNING project_id
 ),
 updates AS (
     SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
@@ -8691,18 +8684,16 @@ updates AS (
                     AND organization_members.organization_id = cp.organization_id
             )
         )
-    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order, NULL::timestamptz AS unpinned_at
+    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
     JOIN chat_projects cp ON cp.id = p.project_id
-    WHERE p.user_id = $1::uuid AND p.unpinned_at IS NULL AND p.project_id <> $2::uuid
-    UNION ALL
-    SELECT project_id, 0, NOW() FROM target
+    WHERE p.user_id = $1::uuid AND p.project_id <> $2::uuid
 )
 UPDATE chat_project_pins p
-SET pin_order = updates.pin_order, unpinned_at = updates.unpinned_at
+SET pin_order = updates.pin_order
 FROM updates
-WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id AND p.unpinned_at IS NULL
-    AND EXISTS (SELECT 1 FROM target)
+WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id
+    AND EXISTS (SELECT 1 FROM deleted)
 `
 
 type UnpinChatProjectParams struct {
@@ -8711,8 +8702,7 @@ type UnpinChatProjectParams struct {
 	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
 }
 
-// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
-// The source is kept so telemetry can tell which pins users removed.
+// Deletes a pin and compacts the remaining pins to 1..N.
 // Unpinning a project that is not pinned changes nothing. Like
 // PinChatProject, pins the user can still see come first, and callers must
 // hold the per-user pin lock.
