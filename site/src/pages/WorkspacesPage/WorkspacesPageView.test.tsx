@@ -200,6 +200,21 @@ describe("WorkspacesPageView", () => {
 		expect(within(rowHeader).queryByRole("checkbox")).toBeNull();
 	});
 
+	it("shows the select all label when the checkbox is focused", async () => {
+		const user = userEvent.setup();
+		renderSelection([stoppedWorkspace]);
+		const selectAll = await screen.findByRole("checkbox", {
+			name: "Select all workspaces",
+		});
+
+		while (document.activeElement !== selectAll) {
+			await user.tab();
+		}
+		expect(
+			await screen.findByRole("tooltip", { name: "Select all workspaces" }),
+		).toBeInTheDocument();
+	});
+
 	it("hides the New workspace button and explains the missing permission", async () => {
 		renderWithAuth(
 			<WorkspacesPageView {...defaultProps} canCreateWorkspace={false} />,

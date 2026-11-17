@@ -125,27 +125,32 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					<TableCell className={cn("w-0", hideHeaders && "invisible")}>
 						{!isLoading && (
 							<div className="flex">
-								<Checkbox
-									disabled={
-										checkableWorkspaces.length === 0 &&
-										checkedWorkspaces.length === 0
-									}
-									checked={
-										checkedWorkspaces.length > 0 &&
-										checkableWorkspaces.every((workspace) =>
-											checkedWorkspaces.some((w) => w.id === workspace.id),
-										)
-									}
-									onCheckedChange={(checked) => {
-										if (!checked) {
-											onCheckChange([]);
-										} else {
-											onCheckChange(checkableWorkspaces);
-										}
-									}}
-									aria-label="Select all workspaces"
-									className="my-0"
-								/>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Checkbox
+											disabled={
+												checkableWorkspaces.length === 0 &&
+												checkedWorkspaces.length === 0
+											}
+											checked={
+												checkedWorkspaces.length > 0 &&
+												checkableWorkspaces.every((workspace) =>
+													checkedWorkspaces.some((w) => w.id === workspace.id),
+												)
+											}
+											onCheckedChange={(checked) => {
+												if (!checked) {
+													onCheckChange([]);
+												} else {
+													onCheckChange(checkableWorkspaces);
+												}
+											}}
+											aria-label="Select all workspaces"
+											className="my-0"
+										/>
+									</TooltipTrigger>
+									<TooltipContent>Select all workspaces</TooltipContent>
+								</Tooltip>
 							</div>
 						)}
 					</TableCell>
