@@ -1,6 +1,7 @@
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import type { Line } from "#/components/Logs/LogLine";
 import { Logs, LogsHeader } from "#/components/Logs/Logs";
 import { AgentLogOutput } from "#/modules/resources/AgentLogs/AgentLogLine";
@@ -83,17 +84,26 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 	}));
 
 	return (
-		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border text-2xs"
-			viewportClassName="max-h-64"
-			ariaLabel="Workspace agent startup log"
-			followEnd
-		>
-			<div className="font-mono">
-				<LogsHeader title="Agent startup" detail={agent.name} />
-				<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
-			</div>
-		</ToolCall.Scrollable>
+		<>
+			{agent.logs_overflowed && (
+				<Alert severity="warning" className="mt-1.5">
+					Startup logs exceeded the max size of 1MB, and will not continue to be
+					written to the database. Logs will continue to be written to the{" "}
+					<code>/tmp/coder-startup-script.log</code> file in the workspace.
+				</Alert>
+			)}
+			<ToolCall.Scrollable
+				className="mt-1.5 rounded-md border text-2xs"
+				viewportClassName="max-h-64"
+				ariaLabel="Workspace agent startup log"
+				followEnd
+			>
+				<div className="font-mono">
+					<LogsHeader title="Agent startup" detail={agent.name} />
+					<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
+				</div>
+			</ToolCall.Scrollable>
+		</>
 	);
 };
 

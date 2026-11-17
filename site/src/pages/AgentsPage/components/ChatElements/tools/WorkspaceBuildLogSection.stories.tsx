@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn } from "storybook/test";
 import { API } from "#/api/api";
+import {
+	workspaceBuildByIdKey,
+	workspaceBuildLogsKey,
+} from "#/api/queries/workspaceBuilds";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -35,9 +41,35 @@ const sampleLogs: ProvisionerJobLog[] = [
 	},
 ];
 
+const mockWorkspace = {
+	...MockWorkspace,
+	id: TEST_WORKSPACE_ID,
+	latest_build: { ...MockWorkspaceBuild, id: TEST_BUILD_ID },
+};
+
+const mockOverflowedBuild = {
+	...MockWorkspaceBuild,
+	id: TEST_BUILD_ID,
+	job: { ...MockWorkspaceBuild.job, logs_overflowed: true },
+};
+
+const mockOverflowedWorkspace = {
+	...mockWorkspace,
+	latest_build: mockOverflowedBuild,
+};
+const mockWorkspaceWithNewerBuild = {
+	...mockWorkspace,
+	latest_build: MockWorkspaceBuild,
+};
+
 const meta: Meta<typeof WorkspaceBuildLogSection> = {
 	title: "pages/AgentsPage/ChatElements/tools/WorkspaceBuildLogSection",
 	component: WorkspaceBuildLogSection,
+	parameters: {
+		queries: [
+			{ key: workspaceByIdKey(TEST_WORKSPACE_ID), data: mockWorkspace },
+		],
+	},
 	decorators: [
 		(Story) => (
 			<ChatWorkspaceContext value={{ workspaceId: TEST_WORKSPACE_ID }}>
@@ -71,8 +103,9 @@ export const CompletedWithLogs: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: workspaceByIdKey(TEST_WORKSPACE_ID), data: mockWorkspace },
 			{
-				key: ["workspaceBuilds", TEST_BUILD_ID, "logs"],
+				key: workspaceBuildLogsKey(TEST_BUILD_ID),
 				data: sampleLogs,
 			},
 		],
@@ -104,10 +137,56 @@ export const CompletedEmptyLogs: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: workspaceByIdKey(TEST_WORKSPACE_ID), data: mockWorkspace },
 			{
-				key: ["workspaceBuilds", TEST_BUILD_ID, "logs"],
+				key: workspaceBuildLogsKey(TEST_BUILD_ID),
 				data: [],
 			},
+		],
+	},
+};
+
+export const LogsOverflowed: Story = {
+	args: { status: "completed", buildId: TEST_BUILD_ID },
+	parameters: {
+		queries: [
+			{ key: workspaceBuildLogsKey(TEST_BUILD_ID), data: sampleLogs },
+			{
+				key: workspaceByIdKey(TEST_WORKSPACE_ID),
+				data: mockOverflowedWorkspace,
+			},
+		],
+	},
+};
+
+export const OverflowStatusUnavailable: Story = {
+	args: { status: "completed", buildId: TEST_BUILD_ID },
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(TEST_WORKSPACE_ID),
+				data: mockWorkspaceWithNewerBuild,
+			},
+			{ key: workspaceBuildLogsKey(TEST_BUILD_ID), data: sampleLogs },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
+			new Error("Internal Server Error"),
+		);
+	},
+};
+
+export const HistoricalLogsOverflowed: Story = {
+	args: { status: "completed", buildId: TEST_BUILD_ID },
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(TEST_WORKSPACE_ID),
+				data: mockWorkspaceWithNewerBuild,
+			},
+			{ key: workspaceBuildByIdKey(TEST_BUILD_ID), data: mockOverflowedBuild },
+			{ key: workspaceBuildLogsKey(TEST_BUILD_ID), data: sampleLogs },
 		],
 	},
 };

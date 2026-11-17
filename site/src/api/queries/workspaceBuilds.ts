@@ -36,7 +36,7 @@ export const workspaceBuildByNumber = (
 	};
 };
 
-const workspaceBuildByIdKey = (workspaceBuildId: string) =>
+export const workspaceBuildByIdKey = (workspaceBuildId: string) =>
 	["workspaceBuilds", workspaceBuildId] as const;
 
 export const workspaceBuildById = (workspaceBuildId: string) =>
@@ -87,7 +87,7 @@ export const infiniteWorkspaceBuilds = (
 	} satisfies UseInfiniteQueryOptions<WorkspaceBuild[]>;
 };
 
-function workspaceBuildLogsKey(workspaceBuildId: string) {
+export function workspaceBuildLogsKey(workspaceBuildId: string) {
 	return ["workspaceBuilds", workspaceBuildId, "logs"] as const;
 }
 

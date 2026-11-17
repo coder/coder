@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
+import {
+	workspaceBuildById,
+	workspaceBuildLogs,
+} from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -37,33 +41,30 @@ export const WorkspaceBuildLogSection: React.FC<
 
 	// Primary source: build ID from the chat binding, pushed via
 	// pubsub when create_workspace or start_workspace persists it.
-	// This avoids the 2s polling latency.
 	const { workspaceId, buildId: chatBuildId } = useChatWorkspace();
 
-	// Fallback: poll the workspace to infer the build ID from
-	// latest_build. Only used when the binding hasn't arrived yet.
-	const needsPoll = isRunning && !chatBuildId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
-		enabled: needsPoll && Boolean(workspaceId),
-		refetchInterval: needsPoll ? 2000 : false,
+		enabled: Boolean(workspaceId),
 	});
-	const liveBuildId = workspaceQuery.data?.latest_build?.id;
-
-	// Only use the polled build if it's actually in progress.
-	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
-	const polledActiveBuildId =
-		latestBuildStatus !== undefined &&
-		ACTIVE_BUILD_STATUSES.includes(latestBuildStatus)
-			? liveBuildId
+	const latestBuild = workspaceQuery.data?.latest_build;
+	const activeBuildId =
+		latestBuild && ACTIVE_BUILD_STATUSES.includes(latestBuild.status)
+			? latestBuild.id
 			: undefined;
 
-	// While running: prefer chat binding (instant via pubsub),
-	// fall back to polled workspace (2s latency). When completed:
-	// use the build ID from the tool result.
-	const effectiveBuildId = isRunning
-		? (chatBuildId ?? polledActiveBuildId)
-		: buildId;
+	const effectiveBuildId = isRunning ? (chatBuildId ?? activeBuildId) : buildId;
+
+	const watchedBuild =
+		latestBuild?.id === effectiveBuildId ? latestBuild : undefined;
+	const historicalBuildQuery = useQuery({
+		...workspaceBuildById(effectiveBuildId ?? ""),
+		enabled:
+			Boolean(effectiveBuildId) &&
+			!isRunning &&
+			(!workspaceId || (workspaceQuery.isSuccess && !watchedBuild)),
+	});
+	const build = watchedBuild ?? historicalBuildQuery.data;
 
 	// --- Running builds: stream via WebSocket ---
 	const streamingLogs = useWorkspaceBuildLogs(
@@ -134,19 +135,32 @@ export const WorkspaceBuildLogSection: React.FC<
 	}
 
 	return (
-		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border text-2xs"
-			viewportClassName="max-h-64"
-			ariaLabel="Workspace build log"
-			followEnd
-		>
-			{/* WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript. */}
-			<WorkspaceBuildLogs
-				logs={logs}
-				sticky
-				disableAutoscroll
-				className="border-0 rounded-none"
-			/>
-		</ToolCall.Scrollable>
+		<>
+			{!build && (workspaceQuery.isError || historicalBuildQuery.isError) && (
+				<LogNotice icon="warning">
+					Unable to check whether build logs were truncated.
+				</LogNotice>
+			)}
+			{build?.job.logs_overflowed && (
+				<Alert severity="warning" className="mt-1.5">
+					Provisioner logs exceeded the max size of 1MB. Will not continue to
+					write provisioner logs for workspace build.
+				</Alert>
+			)}
+			<ToolCall.Scrollable
+				className="mt-1.5 rounded-md border text-2xs"
+				viewportClassName="max-h-64"
+				ariaLabel="Workspace build log"
+				followEnd
+			>
+				{/* WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript. */}
+				<WorkspaceBuildLogs
+					logs={logs}
+					sticky
+					disableAutoscroll
+					className="border-0 rounded-none"
+				/>
+			</ToolCall.Scrollable>
+		</>
 	);
 };
