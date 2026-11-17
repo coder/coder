@@ -102,17 +102,16 @@ export CODER_API_TOKEN="<your-coder-api-token>"
 
 ## Pre-configuring in Templates
 
-Commit the profile to your repository at `.junie/models/ai-gateway.json` and inject the token from the template, so users get a working configuration without manual setup:
+Commit the profile to your repository at `.junie/models/ai-gateway.json` and inject a scoped token from the template, so users get a working configuration without manual setup.
+To create `local.ai_gateway_token`, follow [Use a scoped token](./index.md#use-a-scoped-token).
 
 ```tf
-data "coder_workspace_owner" "me" {}
-
 data "coder_workspace" "me" {}
 
 resource "coder_env" "coder_api_token" {
   agent_id = coder_agent.main.id
   name     = "CODER_API_TOKEN"
-  value    = data.coder_workspace_owner.me.session_token
+  value    = local.ai_gateway_token
 }
 ```
 

@@ -74,26 +74,97 @@ This section applies when you want template admins to preconfigure tools inside 
 For tools running outside of a workspace, see [External and Desktop Clients](#external-and-desktop-clients).
 
 While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them.
-Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Gateway base URL into the workspace environment.
+The template injects a Coder API token and the AI Gateway base URL into the workspace environment.
 
-In this example, Claude Code respects these environment variables and will route all requests via AI Gateway.
+### Use a scoped token
+
+> [!WARNING]
+> `data.coder_workspace_owner.me.session_token` has the owner's full access to the Coder API.
+> If you inject it into the workspace, any process there, including an AI agent, can use it to reach the owner's other workspaces, create workspaces, and create more tokens.
+> A network sandbox that allows the Coder deployment doesn't prevent this, because AI Gateway is served from the same host as the rest of the Coder API.
+
+Instead, have the template use the session token during the build to create a token with only the `user:read_personal` [scope](../../../admin/users/sessions-tokens.md#api-key-scopes), and inject that token.
+AI Gateway accepts this token, and the rest of the Coder API rejects most requests made with it.
+The request runs in the provisioner, so the session token doesn't reach the workspace.
+
+This example uses the [`hashicorp/http`](https://registry.terraform.io/providers/hashicorp/http/latest/docs) provider to create the token, and configures Claude Code to route all requests through AI Gateway:
 
 ```tf
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+    }
+    http = {
+      source  = "hashicorp/http"
+      version = ">= 3.4"
+    }
+  }
+}
+
 data "coder_workspace_owner" "me" {}
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "dev" {
-    arch = "amd64"
-    os   = "linux"
-    dir  = local.repo_dir
-    env = {
-        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic",
-        ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
+locals {
+  # Create the token only for a started workspace that isn't a prebuild.
+  # A prebuild gets its token when a user claims it.
+  create_ai_gateway_token = (
+    data.coder_workspace.me.start_count > 0 &&
+    !data.coder_workspace.me.is_prebuild &&
+    data.coder_workspace_owner.me.session_token != ""
+  )
+  ai_gateway_token = local.create_ai_gateway_token ? jsondecode(data.http.ai_gateway_token[0].response_body).key : ""
+}
+
+data "http" "ai_gateway_token" {
+  count  = local.create_ai_gateway_token ? 1 : 0
+  url    = "${data.coder_workspace.me.access_url}/api/v2/users/me/keys/tokens"
+  method = "POST"
+  request_headers = {
+    "Coder-Session-Token" = data.coder_workspace_owner.me.session_token
+    "Content-Type"        = "application/json"
+  }
+  request_body = jsonencode({
+    # timestamp() defers the request to apply, so a plan creates no token.
+    token_name = "ai-gateway-${substr(data.coder_workspace.me.id, 0, 8)}-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+    scopes     = ["user:read_personal"]
+  })
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 201
+      error_message = "Could not create the AI Gateway token: HTTP ${self.status_code}."
     }
-    ... # other agent configuration
+  }
+}
+
+resource "coder_agent" "dev" {
+  arch = "amd64"
+  os   = "linux"
+  dir  = local.repo_dir
+  env = {
+    ANTHROPIC_BASE_URL   = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
+    ANTHROPIC_AUTH_TOKEN = local.ai_gateway_token
+  }
+  # ... other agent configuration
 }
 ```
+
+The other client pages refer to `local.ai_gateway_token` from this example.
+
+This pattern has these limitations:
+
+- The provisioner must reach the Coder access URL.
+- Each workspace start creates a new token.
+  Coder doesn't revoke it when the workspace stops, so it stays valid until it expires after the deployment's [default token lifetime](../../../reference/cli/server/index.md#--default-token-lifetime).
+  A workspace that runs longer than that loses access to AI Gateway until it restarts.
+  To change the lifetime, set `lifetime` in the request body, in nanoseconds.
+- AI Gateway attributes requests made with this token to the user, but not to the workspace.
+  In a deployment with more than one organization, a request takes the organization of the user's effective group instead of the workspace's organization.
+  Refer to [Request organization](../request-organization.md).
+
+The [Claude Code](https://registry.coder.com/modules/coder/claude-code) and [Codex](https://registry.coder.com/modules/coder-labs/codex) registry modules inject the owner's session token when you set `enable_ai_gateway = true`.
 
 ## External and Desktop Clients
 

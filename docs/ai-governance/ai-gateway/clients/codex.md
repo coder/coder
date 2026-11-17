@@ -105,14 +105,15 @@ module "codex" {
 }
 ```
 
-For the ChatGPT subscription flow, pass the provider configuration through `base_config_toml` and inject the Coder API token with a `coder_env` resource.
+For the ChatGPT subscription flow, pass the provider configuration through `base_config_toml` and inject a scoped Coder API token with a `coder_env` resource.
+To create `local.ai_gateway_token`, follow [Use a scoped token](./index.md#use-a-scoped-token).
 Users authenticate by running `codex login` with their ChatGPT account:
 
 ```tf
 resource "coder_env" "coder_api_token" {
   agent_id = coder_agent.main.id
   name     = "CODER_API_TOKEN"
-  value    = data.coder_workspace_owner.me.session_token
+  value    = local.ai_gateway_token
 }
 
 module "codex" {
