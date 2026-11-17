@@ -1015,21 +1015,18 @@ describe("pending actions", () => {
 		editedMessageID: 3,
 		content: [{ type: "text", text: "c2" }],
 	};
-	// The edit deletes messages 3 and 4, clears the queue that held the send,
-	// and stores message 5.
-	const storeEditResult = (store: ChatStore) =>
+	it("ends an edit that replaced an earlier pending send", () => {
+		const store = seededStore(mockTurnMessages, [], "running");
+		addPending(store, pendingSend("S1", "queue"));
+		addPending(store, editThird);
+
+		// The edit deletes messages 3 and 4, clears the queue that held the
+		// send, and stores message 5.
 		store.batch(() => {
 			store.resetHistoryFrom(3, 7);
 			store.upsertDurableMessages([makeMessage(5, "user", "c2")]);
 			store.setQueuedMessages([]);
 		});
-
-	it("ends a send and an edit that one read reports together", () => {
-		const store = seededStore(mockTurnMessages, [], "running");
-		addPending(store, pendingSend("S1", "queue"));
-		addPending(store, editThird);
-
-		storeEditResult(store);
 
 		expect(store.getSnapshot().pendingEntries).toEqual([]);
 		expect(visible(store)).toEqual({
@@ -1038,7 +1035,7 @@ describe("pending actions", () => {
 		});
 	});
 
-	it("ends two edits and a send that one read reports together", () => {
+	it("ends an edit that replaced an earlier pending edit, and a later send, at one read", () => {
 		const store = seededStore(
 			[...mockTurnMessages, makeMessage(5, "user", "e")],
 			[],

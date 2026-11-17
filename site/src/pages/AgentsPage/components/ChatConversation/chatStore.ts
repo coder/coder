@@ -224,10 +224,10 @@ export const createChatStore = (): ChatStore => {
 	let nextPendingActionID = 1;
 	let nextPendingRowID = Number.MAX_SAFE_INTEGER;
 	// The highest message ID and the queued row IDs that the store has
-	// received. User content with other IDs is new. The server can deliver a
-	// steer row before an older queue row, so rows have no highest ID.
+	// received. The server can deliver a steer row before an older queue
+	// row, so rows have no highest ID.
 	let highestMessageID = 0;
-	const storedQueuedIDs = new Set<number>();
+	const receivedQueuedIDs = new Set<number>();
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -282,7 +282,7 @@ export const createChatStore = (): ChatStore => {
 	};
 
 	// A send's queued row or delivered message counts once, whichever comes
-	// first, by a row ID that is not in storedQueuedIDs. A user message without
+	// first, by a row ID that is not in receivedQueuedIDs. A user message without
 	// a row, from a direct send or an edit, counts by an ID above
 	// highestMessageID.
 	const countNewUserContent = (
@@ -294,21 +294,21 @@ export const createChatStore = (): ChatStore => {
 				role === "user" &&
 				(queuedID === undefined
 					? id > highestMessageID
-					: !storedQueuedIDs.has(queuedID)),
-		).length + rows.filter((row) => !storedQueuedIDs.has(row.id)).length;
+					: !receivedQueuedIDs.has(queuedID)),
+		).length + rows.filter((row) => !receivedQueuedIDs.has(row.id)).length;
 
-	const recordStoredIDs = (
+	const recordReceivedIDs = (
 		messages: readonly TypesGen.ChatMessage[],
 		rows: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
 		for (const { id, queued_message_id: queuedID } of messages) {
 			highestMessageID = Math.max(highestMessageID, id);
 			if (queuedID !== undefined) {
-				storedQueuedIDs.add(queuedID);
+				receivedQueuedIDs.add(queuedID);
 			}
 		}
 		for (const row of rows) {
-			storedQueuedIDs.add(row.id);
+			receivedQueuedIDs.add(row.id);
 		}
 	};
 
@@ -321,7 +321,7 @@ export const createChatStore = (): ChatStore => {
 		storedQueue?: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
 		const newUserContent = countNewUserContent(messages, storedQueue ?? []);
-		recordStoredIDs(messages, storedQueue ?? []);
+		recordReceivedIDs(messages, storedQueue ?? []);
 		const endedEdits = state.pendingEntries.filter(
 			({ action }) =>
 				action.kind === "edit" &&
@@ -346,7 +346,7 @@ export const createChatStore = (): ChatStore => {
 	const seed = (page: TypesGen.ChatMessagesResponse): void => {
 		syncedSnapshotVersion = page.snapshot_version ?? 0;
 		historyResetVersion = syncedSnapshotVersion;
-		recordStoredIDs(page.messages, page.queued_messages);
+		recordReceivedIDs(page.messages, page.queued_messages);
 		setState((current) => ({
 			...current,
 			messagesByID: buildMessageMap(page.messages),
@@ -517,17 +517,16 @@ export const createChatStore = (): ChatStore => {
 			const rowID = queuedRowID(action);
 			setState((current) => ({
 				...current,
-				// A queued row has one pending action, the latest. A chat has one
-				// row under edit, so a begin also replaces an earlier begin on
-				// another row, whose result can no longer show. A message edit
-				// deletes the edited message and those after it and clears the
-				// queue, so it replaces the earlier sends and message edits,
-				// whose results cannot show.
+				// An action replaces the earlier ones whose results it removes.
 				pendingEntries: [
 					...current.pendingEntries.filter(
 						({ action: earlier }) =>
+							// A queued row has one pending action, the latest.
 							(rowID === undefined || queuedRowID(earlier) !== rowID) &&
+							// A chat has one row under edit.
 							!(isEditBegin(action) && isEditBegin(earlier)) &&
+							// A message edit deletes the edited message and those
+							// after it, and clears the queue.
 							!(action.kind === "edit" && queuedRowID(earlier) === undefined),
 					),
 					entry,

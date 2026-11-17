@@ -4972,7 +4972,7 @@ describe("chat stream contract", () => {
 		},
 	);
 
-	it("shows a delete and a send once through a first read in two WebSocket messages", async () => {
+	it("keeps a deleted row hidden and shows a send once through a first read in two WebSocket messages", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat({
@@ -5014,7 +5014,7 @@ describe("chat stream contract", () => {
 		store.subscribe(recordQueue);
 
 		// The first read spans two WebSocket messages; only the second holds
-		// the queue and the status.
+		// the queue.
 		act(() => {
 			sockets[1].emitOpen();
 			sockets[1].emitData(message(2, "assistant", 7));
