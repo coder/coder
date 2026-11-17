@@ -262,6 +262,12 @@ func TestChatProjectSummaries(t *testing.T) {
 	require.Contains(t, aliceSummaries, busy.ID)
 	require.EqualValues(t, 1, aliceSummaries[busy.ID].PinOrder)
 	require.EqualValues(t, 1, aliceSummaries[busy.ID].MemberCount)
+
+	// Alice keeps a pin on stopping, whose grant lacks read, so it is not
+	// returned and leaves no gap in the pin orders she sees.
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: alice.ID, ProjectID: stopping.ID})
+	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, everyone.ID, codersdk.PinChatProjectRequest{}))
+	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{busy.ID: 1, everyone.ID: 2})
 }
 
 //nolint:paralleltest // Disabling chat sharing flips a process-wide RBAC switch.
