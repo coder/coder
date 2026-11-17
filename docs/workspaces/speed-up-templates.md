@@ -53,7 +53,8 @@ Spare nodes cost money while they wait, so balance startup time against cost.
 
 ![Without pre-warmed nodes, new workspaces wait about five minutes for new nodes. With pre-warmed nodes, they schedule on ready nodes.](../images/best-practice/pre-warm-nodes.png)
 
-On Amazon Elastic Kubernetes Service (EKS), a schedule on the workspace node group's Auto Scaling group keeps three nodes ready during working hours, and still lets the group grow to 10:
+Set a schedule that raises the node minimum before working hours and lowers it after.
+For example, on Amazon Elastic Kubernetes Service (EKS), the following schedule on the workspace node group's Auto Scaling group keeps three nodes ready during working hours, and still lets the group grow to 10:
 
 ```tf
 resource "aws_autoscaling_schedule" "workday_start" {
@@ -77,11 +78,21 @@ resource "aws_autoscaling_schedule" "workday_end" {
 }
 ```
 
+This needs a managed node group.
+EKS Auto Mode and Karpenter don't use Auto Scaling groups, so set capacity through NodePools instead.
+
 A scale-down to zero terminates nodes that still run workspaces or prebuilt workspaces.
 Schedule it after your workspaces auto-stop, or keep a minimum above zero.
+Prebuilt workspaces don't auto-stop, so lower their pool first with [prebuild scheduling](../templates/extending-templates/prebuilt-workspaces.md#scheduling).
 
-Other ways to keep capacity ready include low-priority placeholder Pods that the scheduler evicts when a workspace needs the space, and Amazon EC2 warm pools.
+Other ways to keep capacity ready:
+
+- Low-priority placeholder Pods that the scheduler evicts when a workspace needs the space, such as [Google Kubernetes Engine (GKE) capacity provisioning](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/capacity-provisioning).
+- [Warm pools for EKS managed node groups](https://docs.aws.amazon.com/eks/latest/userguide/warm-pools-managed-node-groups.html).
+- [Azure Kubernetes Service (AKS) scale-down mode](https://learn.microsoft.com/en-us/azure/aks/scale-down-mode) set to `Deallocate`, which stops idle nodes instead of deleting them.
+
 To avoid an image pull on a new node, pre-pull the workspace image on every node with a DaemonSet.
+If the nodes are behind an egress firewall, allowlist or mirror the DaemonSet's images, including any helper image from `registry.k8s.io`, or the pre-pull fails quietly.
 The [fast-workspaces-lab](https://github.com/coder-contrib/fast-workspaces-lab/tree/main/cluster) repository has a sample node schedule and pre-pull DaemonSet.
 
 ## Build tools into the image
@@ -106,7 +117,7 @@ For a full example, refer to the [Plain Sandbox (Kubernetes)](https://registry.c
 
 ## Use prebuilt workspaces
 
-[Prebuilt workspaces](../templates/extending-templates/prebuilt-workspaces.md) keep a pool of ready workspaces for each preset, so a user claims one instead of waiting for a build.
+[Prebuilt workspaces](../templates/extending-templates/prebuilt-workspaces.md), also known as *prebuilds*, keep a pool of ready workspaces for each preset, so a user claims one instead of waiting for a build.
 A prebuild runs the startup scripts before the claim, so it can also do work that changes too often for the image, such as cloning a large repository or installing a tool that updates daily.
 
 ![When the template uses the owner name, a claim replaces the Pod and reinstalls tools, so the workspace is ready in 10.5&nbsp;seconds. When the claim keeps the same Pod and disk, the workspace is ready in 1.8&nbsp;seconds.](../images/best-practice/prebuilds-standard-vs-optimized.png)
@@ -121,7 +132,7 @@ To keep a claim fast:
 
 The [fast-workspaces-lab](https://github.com/coder-contrib/fast-workspaces-lab/tree/main/templates) repository compares a [standard](https://github.com/coder-contrib/fast-workspaces-lab/tree/main/templates/04-standard-prebuilds) and an [optimized](https://github.com/coder-contrib/fast-workspaces-lab/tree/main/templates/05-optimized-prebuilds) prebuild template.
 
-If a template offers several configurations, such as [sandbox profiles](../templates/extending-templates/sandboxing-agents.md#define-sandbox-profiles-as-parameters), add one preset for each configuration that you want to start fast:
+If a template offers several configurations, such as [sandbox profiles](../templates/extending-templates/sandbox-agents.md#define-sandbox-profiles-as-parameters), add one preset for each configuration that you want to start fast:
 
 - Each preset keeps its own pool, so size each pool for how often people and agents pick it.
   A configuration without a preset always waits for a full build.
@@ -134,7 +145,7 @@ If a template offers several configurations, such as [sandbox profiles](../templ
   The dashboard selects the default preset first, and a request without a value uses the parameter default.
 
 Prebuilt workspaces need a Premium license.
-Without one, [agent-sandbox](https://agent-sandbox.sigs.k8s.io/) warm pools keep booted sandboxes ready in the cluster, as in the [agent-sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-agent-sandbox) template.
+[agent-sandbox](https://agent-sandbox.sigs.k8s.io/) warm pools are another way to keep booted sandboxes ready in the cluster, as in the [agent-sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-agent-sandbox) template.
 
 ## Provisioners
 
@@ -226,7 +237,7 @@ Make sure that this directory is set to a location on disk which will persist ac
 ## Skip the Kubernetes rollout wait
 
 By default, Terraform waits for a Kubernetes Deployment to finish its rollout before the build completes.
-Set `wait_for_rollout = false` so the build finishes as soon as Kubernetes accepts the Deployment, and the Pod starts while the agent connects:
+Set `wait_for_rollout = false` so the build finishes as soon as Kubernetes accepts the Deployment, instead of waiting for the Pod to become ready:
 
 ```tf
 resource "kubernetes_deployment_v1" "workspace" {
@@ -236,3 +247,6 @@ resource "kubernetes_deployment_v1" "workspace" {
 ```
 
 `wait_for_rollout` applies only to Deployments, not bare Pods, so use a Deployment for the workspace if your template creates a Pod.
+
+The tradeoff: a Pod that can't start, such as one with an image pull failure or one stuck in `Pending`, no longer fails the build, and the agent never connects.
+Deploy [coder-logstream-kube](../admin/integrations/kubernetes-logs.md) to show those Kubernetes events in the workspace startup logs.

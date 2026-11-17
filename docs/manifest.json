@@ -464,9 +464,9 @@
 							"path": "./templates/extending-templates/docker-in-workspaces.md"
 						},
 						{
-							"title": "Sandboxing agents",
+							"title": "Sandbox agents",
 							"description": "Run AI agents in workspaces with fast startup and kernel, network, and secret isolation.",
-							"path": "./templates/extending-templates/sandboxing-agents.md"
+							"path": "./templates/extending-templates/sandbox-agents.md"
 						},
 						{
 							"title": "Workspace tags",

@@ -33,7 +33,7 @@ A process-level firewall that enforces domain and verb allowlists on AI agent pr
 It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
 This feature requires a Premium license.
 Agent Firewall is being phased out.
-To sandbox AI agents, refer to [Sandboxing agents](../templates/extending-templates/sandboxing-agents.md).
+To sandbox AI agents, refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
 Refer to [Agent Firewall](../ai-governance/agent-firewall/index.md).
 
 ### Agent Relay
