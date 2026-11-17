@@ -5,8 +5,8 @@ import { createContext, useContext, useEffect, useState } from "react";
  * `useLocalStorage` calls in one provider.
  */
 type LocalStorageStore = {
-	readSerialized: (key: string) => string | null;
-	commitSerialized: (key: string, serialized: string | null) => void;
+	read: (key: string) => string | null;
+	write: (key: string, serialized: string | null) => void;
 	subscribe: (key: string, onChange: () => void) => () => void;
 	handleStorageEvent: (event: StorageEvent) => void;
 };
@@ -21,7 +21,7 @@ function createLocalStorageStore(): LocalStorageStore {
 		}
 	};
 
-	const readSerialized = (key: string): string | null => {
+	const read = (key: string): string | null => {
 		try {
 			return localStorage.getItem(key);
 		} catch {
@@ -29,7 +29,7 @@ function createLocalStorageStore(): LocalStorageStore {
 		}
 	};
 
-	const commitSerialized = (key: string, serialized: string | null): void => {
+	const write = (key: string, serialized: string | null): void => {
 		try {
 			if (serialized === null) {
 				localStorage.removeItem(key);
@@ -71,8 +71,8 @@ function createLocalStorageStore(): LocalStorageStore {
 	};
 
 	return {
-		readSerialized,
-		commitSerialized,
+		read,
+		write,
 		subscribe,
 		handleStorageEvent,
 	};

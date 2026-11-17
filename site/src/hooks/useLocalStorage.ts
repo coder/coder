@@ -49,16 +49,14 @@ export function useLocalStorage<T>({
 		[store, key],
 	);
 	const serialized = useSyncExternalStore(subscribeToKey, () =>
-		store.readSerialized(key),
+		store.read(key),
 	);
 
 	const setValue = useCallback(
 		(next: React.SetStateAction<T>) => {
-			const value = isUpdater(next)
-				? next(codec.parse(store.readSerialized(key)))
-				: next;
+			const value = isUpdater(next) ? next(codec.parse(store.read(key))) : next;
 
-			store.commitSerialized(key, codec.serialize(value));
+			store.write(key, codec.serialize(value));
 		},
 		[store, key, codec],
 	);
