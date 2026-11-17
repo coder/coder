@@ -613,6 +613,8 @@ Other execution-state classes are not supported for archive/unarchive. Archiving
 
 Setting `project_id` on a root chat moves it into that project, and the nil UUID moves it out of its project. The move applies `SetProject(project)` to the root and all descendants atomically, with the same root-first lock as an archive. It's the request's last write, so a refused move keeps the request's other changes. The supported input and output states are:
 
+<!-- TODO(jaaydenh): the move is no longer the request's last write. When the request also sets `workspace_id`, the workspace is bound after the move and only if the move succeeds, because a chat project's template limit is checked against the project the chat moves to. A refused move keeps the request's other changes but not that workspace binding. -->
+
 - `W -> SetProject(project) -> W`
 - `E0 -> SetProject(project) -> E0`
 - `E1 -> SetProject(project) -> E1`
