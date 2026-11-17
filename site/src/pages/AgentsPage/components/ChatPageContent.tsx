@@ -471,6 +471,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const composeWorkspaceUploads = useWorkspaceFileUploads(
 		chatId,
 		selectedWorkspaceId ?? undefined,
+		{ persist: true },
 	);
 	const editWorkspaceUploads = useWorkspaceFileUploads(
 		chatId,

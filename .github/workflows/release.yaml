@@ -77,9 +77,9 @@ jobs:
     name: Build and publish
     needs: [check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    # Gates access to the release signing identity: the GCP workload identity
-    # provider for release-signer only exchanges tokens for this workflow when
-    # dispatched on a v* tag with this environment claim.
+    # Gates access to the signing secrets and identities. The release-signer
+    # identity provider only exchanges tokens for this workflow when it is
+    # dispatched on main or release/* in this environment.
     environment: release
     permissions:
       # Required to publish a release
@@ -108,8 +108,28 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          # Build the commit being released (checked below to be on the dispatched branch).
-          ref: ${{ inputs.commit != '' && inputs.commit || github.sha }}
+          # Check out the dispatched commit first so the step below runs from reviewed workflow
+          # content before any file from the commit input's tree.
+          ref: ${{ github.sha }}
+
+      # Every later step runs files from the working tree with release credentials, dry run or not,
+      # so the commit input must be proven to be on the dispatched branch before it is checked out.
+      - name: Check out the commit being released
+        if: ${{ inputs.commit != '' }}
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit must be a full 40-character SHA, got '${COMMIT}'"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${COMMIT}" "${GITHUB_SHA}"; then
+            echo "::error::${COMMIT} is not on ${GITHUB_REF}"
+            exit 1
+          fi
+          git checkout --quiet --detach "${COMMIT}"
 
       # Only the release App may create tags (ruleset "Release tags (App only)"), and this job only
       # runs after a release manager other than the dispatcher approves the `release` environment.
@@ -271,168 +291,59 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up mise tools
-        uses: ./.github/actions/setup-mise
+      # Shared with build.yaml so main builds and releases are signed the same
+      # way. Signing material is deleted before the action returns. Dry runs
+      # sign too, so they exercise the signing path; they only build commits
+      # already on the dispatched branch (checked after checkout above).
+      - name: Build and sign binaries
+        id: build
+        uses: ./.github/actions/build-coder
         with:
-          install-args: "go node pnpm helm cosign syft"
-          # Depot caches are shared across branches; don't trust them here.
-          use-cache: "false"
-
-      - name: Install pnpm dependencies
-        uses: ./.github/actions/pnpm-install
-        with:
-          use-cache: "false"
-
-      - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
-
-      # Necessary for signing Windows binaries.
-      - name: Setup Java
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: "zulu"
-          java-version: "11.0"
-
-      - name: Install nsis and zstd
-        run: sudo apt-get install -y nsis zstd
-
-      - name: Install rcodesign
-        uses: ./.github/actions/install-rcodesign
-
-      - name: Setup Apple Developer certificate and API key
-        run: |
-          set -euo pipefail
-          touch /tmp/{apple_cert.pem,apple_apikey.p8}
-          chmod 600 /tmp/{apple_cert.pem,apple_apikey.p8}
-          echo "$AC_CERTIFICATE_PEM" > /tmp/apple_cert.pem
-          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
-        env:
-          AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
-          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
-
-      # The Apple Developer certificate's private key lives in Google Cloud
-      # KMS. rcodesign accesses it through the Cloud KMS PKCS#11 library,
-      # authenticated via the Google Cloud credentials set up below.
-      - name: Setup Google Cloud KMS PKCS11 library
-        run: |
-          set -euo pipefail
-          ./.github/scripts/retry.sh -- wget -O /tmp/libkmsp11.tar.gz https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/pkcs11-v1.9/libkmsp11-1.9-linux-amd64.tar.gz
-          echo "5397f965073cd5d1e2c43e5148f102f31a7c835902f97eb41c7c9c0f1b876a40 /tmp/libkmsp11.tar.gz" | sha256sum -c
-          sudo tar -xzf /tmp/libkmsp11.tar.gz \
-            -C /usr/local/lib \
-            --strip-components=1 \
-            libkmsp11-1.9-linux-amd64/libkmsp11.so
-          rm /tmp/libkmsp11.tar.gz
-
-          # The library requires the config file to be owner-writable only.
-          touch /tmp/kmsp11_config.yaml
-          chmod 600 /tmp/kmsp11_config.yaml
-          cat > /tmp/kmsp11_config.yaml <<EOF
-          ---
-          tokens:
-            - key_ring: "$AC_KMS_KEY_RING"
-          EOF
-        env:
-          AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
-
-      - name: Setup Windows EV Signing Certificate
-        run: |
-          set -euo pipefail
-          touch /tmp/ev_cert.pem
-          chmod 600 /tmp/ev_cert.pem
-          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
-          ./.github/scripts/retry.sh -- wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
-        env:
-          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+          sign: "true"
+          notarize: "true"
+          extra-tools: "helm cosign syft"
+          apt-packages: nsis
+          targets: >-
+            build/coder_@VERSION@_linux_amd64.tar.gz
+            build/coder_@VERSION@_linux_armv7.tar.gz
+            build/coder_@VERSION@_linux_arm64.tar.gz
+            build/coder_@VERSION@_linux_amd64.apk
+            build/coder_@VERSION@_linux_armv7.apk
+            build/coder_@VERSION@_linux_arm64.apk
+            build/coder_@VERSION@_linux_amd64.deb
+            build/coder_@VERSION@_linux_armv7.deb
+            build/coder_@VERSION@_linux_arm64.deb
+            build/coder_@VERSION@_linux_amd64.rpm
+            build/coder_@VERSION@_linux_armv7.rpm
+            build/coder_@VERSION@_linux_arm64.rpm
+            build/coder_@VERSION@_darwin_amd64.zip
+            build/coder_@VERSION@_darwin_arm64.zip
+            build/coder_@VERSION@_windows_amd64.zip
+            build/coder_@VERSION@_windows_arm64.zip
+            build/coder_@VERSION@_windows_amd64_installer.exe
+            build/coder_helm_@VERSION@.tgz
+            build/provisioner_helm_@VERSION@.tgz
+            build/ai-gateway_helm_@VERSION@.tgz
+          ev-workload-identity-provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          ev-service-account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          ev-key: ${{ secrets.EV_KEY }}
+          ev-keystore: ${{ secrets.EV_KEYSTORE }}
+          ev-tsa-url: ${{ secrets.EV_TSA_URL }}
+          ev-signing-cert: ${{ secrets.EV_SIGNING_CERT }}
+          release-signer-workload-identity-provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
+          release-signer-service-account: ${{ secrets.GPG_KMS_SERVICE_ACCOUNT }}
+          gpg-release-key: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          gpg-kms-key: ${{ secrets.GPG_KMS_KEY }}
+          ac-certificate-pem: ${{ secrets.AC_CERTIFICATE_PEM }}
+          ac-kms-key-ring: ${{ secrets.AC_KMS_KEY_RING }}
+          ac-kms-key: ${{ secrets.AC_KMS_KEY }}
+          ac-apikey-issuer-id: ${{ secrets.AC_APIKEY_ISSUER_ID }}
+          ac-apikey-id: ${{ secrets.AC_APIKEY_ID }}
+          ac-apikey-p8-base64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
       - name: Test migrations from current ref to main
         run: |
           POSTGRES_VERSION=13 make test-migrations
-
-      # Setup GCloud for signing Windows binaries (jsign uses the access
-      # token) and for the gsutil upload steps below (exported Application
-      # Default Credentials).
-      - name: Authenticate to Google Cloud
-        id: gcloud_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
-          token_format: "access_token"
-
-      # Secrets can't be used in step conditions. The identity provider only
-      # accepts release tags, so dry runs from branches skip KMS signing.
-      - name: Check for GPG KMS signing key
-        id: gpg_kms
-        run: |
-          enabled=false
-          if [[ -n "$GPG_KMS_KEY" && "$GITHUB_REF" == refs/tags/* ]]; then
-            enabled=true
-          fi
-          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
-        env:
-          GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
-
-      # release-signer@ for the KMS GPG key and the darwin signing key. Not
-      # exported, so the job's default credentials stay on the EV code signing
-      # account; GPG steps and the darwin PKCS11 library receive this
-      # credentials file explicitly. Unconditional because darwin signing
-      # always needs it, even when the optional KMS GPG signing is disabled.
-      - name: Authenticate to Google Cloud (release signing)
-        id: gcloud_auth_gpg
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ secrets.GPG_KMS_SERVICE_ACCOUNT }}
-          export_environment_variables: false
-
-      - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-
-      - name: Build binaries
-        run: |
-          set -euo pipefail
-          ./.github/scripts/retry.sh --timeout 120 -- go mod download
-
-          version="$(./scripts/version.sh)"
-          make gen/mark-fresh
-          make -j \
-            build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
-            build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
-            build/coder_"$version"_windows_amd64_installer.exe \
-            build/coder_helm_"$version".tgz \
-            build/provisioner_helm_"$version".tgz \
-            build/ai-gateway_helm_"$version".tgz
-        env:
-          CODER_SIGN_WINDOWS: "1"
-          CODER_SIGN_DARWIN: "1"
-          CODER_SIGN_GPG: "1"
-          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
-          CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
-          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
-          CODER_WINDOWS_RESOURCES: "1"
-          AC_CERTIFICATE_FILE: /tmp/apple_cert.pem
-          AC_PKCS11_LIBRARY: /usr/local/lib/libkmsp11.so
-          AC_PKCS11_KEY_LABEL: ${{ secrets.AC_KMS_KEY }}
-          KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
-          # Credentials for the Cloud KMS PKCS11 library (darwin signing)
-          # only; jsign and gsutil use the ambient coder-ci credentials.
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
-          AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
-          AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
-          AC_APIKEY_FILE: /tmp/apple_apikey.p8
-          EV_KEY: ${{ secrets.EV_KEY }}
-          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
-          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
-          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
-          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
-          JSIGN_PATH: /tmp/jsign-6.0.jar
-
-      - name: Delete Apple Developer certificate and API key
-        run: rm -f /tmp/{apple_cert.pem,apple_apikey.p8,kmsp11_config.yaml}
-
-      - name: Delete Windows EV Signing Cert
-        run: rm /tmp/ev_cert.pem
 
       - name: Determine base image tag
         id: image-base-tag
@@ -702,8 +613,10 @@ jobs:
       # Mint a short-lived installation token from the dedicated release
       # GitHub App. Only the App may create tags (ruleset "Release tags (App
       # only)"), so `gh release create` needs its token for any tag it creates.
+      # Dry runs create no release, so they never mint it.
       - name: Generate release App token
         id: release_app_token
+        if: ${{ !inputs.dry_run }}
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
@@ -760,7 +673,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.release_app_token.outputs.token }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
           CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
-          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
+          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.build.outputs.release-signer-credentials-file }}
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
