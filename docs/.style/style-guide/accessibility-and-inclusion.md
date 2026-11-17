@@ -193,6 +193,7 @@ Empty alt text tells the screen reader to skip the image rather than announce a 
 ```
 
 Use a raw `<img>` with `alt=""` for a decorative image, not the Markdown `![](…)` form.
+The docs HTML check rejects `role`, `tabindex`, `lang`, and `aria-*` attributes, so `alt=""` is the only way to mark an image as decorative.
 markdownlint rejects a Markdown image with empty alt text, because it can't tell a decorative image from one whose alt text is missing.
 
 Decorative images are rare in the Coder docs.
