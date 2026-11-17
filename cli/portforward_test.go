@@ -416,18 +416,22 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 		var wg sync.WaitGroup
 		defer wg.Wait()
 
+		// we need to explicitly kill all the connections since they echo until explicitly closed. This defer has to
+		// be after `defer wg.Wait()` so that we kill the connections first.
+		var connections []net.Conn
+		defer func() {
+			for _, c := range connections {
+				_ = c.Close()
+			}
+		}()
+
 		for {
 			c, err := l.Accept()
 			if err != nil {
 				_ = l.Close()
 				return
 			}
-			// echo runs until the connection is closed, so when the test is over, kill any connections
-			// so they don't block.
-			t.Cleanup(func() {
-				_ = c.Close()
-			})
-
+			connections = append(connections, c)
 			wg.Go(func() {
 				echoMessages(t, c)
 			})
@@ -487,7 +491,9 @@ func assertReadPayload(t *testing.T, r io.Reader, prefix []byte) {
 	for {
 		b = make([]byte, 2046)
 		n, err = r.Read(b)
-		assert.NoError(t, err, "read payload")
+		if !assert.NoError(t, err, "read payload") {
+			return
+		}
 		if bytes.HasPrefix(b, payload) {
 			break
 		}
