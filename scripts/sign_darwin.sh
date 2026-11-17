@@ -32,8 +32,10 @@
 #  - $KMS_PKCS11_CONFIG: The path to the Cloud KMS PKCS#11 library YAML
 #    configuration file naming the key ring that contains the key. Read by the
 #    library itself.
-# Additionally, Google Application Default Credentials with permission to sign
-# with the key must be available, e.g. via $GOOGLE_APPLICATION_CREDENTIALS.
+# Additionally, Google credentials with permission to sign with the key must be
+# available. Set $AC_PKCS11_CREDENTIALS_FILE to pass a credentials file to
+# rcodesign only, so it doesn't replace the caller's default credentials.
+# Otherwise Application Default Credentials are used.
 #
 # To sign with a local PKCS#12 certificate file instead, the following
 # environment variables must be set:
@@ -58,6 +60,10 @@ dependencies rcodesign
 
 if [[ "${AC_PKCS11_LIBRARY:-}" != "" ]]; then
 	requiredenvs AC_PKCS11_LIBRARY AC_PKCS11_KEY_LABEL AC_CERTIFICATE_FILE KMS_PKCS11_CONFIG
+
+	if [[ "${AC_PKCS11_CREDENTIALS_FILE:-}" != "" ]]; then
+		export GOOGLE_APPLICATION_CREDENTIALS="$AC_PKCS11_CREDENTIALS_FILE"
+	fi
 
 	# -v is quite verbose, the default output is pretty good on it's own.
 	rcodesign sign \

@@ -3075,6 +3075,7 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				description: "Personal compact skill",
 				enabled: true,
 				action: false,
+				display_name: "",
 				model_invocable: true,
 				created_at: "2024-01-01T00:00:00Z",
 				updated_at: "2024-01-01T00:00:00Z",
