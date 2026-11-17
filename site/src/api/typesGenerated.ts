@@ -701,13 +701,11 @@ export const AIProviderTypes: AIProviderType[] = [
  */
 export interface AISpendPeriodWindow {
 	/**
-	 * PeriodStart is the inclusive lower bound of the current budget
-	 * period.
+	 * PeriodStart is the inclusive lower bound of the applied period.
 	 */
 	readonly period_start: string;
 	/**
-	 * PeriodEnd is the exclusive upper bound of the current budget
-	 * period.
+	 * PeriodEnd is the exclusive upper bound of the applied period.
 	 */
 	readonly period_end: string;
 }
@@ -11063,6 +11061,9 @@ export interface TransitionStats {
  * price on one provider, and without a price now.
  */
 export interface UnpricedAIModel {
+	/**
+	 * ProviderName is the name of the configured provider.
+	 */
 	readonly provider_name: string;
 	/**
 	 * ProviderDisplayName falls back to the provider name when unset.
@@ -11072,7 +11073,13 @@ export interface UnpricedAIModel {
 	 * ProviderIcon is empty when the provider has no configured icon.
 	 */
 	readonly provider_icon: string;
+	/**
+	 * ProviderType is the type of the configured provider.
+	 */
 	readonly provider_type: AIProviderType;
+	/**
+	 * Model is the model the client requested.
+	 */
 	readonly model: string;
 	/**
 	 * TokenCount is the number of tokens used without a price in the period.

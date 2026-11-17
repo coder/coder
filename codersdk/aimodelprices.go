@@ -144,13 +144,16 @@ type UnpricedAIModels struct {
 // UnpricedAIModel is a requested model with token usage recorded without a
 // price on one provider, and without a price now.
 type UnpricedAIModel struct {
+	// ProviderName is the name of the configured provider.
 	ProviderName string `json:"provider_name"`
 	// ProviderDisplayName falls back to the provider name when unset.
 	ProviderDisplayName string `json:"provider_display_name"`
 	// ProviderIcon is empty when the provider has no configured icon.
-	ProviderIcon string         `json:"provider_icon"`
+	ProviderIcon string `json:"provider_icon"`
+	// ProviderType is the type of the configured provider.
 	ProviderType AIProviderType `json:"provider_type"`
-	Model        string         `json:"model"`
+	// Model is the model the client requested.
+	Model string `json:"model"`
 	// TokenCount is the number of tokens used without a price in the period.
 	TokenCount int64 `json:"token_count"`
 }

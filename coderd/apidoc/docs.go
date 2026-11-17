@@ -27111,12 +27111,12 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -27174,12 +27174,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -29097,12 +29097,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -29203,12 +29203,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -29351,12 +29351,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -32951,6 +32951,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "model": {
+                    "description": "Model is the model the client requested.",
                     "type": "string"
                 },
                 "provider_display_name": {
@@ -32962,10 +32963,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "provider_name": {
+                    "description": "ProviderName is the name of the configured provider.",
                     "type": "string"
                 },
                 "provider_type": {
-                    "$ref": "#/definitions/codersdk.AIProviderType"
+                    "description": "ProviderType is the type of the configured provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderType"
+                        }
+                    ]
                 },
                 "token_count": {
                     "description": "TokenCount is the number of tokens used without a price in the period.",
@@ -32988,12 +32995,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -34225,12 +34232,12 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
