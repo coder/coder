@@ -161,7 +161,7 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 	r := newReporter(db, o)
 	_, m, err := setup(db, o.fs, r)
 	if err != nil {
-		r.close()
+		r.cancel()
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
 	defer func() {
@@ -177,7 +177,7 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 	}()
 
 	err = m.Up()
-	r.close()
+	r.cancel()
 	if err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
 			// It's OK if no changes happened!
@@ -193,7 +193,7 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 // Down runs all down SQL migrations.
 func Down(db *sql.DB) error {
 	r := newReporter(db, upOptions{})
-	defer r.close()
+	defer r.cancel()
 	_, m, err := setup(db, migrations, r)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
@@ -217,7 +217,7 @@ func Down(db *sql.DB) error {
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
 	r := newReporter(db, upOptions{})
-	defer r.close()
+	defer r.cancel()
 	sourceDriver, m, err := setup(db, migrations, r)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
@@ -287,14 +287,14 @@ func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err 
 	r := newReporter(db, upOptions{})
 	_, m, err := setup(db, migrations, r)
 	if err != nil {
-		r.close()
+		r.cancel()
 		return nil, xerrors.Errorf("migrate setup: %w", err)
 	}
 
 	return func() (version uint, more bool, err error) {
 		defer func() {
 			if !more {
-				r.close()
+				r.cancel()
 				srcErr, dbErr := m.Close()
 				if err != nil {
 					return

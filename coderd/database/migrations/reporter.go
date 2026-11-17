@@ -57,7 +57,7 @@ type migrationRef struct {
 // The driver calls it one call at a time, so it has no mutex. Only heartbeats
 // run concurrently, and they share nothing but observerFailed. A Lock that
 // golang-migrate abandoned after LockTimeout can still call it after Up
-// returns; close cancels runCtx, which stops that Lock's heartbeat too.
+// returns; cancel stops that Lock's heartbeat too.
 type reporter struct {
 	logger     slog.Logger
 	appName    string
@@ -66,7 +66,8 @@ type reporter struct {
 	observerDB *sql.DB
 	source     source.Driver
 
-	// runCtx is canceled by close, which stops every heartbeat of the run.
+	// cancel is called once the run has returned. It stops every heartbeat of
+	// the run, including one an abandoned Lock starts later, without waiting.
 	runCtx context.Context
 	cancel context.CancelFunc
 
@@ -140,7 +141,7 @@ func (r *reporter) setBackend(pid int, xid string) {
 // lockWaitStarted is called right before Lock requests the migration lock.
 // The heartbeat only appears if the wait lasts a full interval.
 func (r *reporter) lockWaitStarted(phase string) {
-	// An abandoned Lock can get here after close. Logging is skipped, and
+	// An abandoned Lock can get here after cancel. Logging is skipped, and
 	// the heartbeat below starts already stopped.
 	if r.runCtx.Err() == nil {
 		// Debug level: the lock is usually free, so this should not add a line
@@ -155,7 +156,7 @@ func (r *reporter) lockWaitStarted(phase string) {
 // lockAcquired is called after Lock acquired the migration lock.
 func (r *reporter) lockAcquired(phase string) {
 	waited := r.stopHeartbeat()
-	// An abandoned Lock that gets the lock after close logs nothing.
+	// An abandoned Lock that gets the lock after cancel logs nothing.
 	if r.runCtx.Err() != nil {
 		return
 	}
@@ -168,11 +169,12 @@ func (r *reporter) lockAcquired(phase string) {
 // version has been read inside the migration transaction.
 // It's not called for a dirty schema.
 func (r *reporter) versionRead(version int) {
-	ctx := context.Background()
-	if version != database.NilVersion && !r.inSource(version) {
-		// The database is newer than this binary.
-		// golang-migrate fails the run with its own error.
-		return
+	if version != database.NilVersion {
+		if _, ok := r.name(version); !ok {
+			// The database is newer than this binary.
+			// golang-migrate fails the run with its own error.
+			return
+		}
 	}
 	pending := r.pendingFrom(version)
 	names := make(map[int]string, len(pending))
@@ -188,14 +190,14 @@ func (r *reporter) versionRead(version int) {
 	if len(pending) == 0 {
 		// Debug level: most starts have nothing to migrate, and they should
 		// not add a line to every server start.
-		r.logger.Debug(ctx, msgUpToDate, versionField("version", version)...)
+		r.logger.Debug(r.runCtx, msgUpToDate, versionField("version", version)...)
 		return
 	}
 	fields := versionField("from_version", version)
 	fields = append(fields,
 		slog.F("target_version", pending[len(pending)-1].version),
 		slog.F("pending", len(pending)))
-	r.logger.Info(ctx, msgRequired, fields...)
+	r.logger.Info(r.runCtx, msgRequired, fields...)
 }
 
 // stepStarted is called after golang-migrate marked version as in progress,
@@ -205,11 +207,8 @@ func (r *reporter) stepStarted(version int) {
 		return
 	}
 	r.position++
-	fields := stepFields(migrationRef{version: version, name: r.names[version]}, r.position, r.total)
-	r.perStep(r.fromVersion, msgApplying, fields...)
-
-	// The heartbeat stays at info on a fresh install:
-	// it only appears for slow steps, and it is the liveness signal.
+	fields := r.stepFields(version)
+	r.logStep(msgApplying, fields...)
 	r.startHeartbeat(msgStillApplying, r.backendPID, fields...)
 }
 
@@ -221,35 +220,40 @@ func (r *reporter) stepApplied(version int) {
 	}
 	duration := r.stopHeartbeat()
 
-	fields := stepFields(migrationRef{version: version, name: r.names[version]}, r.position, r.total)
-	fields = append(fields, slog.F("duration_ms", duration.Milliseconds()))
-	r.perStep(r.fromVersion, msgApplied, fields...)
+	fields := append(r.stepFields(version), slog.F("duration_ms", duration.Milliseconds()))
+	r.logStep(msgApplied, fields...)
 }
 
-// close is called once the run has returned. It stops every heartbeat of the
-// run, including one an abandoned Lock starts later, without waiting. It must
-// not touch hb, which that Lock may still write.
-func (r *reporter) close() {
-	r.cancel()
-}
-
-// perStep logs per-step lines at debug level when the run started from an empty
-// database, so a fresh install that applies hundreds of migrations stays quiet.
-func (r *reporter) perStep(fromVersion int, msg string, fields ...slog.Field) {
-	if fromVersion == database.NilVersion {
-		r.logger.Debug(context.Background(), msg, fields...)
+// logStep logs a step line at info, or at debug when the run started from an
+// empty database, so a fresh install that applies hundreds of migrations stays
+// quiet.
+func (r *reporter) logStep(msg string, fields ...slog.Field) {
+	if r.fromVersion == database.NilVersion {
+		r.logger.Debug(r.runCtx, msg, fields...)
 		return
 	}
-	r.logger.Info(context.Background(), msg, fields...)
+	r.logger.Info(r.runCtx, msg, fields...)
 }
 
-// heartbeat is one running heartbeat. Its mutex orders stop against a tick,
-// so no line is logged after stop returns.
+// heartbeat logs the state of one migration backend every interval until it
+// is stopped. Everything above mu is set at start and only read.
 type heartbeat struct {
+	logger slog.Logger
+	clock  quartz.Clock
+	db     *sql.DB
+	pid    int
+	msg    string
+	fields []slog.Field
+	since  time.Time
+	cancel context.CancelFunc
+	// observerFailed is shared by every heartbeat of the run, so only the
+	// first failed check is logged.
+	observerFailed *atomic.Bool
+
+	// mu guards stopped and is held while a tick logs, so no line is logged
+	// after stop returns.
 	mu      sync.Mutex
 	stopped bool
-	cancel  context.CancelFunc
-	since   time.Time
 }
 
 // stop never waits for a check in flight: canceling a lib/pq query still
@@ -261,39 +265,51 @@ func (h *heartbeat) stop() {
 	h.cancel()
 }
 
-// startHeartbeat replaces the current heartbeat. Every interval it logs msg
-// with elapsed_ms, the activity of backend pid, and fields.
+// tick logs msg with elapsed_ms and the activity of the backend.
+func (h *heartbeat) tick(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	activity, err := backendActivity(ctx, h.db, h.pid)
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.stopped || ctx.Err() != nil {
+		// Stopped during the check: the step or wait is over, so the
+		// result no longer describes anything.
+		return context.Canceled
+	}
+	if err != nil && h.observerFailed.CompareAndSwap(false, true) {
+		// Reporting failures never affect the migration.
+		h.logger.Warn(ctx, msgObserverFailed, slog.Error(err))
+	}
+	line := append([]slog.Field{slog.F("elapsed_ms", h.clock.Since(h.since).Milliseconds())}, activity...)
+	h.logger.Info(ctx, h.msg, append(line, h.fields...)...)
+	return nil
+}
+
+// startHeartbeat replaces the current heartbeat with one for backend pid.
 func (r *reporter) startHeartbeat(msg string, pid int, fields ...slog.Field) {
 	r.stopHeartbeat()
 	ctx, cancel := context.WithCancel(r.runCtx)
-	h := &heartbeat{cancel: cancel, since: r.clock.Now()}
+	h := &heartbeat{
+		logger:         r.logger,
+		clock:          r.clock,
+		db:             r.observerDB,
+		pid:            pid,
+		msg:            msg,
+		fields:         fields,
+		since:          r.clock.Now(),
+		cancel:         cancel,
+		observerFailed: &r.observerFailed,
+	}
 	_ = r.clock.TickerFunc(ctx, r.interval, func() error {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		activity, err := backendActivity(ctx, r.observerDB, pid)
-
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		if h.stopped || ctx.Err() != nil {
-			// Stopped during the check: the step or wait is over, so the
-			// result no longer describes anything.
-			return context.Canceled
-		}
-		if err != nil && r.observerFailed.CompareAndSwap(false, true) {
-			// Only the first failure is logged. Reporting failures never
-			// affect the migration.
-			r.logger.Warn(ctx, msgObserverFailed, slog.Error(err))
-		}
-		line := append([]slog.Field{slog.F("elapsed_ms", r.clock.Since(h.since).Milliseconds())}, activity...)
-		r.logger.Info(ctx, msg, append(line, fields...)...)
-		return nil
+		return h.tick(ctx)
 	}, "migrations", "heartbeat")
 	r.hb = h
 }
 
-// stopHeartbeat stops the current heartbeat, if any, and returns how long it
-// ran.
+// stopHeartbeat stops the current heartbeat, if any, and returns how long it ran.
 func (r *reporter) stopHeartbeat() time.Duration {
 	if r.hb == nil {
 		return 0
@@ -332,20 +348,6 @@ func backendActivity(ctx context.Context, db *sql.DB, pid int) ([]slog.Field, er
 	return fields, nil
 }
 
-// inSource reports whether version is one of the migrations in the source.
-func (r *reporter) inSource(version int) bool {
-	if r.source == nil || version < 0 {
-		return false
-	}
-	//nolint:gosec // Guarded by version >= 0 above.
-	rc, _, err := r.source.ReadUp(uint(version))
-	if err != nil {
-		return false
-	}
-	_ = rc.Close()
-	return true
-}
-
 // pendingFrom lists the source's migrations after version, in order.
 func (r *reporter) pendingFrom(version int) []migrationRef {
 	if r.source == nil {
@@ -364,7 +366,8 @@ func (r *reporter) pendingFrom(version int) []migrationRef {
 	var pending []migrationRef
 	for err == nil {
 		v := int(next) //nolint:gosec // Migration versions are small sequential numbers.
-		pending = append(pending, migrationRef{version: v, name: r.name(v)})
+		name, _ := r.name(v)
+		pending = append(pending, migrationRef{version: v, name: name})
 		next, err = r.source.Next(next)
 	}
 	return pending
@@ -373,25 +376,27 @@ func (r *reporter) pendingFrom(version int) []migrationRef {
 // name returns the identifier golang-migrate parses from the file name, for
 // example "workspace_agent_session_counts" for
 // 000590_workspace_agent_session_counts.up.sql.
-func (r *reporter) name(version int) string {
+// ok is false when the source has no such migration.
+func (r *reporter) name(version int) (name string, ok bool) {
 	if r.source == nil || version < 0 {
-		return ""
+		return "", false
 	}
 	//nolint:gosec // Guarded by version >= 0 above.
 	rc, identifier, err := r.source.ReadUp(uint(version))
 	if err != nil {
-		return ""
+		return "", false
 	}
 	_ = rc.Close()
-	return identifier
+	return identifier, true
 }
 
-func stepFields(ref migrationRef, position, total int) []slog.Field {
+// stepFields identifies the step for version in the current run.
+func (r *reporter) stepFields(version int) []slog.Field {
 	return []slog.Field{
-		slog.F("version", ref.version),
-		slog.F("name", ref.name),
-		slog.F("position", position),
-		slog.F("total", total),
+		slog.F("version", version),
+		slog.F("name", r.names[version]),
+		slog.F("position", r.position),
+		slog.F("total", r.total),
 	}
 }
 

@@ -27,10 +27,10 @@ func TestReporterClosed(t *testing.T) {
 	require.Len(t, sink.Entries(), 1)
 
 	// The run returns on the lock timeout while the attempt still waits.
-	r.close()
+	r.cancel()
 
 	// The abandoned attempt gets the lock later, or another Lock starts and
-	// never stops its heartbeat: close already stopped both.
+	// never stops its heartbeat: cancel already stopped both.
 	r.setBackend(1, "1")
 	r.lockAcquired(phaseBatch)
 	r.lockStarted()
