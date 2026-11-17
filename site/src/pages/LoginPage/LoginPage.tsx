@@ -65,7 +65,8 @@ const LoginPage: React.FC = () => {
 
 	return (
 		<>
-			<title>Sign in to {applicationName}</title>
+			{/* React only sets <title> text from a single string child. */}
+			<title>{`Sign in to ${applicationName}`}</title>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
 				error={signInError ?? redirectError}
