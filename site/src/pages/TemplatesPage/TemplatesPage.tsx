@@ -1,8 +1,8 @@
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
+import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import { templateExamples, templates } from "#/api/queries/templates";
 import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -48,14 +48,13 @@ const TemplatesPage: React.FC = () => {
 		),
 	);
 
-	const deploymentConfigQuery = useQuery({
-		...deploymentConfig(),
+	const builderBasesQuery = useQuery({
+		...templateBuilderBases(),
+		retry: false,
 		enabled: permissions.createTemplates,
 	});
 	const templateBuilderEnabled =
-		deploymentConfigQuery.isSuccess &&
-		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
-		permissions.createTemplates;
+		builderBasesQuery.isSuccess && permissions.createTemplates;
 
 	const error =
 		templatesQuery.error ||
