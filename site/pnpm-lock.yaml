@@ -174,12 +174,14 @@ overrides:
 
 patchedDependencies:
   cmdk@1.1.1: 1fd7e2e50791a6122cefa7103f66878943a4d18d434ebc6d1035e736e538caa5
-  frimousse@0.4.0: 98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665
 
 importers:
 
   .:
     dependencies:
+      '@coder/frimousse':
+        specifier: 0.4.1
+        version: 0.4.1(react@19.3.1)(typescript@6.0.2)
       '@dnd-kit/abstract':
         specifier: 0.5.1
         version: 0.5.1
@@ -291,9 +293,6 @@ importers:
       formik:
         specifier: 2.4.9
         version: 2.4.9(@types/react@19.3.0)(react@19.3.1)
-      frimousse:
-        specifier: 0.4.0
-        version: 0.4.0(patch_hash=98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665)(react@19.3.1)(typescript@6.0.2)
       front-matter:
         specifier: 4.0.2
         version: 4.0.2
@@ -776,6 +775,15 @@ packages:
 
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==, tarball: https://registry.npmjs.org/@chevrotain/types/-/types-11.1.2.tgz}
+
+  '@coder/frimousse@0.4.1':
+    resolution: {integrity: sha512-rjkXblZmqCa5rdfhd1ho11j/DautYGo2hBAzCnolKUTl4KNZB5mu8NdXjtJvF6AboqMzZ2HjZTcXlHZus5F2mg==, tarball: https://registry.npmjs.org/@coder/frimousse/-/frimousse-0.4.1.tgz}
+    peerDependencies:
+      react: ^18 || ^19
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@coder/pixel-storybook@0.3.0':
     resolution: {integrity: sha512-+M3tr9lfjN/B2v3XCYDeAcz4TqZnN80Xa1ezpBS1NejsmhGf6RePWDz9ksgLmHGJ0iCmAypjbCX8BFosOfYeoA==, tarball: https://registry.npmjs.org/@coder/pixel-storybook/-/pixel-storybook-0.3.0.tgz}
@@ -4636,15 +4644,6 @@ packages:
     resolution: {integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==, tarball: https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz}
     engines: {node: '>= 0.6'}
 
-  frimousse@0.4.0:
-    resolution: {integrity: sha512-wA/1Xt9UTk51wYNpy+EvHKPUA4jdm4NuEFzSNNZxqT0Nxrj4RFwYByjRMuaq4qSLOco/ikDCpLKesB8W1w2q+Q==, tarball: https://registry.npmjs.org/frimousse/-/frimousse-0.4.0.tgz}
-    peerDependencies:
-      react: ^18 || ^19
-      typescript: '>=5.1.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   front-matter@4.0.2:
     resolution: {integrity: sha512-I8ZuJ/qG92NWX8i5x1Y8qyj3vizhXS31OxjKDu3LKP+7/qBgfIKValiZIEwoVoJKUHlhWtYrktkxV1XsX+pPlg==, tarball: https://registry.npmjs.org/front-matter/-/front-matter-4.0.2.tgz}
 
@@ -7259,6 +7258,12 @@ snapshots:
       tough-cookie: 4.1.4
 
   '@chevrotain/types@11.1.2': {}
+
+  '@coder/frimousse@0.4.1(react@19.3.1)(typescript@6.0.2)':
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      typescript: 6.0.2
 
   '@coder/pixel-storybook@0.3.0(playwright-core@1.63.0)(storybook@10.6.2(@types/react@19.3.0)(prettier@3.4.1)(react@19.3.1))':
     dependencies:
@@ -10945,12 +10950,6 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
 
   fresh@0.5.2: {}
-
-  frimousse@0.4.0(patch_hash=98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665)(react@19.3.1)(typescript@6.0.2):
-    dependencies:
-      react: 19.3.1
-    optionalDependencies:
-      typescript: 6.0.2
 
   front-matter@4.0.2:
     dependencies:

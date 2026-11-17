@@ -94,6 +94,17 @@ export const SingleGroup: Story = {
 	},
 };
 
+// Tab focus also opens the tooltip. The focus ring outlines the full trigger,
+// which must be at least 24px (WCAG 2.5.8).
+export const TriggerFocused: Story = {
+	args: {
+		sharedWith: [mockUser("alice")],
+	},
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
 export const UsersAndGroups: Story = {
 	args: {
 		sharedWith: [
