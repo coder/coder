@@ -49,14 +49,30 @@ type forwardingHandler struct {
 	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
-// forwardResult describes how forwarding one request ended.
-type forwardResult struct {
-	// status is the final upstream status. Zero when no upstream response was
-	// accepted.
+// forwardedRequest tracks single bridged request
+type forwardedRequest struct {
+	handler *forwardingHandler
+
+	// logger and cred are set by serve after the request passes validation.
+	logger slog.Logger
+	cred   credential.Credential
+
+	// outbound is the request passed to the reverse proxy. Set when the circuit
+	// breaker admits the request, nil otherwise.
+	outbound *http.Request
+	// requestBody captures the outbound request body for replay. Set with
+	// outbound.
+	requestBody *replaybody.TeeBuffer
+
+	// status is the final upstream response status, set by forward.
+	// Zero when no upstream response was accepted.
 	status int
-	// response captures the final upstream response body. Nil when no upstream
-	// response was accepted.
-	response *replaybody.TeeBuffer
+	// responseBody captures the final upstream response body, set by forward.
+	// Nil when no upstream response was accepted.
+	responseBody *replaybody.TeeBuffer
+
+	// err is why forwarding failed, including circuit breaker rejection.
+	err error
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
@@ -114,18 +130,25 @@ func prepareForwardingHeaders(clientHeaders http.Header, cred credential.Credent
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	release, ok := h.inflight.Admit()
+	fr := &forwardedRequest{handler: h}
+	fr.serve(w, r)
+}
+
+// serve admits, validates, and forwards r, recording the outcome in fr.
+func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
+	release, ok := fr.handler.inflight.Admit()
 	if !ok {
 		http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
 		return
 	}
 	defer release()
-	ctx, cleanup := h.inflight.RequestContext(r.Context())
+	ctx, cleanup := fr.handler.inflight.RequestContext(r.Context())
 	defer cleanup()
-	ctx, span := h.tracer.Start(ctx, "Proxy")
+	ctx, span := fr.handler.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	logger, record, cred := h.checkRequest(w, r)
+	var record *recorder.InterceptionRecord
+	fr.logger, record, fr.cred = fr.handler.checkRequest(w, r)
 	if record == nil {
 		return
 	}
@@ -134,15 +157,16 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// duplex, the HTTP/1 server drains the original body past the capture before
 	// writing an early reply. Writers that cannot enable it keep the default drain.
 	if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
-		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
+		fr.logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
 	}
 
-	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
-	if err := h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		outbound, body := replaybody.NewRequest(r)
-		defer func() { _ = body.Close() }()
-		return h.forward(rw, outbound, cred, &forwardResult{}, logger)
-	}); err != nil {
+	route := strings.TrimPrefix(r.URL.Path, "/"+fr.handler.provider.Name())
+	fr.err = fr.handler.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
+		fr.outbound, fr.requestBody = replaybody.NewRequest(r)
+		defer func() { _ = fr.requestBody.Close() }()
+		return fr.forward(rw)
+	})
+	if fr.err != nil {
 		span.SetStatus(codes.Error, "forwarding failed")
 	}
 }
@@ -235,30 +259,30 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	return logger, ir, cred
 }
 
-// forward proxies r upstream and writes the final response after key failover
-// to w. When no upstream response is accepted, it writes an error response and
-// returns the cause.
-func (h *forwardingHandler) forward(w http.ResponseWriter, r *http.Request, cred credential.Credential, res *forwardResult, logger slog.Logger) (err error) {
+// forward proxies fr.outbound upstream and writes the final response after key
+// failover to w. When no upstream response is accepted, it writes an error
+// response and returns the cause.
+func (fr *forwardedRequest) forward(w http.ResponseWriter) (err error) {
 	defer func() {
-		// The capture keeps the upstream body open until it is closed.
-		if res.response != nil {
-			_ = res.response.Close()
+		// Only the capture can close the upstream body. Close it to release the connection.
+		if fr.responseBody != nil {
+			_ = fr.responseBody.Close()
 		}
 	}()
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
-			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
-			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
+			rewriteForwardingURL(pr, fr.handler.provider.RoutePrefix(), fr.handler.baseURL)
+			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, fr.cred)
 		},
-		Transport:     keypool.NewKeyFailoverTransport(h.transport, h.failover),
+		Transport:     keypool.NewKeyFailoverTransport(fr.handler.transport, fr.handler.failover),
 		FlushInterval: -1,
 		// Only the final response returned by key failover is observed.
 		ModifyResponse: func(resp *http.Response) error {
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				return xerrors.New("upstream protocol upgrades are not supported")
 			}
-			res.status = resp.StatusCode
-			res.response = replaybody.NewResponse(resp)
+			fr.status = resp.StatusCode
+			fr.responseBody = replaybody.NewResponse(resp)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, proxyErr error) {
@@ -269,11 +293,11 @@ func (h *forwardingHandler) forward(w http.ResponseWriter, r *http.Request, cred
 				routing.WriteRequestBodyTooLarge(ctx, w)
 				return
 			}
-			logger.Warn(ctx, "upstream proxy error", slog.Error(proxyErr))
+			fr.logger.Warn(ctx, "upstream proxy error", slog.Error(proxyErr))
 			http.Error(w, "upstream proxy error", http.StatusBadGateway)
 		},
-		ErrorLog: h.errorLog,
+		ErrorLog: fr.handler.errorLog,
 	}
-	proxy.ServeHTTP(w, r)
+	proxy.ServeHTTP(w, fr.outbound)
 	return err
 }

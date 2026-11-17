@@ -187,10 +187,10 @@ func (p *ProviderCircuitBreakers) Execute(endpoint, model string, w http.Respons
 		// after an error reading from upstream or writing to the client.
 		// Classify by HTTP status, then re-panic outside gobreaker.
 		defer func() {
-			if v := recover(); v != nil {
+			if recovered := recover(); recovered != nil {
 				//nolint:errorlint // Compare directly, ReverseProxy panics with bare ErrAbortHandler, not a wrapped error.
-				if v != http.ErrAbortHandler {
-					panic(v)
+				if recovered != http.ErrAbortHandler {
+					panic(recovered)
 				}
 				aborted = true
 			}

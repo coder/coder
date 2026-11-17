@@ -135,13 +135,15 @@ func newTestPool(t *testing.T, keys ...string) *keypool.Pool {
 // outside the circuit breaker.
 func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
-	logger, record, cred := h.checkRequest(w, r)
+	fr := &forwardedRequest{handler: h}
+	var record *recorder.InterceptionRecord
+	fr.logger, record, fr.cred = h.checkRequest(w, r)
 	require.NotNil(t, record, "request must pass validation")
-	outbound, body := replaybody.NewRequest(r)
-	t.Cleanup(func() { _ = body.Close() })
-	_ = h.forward(w, outbound, cred, &forwardResult{}, logger)
-	require.NoError(t, body.Close())
-	_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
+	fr.outbound, fr.requestBody = replaybody.NewRequest(r)
+	t.Cleanup(func() { _ = fr.requestBody.Close() })
+	_ = fr.forward(w)
+	require.NoError(t, fr.requestBody.Close())
+	_, err := fr.requestBody.Wait(codertestutil.Context(t, codertestutil.WaitLong))
 	require.NoError(t, err)
 }
 
