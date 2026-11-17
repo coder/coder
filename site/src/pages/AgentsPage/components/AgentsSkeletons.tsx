@@ -1,19 +1,32 @@
 import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	type LocalStorageStore,
+	useLocalStorageStore,
+} from "#/contexts/LocalStorageProvider";
+import { getLocalStorageValue } from "#/hooks/useLocalStorage";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 import {
 	RIGHT_PANEL_OPEN_KEY,
 	RIGHT_PANEL_WIDTH_KEY,
+	rightPanelOpenCodec,
 } from "./RightPanel/RightPanel";
 
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
 
 /** Read persisted right-panel state for use in static skeletons. */
-function getRightPanelState(): { open: boolean; width: number } {
-	const open = localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+function getRightPanelState(store: LocalStorageStore): {
+	open: boolean;
+	width: number;
+} {
+	const open = getLocalStorageValue(
+		store,
+		RIGHT_PANEL_OPEN_KEY,
+		rightPanelOpenCodec,
+	);
 	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
 	let width = DEFAULT_PANEL_WIDTH;
 	if (stored) {
@@ -160,7 +173,8 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  * structure during the brief Suspense fallback.
  */
 export const AgentChatPageSkeleton: React.FC = () => {
-	const rightPanel = getRightPanelState();
+	const localStorageStore = useLocalStorageStore();
+	const rightPanel = getRightPanelState(localStorageStore);
 	const [chatFullWidth] = useChatFullWidth();
 
 	return (

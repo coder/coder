@@ -1,26 +1,11 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { booleanCodec } from "#/hooks/useLocalStorage";
 import { isTurnCompletedChatStatus } from "../components/ChatConversation/chatStore";
 
-const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
+export const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
 
-export function getChimeEnabled(): boolean {
-	try {
-		const stored = localStorage.getItem(CHIME_PREFERENCE_KEY);
-		// Default to disabled when no preference has been saved.
-		return stored === null ? false : stored === "true";
-	} catch {
-		return false;
-	}
-}
-
-export function setChimeEnabled(enabled: boolean): void {
-	try {
-		localStorage.setItem(CHIME_PREFERENCE_KEY, String(enabled));
-	} catch {
-		// Silently ignore storage errors (e.g. private browsing
-		// quota exceeded).
-	}
-}
+// Disabled until the user opts in.
+export const chimeEnabledCodec = booleanCodec(false);
 
 /**
  * Play the completion chime audio file. The file is a short,
@@ -83,7 +68,7 @@ export const LOCK_HOLD_MS = 2000;
  * Falls back to playing immediately when the Web Locks API is
  * not available (preserving the original single-tab behavior).
  */
-function playChime(chatID: string): void {
+export function playChime(chatID: string): void {
 	if (typeof navigator === "undefined" || !navigator.locks) {
 		playChimeAudio();
 		return;
@@ -112,38 +97,34 @@ function playChime(chatID: string): void {
 }
 
 /**
- * Check whether a chat status transition should trigger a chime
- * and play it if so. The chime fires when a running turn completes
- * (see isTurnCompletedChatStatus). The chime is suppressed when
- * the chat is currently visible to the user.
+ * Reports whether a status transition completes a running turn that the user
+ * is not watching. The caller checks the chime preference.
  */
-export function maybePlayChime(
-	prevStatus: TypesGen.ChatStatus | undefined,
-	nextStatus: TypesGen.ChatStatus,
-	chatID: string,
-	activeChatID: string | undefined,
-): void {
+export function shouldPlayChime({
+	prevStatus,
+	nextStatus,
+	chatID,
+	activeChatID,
+	isDocumentHidden,
+}: {
+	prevStatus: TypesGen.ChatStatus | undefined;
+	nextStatus: TypesGen.ChatStatus;
+	chatID: string;
+	activeChatID: string | undefined;
+	isDocumentHidden: boolean;
+}): boolean {
 	if (prevStatus === nextStatus) {
-		return;
+		return false;
 	}
 
 	if (!isTurnCompletedChatStatus(nextStatus)) {
-		return;
+		return false;
 	}
 
 	if (prevStatus !== "running") {
-		return;
+		return false;
 	}
 
-	// Skip when the user is looking at this exact chat.
-	const isViewingThisChat = !document.hidden && chatID === activeChatID;
-	if (isViewingThisChat) {
-		return;
-	}
-
-	if (!getChimeEnabled()) {
-		return;
-	}
-
-	playChime(chatID);
+	const isViewingThisChat = !isDocumentHidden && chatID === activeChatID;
+	return !isViewingThisChat;
 }

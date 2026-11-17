@@ -1,10 +1,12 @@
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
+import { booleanCodec } from "#/hooks/useLocalStorage";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+export const rightPanelOpenCodec = booleanCodec(false);
 export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
 
 const MIN_WIDTH = 360;

@@ -30,6 +30,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { isUUID } from "#/utils/uuid";
@@ -48,7 +49,7 @@ import {
 	buildChatInputContent,
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
-import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { CHIME_PREFERENCE_KEY, chimeEnabledCodec } from "../utils/chime";
 import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
@@ -169,7 +170,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		return false;
 	};
 	const webPush = useWebpushNotifications();
-	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+	const [chimeEnabled, setChimeEnabledState] = useLocalStorage(
+		CHIME_PREFERENCE_KEY,
+		chimeEnabledCodec,
+	);
 
 	// The highlight state persists on its history entry, so only a location
 	// key that differs from the one at mount is a fresh New chat click.
@@ -407,7 +411,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const handleChimeToggle = () => {
 		const next = !chimeEnabled;
 		setChimeEnabledState(next);
-		setChimeEnabled(next);
 	};
 
 	const handleNotificationToggle = async () => {

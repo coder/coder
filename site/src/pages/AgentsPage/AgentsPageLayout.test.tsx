@@ -45,6 +45,7 @@ import AgentsPageLayout, {
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS } from "./utils/agentSidebarFilters";
+import { CHIME_PREFERENCE_KEY } from "./utils/chime";
 
 const ChatPage = () => {
 	const { agentId = "" } = useParams();
@@ -206,6 +207,59 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 		} finally {
 			unsubscribe();
 		}
+	});
+});
+
+describe("AgentsPageLayout completion chime", () => {
+	const unfilteredChats: ChatListInput = {
+		sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+	};
+	const completedEvent: ChatWatchEvent = {
+		kind: "status_change",
+		chat: { ...MockChat, status: "waiting" },
+	};
+
+	let play: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		play = vi
+			.spyOn(HTMLMediaElement.prototype, "play")
+			.mockResolvedValue(undefined);
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+			{ ...MockChat, status: "running" },
+		]);
+	});
+
+	const renderRunningChat = async () => {
+		const publishChatWatchEvent = mockChatWatchSocket();
+		const { queryClient } = renderLayout();
+		await waitFor(() =>
+			expect(
+				queryClient
+					.getQueryData<InfiniteData<Chat[]>>(
+						infiniteChats(unfilteredChats).queryKey,
+					)
+					?.pages.flat()[0]?.status,
+			).toBe("running"),
+		);
+		return publishChatWatchEvent;
+	};
+
+	it("plays the chime when a running turn completes and the preference is on", async () => {
+		localStorage.setItem(CHIME_PREFERENCE_KEY, "true");
+		const publishChatWatchEvent = await renderRunningChat();
+
+		publishChatWatchEvent(completedEvent);
+
+		expect(play).toHaveBeenCalledTimes(1);
+	});
+
+	it("stays silent when the chime preference is off", async () => {
+		const publishChatWatchEvent = await renderRunningChat();
+
+		publishChatWatchEvent(completedEvent);
+
+		expect(play).not.toHaveBeenCalled();
 	});
 });
 
