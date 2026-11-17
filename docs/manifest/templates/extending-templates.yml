@@ -46,6 +46,9 @@ children:
   - title: Docker in workspaces
     description: Run Docker inside container-based Coder workspaces using several supported approaches.
     path: ./templates/extending-templates/docker-in-workspaces.md
+  - title: Sandboxing agents
+    description: Run AI agents in workspaces with fast startup and kernel, network, and secret isolation.
+    path: ./templates/extending-templates/sandboxing-agents.md
   - title: Workspace tags
     description: Route workspace builds to specific provisioners using workspace tags and parameters.
     path: ./templates/extending-templates/workspace-tags.md

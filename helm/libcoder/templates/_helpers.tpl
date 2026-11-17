@@ -43,6 +43,7 @@ Coder Docker image URI
 {{ fail "You must specify the coder.image.tag value if you're installing the Helm chart directly from Git." }}
 {{- end -}}
 {{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}
+{{- with .Values.coder.image.digest }}@{{ . }}{{ end }}
 {{- end }}
 
 {{/*

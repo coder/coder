@@ -25,7 +25,7 @@ After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on th
 ```tf
 resource "docker_container" "workspace" {
   # ...
-  name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name    = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   image   = "codercom/example-base:ubuntu"
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   command = ["sh", "-c", coder_agent.main.init_script]
@@ -68,6 +68,8 @@ variable "workspaces_namespace" {
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
@@ -82,7 +84,7 @@ resource "coder_agent" "main" {
 resource "kubernetes_pod" "dev" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
     namespace = var.workspaces_namespace
     annotations = {
       "io.kubernetes.cri-o.userns-mode" = "auto:size=65536"
@@ -500,6 +502,8 @@ variable "workspaces_namespace" {
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "coder_agent" "main" {
   os             = "linux"
   arch           = "amd64"
@@ -508,7 +512,7 @@ resource "coder_agent" "main" {
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
     namespace = var.namespace
   }
   spec {
@@ -569,6 +573,8 @@ variable "workspaces_namespace" {
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
@@ -578,7 +584,7 @@ resource "coder_agent" "main" {
 resource "kubernetes_pod" "dev" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
     namespace = var.workspaces_namespace
     annotations = {
       "io.kubernetes.cri-o.userns-mode" = "auto:size=65536"

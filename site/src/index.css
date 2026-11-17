@@ -819,6 +819,12 @@
 		@apply h-full;
 	}
 
+	/* Keep focused elements clear of the sticky Navbar and DeploymentBanner
+	when the page scrolls to them. */
+	html {
+		@apply scroll-pt-18 scroll-pb-9;
+	}
+
 	body {
 		@apply bg-surface-primary text-content-primary font-sans antialiased;
 	}
