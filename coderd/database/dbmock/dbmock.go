@@ -4495,6 +4495,21 @@ func (mr *MockStoreMockRecorder) GetGroupByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupByID", reflect.TypeOf((*MockStore)(nil).GetGroupByID), ctx, id)
 }
 
+// GetGroupByIDForUpdate mocks base method.
+func (m *MockStore) GetGroupByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupByIDForUpdate indicates an expected call of GetGroupByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetGroupByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetGroupByIDForUpdate), ctx, id)
+}
+
 // GetGroupByOrgAndName mocks base method.
 func (m *MockStore) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
 	m.ctrl.T.Helper()
@@ -10133,18 +10148,18 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 }
 
 // LockGroupMembersByUserIDForShare mocks base method.
-func (m *MockStore) LockGroupMembersByUserIDForShare(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+func (m *MockStore) LockGroupMembersByUserIDForShare(ctx context.Context, arg database.LockGroupMembersByUserIDForShareParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockGroupMembersByUserIDForShare", ctx, userID)
+	ret := m.ctrl.Call(m, "LockGroupMembersByUserIDForShare", ctx, arg)
 	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // LockGroupMembersByUserIDForShare indicates an expected call of LockGroupMembersByUserIDForShare.
-func (mr *MockStoreMockRecorder) LockGroupMembersByUserIDForShare(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) LockGroupMembersByUserIDForShare(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockGroupMembersByUserIDForShare", reflect.TypeOf((*MockStore)(nil).LockGroupMembersByUserIDForShare), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockGroupMembersByUserIDForShare", reflect.TypeOf((*MockStore)(nil).LockGroupMembersByUserIDForShare), ctx, arg)
 }
 
 // LockOrganizationMembersByUserIDsForShare mocks base method.

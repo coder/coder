@@ -217,10 +217,11 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var removedChatIDs []uuid.UUID
-	err = database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
-		// Reset for retries of this closure.
-		removedChatIDs = nil
-		group, err = tx.GetGroupByID(ctx, group.ID)
+	// READ COMMITTED, not ReadModifyUpdate: each chat sweep below must see
+	// chats attached while its membership delete waited on the attach's lock.
+	// The group row lock serializes concurrent PATCHes instead.
+	err = api.Database.InTx(func(tx database.Store) error {
+		group, err = tx.GetGroupByIDForUpdate(ctx, group.ID)
 		if err != nil {
 			return xerrors.Errorf("get group by ID: %w", err)
 		}
@@ -288,7 +289,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			removedChatIDs = append(removedChatIDs, removed...)
 		}
 		return nil
-	})
+	}, nil)
 
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

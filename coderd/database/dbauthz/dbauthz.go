@@ -4327,6 +4327,10 @@ func (q *querier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Grou
 	return fetch(q.log, q.auth, q.db.GetGroupByID)(ctx, id)
 }
 
+func (q *querier) GetGroupByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Group, error) {
+	return fetch(q.log, q.auth, q.db.GetGroupByIDForUpdate)(ctx, id)
+}
+
 func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
@@ -7553,13 +7557,11 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
-// LockGroupMembersByUserIDForShare spans every organization the user is in,
-// so it is a system operation.
-func (q *querier) LockGroupMembersByUserIDForShare(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+func (q *querier) LockGroupMembersByUserIDForShare(ctx context.Context, arg database.LockGroupMembersByUserIDForShareParams) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
 		return nil, err
 	}
-	return q.db.LockGroupMembersByUserIDForShare(ctx, userID)
+	return q.db.LockGroupMembersByUserIDForShare(ctx, arg)
 }
 
 func (q *querier) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {

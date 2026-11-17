@@ -2392,6 +2392,14 @@ func (m queryMetricsStore) GetGroupByID(ctx context.Context, id uuid.UUID) (data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetGroupByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Group, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetGroupByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupByIDForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGroupByOrgAndName(ctx, arg)
@@ -5344,7 +5352,7 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockGroupMembersByUserIDForShare(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+func (m queryMetricsStore) LockGroupMembersByUserIDForShare(ctx context.Context, userID database.LockGroupMembersByUserIDForShareParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockGroupMembersByUserIDForShare(ctx, userID)
 	m.queryLatencies.WithLabelValues("LockGroupMembersByUserIDForShare").Observe(time.Since(start).Seconds())

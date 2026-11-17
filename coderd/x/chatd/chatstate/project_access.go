@@ -38,7 +38,11 @@ func lockChatProjectAccess(ctx context.Context, store database.Store, projectID,
 	}); err != nil {
 		return xerrors.Errorf("lock organization membership: %w", err)
 	}
-	if _, err := store.LockGroupMembersByUserIDForShare(sysCtx, ownerID); err != nil {
+	// Only groups in the project's organization can grant access.
+	if _, err := store.LockGroupMembersByUserIDForShare(sysCtx, database.LockGroupMembersByUserIDForShareParams{
+		UserID:         ownerID,
+		OrganizationID: project.OrganizationID,
+	}); err != nil {
 		return xerrors.Errorf("lock group memberships: %w", err)
 	}
 	if _, err := store.GetChatProjectByIDForShare(sysCtx, projectID); err != nil {

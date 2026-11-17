@@ -1,0 +1,1 @@
+-- no-op. The up migration does not record which project each moved chat was in.

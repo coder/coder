@@ -503,6 +503,9 @@ func TestChatProjectOwnerRemovedChatsLeaveProject(t *testing.T) {
 		{"Organization", func(ctx context.Context, client *codersdk.ExperimentalClient, project codersdk.ChatProject, user codersdk.User) error {
 			return client.DeleteOrganizationMember(ctx, project.OrganizationID, user.ID.String())
 		}},
+		{"DeleteUser", func(ctx context.Context, client *codersdk.ExperimentalClient, _ codersdk.ChatProject, user codersdk.User) error {
+			return client.DeleteUser(ctx, user.ID)
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

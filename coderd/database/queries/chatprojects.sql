@@ -89,7 +89,8 @@ SELECT EXISTS (
 -- Moves chats out of projects their owners can no longer use. Callers run it
 -- after any change that can remove project access, narrowed by whichever of
 -- project, owner, and organization the change affects. The access check must
--- match IsChatProjectUsableByUserID. Only root chats have a project_id, and
+-- match IsChatProjectUsableByUserID (migration 000644 copies it for a one-time
+-- backfill). Only root chats have a project_id, and
 -- updated_at is not touched, matching UpdateChatProjectIDByID. Rows are locked
 -- in id order so concurrent removals cannot deadlock each other.
 WITH unusable AS (
