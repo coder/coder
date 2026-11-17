@@ -34,7 +34,10 @@ type AISpendPageViewProps = {
 	organizationsError: Error | null;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
+	unpricedModels: readonly TypesGen.UnpricedAIModel[] | undefined;
+	isUnpricedModelsLoading: boolean;
 };
 
 export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
@@ -48,7 +51,10 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	organizationsError,
 	days,
 	onDaysChange,
+	overview,
 	overviewError,
+	unpricedModels,
+	isUnpricedModelsLoading,
 }) => {
 	if (!isEntitled) {
 		return (
@@ -122,7 +128,10 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}
+							overview={overview}
 							overviewError={overviewError}
+							unpricedModels={unpricedModels}
+							isUnpricedModelsLoading={isUnpricedModelsLoading}
 						/>
 					</TabsContent>
 				</Tabs>
