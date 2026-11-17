@@ -5312,7 +5312,23 @@ func (api *API) checkChatCreateWorkspaceTemplate(ctx context.Context, chatID uui
 		}
 		templateID = version.TemplateID.UUID
 	}
-	return api.checkChatProjectTemplate(ctx, project, templateID)
+	if status, resp := api.checkChatProjectTemplate(ctx, project, templateID); resp != nil {
+		return status, resp
+	}
+	if req.TemplateVersionPresetID == uuid.Nil {
+		return 0, nil
+	}
+	// Workspace creation claims a prebuilt workspace by its preset alone, so
+	// a preset of another template is held to the limit like that template.
+	preset, err := api.Database.GetPresetByID(ctx, req.TemplateVersionPresetID)
+	if httpapi.Is404Error(err) {
+		// A preset the owner cannot read claims nothing.
+		return 0, nil
+	}
+	if err != nil {
+		return failed("Failed to get template version preset.", err)
+	}
+	return api.checkChatProjectTemplate(ctx, project, preset.TemplateID.UUID)
 }
 
 // chatProject returns the project the chat is in, or nil when it has none or

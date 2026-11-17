@@ -111,7 +111,7 @@ func ChatProjectTemplate(t testing.TB, db database.Store, seed database.ChatProj
 		CreatedBy:   takeFirst(seed.CreatedBy, uuid.New()),
 	})
 	require.NoError(t, err, "attach chat project template")
-	require.Len(t, attached, 1, "template was already attached")
+	require.Len(t, attached, 1, "template was already attached or is outside the project's organization")
 	return attached[0]
 }
 
