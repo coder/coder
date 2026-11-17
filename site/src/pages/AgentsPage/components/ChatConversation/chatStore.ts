@@ -180,10 +180,6 @@ export type ChatStore = {
 		action: PendingAction,
 		request: () => Promise<unknown>,
 	) => Promise<void>;
-	// Call when a stream connection is requested. The returned function ends
-	// the pending actions whose requests had resolved by then; call it when
-	// that connection applies its first status event for the chat.
-	captureResolvedActions: () => () => void;
 	setClientError: (reason: ChatDetailError) => void;
 	clearClientError: () => void;
 	setRetryState: (state: RetryState) => void;
@@ -227,8 +223,6 @@ export const createChatStore = (): ChatStore => {
 	let historyResetVersion = 0;
 	let nextPendingActionID = 1;
 	let nextPendingRowID = Number.MAX_SAFE_INTEGER;
-	// The pending actions whose requests resolved.
-	let resolvedActionIDs = new Set<number>();
 	// The highest message ID and the queued row IDs that the store has
 	// received. User content with other IDs is new. The server can deliver a
 	// steer row before an older queue row, so rows have no highest ID.
@@ -527,14 +521,14 @@ export const createChatStore = (): ChatStore => {
 				// row under edit, so a begin also replaces an earlier begin on
 				// another row, whose result can no longer show. A message edit
 				// deletes the edited message and those after it and clears the
-				// queue, so it replaces the earlier sends, whose results cannot
-				// show.
+				// queue, so it replaces the earlier sends and message edits,
+				// whose results cannot show.
 				pendingEntries: [
 					...current.pendingEntries.filter(
 						({ action: earlier }) =>
 							(rowID === undefined || queuedRowID(earlier) !== rowID) &&
 							!(isEditBegin(action) && isEditBegin(earlier)) &&
-							!(action.kind === "edit" && earlier.kind === "send"),
+							!(action.kind === "edit" && queuedRowID(earlier) === undefined),
 					),
 					entry,
 				],
@@ -545,18 +539,6 @@ export const createChatStore = (): ChatStore => {
 				removePending((pending) => pending.actionID === actionID);
 				throw error;
 			}
-			resolvedActionIDs.add(actionID);
-		},
-		captureResolvedActions: () => {
-			const resolvedAtCapture = new Set(
-				state.pendingEntries
-					.map((entry) => entry.actionID)
-					.filter((id) => resolvedActionIDs.has(id)),
-			);
-			// Forgets the actions that already ended.
-			resolvedActionIDs = new Set(resolvedAtCapture);
-			return () =>
-				removePending((entry) => resolvedAtCapture.has(entry.actionID));
 		},
 		setClientError: (reason) => {
 			setState((current) => {

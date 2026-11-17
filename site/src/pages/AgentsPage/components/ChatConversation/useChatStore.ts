@@ -221,7 +221,6 @@ export const useChatStore = (
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 			socket: { close: () => void },
-			endResolvedActions: () => void,
 		) => {
 			if (disposed) {
 				return;
@@ -344,7 +343,6 @@ export const useChatStore = (
 							store.clearRetryState();
 							const prevStatus = store.getSnapshot().chatStatus;
 							store.applyServerChatStatus(nextStatus);
-							endResolvedActions();
 							if (streamReportedTurnCompleted) {
 								discardBufferedParts();
 							}
@@ -434,15 +432,10 @@ export const useChatStore = (
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
-				// The server reads the chat after it receives the connection
-				// request, so the connection's first read holds the result of
-				// every request that resolved before this call. Its status event
-				// follows its messages and queue.
-				const endResolvedActions = store.captureResolvedActions();
 				// The server sends the changes made at or after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
 				socket.addEventListener("message", (payload) =>
-					handleMessage(payload, socket, endResolvedActions),
+					handleMessage(payload, socket),
 				);
 				return socket;
 			},

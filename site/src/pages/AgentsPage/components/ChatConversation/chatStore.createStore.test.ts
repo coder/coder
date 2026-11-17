@@ -1017,29 +1017,12 @@ describe("pending actions", () => {
 	};
 	// The edit deletes messages 3 and 4, clears the queue that held the send,
 	// and stores message 5.
-	const storeEditResult = (store: ChatStore, afterRead?: () => void) =>
+	const storeEditResult = (store: ChatStore) =>
 		store.batch(() => {
 			store.resetHistoryFrom(3, 7);
 			store.upsertDurableMessages([makeMessage(5, "user", "c2")]);
 			store.setQueuedMessages([]);
-			afterRead?.();
 		});
-
-	it("ends an edit whose request is in flight at a reconnect's first read", async () => {
-		const store = seededStore(mockTurnMessages, [], "running");
-		await store.runPendingAction(pendingSend("S1", "queue"), () =>
-			Promise.resolve(),
-		);
-		addPending(store, editThird);
-
-		storeEditResult(store, store.captureResolvedActions());
-
-		expect(store.getSnapshot().pendingEntries).toEqual([]);
-		expect(visible(store)).toEqual({
-			transcript: ["user:first", "assistant:b", "user:c2"],
-			queue: [],
-		});
-	});
 
 	it("ends a send and an edit that one read reports together", () => {
 		const store = seededStore(mockTurnMessages, [], "running");
@@ -1051,6 +1034,39 @@ describe("pending actions", () => {
 		expect(store.getSnapshot().pendingEntries).toEqual([]);
 		expect(visible(store)).toEqual({
 			transcript: ["user:first", "assistant:b", "user:c2"],
+			queue: [],
+		});
+	});
+
+	it("ends two edits and a send that one read reports together", () => {
+		const store = seededStore(
+			[...mockTurnMessages, makeMessage(5, "user", "e")],
+			[],
+			"running",
+		);
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 5,
+			content: [{ type: "text", text: "e2" }],
+		});
+		addPending(store, editThird);
+		addPending(store, pendingSend("S"));
+
+		// The second edit deleted the first edit's message, so the read holds
+		// one edit's message and the delivered send.
+		store.batch(() => {
+			store.resetHistoryFrom(5, 6);
+			store.resetHistoryFrom(3, 7);
+			store.upsertDurableMessages([
+				makeMessage(8, "user", "c2"),
+				delivered(10, "S", 9),
+			]);
+			store.setQueuedMessages([]);
+		});
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "assistant:b", "user:c2", "user:S"],
 			queue: [],
 		});
 	});

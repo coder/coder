@@ -4972,88 +4972,7 @@ describe("chat stream contract", () => {
 		},
 	);
 
-	it("ends at a reconnect's first status the actions whose requests resolved before it", async () => {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
-		const sockets = mockWatchChatWithFreshSockets();
-		const { result } = renderChat(
-			page([
-				buildMessage(chatID, 1, "user", "prompt"),
-				buildMessage(chatID, 2, "assistant", "answer"),
-			]),
-		);
-		await waitFor(() => expect(sockets).toHaveLength(1));
-		const { store } = result.current;
-		await act(async () => {
-			store.applyServerChatStatus("running");
-			for (const [text, busyBehavior] of [
-				["S1", "queue"],
-				["S2", "steer"],
-			] as const) {
-				await store.runPendingAction(
-					{
-						kind: "send",
-						busyBehavior,
-						chatID,
-						content: [{ type: "text", text }],
-					},
-					() => Promise.resolve(),
-				);
-			}
-		});
-		expect(result.current.pendingRowCount).toBe(2);
-
-		// The stream reconnects after both requests resolved. Its first read
-		// holds both results: S2 delivered from row 8, S1 still queued as row
-		// 7, so counting new content ends only one send.
-		act(() => {
-			sockets[0].emitError();
-		});
-		await act(async () => {
-			vi.advanceTimersByTime(1_500);
-		});
-		expect(sockets).toHaveLength(2);
-		const shownCounts: number[] = [];
-		store.subscribe(() => {
-			const snapshot = store.getSnapshot();
-			shownCounts.push(
-				selectOrderedMessageIDs(snapshot).length +
-					selectQueuedMessages(snapshot).length,
-			);
-		});
-		act(() => {
-			sockets[1].emitOpen();
-			sockets[1].emitDataBatch([
-				{
-					type: "message",
-					chat_id: chatID,
-					message: {
-						...buildMessage(chatID, 3, "user", "S2"),
-						queued_message_id: 8,
-					},
-					snapshot_version: 7,
-				},
-				{
-					type: "queue_update",
-					chat_id: chatID,
-					queued_messages: [buildQueuedMessage(chatID, 7, "S1")],
-					snapshot_version: 7,
-				},
-				statusEvent(chatID),
-			]);
-		});
-
-		expect(result.current).toMatchObject({
-			messageIDs: [1, 2, 3],
-			queuedIDs: [7],
-			pendingRowCount: 0,
-		});
-		expect(store.getSnapshot().pendingEntries).toEqual([]);
-		// Each send shows once in every update: as its pending row or as
-		// what the stream stored.
-		expect(shownCounts).toEqual(shownCounts.map(() => 4));
-	});
-
-	it("ends the resolved actions only after the first read's last message", async () => {
+	it("shows a delete and a send once through a first read in two WebSocket messages", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat({
@@ -5119,34 +5038,6 @@ describe("chat stream contract", () => {
 		});
 		expect(shownQueues.length).toBeGreaterThan(1);
 		expect(shownQueues).toEqual(shownQueues.map(() => ["sent"]));
-	});
-
-	it("keeps an action whose request resolved after the connection was requested", async () => {
-		const sockets = mockWatchChatWithFreshSockets();
-		const { result } = renderChat(
-			page([buildMessage(chatID, 1, "user", "prompt")]),
-		);
-		await waitFor(() => expect(sockets).toHaveLength(1));
-		const { store } = result.current;
-		await act(async () => {
-			store.applyServerChatStatus("running");
-			await store.runPendingAction(
-				{
-					kind: "send",
-					busyBehavior: "queue",
-					chatID,
-					content: [{ type: "text", text: "queued" }],
-				},
-				() => Promise.resolve(),
-			);
-		});
-
-		act(() => {
-			sockets[0].emitOpen();
-			sockets[0].emitData(statusEvent(chatID));
-		});
-
-		expect(result.current.pendingRowCount).toBe(1);
 	});
 
 	it("keeps a delete's result through a reconnect that resends its events", async () => {
