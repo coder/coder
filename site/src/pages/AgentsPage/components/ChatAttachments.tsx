@@ -2,7 +2,6 @@ import { FileIcon } from "lucide-react";
 import { useId } from "react";
 import { useQueries } from "react-query";
 import { chatFileText } from "#/api/queries/chats";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Collapsible,
@@ -10,6 +9,7 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { AttachmentsErrorAlert } from "./AttachmentsErrorAlert";
 import {
 	expiredAttachmentExplanation,
 	getAttachmentDisplayName,
@@ -20,7 +20,6 @@ import {
 	MessageAttachmentCard,
 } from "./ChatConversation/MessageAttachmentCard";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
-import { RetryButton } from "./RetryButton";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
@@ -95,17 +94,7 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 					</p>
 				)}
 				{earlierAttachmentsError ? (
-					<ErrorAlert
-						error={earlierAttachmentsError}
-						actions={
-							<RetryButton
-								variant="outline"
-								size="sm"
-								isRetrying={isRetrying}
-								onRetry={onRetry}
-							/>
-						}
-					/>
+					<AttachmentsErrorAlert isRetrying={isRetrying} onRetry={onRetry} />
 				) : null}
 			</CollapsibleContent>
 		</Collapsible>
