@@ -317,6 +317,18 @@ Each start creates a new token.
 Coder can't revoke it at stop, so it stays valid until the deployment's default token lifetime ends.
 For a full version that also handles prebuilds, refer to the [Plain Sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-sandboxed) template.
 
+The scoped token helps only if the workspace has no other copy of the session token.
+Coder doesn't set `CODER_SESSION_TOKEN` in a workspace by itself.
+The [coder-login module](https://registry.coder.com/modules/coder/coder-login) sets it, so the `coder` CLI in the workspace acts as the owner.
+Other modules also inject the session token when you turn on their AI Gateway option, such as `ANTHROPIC_AUTH_TOKEN` in the [Claude Code module](https://registry.coder.com/modules/coder/claude-code) with `enable_ai_gateway = true`.
+To keep the session token out of the workspace:
+
+- Remove the coder-login module.
+- Turn off the AI Gateway option in agent modules, and set the scoped token yourself, as in the example.
+- Search the template for other references to `data.coder_workspace_owner.me.session_token`, and keep only those used at build time, such as the `http` data source in the example.
+
+Then run `env | grep -i token` in a workspace to confirm that only the scoped token and `CODER_AGENT_TOKEN` are there.
+
 ### Provision just-in-time credentials
 
 Create a short-lived credential for each workspace start, instead of a long-lived key in the image or a user secret.
