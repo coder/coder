@@ -967,16 +967,34 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 	}
 
 	adminPath := cfg.passwordPath(adminPasswordFile)
+	hasUser := loggedIn
 	if !loggedIn {
-		hasUser, err := client.HasFirstUser(ctx)
+		var err error
+		hasUser, err = client.HasFirstUser(ctx)
 		if err != nil {
 			return nil, xerrors.Errorf("checking first user: %w", err)
 		}
+	}
+	if hasUser && cfg.password == "" {
+		replaced, err := replaceOldDefaultAdmin(ctx, client, adminPath)
+		if err != nil {
+			logger.Warn(ctx, "failed to replace the old default password of admin@coder.com", slog.Error(err))
+		}
+		if replaced {
+			logger.Info(ctx, "replaced the old default password", slog.F("email", "admin@coder.com"))
+			// The server deleted the saved session together with the
+			// password, so develop signs in again below.
+			loggedIn = false
+			client.SetSessionToken("")
+		}
+	}
 
+	if !loggedIn {
 		// A password is generated only when develop is about to create
-		// the user. A user that exists without a password file was
-		// created some other way, and develop does not know its
-		// password.
+		// the user or has just replaced the old default. A user that
+		// exists without a password file has a password develop does
+		// not know.
+		var err error
 		password := cfg.password
 		switch {
 		case password != "":
@@ -1061,6 +1079,13 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 			cfg.memberLogin = devLogin{password: memberPassword, seeded: true}
 		}
 	} else {
+		replaced, err := replaceOldDefault(ctx, client, "member", memberPath)
+		if err != nil {
+			logger.Warn(ctx, "failed to replace the old default password of member@coder.com", slog.Error(err))
+		}
+		if replaced {
+			logger.Info(ctx, "replaced the old default password", slog.F("email", "member@coder.com"))
+		}
 		cfg.memberLogin = cfg.knownLogin(ctx, logger, "member@coder.com", memberPath, "")
 	}
 
@@ -1083,15 +1108,72 @@ func (c *devConfig) checkPasswordFiles() error {
 	return err
 }
 
+// replaceOldDefaultAdmin signs in with the old default when develop has
+// no session, because the password can only be changed by a signed-in
+// user.
+func replaceOldDefaultAdmin(ctx context.Context, client *codersdk.Client, path string) (bool, error) {
+	if _, ok, err := readPassword(path); err != nil || ok {
+		return false, err
+	}
+	if client.SessionToken() == "" {
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "admin@coder.com",
+			Password: oldDefaultPassword,
+		})
+		if err != nil {
+			if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusUnauthorized {
+				return false, nil
+			}
+			return false, xerrors.Errorf("sign in with the old default password: %w", err)
+		}
+		client.SetSessionToken(resp.SessionToken)
+		defer client.SetSessionToken("")
+	}
+	return replaceOldDefault(ctx, client, codersdk.Me, path)
+}
+
+// replaceOldDefault gives an existing user a generated password when
+// its password is still the old default, which is public. The server
+// checks the old password, so a password that was changed by hand is
+// kept. It reports false when the user keeps its password.
+func replaceOldDefault(ctx context.Context, client *codersdk.Client, user, path string) (bool, error) {
+	if _, ok, err := readPassword(path); err != nil || ok {
+		return false, err
+	}
+	password, err := loadOrCreatePassword(path)
+	if err != nil {
+		return false, err
+	}
+	err = client.UpdateUserPassword(ctx, user, codersdk.UpdateUserPasswordRequest{
+		OldPassword: oldDefaultPassword,
+		Password:    password,
+	})
+	if err == nil {
+		return true, nil
+	}
+	// A stored password that the server did not accept would be shown
+	// in the banner and tried at the next sign-in.
+	if rmErr := os.Remove(path); rmErr != nil {
+		return false, xerrors.Errorf("remove unused password file %s: %w", path, rmErr)
+	}
+	if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusBadRequest {
+		for _, v := range apiErr.Validations {
+			if v.Field == "old_password" {
+				return false, nil
+			}
+		}
+	}
+	return false, xerrors.Errorf("update password: %w", err)
+}
+
 func (*devConfig) knownLogin(ctx context.Context, logger slog.Logger, email, path, override string) devLogin {
 	if override != "" {
 		return devLogin{password: override, fromFlag: true, seeded: true}
 	}
 	password, ok, err := readPassword(path)
 	if err != nil || !ok {
-		logger.Warn(ctx, fmt.Sprintf("develop.sh did not generate the password of %s on this instance. "+
-			"If it is still the old public default, anyone who can reach this instance can sign in as that user. "+
-			"Run with --db-reset, or change the password in the dashboard.", email))
+		logger.Warn(ctx, fmt.Sprintf("develop.sh does not know the password of %s on this instance, so the banner cannot show it. "+
+			"Save the password in %s to have develop.sh use it.", email, path))
 		return devLogin{seeded: true}
 	}
 	return devLogin{password: password, seeded: true}

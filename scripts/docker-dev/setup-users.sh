@@ -24,10 +24,10 @@ if [ -n "${CODER_DEV_MEMBER_PASSWORD:-}" ]; then
 elif [ -s "$MEMBER_PASSWORD_FILE" ]; then
 	PASSWORD="$(cat "$MEMBER_PASSWORD_FILE")"
 elif $CODER users show member >/dev/null 2>&1; then
-	# setup-init writes the password file only when it creates the first
-	# user, so an environment created before passwords were generated has
-	# the member but no file.
-	warn_password_not_generated member@coder.com
+	# setup-init writes the password file when it creates the first user
+	# or replaces the old default, so a member without a file has a
+	# password that was set some other way.
+	warn_password_unknown member@coder.com
 	echo "Member login: member@coder.com (password was not set by this environment)"
 	echo "=== Users setup complete ==="
 	exit 0

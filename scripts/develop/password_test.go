@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
@@ -233,6 +235,99 @@ func TestSetupFirstUser(t *testing.T) {
 		require.NoError(t, signIn(t, client, "member@coder.com", cfg.memberLogin.password))
 	})
 
+	// oldInstance stands in for an instance from before passwords were
+	// generated: both users have the old default and there is no file.
+	oldInstance := func(t *testing.T) (*codersdk.Client, *devConfig) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, nil)
+		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email:    "admin@coder.com",
+			Username: "admin",
+			Password: oldDefaultPassword,
+		})
+		require.NoError(t, err)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "admin@coder.com",
+			Password: oldDefaultPassword,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		org, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+		require.NoError(t, err)
+		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "member@coder.com",
+			Username:        "member",
+			Password:        oldDefaultPassword,
+			UserLoginType:   codersdk.LoginTypePassword,
+			OrganizationIDs: []uuid.UUID{org.ID},
+		})
+		require.NoError(t, err)
+
+		cfg := &devConfig{configDir: t.TempDir()}
+		require.NoError(t, config.Root(cfg.configDir).Session().Write(resp.SessionToken))
+		return client, cfg
+	}
+	requireOldDefaultReplaced := func(t *testing.T, client *codersdk.Client, cfg *devConfig, devClient *codersdk.Client) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		admin, ok, err := readPassword(cfg.passwordPath(adminPasswordFile))
+		require.NoError(t, err)
+		require.True(t, ok)
+		member, ok, err := readPassword(cfg.passwordPath(memberPasswordFile))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, devLogin{password: admin, seeded: true}, cfg.adminLogin)
+		require.Equal(t, devLogin{password: member, seeded: true}, cfg.memberLogin)
+
+		require.NoError(t, signIn(t, client, "admin@coder.com", admin))
+		require.NoError(t, signIn(t, client, "member@coder.com", member))
+		for _, email := range []string{"admin@coder.com", "member@coder.com"} {
+			requireUnauthorized(t, signIn(t, client, email, oldDefaultPassword))
+		}
+
+		// The password change revoked the session develop started
+		// with, so it must have saved a new one.
+		_, err = devClient.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		saved, err := config.Root(cfg.configDir).Session().Read()
+		require.NoError(t, err)
+		require.Equal(t, devClient.SessionToken(), saved)
+	}
+
+	t.Run("OldDefaultIsReplacedWithASavedSession", func(t *testing.T) {
+		t.Parallel()
+		client, cfg := oldInstance(t)
+
+		devClient, err := setupFirstUser(testutil.Context(t, testutil.WaitLong), testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		requireOldDefaultReplaced(t, client, cfg, devClient)
+	})
+
+	t.Run("OldDefaultIsReplacedWithoutASession", func(t *testing.T) {
+		t.Parallel()
+		client, cfg := oldInstance(t)
+		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
+
+		devClient, err := setupFirstUser(testutil.Context(t, testutil.WaitLong), testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		requireOldDefaultReplaced(t, client, cfg, devClient)
+	})
+
+	t.Run("OverrideLeavesTheAdminPasswordAlone", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, cfg := oldInstance(t)
+		// validate refuses this value. It is set here only to show that
+		// an override stops develop from changing the admin password.
+		cfg.password = oldDefaultPassword
+
+		_, err := setupFirstUser(ctx, testutil.Logger(t), cfg, client.URL.String())
+		require.NoError(t, err)
+		require.NoFileExists(t, cfg.passwordPath(adminPasswordFile))
+		require.NoError(t, signIn(t, client, "admin@coder.com", oldDefaultPassword))
+		requireUnauthorized(t, signIn(t, client, "member@coder.com", oldDefaultPassword))
+		require.NoError(t, signIn(t, client, "member@coder.com", cfg.memberLogin.password))
+	})
+
 	t.Run("UsersCreatedElsewhereKeepTheirPasswords", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -247,7 +342,9 @@ func TestSetupFirstUser(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, os.Remove(first.passwordPath(memberPasswordFile)))
 
-		// With a saved session develop carries on and writes no file.
+		// With a saved session develop carries on. The server refuses
+		// the change because neither password is the old default, so no
+		// file is left behind.
 		cfg := &devConfig{configDir: first.configDir}
 		_, err = setupFirstUser(ctx, logger, cfg, client.URL.String())
 		require.NoError(t, err)
@@ -256,8 +353,9 @@ func TestSetupFirstUser(t *testing.T) {
 		require.NoFileExists(t, cfg.passwordPath(adminPasswordFile))
 		require.NoFileExists(t, cfg.passwordPath(memberPasswordFile))
 		require.NoError(t, signIn(t, client, "admin@coder.com", elsewhere))
+		require.NoError(t, signIn(t, client, "member@coder.com", first.memberLogin.password))
 
-		// Without a session develop has no password to try.
+		// Without a session develop has no password that works.
 		require.NoError(t, os.Remove(filepath.Join(cfg.configDir, "session")))
 		_, err = setupFirstUser(ctx, logger, &devConfig{configDir: cfg.configDir}, client.URL.String())
 		require.ErrorIs(t, err, errUnknownAdminPassword)
