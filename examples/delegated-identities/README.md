@@ -42,11 +42,11 @@ agent in it is to Coder.
 
 ## Where it is used
 
-| Where       | How an agent comes to act under a delegated identity                                                                                   |
-|-------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| Workspaces  | `coder create <identity>/<name>` creates a workspace on behalf of the identity. The session token in it is the identity's.             |
-| Chats       | A chat is created with the identity as its owner. Its tools create workspaces the identity owns, and its model calls carry its key.    |
-| Agent Relay | The relay's service account creates an identity under the developer it matched, and builds the session's workspace on behalf of it.    |
+| Where       | How an agent comes to act under a delegated identity                                                                                                                                     |
+|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Workspaces  | `coder create <identity>/<name>` creates a workspace on behalf of the identity. The session token in it is the identity's.                                                               |
+| Chats       | A chat is created with the identity as its owner. It creates its workspace on behalf of the identity, for whoever sent its latest message, and its model calls carry the identity's key. |
+| Agent Relay | The relay's service account creates an identity under the developer it matched, and builds the session's workspace on behalf of it.                                                      |
 
 In all three the accounts above the identity can enter its workspaces,
 through workspace sharing, and the identity gets nothing of theirs in

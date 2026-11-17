@@ -70,11 +70,12 @@ results on the next request, with the same tokens and no rebuild.
 
 ## What is not done
 
-- **Chat tools are only partly held to the identity's scopes.** Creating,
-  starting and stopping a workspace are. Listing and reading templates, and
-  the chat's own bookkeeping, run with the root user's roles. Holding every
-  tool to the scopes needs chats to tell a tool's action from their own
-  bookkeeping.
+- **A chat's tools are not held to the identity's scopes.** A chat creates,
+  starts and stops its workspace on behalf of the identity, for whoever sent
+  its latest message, so the identity needs no scopes for it and the sender
+  is recorded as who asked. Listing and reading templates, and the chat's own
+  bookkeeping, run with the root user's roles. The scopes decide only when
+  the identity sent the message itself, or the sender may not use it.
 - **Nothing creates an identity for a chat by itself.** The caller names the
   identity as the owner. A person's chat list does not show the chats of
   their identities.

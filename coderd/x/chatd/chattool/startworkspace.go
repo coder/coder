@@ -172,7 +172,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				)
 			}
 
-			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, startReq)
+			startBuild, err := options.StartFn(WithChatID(ownerCtx, chatID), options.OwnerID, ws.ID, startReq)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()

@@ -19,6 +19,22 @@ const templateNotAvailableMessage = "template not available for chat workspaces;
 // chat's workspace so the model recovers instead of concluding it is blocked.
 const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
 
+type chatIDContextKey struct{}
+
+// WithChatID returns a context that names the chat a workspace is started or
+// stopped for. StartWorkspaceFn and StopWorkspaceFn take no chat, and read it
+// from the context to tell who the chat is working for.
+func WithChatID(ctx context.Context, chatID uuid.UUID) context.Context {
+	return context.WithValue(ctx, chatIDContextKey{}, chatID)
+}
+
+// ChatIDFromContext returns the chat named by WithChatID, or uuid.Nil when
+// the context names none.
+func ChatIDFromContext(ctx context.Context) uuid.UUID {
+	chatID, _ := ctx.Value(chatIDContextKey{}).(uuid.UUID)
+	return chatID
+}
+
 func workspaceLoadErrorResponse(err error) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(
 		xerrors.Errorf("load workspace: %w. %s", err, WorkspaceUnavailableHint).Error(),

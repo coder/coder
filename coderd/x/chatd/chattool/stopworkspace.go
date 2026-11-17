@@ -147,7 +147,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			stopBuild, err := options.StopFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			stopBuild, err := options.StopFn(WithChatID(ownerCtx, chatID), options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			})
 			if err != nil {

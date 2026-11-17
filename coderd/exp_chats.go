@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/coderd/x/skills"
@@ -4479,15 +4480,16 @@ func (api *API) chatCreateWorkspace(
 	if err != nil {
 		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load user authorization: %w", err)
 	}
-	// The workspace is created within what the owner's tools may do, which
-	// is less than the owner's own when the owner is a delegated identity.
-	// The chat's own bookkeeping stays the owner's.
-	toolActor, identities, err := api.chatToolSubject(ctx, ownerID)
+	// A chat of a delegated identity creates its workspace on behalf of the
+	// identity, for whoever the chat is working for. The chat's own
+	// bookkeeping stays the owner's.
+	workspaceActor, err := api.chatWorkspaceActor(ctx, ownerID, chatID)
 	if err != nil {
-		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load tool authorization: %w", err)
+		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load workspace authorization: %w", err)
 	}
+	identities := workspaceActor.identities
 	ctx = dbauthz.As(ctx, actor)
-	createCtx := dbauthz.As(ctx, toolActor)
+	createCtx := dbauthz.As(ctx, workspaceActor.subject)
 
 	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
@@ -4533,11 +4535,22 @@ func (api *API) chatCreateWorkspace(
 			WorkspaceOwner: owner.Username,
 		},
 	})
-	aReq.UserID = ownerID
+	aReq.UserID = workspaceActor.initiatorID
 	defer commitAudit()
 
+	if workspaceActor.requester != nil {
+		// Nothing is created on behalf of an identity that the account
+		// asking could not create for itself.
+		requesterCtx := dbauthz.As(ctx, *workspaceActor.requester)
+		requester := workspaceOwner{ID: workspaceActor.initiatorID}
+		if _, err := api.preflightWorkspaceCreate(requesterCtx, workspaceActor.initiatorID, requester, req); err != nil {
+			sw.WriteHeader(chatWorkspaceAuditStatus(err))
+			return codersdk.Workspace{}, database.Chat{}, err
+		}
+	}
+
 	var chat database.Chat
-	workspace, err := createWorkspace(createCtx, aReq, ownerID, api, owner, req, &createWorkspaceOptions{
+	workspace, err := createWorkspace(createCtx, aReq, workspaceActor.initiatorID, api, owner, req, &createWorkspaceOptions{
 		postBuildInTX: func(ctx context.Context, tx database.Store, workspace database.Workspace, build database.WorkspaceBuild) error {
 			if len(identities) > 0 {
 				// Those who answer for the identity can enter the
@@ -4582,10 +4595,13 @@ func (api *API) chatStartWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := api.chatToolSubject(ctx, ownerID)
+	// A chat of a delegated identity builds its workspace on behalf of the
+	// identity, for whoever the chat is working for.
+	workspaceActor, err := api.chatWorkspaceActor(ctx, ownerID, chattool.ChatIDFromContext(ctx))
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
 	}
+	actor := workspaceActor.subject
 	ctx = dbauthz.As(ctx, actor)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
@@ -4615,7 +4631,7 @@ func (api *API) chatStartWorkspace(
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
 	syntheticKey := database.APIKey{
-		UserID: ownerID,
+		UserID: workspaceActor.initiatorID,
 	}
 
 	apiBuild, err := api.postWorkspaceBuildsInternal(
@@ -4658,10 +4674,13 @@ func (api *API) chatStopWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := api.chatToolSubject(ctx, ownerID)
+	// A chat of a delegated identity builds its workspace on behalf of the
+	// identity, for whoever the chat is working for.
+	workspaceActor, err := api.chatWorkspaceActor(ctx, ownerID, chattool.ChatIDFromContext(ctx))
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
 	}
+	actor := workspaceActor.subject
 	ctx = dbauthz.As(ctx, actor)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
@@ -4674,7 +4693,7 @@ func (api *API) chatStopWorkspace(
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
 	syntheticKey := database.APIKey{
-		UserID: ownerID,
+		UserID: workspaceActor.initiatorID,
 	}
 
 	apiBuild, err := api.postWorkspaceBuildsInternal(

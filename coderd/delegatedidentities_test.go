@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -480,7 +482,7 @@ func TestDelegatedIdentitiesChat(t *testing.T) {
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	admin := coderdtest.CreateFirstUser(t, adminClient)
 	aliceClient, alice := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
-	bobClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
+	bobClient, bob := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
 	aliceChats := codersdk.NewExperimentalClient(aliceClient)
 
 	agentToken := uuid.NewString()
@@ -506,8 +508,8 @@ func TestDelegatedIdentitiesChat(t *testing.T) {
 	})
 	coderdtest.CreateOpenAICompatChatModel(t, codersdk.NewExperimentalClient(adminClient), openAIURL)
 
-	// The identity may chat because its root user may. What its tools may
-	// do with workspaces is what it was given: nothing yet.
+	// The identity may chat because its root user may. It was given no
+	// scopes, so by itself it may do nothing with workspaces.
 	identity, err := aliceClient.CreateDelegatedIdentity(ctx, codersdk.CreateDelegatedIdentityRequest{Name: "chat-agent"})
 	require.NoError(t, err)
 
@@ -530,7 +532,9 @@ func TestDelegatedIdentitiesChat(t *testing.T) {
 		return got
 	}
 
-	// Without scopes the chat runs, and its tool is refused.
+	// The chat creates a workspace all the same. Alice asked for it and
+	// Alice may, so it is created on behalf of the identity, which needs
+	// no permission for what is done for it.
 	chat, err := aliceChats.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: admin.OrganizationID,
 		OwnerID:        &identity.ID,
@@ -538,24 +542,9 @@ func TestDelegatedIdentitiesChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, identity.ID, chat.OwnerID)
-	refused := awaitChat(chat.ID)
-	require.Nil(t, refused.WorkspaceID, "an identity that may not create workspaces gets none")
 	// Somebody who is not above the identity cannot see its chat.
 	_, err = codersdk.NewExperimentalClient(bobClient).GetChat(ctx, chat.ID)
 	requireStatus(t, err, http.StatusNotFound)
-
-	// With the scope, a second chat of the same identity gets a workspace.
-	_, err = aliceClient.UpdateDelegatedIdentity(ctx, identity.Name, codersdk.UpdateDelegatedIdentityRequest{
-		Scopes: []codersdk.APIKeyScope{"coder:workspaces.create"},
-	})
-	require.NoError(t, err)
-	streamedCalls.Store(0)
-	chat, err = aliceChats.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: admin.OrganizationID,
-		OwnerID:        &identity.ID,
-		Content:        message,
-	})
-	require.NoError(t, err)
 	var workspace codersdk.Workspace
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, err := aliceChats.GetChat(ctx, chat.ID)
@@ -569,9 +558,10 @@ func TestDelegatedIdentitiesChat(t *testing.T) {
 	done := awaitChat(chat.ID)
 	require.Equal(t, codersdk.ChatStatusWaiting, done.Status, "last error: %+v", done.LastError)
 
-	// The workspace is the identity's, and Alice can enter it.
+	// The workspace is the identity's, Alice is recorded as having asked
+	// for it, and Alice can enter it.
 	require.Equal(t, identity.ID, workspace.OwnerID)
-	require.Equal(t, identity.ID, workspace.LatestBuild.InitiatorID)
+	require.Equal(t, alice.ID, workspace.LatestBuild.InitiatorID)
 
 	// The model was called with a key of the identity's, so the calls
 	// are attributed to the identity and not to Alice.
@@ -603,6 +593,88 @@ func TestDelegatedIdentitiesChat(t *testing.T) {
 	require.NoError(t, err)
 	done = awaitChat(chat.ID)
 	require.Equal(t, codersdk.ChatStatusWaiting, done.Status, "last error: %+v", done.LastError)
+
+	// A chat works for whoever sent its latest message. The model only
+	// answers from here on, so the chat's workspace hooks are driven
+	// directly.
+	second, err := aliceChats.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: admin.OrganizationID,
+		OwnerID:        &identity.ID,
+		Content:        message,
+	})
+	require.NoError(t, err)
+	done = awaitChat(second.ID)
+	require.Equal(t, codersdk.ChatStatusWaiting, done.Status, "last error: %+v", done.LastError)
+	require.Nil(t, done.WorkspaceID)
+	sendAs := func(senderID uuid.UUID) {
+		dbgen.ChatMessage(t, api.Database, database.ChatMessage{
+			ChatID:    second.ID,
+			CreatedBy: uuid.NullUUID{UUID: senderID, Valid: true},
+		})
+	}
+	createReq := codersdk.CreateWorkspaceRequest{TemplateID: template.ID, Name: "by-itself"}
+
+	// Bob may not use the identity, and the identity cannot ask on its
+	// own behalf. In both cases the identity acts for itself, and without
+	// scopes it may not create a workspace.
+	for _, senderID := range []uuid.UUID{bob.ID, identity.ID} {
+		sendAs(senderID)
+		_, _, err = coderd.ChatCreateWorkspace(api, ctx, identity.ID, second.ID, createReq)
+		require.Error(t, err)
+	}
+	_, err = aliceClient.WorkspaceByOwnerAndName(ctx, identity.Name, createReq.Name, codersdk.WorkspaceOptions{})
+	requireStatus(t, err, http.StatusNotFound)
+
+	// With the scope the identity creates the workspace itself, and is
+	// recorded as having asked for it.
+	_, err = aliceClient.UpdateDelegatedIdentity(ctx, identity.Name, codersdk.UpdateDelegatedIdentityRequest{
+		Scopes: []codersdk.APIKeyScope{"coder:workspaces.create"},
+	})
+	require.NoError(t, err)
+	own, _, err := coderd.ChatCreateWorkspace(api, ctx, identity.ID, second.ID, createReq)
+	require.NoError(t, err)
+	require.Equal(t, identity.ID, own.OwnerID)
+	require.Equal(t, identity.ID, own.LatestBuild.InitiatorID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, adminClient, own.LatestBuild.ID)
+
+	// Stopping the workspace follows the same rule. Without the scope the
+	// identity may not, until Alice asks again.
+	_, err = aliceClient.UpdateDelegatedIdentity(ctx, identity.Name, codersdk.UpdateDelegatedIdentityRequest{})
+	require.NoError(t, err)
+	stopCtx := chattool.WithChatID(ctx, second.ID)
+	_, err = coderd.ChatStopWorkspace(api, stopCtx, identity.ID, own.ID, codersdk.CreateWorkspaceBuildRequest{})
+	require.Error(t, err)
+	sendAs(alice.ID)
+	stopped, err := coderd.ChatStopWorkspace(api, stopCtx, identity.ID, own.ID, codersdk.CreateWorkspaceBuildRequest{})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.WorkspaceTransitionStop, stopped.Transition)
+	require.Equal(t, alice.ID, stopped.InitiatorID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, adminClient, stopped.ID)
+
+	// When no chat is named, the identity acts for itself.
+	startReq := codersdk.CreateWorkspaceBuildRequest{Transition: codersdk.WorkspaceTransitionStart}
+	_, err = coderd.ChatStartWorkspace(api, ctx, identity.ID, own.ID, startReq)
+	require.Error(t, err)
+
+	// The chat of a sub-agent holds only its owner's messages. It works
+	// for whoever the chat that started it works for.
+	parent, err := api.Database.GetChatByID(sysCtx, second.ID)
+	require.NoError(t, err)
+	child := dbgen.Chat(t, api.Database, database.Chat{
+		OrganizationID:    parent.OrganizationID,
+		OwnerID:           identity.ID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		LastModelConfigID: parent.LastModelConfigID,
+	})
+	dbgen.ChatMessage(t, api.Database, database.ChatMessage{
+		ChatID:    child.ID,
+		CreatedBy: uuid.NullUUID{UUID: identity.ID, Valid: true},
+	})
+	started, err := coderd.ChatStartWorkspace(api, chattool.WithChatID(ctx, child.ID), identity.ID, own.ID, startReq)
+	require.NoError(t, err)
+	require.Equal(t, alice.ID, started.InitiatorID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, adminClient, started.ID)
 }
 
 // TestDelegatedIdentitiesRootUser checks that a delegated identity cannot

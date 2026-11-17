@@ -150,22 +150,133 @@ func actsAsChatOwner(ctx context.Context, callerID uuid.UUID, chat database.Chat
 	return ok && actor.Type == rbac.SubjectTypeUser && actor.ID == chat.OwnerID.String()
 }
 
-// chatToolSubject returns who the tools of a chat act as when they create
-// and build workspaces: the chat's owner. An owner that is a delegated
-// identity is limited to what the identity may do, as a credential of the
-// identity would be. It also returns the identity and the identities above
-// it, which is empty for any other owner.
-func (api *API) chatToolSubject(ctx context.Context, ownerID uuid.UUID) (rbac.Subject, []database.DelegatedIdentity, error) {
+// chatWorkspaceActor is who acts when a chat creates, starts or stops its
+// workspace.
+type chatWorkspaceActor struct {
+	// subject is who the workspace is created or built as.
+	subject rbac.Subject
+	// initiatorID is the account recorded as having asked for it.
+	initiatorID uuid.UUID
+	// requester is the account the chat is working for. It is set only
+	// when the workspace is made on behalf of a delegated identity.
+	requester *rbac.Subject
+	// identities is the delegated identity that owns the chat and the
+	// identities above it. It is empty for any other owner.
+	identities []database.DelegatedIdentity
+}
+
+// chatWorkspaceActor decides who acts when the chat chatID, owned by
+// ownerID, creates, starts or stops its workspace.
+//
+// A chat owned by a delegated identity works for whoever sent its latest
+// message. When that account may use the identity, the workspace is made on
+// the identity's behalf, exactly as if the account had asked for it itself:
+// the identity needs no permission of its own, and the account is the
+// initiator. Otherwise the identity acts for itself, within its scopes. That
+// is the case when it sent the message itself, when the sender may not use
+// it, and when chatID is uuid.Nil.
+//
+// Any other owner acts as itself.
+func (api *API) chatWorkspaceActor(ctx context.Context, ownerID uuid.UUID, chatID uuid.UUID) (chatWorkspaceActor, error) {
 	chain, err := api.delegatedIdentityChain(ctx, ownerID)
 	if err != nil {
-		return rbac.Subject{}, nil, xerrors.Errorf("get the delegated identity of the chat owner: %w", err)
+		return chatWorkspaceActor{}, xerrors.Errorf("get the delegated identity of the chat owner: %w", err)
 	}
+	if len(chain) == 0 {
+		subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+		return chatWorkspaceActor{subject: subject, initiatorID: ownerID}, err
+	}
+
+	requesterID, ok, err := api.chatRequester(ctx, ownerID, chatID)
+	if err != nil {
+		return chatWorkspaceActor{}, err
+	}
+	if ok {
+		requester, active, err := api.accountSubject(ctx, requesterID)
+		if err != nil {
+			return chatWorkspaceActor{}, err
+		}
+		if active {
+			_, identityCtx, err := api.onBehalfOfDelegatedIdentity(dbauthz.As(ctx, requester), ownerID)
+			if err != nil {
+				return chatWorkspaceActor{}, err
+			}
+			// The context is nil when the account may not use the
+			// identity.
+			if identityCtx != nil {
+				subject, _ := dbauthz.ActorFromContext(identityCtx)
+				return chatWorkspaceActor{
+					subject:     subject,
+					initiatorID: requesterID,
+					requester:   &requester,
+					identities:  chain,
+				}, nil
+			}
+		}
+	}
+
+	subject, _, err := httpmw.DelegatedIdentityRBACSubject(ctx, api.Database, ownerID)
+	return chatWorkspaceActor{subject: subject, initiatorID: ownerID, identities: chain}, err
+}
+
+// accountSubject returns what an account may do when Coder acts for it
+// without one of its credentials, and whether the account is active. A
+// delegated identity is held to its scopes.
+func (api *API) accountSubject(ctx context.Context, userID uuid.UUID) (rbac.Subject, bool, error) {
+	chain, err := api.delegatedIdentityChain(ctx, userID)
+	if err != nil {
+		return rbac.Subject{}, false, xerrors.Errorf("get the delegated identity of account %s: %w", userID, err)
+	}
+	var (
+		subject rbac.Subject
+		status  database.UserStatus
+	)
 	if len(chain) > 0 {
-		subject, _, err := httpmw.DelegatedIdentityRBACSubject(ctx, api.Database, ownerID)
-		return subject, chain, err
+		subject, status, err = httpmw.DelegatedIdentityRBACSubject(ctx, api.Database, userID)
+	} else {
+		subject, status, err = httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
 	}
-	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
-	return subject, nil, err
+	if err != nil {
+		return rbac.Subject{}, false, xerrors.Errorf("get the permissions of account %s: %w", userID, err)
+	}
+	return subject, status == database.UserStatusActive, nil
+}
+
+// chatRequester returns the account a chat is working for: whoever sent its
+// latest message. A chat whose latest message is its owner's own and that
+// another chat started, such as a sub-agent's, works for whoever that chat
+// works for. It reports false when the chat works for nobody but its owner.
+func (api *API) chatRequester(ctx context.Context, ownerID uuid.UUID, chatID uuid.UUID) (uuid.UUID, bool, error) {
+	//nolint:gocritic // Who a chat works for decides whom its tools act as. That account is judged right after.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	// Chats are a few levels deep at most. The limit keeps a chain that
+	// loops from being followed forever.
+	const maxDepth = 16
+	for range maxDepth {
+		if chatID == uuid.Nil {
+			return uuid.Nil, false, nil
+		}
+		message, err := api.Database.GetLastChatMessageByRole(chatdCtx, database.GetLastChatMessageByRoleParams{
+			ChatID: chatID,
+			Role:   database.ChatMessageRoleUser,
+		})
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			return uuid.Nil, false, xerrors.Errorf("get the latest message of chat %s: %w", chatID, err)
+		case message.CreatedBy.Valid && message.CreatedBy.UUID != ownerID:
+			return message.CreatedBy.UUID, true, nil
+		}
+		chat, err := api.Database.GetChatByID(chatdCtx, chatID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, false, nil
+		}
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("get chat %s: %w", chatID, err)
+		}
+		chatID = chat.ParentChatID.UUID
+	}
+	return uuid.Nil, false, nil
 }
 
 // delegatedIdentityWorkspaceSharer may share workspaces and do nothing else.
