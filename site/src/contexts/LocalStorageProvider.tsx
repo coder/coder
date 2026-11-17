@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
  * Read, write, and subscribe operations over serialized values, shared by the
  * `useLocalStorage` calls in one provider.
  */
-export type LocalStorageStore = {
+type LocalStorageStore = {
 	readSerialized: (key: string) => string | null;
 	commitSerialized: (key: string, serialized: string | null) => void;
 	subscribe: (key: string, onChange: () => void) => () => void;

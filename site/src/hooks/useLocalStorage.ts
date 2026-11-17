@@ -1,9 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type * as Yup from "yup";
-import {
-	type LocalStorageStore,
-	useLocalStorageStore,
-} from "#/contexts/LocalStorageProvider";
+import { useLocalStorageStore } from "#/contexts/LocalStorageProvider";
 
 /**
  * Converts between a serialized string and a typed value. `parse` receives
@@ -13,19 +10,6 @@ export type Codec<T> = {
 	parse: (serialized: string | null) => T;
 	serialize: (value: T) => string | null;
 };
-
-/**
- * Reads and parses a key without subscribing, reflecting values kept in memory
- * after a failed write. Use it when a component reads once per render and does
- * not need to update.
- */
-export function getLocalStorageValue<T>(
-	store: LocalStorageStore,
-	key: string,
-	codec: Codec<T>,
-): T {
-	return codec.parse(store.readSerialized(key));
-}
 
 function isUpdater<T>(next: React.SetStateAction<T>): next is (prev: T) => T {
 	return typeof next === "function";

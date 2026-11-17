@@ -1,14 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Yup from "yup";
-import {
-	LocalStorageProvider,
-	useLocalStorageStore,
-} from "#/contexts/LocalStorageProvider";
+import { LocalStorageProvider } from "#/contexts/LocalStorageProvider";
 import {
 	booleanCodec,
 	type Codec,
-	getLocalStorageValue,
 	jsonCodec,
 	useLocalStorage,
 } from "./useLocalStorage";
@@ -215,37 +211,5 @@ describe("useLocalStorage", () => {
 		rerender();
 
 		expect(result.current[0]).toBe(firstValue);
-	});
-});
-
-describe("getLocalStorageValue", () => {
-	beforeEach(() => {
-		localStorage.clear();
-	});
-
-	it("reads the stored value outside React", () => {
-		localStorage.setItem("test.getter", "true");
-		const { result } = renderLocalStorageHook(() => useLocalStorageStore());
-
-		expect(
-			getLocalStorageValue(result.current, "test.getter", booleanCodec(false)),
-		).toBe(true);
-	});
-
-	it("reflects a value kept in memory after a failed write", () => {
-		const key = "test.getter-unsaved";
-		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-			throw new DOMException("quota", "QuotaExceededError");
-		});
-		const { result } = renderLocalStorageHook(() => ({
-			store: useLocalStorageStore(),
-			value: useLocalStorage(key, booleanCodec(false)),
-		}));
-
-		act(() => result.current.value[1](true));
-
-		expect(
-			getLocalStorageValue(result.current.store, key, booleanCodec(false)),
-		).toBe(true);
 	});
 });
