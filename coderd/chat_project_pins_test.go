@@ -50,7 +50,7 @@ func TestChatProjectPins(t *testing.T) {
 	require.NoError(t, client.UnpinChatProject(ctx, orgID, a.ID))
 	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, b.ID: 2, a.ID: 0})
 
-	// Without an order, a re-pinned tombstone goes to the end and an
+	// Without an order, a re-pinned project goes to the end and an
 	// existing pin keeps its place.
 	require.NoError(t, client.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{}))
 	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID, codersdk.PinChatProjectRequest{}))
