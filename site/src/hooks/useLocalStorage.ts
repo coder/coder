@@ -16,16 +16,22 @@ function isUpdater<T>(next: React.SetStateAction<T>): next is (prev: T) => T {
 }
 
 /**
+ * Options for `useLocalStorage`. Consumers can check an options object with
+ * `satisfies UseLocalStorageOptions<T>`.
+ */
+export type UseLocalStorageOptions<T> = {
+	storageKey: string;
+	codec: Codec<T>;
+};
+
+/**
  * Reads and writes a localStorage key. Consumers re-render on same-tab writes
  * and on cross-tab storage events.
  */
 export function useLocalStorage<T>({
 	storageKey: key,
 	codec,
-}: {
-	storageKey: string;
-	codec: Codec<T>;
-}): [T, React.Dispatch<React.SetStateAction<T>>] {
+}: UseLocalStorageOptions<T>): [T, React.Dispatch<React.SetStateAction<T>>] {
 	const store = useLocalStorageStore();
 
 	// A stable subscribe keeps useSyncExternalStore from resubscribing on every render.
