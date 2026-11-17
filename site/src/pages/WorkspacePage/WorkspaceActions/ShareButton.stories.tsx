@@ -18,7 +18,7 @@ const mockWorkspaceACL: WorkspaceACL = {
 		{
 			...MockUserMember,
 			id: "long-username-user",
-			username: "a-very-long-username-that-must-wrap",
+			username: "a-very-long-username-for-narrow-layouts",
 			role: "use",
 		},
 	],

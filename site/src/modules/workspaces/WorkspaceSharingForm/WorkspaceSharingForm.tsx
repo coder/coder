@@ -62,7 +62,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
 			<SelectTrigger
-				className="w-full max-w-40 h-auto"
+				className="w-40 h-auto"
 				aria-label={`Role for ${memberOrGroupName}`}
 			>
 				<SelectValue>
@@ -271,7 +271,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				<>
 					{workspaceACL.group.map((group) => (
 						<TableRow key={group.id}>
-							<TableCell className="py-2 w-[50%] wrap-anywhere">
+							<TableCell className="py-2 w-[50%] whitespace-nowrap">
 								<AvatarData
 									avatar={
 										<Avatar
@@ -326,7 +326,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 					{workspaceACL.users.map((user) => (
 						<TableRow key={user.id}>
-							<TableCell className="py-2 w-[50%] wrap-anywhere">
+							<TableCell className="py-2 w-[50%] whitespace-nowrap">
 								<AvatarData
 									title={user.username}
 									subtitle={user.name}
@@ -388,7 +388,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			)}
 			<Table
 				aria-label="Shared workspace members and groups"
-				wrapperClassName={isCompact ? "max-h-60 overflow-y-auto" : undefined}
+				wrapperClassName={isCompact ? "max-h-60" : undefined}
 			>
 				{tableHeader}
 				{tableBody}
