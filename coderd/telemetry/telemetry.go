@@ -2541,19 +2541,18 @@ type ChatDiffStatusSummary struct {
 }
 
 // ChatProjectPinSummary measures whether active users pin a subset of the
-// projects they own or that are shared with them. Pin and tombstone counts
-// are split by pin source. Share histograms bucket users by the percentage
-// of their projects they pinned, for all users and for users who acted on
-// pins themselves.
+// projects they own or that are shared with them. Pin counts are split by
+// pin source. Owners get a pin on every project they create, so
+// UnpinnedOwned counts owned projects whose owner removed that pin. Share
+// histograms bucket users by the percentage of their projects they pinned,
+// for all users and for users who acted on pins themselves.
 type ChatProjectPinSummary struct {
-	UsersWithProjects   int64 `json:"users_with_projects"`
-	UsersWithTombstones int64 `json:"users_with_tombstones"`
-	PinnedMigration     int64 `json:"pinned_migration"`
-	PinnedDefault       int64 `json:"pinned_default"`
-	PinnedUser          int64 `json:"pinned_user"`
-	TombstonesMigration int64 `json:"tombstones_migration"`
-	TombstonesDefault   int64 `json:"tombstones_default"`
-	TombstonesUser      int64 `json:"tombstones_user"`
+	UsersWithProjects      int64 `json:"users_with_projects"`
+	UsersWithUnpinnedOwned int64 `json:"users_with_unpinned_owned"`
+	PinnedMigration        int64 `json:"pinned_migration"`
+	PinnedDefault          int64 `json:"pinned_default"`
+	PinnedUser             int64 `json:"pinned_user"`
+	UnpinnedOwned          int64 `json:"unpinned_owned"`
 	AllShare0           int64 `json:"all_share_0"`
 	AllShare125         int64 `json:"all_share_1_25"`
 	AllShare2650        int64 `json:"all_share_26_50"`
