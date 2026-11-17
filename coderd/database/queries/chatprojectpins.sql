@@ -246,7 +246,10 @@ per_user AS (
         ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
     GROUP BY project_users.user_id
 ),
--- Users act on pins by pinning, reordering, or unpinning a project.
+-- A user has acted when their current pins show it: a user pin (left by
+-- pinning or reordering) or an unpinned owned project. Unpinning deletes
+-- the pin, so a user whose only action was unpinning projects shared with
+-- them does not count.
 bucketed AS (
     SELECT
         *,

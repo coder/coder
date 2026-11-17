@@ -565,7 +565,10 @@ type sqlcQuerier interface {
 	// Aggregates pin usage over each active, non-system user's accessible
 	// projects. Grants count only when @acl_enabled, matching the summaries.
 	// No identifiers leave this query.
-	// Users act on pins by pinning, reordering, or unpinning a project.
+	// A user has acted when their current pins show it: a user pin (left by
+	// pinning or reordering) or an unpinned owned project. Unpinning deletes
+	// the pin, so a user whose only action was unpinning projects shared with
+	// them does not count.
 	GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error)
 	// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
 	// user's pin and aggregates over the user's own top-level,
