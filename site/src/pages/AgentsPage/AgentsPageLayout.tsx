@@ -45,6 +45,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import {
 	getDefaultOrganizationId,
 	useDashboard,
@@ -74,7 +75,7 @@ import {
 	getSidebarChatListInput,
 } from "./utils/agentSidebarFilters";
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
-import { maybePlayChime } from "./utils/chime";
+import { chimeStorageOptions, playChime, shouldPlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
 import { useOpenNotificationChat } from "./utils/notificationWindow";
 
@@ -154,6 +155,7 @@ export const chatCostIdToInvalidate = (
 const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
+	const [chimeEnabled] = useLocalStorage(chimeStorageOptions);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -246,6 +248,29 @@ const AgentsPageLayout: React.FC = () => {
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
+	const playChimeForStatusChange = useEffectEvent(
+		(
+			eventKind: TypesGen.ChatWatchEventKind,
+			updatedChat: TypesGen.Chat,
+			prevStatus: TypesGen.ChatStatus | undefined,
+		) => {
+			if (!chimeEnabled || !shouldEvaluateChime(updatedChat, eventKind)) {
+				return;
+			}
+
+			if (
+				shouldPlayChime({
+					prevStatus,
+					nextStatus: updatedChat.status,
+					chatID: updatedChat.id,
+					activeChatID: agentId,
+					isDocumentHidden: document.hidden,
+				})
+			) {
+				playChime(updatedChat.id);
+			}
+		},
+	);
 	const [completedArchives, setCompletedArchives] = useState<string[]>([]);
 	// Completion must outlive the initiating row, but not this layout.
 	const navigateAfterArchive = (chatId: string) => {
@@ -343,14 +368,7 @@ const AgentsPageLayout: React.FC = () => {
 						queryClient,
 						updatedChat.id,
 					)?.status;
-					if (shouldEvaluateChime(updatedChat, chatEvent.kind)) {
-						maybePlayChime(
-							prevStatus,
-							updatedChat.status,
-							updatedChat.id,
-							activeChatIdForWatch(),
-						);
-					}
+					playChimeForStatusChange(chatEvent.kind, updatedChat, prevStatus);
 
 					if (chatEvent.kind === "deleted") {
 						// The server publishes `deleted` when a chat is

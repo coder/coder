@@ -1,29 +1,17 @@
 import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
+import {
+	chatFullWidthStorageOptions,
+	chatWidthClass,
+} from "../utils/chatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 import {
 	RIGHT_PANEL_OPEN_KEY,
-	RIGHT_PANEL_WIDTH_KEY,
+	rightPanelOpenCodec,
+	rightPanelWidthStorageOptions,
 } from "./RightPanel/RightPanel";
-
-const DEFAULT_PANEL_WIDTH = 480;
-const MIN_PANEL_WIDTH = 360;
-
-/** Read persisted right-panel state for use in static skeletons. */
-function getRightPanelState(): { open: boolean; width: number } {
-	const open = localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-	let width = DEFAULT_PANEL_WIDTH;
-	if (stored) {
-		const parsed = Number.parseInt(stored, 10);
-		if (!Number.isNaN(parsed) && parsed >= MIN_PANEL_WIDTH) {
-			width = parsed;
-		}
-	}
-	return { open, width };
-}
 
 /**
  * Skeleton shown while the AgentsPageLayout chunk is loading. Mimics the
@@ -160,8 +148,12 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  * structure during the brief Suspense fallback.
  */
 export const AgentChatPageSkeleton: React.FC = () => {
-	const rightPanel = getRightPanelState();
-	const [chatFullWidth] = useChatFullWidth();
+	const [rightPanelOpen] = useLocalStorage({
+		storageKey: RIGHT_PANEL_OPEN_KEY,
+		codec: rightPanelOpenCodec,
+	});
+	const [rightPanelWidth] = useLocalStorage(rightPanelWidthStorageOptions);
+	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 
 	return (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1">
@@ -187,10 +179,10 @@ export const AgentChatPageSkeleton: React.FC = () => {
 				</div>
 				<ChatInputSkeleton fullWidth={chatFullWidth} />
 			</div>
-			{rightPanel.open && (
+			{rightPanelOpen && (
 				<div
 					style={{
-						"--panel-width": `${rightPanel.width}px`,
+						"--panel-width": `${rightPanelWidth}px`,
 					}}
 					className="relative flex h-full w-screen min-w-0 flex-col border-l sm:w-(--panel-width) sm:min-w-90 sm:max-w-[70vw]"
 				>

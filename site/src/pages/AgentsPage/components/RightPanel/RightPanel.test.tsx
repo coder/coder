@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocalStorageProvider } from "#/contexts/LocalStorageProvider";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
 
@@ -124,6 +125,7 @@ const renderHarness = () => {
 				onVisualExpandedChange={onVisualExpandedChange}
 			/>
 		</MemoryRouter>,
+		{ wrapper: LocalStorageProvider },
 	);
 	return { onOpenChange, onExpandedChange, onVisualExpandedChange };
 };
@@ -136,6 +138,30 @@ beforeEach(() => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	localStorage.removeItem(RIGHT_PANEL_WIDTH_KEY);
+});
+
+describe("RightPanel persisted width", () => {
+	it("renders the stored width on mount", () => {
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, "600");
+		renderHarness();
+
+		expect(
+			screen
+				.getByTestId("agents-right-panel")
+				.style.getPropertyValue("--panel-width"),
+		).toBe("600px");
+	});
+
+	it("falls back to the default width when the stored width is below the minimum", () => {
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, "200");
+		renderHarness();
+
+		expect(
+			screen
+				.getByTestId("agents-right-panel")
+				.style.getPropertyValue("--panel-width"),
+		).toBe("480px");
+	});
 });
 
 describe("RightPanel resize drag", () => {
@@ -200,6 +226,7 @@ describe("RightPanel resize drag", () => {
 						onSidebarCollapsedChange={onSidebarCollapsedChange}
 					/>
 				</MemoryRouter>,
+				{ wrapper: LocalStorageProvider },
 			);
 
 			pointerDown();
@@ -255,6 +282,7 @@ describe("RightPanel resize drag", () => {
 						onSidebarCollapsedChange={onSidebarCollapsedChange}
 					/>
 				</MemoryRouter>,
+				{ wrapper: LocalStorageProvider },
 			);
 
 			pointerDown();

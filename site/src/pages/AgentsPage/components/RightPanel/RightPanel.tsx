@@ -1,15 +1,34 @@
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
+import {
+	booleanCodec,
+	localStorageOptions,
+	useLocalStorage,
+} from "#/hooks/useLocalStorage";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+export const rightPanelOpenCodec = booleanCodec(false);
 export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
 
 const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
+
+export const rightPanelWidthStorageOptions = localStorageOptions({
+	storageKey: RIGHT_PANEL_WIDTH_KEY,
+	codec: {
+		parse: (serialized) => {
+			const parsed = Number.parseInt(serialized ?? "", 10);
+			return Number.isNaN(parsed) || parsed < MIN_WIDTH
+				? DEFAULT_WIDTH
+				: parsed;
+		},
+		serialize: (value) => String(value),
+	},
+});
 
 const SNAP_THRESHOLD = 80;
 const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
@@ -38,18 +57,6 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 		getMaxWidth(),
 		Math.max(MIN_WIDTH, parent.clientWidth - getChatMinWidth(parent)),
 	);
-}
-
-function loadPersistedWidth(): number {
-	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-	if (!stored) {
-		return DEFAULT_WIDTH;
-	}
-	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
-		return DEFAULT_WIDTH;
-	}
-	return parsed;
 }
 
 type RightPanelProps = {
@@ -241,7 +248,7 @@ export const RightPanel = ({
 }: RightPanelProps) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-	const [width, setWidth] = useState(loadPersistedWidth);
+	const [width, setWidth] = useLocalStorage(rightPanelWidthStorageOptions);
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Clamp width when the viewport or parent panel shrinks so the
@@ -263,7 +270,7 @@ export const RightPanel = ({
 			resizeObserver.disconnect();
 			window.removeEventListener("resize", handleResize);
 		};
-	}, []);
+	}, [setWidth]);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {
@@ -297,10 +304,6 @@ export const RightPanel = ({
 		onToggleSidebarCollapsed,
 		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
-
-	useEffect(() => {
-		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
-	}, [width]);
 
 	useEffect(() => {
 		if (

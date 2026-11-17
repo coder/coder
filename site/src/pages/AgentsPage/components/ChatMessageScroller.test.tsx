@@ -1,5 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { LocalStorageProvider } from "#/contexts/LocalStorageProvider";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 
@@ -67,7 +68,9 @@ it.each([true, false])(
 		);
 
 		// The provider mounts while the page shows its loading view.
-		const { rerender, getByLabelText } = render(page());
+		const { rerender, getByLabelText } = render(page(), {
+			wrapper: LocalStorageProvider,
+		});
 		rerender(
 			page(
 				<ChatMessageScroller

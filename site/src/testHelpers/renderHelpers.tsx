@@ -15,6 +15,7 @@ import {
 	TooltipProvider,
 } from "#/components/Tooltip/Tooltip";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
+import { LocalStorageProvider } from "#/contexts/LocalStorageProvider";
 import type { ProxyProvider } from "#/contexts/ProxyContext";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardLayout } from "#/modules/dashboard/DashboardLayout";
@@ -243,11 +244,13 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 export const renderComponent = (component: React.ReactNode) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => (
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>
-				<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
-					{children}
-				</TooltipProvider>
-			</ThemeOverride>
+			<LocalStorageProvider>
+				<ThemeOverride theme={themes[DEFAULT_THEME]}>
+					<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+						{children}
+					</TooltipProvider>
+				</ThemeOverride>
+			</LocalStorageProvider>
 		),
 	});
 };

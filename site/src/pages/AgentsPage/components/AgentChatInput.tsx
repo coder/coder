@@ -46,6 +46,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -54,7 +55,6 @@ import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -67,6 +67,10 @@ import {
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
+import {
+	chatFullWidthStorageOptions,
+	chatWidthClass,
+} from "../utils/chatFullWidth";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentChatSendButton } from "./AgentChatSendButton";
 import { AgentSetupNotice } from "./AgentSetupNotice";
@@ -615,7 +619,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		preferencesQuery.data?.agent_chat_send_shortcut,
 		preferencesQuery.isLoading,
 	);
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,

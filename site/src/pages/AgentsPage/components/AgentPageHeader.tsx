@@ -29,8 +29,9 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { chimeStorageOptions } from "../utils/chime";
 
 type AgentPageHeaderProps = {
 	children?: React.ReactNode;
@@ -59,7 +60,7 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
-		useState(getChimeEnabled);
+		useLocalStorage(chimeStorageOptions);
 	const internalWebPush = useWebpushNotifications();
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;
@@ -95,7 +96,6 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 		}
 		const next = !chimeEnabled;
 		setInternalChimeEnabled(next);
-		setChimeEnabled(next);
 	};
 
 	const handleNotificationToggle = async () => {

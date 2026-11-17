@@ -12,6 +12,7 @@ import {
 	TOOLTIP_DELAY_DURATION,
 	TooltipProvider,
 } from "../src/components/Tooltip/Tooltip";
+import { LocalStorageProvider } from "../src/contexts/LocalStorageProvider";
 import themes, { baseModeFor, isConcreteThemeName } from "../src/theme";
 import { AppearanceProvider } from "../src/theme/appearance";
 import { ThemeContextProvider } from "../src/theme/context";
@@ -155,9 +156,16 @@ const withSkipAnimations: Decorator = (Story) => (
 	</MotionConfig>
 );
 
+const withLocalStorage: Decorator = (Story) => (
+	<LocalStorageProvider>
+		<Story />
+	</LocalStorageProvider>
+);
+
 export const decorators: Decorator[] = [
 	withRouter,
 	withQuery,
+	withLocalStorage,
 	withTheme,
 	withSkipAnimations,
 ];

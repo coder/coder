@@ -3,11 +3,15 @@ import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import {
 	MessageScroller,
 	useMessageScrollerScrollable,
 } from "#/vendor/message-scroller";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import {
+	chatFullWidthStorageOptions,
+	chatWidthClass,
+} from "../utils/chatFullWidth";
 
 /**
  * Paging state for a chat's older messages. A page that any consumer loads
@@ -110,7 +114,7 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 	children,
 	...earlierMessages
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

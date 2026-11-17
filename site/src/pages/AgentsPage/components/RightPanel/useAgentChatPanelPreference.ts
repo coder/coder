@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useLocalStorage } from "#/hooks/useLocalStorage";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import { RIGHT_PANEL_OPEN_KEY } from "./RightPanel";
+import { RIGHT_PANEL_OPEN_KEY, rightPanelOpenCodec } from "./RightPanel";
 
 export function useAgentChatPanelPreference(): {
 	showSidebarPanel: boolean;
@@ -10,8 +11,9 @@ export function useAgentChatPanelPreference(): {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
-		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+	const [sidebarPanelPreference, setSidebarPanelPreference] = useLocalStorage({
+		storageKey: RIGHT_PANEL_OPEN_KEY,
+		codec: rightPanelOpenCodec,
 	});
 	// Below the lg breakpoint, chat and the right panel are mutually
 	// exclusive, so a panel left open on a wide window would hide chat
@@ -36,7 +38,6 @@ export function useAgentChatPanelPreference(): {
 	const handleSetShowSidebarPanel = (next: boolean) => {
 		setPanelSuppressedOnNarrow(false);
 		setSidebarPanelPreference(next);
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
 
 	return {
