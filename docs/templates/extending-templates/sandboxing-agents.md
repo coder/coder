@@ -9,7 +9,8 @@ Common traits of a sandbox include:
 - **Network isolation**: agents run with no, or limited network access, which reduces the risk of data loss, a compromised supply chain, or prompt injection.
 - **Secrets isolation**: agents run with isolated or scoped-down secrets and identity, compared to the user, which reduces the blast radius.
 
-As a bonus, many sandboxes are fast, starting in seconds rather than minutes.
+Many sandbox runtimes boot in milliseconds, but in Coder the sandbox is a workspace, so it also waits for the workspace build: Terraform, scheduling, the image pull, the agent connection, and startup scripts.
+[Fast startup](#fast-startup) covers how to hide that wait with prebuilt workspaces and warm pools.
 
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the definitions above.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
@@ -20,7 +21,7 @@ Each trait is independent, so you can combine only the ones your agents need.
 
 | Trait                                   | Options                                                       | Main tradeoff                                                          |
 |-----------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
-| [Kernel isolation](#kernel-isolation)   | VMs, gVisor, Kata Containers, Sysbox                          | Stronger isolation needs node support that managed node pools can lack |
+| [Kernel isolation](#kernel-isolation)   | VMs, gVisor, Kata Containers                                  | Stronger isolation needs node support that managed node pools can lack |
 | [Network isolation](#network-isolation) | NetworkPolicy, egress proxy, OpenShell, Cilium                | Finer rules need more components to run                                |
 | [Secrets isolation](#secrets-isolation) | API key scopes, AI Gateway, service accounts, dynamic secrets | Less access means more setup for each credential                       |
 | [Fast startup](#fast-startup)           | Prebuilt workspaces, faster templates, warm pools             | Ready capacity costs idle resources                                    |
@@ -125,14 +126,18 @@ Template names, descriptions, and organization instructions help the agent pick 
 Containers on a node share its kernel, so a kernel exploit can escape to the node and its other workloads.
 Kernel isolation gives each workspace its own kernel, or a kernel in user space, so the exploit stays inside.
 
-| Method                                                               | How it works                                                                                                                       | Tradeoffs                                                                                                                                           |
-|----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| VM-based templates                                                   | Each workspace is its own virtual machine, such as the [AWS Linux](https://registry.coder.com/templates/coder/aws-linux) template. | More expensive, and slower to start than a container.                                                                                               |
-| [gVisor](https://gvisor.dev/docs/user_guide/containerd/quick_start/) | A kernel that runs in user space and handles the workspace's system calls.                                                         | Slower, especially for file-heavy work. It still uses some host kernel features, and some Linux features don't work.                                |
-| [Kata Containers](https://katacontainers.io/)                        | Each Pod runs in a small VM with its own kernel, with a hypervisor such as QEMU or Cloud Hypervisor.                               | Needs bare metal or nested virtualization, which many managed nodes don't have. Uses more memory for each Pod.                                      |
-| [Sysbox](./docker-in-workspaces.md#sysbox-container-runtime)         | Isolates the workspace with Linux user namespaces, and runs Docker and systemd inside it.                                          | Shares the host kernel, so it isolates less than the other options. Needs [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). |
+| Method                                                               | How it works                                                                                                                       | Tradeoffs                                                                                                            |
+|----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
+| VM-based templates                                                   | Each workspace is its own virtual machine, such as the [AWS Linux](https://registry.coder.com/templates/coder/aws-linux) template. | More expensive, and slower to start than a container.                                                                |
+| [gVisor](https://gvisor.dev/docs/user_guide/containerd/quick_start/) | A kernel that runs in user space and handles the workspace's system calls.                                                         | Slower, especially for file-heavy work. It still uses some host kernel features, and some Linux features don't work. |
+| [Kata Containers](https://katacontainers.io/)                        | Each Pod runs in a small VM with its own kernel, with a hypervisor such as QEMU or Cloud Hypervisor.                               | Needs bare metal or nested virtualization, which many managed nodes don't have. Uses more memory for each Pod.       |
 
-On Kubernetes, gVisor, Kata, and Sysbox each install a [RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/) on the nodes.
+[Sysbox](./docker-in-workspaces.md#sysbox-container-runtime) isn't kernel isolation.
+It runs Docker and systemd in the workspace without a privileged container, by mapping root in the workspace to an unprivileged user on the node, but every system call still goes to the node's kernel.
+Use it when agents need Docker, and add gVisor or Kata if they also need kernel isolation.
+For what its user namespaces cover, refer to [Sysbox security](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/security.md).
+
+On Kubernetes, install gVisor or Kata on the nodes, and add a [RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/) for it to the cluster.
 To use one, set `runtime_class_name` on the workspace Pod in your template:
 
 ```tf
@@ -145,7 +150,7 @@ resource "kubernetes_pod_v1" "workspace" {
 }
 ```
 
-The RuntimeClass name is whatever the cluster administrator created, such as `gvisor`, `kata-qemu`, or `sysbox-runc`.
+The RuntimeClass name is whatever the cluster administrator created, such as `gvisor` or `kata-qemu`.
 To let users pick a runtime, set `runtime_class_name` from a [parameter](./parameters/index.md).
 To run sandboxed Pods on their own nodes, add a node selector and a [toleration](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) for a tainted node pool.
 
@@ -160,8 +165,6 @@ Examples and references:
 - [Pod Sandboxing on Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/use-pod-sandboxing): Kata node pools on AKS.
 - [Kata Containers installation](https://github.com/kata-containers/kata-containers/blob/main/docs/install/README.md): install options for other clusters, including [Firecracker](https://firecracker-microvm.github.io/) as the hypervisor.
 - [gVisor security model](https://gvisor.dev/docs/architecture_guide/security/): what gVisor protects against, and what it doesn't.
-- [Envbox](./docker-in-workspaces.md#envbox) and the [kubernetes-envbox](https://registry.coder.com/templates/coder/kubernetes-envbox) template: run Sysbox inside a Pod when you can't install it on the nodes. The outer container is privileged, so Envbox is weaker than Sysbox on the nodes.
-- [Sysbox security](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/security.md): what the Sysbox user namespaces isolate.
 - [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/): block privileged Pods in the namespace that runs agent workspaces.
 
 ## Network isolation
