@@ -4673,7 +4673,9 @@ export interface CreateSkillRequest {
 	/**
 	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * followed by a non-empty body. A `disable-model-invocation` key must
+	 * hold a value the server can replace with true or false, so a list is
+	 * rejected.
 	 */
 	readonly content: string;
 	/**
@@ -4681,9 +4683,8 @@ export interface CreateSkillRequest {
 	 */
 	readonly action?: boolean;
 	/**
-	 * ModelInvocable defaults to true, or to false when the content
-	 * frontmatter has `disable-model-invocation: true`. The server removes
-	 * that frontmatter key before storing the content.
+	 * ModelInvocable defaults to false when the content's frontmatter sets
+	 * disable-model-invocation: true, and to true otherwise.
 	 */
 	readonly model_invocable?: boolean;
 }
@@ -10003,6 +10004,11 @@ export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
  * content.
  */
 export interface Skill extends SkillMetadata {
+	/**
+	 * Content is the SKILL.md file, with its `disable-model-invocation`
+	 * frontmatter key set to agree with `model_invocable`. A stored file whose
+	 * key the server cannot set, such as a list, is returned unchanged.
+	 */
 	readonly content: string;
 }
 
@@ -11350,7 +11356,9 @@ export interface UpdateSkillRequest {
 	/**
 	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * followed by a non-empty body. A `disable-model-invocation` key must
+	 * hold a value the server can replace with true or false, so a list is
+	 * rejected.
 	 */
 	readonly content?: string;
 	readonly enabled?: boolean;
@@ -11361,8 +11369,7 @@ export interface UpdateSkillRequest {
 	/**
 	 * ModelInvocable is left unchanged when unset, unless the new content
 	 * frontmatter sets `disable-model-invocation` to a boolean: true turns it
-	 * off and false turns it on. The server removes that frontmatter key
-	 * before storing the content.
+	 * off and false turns it on.
 	 */
 	readonly model_invocable?: boolean;
 }

@@ -335,16 +335,17 @@ In the API, the setting is the `model_invocable` field, which is on by default.
 When you create or update a skill through the API without setting `model_invocable`, Coder reads the `disable-model-invocation` frontmatter key that Claude Code, Cursor, and VS Code use:
 
 - `disable-model-invocation: true` makes the skill manual-only, and `disable-model-invocation: false` turns automatic use back on.
-  The value must be the YAML boolean `true` or `false`, not a quoted string.
+  The value must be the YAML boolean `true` or `false`.
+  Coder ignores other words and quoted strings, such as `yes` or `"true"`, so check `model_invocable` in the response to confirm the setting.
+  Coder rejects an upload when it can't replace the value with `true` or `false`, for example when the value is a list.
 - A `model_invocable` value in the request takes priority over the key.
 - New content without the key leaves the setting as it was.
 
-Coder removes the key from the content you upload and keeps the setting in `model_invocable` instead.
-Coder also removes a key whose value it ignores, such as the quoted string `"true"`, so check `model_invocable` in the response to confirm the setting.
-
-When you select **Download** or **Export all** for a manual-only skill, Coder adds `disable-model-invocation: true` back, so other tools also treat the file as manual-only.
-A file that the extra line would push over the 64&nbsp;KB limit downloads without it.
-The API returns the stored content without the key, so read `model_invocable` to find out whether a skill is manual-only.
+The `SKILL.md` content that Coder returns matches the setting, in the API and when you select **Download** or **Export all**.
+Its frontmatter sets `disable-model-invocation: true` only when the skill is manual-only, so other tools also treat that file as manual-only.
+If the file you uploaded says otherwise, Coder changes the value of the key in the content it returns, or adds the key.
+The rest of the file stays as you uploaded it.
+Adding the key makes the content about 30&nbsp;bytes larger, so content that you download at the 64&nbsp;KB limit can be too large to upload again.
 
 ### Skills with the same name
 

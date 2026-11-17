@@ -42,7 +42,6 @@ import {
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 	type SkillsScope,
-	skillFileContent,
 	skillFormValuesFromSkill,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
@@ -126,7 +125,9 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) =>
 			downloadSkillFile(name, (skillName) =>
-				queryClient.fetchQuery(scope.detail(skillName)).then(skillFileContent),
+				queryClient
+					.fetchQuery(scope.detail(skillName))
+					.then((skill) => skill.content),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {

@@ -1,6 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { saveAs } from "file-saver";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -13,12 +12,9 @@ import { MockSkill } from "#/testHelpers/skills";
 import {
 	fullSkillAccess,
 	organizationSkillsScope,
-	parseSkillMarkdown,
 	type SkillsCopy,
 } from "../utils/skills";
 import { SkillsTable } from "./SkillsTable";
-
-vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
 
 const copy: SkillsCopy = {
 	noun: "Organization skill",
@@ -147,24 +143,5 @@ describe("SkillsTable automatic use", () => {
 		]);
 		// Focus returns to the row menu once the save closes the dialog.
 		await waitFor(() => expect(menuButton).toHaveFocus());
-	});
-
-	it("marks a downloaded manual-only skill so re-importing keeps it manual", async () => {
-		const { user, getSkill } = renderTable();
-		getSkill.mockResolvedValue({
-			...mockReviewSkill,
-			model_invocable: false,
-			content: mockReviewSkillContent,
-		});
-
-		await user.click(await screen.findByRole("button", { name: "Open menu" }));
-		await user.click(await screen.findByRole("menuitem", { name: "Download" }));
-
-		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
-		const [file] = vi.mocked(saveAs).mock.calls[0];
-		if (!(file instanceof Blob)) {
-			throw new Error("Expected the download to be a Blob.");
-		}
-		expect(parseSkillMarkdown(await file.text()).modelInvocable).toBe(false);
 	});
 });

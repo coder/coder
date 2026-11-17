@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -2530,8 +2531,14 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 	return out
 }
 
-// Skill converts a database Skill to an SDK Skill.
+// Skill converts a database Skill to an SDK Skill. The stored content is
+// the file as uploaded, so the returned content has its
+// disable-model-invocation key set to agree with ModelInvocable. Every client
+// then gets a file that other tools read the same way. Uploads are checked
+// so that the key can always be set. A skill stored before that check can
+// still fail it, and its content is returned as stored.
 func Skill(skill database.Skill) codersdk.Skill {
+	content, _ := skills.WithModelInvocable(skill.Content, skill.ModelInvocable)
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
 			ID:             skill.ID,
@@ -2543,7 +2550,7 @@ func Skill(skill database.Skill) codersdk.Skill {
 			CreatedAt:      skill.CreatedAt,
 			UpdatedAt:      skill.UpdatedAt,
 		},
-		Content: skill.Content,
+		Content: content,
 	}
 }
 

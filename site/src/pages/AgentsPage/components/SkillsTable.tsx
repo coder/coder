@@ -13,7 +13,6 @@ import {
 	type SkillAccess,
 	type SkillsCopy,
 	type SkillsScope,
-	skillFileContent,
 	skillFormValuesFromSkill,
 } from "../utils/skills";
 import type { SectionHeaderLevel } from "./SectionHeader";
@@ -206,7 +205,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	});
 
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient.fetchQuery(scope.detail(name)).then(skillFileContent);
+		queryClient.fetchQuery(scope.detail(name)).then((detail) => detail.content);
 
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),

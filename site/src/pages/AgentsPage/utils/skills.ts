@@ -170,40 +170,17 @@ const frontmatterStringField = (
 	return value.replace(/[\r\n]+$/, "");
 };
 
-type SkillMarkdownLines = {
-	/** A leading UTF-8 BOM, which the server accepts and stores. */
-	bom: string;
-	lines: string[];
-	/** Index of the closing `---`, or -1 when it is missing. */
-	closingIndex: number;
-};
-
-/**
- * Splits SKILL.md content into lines and locates its frontmatter delimiters,
- * allowing whitespace around `---`. Returns undefined when the first line is
- * not a delimiter.
- */
-const splitSkillMarkdown = (
-	content: string,
-): SkillMarkdownLines | undefined => {
-	const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
-	const lines = content.slice(bom.length).split("\n");
-	if (lines[0].trim() !== "---") {
-		return undefined;
+// The API re-validates on submit; this only projects content into form fields.
+export const parseSkillMarkdown = (content: string): SkillFormValues => {
+	const normalizedContent = content.replace(/^\uFEFF/, "");
+	const lines = normalizedContent.split("\n");
+	if (lines[0]?.trim() !== "---") {
+		throw new SkillMarkdownError("Missing opening frontmatter delimiter.");
 	}
+
 	const closingIndex = lines.findIndex(
 		(line, index) => index > 0 && line.trim() === "---",
 	);
-	return { bom, lines, closingIndex };
-};
-
-// The API re-validates on submit; this only projects content into form fields.
-export const parseSkillMarkdown = (content: string): SkillFormValues => {
-	const split = splitSkillMarkdown(content);
-	if (!split) {
-		throw new SkillMarkdownError("Missing opening frontmatter delimiter.");
-	}
-	const { lines, closingIndex } = split;
 	if (closingIndex < 0) {
 		throw new SkillMarkdownError("Missing closing frontmatter delimiter.");
 	}
@@ -305,38 +282,6 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	frontmatter.push("---");
 
 	return `${frontmatter.join("\n")}\n${body}\n`;
-};
-
-const isManualOnlyMarkdown = (content: string): boolean => {
-	const parsed = tryParseSkillMarkdown(content);
-	return parsed.ok && parsed.values.modelInvocable === false;
-};
-
-/**
- * Returns the SKILL.md file to download for a skill. A manual-only skill gets
- * `disable-model-invocation: true` in its frontmatter, so Claude Code, Cursor,
- * and VS Code treat the file as manual-only too, and re-importing it keeps the
- * setting. The content is returned unchanged when it already marks the skill
- * manual-only, or when the marker would make it unparsable (for example, a
- * duplicate key spelled differently) or push it past the size limit.
- */
-export const skillFileContent = (skill: Skill): string => {
-	const { content } = skill;
-	if (skill.model_invocable || isManualOnlyMarkdown(content)) {
-		return content;
-	}
-	const split = splitSkillMarkdown(content);
-	if (!split || split.closingIndex < 0) {
-		return content;
-	}
-	const { bom, lines } = split;
-	const lineEnding = lines[0].endsWith("\r") ? "\r" : "";
-	lines.splice(1, 0, `disable-model-invocation: true${lineEnding}`);
-	const marked = `${bom}${lines.join("\n")}`;
-	return getSkillContentSizeBytes(marked) <= SKILL_MAX_SIZE_BYTES &&
-		isManualOnlyMarkdown(marked)
-		? marked
-		: content;
 };
 
 /**
