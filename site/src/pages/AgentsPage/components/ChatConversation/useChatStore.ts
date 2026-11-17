@@ -7,7 +7,6 @@ import {
 } from "react-query";
 import { watchChat } from "#/api/api";
 import {
-	chat,
 	chatStoreKey,
 	fetchNewestChatMessages,
 	fetchOlderChatMessages,
@@ -81,15 +80,9 @@ export const useChatStore = (
 	const storeQuery = useQuery({
 		queryKey: chatStoreKey(chatID),
 		queryFn: async ({ signal }) => {
-			// The page has no status. The chat record's status stands in until
-			// the stream reports one, so the chat never renders without a status.
-			const [page, record] = await Promise.all([
-				fetchNewestChatMessages(chatID, signal),
-				queryClient.ensureQueryData(chat(chatID)),
-			]);
+			const page = await fetchNewestChatMessages(chatID, signal);
 			const store = createChatStore();
 			store.seed(page);
-			store.applyServerChatStatus(record.status);
 			return store;
 		},
 		staleTime: "static",

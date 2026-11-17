@@ -57,11 +57,8 @@ import { buildStreamTools } from "./streamState";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
-	API: { experimental: { getChat: vi.fn(), getChatMessages: vi.fn() } },
+	API: { experimental: { getChatMessages: vi.fn() } },
 }));
-
-// The status of each chat's record; a chat without one is waiting.
-const recordStatuses = new Map<string, TypesGen.ChatStatus>();
 
 // The newest page the server returns for each chat; a chat without one is
 // empty.
@@ -74,11 +71,6 @@ const mockNewestPage = (
 };
 
 beforeEach(() => {
-	vi.mocked(API.experimental.getChat).mockImplementation(async (chatID) => ({
-		...MockChat,
-		id: chatID,
-		status: recordStatuses.get(chatID) ?? "waiting",
-	}));
 	vi.mocked(API.experimental.getChatMessages).mockImplementation(
 		async (chatID) =>
 			newestPages.get(chatID) ?? {
@@ -2754,37 +2746,7 @@ describe("useChatStore", () => {
 		expect(watchChat).toHaveBeenNthCalledWith(3, chatID, 7);
 	});
 
-	it("shows the chat record's status until the stream reports one", async () => {
-		const sockets = mockWatchChatWithFreshSockets();
-		const chatID = "chat-record-status";
-		recordStatuses.set(chatID, "running");
-		const { result } = renderHook(
-			() => {
-				const { store } = useChatStore({
-					chatID,
-					setChatErrorReason: vi.fn(),
-					clearChatErrorReason: vi.fn(),
-				});
-				return useChatSelector(store, selectChatStatus);
-			},
-			{ wrapper: createWrapper(createTestQueryClient()) },
-		);
-
-		await waitFor(() => expect(sockets).toHaveLength(1));
-		expect(result.current).toBe("running");
-
-		act(() => {
-			sockets[0].emitOpen();
-			sockets[0].emitData({
-				type: "status",
-				chat_id: chatID,
-				status: { status: "waiting" },
-			});
-		});
-		expect(result.current).toBe("waiting");
-	});
-
-	it("renders a reopened chat with its status and without the previous visit's stream output and client error", async () => {
+	it("renders a reopened chat without the previous visit's transient state", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const chatID = "chat-reopen-transient";
 		const wrapper = createWrapper(
@@ -2849,7 +2811,7 @@ describe("useChatStore", () => {
 
 		const second = renderChat();
 		expect(second.result.current.store).toBe(first.result.current.store);
-		expect(renders[0]).toBe("running");
+		expect(renders[0]).toBeNull();
 		expect(second.result.current.streamState).toBeNull();
 		expect(second.result.current.shownError).toBeNull();
 	});
