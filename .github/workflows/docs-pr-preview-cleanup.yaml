@@ -2,12 +2,26 @@
 #
 # On merge or close it deletes every deployment of that PR (tagged with the
 # deployment meta pr=<number>), and with them their
-# pr-<number>[-<sha>].<DOCS_PREVIEW_DOMAIN> aliases. Once a week, and on
+# pr-<number>[-<sha>].<DOCS_PREVIEW_DOMAIN> aliases. Once a day, and on
 # demand, it grooms the whole preview project: any deployment whose PR is
-# closed goes, which catches a close event this workflow missed.
+# closed goes, which catches a close event this workflow missed or skipped.
 #
-# Only the Vercel and GitHub APIs are called; nothing is checked out and no
-# PR content runs. Fork PRs never get a preview, so their close is skipped.
+# Only the Vercel, Google Cloud and GitHub APIs are called; nothing is checked
+# out and no PR content runs. Fork PRs never get a preview, so their close is
+# skipped.
+#
+# The Vercel token stays in Secret Manager. The workload identity provider
+# must release it to this file only when both hold:
+#
+#   repository_id    == 440752086 (coder/coder)
+#   job_workflow_ref == coder/coder/.github/workflows/docs-pr-preview-cleanup.yaml@refs/heads/main
+#
+# pull_request_target reads this file from the pull request's base branch, so
+# a pull request into any other branch would run that branch's copy, which
+# the identity refuses. Those closes are skipped here and left to the groom.
+# The same holds for a manual run from a branch.
+#
+# The variables are the ones docs-pr-preview-publish.yaml lists.
 name: docs-pr-preview-cleanup
 
 on:
@@ -16,7 +30,7 @@ on:
     types:
       - closed
   schedule:
-    - cron: "23 7 * * 1"
+    - cron: "23 7 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -26,12 +40,18 @@ concurrency:
 permissions: {}
 
 jobs:
+  # Skipped, not failed, while the Google Cloud identity is not configured.
   cleanup:
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.DOCS_PREVIEW_WORKLOAD_IDENTITY_PROVIDER != '' &&
+      (github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: docs-preview
     permissions:
+      id-token: write # the Google Cloud identity that may read the Vercel token
       pull-requests: read
     steps:
       - name: Harden Runner
@@ -39,12 +59,27 @@ jobs:
         with:
           egress-policy: audit
 
+      # Only the access token is needed, so no credentials file is written and
+      # nothing is exported to later steps.
+      - name: Authenticate to Google Cloud
+        id: gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.DOCS_PREVIEW_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DOCS_PREVIEW_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_lifetime: 300s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      # Tested in test-docs-pr-preview-cleanup.sh, which runs this script.
       - name: Delete closed pull requests' previews
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           CLOSED_PR: ${{ github.event.pull_request.number }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          VERCEL_TOKEN_SECRET: ${{ vars.DOCS_PREVIEW_VERCEL_TOKEN_SECRET }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
           DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
@@ -57,18 +92,37 @@ jobs:
             exit 1
           fi
 
+          if ! [[ "$VERCEL_TOKEN_SECRET" =~ ^projects/[^/]+/secrets/[^/]+/versions/[^/]+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_VERCEL_TOKEN_SECRET to a Secret Manager version resource name." >&2
+            exit 1
+          fi
+          # Read in this step and never written to an output, so no other
+          # step holds it. On an HTTP error the body, which names the denied
+          # permission, is printed instead.
+          secret=$(curl --fail-with-body -sS --retry 3 \
+            -H "Authorization: Bearer ${GCP_ACCESS_TOKEN}" \
+            "https://secretmanager.googleapis.com/v1/${VERCEL_TOKEN_SECRET}:access") || {
+            printf '%s\n' "$secret" >&2
+            exit 1
+          }
+          VERCEL_TOKEN=$(printf '%s' "$secret" | jq -er '.payload.data' | base64 -d)
+          echo "::add-mask::${VERCEL_TOKEN}"
+
           vercel_api() {
             curl --fail-with-body -sS --retry 3 \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" "$@"
           }
 
           # Every deployment in the preview project as "<id>\t<pr>\t<sha>",
-          # following the pagination cursor to the end.
+          # following the pagination cursor to the end. A page that cannot be
+          # read fails the listing: errexit is off inside a command
+          # substitution, so without the explicit returns a refused request
+          # would list nothing and read as nothing to delete.
           list_deployments() {
             local until="" page
             while :; do
-              page=$(vercel_api "https://api.vercel.com/v6/deployments?teamId=${VERCEL_ORG_ID}&projectId=${VERCEL_PROJECT_ID}&limit=100${until:+&until=${until}}")
-              printf '%s' "$page" | jq -r '.deployments[] | [.uid, (.meta.pr // ""), (.meta.sha // "")] | @tsv'
+              page=$(vercel_api "https://api.vercel.com/v6/deployments?teamId=${VERCEL_ORG_ID}&projectId=${VERCEL_PROJECT_ID}&limit=100${until:+&until=${until}}") || return 1
+              printf '%s' "$page" | jq -r '.deployments[] | [.uid, (.meta.pr // ""), (.meta.sha // "")] | @tsv' || return 1
               until=$(printf '%s' "$page" | jq -r '.pagination.next // empty')
               [ -n "$until" ] || break
             done
@@ -87,7 +141,10 @@ jobs:
             esac
           }
 
-          deployments=$(list_deployments)
+          deployments=$(list_deployments) || {
+            echo "::error::Could not list the preview project's deployments, so nothing was deleted." >&2
+            exit 1
+          }
 
           if [ -n "$CLOSED_PR" ]; then
             closed="$CLOSED_PR"
