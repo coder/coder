@@ -28,7 +28,8 @@ export const WorkspaceSharingIndicator: React.FC<
 		<Tooltip interactive>
 			<TooltipTrigger
 				aria-label="Workspace permissions"
-				className="text-content-secondary hover:text-content-primary"
+				// Negative margin keeps the 24px target (WCAG 2.5.8) from changing the row layout.
+				className="size-6 -m-1.25 self-center justify-center text-content-secondary hover:text-content-primary"
 			>
 				<UsersIcon className="size-icon-xs" />
 			</TooltipTrigger>
