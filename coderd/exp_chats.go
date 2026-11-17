@@ -3040,19 +3040,6 @@ func (api *API) updateChat(
 		}
 	}
 
-	if req.WorkspaceID != nil {
-		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-			ID:          chat.ID,
-			WorkspaceID: workspaceID,
-			BuildID:     uuid.NullUUID{},
-			AgentID:     uuid.NullUUID{},
-		})
-		if err != nil {
-			return database.Chat{}, chatUpdateError(err, "Failed to update chat workspace binding.")
-		}
-		chat = updatedChat
-	}
-
 	if planModeUpdate != nil {
 		updatedChat, err := api.Database.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
 			PlanMode: *planModeUpdate,
@@ -3064,8 +3051,8 @@ func (api *API) updateChat(
 		chat = updatedChat
 	}
 
-	// The move is the last write, so a refused move keeps the earlier
-	// writes of the request, as a refused archive does.
+	// The move follows every write but the workspace binding, so a refused
+	// move keeps those writes, as a refused archive does.
 	if projectUpdate != nil {
 		err := api.chatDaemon.MoveChatToProject(ctx, chat, *projectUpdate)
 		if err != nil {
@@ -3089,6 +3076,21 @@ func (api *API) updateChat(
 				Detail:  err.Error(),
 			}, err)
 		}
+	}
+
+	// A workspace sent with a move was checked against the project the chat
+	// moves to, so it is bound only after the move succeeds.
+	if req.WorkspaceID != nil {
+		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chat.ID,
+			WorkspaceID: workspaceID,
+			BuildID:     uuid.NullUUID{},
+			AgentID:     uuid.NullUUID{},
+		})
+		if err != nil {
+			return database.Chat{}, chatUpdateError(err, "Failed to update chat workspace binding.")
+		}
+		chat = updatedChat
 	}
 
 	refreshed, err := api.Database.GetChatByID(ctx, chat.ID)
