@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -41,6 +42,10 @@ const (
 	// conflict with query parameters that users may use.
 	//nolint:gosec
 	SubdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
+	// PreviewSignInParam marks a request for a preview host that only signs
+	// the browser in to apps. Coder answers it with an empty page and never
+	// sends it to the preview.
+	PreviewSignInParam = "coder_preview_sign_in"
 	// appLogoutHostname is the hostname to use for the logout redirect. When
 	// the dashboard logs out, it will redirect to this subdomain of the app
 	// hostname, and the server will remove the cookie and redirect to the main
@@ -50,6 +55,17 @@ const (
 	// Deprecated: we no longer use this, but we still redirect from it to the
 	// main login page.
 	appLogoutHostname = "coder-logout"
+	// previewSandbox is the browser sandbox for preview pages. It stops a page
+	// from taking over the browser tab or opening popups that look like Coder.
+	// allow-same-origin stays because dev servers need their own origin for
+	// storage and same-origin requests.
+	previewSandbox = "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
+	// previewPolicy is the Content-Security-Policy for preview pages. Every
+	// request a page makes must stay on its own host, including images and
+	// scripts, because requests to the user's other apps would carry the
+	// user's app cookie. A policy can't stop a page from navigating itself to
+	// another host; whatever embeds the preview must do that with frame-src.
+	previewPolicy = "sandbox " + previewSandbox + "; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-src 'self'; object-src 'none'; form-action 'self'"
 )
 
 // nonCanonicalHeaders is a map from "canonical" headers to the actual header we
@@ -365,6 +381,24 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Path-based apps accept the user's dashboard session cookie. A preview
+	// page that could send requests to them could act as the user anywhere in
+	// Coder.
+	if isFromOtherPreview(r, r.Host) {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusForbidden,
+			Title:       "Forbidden",
+			Description: "Preview pages cannot send requests to other apps.",
+			Actions: []site.Action{
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
+		})
+		return
+	}
+
 	if !s.handleAPIKeySmuggling(rw, r, AccessMethodPath) {
 		return
 	}
@@ -509,6 +543,15 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
+			// This runs before the app's CORS setting is applied, so it still
+			// blocks requests when the template lets other origins through.
+			if isFromOtherPreview(r, host) {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "Preview pages cannot send requests to other apps.",
+				})
+				return
+			}
+
 			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
 				return
 			}
@@ -538,6 +581,11 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
+			if _, isPreview := appurl.ParsePreviewSlug(app.AppSlugOrPort); isPreview && r.URL.Query().Has(PreviewSignInParam) {
+				rw.WriteHeader(http.StatusOK)
+				return
+			}
+
 			// Proxy the request (possibly with the CORS middleware).
 			mws := chi.Middlewares(append(middlewares, s.determineCORSBehavior(token, app)))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -545,6 +593,98 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// isRepostToOtherHost reports whether resp makes the browser resend a request that
+// can change data, such as a form submission, to another host.
+//
+// The AI agent controls the server behind a preview. A preview page could
+// submit a form to its own server, and the server could answer with a
+// redirect to one of the user's other apps. The browser would then send the
+// form to that app with the user's cookie and with Origin "null", so
+// isFromOtherPreview can't tell that the preview sent it. Blocking these
+// redirects closes that gap. GET and HEAD requests are let through because
+// they should not change data.
+func isRepostToOtherHost(resp *http.Response, host string) bool {
+	method := resp.Request.Method
+	if method == http.MethodGet || method == http.MethodHead {
+		return false
+	}
+
+	// Browsers keep the method for 307 and 308. For 301 and 302 they change
+	// only POST to GET, so other methods still send their body.
+	switch resp.StatusCode {
+	case http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+	case http.StatusMovedPermanently, http.StatusFound:
+		if method == http.MethodPost {
+			return false
+		}
+	default:
+		return false
+	}
+
+	for _, location := range resp.Header.Values("Location") {
+		if !redirectStaysOnHost(location, host) {
+			return true
+		}
+	}
+	return false
+}
+
+// redirectStaysOnHost reports whether a browser that follows a redirect to
+// location stays on host.
+//
+// What matters is where the browser goes, not how Go reads the URL, and the
+// two can differ. So any location that a browser might read as another host
+// counts as leaving.
+func redirectStaysOnHost(location, host string) bool {
+	// Browsers read a backslash as a slash, but url.Parse does not, so a
+	// backslash could hide a redirect to another host.
+	if strings.ContainsRune(location, '\\') {
+		return false
+	}
+
+	u, err := url.Parse(location)
+	if err != nil {
+		return false
+	}
+	// Browsers read a host after any number of leading slashes.
+	if u.Scheme == "" {
+		return !strings.HasPrefix(location, "//")
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") &&
+		appurl.HostnamesMatch(u.Host, host)
+}
+
+// hasDomainAttribute reports whether a browser could read a Domain attribute
+// in the Set-Cookie line.
+func hasDomainAttribute(line string) bool {
+	_, attrs, _ := strings.Cut(line, ";")
+	for attr := range strings.SplitSeq(attrs, ";") {
+		name, _, _ := strings.Cut(attr, "=")
+		if strings.EqualFold(strings.TrimSpace(name), "domain") {
+			return true
+		}
+	}
+	return false
+}
+
+// isFromOtherPreview reports whether a preview page on another host sent r.
+//
+// The AI agent writes preview pages, so they can't be trusted. When a
+// preview page sends a request to one of the user's other apps, the browser
+// still adds the user's cookie for that app, so the request would act as the
+// user. The browser also sets the Origin header to the page that sent the
+// request, and the page can't change it. So a request whose Origin is a
+// preview hostname other than host came from a preview and must be refused.
+// Requests from any other origin are left to the app's CORS setting.
+func isFromOtherPreview(r *http.Request, host string) bool {
+	origin, err := url.Parse(r.Header.Get(httpmw.OriginHeader))
+	if err != nil || origin.Host == "" || appurl.HostnamesMatch(origin.Host, host) {
+		return false
+	}
+
+	return appurl.IsPreviewHostname(origin.Hostname())
 }
 
 // parseHostname will return if a given request is attempting to access a
@@ -636,6 +776,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		return
 	}
 
+	preview, isPreview := appurl.ParsePreviewSlug(appToken.AppSlugOrPort)
+
 	// Verify that the port is allowed. See the docs above
 	// `codersdk.MinimumListeningPort` for more details.
 	port := appURL.Port()
@@ -649,7 +791,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 
-		if portInt < workspacesdk.AgentMinimumListeningPort {
+		// The agent's own API serves file previews on a reserved port. Allow
+		// only that port, and only for file previews, so a port preview can't
+		// reach the agent API.
+		isFilePreviewOnAgentAPI := preview.ID != "" && portInt == workspacesdk.AgentHTTPAPIServerPort
+		if portInt < workspacesdk.AgentMinimumListeningPort && !isFilePreviewOnAgentAPI {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.",
 					portInt, workspacesdk.AgentMinimumListeningPort,
@@ -657,6 +803,28 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			})
 			return
 		}
+	}
+
+	// A service worker keeps running on a hostname after the page that
+	// installed it is gone. On a preview hostname it could keep serving old or
+	// fake pages after the port runs a different app or the files change.
+	// Browsers send this header only when they load a service worker script,
+	// so other kinds of workers still work.
+	if isPreview && r.Header.Get("Service-Worker") == "script" {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Preview pages cannot register service workers.",
+		})
+		return
+	}
+
+	// The agent API saves and replays its response for each chat and tool
+	// call these headers name, and only coderd should set them. File previews
+	// go to the same agent API, so remove them to stop a preview page from
+	// filling that store or answering in place of a real tool call.
+	if preview.ID != "" {
+		r.Header.Del(workspacesdk.CoderChatIDHeader)
+		r.Header.Del(workspacesdk.CoderToolCallIDHeader)
+		r.Header.Del(workspacesdk.CoderAncestorChatIDsHeader)
 	}
 
 	// Ensure path and query parameter correctness.
@@ -698,8 +866,39 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
+	host := httpmw.EffectiveHost(s.RealIPConfig, r)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
+		// Add the policy instead of replacing it, so any policy the preview
+		// server sets still applies.
+		if isPreview {
+			r.Header.Add("Content-Security-Policy", previewPolicy)
+			// Both would reach beyond the preview host: Clear-Site-Data clears
+			// cookies for the whole registrable domain, logging the user out,
+			// and a cookie with a Domain attribute is sent to the user's other
+			// apps.
+			r.Header.Del("Clear-Site-Data")
+			cookies := r.Header.Values("Set-Cookie")
+			r.Header.Del("Set-Cookie")
+			for _, line := range cookies {
+				if !hasDomainAttribute(line) {
+					r.Header.Add("Set-Cookie", line)
+				}
+			}
+			// previewPolicy's form-action is not enough here, because Firefox
+			// checks it only on a form's first URL, not on where the form is
+			// redirected.
+			if isRepostToOtherHost(r, host) {
+				_ = r.Body.Close()
+				msg := "Preview pages cannot redirect requests that change data to other hosts."
+				r.StatusCode = http.StatusForbidden
+				r.Header = http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
+				r.ContentLength = int64(len(msg))
+				r.Body = io.NopCloser(strings.NewReader(msg))
+				return nil
+			}
+		}
+
 		// If passthru behavior is set, disable our CORS header stripping.
 		if cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
 			return nil
