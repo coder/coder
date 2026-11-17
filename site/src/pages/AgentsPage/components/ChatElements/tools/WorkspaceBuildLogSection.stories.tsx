@@ -44,13 +44,16 @@ const sampleLogs: ProvisionerJobLog[] = [
 const mockWorkspace = {
 	...MockWorkspace,
 	id: TEST_WORKSPACE_ID,
-	latest_build: { ...MockWorkspaceBuild, id: TEST_BUILD_ID },
+	latest_build: {
+		...MockWorkspaceBuild,
+		id: TEST_BUILD_ID,
+		workspace_id: TEST_WORKSPACE_ID,
+	},
 };
 
 const mockOverflowedBuild = {
-	...MockWorkspaceBuild,
-	id: TEST_BUILD_ID,
-	job: { ...MockWorkspaceBuild.job, logs_overflowed: true },
+	...mockWorkspace.latest_build,
+	job: { ...mockWorkspace.latest_build.job, logs_overflowed: true },
 };
 
 const mockOverflowedWorkspace = {
@@ -59,17 +62,16 @@ const mockOverflowedWorkspace = {
 };
 const mockWorkspaceWithNewerBuild = {
 	...mockWorkspace,
-	latest_build: MockWorkspaceBuild,
+	latest_build: {
+		...mockWorkspace.latest_build,
+		id: "newer-build-id",
+		build_number: mockWorkspace.latest_build.build_number + 1,
+	},
 };
 
 const meta: Meta<typeof WorkspaceBuildLogSection> = {
 	title: "pages/AgentsPage/ChatElements/tools/WorkspaceBuildLogSection",
 	component: WorkspaceBuildLogSection,
-	parameters: {
-		queries: [
-			{ key: workspaceByIdKey(TEST_WORKSPACE_ID), data: mockWorkspace },
-		],
-	},
 	decorators: [
 		(Story) => (
 			<ChatWorkspaceContext value={{ workspaceId: TEST_WORKSPACE_ID }}>
@@ -87,6 +89,11 @@ export const Loading: Story = {
 	args: {
 		status: "completed",
 		buildId: TEST_BUILD_ID,
+	},
+	parameters: {
+		queries: [
+			{ key: workspaceByIdKey(TEST_WORKSPACE_ID), data: mockWorkspace },
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuildLogs").mockImplementation(
@@ -117,6 +124,11 @@ export const FetchError: Story = {
 	args: {
 		status: "completed",
 		buildId: TEST_BUILD_ID,
+	},
+	parameters: {
+		queries: [
+			{ key: workspaceByIdKey(TEST_WORKSPACE_ID), data: mockWorkspace },
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuildLogs").mockRejectedValue(
@@ -156,6 +168,49 @@ export const LogsOverflowed: Story = {
 				data: mockOverflowedWorkspace,
 			},
 		],
+	},
+};
+
+export const LogsOverflowedWithFetchError: Story = {
+	args: { status: "completed", buildId: TEST_BUILD_ID },
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(TEST_WORKSPACE_ID),
+				data: mockOverflowedWorkspace,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuildLogs").mockRejectedValue(
+			new Error("Internal Server Error"),
+		);
+	},
+};
+
+export const LogsOverflowedWithEmptyLogs: Story = {
+	args: { status: "completed", buildId: TEST_BUILD_ID },
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(TEST_WORKSPACE_ID),
+				data: mockOverflowedWorkspace,
+			},
+			{ key: workspaceBuildLogsKey(TEST_BUILD_ID), data: [] },
+		],
+	},
+};
+
+export const WorkspaceFetchError: Story = {
+	args: { status: "completed", buildId: TEST_BUILD_ID },
+	parameters: {
+		queries: [{ key: workspaceBuildLogsKey(TEST_BUILD_ID), data: sampleLogs }],
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspace").mockRejectedValue(
+			new Error("Internal Server Error"),
+		);
+		spyOn(API, "getWorkspaceBuild").mockResolvedValue(mockOverflowedBuild);
 	},
 };
 

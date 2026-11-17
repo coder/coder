@@ -36,6 +36,7 @@ export const workspaceBuildByNumber = (
 	};
 };
 
+/** Scopes cached build metadata and child queries to an immutable build ID. */
 export const workspaceBuildByIdKey = (workspaceBuildId: string) =>
 	["workspaceBuilds", workspaceBuildId] as const;
 
@@ -87,6 +88,7 @@ export const infiniteWorkspaceBuilds = (
 	} satisfies UseInfiniteQueryOptions<WorkspaceBuild[]>;
 };
 
+/** Shares the build prefix for invalidating metadata and logs together. */
 export function workspaceBuildLogsKey(workspaceBuildId: string) {
 	return ["workspaceBuilds", workspaceBuildId, "logs"] as const;
 }

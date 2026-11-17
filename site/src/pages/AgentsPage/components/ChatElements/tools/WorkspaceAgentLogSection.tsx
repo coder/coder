@@ -71,10 +71,6 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
-	if (logs.length === 0) {
-		return isCallRunning ? <WaitingForAgentStartup /> : null;
-	}
-
 	const lines = logs.map<Line>((log) => ({
 		id: log.id,
 		time: log.created_at,
@@ -92,17 +88,24 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 					<code>/tmp/coder-startup-script.log</code> file in the workspace.
 				</Alert>
 			)}
-			<ToolCall.Scrollable
-				className="mt-1.5 rounded-md border text-2xs"
-				viewportClassName="max-h-64"
-				ariaLabel="Workspace agent startup log"
-				followEnd
-			>
-				<div className="font-mono">
-					<LogsHeader title="Agent startup" detail={agent.name} />
-					<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
-				</div>
-			</ToolCall.Scrollable>
+			{lines.length === 0 && isCallRunning && <WaitingForAgentStartup />}
+			{lines.length > 0 && (
+				<ToolCall.Scrollable
+					className="mt-1.5 rounded-md border text-2xs"
+					viewportClassName="max-h-64"
+					ariaLabel="Workspace agent startup log"
+					followEnd
+				>
+					<div className="font-mono">
+						<LogsHeader title="Agent startup" detail={agent.name} />
+						<Logs
+							lines={lines}
+							LineOutput={AgentLogOutput}
+							className="min-h-0"
+						/>
+					</div>
+				</ToolCall.Scrollable>
+			)}
 		</>
 	);
 };

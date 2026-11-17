@@ -33,6 +33,7 @@ const meta: Meta<typeof WorkspaceAgentLogSection> = {
 			<ChatWorkspaceContext
 				value={{
 					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
 					agentId: MockWorkspaceAgent.id,
 				}}
 			>
@@ -66,5 +67,30 @@ export const LogsOverflowed: Story = {
 				data: mockOverflowedWorkspace,
 			},
 		],
+	},
+};
+
+export const LogsOverflowedWithoutLogs: Story = {
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(MockWorkspace.id),
+				data: mockOverflowedWorkspace,
+			},
+		],
+		webSocket: [],
+	},
+};
+
+export const LogsOverflowedWhileWaiting: Story = {
+	args: { status: "running" },
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(MockWorkspace.id),
+				data: mockOverflowedWorkspace,
+			},
+		],
+		webSocket: [],
 	},
 };

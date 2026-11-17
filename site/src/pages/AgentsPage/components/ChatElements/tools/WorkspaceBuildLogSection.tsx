@@ -57,14 +57,16 @@ export const WorkspaceBuildLogSection: React.FC<
 
 	const watchedBuild =
 		latestBuild?.id === effectiveBuildId ? latestBuild : undefined;
-	const historicalBuildQuery = useQuery({
+	const buildByIdQuery = useQuery({
 		...workspaceBuildById(effectiveBuildId ?? ""),
 		enabled:
 			Boolean(effectiveBuildId) &&
 			!isRunning &&
-			(!workspaceId || (workspaceQuery.isSuccess && !watchedBuild)),
+			(!workspaceId ||
+				((workspaceQuery.isSuccess || workspaceQuery.isError) &&
+					!watchedBuild)),
 	});
-	const build = watchedBuild ?? historicalBuildQuery.data;
+	const build = watchedBuild ?? buildByIdQuery.data;
 
 	// --- Running builds: stream via WebSocket ---
 	const streamingLogs = useWorkspaceBuildLogs(
@@ -109,44 +111,21 @@ export const WorkspaceBuildLogSection: React.FC<
 		return null;
 	}
 
+	let content: React.ReactNode;
 	if (fetchFailed) {
-		return <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
-	}
-
-	if (timedOut && !hasLogs) {
-		return (
+		content = <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
+	} else if (timedOut && !hasLogs) {
+		content = (
 			<LogNotice icon="warning">
 				Build logs are taking longer than expected.
 			</LogNotice>
 		);
-	}
-
-	// Query succeeded but the build produced no log output.
-	if (
-		!isRunning &&
-		completedLogsQuery.isSuccess &&
-		(!logs || logs.length === 0)
-	) {
-		return <LogNotice>No build logs available.</LogNotice>;
-	}
-
-	if (!logs || logs.length === 0) {
-		return <LogNotice icon="loading">Loading build logs…</LogNotice>;
-	}
-
-	return (
-		<>
-			{!build && (workspaceQuery.isError || historicalBuildQuery.isError) && (
-				<LogNotice icon="warning">
-					Unable to check whether build logs were truncated.
-				</LogNotice>
-			)}
-			{build?.job.logs_overflowed && (
-				<Alert severity="warning" className="mt-1.5">
-					Provisioner logs exceeded the max size of 1MB. Will not continue to
-					write provisioner logs for workspace build.
-				</Alert>
-			)}
+	} else if (!isRunning && completedLogsQuery.isSuccess && !hasLogs) {
+		content = <LogNotice>No build logs available.</LogNotice>;
+	} else if (!logs || logs.length === 0) {
+		content = <LogNotice icon="loading">Loading build logs…</LogNotice>;
+	} else {
+		content = (
 			<ToolCall.Scrollable
 				className="mt-1.5 rounded-md border text-2xs"
 				viewportClassName="max-h-64"
@@ -161,6 +140,24 @@ export const WorkspaceBuildLogSection: React.FC<
 					className="border-0 rounded-none"
 				/>
 			</ToolCall.Scrollable>
+		);
+	}
+
+	return (
+		<>
+			{!build &&
+				(isRunning ? workspaceQuery.isError : buildByIdQuery.isError) && (
+					<LogNotice icon="warning">
+						Unable to check whether build logs were truncated.
+					</LogNotice>
+				)}
+			{build?.job.logs_overflowed && (
+				<Alert severity="warning" className="mt-1.5">
+					Provisioner logs exceeded the 1MB size limit. Later logs for this
+					build were not saved.
+				</Alert>
+			)}
+			{content}
 		</>
 	);
 };
