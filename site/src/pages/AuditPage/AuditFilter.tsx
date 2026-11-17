@@ -17,6 +17,7 @@ import {
 import {
 	AuditActions,
 	BuildReasons,
+	type ResourceType,
 	ResourceTypes,
 } from "#/api/typesGenerated";
 import type { UseFilterResult } from "#/components/Filter/Filter";
@@ -72,56 +73,23 @@ const actionOptions: FilterOption[] = AuditActions.filter(
 	(action) => !["connect", "disconnect", "open", "close"].includes(action),
 ).map((action) => ({ value: action, label: capitalize(action) }));
 
-const resourceOptions: FilterOption[] = ResourceTypes.map((type) => {
-	let label: string = capitalize(type);
+const resourceTypeLabels: Partial<Record<ResourceType, string>> = {
+	api_key: "API Key",
+	git_ssh_key: "Git SSH Key",
+	template_version: "Template Version",
+	workspace_build: "Workspace Build",
+	chat_instruction_settings: "Chat Instruction Settings",
+	chat_organization_system_prompt: "Chat Organization System Prompt",
+	chat_project_instructions: "Chat Project Instructions",
+	chat_project_skill: "Chat Project Skill",
+	chat_operational_settings: "Chat Operational Settings",
+	experiment_rule: "Experiment Rule",
+};
 
-	switch (type) {
-		case "api_key":
-			label = "API Key";
-			break;
-
-		case "git_ssh_key":
-			label = "Git SSH Key";
-			break;
-
-		case "template_version":
-			label = "Template Version";
-			break;
-
-		case "workspace_build":
-			label = "Workspace Build";
-			break;
-
-		case "chat_instruction_settings":
-			label = "Chat Instruction Settings";
-			break;
-
-		case "chat_organization_system_prompt":
-			label = "Chat Organization System Prompt";
-			break;
-
-		case "chat_project_instructions":
-			label = "Chat Project Instructions";
-			break;
-
-		case "chat_project_skill":
-			label = "Chat Project Skill";
-			break;
-
-		case "chat_operational_settings":
-			label = "Chat Operational Settings";
-			break;
-
-		case "experiment_rule":
-			label = "Experiment Rule";
-			break;
-	}
-
-	return {
-		value: type,
-		label,
-	};
-});
+const resourceOptions: FilterOption[] = ResourceTypes.map((type) => ({
+	value: type,
+	label: resourceTypeLabels[type] ?? capitalize(type),
+}));
 
 type AuditFilterProps = { filter: UseFilterResult; error?: unknown };
 

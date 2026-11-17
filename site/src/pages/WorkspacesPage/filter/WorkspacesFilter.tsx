@@ -40,7 +40,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 }) => {
 	const { showOrganizations, entitlements } = useDashboard();
 	const { permissions, user: me } = useAuthenticated();
-	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` is the wrong capability
+	// TODO(CLIENT-421 follow-up): `viewDeploymentConfig` is the wrong capability
 	// for listing users. It is carried over from the legacy page; replace it with
 	// a list-users capability check. Users without it still get an Owner
 	// category scoped to themselves (below) so `user:me` keeps working.
@@ -119,7 +119,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 				// can hide while its one option would still narrow the results.
 				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
-				// TODO(DEVEX-421 follow-up): use workspace-read or organization
+				// TODO(CLIENT-421 follow-up): use workspace-read or organization
 				// membership instead of the inherited audit-log permission gate.
 				getOptions: (query) =>
 					getOrganizationFilterOptions(query, queryClient, {
