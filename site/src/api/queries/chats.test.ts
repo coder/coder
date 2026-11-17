@@ -16,6 +16,7 @@ import {
 import {
 	MockChatAttachment,
 	MockChatMessage,
+	MockChatQueuedMessageNotFoundError,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -27,6 +28,7 @@ import {
 	MockMCPServerConfigACLAvailable,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
@@ -2076,6 +2078,7 @@ describe("mutation invalidation scope", () => {
 	): TypesGen.ChatQueuedMessage => ({
 		id,
 		chat_id: chatId,
+		busy_behavior: "queue",
 		created_at: `2025-01-01T00:10:${String(id).padStart(2, "0")}Z`,
 		content: [{ type: "text" as const, text: `queued ${id}` }],
 	});
@@ -2672,6 +2675,27 @@ describe("mutation invalidation scope", () => {
 				?.isInvalidated,
 			"by-workspace entry should NOT be invalidated",
 		).not.toBe(true);
+	});
+});
+
+describe("deleteChatQueuedMessage", () => {
+	it("treats a missing row as deleted", async () => {
+		vi.mocked(API.experimental.deleteChatQueuedMessage).mockRejectedValue(
+			MockChatQueuedMessageNotFoundError,
+		);
+		const mutation = deleteChatQueuedMessage(createTestQueryClient(), "chat-1");
+
+		await expect(mutation.mutationFn(7)).resolves.toBeUndefined();
+	});
+
+	it("rethrows other errors", async () => {
+		const serverError = mockApiError({ message: "Internal error." });
+		vi.mocked(API.experimental.deleteChatQueuedMessage).mockRejectedValue(
+			serverError,
+		);
+		const mutation = deleteChatQueuedMessage(createTestQueryClient(), "chat-1");
+
+		await expect(mutation.mutationFn(7)).rejects.toBe(serverError);
 	});
 });
 
@@ -5684,6 +5708,7 @@ describe("message upsert fan-out and history replacement", () => {
 		const queuedMessage: TypesGen.ChatQueuedMessage = {
 			id: 1,
 			chat_id: "chat-1",
+			busy_behavior: "queue",
 			created_at: "2025-01-01T00:10:00.000Z",
 			content: [{ type: "text", text: "queued" }],
 		};

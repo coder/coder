@@ -11,7 +11,7 @@ Routing is based on the user's email address, and this should be consistent betw
 
 ## Requirements
 
-Before setting up Slack notifications, ensure that you have the following:
+Before setting up Slack notifications, make sure that you have the following:
 
 - Administrator access to the Slack platform to create apps
 - Coder platform >=v2.16.0

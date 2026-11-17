@@ -81,7 +81,7 @@ You can open your dev container directly in VS Code by:
 
 VS Code will automatically detect the dev container environment and connect appropriately.
 
-While optimized for VS Code, other IDEs with dev container support may also work.
+While optimized for VS Code, other IDEs with dev container support might also work.
 
 ## Port forwarding
 

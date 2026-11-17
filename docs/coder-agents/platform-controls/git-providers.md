@@ -67,7 +67,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 ```
 
 > [!NOTE]
-> You may also set `API_BASE_URL` explicitly if needed (for example, `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
+> You can also set `API_BASE_URL` explicitly if needed (for example, `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
 
 ## Known limitations
 
@@ -80,7 +80,7 @@ The GitLab provider has some semantic differences compared to the GitHub provide
   This field is always reported as `false`.
 - **Reviewer count** only counts users who have approved, not all assigned reviewers.
 
-These gaps are tracked internally and may be refined in future releases.
+These gaps are tracked internally and might be refined in future releases.
 
 ## Troubleshooting
 

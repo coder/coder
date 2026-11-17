@@ -439,9 +439,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": [
-        0
-      ],
+      "input_schema": {},
       "name": "string"
     }
   ],
@@ -1514,11 +1512,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                  |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the filename as a quoted string. |
+| `body`                | body   | string       | true     | Raw file binary data                                             |
 
 ### Example responses
 
@@ -2661,6 +2659,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 
 `POST /api/v2/chats/{chat}/interrupt`
 
+Interrupts the active turn of a chat.
+If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -3015,9 +3016,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3029,9 +3028,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3048,13 +3045,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3095,12 +3087,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3112,9 +3103,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3131,13 +3120,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3166,6 +3150,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
@@ -3196,7 +3181,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 ```json
 {
-  "busy_behavior": "queue",
+  "busy_behavior": "steer",
   "content": [
     {
       "content": "string",
@@ -3259,9 +3244,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3273,9 +3256,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3292,13 +3273,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -3341,9 +3317,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3355,9 +3329,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3374,13 +3346,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3421,12 +3388,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3438,9 +3404,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3457,13 +3421,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -3570,9 +3529,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3584,9 +3541,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3603,13 +3558,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -3652,9 +3602,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3666,9 +3614,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3685,13 +3631,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -4268,12 +4209,57 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
+Each WebSocket message is a JSON array of events.
+
+The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
+A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
+Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+The server reads `snapshot_version` before the messages and the queue, so the page can include changes with a higher `snapshot_version`.
+The stream can send changes that are already in the page.
+
+The server reads the chat when the stream opens and each time the chat changes.
+Each read sends the changes since the previous read.
+When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
+
+- A `message` event for each message that isn't deleted.
+- A `history_reset` event for each edit.
+- A `queue_update` event, if the queue changed.
+
+The server ignores `after_id` when you set `snapshot_version`.
+The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+
+On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
+Each read sends these events in order of `snapshot_version`.
+Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
+The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+The server sends `message_part` events between reads.
+
+A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
+The edit deleted that message and every message after it.
+When managing history state, delete every message with that ID or higher.
+After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
+
+A messages page that you request with `before_id` includes no `snapshot_version`.
+If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+
+On each new connection, the server sends the chat's current status again.
+When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
+The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
+
+When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
+After a `history_reset` event, the server sends every message in the chat as `message` events.
+On a new connection, when `after_id` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.
+When `after_id` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a `history_reset` event if the chat has a deleted message.
+
+When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
+
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
-| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
+| Name               | In    | Type         | Required | Description                                                                                   |
+|--------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                       |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set |
+| `snapshot_version` | query | integer      | false    | Send what changed at this snapshot version or later                                           |
 
 ### Example responses
 
@@ -4300,13 +4286,14 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "retryable": true,
       "status_code": 0
     },
+    "history_reset": {
+      "from_message_id": 0
+    },
     "message": {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -4318,9 +4305,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -4337,13 +4322,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -4385,9 +4365,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "generation_attempt": 0,
       "history_version": 0,
       "part": {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -4399,9 +4377,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -4418,13 +4394,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -4450,12 +4421,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
     },
     "queued_messages": [
       {
+        "busy_behavior": "steer",
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "content": [
           {
-            "args": [
-              0
-            ],
+            "args": {},
             "args_delta": "string",
             "completed_at": "2019-08-24T14:15:22Z",
             "content": "string",
@@ -4467,9 +4437,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "context_file_skill_meta_file": "string",
             "context_file_truncated": true,
             "created_at": "2019-08-24T14:15:22Z",
-            "data": [
-              0
-            ],
+            "data": "string",
             "end_line": 0,
             "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
             "file_name": "string",
@@ -4486,13 +4454,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
               ]
             ],
             "provider_executed": true,
-            "provider_metadata": [
-              0
-            ],
             "reasoning_delta": "string",
-            "result": [
-              0
-            ],
+            "result": {},
             "result_delta": "string",
             "result_reset": true,
             "skill_description": "string",
@@ -4530,6 +4493,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "retrying_at": "2019-08-24T14:15:22Z",
       "status_code": 0
     },
+    "snapshot_version": 0,
     "status": {
       "status": "waiting"
     },
@@ -4564,10 +4528,12 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                                                                                                                    |
+| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept.                                                                                                                              |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» args`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args`                         | object                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» args_delta`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» completed_at`                 | string(date-time)                                                                | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `»»» content`                      | string                                                                           | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -4579,7 +4545,7 @@ Status Code **200**
 | `»»» context_file_skill_meta_file` | string                                                                           | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `»»» context_file_truncated`       | boolean                                                                          | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `»»» data`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» data`                         | string(byte)                                                                     | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
 | `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4592,9 +4558,8 @@ Status Code **200**
 | `»»» narration`                    | boolean                                                                          | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result`                       | object                                                                           | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
@@ -4634,11 +4599,12 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» queued_messages`                | array                                                                            | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                    |
+| `»» busy_behavior`                 | [codersdk.ChatBusyBehavior](schemas.md#codersdkchatbusybehavior)                 | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                                                                                                                                                                   |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»» editing_since`                 | string(date-time)                                                                | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat.                                                                                                                                                                                                               |
+| `»» editing_since`                 | string(date-time)                                                                | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends. A steer message under edit also holds the steer messages ahead of it. A turn that ends at a message under edit pauses the chat.                                                                                                                                         |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» reasoning_effort`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4650,19 +4616,21 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» snapshot_version`               | integer                                                                          | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events.                                                                                             |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                                                                                |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
-| `skill_source` | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
-| `type`         | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`         | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
-| `status`       | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                              |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
+| `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
+| `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
+| `busy_behavior` | `queue`, `steer`                                                                                                                                                                                                                                                                                                        |
+| `status`        | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                              |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4771,9 +4739,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
   "results": [
     {
       "is_error": true,
-      "output": [
-        0
-      ],
+      "output": {},
       "tool_call_id": "string"
     }
   ]
@@ -4955,6 +4921,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -5354,6 +5321,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",

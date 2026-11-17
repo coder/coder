@@ -18,7 +18,7 @@ This means:
   A developer just describes the work they want done.
   They do not need to pick a provider or write a system prompt.
   The platform team has already set all of that up.
-  When a platform team enables user API keys for a provider, developers may optionally supply their own key, but this is an opt-in policy decision, not a requirement.
+  When a platform team enables user API keys for a provider, developers can optionally supply their own key, but this is an opt-in policy decision, not a requirement.
 - **Enforcement, not defaults.**
   Settings configured by administrators are enforced server-side.
   Developers cannot override them.

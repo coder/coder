@@ -1,6 +1,6 @@
-import type { QueryClient } from "react-query";
 import { users } from "#/api/queries/users";
 import { Avatar } from "#/components/Avatar/Avatar";
+import type { OptionsQueryClient } from "#/utils/filters";
 import type { FilterOption } from "./FilterCombobox/types";
 
 // User suggestions are capped; the picker is a prefix search, not a full list.
@@ -37,10 +37,13 @@ export const getSelfUserFilterOptions = async (
 export const getUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
-	queryClient: Pick<QueryClient, "fetchQuery">,
+	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const usersRes = await queryClient.fetchQuery(
-		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
+		users({
+			q: `${query} include_system:true`,
+			limit: USER_SUGGESTIONS_LIMIT,
+		}),
 	);
 	// The users API also matches name and email, so a result for the current
 	// user keeps its option even when the query is not in its label.

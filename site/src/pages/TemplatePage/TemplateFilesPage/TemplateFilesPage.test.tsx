@@ -8,8 +8,8 @@ import { server } from "#/testHelpers/server";
 import { TemplateLayout } from "../TemplateLayout";
 import TemplateFilesPage from "./TemplateFilesPage";
 
-// Occasionally, Jest encounters HTML5 canvas errors. As the SyntaxHighlight is
-// not required for these tests, we can safely mock it.
+// jsdom's stylesheet parser throws on the highlighter's shadow-DOM styles, and
+// the highlighting itself is not under test here.
 vi.mock("#/components/SyntaxHighlighter/SyntaxHighlighter", () => ({
 	SyntaxHighlighter: () => <div data-testid="syntax-highlighter" />,
 }));

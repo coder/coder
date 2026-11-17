@@ -264,7 +264,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 							) : null}
 							{skillsQuery.isLoading && <Loader />}
 							{skillsQuery.isSuccess && skills.length === 0 && (
-								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
+								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center text-sm text-content-secondary">
 									{canEdit ? (
 										<>
 											<p className="m-0">
@@ -331,7 +331,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								</Table>
 							)}
 						</div>
-						<DialogFooter className="border-t border-border px-6 py-4">
+						<DialogFooter className="border-t px-6 py-4">
 							<Button variant="outline" onClick={() => handleOpenChange(false)}>
 								Close
 							</Button>
@@ -508,7 +508,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 					<SkillEditorBodyField placeholder="Describe when and how the agent should use this skill." />
 				</SkillEditorFields>
 				{canEdit && (
-					<DialogFooter className="border-t border-border px-6 py-4">
+					<DialogFooter className="border-t px-6 py-4">
 						<SkillEditorSubmitButton>Save</SkillEditorSubmitButton>
 					</DialogFooter>
 				)}

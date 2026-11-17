@@ -218,7 +218,7 @@ export const DesktopPanelView: React.FC<DesktopPanelViewProps> = ({
 
 	// status === "connected"
 	return (
-		<div className="flex h-full w-full flex-col">
+		<div className="flex size-full flex-col">
 			<DesktopToolbar
 				scaleMode={scaleMode}
 				onScaleModeChange={onScaleModeChange}
@@ -233,7 +233,7 @@ export const DesktopPanelView: React.FC<DesktopPanelViewProps> = ({
 					ref={(el) => {
 						if (el) attach(el);
 					}}
-					className="h-full w-full"
+					className="size-full"
 					inert={!isControlling ? true : undefined}
 					role="application"
 					aria-label={

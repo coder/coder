@@ -26,7 +26,7 @@ Users can belong to multiple organizations while templates and provisioners cann
 Organizations increase the maintenance overhead of a Coder deployment, so we recommend that you only use them when necessary.
 
 Use organizations when a separate group of users needs to manage their own templates and underlying infrastructure.
-If a group of users already has a separate, functional platform team willing to write templates or manage clusters, organizations may be a good fit.
+If a group of users already has a separate, functional platform team willing to write templates or manage clusters, organizations might be a good fit.
 
 ### Organization use case examples
 
@@ -68,7 +68,7 @@ While the Coder UI or API can be used to assign specific users to organizations,
 Instead, we recommend syncing the state from your identity provider such as Okta.
 A single claim from the identity provider (like `memberOf`) can be used to sync site-wide roles, organizations, groups, and organization roles.
 
-Regex filters and mapping can be configured to ensure the proper resources are allocated in Coder.
+Regex filters and mapping can be configured to make sure the proper resources are allocated in Coder.
 Learn more about [identity provider (IDP) sync](idp-sync.md).
 
 ## Custom Roles
@@ -81,12 +81,12 @@ Some examples of custom roles that can be created:
 ### Provisioner Admin
 
 - The user can deploy provisioners but not manage templates.
-  This may be useful if automation is used to create and update templates in the organization.
+  This can be useful if automation is used to create and update templates in the organization.
 
 ### Template Editor
 
 - Inverse of provisioner admin: User can manage templates but not deploy provisioners.
-  This may be useful if the provisioner and template are deployed via automation and users are allowed to edit them.
+  This can be useful if the provisioner and template are deployed via automation and users are allowed to edit them.
 
 ### Template Pusher
 

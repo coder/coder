@@ -1,11 +1,13 @@
+import { QueryClient } from "react-query";
+import { API } from "#/api/api";
 import {
 	getSelfUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userOptions";
+import type { OptionsQueryClient } from "#/utils/filters";
 import {
 	getAttributeFilterOptions,
 	getStatusFilterOptions,
-	type OptionsQueryClient,
 } from "./categoryOptions";
 
 const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({
@@ -14,6 +16,10 @@ const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({
 
 describe("getUserFilterOptions", () => {
 	const me = { username: "alice", avatar_url: "/alice.png" };
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
 
 	it("puts the current user first and commits the me sentinel", async () => {
 		const queryClient = fakeQueryClient({ users: [] });
@@ -54,6 +60,19 @@ describe("getUserFilterOptions", () => {
 		const options = await getUserFilterOptions("smith", me, queryClient);
 
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
+	});
+
+	it("searches system users so the prebuilds owner can be picked", async () => {
+		const getUsers = vi
+			.spyOn(API, "getUsers")
+			.mockResolvedValue({ users: [], count: 0 });
+
+		await getUserFilterOptions("prebu", me, new QueryClient());
+
+		expect(getUsers).toHaveBeenCalledWith(
+			expect.objectContaining({ q: "prebu include_system:true" }),
+			expect.anything(),
+		);
 	});
 });
 

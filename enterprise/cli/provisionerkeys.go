@@ -31,10 +31,27 @@ func (r *RootCmd) provisionerKeys() *serpent.Command {
 	return cmd
 }
 
+// createProvisionerKeyResponse includes the one-time secret, which is only
+// available at creation time.
+type createProvisionerKeyResponse struct {
+	codersdk.ProvisionerKey
+	Key string `json:"key"`
+}
+
 func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		rawTags    []string
+		formatter  = cliui.NewOutputFormatter(
+			cliui.TextFormatFunc(func(resp createProvisionerKeyResponse) (string, error) {
+				return fmt.Sprintf(
+					"Successfully created provisioner key %s! Save this authentication token, it will not be shown again.\n\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(resp.Name)),
+					pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Key),
+				), nil
+			}),
+			cliui.JSONFormat(),
+		)
 	)
 
 	cmd := &serpent.Command{
@@ -68,14 +85,20 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create provisioner key: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(
-				inv.Stdout,
-				"Successfully created provisioner key %s! Save this authentication token, it will not be shown again.\n\n%s\n",
-				pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(inv.Args[0])),
-				pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key),
-			)
+			// CreateProvisionerKey only returns the secret, so use it to fetch the
+			// key's metadata. The key already exists, so never fail here and lose
+			// the one-time secret. If the lookup fails, fall back to the values
+			// this command sent.
+			key, err := client.GetProvisionerKey(ctx, res.Key)
+			if err != nil {
+				key = codersdk.ProvisionerKey{Name: inv.Args[0], OrganizationID: org.ID, Tags: tags}
+				cliui.Warnf(inv.Stderr, "Could not fetch metadata for the created provisioner key, so its id and created_at are unset: %s", err)
+			}
 
-			return nil
+			return formatter.WriteLine(ctx, inv.Stdout, createProvisionerKeyResponse{
+				ProvisionerKey: key,
+				Key:            res.Key,
+			})
 		},
 	}
 
@@ -89,6 +112,7 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 		},
 	}
 	orgContext.AttachOptions(cmd)
+	formatter.AttachOptions(&cmd.Options)
 
 	return cmd
 }

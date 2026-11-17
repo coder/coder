@@ -173,15 +173,17 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 		<div
 			key={devcontainer.id}
 			className={cn(
-				"flex flex-col max-w-full relative py-4 border border-dashed border-border rounded",
+				"flex flex-col max-w-full relative py-4 border border-dashed rounded",
 				devcontainer.error && "border-content-destructive border-solid",
 			)}
 		>
 			<div
-				className="absolute -top-2 left-5
-				flex items-center gap-2
-				bg-surface-primary px-2
-				text-xs text-content-secondary"
+				className={cn(
+					"absolute -top-2 left-5",
+					"flex items-center gap-2",
+					"bg-surface-primary px-2",
+					"text-xs text-content-secondary",
+				)}
 			>
 				<ContainerIcon size={12} className="mr-1.5" />
 				{devcontainer.subagent_id ? (
@@ -199,11 +201,13 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 				)}
 			</div>
 			<header
-				className="flex items-center justify-between flex-wrap
-				gap-6 px-4 pl-8 leading-6
-				md:gap-4"
+				className={cn(
+					"flex items-center justify-between flex-wrap",
+					"gap-6 px-4 pl-8 leading-6",
+					"md:gap-4",
+				)}
 			>
-				<div className="min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
+				<div className="min-w-71 flex items-center gap-6 text-xs text-content-secondary">
 					<div className="flex items-center gap-4 w-full">
 						<DevcontainerStatus
 							devcontainer={devcontainer}
@@ -211,14 +215,16 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 							agent={subAgent}
 						/>
 						<span
-							className="flex-1 shrink-0
-							overflow-hidden text-ellipsis whitespace-nowrap
-							text-sm font-semibold text-content-primary"
+							className={cn(
+								"flex-1 shrink-0",
+								"truncate",
+								"text-sm font-semibold text-content-primary",
+							)}
 						>
 							{subAgent?.name ??
 								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
-								<span className="text-content-tertiary">
+								<span className="text-content-secondary">
 									{" "}
 									({devcontainer.container.name})
 								</span>

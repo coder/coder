@@ -78,16 +78,16 @@ The terminal uses reconnection tokens to maintain session state:
 - Each terminal session has a unique universally unique identifier (UUID)
 - If the connection drops, the same token is used to reconnect
 - The workspace agent buffers output during disconnections
-- Your shell session continues running even when the browser is closed
+- Your shell session keeps running while the browser is connected and for about 5&nbsp;minutes after it disconnects, then it ends.
 
 ## Customization
 
-### Font Selection
+### Font selection
 
 You can customize the terminal font through your user settings:
 
 1. Select your avatar in the top-right corner
-2. Select **Settings** → **Appearance**
+2. Select **Account** > **Appearance**
 3. Choose from available fonts:
    - **Geist Mono** (default)
    - **IBM Plex Mono**
@@ -97,13 +97,22 @@ You can customize the terminal font through your user settings:
 
 The font change applies immediately to all open terminal sessions.
 
+### Font size
+
+You can customize the terminal font size through your user settings:
+
+1. Select your avatar in the top-right corner
+2. Select **Account** > **Appearance**
+3. Choose your preferred font size
+
 ### Rendering Engine
 
 Administrators can configure the terminal renderer for performance optimization:
 
 ```yaml
 # In your Coder deployment configuration
-webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
+client:
+  webTerminalRenderer: "canvas" # Options: canvas, webgl, dom
 ```
 
 Or via environment variable:
@@ -143,7 +152,7 @@ The Web Terminal supports standard terminal keybindings:
 - **Paste**:
   Use the standard paste shortcut or middle-click (on Linux/X11)
 - **Browser permissions**:
-  First paste may prompt for clipboard access
+  First paste might prompt for clipboard access
 
 ## URL Handling
 
@@ -233,7 +242,7 @@ export CTERM=xterm-256color
 If the terminal fails to connect:
 
 1. **Check workspace status**:
-   Ensure your workspace is running
+   Make sure your workspace is running
 2. **Verify agent health**:
    Look for agent connection warnings
 3. **Network issues**:
@@ -246,10 +255,10 @@ If the terminal fails to connect:
 If characters or colors appear incorrect:
 
 1. **Unicode support**:
-   Ensure your shell locale is set correctly (`locale -a`)
+   Make sure your shell locale is set correctly (`locale -a`)
 2. **Terminal type**:
    The terminal sets `TERM=xterm-256color` automatically
 3. **Color schemes**:
-   Some applications may not render correctly in dark mode
+   Some applications might not render correctly in dark mode
 4. **Font rendering**:
    Try switching terminal fonts in your appearance settings

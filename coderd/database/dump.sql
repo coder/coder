@@ -359,6 +359,11 @@ CREATE TYPE build_reason AS ENUM (
     'jetbrains_connection'
 );
 
+CREATE TYPE chat_busy_behavior AS ENUM (
+    'queue',
+    'steer'
+);
+
 CREATE TYPE chat_client_type AS ENUM (
     'ui',
     'api'
@@ -2101,7 +2106,8 @@ CREATE TABLE chat_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
@@ -2121,6 +2127,8 @@ COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carr
 COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN chat_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2391,12 +2399,15 @@ CREATE TABLE chat_queued_messages (
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    editing_since timestamp with time zone
+    editing_since timestamp with time zone,
+    busy_behavior chat_busy_behavior DEFAULT 'queue'::chat_busy_behavior NOT NULL
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
 
 COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
+
+COMMENT ON COLUMN chat_queued_messages.busy_behavior IS 'queue: delivered at turn end. steer: delivered before the next model call.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -3880,7 +3891,8 @@ CREATE TABLE workspace_agent_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
@@ -3900,6 +3912,8 @@ COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource stat
 COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE workspace_agent_context_snapshots (
     workspace_agent_id uuid NOT NULL,
@@ -5389,6 +5403,10 @@ CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (r
 CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_audit_sessions USING btree (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
 
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
+
+CREATE INDEX workspace_app_stats_session_ended_at_idx ON workspace_app_stats USING btree (session_ended_at);
+
+COMMENT ON INDEX workspace_app_stats_session_ended_at_idx IS 'Supports the session_ended_at range filter in GetTemplateAppInsightsByTemplate (insights metrics collector).';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 

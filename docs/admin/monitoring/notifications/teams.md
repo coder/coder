@@ -9,7 +9,7 @@ These notifications appear as messages in Teams chats, either with the Flow Bot 
 
 ## Requirements
 
-Before setting up Microsoft Teams notifications, ensure that you have the following:
+Before setting up Microsoft Teams notifications, make sure that you have the following:
 
 - Administrator access to the Teams platform
 - Coder platform >=v2.16.0
@@ -22,7 +22,7 @@ The process of setting up a Teams workflow consists of three key steps:
 
    Begin by configuring the trigger: **"When a Teams webhook request is received"**.
 
-   Ensure the trigger access level is set to **"Anyone"**.
+   Make sure the trigger access level is set to **"Anyone"**.
 
 1. Setup the JSON Parsing Action.
 

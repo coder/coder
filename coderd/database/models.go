@@ -1546,6 +1546,64 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatBusyBehavior string
+
+const (
+	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
+	ChatBusyBehaviorSteer ChatBusyBehavior = "steer"
+)
+
+func (e *ChatBusyBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatBusyBehavior(s)
+	case string:
+		*e = ChatBusyBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatBusyBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullChatBusyBehavior struct {
+	ChatBusyBehavior ChatBusyBehavior `json:"chat_busy_behavior"`
+	Valid            bool             `json:"valid"` // Valid is true if ChatBusyBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatBusyBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatBusyBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatBusyBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatBusyBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatBusyBehavior), nil
+}
+
+func (e ChatBusyBehavior) Valid() bool {
+	switch e {
+	case ChatBusyBehaviorQueue,
+		ChatBusyBehaviorSteer:
+		return true
+	}
+	return false
+}
+
+func AllChatBusyBehaviorValues() []ChatBusyBehavior {
+	return []ChatBusyBehavior{
+		ChatBusyBehaviorQueue,
+		ChatBusyBehaviorSteer,
+	}
+}
+
 type ChatClientType string
 
 const (
@@ -5396,6 +5454,8 @@ type ChatContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 type ChatDebugRun struct {
@@ -5623,6 +5683,8 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.
 	EditingSince sql.NullTime `db:"editing_since" json:"editing_since"`
+	// queue: delivered at turn end. steer: delivered before the next model call.
+	BusyBehavior ChatBusyBehavior `db:"busy_behavior" json:"busy_behavior"`
 }
 
 type ChatTable struct {
@@ -6871,6 +6933,8 @@ type WorkspaceAgentContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 // Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.

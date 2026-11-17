@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -102,6 +103,32 @@ func TestPGPubsub_Metrics(t *testing.T) {
 			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_connected", backend) &&
 			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", backend, "colossal")
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestPGPubsub_HealthReport(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.Logger(t)
+	connectionURL, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+	db, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	defer db.Close()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	uut, err := pubsub.New(ctx, logger, db, connectionURL, nil)
+	require.NoError(t, err)
+
+	report := uut.HealthReport(ctx)
+	assert.Equal(t, pubsub.BackendPostgres, report.Backend)
+	assert.Equal(t, health.SeverityOK, report.Severity)
+	assert.Empty(t, report.Warnings)
+
+	require.NoError(t, uut.Close())
+	report = uut.HealthReport(ctx)
+	assert.Equal(t, health.SeverityWarning, report.Severity)
+	require.Len(t, report.Warnings, 1)
+	assert.Equal(t, health.CodePubsubNotConnected, report.Warnings[0].Code)
 }
 
 func TestPGPubsubDriver(t *testing.T) {
