@@ -16,6 +16,11 @@ import {
 	TableRow,
 } from "./Table";
 
+type Row = {
+	id: string;
+	disabled?: boolean;
+};
+
 const rows = [
 	{ id: "alpha" },
 	{ id: "bravo", disabled: true },
@@ -23,9 +28,7 @@ const rows = [
 	{ id: "delta" },
 	{ id: "echo", disabled: true },
 	{ id: "foxtrot" },
-];
-
-type Row = (typeof rows)[number];
+] satisfies Row[];
 
 function renderSelection({
 	initialRows = rows,
@@ -131,12 +134,12 @@ describe("SelectableTable", () => {
 	});
 
 	it.each(["Shift-click", "Shift+Space"])(
-		"selects and deselects anchored ranges with %s without activating rows",
+		"selects, shrinks, and deselects anchored ranges with %s without activating rows",
 		async (gesture) => {
 			const user = userEvent.setup();
 			const onRowClick = vi.fn();
 			const onSelectionChange = renderSelection({
-				initialIds: ["delta", "foxtrot", "stale"],
+				initialIds: ["foxtrot", "stale"],
 				onRowClick,
 			});
 			await user.click(checkboxFor("alpha"));
@@ -146,6 +149,28 @@ describe("SelectableTable", () => {
 				await user.keyboard("{/Shift}");
 			} else {
 				await user.tab();
+				await user.tab();
+				await user.keyboard("{Shift>} {/Shift}");
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "charlie", "delta", "foxtrot", "stale"]),
+			);
+			if (gesture === "Shift-click") {
+				await user.keyboard("{Shift>}");
+				await user.click(checkboxFor("charlie"));
+				await user.keyboard("{/Shift}");
+			} else {
+				await user.tab({ shift: true });
+				await user.keyboard("{Shift>} {/Shift}");
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "charlie", "foxtrot", "stale"]),
+			);
+			if (gesture === "Shift-click") {
+				await user.keyboard("{Shift>}");
+				await user.click(checkboxFor("delta"));
+				await user.keyboard("{/Shift}");
+			} else {
 				await user.tab();
 				await user.keyboard("{Shift>} {/Shift}");
 			}
@@ -165,7 +190,29 @@ describe("SelectableTable", () => {
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["foxtrot", "stale"]),
 			);
-			expect(onSelectionChange).toHaveBeenCalledTimes(4);
+			if (gesture === "Shift-click") {
+				await user.keyboard("{Shift>}");
+				await user.click(checkboxFor("charlie"));
+				await user.keyboard("{/Shift}");
+			} else {
+				await user.tab();
+				await user.keyboard("{Shift>} {/Shift}");
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "foxtrot", "stale"]),
+			);
+			if (gesture === "Shift-click") {
+				await user.keyboard("{Shift>}");
+				await user.click(checkboxFor("delta"));
+				await user.keyboard("{/Shift}");
+			} else {
+				await user.tab();
+				await user.keyboard("{Shift>} {/Shift}");
+			}
+			expect(onSelectionChange).toHaveBeenLastCalledWith(
+				new Set(["alpha", "charlie", "foxtrot", "stale"]),
+			);
+			expect(onSelectionChange).toHaveBeenCalledTimes(8);
 			expect(onRowClick).not.toHaveBeenCalled();
 		},
 	);
@@ -184,16 +231,33 @@ describe("SelectableTable", () => {
 	});
 
 	it.each([
-		{ name: "removed", refetchedRows: rows.slice(1), refetchedIds: undefined },
+		{
+			name: "removed",
+			refetchedRows: rows.slice(1),
+			refetchedIds: undefined,
+			expectedIds: ["alpha", "delta"],
+		},
 		{
 			name: "disabled",
 			refetchedRows: [{ ...rows[0], disabled: true }, ...rows.slice(1)],
 			refetchedIds: undefined,
+			expectedIds: ["alpha", "delta"],
 		},
-		{ name: "cleared externally", refetchedRows: rows, refetchedIds: [] },
+		{
+			name: "cleared externally",
+			refetchedRows: rows,
+			refetchedIds: [],
+			expectedIds: ["charlie"],
+		},
+		{
+			name: "preserved but selection replaced externally",
+			refetchedRows: rows,
+			refetchedIds: ["alpha", "foxtrot"],
+			expectedIds: ["alpha", "charlie", "foxtrot"],
+		},
 	])(
 		"toggles only the clicked row when the range anchor is $name",
-		async ({ refetchedRows, refetchedIds }) => {
+		async ({ refetchedRows, refetchedIds, expectedIds }) => {
 			const user = userEvent.setup();
 			const onSelectionChange = renderSelection({
 				refetchedRows,
@@ -209,9 +273,7 @@ describe("SelectableTable", () => {
 			await user.click(screen.getByRole("button", { name: "Refresh rows" }));
 			await user.keyboard("{Shift>}");
 			await user.click(checkboxFor("charlie"));
-			expect(onSelectionChange).toHaveBeenLastCalledWith(
-				new Set(refetchedIds ? ["charlie"] : ["alpha", "delta"]),
-			);
+			expect(onSelectionChange).toHaveBeenLastCalledWith(new Set(expectedIds));
 		},
 	);
 
@@ -527,7 +589,7 @@ describe("SelectableTable", () => {
 		const onSelectionChange = renderSelection();
 		await user.keyboard("{Shift>}");
 		await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor("alpha") });
-		act(() => {
+		await act(async () => {
 			for (const id of ["charlie", "delta"]) {
 				fireEvent.pointerOver(checkboxFor(id), {
 					pointerId: 1,

@@ -21,6 +21,15 @@ type SelectableTableProps = React.ComponentProps<typeof Table> & {
 	onSelectionChange: (selectedIds: Set<string>) => void;
 };
 
+type SelectionAnchor = {
+	id: string;
+	checked: boolean;
+	range?: {
+		initialIds: ReadonlySet<string>;
+		expectedIds: ReadonlySet<string>;
+	};
+};
+
 type DragState = {
 	anchorId: string;
 	pointerId: number;
@@ -59,9 +68,26 @@ function useTableSelection() {
 	return context;
 }
 
+function useTableRowId() {
+	const rowId = useContext(SelectionRowContext);
+	if (rowId === null) {
+		throw new Error(
+			"SelectableTableCheckbox must be within a SelectableTableRow",
+		);
+	}
+	return rowId;
+}
+
+function selectionsEqual(
+	left: ReadonlySet<string>,
+	right: ReadonlySet<string>,
+) {
+	return left.size === right.size && [...left].every((id) => right.has(id));
+}
+
 /**
  * Shift-click or Shift+Space applies the anchor checkbox's state to a range.
- * Shift-dragging toggles a range; reversing restores selection outside it.
+ * Shift-dragging toggles a range. Shrinking either restores selection outside it.
  */
 export const SelectableTable: React.FC<SelectableTableProps> = ({
 	rows,
@@ -72,7 +98,7 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 	...props
 }) => {
 	const rowsById = new Map(rows.map((row) => [row.id, row]));
-	const anchorRef = useRef<{ id: string; checked: boolean } | null>(null);
+	const anchorRef = useRef<SelectionAnchor | null>(null);
 	const dragRef = useRef<DragState | null>(null);
 	const suppressClickRef = useRef(false);
 	const clickTimeoutRef = useRef<number | undefined>(undefined);
@@ -159,19 +185,22 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 
 	const extendSelection: SelectionContextValue["extendSelection"] = (id) => {
 		const anchor = anchorRef.current;
+		const range = anchor?.range;
 		const row = anchor && rowsById.get(anchor.id);
 		if (
 			!anchor ||
-			anchor.id === id ||
+			(anchor.id === id && !range) ||
 			!row ||
 			row.disabled ||
-			selectedIds.has(anchor.id) !== anchor.checked
+			selectedIds.has(anchor.id) !== anchor.checked ||
+			(range && !selectionsEqual(selectedIds, range.expectedIds))
 		) {
 			return false;
 		}
-		onSelectionChange(
-			getRangeSelection(anchor.id, id, anchor.checked, selectedIds),
-		);
+		const initialIds = range?.initialIds ?? new Set(selectedIds);
+		const ids = getRangeSelection(anchor.id, id, anchor.checked, initialIds);
+		anchor.range = { initialIds, expectedIds: ids };
+		onSelectionChange(ids);
 		return true;
 	};
 
@@ -221,8 +250,7 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 			!anchor ||
 			anchor.disabled ||
 			(selectedIds !== drag.renderedIds &&
-				(selectedIds.size !== drag.expectedIds.size ||
-					[...selectedIds].some((id) => !drag.expectedIds.has(id))))
+				!selectionsEqual(selectedIds, drag.expectedIds))
 		) {
 			// Retain the gesture until pointerup to suppress its terminal click.
 			drag.canceled = true;
@@ -232,13 +260,17 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 			return;
 		}
 
-		anchorRef.current = { id: drag.anchorId, checked: drag.select };
 		const ids = getRangeSelection(
 			drag.anchorId,
 			id,
 			drag.select,
 			drag.initialIds,
 		);
+		anchorRef.current = {
+			id: drag.anchorId,
+			checked: drag.select,
+			range: { initialIds: drag.initialIds, expectedIds: ids },
+		};
 		drag.renderedIds = selectedIds;
 		drag.expectedIds = ids;
 		onSelectionChange(ids);
@@ -328,12 +360,7 @@ export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 	...props
 }) => {
 	const selection = useTableSelection();
-	const rowId = useContext(SelectionRowContext);
-	if (rowId === null) {
-		throw new Error(
-			"SelectableTableCheckbox must be within a SelectableTableRow",
-		);
-	}
+	const rowId = useTableRowId();
 
 	return (
 		<Checkbox

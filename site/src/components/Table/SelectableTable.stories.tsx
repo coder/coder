@@ -16,6 +16,14 @@ import {
 	TableRow,
 } from "./Table";
 
+type Invoice = {
+	id: string;
+	name: string;
+	status: string;
+	amount: string;
+	disabled?: boolean;
+};
+
 const mockInvoices = [
 	{ id: "inv-101", name: "INV-101", status: "Paid", amount: "$250.00" },
 	{ id: "inv-102", name: "INV-102", status: "Pending", amount: "$150.00" },
@@ -27,9 +35,7 @@ const mockInvoices = [
 		disabled: true,
 	},
 	{ id: "inv-104", name: "INV-104", status: "Paid", amount: "$450.00" },
-];
-
-type Invoice = (typeof mockInvoices)[number];
+] satisfies Invoice[];
 
 type ExampleTableProps = {
 	rows?: readonly Invoice[];
@@ -103,6 +109,18 @@ export const KeyboardRangeSelected: Story = {
 		await userEvent.tab();
 		await userEvent.tab();
 		await userEvent.keyboard("{Shift>} {/Shift}");
+	},
+};
+
+export const ShrunkRange: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("checkbox", { name: "Select INV-101" }));
+		await user.keyboard("{Shift>}");
+		await user.click(canvas.getByRole("checkbox", { name: "Select INV-104" }));
+		await user.click(canvas.getByRole("checkbox", { name: "Select INV-102" }));
+		await user.keyboard("{/Shift}");
 	},
 };
 
