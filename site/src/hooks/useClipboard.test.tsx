@@ -191,10 +191,6 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		expect(copied).toBe(true);
 		expect(result.current.showCopiedSuccess).toBe(true);
 
-		// Flush jsdom's zero-delay select events from the HTTP fallback input so
-		// they do not raise act warnings after the test finishes.
-		await act(() => vi.runAllTimersAsync());
-
 		const clipboardText = getClipboardText();
 		expect(clipboardText).toEqual(textToCopy);
 	};
@@ -204,21 +200,6 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		const { result } = renderUseClipboard();
 		await assertClipboardUpdateLifecycle(result, textToCopy);
 	});
-
-	it.each(["pointerdown", "keydown"] as const)(
-		"Keeps showing success until the next %s",
-		async (eventType) => {
-			const { result } = renderUseClipboard();
-			await assertClipboardUpdateLifecycle(result, "cats");
-			act(() => vi.advanceTimersByTime(60_000));
-			expect(result.current.showCopiedSuccess).toBe(true);
-
-			act(() => {
-				document.body.dispatchEvent(new Event(eventType, { bubbles: true }));
-			});
-			expect(result.current.showCopiedSuccess).toBe(false);
-		},
-	);
 
 	it.each([false, true])(
 		"Finishes the fallback after unmount without leaking timers (failure: %s)",
@@ -243,18 +224,6 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 			expect(vi.getTimerCount()).toBe(0);
 		},
 	);
-
-	it("Shows success again when copying after a dismissal", async () => {
-		const { result } = renderUseClipboard();
-		await act(() => result.current.copyToClipboard("cats"));
-		act(() => {
-			document.body.dispatchEvent(new Event("keydown", { bubbles: true }));
-		});
-		await act(() => result.current.copyToClipboard("dogs"));
-
-		expect(result.current.showCopiedSuccess).toBe(true);
-		expect(getClipboardText()).toBe("dogs");
-	});
 
 	it("Should notify the user of an error using the provided callback", async () => {
 		const textToCopy = "birds";

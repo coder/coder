@@ -35,8 +35,8 @@ export type UseClipboardResult = Readonly<{
 	 * This is _not_ the same as an `isCopied` property, because the hook never
 	 * actually checks the clipboard to determine any state, so it is possible for
 	 * there to be misleading state combos like:
-	 * - User accidentally copies new text before showCopiedSuccess naturally
-	 *   flips to false
+	 * - The user copies other text outside Coder while showCopiedSuccess is
+	 *   still true
 	 *
 	 * Trying to make this property accurate enough that it could safely be called
 	 * `isCopied` led to browser compatibility issues in Safari.
