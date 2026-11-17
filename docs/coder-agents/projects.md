@@ -220,8 +220,10 @@ For the default template, you can also set default values as either a **Preset**
   Coder skips the default preset when the agent sets a parameter that the preset also sets.
 - **Parameter values:** when the agent creates a workspace from the default template, Coder fills in each default value that the agent doesn't set.
   Values the agent sets take precedence.
-  In the dialog, leave a value empty to use the template's own default.
-  A value saved as empty through the API shows as **Empty value**, and **Use template default** removes it.
+  The dialog shows the template's parameters in the same fields as the workspace creation form, each with the template's own default.
+  A value that you change becomes the project's default for that parameter, and the other parameters keep the template's default.
+  To return a parameter to the template's default, select **Use template default** under it.
+  The dialog evaluates the template again after each change, so parameters that depend on another value appear and disappear as you change that value.
 
 When the agent chooses a preset itself, the project's default values don't apply.
 
@@ -232,7 +234,9 @@ The **Edit templates** dialog warns you about it: choose a preset from the activ
 For a template in [parameter compatibility mode](../templates/extending-templates/parameters/compatibility-mode.md), Coder checks the default parameter values when you save.
 When you edit the templates, the dialog warns about values for parameters that the active version no longer has, and saving removes them.
 For other templates, Coder keeps every value and checks it when the agent creates a workspace.
-A value for a parameter that the active version no longer has isn't shown in the dialog, and the workspace build ignores it.
+The dialog shows the template's validation messages for the values that you enter, but they don't stop you from saving.
+The dialog evaluates the parameters for your own user, so a parameter that depends on the workspace owner can differ for the owner of a chat.
+A value for a parameter that the template doesn't ask for with the current values, or that the active version no longer has, isn't shown in the dialog, and the workspace build ignores it.
 To remove it, update `default_template` through the API, or switch the default values to **Preset** and save, which clears every default parameter value.
 
 In the API, `default_template` holds the `template_id` and either a `preset_id` or `parameters`.

@@ -7,19 +7,29 @@ import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	agentTemplates,
 	agentTemplatesKey,
-	richParameters,
+	dynamicParameters,
+	dynamicParametersKey,
 	richParametersKey,
 	templateVersionPresets,
 	templateVersionPresetsKey,
 } from "#/api/queries/templates";
-import type { ChatProject, Preset, Template } from "#/api/typesGenerated";
+import type {
+	ChatProject,
+	DynamicParametersResponse,
+	Preset,
+	Template,
+} from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockPreviewParameter1,
+	MockPreviewParameter2,
 	MockTemplate,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
+	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 
 const mockDockerTemplate: Template = {
@@ -53,13 +63,19 @@ const mockProjectWithDefaultPreset: ChatProject = {
 		preset_id: mockSmallPreset.ID,
 	},
 };
+const mockDefaultParameters = { [MockPreviewParameter1.name]: "custom" };
 const mockProjectWithDefaultParameters: ChatProject = {
 	...MockChatProject,
 	templates: [mockDockerTemplate, mockKubernetesTemplate],
 	default_template: {
 		template_id: mockDockerTemplate.id,
-		parameters: { [MockTemplateVersionParameter1.name]: "custom" },
+		parameters: mockDefaultParameters,
 	},
+};
+const mockParameters: DynamicParametersResponse = {
+	id: 0,
+	diagnostics: [],
+	parameters: [MockPreviewParameter1, MockPreviewParameter2],
 };
 
 type StoryQuery = {
@@ -89,6 +105,7 @@ const withRefetch =
 const meta: Meta<typeof ProjectTemplatesDialog> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectTemplatesDialog",
 	component: ProjectTemplatesDialog,
+	decorators: [withAuthProvider],
 	args: {
 		project: MockChatProject,
 		open: true,
@@ -99,6 +116,8 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 		onResetError: fn(),
 	},
 	parameters: {
+		// The default parameter values are evaluated as this user.
+		user: MockUserOwner,
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
@@ -173,8 +192,12 @@ export const DefaultParameters: Story = {
 				data: [mockDockerTemplate, mockKubernetesTemplate],
 			},
 			{
-				key: richParametersKey(mockDockerTemplate.active_version_id),
-				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+				key: dynamicParametersKey(
+					mockDockerTemplate.active_version_id,
+					MockUserOwner.id,
+					mockDefaultParameters,
+				),
+				data: mockParameters,
 			},
 			// Lets the story switch to a preset without a request.
 			{
@@ -249,8 +272,12 @@ export const DefaultParametersRefetchError: Story = {
 				data: [mockDockerTemplate, mockKubernetesTemplate],
 			},
 			{
-				key: richParametersKey(mockDockerTemplate.active_version_id),
-				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+				key: dynamicParametersKey(
+					mockDockerTemplate.active_version_id,
+					MockUserOwner.id,
+					mockDefaultParameters,
+				),
+				data: mockParameters,
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
@@ -259,10 +286,16 @@ export const DefaultParametersRefetchError: Story = {
 		],
 	},
 	decorators: [
-		withRefetch(richParameters(mockDockerTemplate.active_version_id)),
+		withRefetch(
+			dynamicParameters(
+				mockDockerTemplate.active_version_id,
+				MockUserOwner.id,
+				mockDefaultParameters,
+			),
+		),
 	],
 	beforeEach: () => {
-		spyOn(API, "getTemplateVersionRichParameters").mockRejectedValue(
+		spyOn(API, "getTemplateVersionDynamicParameters").mockRejectedValue(
 			mockApiError({ message: "Failed to load parameters." }),
 		);
 	},
@@ -311,8 +344,12 @@ export const SaveError: Story = {
 				data: [mockDockerTemplate, mockKubernetesTemplate],
 			},
 			{
-				key: richParametersKey(mockDockerTemplate.active_version_id),
-				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+				key: dynamicParametersKey(
+					mockDockerTemplate.active_version_id,
+					MockUserOwner.id,
+					mockDefaultParameters,
+				),
+				data: mockParameters,
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
@@ -454,7 +491,7 @@ export const SavedEmptyParameter: Story = {
 			...mockProjectWithDefaultParameters,
 			default_template: {
 				template_id: mockDockerTemplate.id,
-				parameters: { [MockTemplateVersionParameter1.name]: "" },
+				parameters: { [MockPreviewParameter1.name]: "" },
 			},
 		},
 	},
@@ -466,8 +503,12 @@ export const SavedEmptyParameter: Story = {
 				data: [mockDockerTemplate, mockKubernetesTemplate],
 			},
 			{
-				key: richParametersKey(mockDockerTemplate.active_version_id),
-				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+				key: dynamicParametersKey(
+					mockDockerTemplate.active_version_id,
+					MockUserOwner.id,
+					{ [MockPreviewParameter1.name]: "" },
+				),
+				data: mockParameters,
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
@@ -483,10 +524,7 @@ export const RemovedClassicParameter: Story = {
 			...mockProjectWithDefaultParameters,
 			default_template: {
 				template_id: mockDockerTemplate.id,
-				parameters: {
-					[MockTemplateVersionParameter1.name]: "custom",
-					removed_parameter: "gone",
-				},
+				parameters: { ...mockDefaultParameters, removed_parameter: "gone" },
 			},
 		},
 	},
@@ -503,6 +541,14 @@ export const RemovedClassicParameter: Story = {
 			{
 				key: richParametersKey(mockDockerTemplate.active_version_id),
 				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+			},
+			{
+				key: dynamicParametersKey(
+					mockDockerTemplate.active_version_id,
+					MockUserOwner.id,
+					mockDefaultParameters,
+				),
+				data: mockParameters,
 			},
 		],
 	},

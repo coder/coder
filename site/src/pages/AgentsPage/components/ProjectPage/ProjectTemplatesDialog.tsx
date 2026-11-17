@@ -354,6 +354,10 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			// The parameter fields carry the template's constraints, such as
+			// required, which the browser would enforce on submit. A project
+			// default may leave a required parameter empty.
+			noValidate
 			onSubmit={async (event) => {
 				event.preventDefault();
 				if (

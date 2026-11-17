@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +6,8 @@ import { API } from "#/api/api";
 import type { ChatProject, Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockPreviewParameter1,
+	MockPreviewParameter2,
 	MockTemplate,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
@@ -14,6 +16,13 @@ import {
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
+
+vi.mock("#/hooks/useAuthenticated", async () => {
+	const { MockUserOwner } = await import("#/testHelpers/entities");
+	return {
+		useAuthenticated: () => ({ user: MockUserOwner, permissions: {} }),
+	};
+});
 
 type DialogProps = React.ComponentProps<typeof ProjectTemplatesDialog>;
 
@@ -36,6 +45,11 @@ const renderDialog = (
 		MockTemplateVersionParameter1,
 		MockTemplateVersionParameter2,
 	]);
+	vi.spyOn(API, "getTemplateVersionDynamicParameters").mockResolvedValue({
+		id: 0,
+		diagnostics: [],
+		parameters: [MockPreviewParameter1, MockPreviewParameter2],
+	});
 	const queryClient = createTestQueryClient();
 	const allProps: DialogProps = {
 		project: MockChatProject,
@@ -66,6 +80,9 @@ const renderDialog = (
 	};
 };
 
+const findParameterInput = async (name: string) =>
+	within(await screen.findByRole("group", { name })).getByRole("textbox");
+
 describe("ProjectTemplatesDialog", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -95,9 +112,7 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		});
 
-		const second = await screen.findByRole("textbox", {
-			name: MockTemplateVersionParameter2.name,
-		});
+		const second = await findParameterInput(MockTemplateVersionParameter2.name);
 		await user.clear(second);
 		await user.type(second, "new");
 		await user.click(screen.getByRole("button", { name: /Save/ }));
@@ -203,9 +218,7 @@ describe("ProjectTemplatesDialog", () => {
 			project: mockProjectWithRemovedParameter,
 		});
 
-		const kept = await screen.findByRole("textbox", {
-			name: MockTemplateVersionParameter1.name,
-		});
+		const kept = await findParameterInput(MockTemplateVersionParameter1.name);
 		await user.type(kept, "!");
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
@@ -270,9 +283,7 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		});
 
-		const second = await screen.findByRole("textbox", {
-			name: MockTemplateVersionParameter2.name,
-		});
+		const second = await findParameterInput(MockTemplateVersionParameter2.name);
 		await user.clear(second);
 		await user.type(second, "new");
 		rerenderWithProject({
@@ -331,10 +342,12 @@ describe("ProjectTemplatesDialog", () => {
 		});
 
 		await user.click(
-			await screen.findByRole("button", { name: "Use template default" }),
+			await screen.findByRole("button", {
+				name: `Use template default for ${MockTemplateVersionParameter1.name}`,
+			}),
 		);
 		expect(
-			screen.getByRole("textbox", { name: MockTemplateVersionParameter1.name }),
+			screen.getByRole("group", { name: MockTemplateVersionParameter1.name }),
 		).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: /Save/ }));
 
@@ -445,9 +458,7 @@ describe("ProjectTemplatesDialog", () => {
 				},
 			},
 		});
-		const first = await screen.findByRole("textbox", {
-			name: MockTemplateVersionParameter1.name,
-		});
+		const first = await findParameterInput(MockTemplateVersionParameter1.name);
 		await user.clear(first);
 		await user.type(first, "a");
 
@@ -460,7 +471,7 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		});
 		await user.type(
-			screen.getByRole("textbox", { name: MockTemplateVersionParameter1.name }),
+			await findParameterInput(MockTemplateVersionParameter1.name),
 			"!",
 		);
 		await user.click(screen.getByRole("button", { name: /Save/ }));
@@ -547,12 +558,9 @@ describe("ProjectTemplatesDialog", () => {
 
 		await screen.findByRole("button", { name: "Retry" });
 		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
-		await user.type(
-			await screen.findByRole("textbox", {
-				name: MockTemplateVersionParameter1.name,
-			}),
-			"x",
-		);
+		const first = await findParameterInput(MockTemplateVersionParameter1.name);
+		await user.clear(first);
+		await user.type(first, "x");
 		const save = screen.getByRole("button", { name: /Save/ });
 		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
