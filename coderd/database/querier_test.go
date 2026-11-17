@@ -2382,6 +2382,34 @@ func TestGetChatProjectTemplatesByProjectIDsSkipsUnusableTemplates(t *testing.T)
 	require.Equal(t, owner.ID, rows[0].ChatProjectTemplate.CreatedBy)
 }
 
+// An attachment never crosses organizations, whichever caller asks for it,
+// so a template outside the project's organization is not attached.
+func TestInsertChatProjectTemplatesSkipsOtherOrganizations(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	local := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	foreign := dbgen.Template(t, db, database.Template{OrganizationID: otherOrg.ID, CreatedBy: owner.ID})
+
+	attached, err := db.InsertChatProjectTemplates(ctx, database.InsertChatProjectTemplatesParams{
+		ProjectID:   project.ID,
+		TemplateIDs: []uuid.UUID{local.ID, foreign.ID},
+		CreatedBy:   owner.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, attached, 1)
+	require.Equal(t, local.ID, attached[0].TemplateID)
+}
+
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

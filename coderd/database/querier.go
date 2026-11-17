@@ -1290,7 +1290,8 @@ type sqlcQuerier interface {
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
 	// Attaches templates to a project and returns the new attachments. Templates
 	// that are already attached are skipped, so their rows keep their original
-	// created_by.
+	// created_by. Templates outside the project's organization are skipped too,
+	// so an attachment never crosses organizations.
 	InsertChatProjectTemplates(ctx context.Context, arg InsertChatProjectTemplatesParams) ([]ChatProjectTemplate, error)
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
