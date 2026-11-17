@@ -2232,8 +2232,75 @@ func TestToolSchemaFields(t *testing.T) {
 					"Tool %q requires field %q but it is not defined in Properties",
 					tool.Name, requiredField)
 			}
+
+			raw, err := json.Marshal(tool.Schema.Properties)
+			require.NoError(t, err)
+			var properties map[string]any
+			require.NoError(t, json.Unmarshal(raw, &properties))
+			for name, property := range properties {
+				requireSchemaDescribesContents(t, tool.Name, name, property)
+			}
 		})
 	}
+}
+
+const (
+	jsonSchemaTypeObject = "object"
+	jsonSchemaTypeArray  = "array"
+)
+
+var jsonSchemaCombinators = []string{"anyOf", "oneOf", "allOf"}
+
+// requireSchemaDescribesContents fails when an object schema has no properties or
+// additionalProperties, or when an array schema has no items.
+func requireSchemaDescribesContents(t *testing.T, toolName, path string, schema any) {
+	t.Helper()
+
+	switch node := schema.(type) {
+	case []any:
+		for i, child := range node {
+			requireSchemaDescribesContents(t, toolName, fmt.Sprintf("%s[%d]", path, i), child)
+		}
+		return
+	case map[string]any:
+		types := schemaTypes(node)
+		if types[jsonSchemaTypeObject] {
+			_, hasProperties := node["properties"]
+			additional, hasAdditional := node["additionalProperties"]
+			allowsAdditional, isBool := additional.(bool)
+			require.True(t, hasProperties || (hasAdditional && (!isBool || allowsAdditional)),
+				"Tool %q property %q is an object schema without properties or additionalProperties", toolName, path)
+		}
+		if types[jsonSchemaTypeArray] {
+			require.Contains(t, node, "items",
+				"Tool %q property %q is an array schema without items", toolName, path)
+		}
+		if properties, ok := node["properties"].(map[string]any); ok {
+			for name, property := range properties {
+				requireSchemaDescribesContents(t, toolName, path+"."+name, property)
+			}
+		}
+		requireSchemaDescribesContents(t, toolName, path+"[]", node["items"])
+		requireSchemaDescribesContents(t, toolName, path+".*", node["additionalProperties"])
+		for _, combinator := range jsonSchemaCombinators {
+			requireSchemaDescribesContents(t, toolName, path+"."+combinator, node[combinator])
+		}
+	}
+}
+
+func schemaTypes(node map[string]any) map[string]bool {
+	types := map[string]bool{}
+	switch typ := node["type"].(type) {
+	case string:
+		types[typ] = true
+	case []any:
+		for _, entry := range typ {
+			if name, ok := entry.(string); ok {
+				types[name] = true
+			}
+		}
+	}
+	return types
 }
 
 // TestMain runs after all tests to ensure that all tools in this package have
