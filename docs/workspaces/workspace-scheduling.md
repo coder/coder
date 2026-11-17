@@ -60,9 +60,7 @@ Coder specifically tracks these session types:
 - **SSH sessions**:
   Connecting via `coder ssh` or SSH config integration
 - **AI agent task status**:
-  When a coding agent reports a "working" status to a workspace app, the workspace deadline is extended.
-  Agents report status only when a module, tool, or script sends it.
-  Refer to [Keep a workspace running without a connection](#keep-a-workspace-running-without-a-connection).
+  When a coding agent reports "working" status, the workspace deadline is extended
 
 Activity is only detected when there is at least one active session.
 An open session will keep your workspace marked as active and prevent automatic shutdown.
@@ -102,25 +100,6 @@ Call the [extend workspace deadline](../reference/api/workspaces.md#extend-works
 The workspace agent token, `CODER_AGENT_TOKEN`, can't call this endpoint.
 
 For a script that keeps extending the deadline while a job runs, refer to [Manually send workspace activity](../reference/index.md#workspace-agents).
-
-#### Report coding agent status
-
-A process in the workspace can report the status of a coding agent to a workspace app with the agent token.
-Each time the app reports `working`, and once more when the status changes from `working` to another state, Coder extends the deadline to the template's activity bump from now.
-The template's maximum workspace runtime still applies.
-
-```sh
-curl -fsS -X PATCH "${CODER_AGENT_URL%/}/api/v2/workspaceagents/me/app-status" \
-  -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"app_slug": "claude", "state": "working", "message": "Running tests"}'
-```
-
-The `app_slug` must match a `coder_app` on the same agent.
-The `state` is one of `working`, `idle`, `complete`, or `failure`.
-The app's tile in the dashboard shows the latest status.
-
-The [Claude Code](https://registry.coder.com/modules/coder/claude-code) and [Herdr](https://registry.coder.com/modules/gojnimer6553/herdr) registry modules send these reports for you when you set `status_app_slug` to the slug of a `coder_app`.
 
 ## Autostop requirement
 
