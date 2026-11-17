@@ -25,6 +25,12 @@ const mockActionSkills: SkillMetadata[] = [
 	action: true,
 }));
 
+const mockDisplayNameActionSkills: SkillMetadata[] = [
+	{ ...mockActionSkills[0], display_name: "Deploy to staging" },
+	mockActionSkills[1],
+	{ ...mockActionSkills[2], display_name: "Draft release notes" },
+];
+
 const meta: Meta<typeof ProjectSkillActions> = {
 	title: "pages/AgentsPage/ProjectSkillActions",
 	component: ProjectSkillActions,
@@ -85,6 +91,24 @@ export const FiveActionsMoreOpen: Story = {
 		await userEvent.click(
 			await screen.findByRole("button", { name: "More project actions" }),
 		);
+	},
+};
+
+/** Labels actions with display names, and hovers one to show its tooltip. */
+export const DisplayNames: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: mockDisplayNameActionSkills,
+			},
+		],
+	},
+	play: async () => {
+		await userEvent.hover(
+			await screen.findByRole("button", { name: "Deploy to staging" }),
+		);
+		await screen.findByRole("tooltip");
 	},
 };
 
