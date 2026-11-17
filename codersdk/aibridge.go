@@ -453,7 +453,8 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 type AIBridgeListModelsFilter struct {
 	// Limit defaults to 100, max is 1000.
 	Pagination Pagination
-	// Model keeps only identifiers starting with this literal prefix.
+	// Model keeps only identifiers that contain this literal substring,
+	// ignoring case.
 	Model string
 }
 
