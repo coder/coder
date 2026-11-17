@@ -3560,6 +3560,14 @@ func (m queryMetricsStore) GetUserAISeatStates(ctx context.Context, userIds []uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg database.GetUserAISpendByEffectiveGroupsSinceParams) ([]database.GetUserAISpendByEffectiveGroupsSinceRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAISpendByEffectiveGroupsSince(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserAISpendByEffectiveGroupsSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserAISpendByEffectiveGroupsSince").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAISpendSince(ctx, arg)
