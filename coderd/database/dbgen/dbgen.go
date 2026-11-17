@@ -98,8 +98,7 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 
 // ChatProjectPin pins a project for a user at the end of their list, as
 // project creation does. Source "user" then re-pins it as the pin endpoint
-// does, and a valid UnpinnedAt leaves a tombstone. Only the upgrade
-// migration creates migration pins.
+// does. Only the upgrade migration creates migration pins.
 func ChatProjectPin(t testing.TB, db database.Store, seed database.ChatProjectPin) {
 	t.Helper()
 
@@ -108,10 +107,6 @@ func ChatProjectPin(t testing.TB, db database.Store, seed database.ChatProjectPi
 	if seed.Source == database.ChatProjectPinSourceUser {
 		err = db.PinChatProject(genCtx, database.PinChatProjectParams{UserID: seed.UserID, ProjectID: seed.ProjectID, ACLEnabled: true, PinOrder: sql.NullInt32{}})
 		require.NoError(t, err, "pin chat project")
-	}
-	if seed.UnpinnedAt.Valid {
-		err = db.UnpinChatProject(genCtx, database.UnpinChatProjectParams{UserID: seed.UserID, ProjectID: seed.ProjectID, ACLEnabled: true})
-		require.NoError(t, err, "unpin chat project")
 	}
 }
 
