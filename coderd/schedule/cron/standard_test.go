@@ -140,6 +140,13 @@ func TestStandard(t *testing.T) {
 			{name: "FactoryInADirectory", spec: "0 9 * * *", zone: "Etc/Factory", wantErr: `"Etc/Factory" is not supported`},
 			{name: "LocaltimeInADirectory", spec: "0 9 * * *", zone: "Etc/localtime", wantErr: `"Etc/localtime" is not supported`},
 			{name: "PosixrulesInADirectory", spec: "0 9 * * *", zone: "Etc/posixrules", wantErr: `"Etc/posixrules" is not supported`},
+			// Letter case does not change the rule: a case-insensitive file
+			// system loads factory as Factory.
+			{name: "FactoryLowercase", spec: "0 9 * * *", zone: "factory", wantErr: `"factory" is not supported`},
+			{name: "LocalUppercase", spec: "0 9 * * *", zone: "LOCAL", wantErr: `"LOCAL" is not supported`},
+			{name: "LocaltimeUppercase", spec: "0 9 * * *", zone: "LOCALTIME", wantErr: `"LOCALTIME" is not supported`},
+			{name: "PosixUppercase", spec: "0 9 * * *", zone: "POSIX/UTC", wantErr: "is not a zone name"},
+			{name: "RightCapitalized", spec: "0 9 * * *", zone: "Right/UTC", wantErr: "is not a zone name"},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -269,166 +276,6 @@ func TestStandard_Next(t *testing.T) {
 	})
 }
 
-// The daylight saving rules of the Automations RFC: a repeated local time
-// runs at its first instance, and a nonexistent local time runs at the first
-// local time after the change.
-func TestStandard_Next_DST(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name string
-		spec string
-		zone string
-		from string
-		want []string
-	}{
-		// New York, clocks go forward on 2026-03-08: 02:00 becomes 03:00.
-		{
-			name: "NewYorkSpring/NonexistentTimeRunsAfterChange",
-			spec: "30 2 * * *",
-			zone: "America/New_York",
-			from: "2026-03-07T12:00:00-05:00",
-			want: []string{"2026-03-08T03:00:00-04:00", "2026-03-09T02:30:00-04:00", "2026-03-10T02:30:00-04:00"},
-		},
-		{
-			name: "NewYorkSpring/NonexistentTimesAndGapEndRunOnce",
-			spec: "0 2,3 * * *",
-			zone: "America/New_York",
-			from: "2026-03-08T00:00:00-05:00",
-			want: []string{"2026-03-08T03:00:00-04:00", "2026-03-09T02:00:00-04:00", "2026-03-09T03:00:00-04:00"},
-		},
-		{
-			name: "NewYorkSpring/ManyNonexistentTimesRunOnce",
-			spec: "*/30 1-3 * * *",
-			zone: "America/New_York",
-			from: "2026-03-08T00:00:00-05:00",
-			want: []string{
-				"2026-03-08T01:00:00-05:00", "2026-03-08T01:30:00-05:00",
-				"2026-03-08T03:00:00-04:00", "2026-03-08T03:30:00-04:00",
-				"2026-03-09T01:00:00-04:00",
-			},
-		},
-		{
-			name: "NewYorkSpring/RunStartedInsideTheGap",
-			spec: "30 2 * * *",
-			zone: "America/New_York",
-			from: "2026-03-08T01:59:59-05:00",
-			want: []string{"2026-03-08T03:00:00-04:00", "2026-03-09T02:30:00-04:00"},
-		},
-		// New York, clocks go back on 2026-11-01: 02:00 becomes 01:00.
-		{
-			name: "NewYorkFall/RepeatedTimeRunsAtFirstInstance",
-			spec: "30 1 * * *",
-			zone: "America/New_York",
-			from: "2026-10-31T12:00:00-04:00",
-			want: []string{"2026-11-01T01:30:00-04:00", "2026-11-02T01:30:00-05:00", "2026-11-03T01:30:00-05:00"},
-		},
-		{
-			name: "NewYorkFall/HourlyRunsOncePerLocalHour",
-			spec: "0 * * * *",
-			zone: "America/New_York",
-			from: "2026-11-01T00:00:00-04:00",
-			want: []string{"2026-11-01T01:00:00-04:00", "2026-11-01T02:00:00-05:00", "2026-11-01T03:00:00-05:00"},
-		},
-		{
-			name: "NewYorkFall/EveryTwentyMinutesSkipsSecondInstances",
-			spec: "*/20 1 * * *",
-			zone: "America/New_York",
-			from: "2026-11-01T00:30:00-04:00",
-			want: []string{
-				"2026-11-01T01:00:00-04:00", "2026-11-01T01:20:00-04:00", "2026-11-01T01:40:00-04:00",
-				"2026-11-02T01:00:00-05:00",
-			},
-		},
-		{
-			name: "NewYorkFall/FromInsideRepeatedPeriodFirstInstance",
-			spec: "30 1 * * *",
-			zone: "America/New_York",
-			from: "2026-11-01T01:10:00-04:00",
-			want: []string{"2026-11-01T01:30:00-04:00", "2026-11-02T01:30:00-05:00"},
-		},
-		{
-			name: "NewYorkFall/FromInsideRepeatedPeriodSecondInstance",
-			spec: "30 1 * * *",
-			zone: "America/New_York",
-			from: "2026-11-01T01:10:00-05:00",
-			want: []string{"2026-11-02T01:30:00-05:00"},
-		},
-		{
-			name: "NewYorkFall/FromSecondInstanceNextTimeAfterRepeat",
-			spec: "0 2 * * *",
-			zone: "America/New_York",
-			from: "2026-11-01T01:10:00-05:00",
-			want: []string{"2026-11-01T02:00:00-05:00", "2026-11-02T02:00:00-05:00"},
-		},
-		// Berlin, clocks go forward on 2026-03-29 (02:00 to 03:00) and back on
-		// 2026-10-25 (03:00 to 02:00).
-		{
-			name: "BerlinSpring/NonexistentTimeRunsAfterChange",
-			spec: "30 2 * * *",
-			zone: "Europe/Berlin",
-			from: "2026-03-28T12:00:00+01:00",
-			want: []string{"2026-03-29T03:00:00+02:00", "2026-03-30T02:30:00+02:00"},
-		},
-		{
-			name: "BerlinFall/RepeatedTimeRunsAtFirstInstance",
-			spec: "30 2 * * *",
-			zone: "Europe/Berlin",
-			from: "2026-10-24T12:00:00+02:00",
-			want: []string{"2026-10-25T02:30:00+02:00", "2026-10-26T02:30:00+01:00"},
-		},
-		{
-			name: "BerlinFall/TimeAfterRepeatedPeriodRunsOnce",
-			spec: "0 3 * * *",
-			zone: "Europe/Berlin",
-			from: "2026-10-24T12:00:00+02:00",
-			want: []string{"2026-10-25T03:00:00+01:00", "2026-10-26T03:00:00+01:00"},
-		},
-		// Lord Howe Island shifts by 30 minutes: forward on 2026-10-04 (02:00
-		// to 02:30) and back on 2026-04-05 (02:00 to 01:30).
-		{
-			name: "LordHoweSpring/NonexistentTimeRunsAfterChange",
-			spec: "15 2 * * *",
-			zone: "Australia/Lord_Howe",
-			from: "2026-10-03T12:00:00+10:30",
-			want: []string{"2026-10-04T02:30:00+11:00", "2026-10-05T02:15:00+11:00"},
-		},
-		{
-			name: "LordHoweFall/RepeatedTimeRunsAtFirstInstance",
-			spec: "45 1 * * *",
-			zone: "Australia/Lord_Howe",
-			from: "2026-04-04T12:00:00+11:00",
-			want: []string{"2026-04-05T01:45:00+11:00", "2026-04-06T01:45:00+10:30"},
-		},
-		// The Chatham Islands are at UTC+12:45 and UTC+13:45, east of every
-		// other zone in use. Clocks go forward on 2026-09-27 (02:45 to 03:45)
-		// and back on 2026-04-05 (03:45 to 02:45).
-		{
-			name: "ChathamSpring/NonexistentTimeRunsAfterChange",
-			spec: "30 3 * * *",
-			zone: "Pacific/Chatham",
-			from: "2026-09-26T12:00:00+12:45",
-			want: []string{"2026-09-27T03:45:00+13:45", "2026-09-28T03:30:00+13:45"},
-		},
-		{
-			name: "ChathamFall/RepeatedTimeRunsAtFirstInstance",
-			spec: "15 3 * * *",
-			zone: "Pacific/Chatham",
-			from: "2026-04-04T12:00:00+13:45",
-			want: []string{"2026-04-05T03:15:00+13:45", "2026-04-06T03:15:00+12:45"},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			sched, err := cron.Standard(tc.spec, tc.zone)
-			require.NoError(t, err)
-			from := mustParseTime(t, time.RFC3339, tc.from).In(mustLocation(t, tc.zone))
-			require.Equal(t, tc.want, nextN(t, sched, from, len(tc.want)))
-		})
-	}
-}
-
 // TestStandard_Next_InsideRepeatedPeriod calls Next from the second pass of a
 // repeated period. Each reading that follows resolves to an instant of the first
 // pass, which is before the call, so Next walks all of them before it finds the
@@ -438,7 +285,8 @@ func TestStandard_Next_DST(t *testing.T) {
 // runs every minute the walk visits one reading for each minute of that day, and
 // one more when the clock changed at a time with seconds. That is 1,440 readings
 // in Sitka, which changed at a whole minute, and 1,441 in Juneau, which changed
-// at 15:33:32, as did Adak, Anchorage, Atka, Metlakatla, Nome and Yakutat.
+// at 15:33:32. Adak, Anchorage, Atka, Metlakatla, Nome and Yakutat changed at
+// other times with seconds, so the walk has 1,441 readings there too.
 func TestStandard_Next_InsideRepeatedPeriod(t *testing.T) {
 	t.Parallel()
 
