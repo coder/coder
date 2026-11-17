@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1373,19 +1372,18 @@ func TestTools(t *testing.T) {
 		require.ErrorContains(t, err, "exceeds the maximum of 5m0s")
 
 		// The workdir argument sets the command's working directory.
+		// Check via a relative-path marker file rather than pwd, since
+		// pwd under Git Bash on Windows prints POSIX paths (/tmp/...)
+		// that Go cannot resolve.
 		workDir := t.TempDir()
 		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 			Workspace: workspace.Name,
-			Command:   "pwd",
+			Command:   "touch marker.txt",
 			WorkDir:   ptr.Ref(workDir),
 		})
 		require.NoError(t, err)
-		require.Equal(t, 0, result.ExitCode)
-		gotDir, err := filepath.EvalSymlinks(strings.TrimSpace(result.Output))
-		require.NoError(t, err)
-		wantDir, err := filepath.EvalSymlinks(workDir)
-		require.NoError(t, err)
-		require.Equal(t, wantDir, gotDir)
+		require.Equal(t, 0, result.ExitCode, "result: %+v", result)
+		require.FileExists(t, filepath.Join(workDir, "marker.txt"))
 
 		// A long-running background command can be listed and stopped.
 		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
