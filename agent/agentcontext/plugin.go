@@ -700,7 +700,7 @@ func (r *Resolver) pluginSkills(pluginRoot string, root ScanRoot, pluginName str
 			continue
 		}
 		if res.Status == StatusOK {
-			if msg := pluginSkillLimitError(res.Name, res.Description); msg != "" {
+			if msg := pluginSkillLimitError(res.Name, res.Description, res.Payload); msg != "" {
 				res.Status = StatusInvalid
 				res.Error = msg
 				res.Name = ""
@@ -715,9 +715,10 @@ func (r *Resolver) pluginSkills(pluginRoot string, root ScanRoot, pluginName str
 }
 
 // pluginSkillLimitError checks a skill's name and description against
-// the Agent Skills length limits, counted in characters, and returns
-// the first violation or "".
-func pluginSkillLimitError(name, description string) string {
+// the Agent Skills length limits, counted in characters, and its
+// optional frontmatter fields against the Agent Skills constraints. It
+// returns the first violation or "".
+func pluginSkillLimitError(name, description string, meta []byte) string {
 	if n := utf8.RuneCountInString(name); n > maxPluginSkillNameRunes {
 		return fmt.Sprintf("skill name is %d characters, maximum is %d", n, maxPluginSkillNameRunes)
 	}
@@ -726,6 +727,9 @@ func pluginSkillLimitError(name, description string) string {
 	}
 	if n := utf8.RuneCountInString(description); n > maxPluginSkillDescriptionRunes {
 		return fmt.Sprintf("skill description is %d characters, maximum is %d", n, maxPluginSkillDescriptionRunes)
+	}
+	if err := workspacesdk.ValidateSkillOptionalFrontmatter(string(meta)); err != nil {
+		return err.Error()
 	}
 	return ""
 }
