@@ -9,24 +9,9 @@ import {
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 import {
 	RIGHT_PANEL_OPEN_KEY,
-	RIGHT_PANEL_WIDTH_KEY,
 	rightPanelOpenCodec,
+	rightPanelWidthStorageOptions,
 } from "./RightPanel/RightPanel";
-
-const DEFAULT_PANEL_WIDTH = 480;
-const MIN_PANEL_WIDTH = 360;
-
-/** Read persisted right-panel width for use in static skeletons. */
-function getRightPanelWidth(): number {
-	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-	if (stored) {
-		const parsed = Number.parseInt(stored, 10);
-		if (!Number.isNaN(parsed) && parsed >= MIN_PANEL_WIDTH) {
-			return parsed;
-		}
-	}
-	return DEFAULT_PANEL_WIDTH;
-}
 
 /**
  * Skeleton shown while the AgentsPageLayout chunk is loading. Mimics the
@@ -167,7 +152,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 		storageKey: RIGHT_PANEL_OPEN_KEY,
 		codec: rightPanelOpenCodec,
 	});
-	const rightPanelWidth = getRightPanelWidth();
+	const [rightPanelWidth] = useLocalStorage(rightPanelWidthStorageOptions);
 	const [chatFullWidth] = useLocalStorage(chatFullWidthStorageOptions);
 
 	return (

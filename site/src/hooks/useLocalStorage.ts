@@ -52,13 +52,16 @@ export function useLocalStorage<T>({
 		store.readSerialized(key),
 	);
 
-	const setValue = (next: React.SetStateAction<T>) => {
-		const value = isUpdater(next)
-			? next(codec.parse(store.readSerialized(key)))
-			: next;
+	const setValue = useCallback(
+		(next: React.SetStateAction<T>) => {
+			const value = isUpdater(next)
+				? next(codec.parse(store.readSerialized(key)))
+				: next;
 
-		store.commitSerialized(key, codec.serialize(value));
-	};
+			store.commitSerialized(key, codec.serialize(value));
+		},
+		[store, key, codec],
+	);
 
 	return [codec.parse(serialized), setValue];
 }
