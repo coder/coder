@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -121,6 +122,11 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 			Name:           req.Name,
 			Description:    req.Description,
 			Icon:           req.Icon,
+
+			LimitTemplates:                 false,
+			DefaultTemplateID:              uuid.NullUUID{},
+			DefaultTemplateVersionPresetID: uuid.NullUUID{},
+			DefaultParameters:              pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			return err
@@ -222,6 +228,13 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		Name:        name,
 		Description: description,
 		Icon:        icon,
+
+		// The template settings are left as they are.
+		LimitTemplates:                 sql.NullBool{},
+		UpdateDefaultTemplate:          false,
+		DefaultTemplateID:              uuid.NullUUID{},
+		DefaultTemplateVersionPresetID: uuid.NullUUID{},
+		DefaultParameters:              pqtype.NullRawMessage{},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
