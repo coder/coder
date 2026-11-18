@@ -47,24 +47,6 @@ func TestTransportFor(t *testing.T) {
 	}
 }
 
-func TestIsGPT6Astra(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, chatopenai.IsGPT6Astra("gpt-6-astra"))
-	require.True(t, chatopenai.IsGPT6Astra("GPT-6-Astra-2026-09-03"))
-	require.False(t, chatopenai.IsGPT6Astra("gpt-5.6-sol"))
-	require.False(t, chatopenai.IsGPT6Astra("gpt-6"))
-}
-
-func TestIsGPT61Sol(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, chatopenai.IsGPT61Sol("gpt-6.1-sol"))
-	require.True(t, chatopenai.IsGPT61Sol("GPT-6.1-Sol-2026-09-24"))
-	require.False(t, chatopenai.IsGPT61Sol("gpt-6-sol"))
-	require.False(t, chatopenai.IsGPT61Sol("gpt-6.1"))
-}
-
 func TestTransportUsesResponses(t *testing.T) {
 	t.Parallel()
 

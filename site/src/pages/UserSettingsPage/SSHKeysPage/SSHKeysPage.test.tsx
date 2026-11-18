@@ -40,7 +40,7 @@ describe("SSH keys Page", () => {
 				fireEvent.click(confirmButton);
 
 				// Check if the success message is displayed
-				await screen.findByText("SSH Key regenerated successfully.");
+				await screen.findByText("SSH key regenerated successfully.");
 
 				// Check if the API was called correctly
 				expect(API.regenerateUserSSHKey).toBeCalledTimes(1);

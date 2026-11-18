@@ -41,11 +41,11 @@ test("setup deployment", async ({ page }) => {
 		expect(license.split(".").length).toBe(3); // otherwise it's invalid
 
 		await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
-		await expect(page).toHaveTitle("License Settings - Coder");
+		await expect(page).toHaveTitle("License settings - Coder");
 
 		await page.getByText("Add a license").click();
 		await page.getByRole("textbox").fill(license);
-		await page.getByText("Upload License").click();
+		await page.getByText("Upload license").click();
 
 		await expect(
 			page.getByText("You have successfully added a license."),

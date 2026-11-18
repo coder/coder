@@ -11,7 +11,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 const hardCapMessage =
-	"Agent hours limit reached. Concurrent chats are now limited to 5.";
+	"Agent Hours limit reached. Concurrent chats are now limited to 5.";
 
 type TotalAgentHoursCardProps = {
 	feature?: Feature;
@@ -134,10 +134,10 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 		const usedPercent =
 			meteredLimit > 0 ? formatPercent(usedTenths, meteredLimit * 10) : "100";
 		tooltip = reachedHardCap
-			? `You've used ${usedPercent}% of your Total Agent hours for this license and reached the hard cap of ${limitLabel} hours. Contact sales to receive more Agent hours.`
-			: `You've used ${usedPercent}% of your Total Agent hours for this license. Contact sales to receive more Agent hours.`;
+			? `You've used ${usedPercent}% of your total Agent Hours for this license and reached the hard cap of ${limitLabel} hours. Contact sales to receive more Agent Hours.`
+			: `You've used ${usedPercent}% of your total Agent Hours for this license. Contact sales to receive more Agent Hours.`;
 	} else if (reachedSoftLimit) {
-		tooltip = `You've used ${softLimitPercent}% or more of your Total Agent hours for this license. Agent sessions are still working normally, but you'll want to plan for the 100% limit.`;
+		tooltip = `You've used ${softLimitPercent}% or more of your total Agent Hours for this license. Agent sessions are still working normally, but you'll want to plan for the 100% limit.`;
 	} else if (softLimitPercent !== undefined) {
 		tooltip = `Total time agents have been working across all workspaces this license. A soft-limit warning appears at ${softLimitPercent}%`;
 	} else {
@@ -151,12 +151,12 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 				<div className="flex flex-col gap-2">
 					<div className="flex flex-col gap-0.5">
 						<div className="flex items-center gap-1">
-							<h3 className="text-md m-0 font-medium">Total agent hours</h3>
+							<h3 className="text-md m-0 font-medium">Total Agent Hours</h3>
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<button
 										type="button"
-										aria-label="Total agent hours information"
+										aria-label="Total Agent Hours information"
 										className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 									>
 										<InfoIcon className="size-3" />
