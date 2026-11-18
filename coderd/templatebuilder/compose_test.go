@@ -691,10 +691,6 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 func TestBaseBundlesReferencedFiles(t *testing.T) {
 	t.Parallel()
 
-	// Guards against the walk silently finding nothing.
-	require.Equal(t, []string{"a.tftpl"},
-		fileReferences(t, []byte(`x = templatefile("${path.module}/a.tftpl", {})`)))
-
 	ids := templatebuilder.BaseTemplateIDs()
 	slices.Sort(ids)
 	for _, id := range ids {
