@@ -2,6 +2,7 @@ import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { ChatCostTooltip } from "./ChatCostTooltip";
 
 const EMPTY_VALUE = "-";
 
@@ -61,7 +62,12 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 						) : costError ? (
 							<span className="text-content-secondary">Unavailable</span>
 						) : costMicros != null ? (
-							formatCostMicros(costMicros)
+							<span className="inline-flex items-center gap-1.5">
+								{formatCostMicros(costMicros)}
+								<ChatCostTooltip
+									unpricedRequestCount={unpricedRequestCount ?? 0}
+								/>
+							</span>
 						) : (
 							EMPTY_VALUE
 						)}

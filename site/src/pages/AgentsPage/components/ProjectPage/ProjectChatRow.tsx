@@ -29,6 +29,7 @@ import {
 	getArchiveBlockedReason,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
+import { ChatCostTooltip } from "../ChatCostTooltip";
 import { ChatPRStateIcon } from "../ChatDiffStats";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
@@ -59,9 +60,18 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-data-[state=open]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
+			svgSize={null}
+			className="shrink-0 tabular-nums [&_svg]:p-0 group-hover:bg-surface-tertiary group-has-data-[state=open]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
 		>
-			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
+			<span>
+				{/* Trims to cap height so the figure centers on the glyphs. */}
+				<span className="[text-box:trim-both_cap_alphabetic]">
+					{formatCostMicros(costQuery.data.total_cost_micros)}
+				</span>
+				<ChatCostTooltip
+					unpricedRequestCount={costQuery.data.unpriced_request_count}
+				/>
+			</span>
 		</Badge>
 	);
 };
@@ -165,11 +175,12 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					className={cn("size-3.5 shrink-0", statusClassName)}
 				/>
 				<span className="min-w-0 max-w-104 flex-1 truncate">{chat.title}</span>
-				<span className="ml-auto flex shrink-0 items-center gap-3">
-					<ChatPRStateIcon chat={chat} />
-					{showCost && <ProjectChatCost chat={chat} />}
-				</span>
 			</Link>
+			{/* Outside the link because the cost tooltip trigger is a button. */}
+			<span className="flex shrink-0 items-center gap-3">
+				<ChatPRStateIcon chat={chat} />
+				{showCost && <ProjectChatCost chat={chat} />}
+			</span>
 			<div className="grid size-7 shrink-0 place-items-center *:[grid-area:1/1]">
 				<Avatar
 					role="img"
