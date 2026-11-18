@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
+	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -48,6 +50,7 @@ import (
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
@@ -142,6 +145,51 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	options.Database = cryptDB
+
+	// Ensure the DERP mesh key exists, even when the built-in DERP server is
+	// disabled: workspace proxies running HA still use it. This runs after
+	// database encryption is initialized so the key is written and read
+	// through it. The store may already be wrapped with dbauthz (tests do
+	// this), so run as system.
+	//nolint:gocritic // Deployment-level bootstrap with no user in scope.
+	meshKeyCtx := agpldbauthz.AsSystemRestricted(ctx)
+	var meshKey string
+	err = cryptDB.InTx(func(tx database.Store) error {
+		// This will block until the lock is acquired, and will be
+		// automatically released when the transaction ends.
+		err := tx.AcquireLock(meshKeyCtx, database.LockIDEnterpriseDeploymentSetup)
+		if err != nil {
+			return xerrors.Errorf("acquire lock: %w", err)
+		}
+
+		meshKey, err = tx.GetDERPMeshKey(meshKeyCtx)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get DERP mesh key: %w", err)
+		}
+		meshKey, err = cryptorand.String(32)
+		if err != nil {
+			return xerrors.Errorf("generate DERP mesh key: %w", err)
+		}
+		err = tx.InsertDERPMeshKey(meshKeyCtx, meshKey)
+		if err != nil {
+			return xerrors.Errorf("insert DERP mesh key: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		cancelFunc()
+		return nil, xerrors.Errorf("ensure DERP mesh key: %w", err)
+	}
+	if meshKey == "" {
+		cancelFunc()
+		return nil, xerrors.New("mesh key is empty")
+	}
+	if options.DERPServer != nil {
+		options.DERPServer.SetMeshKey(meshKey)
+	}
 
 	if options.IDPSync == nil {
 		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))

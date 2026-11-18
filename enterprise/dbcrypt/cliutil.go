@@ -291,6 +291,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting site configs")
+	if err := rewriteSiteConfigs(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -563,6 +568,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 
 	log.Info(ctx, "decrypting workspace agent environment variables")
 	if err := rewriteWorkspaceAgentEnvironmentVariables(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "decrypting site configs")
+	if err := rewriteSiteConfigs(ctx, log, cryptDB, ""); err != nil {
 		return err
 	}
 
@@ -854,6 +864,56 @@ func rewriteWorkspaceAgentEnvironmentVariables(ctx context.Context, log slog.Log
 	}
 }
 
+// rewriteSiteConfigs saves the DERP mesh key and the webpush VAPID private key
+// again through store, which stores them with wantKeyID. Values already
+// stored with wantKeyID are skipped. See rewriteWorkspaceBuildStates for the
+// values of wantKeyID.
+func rewriteSiteConfigs(ctx context.Context, log slog.Logger, store database.Store, wantKeyID string) error {
+	cryptDB, ok := store.(*dbCrypt)
+	if !ok {
+		return xerrors.Errorf("developer error: store is not a dbcrypt store")
+	}
+
+	meshKeyID, err := cryptDB.siteConfigKeyID(ctx, derpMeshKeyKeyIDConfigKey)
+	if err != nil {
+		return xerrors.Errorf("get DERP mesh key key id: %w", err)
+	}
+	meshKey, err := cryptDB.GetDERPMeshKey(ctx)
+	switch {
+	case xerrors.Is(err, sql.ErrNoRows):
+		// No mesh key yet, so there is nothing to rewrite.
+	case err != nil:
+		return xerrors.Errorf("get DERP mesh key: %w", err)
+	case meshKeyID.String == wantKeyID:
+		log.Debug(ctx, "skipping DERP mesh key", slog.F("key_id", wantKeyID))
+	default:
+		if err := cryptDB.upsertDERPMeshKey(ctx, meshKey); err != nil {
+			return xerrors.Errorf("rewrite DERP mesh key: %w", err)
+		}
+		log.Debug(ctx, "rewrote DERP mesh key", slog.F("key_id", wantKeyID))
+	}
+
+	vapidKeyID, err := cryptDB.siteConfigKeyID(ctx, webpushVAPIDPrivateKeyIDConfigKey)
+	if err != nil {
+		return xerrors.Errorf("get VAPID private key key id: %w", err)
+	}
+	vapidKeys, err := cryptDB.GetWebpushVAPIDKeys(ctx)
+	switch {
+	case err != nil:
+		return xerrors.Errorf("get webpush VAPID keys: %w", err)
+	case vapidKeys.VapidPrivateKey == "":
+		// No VAPID keys yet, so there is nothing to rewrite.
+	case vapidKeyID.String == wantKeyID:
+		log.Debug(ctx, "skipping webpush VAPID private key", slog.F("key_id", wantKeyID))
+	default:
+		if err := cryptDB.UpsertWebpushVAPIDKeys(ctx, database.UpsertWebpushVAPIDKeysParams(vapidKeys)); err != nil {
+			return xerrors.Errorf("rewrite webpush VAPID keys: %w", err)
+		}
+		log.Debug(ctx, "rewrote webpush VAPID private key", slog.F("key_id", wantKeyID))
+	}
+	return nil
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -947,6 +1007,15 @@ UPDATE workspace_agents
 	SET environment_variables = NULL,
 		environment_variables_key_id = NULL
 	WHERE environment_variables_key_id IS NOT NULL;
+-- The DERP mesh key is generated again at startup.
+DELETE FROM site_configs
+	WHERE key IN ('derp_mesh_key', 'derp_mesh_key_key_id')
+	AND EXISTS (SELECT 1 FROM site_configs WHERE key = 'derp_mesh_key_key_id');
+-- New VAPID keys are generated on demand. Existing web push subscriptions
+-- stop working.
+DELETE FROM site_configs
+	WHERE key IN ('webpush_vapid_public_key', 'webpush_vapid_private_key', 'webpush_vapid_private_key_key_id')
+	AND EXISTS (SELECT 1 FROM site_configs WHERE key = 'webpush_vapid_private_key_key_id');
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
