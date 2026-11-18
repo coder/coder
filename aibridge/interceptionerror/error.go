@@ -15,6 +15,15 @@ import (
 // the interception record to avoid storing unbounded provider payloads.
 const maxRecordedErrorMessageBytes = 1024
 
+// TruncateMessage caps msg at the size persisted on the interception record,
+// dropping any multi-byte character split by the cut.
+func TruncateMessage(msg string) string {
+	if len(msg) > maxRecordedErrorMessageBytes {
+		return strings.ToValidUTF8(msg[:maxRecordedErrorMessageBytes], "")
+	}
+	return msg
+}
+
 // ErrorCategorizer categorizes a provider's own terminal errors. It is implemented
 // by provider.Provider.
 type ErrorCategorizer interface {
@@ -32,10 +41,7 @@ func Categorize(c ErrorCategorizer, err error) (recorder.ErrorType, string) {
 	if err == nil {
 		return "", ""
 	}
-	msg := err.Error()
-	if len(msg) > maxRecordedErrorMessageBytes {
-		msg = strings.ToValidUTF8(msg[:maxRecordedErrorMessageBytes], "")
-	}
+	msg := TruncateMessage(err.Error())
 
 	// Go context errors. These originate in the gateway or the caller, not
 	// upstream, so they are classified before any provider delegation.
