@@ -86,9 +86,9 @@ const CreateTemplatePage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.createTemplates}>
-			<title>{pageTitle("Create Template")}</title>
+			<title>{pageTitle("Create template")}</title>
 
-			<FullPageHorizontalForm title="Create Template">
+			<FullPageHorizontalForm title="Create template">
 				{searchParams.has("fromTemplate") ? (
 					<DuplicateTemplateView {...pageViewProps} />
 				) : searchParams.has("exampleId") ? (
