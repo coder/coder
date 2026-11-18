@@ -5749,6 +5749,11 @@ type ChatProjectPin struct {
 	CreatedAt time.Time            `db:"created_at" json:"created_at"`
 }
 
+type ChatProjectReadGrantMember struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
 // Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.
 type ChatProjectTemplate struct {
 	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
