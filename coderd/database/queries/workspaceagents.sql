@@ -84,6 +84,7 @@ INSERT INTO
 		auth_instance_id,
 		architecture,
 		environment_variables,
+		environment_variables_key_id,
 		operating_system,
 		directory,
 		instance_metadata,
@@ -96,7 +97,39 @@ INSERT INTO
 		api_key_scope
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *;
+
+-- name: GetWorkspaceAgentEnvironmentVariables :many
+-- Returns a page of workspace agents that have environment variables across
+-- the deployment, including deleted agents, ordered by id. Pass the last
+-- returned id as after_id to fetch the next page. Used only by the dbcrypt
+-- key rotation utility.
+SELECT
+	id,
+	environment_variables,
+	environment_variables_key_id
+FROM
+	workspace_agents
+WHERE
+	environment_variables IS NOT NULL
+	AND environment_variables != 'null'::jsonb
+	AND environment_variables != '{}'::jsonb
+	AND id > @after_id::uuid
+ORDER BY
+	id
+LIMIT
+	@limit_count::int;
+
+-- name: UpdateWorkspaceAgentEnvironmentVariablesByID :exec
+-- Rewrites an agent's environment variables in place. Used by `coder server
+-- dbcrypt` maintenance commands to re-encrypt or decrypt the values at rest.
+UPDATE
+	workspace_agents
+SET
+	environment_variables = @environment_variables,
+	environment_variables_key_id = sqlc.narg('environment_variables_key_id')
+WHERE
+	id = @id;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE

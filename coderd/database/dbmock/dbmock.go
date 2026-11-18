@@ -6114,6 +6114,21 @@ func (mr *MockStoreMockRecorder) GetSensitiveWorkspaceBuildParameters(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSensitiveWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetSensitiveWorkspaceBuildParameters), ctx, arg)
 }
 
+// GetSensitiveWorkspaceResourceMetadata mocks base method.
+func (m *MockStore) GetSensitiveWorkspaceResourceMetadata(ctx context.Context, arg database.GetSensitiveWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSensitiveWorkspaceResourceMetadata", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceResourceMetadatum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSensitiveWorkspaceResourceMetadata indicates an expected call of GetSensitiveWorkspaceResourceMetadata.
+func (mr *MockStoreMockRecorder) GetSensitiveWorkspaceResourceMetadata(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSensitiveWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).GetSensitiveWorkspaceResourceMetadata), ctx, arg)
+}
+
 // GetStaleChats mocks base method.
 func (m *MockStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -7327,6 +7342,21 @@ func (m *MockStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context,
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentDevcontainersByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentDevcontainersByAgentID), ctx, workspaceAgentID)
+}
+
+// GetWorkspaceAgentEnvironmentVariables mocks base method.
+func (m *MockStore) GetWorkspaceAgentEnvironmentVariables(ctx context.Context, arg database.GetWorkspaceAgentEnvironmentVariablesParams) ([]database.GetWorkspaceAgentEnvironmentVariablesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentEnvironmentVariables", ctx, arg)
+	ret0, _ := ret[0].([]database.GetWorkspaceAgentEnvironmentVariablesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentEnvironmentVariables indicates an expected call of GetWorkspaceAgentEnvironmentVariables.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentEnvironmentVariables(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentEnvironmentVariables", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentEnvironmentVariables), ctx, arg)
 }
 
 // GetWorkspaceAgentLifecycleStateByID mocks base method.
@@ -12502,6 +12532,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentDisplayAppsByID(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentDisplayAppsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentDisplayAppsByID), ctx, arg)
 }
 
+// UpdateWorkspaceAgentEnvironmentVariablesByID mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentEnvironmentVariablesByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentEnvironmentVariablesByID indicates an expected call of UpdateWorkspaceAgentEnvironmentVariablesByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentEnvironmentVariablesByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentEnvironmentVariablesByID), ctx, arg)
+}
+
 // UpdateWorkspaceAgentLifecycleStateByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	m.ctrl.T.Helper()
@@ -12828,6 +12872,20 @@ func (m *MockStore) UpdateWorkspaceProxyDeleted(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateWorkspaceProxyDeleted(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceProxyDeleted", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceProxyDeleted), ctx, arg)
+}
+
+// UpdateWorkspaceResourceMetadatumValue mocks base method.
+func (m *MockStore) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceResourceMetadatumValue", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceResourceMetadatumValue indicates an expected call of UpdateWorkspaceResourceMetadatumValue.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceResourceMetadatumValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceResourceMetadatumValue", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceResourceMetadatumValue), ctx, arg)
 }
 
 // UpdateWorkspaceTTL mocks base method.

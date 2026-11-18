@@ -5146,6 +5146,15 @@ func (q *querier) GetSensitiveWorkspaceBuildParameters(ctx context.Context, arg 
 	return q.db.GetSensitiveWorkspaceBuildParameters(ctx, arg)
 }
 
+func (q *querier) GetSensitiveWorkspaceResourceMetadata(ctx context.Context, arg database.GetSensitiveWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
+	// Deployment-wide listing exists only for the dbcrypt key rotation
+	// utility.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetSensitiveWorkspaceResourceMetadata(ctx, arg)
+}
+
 func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	// GetStaleChats is a system-level operation used by the chat processor for recovery.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
@@ -5933,6 +5942,15 @@ func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, w
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
+}
+
+func (q *querier) GetWorkspaceAgentEnvironmentVariables(ctx context.Context, arg database.GetWorkspaceAgentEnvironmentVariablesParams) ([]database.GetWorkspaceAgentEnvironmentVariablesRow, error) {
+	// Deployment-wide listing exists only for the dbcrypt key rotation
+	// utility.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentEnvironmentVariables(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
@@ -9324,6 +9342,13 @@ func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg d
 	return q.db.UpdateWorkspaceAgentDisplayAppsByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
@@ -9588,6 +9613,13 @@ func (q *querier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg database.
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
 	}
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxyDeleted)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceResourceMetadatumValue(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {

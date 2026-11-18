@@ -4143,6 +4143,7 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    environment_variables_key_id text,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -4172,6 +4173,8 @@ COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in whic
 COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
+
+COMMENT ON COLUMN workspace_agents.environment_variables_key_id IS 'The ID of the key used to encrypt the environment variable values. If this is NULL, the values are not encrypted. Variable names are never encrypted.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -4565,8 +4568,11 @@ CREATE TABLE workspace_resource_metadata (
     key character varying(1024) NOT NULL,
     value character varying(65536),
     sensitive boolean NOT NULL,
-    id bigint NOT NULL
+    id bigint NOT NULL,
+    value_key_id text
 );
+
+COMMENT ON COLUMN workspace_resource_metadata.value_key_id IS 'The ID of the key used to encrypt the value. If this is NULL, the value is not encrypted. Only values of metadata marked sensitive are encrypted.';
 
 CREATE SEQUENCE workspace_resource_metadata_id_seq
     START WITH 1
@@ -6076,6 +6082,9 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_environment_variables_key_id_fkey FOREIGN KEY (environment_variables_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
@@ -6143,6 +6152,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_modules
     ADD CONSTRAINT workspace_modules_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

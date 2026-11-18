@@ -931,6 +931,10 @@ type sqlcQuerier interface {
 	// the sensitive column existed. Used only by the dbcrypt key rotation
 	// utility.
 	GetSensitiveWorkspaceBuildParameters(ctx context.Context, arg GetSensitiveWorkspaceBuildParametersParams) ([]WorkspaceBuildParameter, error)
+	// Returns a page of sensitive workspace resource metadata that hold a value
+	// across the deployment, ordered by id. Pass the last returned id as after_id
+	// to fetch the next page. Used only by the dbcrypt key rotation utility.
+	GetSensitiveWorkspaceResourceMetadata(ctx context.Context, arg GetSensitiveWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
 	// Find chats that appear stuck and need recovery:
 	//   1. Running chats whose heartbeat has expired (worker crash).
 	//   2. requires_action chats past the timeout threshold (client
@@ -1155,6 +1159,11 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error)
+	// Returns a page of workspace agents that have environment variables across
+	// the deployment, including deleted agents, ordered by id. Pass the last
+	// returned id as after_id to fetch the next page. Used only by the dbcrypt
+	// key rotation utility.
+	GetWorkspaceAgentEnvironmentVariables(ctx context.Context, arg GetWorkspaceAgentEnvironmentVariablesParams) ([]GetWorkspaceAgentEnvironmentVariablesRow, error)
 	GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentLifecycleStateByIDRow, error)
 	GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentLogSource, error)
 	GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWorkspaceAgentLogsAfterParams) ([]WorkspaceAgentLog, error)
@@ -1842,6 +1851,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error
+	// Rewrites an agent's environment variables in place. Used by `coder server
+	// dbcrypt` maintenance commands to re-encrypt or decrypt the values at rest.
+	UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error
 	UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentLogOverflowByIDParams) error
 	UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error
@@ -1874,6 +1886,9 @@ type sqlcQuerier interface {
 	// This allows editing the properties of a workspace proxy.
 	UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error)
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
+	// Rewrites a metadata value in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+	UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg UpdateWorkspaceResourceMetadatumValueParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error

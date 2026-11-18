@@ -3229,6 +3229,26 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().UpdateWorkspaceBuildParameterValue(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("GetSensitiveWorkspaceResourceMetadata", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetSensitiveWorkspaceResourceMetadataParams{AfterID: 1, LimitCount: 100}
+		dbm.EXPECT().GetSensitiveWorkspaceResourceMetadata(gomock.Any(), arg).Return([]database.WorkspaceResourceMetadatum{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceAgentEnvironmentVariables", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceAgentEnvironmentVariablesParams{AfterID: uuid.New(), LimitCount: 100}
+		dbm.EXPECT().GetWorkspaceAgentEnvironmentVariables(gomock.Any(), arg).Return([]database.GetWorkspaceAgentEnvironmentVariablesRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpdateWorkspaceResourceMetadatumValue", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkspaceResourceMetadatumValueParams{ID: 1}
+		dbm.EXPECT().UpdateWorkspaceResourceMetadatumValue(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("UpdateWorkspaceAgentEnvironmentVariablesByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams{ID: uuid.New()}
+		dbm.EXPECT().UpdateWorkspaceAgentEnvironmentVariablesByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("SoftDeleteTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()

@@ -730,6 +730,125 @@ func TestRotateWorkspaceBuildParameters(t *testing.T) {
 	}
 }
 
+// TestRotateWorkspaceResourceMetadata covers
+// workspace_resource_metadata.value for coder_metadata items marked
+// sensitive. Non-sensitive values stay plaintext.
+func TestRotateWorkspaceResourceMetadata(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	resp := seedWorkspaceBuild(t, f.rawDB)
+	resource := dbgen.WorkspaceResource(t, f.rawDB, database.WorkspaceResource{JobID: resp.Build.JobID})
+
+	seedMetadatum := func(store database.Store, key, value string, sensitive bool) {
+		dbgen.WorkspaceResourceMetadatums(t, store, database.WorkspaceResourceMetadatum{
+			WorkspaceResourceID: resource.ID,
+			Key:                 key,
+			Value:               sql.NullString{String: value, Valid: true},
+			Sensitive:           sensitive,
+		})
+	}
+	seedMetadatum(f.rawDB, "first_key", "value-1", true)     // plaintext, pre-encryption
+	seedMetadatum(f.cryptDBA, "second_key", "value-2", true) // encrypted under cipher A
+	seedMetadatum(f.cryptDBA, "disk_size", "100Gi", false)   // non-sensitive stays plaintext
+
+	f.rotate(t)
+
+	byKey := func(t *testing.T) map[string]database.WorkspaceResourceMetadatum {
+		t.Helper()
+		metadata, err := f.rawDB.GetWorkspaceResourceMetadataByResourceIDs(f.ctx, []uuid.UUID{resource.ID})
+		require.NoError(t, err)
+		out := make(map[string]database.WorkspaceResourceMetadatum, len(metadata))
+		for _, m := range metadata {
+			out[m.Key] = m
+		}
+		return out
+	}
+
+	rows := byKey(t)
+	for key, want := range map[string]string{"first_key": "value-1", "second_key": "value-2"} {
+		require.Equal(t, f.cipherB.HexDigest(), rows[key].ValueKeyID.String, "metadatum %s", key)
+		require.Equal(t, want, decryptRawString(t, f.cipherB, rows[key].Value.String), "metadatum %s", key)
+	}
+	require.False(t, rows["disk_size"].ValueKeyID.Valid, "non-sensitive metadatum must stay plaintext")
+	require.Equal(t, "100Gi", rows["disk_size"].Value.String)
+
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	rows = byKey(t)
+	for key, want := range map[string]string{"first_key": "value-1", "second_key": "value-2", "disk_size": "100Gi"} {
+		require.False(t, rows[key].ValueKeyID.Valid, "metadatum %s must be plaintext after decrypt", key)
+		require.Equal(t, want, rows[key].Value.String, "metadatum %s", key)
+	}
+}
+
+// TestRotateWorkspaceAgentEnvironmentVariables covers
+// workspace_agents.environment_variables. Values are encrypted
+// individually; variable names and the JSON object shape stay plaintext.
+func TestRotateWorkspaceAgentEnvironmentVariables(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	resp := seedWorkspaceBuild(t, f.rawDB)
+	resource := dbgen.WorkspaceResource(t, f.rawDB, database.WorkspaceResource{JobID: resp.Build.JobID})
+
+	envs := map[string]string{"EXAMPLE_VAR": "value-1", "EMPTY": ""}
+	envJSON, err := json.Marshal(envs)
+	require.NoError(t, err)
+	seedAgent := func(store database.Store, name string) uuid.UUID {
+		return dbgen.WorkspaceAgent(t, store, database.WorkspaceAgent{
+			ResourceID:           resource.ID,
+			Name:                 name,
+			EnvironmentVariables: pqtype.NullRawMessage{RawMessage: envJSON, Valid: true},
+		}).ID
+	}
+	plainAgent := seedAgent(f.rawDB, "plain") // plaintext, pre-encryption
+	encAgent := seedAgent(f.cryptDBA, "enc")  // encrypted under cipher A
+	// A deleted sub agent keeps its row, so its values are rotated as well.
+	deletedAgent := dbgen.WorkspaceAgent(t, f.cryptDBA, database.WorkspaceAgent{
+		ResourceID:           resource.ID,
+		Name:                 "deleted",
+		ParentID:             uuid.NullUUID{UUID: encAgent, Valid: true},
+		EnvironmentVariables: pqtype.NullRawMessage{RawMessage: envJSON, Valid: true},
+	}).ID
+	require.NoError(t, f.rawDB.DeleteWorkspaceSubAgentByID(f.ctx, deletedAgent))
+
+	f.rotate(t)
+
+	listed, err := f.rawDB.GetWorkspaceAgentEnvironmentVariables(f.ctx, database.GetWorkspaceAgentEnvironmentVariablesParams{
+		AfterID:    uuid.Nil,
+		LimitCount: 100,
+	})
+	require.NoError(t, err)
+	rotatedKeyIDs := make(map[uuid.UUID]string, len(listed))
+	for _, row := range listed {
+		rotatedKeyIDs[row.ID] = row.EnvironmentVariablesKeyID.String
+	}
+	require.Equal(t, f.cipherB.HexDigest(), rotatedKeyIDs[deletedAgent], "deleted agents are rotated")
+
+	requireEncryptedEnvs := func(t *testing.T, agentID uuid.UUID) {
+		t.Helper()
+		agent, err := f.rawDB.GetWorkspaceAgentByID(f.ctx, agentID)
+		require.NoError(t, err)
+		require.Equal(t, f.cipherB.HexDigest(), agent.EnvironmentVariablesKeyID.String)
+		var stored map[string]string
+		require.NoError(t, json.Unmarshal(agent.EnvironmentVariables.RawMessage, &stored), "names and object shape must stay plaintext")
+		require.Equal(t, "value-1", decryptRawString(t, f.cipherB, stored["EXAMPLE_VAR"]))
+		require.Empty(t, stored["EMPTY"], "empty values stay plaintext")
+	}
+	requireEncryptedEnvs(t, plainAgent)
+	requireEncryptedEnvs(t, encAgent)
+
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	for _, agentID := range []uuid.UUID{plainAgent, encAgent} {
+		agent, err := f.rawDB.GetWorkspaceAgentByID(f.ctx, agentID)
+		require.NoError(t, err)
+		require.False(t, agent.EnvironmentVariablesKeyID.Valid, "agent %s must be plaintext after decrypt", agentID)
+		var stored map[string]string
+		require.NoError(t, json.Unmarshal(agent.EnvironmentVariables.RawMessage, &stored))
+		require.Equal(t, envs, stored)
+	}
+}
+
 // TestRotateGitSSHKey covers the gitsshkeys table (per-user Git SSH private
 // keys). Simulates rotating keys on a deployment where a soft-deleted
 // user's SSH key row is still present, since gitsshkeys rows are preserved

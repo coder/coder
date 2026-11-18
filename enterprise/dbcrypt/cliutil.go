@@ -281,6 +281,16 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting sensitive workspace resource metadata")
+	if err := rewriteWorkspaceResourceMetadata(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "encrypting workspace agent environment variables")
+	if err := rewriteWorkspaceAgentEnvironmentVariables(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -546,6 +556,16 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting sensitive workspace resource metadata")
+	if err := rewriteWorkspaceResourceMetadata(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "decrypting workspace agent environment variables")
+	if err := rewriteWorkspaceAgentEnvironmentVariables(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -764,6 +784,76 @@ func rewriteWorkspaceBuildParameters(ctx context.Context, log slog.Logger, crypt
 	}
 }
 
+// rewriteWorkspaceResourceMetadata saves the value of every sensitive
+// workspace resource metadatum again through cryptDB, which stores it with
+// wantKeyID. Values already stored with wantKeyID are skipped. See
+// rewriteWorkspaceBuildStates for the values of wantKeyID.
+func rewriteWorkspaceResourceMetadata(ctx context.Context, log slog.Logger, cryptDB database.Store, wantKeyID string) error {
+	var afterID int64
+	for {
+		page, err := cryptDB.GetSensitiveWorkspaceResourceMetadata(ctx, database.GetSensitiveWorkspaceResourceMetadataParams{
+			AfterID:    afterID,
+			LimitCount: keyIDPageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list sensitive workspace resource metadata after id=%d: %w", afterID, err)
+		}
+		for _, metadatum := range page {
+			if metadatum.ValueKeyID.String == wantKeyID {
+				continue
+			}
+			err = cryptDB.UpdateWorkspaceResourceMetadatumValue(ctx, database.UpdateWorkspaceResourceMetadatumValueParams{
+				ID:         metadatum.ID,
+				Value:      metadatum.Value,
+				ValueKeyID: sql.NullString{}, // Set by cryptDB.
+			})
+			if err != nil {
+				return xerrors.Errorf("rewrite metadatum %s of workspace resource %s: %w", metadatum.Key, metadatum.WorkspaceResourceID, err)
+			}
+			log.Debug(ctx, "rewrote workspace resource metadatum", slog.F("workspace_resource_id", metadatum.WorkspaceResourceID), slog.F("key", metadatum.Key), slog.F("key_id", wantKeyID))
+		}
+		if len(page) < keyIDPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1].ID
+	}
+}
+
+// rewriteWorkspaceAgentEnvironmentVariables saves the environment variables
+// of every workspace agent again through cryptDB, which stores their values
+// with wantKeyID. Agents whose values are already stored with wantKeyID are
+// skipped. See rewriteWorkspaceBuildStates for the values of wantKeyID.
+func rewriteWorkspaceAgentEnvironmentVariables(ctx context.Context, log slog.Logger, cryptDB database.Store, wantKeyID string) error {
+	afterID := uuid.Nil
+	for {
+		page, err := cryptDB.GetWorkspaceAgentEnvironmentVariables(ctx, database.GetWorkspaceAgentEnvironmentVariablesParams{
+			AfterID:    afterID,
+			LimitCount: keyIDPageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list workspace agents with environment variables after id=%s: %w", afterID, err)
+		}
+		for _, agent := range page {
+			if agent.EnvironmentVariablesKeyID.String == wantKeyID {
+				continue
+			}
+			err = cryptDB.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams{
+				ID:                        agent.ID,
+				EnvironmentVariables:      agent.EnvironmentVariables,
+				EnvironmentVariablesKeyID: sql.NullString{}, // Set by cryptDB.
+			})
+			if err != nil {
+				return xerrors.Errorf("rewrite environment variables of workspace agent %s: %w", agent.ID, err)
+			}
+			log.Debug(ctx, "rewrote workspace agent environment variables", slog.F("workspace_agent_id", agent.ID), slog.F("key_id", wantKeyID))
+		}
+		if len(page) < keyIDPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1].ID
+	}
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -845,6 +935,18 @@ UPDATE workspace_build_parameters
 	SET value = '',
 		value_key_id = NULL
 	WHERE value_key_id IS NOT NULL;
+-- Encrypted workspace resource metadata values cannot be recovered without
+-- the keys. Clear them; they are written again on the next workspace build.
+UPDATE workspace_resource_metadata
+	SET value = NULL,
+		value_key_id = NULL
+	WHERE value_key_id IS NOT NULL;
+-- Encrypted workspace agent environment variables cannot be recovered without
+-- the keys. Clear them; they are written again on the next workspace build.
+UPDATE workspace_agents
+	SET environment_variables = NULL,
+		environment_variables_key_id = NULL
+	WHERE environment_variables_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;

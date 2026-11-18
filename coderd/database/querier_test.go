@@ -22360,6 +22360,104 @@ func TestGetSensitiveWorkspaceBuildParametersPaginates(t *testing.T) {
 	require.Equal(t, 2, pages)
 }
 
+func TestGetSensitiveWorkspaceResourceMetadataPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: user.ID}).Do().Build
+	resourceID := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID}).ID
+	seedMetadatum := func(key, value string, sensitive bool) int64 {
+		return dbgen.WorkspaceResourceMetadatums(t, db, database.WorkspaceResourceMetadatum{
+			WorkspaceResourceID: resourceID,
+			Key:                 key,
+			Value:               sql.NullString{String: value, Valid: true},
+			Sensitive:           sensitive,
+		})[0].ID
+	}
+
+	// Metadata that is not sensitive must not be listed.
+	seedMetadatum("plain", "value", false)
+	var want []int64
+	for i := range 5 {
+		want = append(want, seedMetadatum(fmt.Sprintf("sensitive-%d", i), "value", true))
+	}
+	slices.Sort(want)
+
+	var got []int64
+	var pages int
+	var afterID int64
+	for {
+		page, err := db.GetSensitiveWorkspaceResourceMetadata(ctx, database.GetSensitiveWorkspaceResourceMetadataParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, metadatum := range page {
+			got = append(got, metadatum.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every sensitive metadatum is listed once, in id order")
+	require.Equal(t, 3, pages)
+}
+
+func TestGetWorkspaceAgentEnvironmentVariablesPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: user.ID}).Do().Build
+	resourceID := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID}).ID
+	envs := pqtype.NullRawMessage{RawMessage: []byte(`{"KEY": "value"}`), Valid: true}
+
+	// An agent without environment variables must not be listed.
+	parent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resourceID})
+	var want []uuid.UUID
+	for range 4 {
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resourceID, EnvironmentVariables: envs})
+		want = append(want, agent.ID)
+	}
+	// A deleted agent with environment variables is still listed.
+	deleted := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:           resourceID,
+		ParentID:             uuid.NullUUID{UUID: parent.ID, Valid: true},
+		EnvironmentVariables: envs,
+	})
+	require.NoError(t, db.DeleteWorkspaceSubAgentByID(ctx, deleted.ID))
+	want = append(want, deleted.ID)
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetWorkspaceAgentEnvironmentVariables(ctx, database.GetWorkspaceAgentEnvironmentVariablesParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, agent := range page {
+			got = append(got, agent.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every agent with environment variables is listed once, in id order")
+	require.Equal(t, 3, pages)
+}
+
 func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
 	t.Parallel()
 

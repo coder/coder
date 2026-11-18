@@ -3256,6 +3256,14 @@ func (m queryMetricsStore) GetSensitiveWorkspaceBuildParameters(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetSensitiveWorkspaceResourceMetadata(ctx context.Context, arg database.GetSensitiveWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetSensitiveWorkspaceResourceMetadata(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetSensitiveWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetSensitiveWorkspaceResourceMetadata").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetStaleChats(ctx, staleThreshold)
@@ -3885,6 +3893,14 @@ func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.C
 	r0, r1 := m.s.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentDevcontainersByAgentID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentDevcontainersByAgentID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentEnvironmentVariables(ctx context.Context, arg database.GetWorkspaceAgentEnvironmentVariablesParams) ([]database.GetWorkspaceAgentEnvironmentVariablesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentEnvironmentVariables(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentEnvironmentVariables").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentEnvironmentVariables").Inc()
 	return r0, r1
 }
 
@@ -6625,6 +6641,14 @@ func (m queryMetricsStore) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceAgentEnvironmentVariablesByID(ctx context.Context, arg database.UpdateWorkspaceAgentEnvironmentVariablesByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentEnvironmentVariablesByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentEnvironmentVariablesByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentEnvironmentVariablesByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
@@ -6806,6 +6830,14 @@ func (m queryMetricsStore) UpdateWorkspaceProxyDeleted(ctx context.Context, arg 
 	r0 := m.s.UpdateWorkspaceProxyDeleted(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceProxyDeleted").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceProxyDeleted").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceResourceMetadatumValue(ctx context.Context, arg database.UpdateWorkspaceResourceMetadatumValueParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceResourceMetadatumValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceResourceMetadatumValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceResourceMetadatumValue").Inc()
 	return r0
 }
 

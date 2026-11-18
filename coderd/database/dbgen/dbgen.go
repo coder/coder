@@ -776,8 +776,9 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			RawMessage: takeFirstSlice(orig.EnvironmentVariables.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.EnvironmentVariables.Valid, false),
 		},
-		OperatingSystem: takeFirst(orig.OperatingSystem, "linux"),
-		Directory:       takeFirst(orig.Directory, ""),
+		EnvironmentVariablesKeyID: takeFirst(orig.EnvironmentVariablesKeyID, sql.NullString{}),
+		OperatingSystem:           takeFirst(orig.OperatingSystem, "linux"),
+		Directory:                 takeFirst(orig.Directory, ""),
 		InstanceMetadata: pqtype.NullRawMessage{
 			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
@@ -822,26 +823,27 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		// to discover cases where deletion should be handled.
 		// See also `(dbfake.WorkspaceBuildBuilder).Do()`.
 		subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
-			ID:                       uuid.New(),
-			ParentID:                 uuid.NullUUID{UUID: agt.ID, Valid: true},
-			CreatedAt:                dbtime.Now(),
-			UpdatedAt:                dbtime.Now(),
-			Name:                     testutil.GetRandomName(t),
-			ResourceID:               agt.ResourceID,
-			AuthToken:                uuid.New(),
-			AuthInstanceID:           sql.NullString{},
-			Architecture:             agt.Architecture,
-			EnvironmentVariables:     pqtype.NullRawMessage{},
-			OperatingSystem:          agt.OperatingSystem,
-			Directory:                agt.Directory,
-			InstanceMetadata:         pqtype.NullRawMessage{},
-			ResourceMetadata:         pqtype.NullRawMessage{},
-			ConnectionTimeoutSeconds: agt.ConnectionTimeoutSeconds,
-			TroubleshootingURL:       "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
-			MOTDFile:                 "",
-			DisplayApps:              nil,
-			DisplayOrder:             agt.DisplayOrder,
-			APIKeyScope:              agt.APIKeyScope,
+			ID:                        uuid.New(),
+			ParentID:                  uuid.NullUUID{UUID: agt.ID, Valid: true},
+			CreatedAt:                 dbtime.Now(),
+			UpdatedAt:                 dbtime.Now(),
+			Name:                      testutil.GetRandomName(t),
+			ResourceID:                agt.ResourceID,
+			AuthToken:                 uuid.New(),
+			AuthInstanceID:            sql.NullString{},
+			Architecture:              agt.Architecture,
+			EnvironmentVariables:      pqtype.NullRawMessage{},
+			EnvironmentVariablesKeyID: sql.NullString{},
+			OperatingSystem:           agt.OperatingSystem,
+			Directory:                 agt.Directory,
+			InstanceMetadata:          pqtype.NullRawMessage{},
+			ResourceMetadata:          pqtype.NullRawMessage{},
+			ConnectionTimeoutSeconds:  agt.ConnectionTimeoutSeconds,
+			TroubleshootingURL:        "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
+			MOTDFile:                  "",
+			DisplayApps:               nil,
+			DisplayOrder:              agt.DisplayOrder,
+			APIKeyScope:               agt.APIKeyScope,
 		})
 		require.NoError(t, err, "insert workspace agent subagent antagonist")
 		err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)
@@ -1605,6 +1607,7 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 		Key:                 []string{takeFirst(seed.Key, testutil.GetRandomName(t))},
 		Value:               []string{takeFirst(seed.Value.String, testutil.GetRandomName(t))},
 		Sensitive:           []bool{takeFirst(seed.Sensitive, false)},
+		ValueKeyID:          []string{takeFirst(seed.ValueKeyID.String, "")},
 	})
 	require.NoError(t, err, "insert meta data")
 	return meta
