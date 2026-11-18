@@ -617,7 +617,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									store={store}
 									repositories={gitWatcher.repositories}
 									hasMoreMessages={hasMoreMessages}
-									isHydratingMessages={isHydratingMessages}
 									onOpenTarget={(target) => activateRightPanelTab(target.tabId)}
 								/>
 							)}
