@@ -11,15 +11,20 @@ export const ChatCostTooltip: React.FC<ChatCostTooltipProps> = ({
 	unpricedRequestCount > 0 ? (
 		<InfoTooltip
 			type="warning"
-			size="small"
+			size="xsmall"
 			side="top"
 			ariaLabel="Cost incomplete"
 		>
-			Pricing isn't fully configured for this model, so cost may be
-			underreported.
+			{/* Widths split each message into two even lines. */}
+			<span className="block max-w-56">
+				Pricing isn't fully configured for this model, so cost may be
+				underreported.
+			</span>
 		</InfoTooltip>
 	) : (
-		<InfoTooltip size="small" side="top" ariaLabel="About this cost">
-			Estimated. Updates in increments and may lag slightly.
+		<InfoTooltip size="xsmall" side="top" ariaLabel="About this cost">
+			<span className="block max-w-48">
+				Estimated. Updates in increments and may lag slightly.
+			</span>
 		</InfoTooltip>
 	);
