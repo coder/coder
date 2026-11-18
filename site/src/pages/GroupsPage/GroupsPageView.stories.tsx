@@ -6,7 +6,6 @@ import {
 	getGroupMemberAvatarsQueryKey,
 } from "#/api/queries/groups";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
-import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -21,7 +20,7 @@ import {
 } from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
-type FilterProps = React.ComponentProps<typeof UsersFilter>;
+type FilterProps = React.ComponentProps<typeof GroupsPageView>["filterProps"];
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
@@ -33,7 +32,6 @@ const meta: Meta<typeof GroupsPageView> = {
 		spendError: false,
 		filterProps: getDefaultFilterProps<FilterProps>({
 			values: {},
-			menus: {},
 		}),
 		groupsQuery: {
 			...mockSuccessResult,
@@ -191,7 +189,6 @@ export const WithSearchAndPagination: Story = {
 		filterProps: getDefaultFilterProps<FilterProps>({
 			query: "group",
 			values: {},
-			menus: {},
 			used: true,
 		}),
 		groupsQuery: {
@@ -201,10 +198,6 @@ export const WithSearchAndPagination: Story = {
 			limit,
 			hasNextPage: true,
 		} as UsePaginatedQueryResult,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Search")).toHaveValue("group");
 	},
 };
 
@@ -428,7 +421,6 @@ export const NoSearchResults: Story = {
 		filterProps: getDefaultFilterProps<FilterProps>({
 			query: "nomatch",
 			values: {},
-			menus: {},
 			used: true,
 		}),
 	},

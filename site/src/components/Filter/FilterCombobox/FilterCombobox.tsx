@@ -360,45 +360,47 @@ export function FilterCombobox({
 				<FilterComboboxInputGroup
 					className={cn(className, mobileOverlay && mobileOverlayClassName)}
 				>
-					<InputGroupAddon className="self-stretch items-start border-r p-0">
-						<InputGroupButton
-							type="button"
-							variant="subtle"
-							aria-label="Filters"
-							aria-expanded={open}
-							aria-haspopup="listbox"
-							className={cn(
-								"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
-								chipValues.length > 0 && "text-content-primary",
-							)}
-							onMouseDown={(event) => {
-								// Keeps focus in the combobox input, which both menu
-								// actions focus, so aria-activedescendant navigation works.
-								event.preventDefault();
-							}}
-							onClick={(event) => {
-								// Keyboard and assistive-technology activation (detail 0)
-								// only opens the menu; pointer clicks toggle it.
-								if (event.detail === 0) {
-									actions.showAllFilters();
-									return;
-								}
-								actions.toggleMenu();
-							}}
-						>
-							<span className="flex size-5 shrink-0 items-center justify-center">
-								{chipValues.length > 0 ? (
-									<ListFilterActiveIcon
-										aria-hidden
-										data-testid="filter-active-icon"
-										className="size-5!"
-									/>
-								) : (
-									<ListFilterIcon aria-hidden className="size-icon-sm" />
+					{categories.length > 0 && (
+						<InputGroupAddon className="self-stretch items-start border-r p-0">
+							<InputGroupButton
+								type="button"
+								variant="subtle"
+								aria-label="Filters"
+								aria-expanded={open}
+								aria-haspopup="listbox"
+								className={cn(
+									"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
+									chipValues.length > 0 && "text-content-primary",
 								)}
-							</span>
-						</InputGroupButton>
-					</InputGroupAddon>
+								onMouseDown={(event) => {
+									// Keeps focus in the combobox input, which both menu
+									// actions focus, so aria-activedescendant navigation works.
+									event.preventDefault();
+								}}
+								onClick={(event) => {
+									// Keyboard and assistive-technology activation (detail 0)
+									// only opens the menu; pointer clicks toggle it.
+									if (event.detail === 0) {
+										actions.showAllFilters();
+										return;
+									}
+									actions.toggleMenu();
+								}}
+							>
+								<span className="flex size-5 shrink-0 items-center justify-center">
+									{chipValues.length > 0 ? (
+										<ListFilterActiveIcon
+											aria-hidden
+											data-testid="filter-active-icon"
+											className="size-5!"
+										/>
+									) : (
+										<ListFilterIcon aria-hidden className="size-icon-sm" />
+									)}
+								</span>
+							</InputGroupButton>
+						</InputGroupAddon>
+					)}
 					<InputGroupAddon className="h-9.5 self-start px-2">
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
