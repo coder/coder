@@ -115,7 +115,8 @@ jobs:
     name: run (${{ matrix.arm }})
     needs: resolve
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    environment: main
+    # The candidate arm runs the PR's code, so only the eval secrets may be in scope; never use main.
+    environment: eval
     timeout-minutes: 360
     permissions:
       contents: read
