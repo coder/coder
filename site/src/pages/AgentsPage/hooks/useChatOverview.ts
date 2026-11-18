@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import type { OverviewTarget } from "../components/ChatOverviewCardView";
 import { useEmbedContext } from "../components/EmbedContext";
 import {
 	getPersistedOverviewCardOpen,
@@ -17,7 +18,12 @@ const OVERVIEW_MIN_CHAT_WIDTH_REM = 84;
  * a chat at least 84rem wide, a centered, non-embedded transcript and a
  * closed right panel, so `toggle` is absent otherwise. Pass `observeChat`
  * as the ref of the chat's outer element, which the hook measures. The open
- * choice is stored for every chat.
+ * choice is stored for every chat. Give the card `cardId`, which the toggle
+ * names in `aria-controls`.
+ *
+ * A row opens the right panel and unmounts the focused row, so
+ * `focusRequestId` asks the panel to focus its active tab once per
+ * `recordTarget` call.
  */
 export const useChatOverview = ({
 	isRightPanelOpen,
@@ -26,7 +32,15 @@ export const useChatOverview = ({
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const { isEmbedded } = useEmbedContext();
+	const cardId = useId();
 	const [isOpen, setIsOpen] = useState(getPersistedOverviewCardOpen);
+	const [request, setRequest] = useState<{
+		id: number;
+		target: OverviewTarget;
+	}>();
+	const [appliedRequestIds, setAppliedRequestIds] = useState<{
+		focus?: number;
+	}>({});
 	const [chatElement, setChatElement] = useState<HTMLElement | null>(null);
 	const [isChatWide, setIsChatWide] = useState(false);
 	useEffect(() => {
@@ -48,9 +62,11 @@ export const useChatOverview = ({
 		isChatWide && !isRightPanelOpen && !chatFullWidth && !isEmbedded;
 	return {
 		observeChat: setChatElement,
+		cardId,
 		toggle: canShow
 			? {
 					isOpen,
+					cardId,
 					onToggle: () => {
 						savePersistedOverviewCardOpen(!isOpen);
 						setIsOpen(!isOpen);
@@ -58,5 +74,13 @@ export const useChatOverview = ({
 				}
 			: undefined,
 		isCardShown: canShow && isOpen,
+		recordTarget: (target: OverviewTarget) =>
+			setRequest((previous) => ({ id: (previous?.id ?? 0) + 1, target })),
+		focusRequestId:
+			request && request.id !== appliedRequestIds.focus
+				? request.id
+				: undefined,
+		onFocusRequestApplied: (id: number) =>
+			setAppliedRequestIds((ids) => ({ ...ids, focus: id })),
 	};
 };

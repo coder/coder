@@ -174,7 +174,7 @@ Select a row to open the matching tab in the right panel, or select a subagent t
 The card returns when you close the right panel.
 
 The card shows by default.
-To hide or show it, select the list icon in the chat top bar.
+To hide or show it, select **Toggle overview** (the list icon) in the chat top bar.
 Your browser remembers the choice for every chat.
 The card does not appear when the chat uses the full width.
 

@@ -991,6 +991,19 @@ export const OverviewCardBesideTranscript: Story = {
 	render: renderOverviewCardStory,
 };
 
+export const OverviewToggleTooltip: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: "Toggle overview",
+			}),
+		);
+	},
+};
+
 /**
  * Below 84rem the card would cover the transcript, so the chat shows
  * neither the card nor its toggle, though the user left the card open.

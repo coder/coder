@@ -9,6 +9,11 @@ import type {
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { useChatAttachments } from "../hooks/useChatAttachments";
@@ -29,30 +34,40 @@ import { countRepoChanges, repoLabel } from "./GitPanel/gitViews";
 /** The card's stored open state and the handler that flips it. */
 export type ChatOverviewToggleProps = {
 	isOpen: boolean;
+	/** The card's `id`, named in `aria-controls` while the card shows. */
+	cardId: string;
 	onToggle: () => void;
 };
 
 /** The top bar button that shows and hides the card. */
 export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
 	isOpen,
+	cardId,
 	onToggle,
 }) => (
-	<Button
-		variant="subtle"
-		size="icon"
-		onClick={onToggle}
-		className={cn(
-			"size-7 text-content-secondary hover:text-content-primary",
-			isOpen && "bg-surface-secondary text-content-primary",
-		)}
-		aria-label="Toggle overview"
-		aria-expanded={isOpen}
-	>
-		<ListIcon className="size-4" />
-	</Button>
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<Button
+				variant="subtle"
+				size="icon"
+				onClick={onToggle}
+				className={cn(
+					"size-7 text-content-secondary hover:text-content-primary",
+					isOpen && "bg-surface-secondary text-content-primary",
+				)}
+				aria-label="Toggle overview"
+				aria-expanded={isOpen}
+				aria-controls={isOpen ? cardId : undefined}
+			>
+				<ListIcon className="size-4" />
+			</Button>
+		</TooltipTrigger>
+		<TooltipContent side="bottom">Toggle overview</TooltipContent>
+	</Tooltip>
 );
 
 type ChatOverviewCardProps = {
+	id: string;
 	chat: Chat;
 	store: ChatStore;
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
@@ -65,6 +80,7 @@ type ChatOverviewCardProps = {
  * whole page view.
  */
 export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
+	id,
 	chat,
 	store,
 	repositories,
@@ -112,6 +128,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 
 	return (
 		<ChatOverviewCardView
+			id={id}
 			overview={overview}
 			isLoading={
 				(showCost && costQuery.isPending) || earlierAttachmentsRequest.isLoading

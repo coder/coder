@@ -346,7 +346,7 @@ describe("AgentChatPage", () => {
 		});
 	});
 
-	it("hides the overview card while a row's panel is open", async () => {
+	it("focuses a row's panel tab and hides the overview card while the panel is open", async () => {
 		const chat = { ...MockChat, diff_statuses: [MockChatDiffStatus] };
 		mockChatPageApi(chat);
 		const setChatWidth = stubChatWidth();
@@ -358,6 +358,7 @@ describe("AgentChatPage", () => {
 			name: "Overview",
 		});
 		await user.click(within(card).getByRole("button", { name: /#123/ }));
+		expect(screen.getByRole("tab", { name: "Git" })).toHaveFocus();
 		expect(
 			screen.queryByRole("complementary", { name: "Overview" }),
 		).toBeNull();

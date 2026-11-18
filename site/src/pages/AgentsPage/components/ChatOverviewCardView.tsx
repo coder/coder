@@ -75,6 +75,7 @@ export type ChatOverview = {
 };
 
 type ChatOverviewCardViewProps = {
+	id?: string;
 	overview: ChatOverview;
 	isLoading?: boolean;
 	/** A failed request shows its error and a retry in Attachments. */
@@ -91,6 +92,7 @@ type ChatOverviewCardViewProps = {
  * nothing to show for it.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
+	id,
 	overview,
 	isLoading = false,
 	earlierAttachmentsRequest,
@@ -109,6 +111,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 
 	return (
 		<aside
+			id={id}
 			aria-labelledby={headingId}
 			aria-busy={isLoading}
 			className={cn(
