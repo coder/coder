@@ -117,6 +117,43 @@ describe("AgentSettingsSkillsPage", () => {
 		).not.toContain(MockOrganization3.id);
 	});
 
+	it("keeps the organization section when no organization has skills", async () => {
+		vi.spyOn(API, "getAuthenticatedUser").mockResolvedValue({
+			...MockUserMember,
+			organization_ids: [MockOrganization2.id, MockDefaultOrganization.id],
+		});
+		vi.spyOn(API, "getOrganizations").mockResolvedValue([
+			MockOrganization2,
+			MockDefaultOrganization,
+		]);
+		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
+		const getOrganizationSkills = vi
+			.spyOn(API.experimental, "getOrganizationSkills")
+			.mockResolvedValue([]);
+
+		renderWithAuth(<AgentSettingsSkillsPage />);
+
+		await within(
+			await screen.findByRole("table", {
+				name: MockDefaultOrganization.display_name,
+			}),
+		).findByText("No organization skills yet");
+		expect(
+			screen.getByRole("combobox", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeInTheDocument();
+		expect(
+			getOrganizationSkills.mock.calls.map(
+				([organizationId]) => organizationId,
+			),
+		).not.toContain(MockOrganization2.id);
+	});
+
 	describe("member controls", () => {
 		const mockReviewSkill = { ...MockSkill, name: "review-sql" };
 		const mockMemberControlsPreferences: OrganizationSkillPreferences = {

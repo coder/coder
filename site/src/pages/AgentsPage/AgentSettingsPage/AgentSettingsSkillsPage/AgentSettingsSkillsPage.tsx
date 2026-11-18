@@ -1,9 +1,6 @@
 import { useState } from "react";
-import { type UseQueryResult, useQueries, useQuery } from "react-query";
-import {
-	organizationSkillPreferences,
-	organizationSkills,
-} from "#/api/queries/organizationSkills";
+import { type UseQueryResult, useQuery } from "react-query";
+import { organizationSkillPreferences } from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -55,40 +52,25 @@ const AgentSettingsSkillsPage: React.FC = () => {
 		user,
 	);
 
-	const organizationSkillQueries = useQueries({
-		queries: memberOrganizations.map((organization) =>
-			organizationSkills(organization.id),
-		),
-	});
-	const visibleOrganizations = memberOrganizations.flatMap(
-		(organization, index) => {
-			const query = organizationSkillQueries[index];
-			const hasEnabledSkills = Boolean(
-				query.data?.some((skill) => skill.enabled),
-			);
-
-			return hasEnabledSkills || query.isError || query.isPending
-				? [{ organization, query, hasEnabledSkills }]
-				: [];
-		},
-	);
-
 	const [selectedOrganizationId, setSelectedOrganizationId] =
 		useState<string>();
 
+	// List every member organization and load skills only for the selected
+	// one: users can belong to hundreds, and a picker filtered by loaded
+	// results shifts while requests settle.
 	const selected =
-		visibleOrganizations.find(
-			({ organization }) => organization.id === selectedOrganizationId,
+		memberOrganizations.find(
+			(organization) => organization.id === selectedOrganizationId,
 		) ??
-		visibleOrganizations.find(({ organization }) => organization.is_default) ??
-		visibleOrganizations.at(0);
+		memberOrganizations.find((organization) => organization.is_default) ??
+		memberOrganizations.at(0);
 
 	const organizationName = selected
-		? selected.organization.display_name || selected.organization.name
+		? selected.display_name || selected.name
 		: "";
 
 	const preferencesQuery = useQuery({
-		...organizationSkillPreferences(selected?.organization.id ?? ""),
+		...organizationSkillPreferences(selected?.id ?? ""),
 		enabled: Boolean(selected),
 	});
 
@@ -107,7 +89,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 	} else if (selected && editablePreferences) {
 		organizationToolbar = (
 			<OrganizationSkillsMasterSwitch
-				organizationId={selected.organization.id}
+				organizationId={selected.id}
 				preferences={editablePreferences}
 			/>
 		);
@@ -151,10 +133,8 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							<OrganizationField
 								id="member-skills-organization"
 								className="w-full sm:w-60"
-								organizations={visibleOrganizations.map(
-									({ organization }) => organization,
-								)}
-								organization={selected.organization}
+								organizations={memberOrganizations}
+								organization={selected}
 								onChange={(organization) =>
 									setSelectedOrganizationId(organization.id)
 								}
@@ -162,46 +142,34 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							/>
 						}
 					/>
-					{selected.query.isError && !selected.hasEnabledSkills ? (
-						// The table's own observer would refetch a failed list on
-						// mount and clear its error, so a failed list renders here.
-						<div className="flex flex-col gap-4">
-							<SectionHeader level="section" label={organizationName} />
-							<QueryErrorAlert
-								query={selected.query}
-								retryLabel={`Retry loading ${organizationName} skills`}
-							/>
-						</div>
-					) : (
-						<SkillsTable
-							key={selected.organization.id}
-							scope={organizationSkillsScope(selected.organization.id)}
-							copy={{
-								noun: "Organization skill",
-								title: organizationName,
-								description: organizationDescription,
-								editorDescription:
-									"Read-only organization skill. Ask an organization admin to change it.",
-								archiveName: `${selected.organization.name}-skills.zip`,
-							}}
-							access={readOnlySkillAccess}
-							enabledOnly
-							headerLevel="section"
-							toolbar={organizationToolbar}
-							isLoading={preferencesQuery.isPending}
-							renderEnabledCell={
-								editablePreferences
-									? (skill) => (
-											<OrganizationSkillPreferenceSwitch
-												organizationId={selected.organization.id}
-												skill={skill}
-												preferences={editablePreferences}
-											/>
-										)
-									: undefined
-							}
-						/>
-					)}
+					<SkillsTable
+						key={selected.id}
+						scope={organizationSkillsScope(selected.id)}
+						copy={{
+							noun: "Organization skill",
+							title: organizationName,
+							description: organizationDescription,
+							editorDescription:
+								"Read-only organization skill. Ask an organization admin to change it.",
+							archiveName: `${selected.name}-skills.zip`,
+						}}
+						access={readOnlySkillAccess}
+						enabledOnly
+						headerLevel="section"
+						toolbar={organizationToolbar}
+						isLoading={preferencesQuery.isPending}
+						renderEnabledCell={
+							editablePreferences
+								? (skill) => (
+										<OrganizationSkillPreferenceSwitch
+											organizationId={selected.id}
+											skill={skill}
+											preferences={editablePreferences}
+										/>
+									)
+								: undefined
+						}
+					/>
 				</section>
 			)}
 		</div>
