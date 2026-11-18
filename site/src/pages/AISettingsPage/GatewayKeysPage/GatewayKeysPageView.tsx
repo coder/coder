@@ -54,7 +54,7 @@ export const GatewayKeysPageView: React.FC<GatewayKeysPageViewProps> = ({
 					)
 				}
 			>
-				<SettingsHeaderTitle>AI Gateway Keys</SettingsHeaderTitle>
+				<SettingsHeaderTitle>AI Gateway keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Keys authenticate standalone AI Gateway replicas to this deployment.
 					The key value is shown only once when created.{" "}
