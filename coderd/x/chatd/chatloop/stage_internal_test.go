@@ -623,6 +623,43 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
 	})
 
+	t.Run("ContentCaptureAcceptsCleanCloseWithoutFinish", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+		})
+		require.NoError(t, err)
+
+		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, codes.Unset, stream.Status().Code)
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
+			spanAttribute(t, stream, "gen_ai.output.messages"))
+	})
+
+	t.Run("ContentCaptureOmitsProviderExecutedTools", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeToolCall, ID: "ws", ToolCallName: "web_search", ToolCallInput: `{}`, ProviderExecuted: true},
+			{Type: fantasy.StreamPartTypeToolResult, ID: "ws", ToolCallName: "web_search", ProviderExecuted: true},
+			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+		})
+		require.NoError(t, err)
+
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
+			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
+	})
+
 	t.Run("ContentCaptureRecordsPartialResponseFinishReason", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t, WithContentCapture(true))

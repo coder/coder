@@ -396,8 +396,15 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}
 	// release closes the time_to_first_token window, so it must run
 	// before the stream stage ends.
+	var inference InferenceResponse
 	defer func() {
 		attempt.release()
+		// The recorded finish reason follows the call's outcome, so a
+		// response the loop rejects is not reported as a clean stop.
+		if retErr != nil && inference.FinishReason != fantasy.FinishReasonContentFilter {
+			inference.FinishReason = fantasy.FinishReasonError
+		}
+		streamSpan.SetInferenceResponse(inference)
 		streamSpan.End(retErr)
 	}()
 
@@ -405,16 +412,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	// finish surfaces a silence timeout that ended the stream without an
 	// error part.
 	finishErr := attempt.finish(processErr)
-	inference := InferenceResponse{
+	inference = InferenceResponse{
 		ResponseID:   result.providerResponseID,
 		FinishReason: result.finishReason,
 		Usage:        result.usage,
 		Content:      append(slices.Clip(result.content), result.unfinishedContent...),
 	}
-	if finishErr != nil {
-		inference.FinishReason = fantasy.FinishReasonError
-	}
-	streamSpan.SetInferenceResponse(inference)
 	// Observe before error handling so failed or rejected responses are still counted.
 	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if finishErr != nil {

@@ -81,7 +81,7 @@ With content capture enabled:
   System instructions are not recorded.
 - Each `execute_tool` span records `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` when the tool runs without failing.
 
-File attachments, images, and source citations are not recorded.
+File attachments, images, source citations, and tools that the model provider runs, such as web search, are not recorded.
 Each content attribute is limited to 64 KiB.
 When messages exceed the limit, the text of each message part is shortened so the value stays valid JSON.
 A tool argument or result that is not JSON, or that exceeds the limit, is recorded as a JSON string, shortened if needed.

@@ -264,19 +264,20 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 
 // genAIFinishReason maps a fantasy finish reason to the GenAI finish
 // reason enum. The output message schema requires one, and the enum has
-// no value for a reason the stream never reported, so that maps to error.
+// no value for a missing or unclassified reason. GenerateAssistant marks
+// every failed call as error, so those map to stop.
 func genAIFinishReason(reason fantasy.FinishReason) string {
 	switch reason {
-	case fantasy.FinishReasonStop, fantasy.FinishReasonOther:
-		return "stop"
 	case fantasy.FinishReasonLength:
 		return "length"
 	case fantasy.FinishReasonToolCalls:
 		return "tool_call"
 	case fantasy.FinishReasonContentFilter:
 		return "content_filter"
-	default:
+	case fantasy.FinishReasonError:
 		return "error"
+	default:
+		return "stop"
 	}
 }
 
@@ -375,8 +376,16 @@ func messagePart(part fantasy.MessagePart) (genAIPart, bool) {
 	case fantasy.ReasoningPart:
 		return genAIPart{Type: "reasoning", Content: p.Text}, true
 	case fantasy.ToolCallPart:
+		if p.ProviderExecuted {
+			// Server tool parts require provider-specific details that
+			// fantasy does not keep.
+			return genAIPart{}, false
+		}
 		return toolCallPart(p.ToolCallID, p.ToolName, p.Input), true
 	case fantasy.ToolResultPart:
+		if p.ProviderExecuted {
+			return genAIPart{}, false
+		}
 		return genAIPart{Type: "tool_call_response", ID: p.ToolCallID, Response: toolResultText(p.Output)}, true
 	default:
 		// File parts are left out: the schema requires their bytes.
@@ -393,9 +402,13 @@ func contentParts(content []fantasy.Content) []genAIPart {
 		case fantasy.ReasoningContent:
 			parts = append(parts, genAIPart{Type: "reasoning", Content: p.Text})
 		case fantasy.ToolCallContent:
-			parts = append(parts, toolCallPart(p.ToolCallID, p.ToolName, p.Input))
+			// Server tool parts require provider-specific details that
+			// fantasy does not keep.
+			if !p.ProviderExecuted {
+				parts = append(parts, toolCallPart(p.ToolCallID, p.ToolName, p.Input))
+			}
 		case fantasy.ToolResultContent:
-			if p.Result != nil {
+			if p.Result != nil && !p.ProviderExecuted {
 				parts = append(parts, genAIPart{Type: "tool_call_response", ID: p.ToolCallID, Response: toolResultText(p.Result)})
 			}
 		}
