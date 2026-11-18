@@ -85,6 +85,49 @@ describe("AgentLogs virtualized height", () => {
 			Number.parseFloat(getInnerSizer(container).style.height),
 		).toBeGreaterThan(ROW_COUNT * AGENT_LOG_LINE_HEIGHT);
 	});
+
+	it("applies width to the outer container and renders centered overflow badge", async () => {
+		const { container } = render(
+			<AgentLogs
+				logs={makeLogs(ROW_COUNT)}
+				sources={MockSources}
+				overflowed={true}
+				showSourceIcons={false}
+				height={1000}
+				width={600}
+			/>,
+		);
+
+		const outerDiv = container.firstElementChild as HTMLElement;
+		expect(outerDiv.style.width).toBe("600px");
+
+		const badge = screen.getByText("Logs overflowed");
+		expect(badge).toBeInTheDocument();
+		expect(badge).toHaveClass("left-1/2", "-translate-x-1/2", "bottom-3");
+	});
+
+	it("displays overflow explanation tooltip when badge is hovered", async () => {
+		const user = userEvent.setup();
+		render(
+			<AgentLogs
+				logs={makeLogs(ROW_COUNT)}
+				sources={MockSources}
+				overflowed={true}
+				showSourceIcons={false}
+				height={1000}
+				width={600}
+			/>,
+		);
+
+		const badge = screen.getByText("Logs overflowed");
+		await user.hover(badge);
+
+		const tooltip = await screen.findByRole("tooltip");
+		expect(tooltip).toBeInTheDocument();
+		expect(tooltip).toHaveTextContent(
+			"Startup logs exceeded the max size of 1MB",
+		);
+	});
 });
 
 describe("AgentLogs source icons", () => {
