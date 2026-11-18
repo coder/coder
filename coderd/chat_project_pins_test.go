@@ -94,6 +94,39 @@ func TestChatProjectPins(t *testing.T) {
 	requirePinOrders(ctx, t, sqlDB, otherUser.ID, map[uuid.UUID]int32{otherNew.ID: 1, otherOwn.ID: 2})
 }
 
+// TestChatProjectPinsTokenScope checks that a pin, as the caller's personal
+// data, cannot be changed by an API key that may only read.
+func TestChatProjectPinsTokenScope(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+	project := createChatProject(t, client, orgID, "Pin Scope")
+
+	// Chat project scopes are not user-mintable, so seed scoped keys directly.
+	newScopedClient := func(scopes ...database.APIKeyScope) *codersdk.ExperimentalClient {
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: firstUser.UserID,
+			Scopes: append(database.APIKeyScopes{"organization:read", "chat_project:read"}, scopes...),
+		})
+		scoped := codersdk.New(client.URL)
+		scoped.SetSessionToken(token)
+		return codersdk.NewExperimentalClient(scoped)
+	}
+
+	readOnly := newScopedClient()
+	requireSDKError(t, readOnly.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}), http.StatusForbidden)
+	requireSDKError(t, readOnly.UnpinChatProject(ctx, orgID, project.ID), http.StatusForbidden)
+
+	// The same key with user:update_personal may change the pin, so that
+	// scope is the one the read-only key lacks.
+	personal := newScopedClient("user:update_personal")
+	require.NoError(t, personal.UnpinChatProject(ctx, orgID, project.ID))
+	require.NoError(t, personal.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}))
+}
+
 func TestChatProjectPinsConcurrentWrites(t *testing.T) {
 	t.Parallel()
 

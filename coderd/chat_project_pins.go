@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
@@ -123,7 +124,8 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request, project database.ChatProject) bool {
 	ctx := r.Context()
 	userID := httpmw.APIKey(r).UserID
-	// A pin is a personal preference, so reading the project is enough.
+	// A pin is a personal preference, so the project only needs to be
+	// readable.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) ||
 		(project.OwnerID != userID && api.chatSharingDisabled()) {
 		httpapi.ResourceNotFound(rw)
@@ -139,6 +141,13 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	}
 	if !usable {
 		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	// The pin itself is the caller's personal data, which an API key scoped
+	// without user:update_personal may not change. dbauthz refuses that
+	// write, so answer 403 here instead of failing the transaction.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(userID)) {
+		httpapi.Forbidden(rw)
 		return false
 	}
 	return true

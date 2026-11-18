@@ -1832,26 +1832,14 @@ func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
-// authorizeChatProjectPin authorizes the actor to change their own pin on a
-// project. A pin is a personal preference, so reading the project is
-// enough.
+// authorizeChatProjectPin authorizes a change to a user's pin on a project.
+// A pin is that user's personal preference, so the write is authorized on
+// the user, and the project only needs to be readable.
 func (q *querier) authorizeChatProjectPin(ctx context.Context, userID, projectID uuid.UUID) error {
-	if err := requireActorIsUser(ctx, userID); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(userID)); err != nil {
 		return err
 	}
 	return q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID)
-}
-
-// requireActorIsUser rejects queries about another user's personal data.
-func requireActorIsUser(ctx context.Context, userID uuid.UUID) error {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return ErrNoActor
-	}
-	if act.ID != userID.String() {
-		return NotAuthorizedError{Err: xerrors.New("actor does not match the user")}
-	}
-	return nil
 }
 
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
