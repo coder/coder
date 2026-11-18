@@ -15,8 +15,8 @@ import (
 // watched, or later Syncs skip it and its edits are missed.
 func TestWatcherSync_RetriesFailedReAdd(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("directory permissions do not block watches on Windows")
+	if runtime.GOOS != "linux" {
+		t.Skip("only inotify checks read permission when re-adding an existing watch")
 	}
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses the read permission a watch requires")
