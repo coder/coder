@@ -262,7 +262,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				<>
 					{workspaceACL.group.map((group) => (
 						<TableRow key={group.id}>
-							<TableCell className="py-2 w-[50%] whitespace-nowrap">
+							<TableCell className="py-2 w-[50%] max-sm:whitespace-nowrap">
 								<AvatarData
 									avatar={
 										<Avatar
@@ -316,7 +316,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 					{workspaceACL.users.map((user) => (
 						<TableRow key={user.id}>
-							<TableCell className="py-2 w-[50%] whitespace-nowrap">
+							<TableCell className="py-2 w-[50%] max-sm:whitespace-nowrap">
 								<AvatarData
 									title={user.username}
 									subtitle={user.name}
@@ -381,7 +381,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				wrapperClassName={cn(isCompact && "max-h-60")}
 				// Without row controls, keyboard users need the scroll area itself to be focusable.
 				wrapperProps={
-					isCompact && !canShareWorkspace
+					!canShareWorkspace
 						? {
 								tabIndex: 0,
 								role: "region",

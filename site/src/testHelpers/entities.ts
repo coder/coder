@@ -606,6 +606,13 @@ export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
 	role: "use",
 };
 
+export const MockWorkspaceUserLongName: TypesGen.WorkspaceUser = {
+	...MockWorkspaceUser,
+	id: "long-name-workspace-user",
+	username: "a-long-username-for-narrow-views",
+	name: "A Member With An Unusually Long Display Name",
+};
+
 export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
 	id: MockUserOwner.id,
 	username: MockUserOwner.username,

@@ -15,6 +15,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceUser,
 	MockWorkspaceUserAdmin,
+	MockWorkspaceUserLongName,
 } from "#/testHelpers/entities";
 import { ShareButton } from "./ShareButton";
 
@@ -138,14 +139,7 @@ export const NarrowViewport: Story = {
 				key: workspaceACLKey(MockWorkspace.id),
 				data: {
 					...mockOverflowingACL,
-					users: [
-						...mockOverflowingACL.users,
-						{
-							...MockWorkspaceUser,
-							id: "long-username-user",
-							username: "a-very-long-username-for-narrow-layouts",
-						},
-					],
+					users: [...mockOverflowingACL.users, MockWorkspaceUserLongName],
 				},
 			},
 		],
