@@ -126,12 +126,12 @@ const UpdateMCPServerPage: React.FC = () => {
 						<Navigate to={listPath} replace />
 					) : serverQuery.isLoading ? (
 						<>
-							<title>{pageTitle("Loading...", "AI Settings")}</title>
+							<title>{pageTitle("Loading...", "AI settings")}</title>
 							<Loader fullscreen />
 						</>
 					) : serverQuery.isLoadingError && !notFound ? (
 						<>
-							<title>{pageTitle("MCP servers", "AI Settings")}</title>
+							<title>{pageTitle("MCP servers", "AI settings")}</title>
 							<div className="mb-4">
 								<ErrorAlert error={serverQuery.error} />
 							</div>

@@ -7409,12 +7409,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.    |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                                                                                                                                          |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.                                                                                                                         |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                                                                                                                                               |
 
 ## codersdk.CreateTemplateRequest
 
@@ -15247,18 +15247,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
-| `content`         | string  | false    |              |                                                                                                                                                           |
-| `created_at`      | string  | false    |              |                                                                                                                                                           |
-| `description`     | string  | false    |              |                                                                                                                                                           |
-| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
-| `enabled`         | boolean | false    |              |                                                                                                                                                           |
-| `id`              | string  | false    |              |                                                                                                                                                           |
-| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
-| `name`            | string  | false    |              |                                                                                                                                                           |
-| `updated_at`      | string  | false    |              |                                                                                                                                                           |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills.                                                    |
+| `content`         | string  | false    |              | Content is the SKILL.md file, with its `disable-model-invocation` frontmatter key set to agree with `model_invocable`. A stored file whose key the server cannot set, such as a list, is returned unchanged. |
+| `created_at`      | string  | false    |              |                                                                                                                                                                                                              |
+| `description`     | string  | false    |              |                                                                                                                                                                                                              |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.                                                          |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                              |
+| `id`              | string  | false    |              |                                                                                                                                                                                                              |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.                                                             |
+| `name`            | string  | false    |              |                                                                                                                                                                                                              |
+| `updated_at`      | string  | false    |              |                                                                                                                                                                                                              |
 
 ## codersdk.SkillMetadata
 
@@ -17770,13 +17770,13 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                           |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
-| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                                                                                                |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                                                                                                                                                |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                                                                                            |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter sets `disable-model-invocation` to a boolean: true turns it off and false turns it on.                                                                                                                    |
 
 ## codersdk.UpdateTemplateACL
 
