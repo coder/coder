@@ -9,6 +9,9 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
+  -o, --output text|json (default: text)
+          Output format.
+
   -t, --tag string-array, $CODER_PROVISIONERD_TAGS
           Tags to filter provisioner jobs by.
 

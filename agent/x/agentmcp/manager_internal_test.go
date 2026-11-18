@@ -231,6 +231,36 @@ func TestConvertResult(t *testing.T) {
 	}
 }
 
+// TestRawResult verifies that the raw path keeps the content types that the
+// legacy Content path drops, and does not send media twice.
+func TestRawResult(t *testing.T) {
+	t.Parallel()
+
+	got, err := rawResult(&mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "report"},
+			&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+				URI:      "file:///report.pdf",
+				MIMEType: "application/pdf",
+				Blob:     []byte("pdf-data"),
+			}},
+		},
+		StructuredContent: map[string]any{"pages": 2},
+		IsError:           true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, got.Content)
+	assert.True(t, got.IsError)
+	require.JSONEq(t, `{
+		"content": [
+			{"type": "text", "text": "report"},
+			{"type": "resource", "resource": {"uri": "file:///report.pdf", "mimeType": "application/pdf", "blob": "cGRmLWRhdGE="}}
+		],
+		"structuredContent": {"pages": 2},
+		"isError": true
+	}`, string(got.Result))
+}
+
 // TestConnectServer_StdioProcessSurvivesConnect verifies that a stdio MCP
 // server subprocess remains alive after connectServer returns. This is a
 // regression test for a bug where the subprocess was tied to a short-lived

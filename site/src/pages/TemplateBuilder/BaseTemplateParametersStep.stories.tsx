@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
+import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import type { TemplateBuilderBasesResponse } from "#/api/typesGenerated";
 import { BaseTemplateParametersStep } from "./BaseTemplateParametersStep";
 
@@ -35,6 +36,14 @@ const basesData: TemplateBuilderBasesResponse = {
 	],
 };
 
+const mockBasesWithPrerequisites: TemplateBuilderBasesResponse = {
+	bases: basesData.bases.map((base) => ({
+		...base,
+		prerequisites:
+			"## Prerequisites\n\n### Authentication\n\nConfigure AWS credentials for the provisioner.",
+	})),
+};
+
 const meta: Meta<typeof BaseTemplateParametersStep> = {
 	title: "pages/TemplateBuilder/BaseTemplateParametersStep",
 	component: BaseTemplateParametersStep,
@@ -57,6 +66,17 @@ export default meta;
 type Story = StoryObj<typeof BaseTemplateParametersStep>;
 
 export const Default: Story = {};
+
+export const WithPrerequisites: Story = {
+	parameters: {
+		queries: [
+			{
+				key: templateBuilderBases().queryKey,
+				data: mockBasesWithPrerequisites,
+			},
+		],
+	},
+};
 
 // With showErrors on and the required "region" field empty, the field is
 // flagged invalid (red outline) while the optional field is not.

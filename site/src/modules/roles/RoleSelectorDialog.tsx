@@ -108,7 +108,7 @@ const ActiveRoleSelectorDialog: React.FC<{
 		>
 			<DialogContent>
 				<DialogHeader>
-					<div className="flex flex-row justify-between items-center">
+					<div className="flex justify-between items-center">
 						<DialogTitle>Edit roles</DialogTitle>
 						<AvatarData
 							title={user.username}

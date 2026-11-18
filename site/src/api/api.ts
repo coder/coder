@@ -70,12 +70,10 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
-	afterMessageId?: number,
+	snapshotVersion: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
-	if (afterMessageId !== undefined && afterMessageId > 0) {
-		params.set("after_id", afterMessageId.toString());
-	}
+	params.set("snapshot_version", snapshotVersion.toString());
 	const token = API.getSessionToken();
 	if (token) {
 		params.set(SessionTokenCookie, token);
@@ -3433,6 +3431,27 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.delete(
 			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+		);
+	};
+
+	getChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectACL,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+			req,
 		);
 	};
 

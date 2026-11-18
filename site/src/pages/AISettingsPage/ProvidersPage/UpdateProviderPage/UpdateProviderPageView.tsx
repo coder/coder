@@ -193,7 +193,7 @@ const UpdateProviderPageView: React.FC = () => {
 						<span className="text-sm">Enable</span>
 					</div>
 				</div>
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<ProviderForm
 						editing
 						key={provider.id}

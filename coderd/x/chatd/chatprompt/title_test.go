@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,8 @@ func TestTitleText(t *testing.T) {
 	}
 }
 
+const titleRuneBudget = chatprompt.TitlePasteBytePrefix / utf8.UTFMax
+
 func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 	t.Parallel()
 
@@ -147,11 +150,11 @@ func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
 	}
 	// Multi-byte runes ensure truncation cannot split a UTF-8 sequence.
-	content := strings.Repeat("é", chatprompt.SyntheticPasteTitleBudgetForTest+10)
+	content := strings.Repeat("é", titleRuneBudget+10)
 
 	got := chatprompt.TitleText(parts, map[uuid.UUID]string{pasteFileID: content})
 
-	require.Len(t, []rune(got), chatprompt.SyntheticPasteTitleBudgetForTest)
+	require.Len(t, []rune(got), titleRuneBudget)
 	require.True(t, strings.HasPrefix(content, got))
 }
 
@@ -190,7 +193,7 @@ func TestTitlePasteText(t *testing.T) {
 		})
 
 		require.Equal(t, full, bounded)
-		require.Len(t, []rune(bounded), chatprompt.SyntheticPasteTitleBudgetForTest)
+		require.Len(t, []rune(bounded), titleRuneBudget)
 	})
 }
 
@@ -276,14 +279,19 @@ func TestFallbackTitle(t *testing.T) {
 			want:    "fix the flaky test",
 		},
 		{
-			name:    "truncates to six words with ellipsis",
+			name:    "keeps every word of a long message",
 			message: "one two three four five six seven",
-			want:    "one two three four five six…",
+			want:    "one two three four five six seven",
 		},
 		{
-			name:    "caps six long words at eighty runes keeping the ellipsis",
+			name:    "caps at eighty runes with an ellipsis",
 			message: strings.Repeat(longWord+" ", 7),
 			want:    strings.Repeat("x", 30) + " " + strings.Repeat("x", 30) + " " + strings.Repeat("x", 17) + "…",
+		},
+		{
+			name:    "keeps a message of exactly eighty runes verbatim",
+			message: strings.Repeat("y", 80),
+			want:    strings.Repeat("y", 80),
 		},
 	}
 

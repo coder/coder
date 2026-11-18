@@ -114,9 +114,16 @@ import (
 //   - Added template_id and template_name to Manifest on the Agent API.
 //   - A v2.16 agent exports them as CODER_WORKSPACE_TEMPLATE_ID and
 //     CODER_WORKSPACE_TEMPLATE_NAME.
+//
+// API v2.17:
+//   - Added the PluginBody variant to ContextResource on the Agent API, for
+//     Agent Plugins (agent-plugins.org). PluginBody carries the plugin's
+//     skills and MCP servers as nested ContextResources.
+//   - Added agent_plugins_enabled to Manifest on the Agent API. coderd sets
+//     it when the agent-plugins experiment is enabled.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 16
+	CurrentMinor = 17
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

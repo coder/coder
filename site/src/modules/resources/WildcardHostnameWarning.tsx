@@ -41,7 +41,7 @@ export const WildcardHostnameWarning: React.FC<
 			prominent
 			className={
 				hasResources
-					? "rounded-none border-0 border-l-2 border-l-warning border-b-divider"
+					? "rounded-none border-0 border-l-2 border-l-content-warning border-b-border"
 					: undefined
 			}
 		>

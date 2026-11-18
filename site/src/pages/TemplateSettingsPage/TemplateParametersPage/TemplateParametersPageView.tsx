@@ -86,7 +86,7 @@ export const TemplateParametersPageView: React.FC<
 				</Spinner>
 				<StackLabel>
 					<Label htmlFor="use_classic_parameter_flow">
-						<span className="flex flex-row items-center gap-2">
+						<span className="flex items-center gap-2">
 							Use parameter compatibility mode for workspace builds
 							<Badge size="sm" variant="warning">
 								Deprecated
@@ -108,8 +108,10 @@ export const TemplateParametersPageView: React.FC<
 					<Link
 						className="self-start text-xs"
 						href={docs(
-							"/admin/templates/extending-templates/parameters/compatibility-mode",
+							"/templates/extending-templates/parameters/compatibility-mode",
 						)}
+						target="_blank"
+						rel="noreferrer"
 					>
 						Learn more
 					</Link>

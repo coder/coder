@@ -2,7 +2,7 @@ import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { useChatOverview } from "../../../hooks/useChatOverview";
-import { SidebarTabView } from "./SidebarTabView";
+import { SidebarTab, SidebarTabView } from "./SidebarTabView";
 
 const OverviewHarness: React.FC<{ isMounted: boolean }> = ({ isMounted }) => {
 	const overview = useChatOverview({ isRightPanelOpen: true });
@@ -16,14 +16,18 @@ const OverviewHarness: React.FC<{ isMounted: boolean }> = ({ isMounted }) => {
 			</button>
 			{isMounted && (
 				<SidebarTabView
-					tabs={[{ id: "summary", label: "Summary", content: null }]}
-					effectiveTabId="summary"
+					activeTabId="summary"
 					onActiveTabChange={vi.fn()}
+					isPanelOpen
 					isExpanded={false}
 					onToggleExpanded={vi.fn()}
 					focusRequestId={overview.focusRequestId}
 					onFocusRequestApplied={overview.onFocusRequestApplied}
-				/>
+				>
+					<SidebarTab id="summary" label="Summary">
+						{null}
+					</SidebarTab>
+				</SidebarTabView>
 			)}
 		</>
 	);

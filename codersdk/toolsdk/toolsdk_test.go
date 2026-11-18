@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,7 +21,6 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -34,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -261,9 +260,9 @@ func TestGenericToolArgumentValidation(t *testing.T) {
 
 			called := false
 			tool := toolsdk.Tool[arguments, struct{}]{
-				Tool: aisdk.Tool{
+				Tool: tooldef.Tool{
 					Name: "test_validation",
-					Schema: aisdk.Schema{
+					Schema: tooldef.Schema{
 						Properties: map[string]any{
 							"mode": map[string]any{
 								"type": "string",
@@ -303,9 +302,9 @@ func TestGenericToolArgumentValidation_TypedDecode(t *testing.T) {
 	}
 	called := false
 	tool := toolsdk.Tool[arguments, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_typed_decode",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"port": map[string]any{"type": "number"},
 				},
@@ -335,9 +334,9 @@ func TestGenericToolArgumentValidation_PreservesLargeInteger(t *testing.T) {
 	const value = int64(9007199254740993)
 	var received int64
 	tool := toolsdk.Tool[arguments, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_large_integer",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"value": map[string]any{"type": "integer"},
 				},
@@ -361,9 +360,9 @@ func TestGenericToolArgumentValidation_OmittedArguments(t *testing.T) {
 
 	called := false
 	tool := toolsdk.Tool[toolsdk.NoArgs, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name:   "test_omitted_arguments",
-			Schema: aisdk.Schema{Properties: map[string]any{}},
+			Schema: tooldef.Schema{Properties: map[string]any{}},
 		},
 		Handler: func(context.Context, toolsdk.Deps, toolsdk.NoArgs) (struct{}, error) {
 			called = true
@@ -384,9 +383,9 @@ func TestGenericToolArgumentValidation_Concurrent(t *testing.T) {
 		Labels map[string]string `json:"labels"`
 	}
 	tool := toolsdk.Tool[arguments, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_concurrent_validation",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"labels": map[string]any{
 						"type": "object",
@@ -1373,19 +1372,18 @@ func TestTools(t *testing.T) {
 		require.ErrorContains(t, err, "exceeds the maximum of 5m0s")
 
 		// The workdir argument sets the command's working directory.
+		// Check via a relative-path marker file rather than pwd, since
+		// pwd under Git Bash on Windows prints POSIX paths (/tmp/...)
+		// that Go cannot resolve.
 		workDir := t.TempDir()
 		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 			Workspace: workspace.Name,
-			Command:   "pwd",
+			Command:   "touch marker.txt",
 			WorkDir:   ptr.Ref(workDir),
 		})
 		require.NoError(t, err)
-		require.Equal(t, 0, result.ExitCode)
-		gotDir, err := filepath.EvalSymlinks(strings.TrimSpace(result.Output))
-		require.NoError(t, err)
-		wantDir, err := filepath.EvalSymlinks(workDir)
-		require.NoError(t, err)
-		require.Equal(t, wantDir, gotDir)
+		require.Equal(t, 0, result.ExitCode, "result: %+v", result)
+		require.FileExists(t, filepath.Join(workDir, "marker.txt"))
 
 		// A long-running background command can be listed and stopped.
 		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
@@ -1905,7 +1903,7 @@ func TestTools(t *testing.T) {
 			agents[0].Apps = []*proto.App{
 				{
 					Slug: "zero",
-					Url:  "http://zero.dev.coder.com",
+					Url:  "http://zero.coder.example.com",
 				},
 			}
 			return agents
@@ -1920,15 +1918,15 @@ func TestTools(t *testing.T) {
 			agents[0].Apps = []*proto.App{
 				{
 					Slug: "one",
-					Url:  "http://one.dev.coder.com",
+					Url:  "http://one.coder.example.com",
 				},
 				{
 					Slug: "two",
-					Url:  "http://two.dev.coder.com",
+					Url:  "http://two.coder.example.com",
 				},
 				{
 					Slug: "three",
-					Url:  "http://three.dev.coder.com",
+					Url:  "http://three.coder.example.com",
 				},
 			}
 			agents = append(agents, &proto.Agent{
@@ -1941,7 +1939,7 @@ func TestTools(t *testing.T) {
 				Apps: []*proto.App{
 					{
 						Slug: "four",
-						Url:  "http://four.dev.coder.com",
+						Url:  "http://four.coder.example.com",
 					},
 				},
 			})
@@ -1969,7 +1967,7 @@ func TestTools(t *testing.T) {
 				expected: []toolsdk.WorkspaceListApp{
 					{
 						Name: "zero",
-						URL:  "http://zero.dev.coder.com",
+						URL:  "http://zero.coder.example.com",
 					},
 				},
 			},
@@ -1988,7 +1986,7 @@ func TestTools(t *testing.T) {
 				expected: []toolsdk.WorkspaceListApp{
 					{
 						Name: "four",
-						URL:  "http://four.dev.coder.com",
+						URL:  "http://four.coder.example.com",
 					},
 				},
 			},
@@ -2000,15 +1998,15 @@ func TestTools(t *testing.T) {
 				expected: []toolsdk.WorkspaceListApp{
 					{
 						Name: "one",
-						URL:  "http://one.dev.coder.com",
+						URL:  "http://one.coder.example.com",
 					},
 					{
 						Name: "three",
-						URL:  "http://three.dev.coder.com",
+						URL:  "http://three.coder.example.com",
 					},
 					{
 						Name: "two",
-						URL:  "http://two.dev.coder.com",
+						URL:  "http://two.coder.example.com",
 					},
 				},
 			},
@@ -2061,7 +2059,7 @@ func TestWithRecovery(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		fakeTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "echo",
 				Description: "Echoes the input.",
 			},
@@ -2079,7 +2077,7 @@ func TestWithRecovery(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		fakeTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "fake_tool",
 				Description: "Returns an error for testing.",
 			},
@@ -2096,7 +2094,7 @@ func TestWithRecovery(t *testing.T) {
 	t.Run("Panic", func(t *testing.T) {
 		t.Parallel()
 		panicTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "panic_tool",
 				Description: "Panics for testing.",
 			},
@@ -2123,7 +2121,7 @@ func TestWithCleanContext(t *testing.T) {
 		// This test is to ensure that the context values are not set in the
 		// toolsdk package.
 		ctxTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
@@ -2145,7 +2143,7 @@ func TestWithCleanContext(t *testing.T) {
 		// This test is to ensure that the context is canceled properly.
 		callCh := make(chan struct{})
 		ctxTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
@@ -2192,7 +2190,7 @@ func TestWithCleanContext(t *testing.T) {
 		// This test ensures that the context deadline is propagated to the child
 		// from the parent.
 		ctxTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "context_tool_deadline",
 				Description: "Checks if context has deadline.",
 			},

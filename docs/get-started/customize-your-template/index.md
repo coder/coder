@@ -5,7 +5,7 @@ title: Customize your template
 In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the control plane, and built a workspace from the Quickstart template.
 That template is a good starting point, but it has gaps:
 
-- It may not include every language in which you write code.
+- It might not include every language in which you write code.
 - It comes with a base toolset, but not the personal command-line tools you install on every machine.
 - It clones public repositories, but it can't reach your private repositories without manual authentication.
 
@@ -110,5 +110,5 @@ Start with [Add a programming language](./add-a-language.md), then work through 
 
 ## Learn more
 
-- [Extending templates](../../admin/templates/extending-templates/index.md) in the Coder documentation
+- [Extending templates](../../templates/extending-templates/index.md) in the Coder documentation
 - [Terraform documentation](https://developer.hashicorp.com/terraform) from HashiCorp

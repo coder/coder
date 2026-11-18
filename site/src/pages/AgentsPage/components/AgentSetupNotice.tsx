@@ -14,6 +14,25 @@ type AgentSetupNoticeProps = {
 	aiGatewayDisabled?: boolean;
 };
 
+/** Defers count-based notices until counts load; a disabled AI Gateway shows immediately. */
+export const shouldShowAgentSetupNotice = ({
+	isAdmin,
+	providerCount,
+	modelCount,
+	aiGatewayDisabled,
+}: {
+	isAdmin: boolean;
+	providerCount?: number;
+	modelCount?: number;
+	aiGatewayDisabled?: boolean;
+}): boolean =>
+	aiGatewayDisabled ||
+	(isAdmin
+		? providerCount !== undefined &&
+			modelCount !== undefined &&
+			(providerCount === 0 || modelCount === 0)
+		: modelCount !== undefined && modelCount === 0);
+
 const formatProviderList = (names: readonly string[]): string => {
 	if (names.length === 1) {
 		return names[0];
@@ -63,7 +82,7 @@ export const AgentSetupNotice: React.FC<AgentSetupNoticeProps> = ({
 		const providerList = formatProviderList(unsupportedProviderNames);
 		const unsupportedLink = (
 			<a
-				href={docs("/ai-coder/agents/models#providers")}
+				href={docs("/coder-agents/models#providers")}
 				target="_blank"
 				rel="noreferrer"
 				className="text-content-link transition-colors hover:text-content-link/80"

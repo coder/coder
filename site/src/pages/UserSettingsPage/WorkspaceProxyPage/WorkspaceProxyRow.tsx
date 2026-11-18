@@ -134,12 +134,12 @@ const ProxyMessagesList: React.FC<ProxyMessagesListProps> = ({
 	titleClassName,
 	messages,
 }) => {
-	if (!messages) {
+	if (!messages?.length) {
 		return null;
 	}
 
 	return (
-		<div className="bg-surface-primary px-14 py-4 border-0">
+		<div className="bg-surface-primary px-14 py-4">
 			<div className={cn("mb-1 text-xs font-semibold", titleClassName)}>
 				{title}
 			</div>
