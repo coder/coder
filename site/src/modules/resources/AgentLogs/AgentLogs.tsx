@@ -115,8 +115,13 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 		flushPendingReset();
 	});
 
+	// A parent can be narrower than the list (AutoSizer's own div is 0px wide),
+	// so size the wrapper to the list to center the overflow badge on it.
 	return (
-		<div className="bg-surface-secondary relative">
+		<div
+			className="bg-surface-secondary relative"
+			style={{ width: listProps.width }}
+		>
 			<List
 				outerElementType={LogsViewport}
 				{...listProps}
@@ -194,6 +199,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					</TooltipTrigger>
 					<TooltipContent
 						asChild
+						side="bottom"
 						className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
 					>
 						<p>
