@@ -566,14 +566,6 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
-	// Aggregates pin usage over each active, non-system user's accessible
-	// projects. Grants count only when @acl_enabled and they include read,
-	// matching the summaries. No identifiers leave this query.
-	// A user has acted when their current pins show it: a user pin (left by
-	// pinning or reordering) or an unpinned owned project. Unpinning deletes
-	// the pin, so a user whose only action was unpinning projects shared with
-	// them does not count.
-	GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error)
 	// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
 	// user's pin and aggregates over the user's own top-level,
 	// non-archived chats. Entries match regardless of the actions they grant,
