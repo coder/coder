@@ -657,6 +657,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		err := s.sftpHandler(logger, session)
 		if err != nil {
 			closeCause(err.Error())
+		} else {
+			closeCause(string(codersdk.DisconnectReasonGraceful))
 		}
 		return
 	default:
