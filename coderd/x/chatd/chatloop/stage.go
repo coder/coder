@@ -225,7 +225,19 @@ func (t *StageTracer) Start(
 	stage Stage,
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
-	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{},
+	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, StageModel{},
+		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
+}
+
+// StartWithModel begins a stage span that runs on model. The model is set
+// at creation, so samplers see it.
+func (t *StageTracer) StartWithModel(
+	ctx context.Context,
+	stage Stage,
+	model StageModel,
+	attrs ...attribute.KeyValue,
+) (context.Context, *StageSpan) {
+	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, model,
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
 }
 
@@ -238,7 +250,7 @@ func (t *StageTracer) StartRootAt(
 	start time.Time,
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
-	return t.startSpan(ctx, stage, ScopeTurn, start, []trace.SpanStartOption{
+	return t.startSpan(ctx, stage, ScopeTurn, start, StageModel{}, []trace.SpanStartOption{
 		trace.WithNewRoot(),
 		trace.WithAttributes(attrs...),
 	})
@@ -249,6 +261,7 @@ func (t *StageTracer) startSpan(
 	stage Stage,
 	scope Scope,
 	start time.Time,
+	model StageModel,
 	opts []trace.SpanStartOption,
 ) (context.Context, *StageSpan) {
 	if t == nil {
@@ -265,14 +278,19 @@ func (t *StageTracer) startSpan(
 	}
 	opts = append(opts, trace.WithTimestamp(start))
 	chatKind := chatKindFromContext(ctx)
-	name, genAIAttrs := stageSpanStart(ctx, stage)
-	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...), trace.WithAttributes(genAIAttrs...))
+	name, genAIOpts := stageSpanStart(ctx, stage, model)
+	opts = append(opts,
+		trace.WithAttributes(model.attributes()...),
+		trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...),
+	)
+	opts = append(opts, genAIOpts...)
 	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), name, opts...)
 	return ctx, &StageSpan{
 		tracer:   t,
 		stage:    stage,
 		scope:    scope,
 		chatKind: chatKind,
+		model:    model,
 		span:     span,
 		start:    start,
 	}
@@ -301,12 +319,6 @@ func (s *StageSpan) SetModel(model StageModel) {
 	}
 	s.model = model
 	s.span.SetAttributes(model.attributes()...)
-	if s.stage == StageStream {
-		if model.Model != "" {
-			s.span.SetName(semconv.GenAIOperationNameChat.Value.AsString() + " " + model.Model)
-		}
-		s.span.SetAttributes(genAIModelAttributes(model)...)
-	}
 }
 
 // SpanContext returns the span context of the stage span.
@@ -387,14 +399,13 @@ func (t *StageTracer) Record(
 	}
 	scope := scopeFromContext(ctx)
 	chatKind := chatKindFromContext(ctx)
-	name, genAIAttrs := stageSpanStart(ctx, stage)
-	_, span := t.otelTracer().Start(ctx, name,
+	name, genAIOpts := stageSpanStart(ctx, stage, model)
+	_, span := t.otelTracer().Start(ctx, name, append([]trace.SpanStartOption{
 		trace.WithTimestamp(start),
 		trace.WithAttributes(attrs...),
 		trace.WithAttributes(model.attributes()...),
 		trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...),
-		trace.WithAttributes(genAIAttrs...),
-	)
+	}, genAIOpts...)...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

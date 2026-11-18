@@ -3,7 +3,9 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -148,6 +150,33 @@ func requireNoContentAttributes(t *testing.T, span sdktrace.ReadOnlySpan) {
 			t.Fatalf("span %s captured %s without content capture", span.Name(), attr.Key)
 		}
 	}
+}
+
+// recordingSampler records what the sampler sees when each span starts.
+type recordingSampler struct {
+	mu     sync.Mutex
+	params []sdktrace.SamplingParameters
+}
+
+func (s *recordingSampler) ShouldSample(p sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p.Attributes = slices.Clone(p.Attributes)
+	s.params = append(s.params, p)
+	return sdktrace.SamplingResult{Decision: sdktrace.RecordAndSample}
+}
+
+func (*recordingSampler) Description() string { return "recording" }
+
+func (s *recordingSampler) find(name string) (sdktrace.SamplingParameters, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range s.params {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return sdktrace.SamplingParameters{}, false
 }
 
 type stageMetricsFixture struct {
@@ -466,6 +495,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, "chat claude", stream.Name())
+		require.Equal(t, trace.SpanKindClient, stream.SpanKind())
 		require.Subset(t, stream.Attributes(), []attribute.KeyValue{
 			attribute.String("gen_ai.operation.name", "chat"),
 			attribute.String("gen_ai.provider.name", "aws.bedrock"),
@@ -547,6 +577,32 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		require.True(t, strings.HasPrefix(prompt, messages[0].Parts[0].Content))
 	})
 
+	t.Run("SamplerSeesModelAtCreation", func(t *testing.T) {
+		t.Parallel()
+		sampler := &recordingSampler{}
+		provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sampler))
+		t.Cleanup(func() {
+			require.NoError(t, provider.Shutdown(context.Background()))
+		})
+		fixture := newStageMetricsFixture(t)
+		fixture.tracer = NewStageTracer(provider, fixture.metrics, WithClock(fixture.clock))
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"},
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+		})
+		require.NoError(t, err)
+
+		params, ok := sampler.find("chat claude")
+		require.True(t, ok, "no chat span was sampled under its final name")
+		require.Equal(t, trace.SpanKindClient, params.Kind)
+		require.Subset(t, params.Attributes, []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.provider.name", "aws.bedrock"),
+			attribute.String("gen_ai.request.model", "claude"),
+		})
+	})
+
 	t.Run("ContentCaptureRecordsPartialResponseFinishReason", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t, WithContentCapture(true))
@@ -559,6 +615,61 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			{Type: fantasy.StreamPartTypeError, Error: streamErr},
 		})
 		require.ErrorContains(t, err, streamErr.Error())
+
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
+			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
+	})
+
+	t.Run("ContentCaptureRecordsUnfinishedText", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		streamErr := xerrors.New("provider dropped the connection")
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "partial"},
+			{Type: fantasy.StreamPartTypeError, Error: streamErr},
+		})
+		require.ErrorContains(t, err, streamErr.Error())
+
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
+			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
+	})
+
+	t.Run("ContentCaptureMarksSilentTimeoutAsError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+		trap := fixture.clock.Trap().AfterFunc(streamSilenceGuardTimerTag)
+		defer trap.Close()
+
+		sent := make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			done <- generateWith(t, fixture, func(streamCtx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return func(yield func(fantasy.StreamPart) bool) {
+					for _, part := range []fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "partial"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+					} {
+						if !yield(part) {
+							return
+						}
+					}
+					close(sent)
+					// A provider that notices the cancellation can return
+					// without an error part.
+					<-streamCtx.Done()
+				}, nil
+			})
+		}()
+		trap.MustWait(ctx).MustRelease(ctx)
+		testutil.TryReceive(ctx, t, sent)
+		fixture.clock.Advance(DefaultStreamSilenceTimeout).MustWait(ctx)
+		require.Error(t, testutil.TryReceive(ctx, t, done))
 
 		require.JSONEq(t,
 			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
@@ -724,6 +835,35 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 			attribute.String("gen_ai.tool.call.arguments", "{}"),
 			attribute.String("gen_ai.tool.call.result", "file body"),
 		})
+	})
+
+	t.Run("ContentCaptureKeepsOversizedArgumentsValidJSON", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+		tool := fantasy.NewAgentTool("write_file", "writes a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse(`{"body":"` + strings.Repeat("r", MaxContentAttributeBytes) + `"}`), nil
+			})
+		input := `{"content":"` + strings.Repeat(`\"a`, MaxContentAttributeBytes) + `"}`
+
+		_, err := ExecuteLocalTools(ContextWithScope(t.Context(), ScopeTurn), ExecuteLocalToolsOptions{
+			Tools:       []fantasy.AgentTool{tool},
+			ActiveTools: []string{"write_file"},
+			ToolCalls:   []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: "write_file", Input: input}},
+			// A large window keeps the result under the model's result
+			// budget, so only the span limit applies.
+			ContextLimit: 10_000_000,
+			Stages:       fixture.tracer,
+			Clock:        fixture.clock,
+		})
+		require.NoError(t, err)
+
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		for _, key := range []string{"gen_ai.tool.call.arguments", "gen_ai.tool.call.result"} {
+			value := spanAttribute(t, toolCall, key)
+			require.LessOrEqual(t, len(value), MaxContentAttributeBytes, key)
+			require.True(t, json.Valid([]byte(value)), "%s is not valid JSON", key)
+		}
 	})
 
 	t.Run("ErrorResultEndsWithoutError", func(t *testing.T) {

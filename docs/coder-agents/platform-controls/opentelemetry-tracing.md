@@ -21,7 +21,7 @@ The root span covers the turn, and the model calls and tool calls of the turn ar
 | Span name                         | `gen_ai.operation.name` | Covers                                      |
 |-----------------------------------|-------------------------|---------------------------------------------|
 | `invoke_agent coder`              | `invoke_agent`          | One chat turn, from the prompt to the reply |
-| `chat {gen_ai.request.model}`     | `chat`                  | One model call                              |
+| `chat {gen_ai.request.model}`     | `chat`                  | One model call, with span kind `CLIENT`     |
 | `execute_tool {gen_ai.tool.name}` | `execute_tool`          | One tool call that Coder Agents runs        |
 
 The turn also contains spans for other lifecycle stages, such as `generation_step`, `prepare`, `commit`, and `compaction`.
@@ -61,7 +61,8 @@ The `chat` span carries the model call's details:
 The `execute_tool` span carries `gen_ai.tool.name`, `gen_ai.tool.call.id`, and `gen_ai.tool.type`.
 The tool type is `function` for built-in Coder Agents tools and `extension` for other tools, such as tools from MCP servers.
 
-A span that fails has an error status and an `error.type` attribute.
+The operation name, provider, and model are set when the span starts, so samplers can use them.
+A failed span has an error status and an `error.type` attribute.
 
 ## Capture prompts, responses, and tool payloads
 
@@ -79,7 +80,7 @@ With content capture enabled:
   System instructions are not recorded.
 - Each `execute_tool` span records `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result`.
 
-File attachments and images are recorded by media type only.
+File attachments, images, and source citations are not recorded.
 Each content attribute is limited to 64 KiB.
 When messages exceed the limit, the text of each message part is shortened so the value stays valid JSON.
-Longer tool arguments and results are cut off.
+A longer tool argument or result is shortened and recorded as a JSON string.

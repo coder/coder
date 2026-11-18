@@ -1,7 +1,6 @@
 package chatloop
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
@@ -95,24 +95,34 @@ func genAIOperation(stage Stage) (attribute.KeyValue, bool) {
 	}
 }
 
-// stageSpanStart returns the span name and GenAI attributes for a stage.
-// Inference and tool spans are renamed once the model or tool is known.
-func stageSpanStart(ctx context.Context, stage Stage) (string, []attribute.KeyValue) {
+// stageSpanStart returns the span name and start options for a stage.
+// Sampling-relevant GenAI attributes and the span kind must be set at
+// creation, since head samplers do not see later changes.
+func stageSpanStart(ctx context.Context, stage Stage, model StageModel) (string, []trace.SpanStartOption) {
 	attrs := []attribute.KeyValue{attribute.String(AttrStage, string(stage))}
 	operation, ok := genAIOperation(stage)
 	if !ok {
-		return string(stage), attrs
+		return string(stage), []trace.SpanStartOption{trace.WithAttributes(attrs...)}
 	}
 	attrs = append(attrs, operation)
 	if identity, ok := chatIdentityFromContext(ctx); ok {
 		attrs = append(attrs, identity.attributes()...)
 	}
 	name := operation.Value.AsString()
-	if stage == StageChatTurn {
+	opts := []trace.SpanStartOption{}
+	switch stage {
+	case StageChatTurn:
 		name += " " + GenAIAgentName
 		attrs = append(attrs, semconv.GenAIAgentName(GenAIAgentName))
+	case StageStream:
+		// Models are called over HTTP, so inference spans are clients.
+		opts = append(opts, trace.WithSpanKind(trace.SpanKindClient))
+		if model.Model != "" {
+			name += " " + model.Model
+		}
+		attrs = append(attrs, genAIModelAttributes(model)...)
 	}
-	return name, attrs
+	return name, append(opts, trace.WithAttributes(attrs...))
 }
 
 // genAIProviderName maps a configured provider type, or the wire protocol
@@ -183,7 +193,7 @@ func (s *StageSpan) SetTool(call fantasy.ToolCallContent, toolType string) {
 	}
 	s.span.SetAttributes(attrs...)
 	if s.capturesContent() && call.Input != "" {
-		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), truncateContent(call.Input)))
+		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), truncateJSONValue(call.Input)))
 	}
 }
 
@@ -192,7 +202,7 @@ func (s *StageSpan) SetToolResult(result fantasy.ToolResultContent) {
 	if !s.capturesContent() || result.Result == nil {
 		return
 	}
-	s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallResultKey), truncateContent(toolResultText(result.Result))))
+	s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallResultKey), truncateJSONValue(toolResultText(result.Result))))
 }
 
 // SetInferenceRequest records request attributes of a chat span. With
@@ -241,29 +251,31 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 	if !s.capturesContent() || len(resp.Content) == 0 {
 		return
 	}
-	// The output message schema requires a finish reason, which a stream
-	// that ended without a finish part did not report.
-	finishReason := cmp.Or(resp.FinishReason, fantasy.FinishReasonUnknown)
 	msg := genAIMessage{
 		Role:         string(fantasy.MessageRoleAssistant),
 		Parts:        contentParts(resp.Content),
-		FinishReason: genAIFinishReason(finishReason),
+		FinishReason: genAIFinishReason(resp.FinishReason),
 	}
 	if encoded, ok := encodeMessages([]genAIMessage{msg}); ok {
 		s.span.SetAttributes(attribute.String(string(semconv.GenAIOutputMessagesKey), encoded))
 	}
 }
 
-// genAIFinishReason maps fantasy finish reasons to the values the GenAI
-// output message schema defines.
+// genAIFinishReason maps a fantasy finish reason to the GenAI finish
+// reason enum. The output message schema requires one, and the enum has
+// no value for a reason the stream never reported, so that maps to error.
 func genAIFinishReason(reason fantasy.FinishReason) string {
 	switch reason {
+	case fantasy.FinishReasonStop, fantasy.FinishReasonOther:
+		return "stop"
+	case fantasy.FinishReasonLength:
+		return "length"
 	case fantasy.FinishReasonToolCalls:
 		return "tool_call"
 	case fantasy.FinishReasonContentFilter:
 		return "content_filter"
 	default:
-		return string(reason)
+		return "error"
 	}
 }
 
@@ -305,8 +317,6 @@ type genAIPart struct {
 	Name      string          `json:"name,omitempty"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
 	Response  string          `json:"response,omitempty"`
-	MimeType  string          `json:"mime_type,omitempty"`
-	URI       string          `json:"uri,omitempty"`
 }
 
 // stepInputMessages returns the non-system messages after the last
@@ -342,14 +352,12 @@ func messagePart(part fantasy.MessagePart) (genAIPart, bool) {
 		return genAIPart{Type: "text", Content: p.Text}, true
 	case fantasy.ReasoningPart:
 		return genAIPart{Type: "reasoning", Content: p.Text}, true
-	case fantasy.FilePart:
-		// File bytes are omitted; the media type identifies the attachment.
-		return genAIPart{Type: "blob", MimeType: p.MediaType}, true
 	case fantasy.ToolCallPart:
 		return toolCallPart(p.ToolCallID, p.ToolName, p.Input), true
 	case fantasy.ToolResultPart:
 		return genAIPart{Type: "tool_call_response", ID: p.ToolCallID, Response: toolResultText(p.Output)}, true
 	default:
+		// File parts are left out: the schema requires their bytes.
 		return genAIPart{}, false
 	}
 }
@@ -368,11 +376,9 @@ func contentParts(content []fantasy.Content) []genAIPart {
 			if p.Result != nil {
 				parts = append(parts, genAIPart{Type: "tool_call_response", ID: p.ToolCallID, Response: toolResultText(p.Result)})
 			}
-		case fantasy.FileContent:
-			parts = append(parts, genAIPart{Type: "blob", MimeType: p.MediaType})
-		case fantasy.SourceContent:
-			parts = append(parts, genAIPart{Type: "uri", URI: p.URL, MimeType: p.MediaType})
 		}
+		// File and source content is left out: the schema requires file
+		// bytes and a modality that citations do not have.
 	}
 	return parts
 }
@@ -460,11 +466,24 @@ func clipMessages(messages []genAIMessage, budget int) []genAIMessage {
 	return clipped
 }
 
-// truncateContent cuts s to MaxContentAttributeBytes on a rune boundary.
-func truncateContent(s string) string {
-	return truncateBytes(s, MaxContentAttributeBytes)
+// truncateJSONValue returns s when it fits. Otherwise it returns a JSON
+// string of a prefix of s that fits, so consumers that parse tool payloads
+// as JSON still can.
+func truncateJSONValue(s string) string {
+	if len(s) <= MaxContentAttributeBytes {
+		return s
+	}
+	// JSON escaping can expand text, so halve the budget until it fits.
+	for budget := MaxContentAttributeBytes; budget > 0; budget /= 2 {
+		encoded, err := json.Marshal(truncateBytes(s, budget))
+		if err == nil && len(encoded) <= MaxContentAttributeBytes {
+			return string(encoded)
+		}
+	}
+	return `""`
 }
 
+// truncateBytes cuts s to at most limit bytes on a rune boundary.
 func truncateBytes(s string, limit int) string {
 	if len(s) <= limit {
 		return s
