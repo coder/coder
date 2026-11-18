@@ -21,8 +21,6 @@
 @source "../node_modules/streamdown";
 
 @theme inline {
-	--shadow-border-warning: 0 0 0 2px
-		color-mix(in srgb, var(--color-border-warning) 60%, transparent);
 	--color-chart-success: var(--chart-success);
 	--color-chart-success-border: var(--chart-success-border);
 	--color-chart-error: var(--chart-error);
