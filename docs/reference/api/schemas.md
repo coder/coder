@@ -10646,8 +10646,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
 | `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
-| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
-| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                                     |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                                   |
 | `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
 | `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
@@ -10705,11 +10705,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.GroupMembersResponse
 
@@ -12685,8 +12685,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------|-------------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `count`        | integer                                                                                               | false    |              | Count is the number of users with spend in the period.                                                                                                                                                                                 |
 | `intervals`    | array of [codersdk.OrganizationAISpendOverviewInterval](#codersdkorganizationaispendoverviewinterval) | false    |              | Intervals holds the daily spend, one interval per UTC day in the period (omitting days after the current day). Days without spend are zero. When the period includes the current day, its interval only has the spend recorded so far. |
-| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                  |
-| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                |
+| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                         |
+| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                       |
 | `totals`       | [codersdk.OrganizationAISpendOverviewTotals](#codersdkorganizationaispendoverviewtotals)              | false    |              |                                                                                                                                                                                                                                        |
 | `users`        | array of [codersdk.OrganizationAISpendOverviewUser](#codersdkorganizationaispendoverviewuser)         | false    |              | Users is the requested page, most spend first.                                                                                                                                                                                         |
 
@@ -12814,8 +12814,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
 |-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
-| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
-| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                          |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                        |
 | `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
 | `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
 | `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
@@ -13135,11 +13135,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                            | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                            | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.OrganizationMember
 
@@ -16986,6 +16986,59 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UnpricedAIModel
+
+```json
+{
+  "model": "string",
+  "provider_display_name": "string",
+  "provider_icon": "string",
+  "provider_name": "string",
+  "provider_type": "openai",
+  "token_count": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                               | Required | Restrictions | Description                                                             |
+|-------------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `model`                 | string                                             | false    |              | Model is the model the client requested.                                |
+| `provider_display_name` | string                                             | false    |              | Provider display name falls back to the provider name when unset.       |
+| `provider_icon`         | string                                             | false    |              | Provider icon is empty when the provider has no configured icon.        |
+| `provider_name`         | string                                             | false    |              | Provider name is the name of the configured provider.                   |
+| `provider_type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Provider type is the type of the configured provider.                   |
+| `token_count`           | integer                                            | false    |              | Token count is the number of tokens used without a price in the period. |
+
+## codersdk.UnpricedAIModels
+
+```json
+{
+  "count": 0,
+  "models": [
+    {
+      "model": "string",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "provider_name": "string",
+      "provider_type": "openai",
+      "token_count": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                          | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `count`        | integer                                                       | false    |              | Count is the number of models listed.                            |
+| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are ordered by unpriced token count, highest first.       |
+| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the applied period. |
+
 ## codersdk.UpdateAIProviderRequest
 
 ```json
@@ -18488,8 +18541,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
 | `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
 | `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
-| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
-| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                         |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                       |
 | `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.UserActivity
