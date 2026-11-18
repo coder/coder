@@ -159,8 +159,6 @@ func TestResolveChatGitAccessTokenUsesNextMatchingConfig(t *testing.T) {
 		Logger:              testutil.Logger(t),
 	}}
 
-	// The first matching config has no link, so the second config supplies the
-	// token.
 	_, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 		ProviderID:       "second",
 		UserID:           user.ID,

@@ -10,7 +10,6 @@ import {
 	POPUP_POLL_INTERVAL_MS,
 } from "./ChatDiffReauthNotice";
 
-// The tests set `closed`, which is readonly on Window.
 type PopupStub = { closed: boolean };
 
 const openPopup = (popup: PopupStub) =>

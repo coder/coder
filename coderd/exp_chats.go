@@ -4847,8 +4847,6 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	// Use only a token from a config that matches the origin, so coderd never
-	// sends the token to another provider's API host.
 	var (
 		auth  originAuth
 		token string
@@ -4887,7 +4885,6 @@ func (api *API) resolveChatDiffContents(
 	return result, err
 }
 
-// chatDiffReauthError names the provider that rejected the chat owner's token.
 type chatDiffReauthError struct {
 	ProviderID  string
 	DisplayName string
@@ -5031,15 +5028,11 @@ func selectChatDiffStatus(
 	return database.ChatDiffStatus{}, false
 }
 
-// originAuth is an external auth config whose regex matches a remote origin,
-// with the git provider it constructs.
 type originAuth struct {
 	config   *externalauth.Config
 	provider gitprovider.Provider
 }
 
-// externalAuthForOrigin returns, in configuration order, every external auth
-// config whose regex matches origin and that builds a git provider.
 func (api *API) externalAuthForOrigin(ctx context.Context, origin string) []originAuth {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
@@ -5126,9 +5119,6 @@ func (api *API) resolveChatGitAccessToken(
 	return nil, gitsync.ErrNoTokenAvailable
 }
 
-// linkedAccessToken returns userID's access token for config, refreshing it
-// first when it is not valid. It returns "" when the user has no usable link
-// for config.
 func (api *API) linkedAccessToken(ctx context.Context, config *externalauth.Config, userID uuid.UUID) string {
 	//nolint:gocritic // System access needed to read external auth
 	// links when called from the gitsync worker (chatd context).

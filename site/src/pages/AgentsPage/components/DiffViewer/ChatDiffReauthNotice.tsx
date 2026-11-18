@@ -45,7 +45,6 @@ export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 	}, [popup, queryClient, chatId]);
 
 	const reconnect = () => {
-		// The button stays focusable while connecting, so clicks can still arrive.
 		if (isConnecting) {
 			return;
 		}

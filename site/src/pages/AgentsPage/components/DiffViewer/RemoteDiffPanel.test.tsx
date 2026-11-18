@@ -22,7 +22,6 @@ const axiosError = (status: number, data: unknown): AxiosError =>
 		data,
 	});
 
-// The tests set `closed`, which is readonly on Window.
 const popupStub = (): { closed: boolean } => ({ closed: false });
 
 const renderPanel = () => {
@@ -78,7 +77,6 @@ describe("RemoteDiffPanel reauth handling", () => {
 	});
 
 	it("keeps the error for a failure that is not a reauth response", async () => {
-		// The body would show a reconnect button if the guard accepted it.
 		vi.spyOn(API.experimental, "getChatDiffContents").mockRejectedValue(
 			axiosError(500, {
 				...MockChatDiffReauthRequired,

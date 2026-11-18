@@ -12596,9 +12596,6 @@ func TestPostChatMessages_FallbackTitleForEmptyCreatedChat(t *testing.T) {
 	require.Equal(t, chatprompt.FallbackTitle(text), refreshed.Title)
 }
 
-// startRejectedGitHub starts a fake GitHub that rejects every request, as it
-// does for a revoked token. It returns the server and the origin of a
-// repository on it.
 func startRejectedGitHub(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
 
@@ -12611,7 +12608,6 @@ func startRejectedGitHub(t *testing.T) (*httptest.Server, string) {
 	return srv, srv.URL + "/acme/project.git"
 }
 
-// rejectedGitHubConfig sets the API base to srv, which rejects the token.
 func rejectedGitHubConfig(srv *httptest.Server, id, displayName string) *externalauth.Config {
 	host := strings.TrimPrefix(srv.URL, "https://")
 	return &externalauth.Config{
@@ -12625,9 +12621,6 @@ func rejectedGitHubConfig(srv *httptest.Server, id, displayName string) *externa
 	}
 }
 
-// seedRejectedGitHubChat stores a link for providerID and a chat whose diff
-// reference is origin and branch. It stores a non-empty prURL as the
-// reference's pull request.
 func seedRejectedGitHubChat(
 	ctx context.Context,
 	t *testing.T,
@@ -12669,7 +12662,6 @@ func seedRejectedGitHubChat(
 	return chat
 }
 
-// diffRequestPath returns the diff endpoint path for chatID, origin, and branch.
 func diffRequestPath(chatID uuid.UUID, origin, branch string) string {
 	return fmt.Sprintf("/api/v2/chats/%s/diff?origin=%s&branch=%s", chatID, url.QueryEscape(origin), url.QueryEscape(branch))
 }
@@ -12677,7 +12669,7 @@ func diffRequestPath(chatID uuid.UUID, origin, branch string) string {
 func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 	t.Parallel()
 
-	t.Run("PullRequestDiff", func(t *testing.T) {
+	t.Run("PullRequestDiffHidesProviderBody", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -12700,7 +12692,6 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 		require.Equal(t, http.StatusFailedDependency, res.StatusCode)
 		raw, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
-		// The provider body can carry account details, so it must not reach the client.
 		require.NotContains(t, string(raw), "Bad credentials")
 		var body codersdk.ChatDiffReauthRequired
 		require.NoError(t, json.Unmarshal(raw, &body))
@@ -12760,8 +12751,6 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 		chat := seedRejectedGitHubChat(ctx, t, api.Database, "other-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", "")
 
-		// The only link belongs to a provider that does not match the origin, so
-		// coderd fetches no diff and the GitHub stub never sees that token.
 		res, err := client.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -12774,8 +12763,6 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		gitHub, origin := startRejectedGitHub(t)
-		// The first matching config has no git provider, so the origin's
-		// provider must be the one named in the response.
 		unsupported := rejectedGitHubConfig(gitHub, "unsupported-test", "Unsupported")
 		unsupported.Type = "unsupported"
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
