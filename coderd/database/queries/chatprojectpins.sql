@@ -127,37 +127,48 @@ WITH accessible AS (
             )
         )
 ),
--- Users who can use each project: the owner, granted users who are
--- organization members, and members of granted groups (including the
--- Everyone group). As in IsChatProjectUsableByUserID, only grants with
--- read count. Counted only while project sharing is available;
+-- Users who can use each project: the owner and the users its read grants
+-- reach (chat_project_read_grant_members). Counted only while project
+-- sharing is available;
 -- otherwise every project counts its owner alone. Suspended users cannot
 -- sign in, so they are not counted.
+--
+-- A read grant to the Everyone group of the project's organization reaches
+-- every member, and the other grants reach only members, so such a project
+-- counts its organization's members once per organization instead of
+-- expanding the group into a row per member for every project.
+everyone_projects AS (
+    SELECT id AS project_id, organization_id FROM accessible
+    WHERE @count_shared_members::boolean
+        AND group_acl -> organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+),
+org_member_counts AS (
+    SELECT organization_members.organization_id, COUNT(*) AS member_count
+    FROM organization_members
+    JOIN users ON users.id = organization_members.user_id
+    WHERE organization_members.organization_id IN (SELECT organization_id FROM everyone_projects)
+        AND users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
+    GROUP BY organization_members.organization_id
+),
 project_members AS (
+    -- org_member_counts already counts the owner of an Everyone project who
+    -- is a member of its organization.
     SELECT id AS project_id, owner_id AS user_id FROM accessible
+    WHERE id NOT IN (SELECT project_id FROM everyone_projects)
+        OR NOT EXISTS (
+            SELECT 1 FROM organization_members
+            WHERE organization_members.user_id = accessible.owner_id
+                AND organization_members.organization_id = accessible.organization_id
+        )
     UNION
-    SELECT granted.project_id, organization_members.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal
-        FROM accessible WHERE @count_shared_members::boolean
-    ) granted
-    JOIN organization_members
-        ON organization_members.user_id = granted.principal::uuid
-        AND organization_members.organization_id = granted.organization_id
-    WHERE granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
-    UNION
-    SELECT granted.project_id, group_members_expanded.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal
-        FROM accessible WHERE @count_shared_members::boolean
-    ) granted
-    JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
-    -- A granted group from another organization only reaches its members
-    -- who also belong to the project's organization.
-    JOIN organization_members
-        ON organization_members.user_id = group_members_expanded.user_id
-        AND organization_members.organization_id = granted.organization_id
-    WHERE granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
+    SELECT project_id, user_id FROM chat_project_read_grant_members
+    -- An array lets the planner filter the view's project scans; a join or
+    -- IN would expand the grants of every project first.
+    WHERE @count_shared_members::boolean AND project_id = ANY(ARRAY(
+        SELECT id FROM accessible
+        EXCEPT
+        SELECT project_id FROM everyone_projects
+    ))
 ),
 member_counts AS (
     SELECT project_members.project_id, COUNT(*) AS member_count
@@ -196,10 +207,12 @@ SELECT
     COALESCE(own_chats.running, false)::boolean AS own_running,
     COALESCE(own_chats.needs_attention, false)::boolean AS own_needs_attention,
     own_chats.last_activity_at,
-    (CASE WHEN @count_shared_members::boolean THEN COALESCE(member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+    (CASE WHEN @count_shared_members::boolean THEN COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
 FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
+LEFT JOIN everyone_projects ON everyone_projects.project_id = chat_projects.id
+LEFT JOIN org_member_counts ON org_member_counts.organization_id = everyone_projects.organization_id
 LEFT JOIN chat_project_pins pins
     ON pins.user_id = @user_id::uuid AND pins.project_id = chat_projects.id
 LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
@@ -212,26 +225,7 @@ ORDER BY lower(chat_projects.name), chat_projects.id;
 WITH project_users AS (
     SELECT id AS project_id, owner_id AS user_id FROM chat_projects
     UNION
-    SELECT granted.project_id, organization_members.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal FROM chat_projects
-    ) granted
-    JOIN organization_members
-        ON organization_members.user_id = granted.principal::uuid
-        AND organization_members.organization_id = granted.organization_id
-    WHERE @acl_enabled::boolean
-        AND granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
-    UNION
-    SELECT granted.project_id, group_members_expanded.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal FROM chat_projects
-    ) granted
-    JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
-    JOIN organization_members
-        ON organization_members.user_id = group_members_expanded.user_id
-        AND organization_members.organization_id = granted.organization_id
-    WHERE @acl_enabled::boolean
-        AND granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
+    SELECT project_id, user_id FROM chat_project_read_grant_members WHERE @acl_enabled::boolean
 ),
 per_user AS (
     SELECT
