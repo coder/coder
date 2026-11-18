@@ -5411,7 +5411,8 @@ describe("chat stream contract", () => {
 		expect(result.current.error).toBeNull();
 	});
 
-	it("applies a batch when its last chunk message arrives", async () => {
+	it("applies a batch when its last chunk message arrives and keeps the socket open while chunks arrive", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
 			page([buildMessage(chatID, 1, "user", "prompt")]),
@@ -5421,16 +5422,26 @@ describe("chat stream contract", () => {
 			[message(2, "assistant", 5)],
 			3,
 		);
+		// Three gaps of 3/4 of the silence timeout take longer in total than
+		// the timeout, so each chunk message must restart the timer.
+		const gapMs = CHAT_SOCKET_SILENCE_TIMEOUT_MS * 0.75;
 
 		act(() => {
 			sockets[0].emitOpen();
-			sockets[0].emitChunk(first);
-			sockets[0].emitChunk(second);
 		});
+		for (const chunk of [first, second]) {
+			await act(async () => {
+				vi.advanceTimersByTime(gapMs);
+				sockets[0].emitChunk(chunk);
+			});
+		}
 		expect(result.current.messageIDs).toEqual([1]);
-		act(() => {
+		await act(async () => {
+			vi.advanceTimersByTime(gapMs);
 			sockets[0].emitChunk(last);
 		});
+		expect(sockets[0].close).not.toHaveBeenCalled();
+		expect(sockets).toHaveLength(1);
 		expect(result.current.messageIDs).toEqual([1, 2]);
 		expect(result.current.store.getSyncedSnapshotVersion()).toBe(5);
 		expect(result.current.error).toBeNull();
