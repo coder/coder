@@ -114,7 +114,7 @@ func (r *RootCmd) loginWithPassword(
 	}
 
 	sessionToken := resp.SessionToken
-	err = r.ensureTokenBackend().Write(client.URL, sessionToken)
+	err = r.ensureTokenBackend(inv).Write(client.URL, sessionToken)
 	if err != nil {
 		if xerrors.Is(err, sessionstore.ErrNotImplemented) {
 			return errKeyringNotSupported
@@ -207,7 +207,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 			// Check keyring availability before prompting the user for a token to fail fast.
 			if r.useKeyring {
-				backend := r.ensureTokenBackend()
+				backend := r.ensureTokenBackend(inv)
 				_, err := backend.Read(client.URL)
 				if err != nil && xerrors.Is(err, sessionstore.ErrNotImplemented) {
 					return errKeyringNotSupported
@@ -389,7 +389,7 @@ func (r *RootCmd) login() *serpent.Command {
 			}
 
 			config := r.createConfig()
-			err = r.ensureTokenBackend().Write(client.URL, sessionToken)
+			err = r.ensureTokenBackend(inv).Write(client.URL, sessionToken)
 			if err != nil {
 				if xerrors.Is(err, sessionstore.ErrNotImplemented) {
 					return errKeyringNotSupported
@@ -505,7 +505,7 @@ func (r *RootCmd) loginToken() *serpent.Command {
 			// multiple deployment session tokens. Error if the requested URL doesn't
 			// match the stored config URL when using file storage to avoid returning
 			// a token for the wrong deployment.
-			backend := r.ensureTokenBackend()
+			backend := r.ensureTokenBackend(inv)
 			if _, ok := backend.(*sessionstore.File); ok {
 				conf := r.createConfig()
 				storedURL, err := conf.URL().Read()
