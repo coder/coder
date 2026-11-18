@@ -169,3 +169,20 @@ export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 		</ul>
 	);
 };
+
+type ChartRowLegendProps = {
+	label: string;
+};
+
+/**
+ * Keeps a row's category readable without relying on bar color (WCAG 1.4.1).
+ * Hidden from assistive technology because the bar's accessible name already
+ * includes the label.
+ */
+export const ChartRowLegend: React.FC<ChartRowLegendProps> = ({ label }) => {
+	return (
+		<span aria-hidden className="whitespace-nowrap text-content-secondary">
+			{label}
+		</span>
+	);
+};
