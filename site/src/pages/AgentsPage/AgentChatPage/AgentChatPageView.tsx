@@ -7,6 +7,7 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getAgentBrowserApp } from "#/modules/apps/apps";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
@@ -231,6 +232,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 }) => {
 	const { proxy } = useProxy();
 	const { user: currentUser } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
@@ -343,7 +345,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
-		preview: workspace !== undefined && wildcardHostname !== "",
+		preview:
+			workspace !== undefined &&
+			wildcardHostname !== "" &&
+			experiments.includes("open-preview"),
 	};
 	const supportedSingletonTabs = singletonRightPanelTabIds.filter(
 		(tabId) => singletonTabSupport[tabId],

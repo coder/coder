@@ -289,6 +289,9 @@ Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents recei
 
 ### Embedded previews
 
+> Embedded previews are an experimental feature.
+> The feature requires the `open-preview` experiment, and the `open_preview` tool, the preview tab, and the previews API might change or be removed in any release without a compatibility guarantee.
+
 The agent can call `open_preview` to show a running app, HyperText Markup Language (HTML) files, or a workspace app in the chat's right panel.
 It gives each preview a short title and supplies exactly one of `port`, `path`, or `app`:
 
@@ -303,7 +306,13 @@ It gives each preview a short title and supplies exactly one of `port`, `path`, 
   To let the agent open an app, set `subdomain = true` on the `coder_app`, or on the module that defines it if the module has a `subdomain` input, then update the workspace to the new template version.
   The app opens when you select **Open app** on the tool result while the workspace is running.
 
-`open_preview` is only available when the deployment has a [wildcard access URL](../admin/networking/wildcard-access-url.md).
+`open_preview` is only available when the deployment has a [wildcard access URL](../admin/networking/wildcard-access-url.md) and an administrator has enabled the `open-preview` experiment:
+
+```env
+CODER_EXPERIMENTS=open-preview
+```
+
+The experiment list is read at startup, so enabling or disabling it requires a `coder server` restart.
 Previews also need the selected workspace proxy, including one the dashboard selects automatically, to have a wildcard access URL and run the deployment's Coder version.
 If the **Preview** tab is missing, a tool result asks you to select a workspace proxy, or a preview doesn't load, go to another dashboard page, such as **Workspaces**, and [select](../admin/networking/workspace-proxies.md#select-a-proxy) the primary proxy, named **Default** unless an administrator renamed it, or a proxy that meets both requirements.
 The Agents page uses the proxy you select there.
