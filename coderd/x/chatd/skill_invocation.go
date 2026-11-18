@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -30,10 +31,15 @@ var ErrTooManySkillInvocations = xerrors.Errorf("a message can invoke at most %d
 // skill the chat owner cannot use: it is missing, disabled, or not readable.
 type SkillInvocationUnavailableError struct {
 	Source codersdk.ChatSkillSource
-	Name   string
+	// PluginName is set only for ChatSkillSourcePlugin.
+	PluginName string
+	Name       string
 }
 
 func (e *SkillInvocationUnavailableError) Error() string {
+	if e.Source == codersdk.ChatSkillSourcePlugin {
+		return fmt.Sprintf("Skill %s/%s/%s is not available.", e.Source, e.PluginName, e.Name)
+	}
 	return fmt.Sprintf("Skill %s/%s is not available.", e.Source, e.Name)
 }
 
@@ -59,9 +65,9 @@ func (p *Server) resolveChatSkillInvocations(
 // its part, read with the chat owner's permissions through the same loaders
 // as read_skill. Skills load by source and name, so an invocation does not
 // depend on the skill being listed in the turn's skill index, and skills
-// that are not model-invocable still load. Workspace
-// skills come from the chat's pinned context snapshot, so a chat without
-// one cannot invoke them. An invoked workspace skill also stores its
+// that are not model-invocable still load. Workspace and plugin skills
+// come from the chat's pinned context snapshot, so a chat without one
+// cannot invoke them. An invoked workspace or plugin skill also stores its
 // directory: read_skill refuses a skill hidden from the model, so the
 // invocation is the only place the model is told where its scripts are.
 // The directory is stored with the chat's workspace, because the path
@@ -113,13 +119,18 @@ func (p *Server) resolveSkillInvocations(
 			}
 			parsed, err := p.loadProjectSkillBody(chatdCtx, projectID.UUID, part.SkillName, skillLoaderUser)
 			return invokedSkill{body: parsed.Body}, err
-		case codersdk.ChatSkillSourceWorkspace:
+		case codersdk.ChatSkillSourceWorkspace, codersdk.ChatSkillSourcePlugin:
+			// A workspace part never names a plugin, and a plugin part
+			// always does.
+			if (part.SkillSource == codersdk.ChatSkillSourcePlugin) != (part.SkillPluginName != "") {
+				return invokedSkill{}, skillspkg.ErrSkillNotFound
+			}
 			skills, err := loadWorkspaceSkills()
 			if err != nil {
 				return invokedSkill{}, err
 			}
 			for _, skill := range skills {
-				if skill.Name == part.SkillName {
+				if skill.Name == part.SkillName && skill.PluginName == part.SkillPluginName {
 					body, err := chattool.PinnedWorkspaceSkillBody(skill)
 					return invokedSkill{body: body, dir: skill.Dir, workspaceID: chat.WorkspaceID.UUID}, err
 				}
@@ -130,8 +141,9 @@ func (p *Server) resolveSkillInvocations(
 
 	// A message that repeats a skill loads it once.
 	type skillKey struct {
-		source codersdk.ChatSkillSource
-		name   string
+		source     codersdk.ChatSkillSource
+		pluginName string
+		name       string
 	}
 	loaded := make(map[skillKey]invokedSkill, invocations)
 	resolved := slices.Clone(parts)
@@ -139,16 +151,16 @@ func (p *Server) resolveSkillInvocations(
 		if !isSkillInvocation(part) {
 			continue
 		}
-		key := skillKey{source: part.SkillSource, name: part.SkillName}
+		key := skillKey{source: part.SkillSource, pluginName: part.SkillPluginName, name: part.SkillName}
 		skill, ok := loaded[key]
 		if !ok {
 			var err error
 			skill, err = loadSkill(part)
 			if errors.Is(err, skillspkg.ErrSkillNotFound) {
-				return nil, &SkillInvocationUnavailableError{Source: part.SkillSource, Name: part.SkillName}
+				return nil, &SkillInvocationUnavailableError{Source: part.SkillSource, PluginName: part.SkillPluginName, Name: part.SkillName}
 			}
 			if err != nil {
-				return nil, xerrors.Errorf("load invoked skill %s/%s: %w", part.SkillSource, part.SkillName, err)
+				return nil, xerrors.Errorf("load invoked skill %s: %w", chatprompt.SkillInvocationAlias(part), err)
 			}
 			loaded[key] = skill
 		}
