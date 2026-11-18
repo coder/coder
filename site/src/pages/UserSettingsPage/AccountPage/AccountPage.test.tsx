@@ -137,8 +137,13 @@ describe("AccountPage", () => {
 			const trigger = screen.getByRole("combobox", {
 				name: "Default landing page",
 			});
+			const status = screen.getByRole("status");
+			expect(status.textContent).toBe("");
 			await user.click(trigger);
 			await user.click(await screen.findByRole("option", { name: "Agents" }));
+			await waitFor(() =>
+				expect(status).toHaveTextContent("Saving default landing page"),
+			);
 			await waitFor(() => expect(document.activeElement).toBe(trigger));
 
 			await user.keyboard("{Enter}{ArrowUp}{Enter}");
@@ -159,6 +164,9 @@ describe("AccountPage", () => {
 				);
 			});
 			expect(document.activeElement).toBe(trigger);
+			await waitFor(() =>
+				expect(status).toHaveTextContent("Default landing page saved"),
+			);
 		});
 
 		it("keeps the saved preference after a failed update and allows retrying", async () => {
@@ -178,24 +186,29 @@ describe("AccountPage", () => {
 				.mockResolvedValue(updated);
 			const { queryClient } = renderWithAuth(<AccountPage />);
 			await screen.findByText("Workspaces");
-			await user.click(
-				screen.getByRole("combobox", { name: "Default landing page" }),
-			);
+			const trigger = screen.getByRole("combobox", {
+				name: "Default landing page",
+			});
+			await user.click(trigger);
 			await user.click(await screen.findByRole("option", { name: "Agents" }));
 			await screen.findByText("Preference could not be saved.");
+			expect(trigger).toHaveAccessibleDescription(
+				/Choose your dashboard home page.*Preference could not be saved\./,
+			);
 
 			expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
 				MockUserPreferenceSettings,
 			);
-			await user.click(
-				screen.getByRole("combobox", { name: "Default landing page" }),
-			);
+			await user.click(trigger);
 			await user.click(await screen.findByRole("option", { name: "Agents" }));
 			await waitFor(() => {
 				expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
 					updated,
 				);
 			});
+			expect(trigger).toHaveAccessibleDescription(
+				"Choose your dashboard home page. This preference syncs across your devices.",
+			);
 			expect(update.mock.calls).toEqual([
 				[{ default_landing_page: "agents" }],
 				[{ default_landing_page: "agents" }],
@@ -224,20 +237,27 @@ describe("AccountPage", () => {
 				...MockUserPreferenceSettings,
 				default_landing_page: "agents",
 			};
+			const initialLoad = createDeferred<UserPreferenceSettings>();
 			const getPreference = vi
 				.spyOn(API, "getUserPreferenceSettings")
-				.mockRejectedValueOnce(new Error("Preferences unavailable"))
+				.mockReturnValueOnce(initialLoad.promise)
 				.mockResolvedValue(updated);
 			const update = vi
 				.spyOn(API, "updateUserPreferenceSettings")
 				.mockResolvedValue(updated);
 			const { queryClient } = renderWithAuth(<AccountPage />);
-
+			await screen.findByText("Loading default landing page");
+			const status = screen.getByRole("status");
+			expect(status).toHaveTextContent("Loading default landing page");
+			await act(async () =>
+				initialLoad.reject(new Error("Preferences unavailable")),
+			);
 			await waitFor(() => {
 				expect(queryClient.getQueryState(preferenceSettingsKey)?.status).toBe(
 					"error",
 				);
 			});
+			expect(status.textContent).toBe("");
 			const trigger = screen.getByRole("combobox", {
 				name: "Default landing page",
 			});

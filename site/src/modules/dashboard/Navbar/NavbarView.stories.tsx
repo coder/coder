@@ -46,6 +46,7 @@ const meta: Meta<typeof NavbarView> = {
 	},
 	component: NavbarView,
 	args: {
+		homePath: "/workspaces",
 		user: MockUserOwner,
 		adminPermissions: {
 			canViewDeployment: true,

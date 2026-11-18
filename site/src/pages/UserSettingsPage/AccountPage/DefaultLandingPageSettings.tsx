@@ -34,6 +34,17 @@ export const DefaultLandingPageSettings: React.FC<
 	const [open, setOpen] = useState(false);
 	const selectId = useId();
 	const descriptionId = useId();
+	const errorId = useId();
+
+	let status = "";
+	if (mutation.isPending) {
+		status = "Saving default landing page";
+	} else if (query.isFetching) {
+		status = "Loading default landing page";
+	} else if (mutation.isSuccess) {
+		status = "Default landing page saved";
+	}
+
 	const value = mutation.isPending
 		? mutation.variables.default_landing_page
 		: (query.data?.default_landing_page ??
@@ -82,7 +93,11 @@ export const DefaultLandingPageSettings: React.FC<
 								id={selectId}
 								className="max-w-xs text-content-primary"
 								aria-disabled={mutation.isPending || undefined}
-								aria-describedby={descriptionId}
+								aria-describedby={
+									mutation.isError
+										? `${descriptionId} ${errorId}`
+										: descriptionId
+								}
 							>
 								<SelectValue placeholder="Loading..." />
 							</SelectTrigger>
@@ -91,18 +106,21 @@ export const DefaultLandingPageSettings: React.FC<
 								<SelectItem value="agents">Agents</SelectItem>
 							</SelectContent>
 						</Select>
+						<span role="status" className="sr-only">
+							{status}
+						</span>
 						<Spinner
 							loading={query.isFetching || mutation.isPending}
-							label={
-								mutation.isPending
-									? "Saving default landing page"
-									: "Loading default landing page"
-							}
+							aria-hidden
 							size="sm"
 						/>
 					</div>
 				</div>
-				{mutation.isError && <ErrorAlert error={mutation.error} />}
+				{mutation.isError && (
+					<div id={errorId}>
+						<ErrorAlert error={mutation.error} />
+					</div>
+				)}
 			</div>
 		</Section>
 	);

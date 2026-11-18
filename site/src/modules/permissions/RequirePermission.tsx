@@ -34,7 +34,7 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({
 						or try signing in with different credentials.
 					</DialogDescription>
 					<DialogFooter>
-						<Link href="/">Go to workspaces</Link>
+						<Link href="/workspaces">Go to workspaces</Link>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

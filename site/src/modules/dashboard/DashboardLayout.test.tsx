@@ -1,19 +1,23 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http, type PathParams } from "msw";
 import type { RouteObject } from "react-router";
+import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type { AuthorizationRequest, Entitlements } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockNoPermissions,
 	MockPermissions,
+	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { DashboardIndexRedirect } from "./DashboardIndexRedirect";
 import { DashboardLayout } from "./DashboardLayout";
 
 const renderDashboardLayout = async ({
@@ -24,6 +28,7 @@ const renderDashboardLayout = async ({
 	permissions = MockPermissions,
 	organizationChecks = false,
 	warnings,
+	route = "/",
 	children = [{ element: <h1>Test page</h1> }],
 }: {
 	actual?: number;
@@ -34,6 +39,7 @@ const renderDashboardLayout = async ({
 	/** Answer for authorization checks keyed by organization id. */
 	organizationChecks?: boolean;
 	warnings?: string[];
+	route?: string;
 	children?: RouteObject[];
 }) => {
 	server.use(
@@ -75,7 +81,7 @@ const renderDashboardLayout = async ({
 		),
 	);
 
-	const result = renderWithAuth(<DashboardLayout />, { children });
+	const result = renderWithAuth(<DashboardLayout />, { route, children });
 	await waitForLoaderToBeRemoved();
 	return result;
 };
@@ -139,22 +145,81 @@ test("navigates an organization group member reader to AI settings from Admin se
 	expect(router.state.location.pathname).toBe("/ai/settings");
 });
 
-test("navigates the dashboard logo to the preference-aware root", async () => {
-	server.use(
-		http.get("/api/v2/notifications/inbox", () =>
-			HttpResponse.json({ notifications: [], unread_count: 0 }),
-		),
-	);
-	const { router } = renderWithAuth(<DashboardLayout />, {
-		path: "/workspaces",
-		route: "/workspaces",
-		children: [{ index: true, element: <div>Workspaces</div> }],
-		extraRoutes: [{ path: "/", element: <div>Dashboard home</div> }],
-	});
-	const user = userEvent.setup();
-	await user.click(await screen.findByRole("link", { name: "Coder logo" }));
+describe("dashboard logo navigation", () => {
+	afterEach(() => vi.restoreAllMocks());
 
-	await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+	test.each([
+		{ preference: "agents", createChat: true, destination: "/agents" },
+		{ preference: "workspaces", createChat: true, destination: "/workspaces" },
+		{ preference: "agents", createChat: false, destination: "/workspaces" },
+	] as const)(
+		"links directly to $destination for $preference with createChat=$createChat",
+		async ({ preference, createChat, destination }) => {
+			const getPreferences = vi.spyOn(API, "getUserPreferenceSettings");
+			const { router, queryClient } = await renderDashboardLayout({
+				route: "/templates",
+				permissions: { ...MockPermissions, createChat },
+				children: [
+					{ index: true, element: <DashboardIndexRedirect /> },
+					{ path: "templates", element: <div>Templates</div> },
+					{ path: "workspaces", element: <div>Workspaces</div> },
+					{ path: "agents", element: <div>Agents</div> },
+				],
+			});
+			queryClient.setQueryDefaults(preferenceSettingsKey, {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+			await act(async () => {
+				queryClient.setQueryData(preferenceSettingsKey, {
+					...MockUserPreferenceSettings,
+					default_landing_page: preference,
+				});
+			});
+			const visited: string[] = [];
+			const unsubscribe = router.subscribe(({ location }) => {
+				visited.push(location.pathname);
+			});
+			const user = userEvent.setup();
+			try {
+				await user.click(screen.getByRole("link", { name: "Coder logo" }));
+
+				await waitFor(() =>
+					expect(router.state.location.pathname).toBe(destination),
+				);
+				expect(visited).not.toContain("/");
+				expect(getPreferences).not.toHaveBeenCalled();
+			} finally {
+				unsubscribe();
+			}
+		},
+	);
+
+	test("keeps page state and the previous history entry when already home", async () => {
+		const { router } = await renderDashboardLayout({
+			route: "/templates",
+			children: [
+				{ index: true, element: <DashboardIndexRedirect /> },
+				{ path: "templates", element: <div>Templates</div> },
+				{
+					path: "workspaces",
+					element: <input type="checkbox" aria-label="Select workspace" />,
+				},
+			],
+		});
+		await act(() => router.navigate("/workspaces"));
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("checkbox", { name: "Select workspace" }),
+		);
+		await user.click(screen.getByRole("link", { name: "Coder logo" }));
+
+		await waitFor(() => expect(router.state.historyAction).toBe("REPLACE"));
+		expect(
+			await screen.findByRole("checkbox", { name: "Select workspace" }),
+		).toBeChecked();
+		await act(() => router.navigate(-1));
+		expect(router.state.location.pathname).toBe("/templates");
+	});
 });
 
 test("renders a skip link before navigation content", async () => {

@@ -107,9 +107,7 @@ export const Refetching: Story = {
 		return () => request.mockRestore();
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("status", {
-			name: "Loading default landing page",
-		});
+		await within(canvasElement).findByText("Loading default landing page");
 	},
 };
 
