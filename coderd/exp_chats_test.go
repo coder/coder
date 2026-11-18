@@ -12669,6 +12669,7 @@ func seedRejectedGitHubChat(
 	return chat
 }
 
+// diffRequestPath returns the diff endpoint path for chatID, origin, and branch.
 func diffRequestPath(chatID uuid.UUID, origin, branch string) string {
 	return fmt.Sprintf("/api/v2/chats/%s/diff?origin=%s&branch=%s", chatID, url.QueryEscape(origin), url.QueryEscape(branch))
 }
