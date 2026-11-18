@@ -796,6 +796,7 @@ describe("ChatsSidebar search dialog", () => {
 		const [searchButton] = screen.getAllByRole("button", {
 			name: "Search chats",
 		});
+		expect(searchButton).toHaveAttribute("aria-keyshortcuts", "Control+K");
 		searchButton.focus();
 		await user.keyboard("{Enter}");
 		await waitFor(() => {
