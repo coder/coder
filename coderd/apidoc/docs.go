@@ -1544,6 +1544,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/templates/{template}": {
+            "put": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Attach template to chat project",
+                "operationId": "attach-template-to-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Detach template from chat project",
+                "operationId": "detach-template-from-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/members/{user}/skill-preferences": {
             "get": {
                 "produces": [
@@ -23807,8 +23901,20 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default_template": {
+                    "description": "DefaultTemplate is omitted when the project has none or the caller\ncannot access it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
+                },
+                "hidden_template_count": {
+                    "description": "HiddenTemplateCount is the number of attached templates the caller\ncannot access. Nothing else about them is returned.",
+                    "type": "integer"
                 },
                 "icon": {
                     "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
@@ -23817,6 +23923,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to its attached\ntemplates, and to none when nothing is attached. When false, the chats\ncan use every template their owner can use.",
+                    "type": "boolean"
                 },
                 "name": {
                     "description": "Name is a display label and is not unique; ID identifies the project.",
@@ -23832,6 +23942,13 @@ const docTemplate = `{
                 },
                 "permissions": {
                     "$ref": "#/definitions/codersdk.ChatProjectPermissions"
+                },
+                "templates": {
+                    "description": "Templates are the attached templates the caller can access. Deprecated\ntemplates and templates that do not allow agents are left out.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectTemplate"
+                    }
                 },
                 "updated_at": {
                     "type": "string",
@@ -23861,6 +23978,27 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatProjectUser"
                     }
+                }
+            }
+        },
+        "codersdk.ChatProjectDefaultTemplate": {
+            "type": "object",
+            "properties": {
+                "parameters": {
+                    "description": "Parameters are parameter values, keyed by name, applied when a chat\ncreates a workspace from the template. Values the chat passes take\nprecedence.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "preset_id": {
+                    "description": "PresetID is a preset of the template's active version, applied when a\nchat creates a workspace from the template without choosing a preset.\nIt is mutually exclusive with Parameters.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -24007,6 +24145,24 @@ const docTemplate = `{
                 "ChatProjectRoleAdmin",
                 "ChatProjectRoleDeleted"
             ]
+        },
+        "codersdk.ChatProjectTemplate": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatProjectUser": {
             "type": "object",
@@ -24856,14 +25012,34 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate must name one of TemplateIDs.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to TemplateIDs.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "template_ids": {
+                    "description": "TemplateIDs are attached to the new project.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 }
             }
         },
@@ -25210,7 +25386,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
                     "type": "string"
                 },
                 "display_name": {
@@ -31660,6 +31836,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
+                    "description": "Content is the SKILL.md file, with its ` + "`" + `disable-model-invocation` + "`" + `\nfrontmatter key set to agree with ` + "`" + `model_invocable` + "`" + `. A stored file whose\nkey the server cannot set, such as a list, is returned unchanged.",
                     "type": "string"
                 },
                 "created_at": {
@@ -33346,11 +33523,22 @@ const docTemplate = `{
         "codersdk.UpdateChatProjectRequest": {
             "type": "object",
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate replaces the project's default template, preset, and\nparameters as a whole when set. A zero TemplateID clears them.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
+                },
+                "limit_templates": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -33674,7 +33862,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
                     "type": "string"
                 },
                 "display_name": {
@@ -33685,6 +33873,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "model_invocable": {
+                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets ` + "`" + `disable-model-invocation` + "`" + ` to a boolean: true turns it\noff and false turns it on.",
                     "type": "boolean"
                 }
             }
