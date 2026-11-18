@@ -107,6 +107,14 @@ const renderChatPage = (chat: Chat) =>
 		children: [{ path: ":agentId", element: <AgentChatPage /> }],
 	});
 
+/**
+ * Waits for the loaded chat. The loading view renders its own overview toggle
+ * and a skeleton card with the same names, and unmounts them when the chat
+ * loads.
+ */
+const waitForLoadedChat = () =>
+	screen.findByRole("region", { name: "Messages" });
+
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
@@ -297,6 +305,7 @@ describe("AgentChatPage", () => {
 		mockChatPageApi(MockChat);
 		const user = userEvent.setup();
 		const firstPage = renderChatPage(MockChat);
+		await waitForLoadedChat();
 
 		await user.click(
 			await screen.findByRole("button", {
@@ -308,6 +317,7 @@ describe("AgentChatPage", () => {
 
 		firstPage.unmount();
 		renderChatPage(MockChat);
+		await waitForLoadedChat();
 		await screen.findByRole("button", {
 			name: "Toggle overview",
 			expanded: false,
@@ -319,6 +329,7 @@ describe("AgentChatPage", () => {
 		mockChatPageApi(chat);
 		const user = userEvent.setup();
 		renderChatPage(chat);
+		await waitForLoadedChat();
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",
@@ -346,6 +357,7 @@ describe("AgentChatPage", () => {
 			.mockResolvedValueOnce({ attachments: [] });
 		const user = userEvent.setup();
 		renderChatPage(MockChat);
+		await waitForLoadedChat();
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",
