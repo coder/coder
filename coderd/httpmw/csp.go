@@ -83,10 +83,12 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 				CSPDirectiveManifestSrc: {"'self' blob:"},
 				CSPDirectiveFrameSrc:    {"'self'"},
 				// data: for loading base64 encoded icons for generic applications.
+				// blob: for images that the page reads from workspace files, such as
+				// the Agents file viewer and markdown file previews.
 				// https: allows loading images from external sources. This is not ideal
 				// 	but is required for the templates page that renders readmes.
 				//	We should find a better solution in the future.
-				CSPDirectiveImgSrc:     {"'self' https: data:"},
+				CSPDirectiveImgSrc:     {"'self' https: data: blob:"},
 				CSPDirectiveFormAction: {"'self'"},
 				CSPDirectiveMediaSrc:   {"'self'"},
 				// Report all violations back to the server to log

@@ -3,11 +3,19 @@ import { cn } from "cn";
 import { countChangedLines } from "../../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../../utils/diffColors";
 import { DiffStatsText } from "../../DiffViewer/DiffStats";
+import { OpenFileButton } from "./FileToolHeader";
 
 export function DiffFileHeader({
 	file,
+	openPath,
 }: {
 	file: FileDiffMetadata | FileContents;
+	/**
+	 * Absolute path that a button in the header opens, for rows that list
+	 * several files. Diff parsing can drop the leading slash from the file
+	 * name, so the caller passes the path it acted on.
+	 */
+	openPath?: string;
 }) {
 	const isDiff = "type" in file;
 	const stats = isDiff ? countChangedLines(file) : null;
@@ -34,12 +42,15 @@ export function DiffFileHeader({
 					{file.name}
 				</span>
 			</div>
-			{stats && (
-				<DiffStatsText
-					additions={stats.additions}
-					deletions={stats.deletions}
-				/>
-			)}
+			<div className="flex shrink-0 items-center gap-1">
+				{stats && (
+					<DiffStatsText
+						additions={stats.additions}
+						deletions={stats.deletions}
+					/>
+				)}
+				{openPath && <OpenFileButton path={openPath} />}
+			</div>
 		</div>
 	);
 }

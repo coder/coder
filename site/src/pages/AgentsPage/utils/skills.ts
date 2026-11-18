@@ -80,7 +80,7 @@ type RankedSkill<T extends SkillSearchMetadata> = {
 };
 
 type SkillTriggerMatch = {
-	slashOffset: number;
+	offset: number;
 	query: string;
 };
 
@@ -93,7 +93,7 @@ export const parseSkillTrigger = (
 	}
 
 	return {
-		slashOffset: match.index + match[0].indexOf("/"),
+		offset: match.index + match[0].indexOf("/"),
 		query: match[1] ?? "",
 	};
 };

@@ -266,3 +266,42 @@ func TestPathStore_ConcurrentSafety(t *testing.T) {
 		require.NotEmpty(t, paths, "chat %s should have paths", id)
 	}
 }
+
+// TestPathStore_AddReadPaths_NotifiesOnlyNewPaths pins that a read
+// notifies only when it adds a path. Every notification makes each
+// watcher re-resolve the chat's paths, and a read does not change the
+// repository.
+func TestPathStore_AddReadPaths_NotifiesOnlyNewPaths(t *testing.T) {
+	t.Parallel()
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ancestorID := uuid.New()
+	chatCh, unsubChat := ps.Subscribe(chatID)
+	defer unsubChat()
+	ancestorCh, unsubAncestor := ps.Subscribe(ancestorID)
+	defer unsubAncestor()
+
+	ps.AddReadPaths([]uuid.UUID{chatID, ancestorID}, []string{"/repo"})
+	require.Len(t, chatCh, 1)
+	require.Len(t, ancestorCh, 1)
+	<-chatCh
+	<-ancestorCh
+
+	ps.AddReadPaths([]uuid.UUID{chatID, ancestorID}, []string{"/repo"})
+	require.Empty(t, chatCh, "a repeated read must not notify")
+	require.Empty(t, ancestorCh, "a repeated read must not notify")
+
+	// Only the chat that gains a path is notified.
+	ps.AddReadPaths([]uuid.UUID{ancestorID}, []string{"/other"})
+	ps.AddReadPaths([]uuid.UUID{chatID, ancestorID}, []string{"/other"})
+	require.Len(t, chatCh, 1)
+	require.Len(t, ancestorCh, 1)
+	<-chatCh
+	<-ancestorCh
+
+	// A write to a known path notifies, because it changes the repo.
+	ps.AddPaths([]uuid.UUID{chatID}, []string{"/repo"})
+	require.Len(t, chatCh, 1)
+	require.Equal(t, []string{"/other", "/repo"}, ps.GetPaths(chatID))
+}

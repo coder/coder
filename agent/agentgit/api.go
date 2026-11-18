@@ -154,6 +154,7 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 				// would, so repos created or recreated after their
 				// paths were recorded are picked up.
 				if hasWatchChatID && a.pathStore != nil {
+					handler.ForgetResolved()
 					handler.Subscribe(a.pathStore.GetPaths(watchChatID))
 				}
 				handler.RequestScan()

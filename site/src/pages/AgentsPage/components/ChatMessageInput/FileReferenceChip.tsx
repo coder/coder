@@ -1,7 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
+import { FolderIcon, XIcon } from "lucide-react";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { getPathBasename } from "../../utils/path";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 export const fileReferenceChipVariants = cva(
@@ -202,6 +203,109 @@ export function EditableFileReferenceChip({
 				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</button>
 			<ChipRemoveButton label={`Remove ${title}`} onRemove={onRemove} />
+		</span>
+	);
+}
+
+/** The icon for a workspace file, or a folder icon for a directory. */
+export const WorkspacePathIcon: React.FC<{
+	name: string;
+	isDirectory: boolean;
+}> = ({ name, isDirectory }) => {
+	if (isDirectory) {
+		return (
+			<FolderIcon
+				aria-hidden
+				className="size-4 shrink-0 text-content-secondary"
+			/>
+		);
+	}
+	return (
+		<FileIcon
+			fileName={name}
+			className="shrink-0"
+			style={fileReferenceIconStyle}
+		/>
+	);
+};
+
+/** A workspace file or folder reference in a sent message. */
+export function WorkspacePathChip({
+	path,
+	isDirectory,
+	onOpen,
+	label,
+	className,
+}: {
+	path: string;
+	isDirectory: boolean;
+	/** Makes the chip a button. */
+	onOpen?: () => void;
+	/** The button's accessible name. Defaults to "Open" and the path. */
+	label?: string;
+	className?: string;
+}) {
+	const name = getPathBasename(path);
+	const title = isDirectory ? `${path}/` : path;
+	const content = (
+		<>
+			<WorkspacePathIcon name={name} isDirectory={isDirectory} />
+			<span className="min-w-0 truncate">{name}</span>
+		</>
+	);
+
+	if (!onOpen) {
+		return (
+			<span
+				data-slot="file-reference-chip"
+				className={cn(fileReferenceChipVariants(), className)}
+				title={title}
+			>
+				{content}
+			</span>
+		);
+	}
+	return (
+		<button
+			data-slot="file-reference-chip"
+			type="button"
+			className={cn(
+				fileReferenceChipVariants({ interactive: true }),
+				className,
+			)}
+			title={title}
+			aria-label={label ?? `Open ${title}`}
+			onClick={onOpen}
+		>
+			{content}
+		</button>
+	);
+}
+
+/** A workspace file or folder chip inside the composer. */
+export function EditableWorkspacePathChip({
+	path,
+	isDirectory,
+	onRemove,
+	className,
+}: {
+	path: string;
+	isDirectory: boolean;
+	onRemove: () => void;
+	className?: string;
+}) {
+	const name = getPathBasename(path);
+
+	return (
+		<span
+			data-slot="file-reference-chip"
+			className={cn(fileReferenceChipVariants({ editable: true }), className)}
+			contentEditable={false}
+			title={isDirectory ? `${path}/` : path}
+		>
+			<WorkspacePathIcon name={name} isDirectory={isDirectory} />
+			<span className="min-w-0 truncate">{name}</span>
+			<ChipRemoveButton label={`Remove ${name}`} onRemove={onRemove} />
 		</span>
 	);
 }

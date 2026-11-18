@@ -207,6 +207,7 @@ const AgentChatPage: React.FC = () => {
 			organization.id === chatOrganizationId && organization.is_default,
 	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
+	const workspaceFilesEnabled = experiments.includes("workspace-files");
 	const debugLoggingEnabled = Boolean(
 		userDebugLoggingQuery.data?.debug_logging_enabled,
 	);
@@ -854,6 +855,7 @@ const AgentChatPage: React.FC = () => {
 					persistedError={persistedError}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
+					workspaceFilesEnabled={workspaceFilesEnabled}
 					store={store}
 					editing={{ ...editing, handleBeginHistoryEdit, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}

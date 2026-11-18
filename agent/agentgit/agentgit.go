@@ -7,6 +7,7 @@ package agentgit
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,6 +68,7 @@ type Handler struct {
 
 	mu            sync.Mutex
 	repoRoots     map[string]struct{}     // watched repo roots
+	resolved      map[string]string       // subscribed path to its repo root, for paths in a repo
 	lastSnapshots map[string]repoSnapshot // last emitted snapshot per repo
 	lastScanAt    time.Time               // when the last scan completed
 	scanned       bool                    // whether Scan has emitted a message
@@ -77,6 +79,7 @@ type Handler struct {
 type repoSnapshot struct {
 	branch       string
 	remoteOrigin string
+	headCommit   string
 	unifiedDiff  string
 }
 
@@ -88,6 +91,7 @@ func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 		execer:        agentexec.DefaultExecer,
 		gitBin:        "git",
 		repoRoots:     make(map[string]struct{}),
+		resolved:      make(map[string]string),
 		lastSnapshots: make(map[string]repoSnapshot),
 		scanTrigger:   make(chan struct{}, 1),
 	}
@@ -112,27 +116,47 @@ func (h *Handler) gitAvailable() bool {
 
 // Subscribe processes a subscribe message, resolving paths to git repo
 // roots and adding new repos to the watch set. Returns true if any new
-// repo roots were added.
+// repo roots were added. A path that resolved before is not resolved
+// again until its repo is removed or ForgetResolved is called, because
+// callers pass every path a chat has touched on each notification.
+// Paths outside a repo are retried each time, so a repo created later
+// is found.
 func (h *Handler) Subscribe(paths []string) bool {
 	if !h.gitAvailable() {
 		return false
 	}
 
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	added := false
+	pending := make(map[string]struct{})
 	for _, p := range paths {
 		if !filepath.IsAbs(p) {
 			continue
 		}
 		p = filepath.Clean(p)
-
-		root, err := findRepoRoot(h.execer, h.gitBin, p)
-		if err != nil {
-			// Not a git path — silently ignore.
+		if _, ok := h.resolved[p]; ok {
 			continue
 		}
+		pending[p] = struct{}{}
+	}
+	h.mu.Unlock()
+
+	// Resolve outside the lock: each path runs git, and Scan and
+	// concurrent Subscribe calls must not wait on it.
+	found := make(map[string]string, len(pending))
+	for p := range pending {
+		root, err := findRepoRoot(h.execer, h.gitBin, p)
+		if err != nil {
+			// Not a git path, silently ignore.
+			continue
+		}
+		found[p] = root
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	added := false
+	for p, root := range found {
+		h.resolved[p] = root
 		if _, ok := h.repoRoots[root]; ok {
 			continue
 		}
@@ -140,6 +164,16 @@ func (h *Handler) Subscribe(paths []string) bool {
 		added = true
 	}
 	return added
+}
+
+// ForgetResolved drops cached path resolutions so the next Subscribe
+// resolves every path again. This finds a repo created inside an
+// already watched repo, which a cached path would keep mapping to the
+// outer root.
+func (h *Handler) ForgetResolved() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	clear(h.resolved)
 }
 
 // RequestScan pokes the scan trigger so the run loop performs a scan.
@@ -204,6 +238,13 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 				}
 				delete(h.repoRoots, res.root)
 				delete(h.lastSnapshots, res.root)
+				// Re-resolve this repo's paths on the next Subscribe
+				// so a recreated repo is found.
+				for p, root := range h.resolved {
+					if root == res.root {
+						delete(h.resolved, p)
+					}
+				}
 				repos = append(repos, removal)
 			} else {
 				// Transient error — log and skip without
@@ -220,6 +261,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		if hasPrev &&
 			prev.branch == res.changes.Branch &&
 			prev.remoteOrigin == res.changes.RemoteOrigin &&
+			prev.headCommit == res.changes.HeadCommit &&
 			prev.unifiedDiff == res.changes.UnifiedDiff {
 			// No change in this repo since last emit.
 			continue
@@ -229,6 +271,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		h.lastSnapshots[res.root] = repoSnapshot{
 			branch:       res.changes.Branch,
 			remoteOrigin: res.changes.RemoteOrigin,
+			headCommit:   res.changes.HeadCommit,
 			unifiedDiff:  res.changes.UnifiedDiff,
 		}
 
@@ -359,7 +402,8 @@ func findRepoRoot(execer agentexec.Execer, gitBin string, p string) (string, err
 }
 
 // getRepoChanges reads the current state of a git repository using
-// the git CLI. It returns branch, remote origin, and a unified diff.
+// the git CLI. It returns branch, remote origin, HEAD commit, and a
+// unified diff.
 func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Execer, gitBin string, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
 	result := codersdk.WorkspaceAgentRepoChanges{
 		RepoRoot: repoRoot,
@@ -380,16 +424,23 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 		logger.Debug(ctx, "failed to read HEAD", slog.F("root", repoRoot), slog.Error(err))
 	}
 
+	// Read the commit HEAD points at. --verify --quiet exits non-zero
+	// without output when HEAD is unborn, leaving HeadCommit empty.
+	headCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+	if out, err := headCmd.Output(); err == nil {
+		result.HeadCommit = strings.TrimSpace(string(out))
+	} else {
+		logger.Debug(ctx, "failed to read HEAD commit", slog.F("root", repoRoot), slog.Error(err))
+	}
+
 	// Read remote origin URL.
 	remoteCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "config", "--get", "remote.origin.url")
 	if out, err := remoteCmd.Output(); err == nil {
 		result.RemoteOrigin = strings.TrimSpace(string(out))
 	}
 
-	// Compute unified diff.
-	// `git diff HEAD` shows both staged and unstaged changes vs HEAD.
-	// For repos with no commits yet, fall back to showing untracked
-	// files only.
+	// Compute unified diff: staged and unstaged changes against HEAD,
+	// or the empty tree when HEAD is unborn, plus untracked files.
 	diff, err := computeGitDiff(ctx, logger, execer, gitBin, repoRoot)
 	if err != nil {
 		return result, xerrors.Errorf("compute diff: %w", err)
@@ -403,30 +454,76 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Ex
 	return result, nil
 }
 
+// isUnbornHEAD reports whether HEAD names a branch that has no ref
+// yet, which is the state between `git init` and the first commit.
+// A detached HEAD or a branch ref that exists but does not resolve
+// to a commit is not unborn; diffing those against the empty tree
+// would report every tracked file as added.
+func isUnbornHEAD(ctx context.Context, execer agentexec.Execer, gitBin string, repoRoot string) (bool, error) {
+	symCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "symbolic-ref", "-q", "HEAD")
+	out, err := symCmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			// Detached HEAD.
+			return false, nil
+		}
+		return false, xerrors.Errorf("git symbolic-ref HEAD: %w", err)
+	}
+	ref := strings.TrimSpace(string(out))
+
+	// show-ref exits 1 when the ref is missing and 128 when it exists
+	// but is invalid.
+	refCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "show-ref", "--verify", "--quiet", ref)
+	err = refCmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, nil
+}
+
 // computeGitDiff produces a unified diff string for the repository by
-// combining `git diff HEAD` (staged + unstaged changes) with diffs
-// for untracked files.
+// combining a diff of the index paths against HEAD (staged + unstaged
+// changes) with diffs for untracked files. With an unborn HEAD, index
+// paths are diffed against the empty tree, so files staged before the
+// first commit still appear.
 func computeGitDiff(ctx context.Context, logger slog.Logger, execer agentexec.Execer, gitBin string, repoRoot string) (string, error) {
 	var diffParts []string
 
-	// Check if the repo has any commits.
-	hasCommits := true
-	checkCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "HEAD")
+	base := "HEAD"
+	checkCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
 	if err := checkCmd.Run(); err != nil {
-		hasCommits = false
+		unborn, unbornErr := isUnbornHEAD(ctx, execer, gitBin, repoRoot)
+		if unbornErr != nil {
+			return "", xerrors.Errorf("check unborn HEAD: %w", unbornErr)
+		}
+		if !unborn {
+			return "", xerrors.Errorf("HEAD does not resolve to a commit: %w", err)
+		}
+		// Hash an empty tree rather than hardcoding its ID, which
+		// differs between SHA-1 and SHA-256 repositories.
+		emptyCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "hash-object", "-t", "tree", "--stdin")
+		emptyCmd.Stdin = strings.NewReader("")
+		out, err := emptyCmd.Output()
+		if err != nil {
+			return "", xerrors.Errorf("hash empty tree: %w", err)
+		}
+		base = strings.TrimSpace(string(out))
 	}
 
-	if hasCommits {
-		// `git diff HEAD` captures both staged and unstaged changes
-		// relative to HEAD in a single unified diff.
-		cmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "HEAD")
-		out, err := cmd.Output()
-		if err != nil {
-			return "", xerrors.Errorf("git diff HEAD: %w", err)
-		}
-		if len(out) > 0 {
-			diffParts = append(diffParts, string(out))
-		}
+	// `git diff <base>` captures both staged and unstaged changes
+	// relative to base in a single unified diff.
+	cmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", base)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", xerrors.Errorf("git diff %s: %w", base, err)
+	}
+	if len(out) > 0 {
+		diffParts = append(diffParts, string(out))
 	}
 
 	// Show untracked files as diffs too.
