@@ -11,7 +11,7 @@ const NetworkSettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Network Settings")}</title>
+			<title>{pageTitle("Network settings")}</title>
 
 			<NetworkSettingsPageView
 				options={deploymentConfig.options}

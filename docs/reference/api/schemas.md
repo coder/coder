@@ -5053,9 +5053,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "archived_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
+  "hidden_template_count": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "limit_templates": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5065,24 +5075,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "share": true,
     "update": true
   },
+  "templates": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                  |
-|-------------------|--------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `archived_at`     | string                                                             | false    |              | Archived at is set while the project is archived. An archived project's settings, sharing, instructions, skills and memories cannot change, chats cannot be created in it or moved into it, and its chats can only be unarchived by unarchiving the project. |
-| `created_at`      | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
-| `description`     | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                                                                                                |
-| `id`              | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                                                                                                        |
-| `organization_id` | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
-| `owner_id`        | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                                                                                                                                                                                              |
-| `updated_at`      | string                                                             | false    |              |                                                                                                                                                                                                                                                              |
+| Name                    | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                  |
+|-------------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `archived_at`           | string                                                                     | false    |              | Archived at is set while the project is archived. An archived project's settings, sharing, instructions, skills and memories cannot change, chats cannot be created in it or moved into it, and its chats can only be unarchived by unarchiving the project. |
+| `created_at`            | string                                                                     | false    |              |                                                                                                                                                                                                                                                              |
+| `default_template`      | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template is omitted when the project has none or the caller cannot access it.                                                                                                                                                                        |
+| `description`           | string                                                                     | false    |              |                                                                                                                                                                                                                                                              |
+| `hidden_template_count` | integer                                                                    | false    |              | Hidden template count is the number of attached templates the caller cannot access. Nothing else about them is returned.                                                                                                                                     |
+| `icon`                  | string                                                                     | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                                                                                                |
+| `id`                    | string                                                                     | false    |              |                                                                                                                                                                                                                                                              |
+| `limit_templates`       | boolean                                                                    | false    |              | Limit templates restricts the project's chats to its attached templates, and to none when nothing is attached. When false, the chats can use every template their owner can use.                                                                             |
+| `name`                  | string                                                                     | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                                                                                                        |
+| `organization_id`       | string                                                                     | false    |              |                                                                                                                                                                                                                                                              |
+| `owner_id`              | string                                                                     | false    |              |                                                                                                                                                                                                                                                              |
+| `permissions`           | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions)         | false    |              |                                                                                                                                                                                                                                                              |
+| `templates`             | array of [codersdk.ChatProjectTemplate](#codersdkchatprojecttemplate)      | false    |              | Templates are the attached templates the caller can access. Deprecated templates and templates that do not allow agents are left out.                                                                                                                        |
+| `updated_at`            | string                                                                     | false    |              |                                                                                                                                                                                                                                                              |
 
 ## codersdk.ChatProjectACL
 
@@ -5160,6 +5182,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |---------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `active_chat_count` | integer | false    |              | Active chat count is the number of those chats that archiving stops because they or one of their subagent chats are active. |
 | `chat_count`        | integer | false    |              | Chat count is the number of unarchived root chats in the project, of every owner.                                           |
+
+## codersdk.ChatProjectDefaultTemplate
+
+```json
+{
+  "parameters": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `parameters`       | object | false    |              | Parameters are parameter values, keyed by name, applied when a chat creates a workspace from the template. Values the chat passes take precedence.                                     |
+| » `[any property]` | string | false    |              |                                                                                                                                                                                        |
+| `preset_id`        | string | false    |              | Preset ID is a preset of the template's active version, applied when a chat creates a workspace from the template without choosing a preset. It is mutually exclusive with Parameters. |
+| `template_id`      | string | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.ChatProjectGroup
 
@@ -5322,9 +5366,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "project": {
     "archived_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
+    "default_template": {
+      "parameters": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+    },
     "description": "string",
+    "hidden_template_count": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "limit_templates": true,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5334,6 +5388,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "share": true,
       "update": true
     },
+    "templates": [
+      {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      }
+    ],
     "updated_at": "2019-08-24T14:15:22Z"
   }
 }
@@ -5352,6 +5414,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pin_order`           | integer                                      | false    |              | Pin order is the 1-based position among pinned projects, or 0.                                                                                     |
 | `pinned`              | boolean                                      | false    |              |                                                                                                                                                    |
 | `project`             | [codersdk.ChatProject](#codersdkchatproject) | false    |              |                                                                                                                                                    |
+
+## codersdk.ChatProjectTemplate
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.ChatProjectUser
 
@@ -7145,19 +7227,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
-  "name": "string"
+  "limit_templates": true,
+  "name": "string",
+  "template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | true     |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                   |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template must name one of TemplateIDs.                |
+| `description`      | string                                                                     | false    |              |                                                               |
+| `icon`             | string                                                                     | false    |              |                                                               |
+| `limit_templates`  | boolean                                                                    | false    |              | Limit templates restricts the project's chats to TemplateIDs. |
+| `name`             | string                                                                     | true     |              |                                                               |
+| `template_ids`     | array of string                                                            | false    |              | Template ids are attached to the new project.                 |
 
 ## codersdk.CreateChatRequest
 
@@ -7490,12 +7587,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.    |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                                                                                                                                          |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.                                                                                                                         |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                                                                                                                                               |
 
 ## codersdk.CreateTemplateRequest
 
@@ -15342,18 +15439,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
-| `content`         | string  | false    |              |                                                                                                                                                           |
-| `created_at`      | string  | false    |              |                                                                                                                                                           |
-| `description`     | string  | false    |              |                                                                                                                                                           |
-| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
-| `enabled`         | boolean | false    |              |                                                                                                                                                           |
-| `id`              | string  | false    |              |                                                                                                                                                           |
-| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
-| `name`            | string  | false    |              |                                                                                                                                                           |
-| `updated_at`      | string  | false    |              |                                                                                                                                                           |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills.                                                    |
+| `content`         | string  | false    |              | Content is the SKILL.md file, with its `disable-model-invocation` frontmatter key set to agree with `model_invocable`. A stored file whose key the server cannot set, such as a list, is returned unchanged. |
+| `created_at`      | string  | false    |              |                                                                                                                                                                                                              |
+| `description`     | string  | false    |              |                                                                                                                                                                                                              |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.                                                          |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                              |
+| `id`              | string  | false    |              |                                                                                                                                                                                                              |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.                                                             |
+| `name`            | string  | false    |              |                                                                                                                                                                                                              |
+| `updated_at`      | string  | false    |              |                                                                                                                                                                                                              |
 
 ## codersdk.SkillMetadata
 
@@ -17525,19 +17622,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
+  "limit_templates": true,
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | false    |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                                                                                          |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template replaces the project's default template, preset, and parameters as a whole when set. A zero TemplateID clears them. |
+| `description`      | string                                                                     | false    |              |                                                                                                                                      |
+| `icon`             | string                                                                     | false    |              |                                                                                                                                      |
+| `limit_templates`  | boolean                                                                    | false    |              |                                                                                                                                      |
+| `name`             | string                                                                     | false    |              |                                                                                                                                      |
 
 ## codersdk.UpdateChatRequest
 
@@ -17865,13 +17973,13 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                           |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
-| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                                                                                                |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                                                                                                                                                |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                                                                                            |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter sets `disable-model-invocation` to a boolean: true turns it off and false turns it on.                                                                                                                    |
 
 ## codersdk.UpdateTemplateACL
 
