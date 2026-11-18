@@ -1946,6 +1946,21 @@ func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
 	return out
 }
 
+func UnpricedAIModel(row database.GetUnpricedAIModelsRow) codersdk.UnpricedAIModel {
+	providerDisplayName := row.ProviderName
+	if row.ProviderDisplayName.Valid && row.ProviderDisplayName.String != "" {
+		providerDisplayName = row.ProviderDisplayName.String
+	}
+	return codersdk.UnpricedAIModel{
+		ProviderName:        row.ProviderName,
+		ProviderDisplayName: providerDisplayName,
+		ProviderIcon:        row.ProviderIcon,
+		ProviderType:        codersdk.AIProviderType(row.ProviderType),
+		Model:               row.Model,
+		TokenCount:          row.TokenCount,
+	}
+}
+
 func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	return codersdk.AIModelPrice{
 		Provider:        dbPrice.Provider,
@@ -2611,6 +2626,7 @@ func Skill(skill database.Skill) codersdk.Skill {
 		SkillMetadata: codersdk.SkillMetadata{
 			ID:             skill.ID,
 			Name:           skill.Name,
+			DisplayName:    skill.DisplayName,
 			Description:    skill.Description,
 			Enabled:        skill.Enabled,
 			Action:         skill.Action,
@@ -2630,6 +2646,7 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 		metadata = append(metadata, codersdk.SkillMetadata{
 			ID:             row.ID,
 			Name:           row.Name,
+			DisplayName:    row.DisplayName,
 			Description:    row.Description,
 			Enabled:        row.Enabled,
 			Action:         row.Action,

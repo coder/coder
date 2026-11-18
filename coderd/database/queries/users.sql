@@ -135,7 +135,8 @@ SELECT
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
-	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font_size'), '0')::int AS terminal_font_size
 FROM
 	user_configs
 WHERE
@@ -145,7 +146,8 @@ WHERE
 		'theme_mode',
 		'theme_light',
 		'theme_dark',
-		'terminal_font'
+		'terminal_font',
+		'terminal_font_size'
 	);
 
 -- name: UpdateUserThemePreference :one
@@ -174,6 +176,20 @@ SET
 	value = @terminal_font
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
+RETURNING *;
+
+-- name: UpdateUserTerminalFontSize :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'terminal_font_size', (@terminal_font_size::int)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = (@terminal_font_size::int)::text
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'terminal_font_size'
 RETURNING *;
 
 -- name: UpdateUserThemeMode :one

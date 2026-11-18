@@ -80,12 +80,12 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 					href={buildInfo.external_url}
 					target="_blank"
 					rel="noreferrer"
-					className="absolute top-0 left-1/2 -translate-x-1/2 no-underline z-10"
+					className="absolute top-0 left-1/2 -translate-x-1/2 -translate-0.5 no-underline z-10"
 				>
 					<Badge
 						variant={prerelease === "rc" ? "info" : "warning"}
 						size="sm"
-						className="font-mono rounded-t-none border-t-0"
+						className="font-mono rounded-t-none border border-t-0"
 					>
 						{buildInfo.version}
 					</Badge>
