@@ -120,6 +120,7 @@ func stageSpanStart(ctx context.Context, stage Stage, model StageModel) (string,
 		if model.Model != "" {
 			name += " " + model.Model
 		}
+		attrs = append(attrs, semconv.GenAIRequestStream(true))
 		attrs = append(attrs, genAIModelAttributes(model)...)
 	}
 	return name, append(opts, trace.WithAttributes(attrs...))

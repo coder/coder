@@ -50,6 +50,7 @@ The `chat` span carries the model call's details:
 | `gen_ai.provider.name`                     | The provider, such as `openai`, `anthropic`, or `aws.bedrock` |
 | `gen_ai.request.model`                     | The model name                                                |
 | `gen_ai.request.max_tokens`                | The output token limit, if one is set                         |
+| `gen_ai.request.stream`                    | `true`, since Coder Agents streams every model call           |
 | `gen_ai.response.id`                       | The response ID the provider reported, if any                 |
 | `gen_ai.response.finish_reasons`           | Why the model stopped, such as `stop` or `tool_call`          |
 | `gen_ai.usage.input_tokens`                | Input tokens, including cache reads and cache writes          |
@@ -78,7 +79,7 @@ With content capture enabled:
 - Each `chat` span records `gen_ai.input.messages` and `gen_ai.output.messages`.
   The input contains only the messages that the model call responds to, such as the user's prompt or the tool results since the previous model reply, not the whole conversation.
   System instructions are not recorded.
-- Each `execute_tool` span records `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result`.
+- Each `execute_tool` span records `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` when the tool runs without failing.
 
 File attachments, images, and source citations are not recorded.
 Each content attribute is limited to 64 KiB.

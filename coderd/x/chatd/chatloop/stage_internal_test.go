@@ -500,6 +500,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			attribute.String("gen_ai.operation.name", "chat"),
 			attribute.String("gen_ai.provider.name", "aws.bedrock"),
 			attribute.String("gen_ai.request.model", "claude"),
+			attribute.Bool("gen_ai.request.stream", true),
 			attribute.String("gen_ai.response.id", "msg_1"),
 			attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}),
 			attribute.Int("gen_ai.usage.input_tokens", 15),
@@ -885,7 +886,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 
 	t.Run("ExecutionFailureEndsWithError", func(t *testing.T) {
 		t.Parallel()
-		fixture := newStageMetricsFixture(t)
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
 		runErr := xerrors.New("workspace agent unreachable")
 		tool := fantasy.NewAgentTool("read_file", "reads a file",
 			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -898,6 +899,10 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Equal(t, codes.Error, toolCall.Status().Code)
 		require.Equal(t, runErr.Error(), recordedErrorMessage(t, toolCall))
 		require.NotEmpty(t, spanAttribute(t, toolCall, "error.type"))
+		// The conventions define a result only for successful calls.
+		for _, attr := range toolCall.Attributes() {
+			require.NotEqual(t, "gen_ai.tool.call.result", string(attr.Key))
+		}
 	})
 
 	t.Run("PanicEndsWithError", func(t *testing.T) {

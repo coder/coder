@@ -1315,7 +1315,11 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
-			toolSpan.SetToolResult(executions[i].content)
+			// The conventions define a result only for calls that ran
+			// successfully.
+			if execErr == nil {
+				toolSpan.SetToolResult(executions[i].content)
+			}
 			toolSpan.End(execErr)
 		}()
 		callCtx := ctx
