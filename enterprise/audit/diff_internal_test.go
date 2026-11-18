@@ -333,6 +333,23 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// A project's default parameter values can hold credentials, so
+			// they must be masked in audit diffs via ActionSecret.
+			name: "DefaultParametersMasked",
+			left: audit.Empty[database.ChatProject](),
+			right: database.ChatProject{
+				ID:                uuid.UUID{1},
+				DefaultParameters: json.RawMessage(`{"api_key":"a very secret key"}`),
+			},
+			exp: audit.Map{
+				"id":                 audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"default_parameters": audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(nil), Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "ConditionTracked",
 			left: database.ExperimentRule{
 				ID:         uuid.UUID{1},

@@ -15,6 +15,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceUser,
 	MockWorkspaceUserAdmin,
+	MockWorkspaceUserLongName,
 } from "#/testHelpers/entities";
 import { ShareButton } from "./ShareButton";
 
@@ -123,4 +124,25 @@ export const OverflowingMembers: Story = {
 		// Scroll so the screenshot shows rows passing under the sticky header.
 		screen.getAllByRole("row").at(-1)?.scrollIntoView({ block: "end" });
 	},
+};
+
+export const NarrowViewport: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{
+				key: workspaceACLKey(MockWorkspace.id),
+				data: {
+					...mockOverflowingACL,
+					users: [...mockOverflowingACL.users, MockWorkspaceUserLongName],
+				},
+			},
+		],
+	},
+	play: ({ canvasElement }) => openSharing(canvasElement),
 };

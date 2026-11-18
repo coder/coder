@@ -43,7 +43,7 @@ describe(TemplateCard.name, () => {
 		expect(onSelectDocker).toHaveBeenCalledTimes(1);
 	});
 
-	it("names the radio and details link after the card", () => {
+	it("describes the radio with the card description", () => {
 		renderCards();
 		const radio = screen.getByRole("radio", {
 			// jsdom drops the leading space of the sr-only text.
@@ -52,10 +52,14 @@ describe(TemplateCard.name, () => {
 		expect(radio).toHaveAccessibleDescription(
 			"Provision Docker containers as Coder workspaces.",
 		);
-		expect(
-			screen.getByRole("link", { name: /Docker Containers/ }),
-		).toHaveAccessibleName(
-			/^View details\s*for Docker Containers\s*\(opens in new tab\)$/,
+	});
+
+	it("names each details link after its template", () => {
+		renderCards();
+		const [docker, kubernetes] = screen.getAllByRole("link");
+		expect(docker).toHaveAccessibleName(/^View details for Docker Containers/);
+		expect(kubernetes).toHaveAccessibleName(
+			/^View details for Kubernetes Pods/,
 		);
 	});
 

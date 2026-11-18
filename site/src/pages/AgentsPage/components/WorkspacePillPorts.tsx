@@ -93,7 +93,10 @@ export const PortsMenuItem: React.FC<{
 				<NetworkIcon className="size-3.5" />
 				{label}
 			</DropdownMenuSubTrigger>
-			<DropdownMenuSubContent className="w-56 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5!">
+			<DropdownMenuSubContent
+				className="w-56 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5!"
+				sideOffset={9}
+			>
 				<PortsList
 					host={host}
 					agent={agent}
@@ -157,7 +160,7 @@ const PortsList: React.FC<{
 			{privateListeningPorts.length > 0 && (
 				<div className="px-2 pb-1.5 pt-1">
 					<span className="text-xs font-semibold text-content-secondary">
-						Listening Ports
+						Listening ports
 					</span>
 				</div>
 			)}
@@ -189,7 +192,7 @@ const PortsList: React.FC<{
 					<DropdownMenuSeparator className="my-1" />
 					<div className="px-2 pb-1.5 pt-1">
 						<span className="text-xs font-semibold text-content-secondary">
-							Shared Ports
+							Shared ports
 						</span>
 					</div>
 					{(sharedPorts ?? []).map((share) => (

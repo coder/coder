@@ -31,7 +31,7 @@ describe(ModuleCard.name, () => {
 		expect(onSelect).toHaveBeenCalledTimes(1);
 	});
 
-	it("names the checkbox and details link after the card", () => {
+	it("describes the checkbox with the card description", () => {
 		renderCard();
 		expect(
 			screen.getByRole("checkbox", {
@@ -41,10 +41,12 @@ describe(ModuleCard.name, () => {
 		).toHaveAccessibleDescription(
 			"Provision Docker containers as Coder workspaces.",
 		);
-		expect(
-			screen.getByRole("link", { name: /Docker Containers/ }),
-		).toHaveAccessibleName(
-			/^View details\s*for Docker Containers\s*\(opens in new tab\)$/,
+	});
+
+	it("includes the module name in the details link name", () => {
+		renderCard();
+		expect(screen.getByRole("link")).toHaveAccessibleName(
+			/^View details for Docker Containers/,
 		);
 	});
 
