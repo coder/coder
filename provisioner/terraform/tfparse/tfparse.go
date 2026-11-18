@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
@@ -71,7 +72,7 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 
 	var diags tfconfig.Diagnostics
 	if p.module == nil {
-		m, ds := loadModule(workdir)
+		m, ds := loadModule(p.logger, workdir)
 		diags = ds
 		p.module = m
 	}
@@ -81,10 +82,16 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 
 // loadModule loads the Terraform module in workdir. It only exposes the files
 // Terraform loads for a module, and reports a panic in tfconfig as an error
-// diagnostic because callers do not recover panics.
-func loadModule(workdir string) (m *tfconfig.Module, diags tfconfig.Diagnostics) {
+// diagnostic. The provisioner runs Parse in a goroutine that does not recover
+// panics, so a loader panic would otherwise exit the process.
+func loadModule(logger slog.Logger, workdir string) (m *tfconfig.Module, diags tfconfig.Diagnostics) {
 	defer func() {
 		if r := recover(); r != nil {
+			// New has no context to pass along.
+			logger.Error(context.Background(), "recovered panic while loading terraform module",
+				slog.F("panic", r),
+				slog.F("stack", string(debug.Stack())),
+			)
 			m = tfconfig.NewModule(workdir)
 			diags = tfconfig.Diagnostics{{
 				Severity: tfconfig.DiagError,

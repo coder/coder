@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -641,6 +642,7 @@ func TestNew_TerraformStacks(t *testing.T) {
 					type    = string
 					default = "us"
 				}`,
+			"vars.tf.json": `{"variable": {"zone": {"type": "string", "default": "a"}}}`,
 			"x.tfcomponent.hcl": `
 				required_providers {
 					coder = {
@@ -665,8 +667,11 @@ func TestNew_TerraformStacks(t *testing.T) {
 
 		variables, err := parser.TemplateVariables()
 		require.NoError(t, err)
-		require.Len(t, variables, 1)
-		require.Equal(t, "region", variables[0].Name)
+		names := make([]string, 0, len(variables))
+		for _, v := range variables {
+			names = append(names, v.Name)
+		}
+		require.ElementsMatch(t, []string{"region", "zone"}, names)
 	})
 
 	// tfconfig panics on a Stacks block in a module file. Callers do not
@@ -683,9 +688,11 @@ func TestNew_TerraformStacks(t *testing.T) {
 		}), "application/x-tar", tmpDir)
 		require.NoError(t, err)
 
+		// The recovered panic is logged as an error.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		var diags tfconfig.Diagnostics
 		require.NotPanics(t, func() {
-			_, diags = tfparse.New(tmpDir, tfparse.WithLogger(testutil.Logger(t)))
+			_, diags = tfparse.New(tmpDir, tfparse.WithLogger(logger))
 		})
 		require.True(t, diags.HasErrors())
 		require.ErrorContains(t, diags.Err(), `unhandled block type "component"`)
