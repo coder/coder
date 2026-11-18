@@ -49,6 +49,9 @@ type TemplateMenuProps = {
 	templateId: string;
 	fileId: string;
 	onDelete: () => void;
+	canUpdateTemplate: boolean;
+	canDeleteTemplate: boolean;
+	canCreateTemplates: boolean;
 };
 
 const TemplateMenu: React.FC<TemplateMenuProps> = ({
@@ -58,6 +61,9 @@ const TemplateMenu: React.FC<TemplateMenuProps> = ({
 	templateId,
 	fileId,
 	onDelete,
+	canUpdateTemplate,
+	canDeleteTemplate,
+	canCreateTemplates,
 }) => {
 	const dialogState = useDeletionDialogState(
 		templateId,
@@ -69,6 +75,7 @@ const TemplateMenu: React.FC<TemplateMenuProps> = ({
 	const queryText = `organization:${organizationName} template:${templateName}`;
 	const workspaceCountQuery = useQuery({
 		...workspaces({ q: queryText }),
+		enabled: canDeleteTemplate,
 		select: (res) => res.count,
 	});
 	const safeToDeleteTemplate = workspaceCountQuery.data === 0;
@@ -105,98 +112,112 @@ const TemplateMenu: React.FC<TemplateMenuProps> = ({
 					</ShadcnButton>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					<DropdownMenuItem asChild>
-						<RouterLink to={`${templateLink}/settings`}>
-							<SettingsIcon className="size-icon-sm" />
-							Settings
-						</RouterLink>
-					</DropdownMenuItem>
+					{canUpdateTemplate && (
+						<>
+							<DropdownMenuItem asChild>
+								<RouterLink to={`${templateLink}/settings`}>
+									<SettingsIcon className="size-icon-sm" />
+									Settings
+								</RouterLink>
+							</DropdownMenuItem>
 
-					<DropdownMenuItem asChild>
-						<RouterLink to={`${templateLink}/versions/${templateVersion}/edit`}>
-							<EditIcon />
-							Edit files
-						</RouterLink>
-					</DropdownMenuItem>
+							<DropdownMenuItem asChild>
+								<RouterLink
+									to={`${templateLink}/versions/${templateVersion}/edit`}
+								>
+									<EditIcon />
+									Edit files
+								</RouterLink>
+							</DropdownMenuItem>
 
-					<DropdownMenuItem asChild>
-						<RouterLink to={`/templates/new?fromTemplate=${templateId}`}>
-							<CopyIcon className="size-icon-sm" />
-							Duplicate&hellip;
-						</RouterLink>
-					</DropdownMenuItem>
+							{canCreateTemplates && (
+								<DropdownMenuItem asChild>
+									<RouterLink to={`/templates/new?fromTemplate=${templateId}`}>
+										<CopyIcon className="size-icon-sm" />
+										Duplicate&hellip;
+									</RouterLink>
+								</DropdownMenuItem>
+							)}
 
-					<DropdownMenuItem onClick={() => handleExport()}>
-						<DownloadIcon className="size-icon-sm" />
-						Export as TAR
-					</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => handleExport()}>
+								<DownloadIcon className="size-icon-sm" />
+								Export as TAR
+							</DropdownMenuItem>
 
-					<DropdownMenuItem onClick={() => handleExport("zip")}>
-						<DownloadIcon className="size-icon-sm" />
-						Export as ZIP
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						className="text-content-destructive focus:text-content-destructive"
-						onClick={dialogState.openDeleteConfirmation}
-					>
-						<TrashIcon />
-						Delete&hellip;
-					</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => handleExport("zip")}>
+								<DownloadIcon className="size-icon-sm" />
+								Export as ZIP
+							</DropdownMenuItem>
+						</>
+					)}
+					{canDeleteTemplate && (
+						<>
+							{canUpdateTemplate && <DropdownMenuSeparator />}
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={dialogState.openDeleteConfirmation}
+							>
+								<TrashIcon />
+								Delete&hellip;
+							</DropdownMenuItem>
+						</>
+					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			{safeToDeleteTemplate ? (
-				<DeleteDialog
-					isOpen={dialogState.isDeleteDialogOpen}
-					onConfirm={dialogState.confirmDelete}
-					onCancel={dialogState.cancelDeleteConfirmation}
-					entity="template"
-					name={templateName}
-				/>
-			) : (
-				<ConfirmDialog
-					type="info"
-					title="Unable to delete"
-					hideCancel={false}
-					open={dialogState.isDeleteDialogOpen}
-					onClose={dialogState.cancelDeleteConfirmation}
-					confirmText="See workspaces"
-					confirmLoading={workspaceCountQuery.status !== "success"}
-					onConfirm={() => {
-						navigate({
-							pathname: "/workspaces",
-							search: new URLSearchParams({ filter: queryText }).toString(),
-						});
-					}}
-					description={
-						<>
-							{workspaceCountQuery.isSuccess && (
-								<>
-									This template is used by{" "}
-									<strong>
-										{workspaceCountQuery.data} workspace
-										{workspaceCountQuery.data === 1 ? "" : "s"}
-									</strong>
-									. Please delete all related workspaces before deleting this
-									template.
-								</>
-							)}
+			{canDeleteTemplate &&
+				(safeToDeleteTemplate ? (
+					<DeleteDialog
+						isOpen={dialogState.isDeleteDialogOpen}
+						onConfirm={dialogState.confirmDelete}
+						onCancel={dialogState.cancelDeleteConfirmation}
+						entity="template"
+						name={templateName}
+					/>
+				) : (
+					<ConfirmDialog
+						type="info"
+						title="Unable to delete"
+						hideCancel={false}
+						open={dialogState.isDeleteDialogOpen}
+						onClose={dialogState.cancelDeleteConfirmation}
+						confirmText="See workspaces"
+						confirmLoading={workspaceCountQuery.status !== "success"}
+						onConfirm={() => {
+							navigate({
+								pathname: "/workspaces",
+								search: new URLSearchParams({ filter: queryText }).toString(),
+							});
+						}}
+						description={
+							<>
+								{workspaceCountQuery.isSuccess && (
+									<>
+										This template is used by{" "}
+										<strong>
+											{workspaceCountQuery.data} workspace
+											{workspaceCountQuery.data === 1 ? "" : "s"}
+										</strong>
+										. Please delete all related workspaces before deleting this
+										template.
+									</>
+								)}
 
-							{workspaceCountQuery.isLoading &&
-								"Loading information about workspaces used by this template."}
+								{workspaceCountQuery.isLoading &&
+									"Loading information about workspaces used by this template."}
 
-							{workspaceCountQuery.isError &&
-								"Unable to determine workspaces used by this template."}
-						</>
-					}
-				/>
-			)}
+								{workspaceCountQuery.isError &&
+									"Unable to determine workspaces used by this template."}
+							</>
+						}
+					/>
+				))}
 		</>
 	);
 };
 
 type TemplatePageHeaderProps = {
+	canCreateTemplates: boolean;
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
@@ -205,6 +226,7 @@ type TemplatePageHeaderProps = {
 };
 
 export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
+	canCreateTemplates,
 	template,
 	activeVersion,
 	permissions,
@@ -231,8 +253,12 @@ export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 								</Button>
 							)}
 
-						{permissions.canUpdateTemplate && (
+						{(permissions.canUpdateTemplate ||
+							permissions.canDeleteTemplate) && (
 							<TemplateMenu
+								canUpdateTemplate={permissions.canUpdateTemplate}
+								canDeleteTemplate={permissions.canDeleteTemplate}
+								canCreateTemplates={canCreateTemplates}
 								organizationName={template.organization_name}
 								templateId={template.id}
 								templateName={template.name}

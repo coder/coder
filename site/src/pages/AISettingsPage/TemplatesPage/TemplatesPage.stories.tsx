@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { getTemplatesQueryKey } from "#/api/queries/templates";
@@ -106,7 +113,10 @@ export const ServerSideFilter: Story = {
 		expect(await canvas.findByText("Test Template")).toBeVisible();
 		expect(canvas.getByText("Second Template")).toBeVisible();
 
-		await user.type(canvas.getByRole("textbox", { name: "Search" }), "Second");
+		await user.type(
+			canvas.getByRole("combobox", { name: "Search and filter templates…" }),
+			"Second",
+		);
 
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
@@ -211,7 +221,9 @@ export const ConcurrentToggles: Story = {
 		expect(firstSwitch).toBeChecked();
 		expect(secondSwitch).not.toBeChecked();
 
-		const filter = canvas.getByRole("textbox", { name: "Search" });
+		const filter = canvas.getByRole("combobox", {
+			name: "Search and filter templates…",
+		});
 		await user.type(filter, "Second");
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
@@ -366,9 +378,15 @@ export const FetchesWhenAllowed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Test Template")).toBeVisible();
-		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
-		await waitFor(() => expect(API.getUsers).toHaveBeenCalled());
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.hover(
+			await screen.findByRole("option", {
+				name: "Author",
+			}),
+		);
+		await screen.findByRole("button", {
+			name: `${MockUserOwner.username} (you)`,
+		});
 	},
 };
 

@@ -2412,6 +2412,22 @@ func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg databas
 	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
 }
 
+// DeleteChatProjectTemplate requires read on the template as well as update
+// on the project, so an actor cannot detach a template they cannot see.
+func (q *querier) DeleteChatProjectTemplate(ctx context.Context, arg database.DeleteChatProjectTemplateParams) (database.ChatProjectTemplate, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.ChatProjectTemplate{}, err
+	}
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return database.ChatProjectTemplate{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, template); err != nil {
+		return database.ChatProjectTemplate{}, err
+	}
+	return q.db.DeleteChatProjectTemplate(ctx, arg)
+}
+
 func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg database.DeleteChatQueuedMessageReturningCountParams) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -3871,6 +3887,13 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 		return database.GetChatProjectMemoryByNameRow{}, err
 	}
 	return row, nil
+}
+
+// GetChatProjectTemplatesByProjectIDs authorizes each attachment through its
+// project. It does not check the attached templates, so callers must not
+// expose a template the actor cannot read.
+func (q *querier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, projectIDs []uuid.UUID) ([]database.GetChatProjectTemplatesByProjectIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectTemplatesByProjectIDs)(ctx, projectIDs)
 }
 
 func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
@@ -6645,6 +6668,25 @@ func (q *querier) InsertChatProjectPin(ctx context.Context, arg database.InsertC
 		return err
 	}
 	return q.db.InsertChatProjectPin(ctx, arg)
+}
+
+// InsertChatProjectTemplates requires use on every template as well as
+// update on the project, so attaching can never reach a template the actor
+// cannot use.
+func (q *querier) InsertChatProjectTemplates(ctx context.Context, arg database.InsertChatProjectTemplatesParams) ([]database.ChatProjectTemplate, error) {
+	if err := q.authorizeChatProjectConfig(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return nil, err
+	}
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionUse, template); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.InsertChatProjectTemplates(ctx, arg)
 }
 
 func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
