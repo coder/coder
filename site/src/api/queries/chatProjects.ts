@@ -63,6 +63,20 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
+/**
+ * What one save changes about a project's templates. `attach` and `detach`
+ * hold template IDs.
+ */
+export type ChatProjectTemplatesChange = {
+	readonly attach: readonly string[];
+	readonly detach: readonly string[];
+	/** The limit and the default template, when either changed. */
+	readonly request?: Pick<
+		TypesGen.UpdateChatProjectRequest,
+		"limit_templates" | "default_template"
+	>;
+};
+
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>
