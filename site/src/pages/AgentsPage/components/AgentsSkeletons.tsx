@@ -2,6 +2,12 @@ import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useChatOverviewCard } from "../hooks/useChatOverviewCard";
+import {
+	ChatOverviewCardLoadingRows,
+	ChatOverviewCardShell,
+	chatOverviewCardPositionClassName,
+} from "./ChatOverviewCardShell";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 import {
 	RIGHT_PANEL_OPEN_KEY,
@@ -133,13 +139,23 @@ export const RightPanelSkeleton: React.FC = () => (
 	</div>
 );
 
+export const ChatOverviewCardSkeleton: React.FC<{ id: string }> = ({ id }) => (
+	<ChatOverviewCardShell
+		id={id}
+		isLoading
+		className={chatOverviewCardPositionClassName}
+	>
+		<ChatOverviewCardLoadingRows />
+	</ChatOverviewCardShell>
+);
+
 /**
  * Skeleton placeholder for the chat input area. Matches the layout of
  * the real AgentChatInput so the transition from Suspense fallback to
  * the loaded component doesn't cause a vertical layout shift.
  */
 const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
-	<div className="shrink-0 overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
+	<div className="shrink-0 overflow-y-auto pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] scrollbar-gutter-stable scrollbar-thin">
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
@@ -162,18 +178,30 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 export const AgentChatPageSkeleton: React.FC = () => {
 	const rightPanel = getRightPanelState();
 	const [chatFullWidth] = useChatFullWidth();
+	const overviewCard = useChatOverviewCard(rightPanel.open);
 
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1">
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-				<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
+		<div
+			ref={overviewCard.chatRef}
+			className="relative flex h-full min-h-0 min-w-0 flex-1"
+		>
+			<div
+				className={cn(
+					"relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
+					overviewCard.reserveClassName,
+				)}
+			>
+				<div className="relative z-10 flex shrink-0 items-center gap-2 px-4 py-1.5">
 					<Skeleton className="size-7 rounded" />
 					<Skeleton className="h-4 w-32" />
 					<div className="flex-1" />
 					<Skeleton className="size-7 rounded" />
 					<Skeleton className="size-7 rounded" />
+					{overviewCard.isCardShown && (
+						<ChatOverviewCardSkeleton id={overviewCard.cardId} />
+					)}
 				</div>
-				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden pr-[var(--chat-overview-reserve,0px)] scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(

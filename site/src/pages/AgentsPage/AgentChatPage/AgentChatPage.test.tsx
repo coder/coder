@@ -117,17 +117,19 @@ const stubChatWidth = () => {
 	vi.stubGlobal("ResizeObserver", MockResizeObserver);
 	document.documentElement.style.fontSize = "16px";
 	return async (widthPx: number) => {
-		// The page re-renders its top bar while it loads, so look the observer
-		// up again on every try. The last observer of the chat is the live one.
+		// The loading view observes the chat too, so wait for the loaded
+		// chat's transcript and look the observer up again on every try.
 		const chatObserver = () =>
-			MockResizeObserver.instances.findLast((observer) =>
-				observer.observe.mock.calls.some(
-					([element]) =>
-						element instanceof HTMLElement &&
-						element.contains(
-							screen.queryByRole("button", { name: "Toggle panel" }),
-						),
-				),
+			MockResizeObserver.instances.findLast(
+				(observer) =>
+					observer.disconnect.mock.calls.length === 0 &&
+					observer.observe.mock.calls.some(
+						([element]) =>
+							element instanceof HTMLElement &&
+							element.contains(
+								screen.queryByRole("region", { name: "Messages" }),
+							),
+					),
 			);
 		await waitFor(() => expect(chatObserver()).toBeDefined());
 		act(() => chatObserver()?.simulateResize(widthPx));

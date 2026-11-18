@@ -1025,6 +1025,16 @@ export const OverviewCardReservesTranscript: Story = {
 };
 
 /**
+ * The loading view shows the card's skeleton and reserves the same 18rem as
+ * the loaded chat, so the transcript does not move when the chat loads.
+ */
+export const LoadingOverviewCardReservesTranscript: Story = {
+	decorators: [overviewCardFrame(72 * 16)],
+	beforeEach: resetOverviewCardStorage,
+	render: Loading.render,
+};
+
+/**
  * A full-width transcript leaves no margin, so the chat shows neither the
  * card nor its toggle, though the user left the card open.
  */

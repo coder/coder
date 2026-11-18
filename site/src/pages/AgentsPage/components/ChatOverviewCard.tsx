@@ -24,6 +24,7 @@ import {
 	selectSubagentStatusOverrides,
 	useChatSelector,
 } from "./ChatConversation/chatStore";
+import { chatOverviewCardPositionClassName } from "./ChatOverviewCardShell";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
@@ -135,7 +136,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 			}
 			earlierAttachmentsRequest={earlierAttachmentsRequest}
 			onOpenTarget={onOpenTarget}
-			className="absolute top-full right-4 z-20 mt-2"
+			className={chatOverviewCardPositionClassName}
 		/>
 	);
 };

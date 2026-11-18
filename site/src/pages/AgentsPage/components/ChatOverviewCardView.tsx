@@ -14,7 +14,6 @@ import type {
 	ChatDiffStatus,
 	ChatStatus,
 } from "#/api/typesGenerated";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -26,6 +25,10 @@ import { buildAgentChatPath } from "../utils/navigation";
 import { AttachmentsErrorAlert } from "./AttachmentsErrorAlert";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
+import {
+	ChatOverviewCardLoadingRows,
+	ChatOverviewCardShell,
+} from "./ChatOverviewCardShell";
 import {
 	getChatStatusDisplay,
 	getPRIconConfig,
@@ -39,8 +42,6 @@ const OVERVIEW_MAX_LIST_ROWS = 3;
  * subagents, and the chat tree in the sidebar already lists all of them.
  */
 const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
-const OVERVIEW_CARD_MAX_HEIGHT = "36rem";
-const OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT = "calc(100vh - 6rem)";
 
 /** Where a card row leads: the right panel tab that holds its details. */
 export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
@@ -100,7 +101,6 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	className,
 }) => {
 	const { cost } = overview;
-	const headingId = useId();
 	const isEmpty =
 		cost === undefined &&
 		overview.repos.length === 0 &&
@@ -110,39 +110,9 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 		!earlierAttachmentsRequest?.error;
 
 	return (
-		<aside
-			id={id}
-			aria-labelledby={headingId}
-			aria-busy={isLoading}
-			className={cn(
-				"flex w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-1.5 text-sm shadow-md",
-				className,
-			)}
-			style={{
-				maxHeight: `min(${OVERVIEW_CARD_MAX_HEIGHT}, ${OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT})`,
-			}}
-		>
-			<h2
-				id={headingId}
-				className="m-0 px-1.5 py-2 text-xs font-medium text-content-secondary"
-			>
-				Overview
-			</h2>
-
+		<ChatOverviewCardShell id={id} isLoading={isLoading} className={className}>
 			{isEmpty &&
-				(isLoading ? (
-					<div role="status" className="flex flex-col gap-2 px-1.5 py-2">
-						<span className="sr-only">Loading overview</span>
-						{[0, 1, 2].map((row) => (
-							<div key={row} aria-hidden className="flex items-center gap-2">
-								<Skeleton variant="circular" className="size-4 shrink-0" />
-								<Skeleton variant="text" className="flex-1" />
-							</div>
-						))}
-					</div>
-				) : (
-					<EmptyChangesSection />
-				))}
+				(isLoading ? <ChatOverviewCardLoadingRows /> : <EmptyChangesSection />)}
 
 			{cost && (
 				<div className="flex flex-col py-2">
@@ -227,7 +197,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 					/>
 				) : null}
 			</OverviewListSection>
-		</aside>
+		</ChatOverviewCardShell>
 	);
 };
 
