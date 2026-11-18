@@ -140,7 +140,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		}
 		const action = editor.addAction({
 			id: "coder.agents.saveFile",
-			label: "Save File",
+			label: "Save file",
 			keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
 			run: () => save(),
 		});

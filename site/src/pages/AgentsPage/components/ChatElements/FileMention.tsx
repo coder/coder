@@ -174,7 +174,8 @@ const FileMention: React.FC<{
 						role: "button",
 						tabIndex: 0,
 						"aria-label": link.isDirectory
-							? `Show ${link.path} in Files`
+							? // sentence-case-expect: Files is the name of the right panel tab.
+								`Show ${link.path} in Files`
 							: undefined,
 						"aria-haspopup": picker ? ("dialog" as const) : undefined,
 						"aria-expanded": picker ? picking : undefined,

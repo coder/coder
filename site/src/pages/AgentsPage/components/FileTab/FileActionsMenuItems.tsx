@@ -121,6 +121,7 @@ export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
 			)}
 			{workspaceFiles && (
 				<Item onSelect={() => workspaceFiles.revealInFiles(path)}>
+					{/* sentence-case-expect: Files is the name of the right panel tab. */}
 					Reveal in Files
 				</Item>
 			)}

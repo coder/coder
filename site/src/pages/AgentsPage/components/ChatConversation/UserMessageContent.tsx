@@ -78,6 +78,7 @@ const splitWorkspacePathChips = (
 						isDirectory={segment.isDirectory}
 						onOpen={openPath}
 						label={
+							// sentence-case-expect: Files is the name of the right panel tab.
 							segment.isDirectory ? `Show ${segment.path} in Files` : undefined
 						}
 					/>
