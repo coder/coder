@@ -37,7 +37,6 @@ import {
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
-	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	isUploadInProgress,
 	type UploadState,
@@ -54,7 +53,7 @@ import {
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
-	selectStreamError,
+	selectShownError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatMessages,
@@ -83,6 +82,8 @@ import {
 } from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import type { AttachedWorkspaceInfo } from "./ChatToolBadges";
+import { ReadOnlyChatComposer } from "./ReadOnlyChatComposer";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -117,14 +118,17 @@ export const workspaceSkillsFromChat = (
 type ChatPageTimelineProps = {
 	organizationId: string;
 	store: ChatStoreHandle;
+	// The chat record's status, which the timeline uses until the stream
+	// reports one. Without a status the timeline renders the latest turn as
+	// ended.
+	recordStatus?: TypesGen.ChatStatus;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
@@ -137,12 +141,12 @@ type ChatPageTimelineProps = {
 export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	organizationId,
 	store,
+	recordStatus,
 	chatFiles,
 	persistedError,
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	onEditUserMessage,
@@ -155,14 +159,15 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const chatStatus = useChatSelector(store, selectChatStatus);
+	const chatStatus =
+		useChatSelector(store, selectChatStatus) ?? recordStatus ?? null;
 	const hasStream = useChatSelector(store, selectHasStreamState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
 	const streamState = useChatSelector(store, selectStreamState);
-	const streamError = useChatSelector(store, selectStreamError);
+	const shownError = useChatSelector(store, selectShownError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
 	const subagentStatusOverrides = useChatSelector(
@@ -177,7 +182,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		streamState: liveStreamState,
 		retryState,
 		reconnectState,
-		streamError,
+		streamError: shownError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
@@ -207,7 +212,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 				<ChatMessageScroller
 					hasMoreMessages={hasMoreMessages}
 					isFetchingMoreMessages={isFetchingMoreMessages}
-					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={hasFetchMoreError}
 					hasTranscriptRows={parsedMessages.length > 0}
 					onFetchMoreMessages={onFetchMoreMessages}
@@ -293,7 +297,6 @@ type ChatPageInputProps = {
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly: boolean;
-	readOnlyNotice?: string;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -352,7 +355,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly,
-	readOnlyNotice,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -436,7 +438,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				modelOverridesQuery,
 			);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
-	const chatStatus = useChatSelector(store, selectChatStatus);
+	// The chat record's status stands in until the stream reports one.
+	const chatStatus = useChatSelector(store, selectChatStatus) ?? chat.status;
 
 	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
@@ -703,6 +706,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	// The attachments of a send in flight. Until the send settles, the composer
+	// hides them and all workspace uploads, and shows attachments added since.
+	// An edit sets none, because the composer shows the compose draft during it.
+	const [submittedAttachments, setSubmittedAttachments] = useState<
+		readonly File[] | null
+	>(null);
 	const visibleWorkspaceUploads = isEditing
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
@@ -719,7 +728,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		modeWorkspaceUploads.remove(id);
 	};
 
-	const inputElement = (
+	const inputElement = isReadOnly ? (
+		<ReadOnlyChatComposer
+			chat={chat}
+			model={modelOptions.find((option) => option.id === selectedModel)}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			isModelCatalogLoading={isModelCatalogLoading}
+			contextUsage={latestContextUsage}
+			onRefreshContext={handleRefreshContext}
+			isRefreshingContext={refreshContextMutation.isPending}
+			queuedMessages={queuedMessages}
+			queuedMessageUnderEditID={queuedMessageUnderEditID}
+			isChatPaused={chatStatus === "paused"}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={selectedMCPServerIds}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			attachedWorkspace={attachedWorkspace}
+			selectedWorkspace={workspaceOptions.find(
+				(workspace) => workspace.id === selectedWorkspaceId,
+			)}
+			folder={folder}
+			canConfigureAgentSetup={canConfigureAgentSetup}
+			providerCount={providerCount}
+			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
+		/>
+	) : (
 		<AgentChatInput
 			onSend={(message, busyBehavior) => {
 				void (async () => {
@@ -782,6 +818,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						pendingWorkspaceUploads.length > 0
 							? pendingWorkspaceUploads
 							: undefined;
+					setSubmittedAttachments(isEditing ? null : attachments);
 					try {
 						await onSend({
 							message,
@@ -791,26 +828,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						});
 					} catch {
 						// Attachments preserved for retry on failure.
+						setSubmittedAttachments(null);
 						return;
 					}
+					setSubmittedAttachments(null);
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
 						setPreservedWorkspaceUploads([]);
 					} else {
-						composeAttachments.resetAttachments();
+						for (const file of attachments) {
+							composeAttachments.handleRemoveAttachment(file);
+						}
 						composeWorkspaceUploads.reset();
 					}
 				})();
 			}}
-			attachments={attachments}
+			attachments={
+				submittedAttachments
+					? attachments.filter((file) => !submittedAttachments.includes(file))
+					: attachments
+			}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
+				uploads: submittedAttachments ? [] : visibleWorkspaceUploads,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
@@ -839,8 +884,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
-			isReadOnly={isReadOnly}
-			readOnlyNotice={readOnlyNotice}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
