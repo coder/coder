@@ -37,7 +37,6 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 
 	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
 		UserID:             apiKey.UserID,
-		ACLEnabled:         !api.chatSharingDisabled(),
 		CountSharedMembers: api.chatProjectSharingAvailable(),
 	})
 	if err != nil {
@@ -122,8 +121,7 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		}
 		if pinOrder.Valid {
 			rows, err := tx.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
-				UserID:     apiKey.UserID,
-				ACLEnabled: !api.chatSharingDisabled(),
+				UserID: apiKey.UserID,
 			})
 			if err != nil {
 				return xerrors.Errorf("list visible chat project pins: %w", err)
@@ -131,10 +129,9 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			pinOrder.Int32 = chatProjectPinPosition(rows, project.ID, pinOrder.Int32)
 		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
-			UserID:     apiKey.UserID,
-			ProjectID:  project.ID,
-			ACLEnabled: !api.chatSharingDisabled(),
-			PinOrder:   pinOrder,
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
+			PinOrder:  pinOrder,
 		})
 	}, nil)
 	if writeChatProjectArchivedError(ctx, rw, err) {
@@ -153,8 +150,9 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 // chatProjectPinPosition translates a requested position among the pins
 // the user sees into a position for PinChatProject. That query counts
 // every pin its access predicate matches, but authorization can still
-// hide some of them, such as a project whose grant lacks read, and a
-// hidden pin between two visible ones would otherwise absorb the move.
+// hide some of them, such as a project whose grant lacks read or any
+// granted project while chat sharing is disabled. A hidden pin between
+// two visible ones would otherwise absorb the move.
 // rows must be the authorized summaries: their pin orders number the
 // matched pins, target included, in the order PinChatProject uses.
 func chatProjectPinPosition(rows []database.GetChatProjectSummariesByUserIDRow, projectID uuid.UUID, requested int32) int32 {
@@ -210,9 +208,8 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
 		return tx.UnpinChatProject(ctx, database.UnpinChatProjectParams{
-			UserID:     apiKey.UserID,
-			ProjectID:  project.ID,
-			ACLEnabled: !api.chatSharingDisabled(),
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
 		})
 	}, nil)
 	if err != nil {
@@ -227,8 +224,8 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 
 // chatProjectSharingAvailable reports whether summaries count the users a
 // project is shared with. It matches the gate on the project ACL routes.
-// Which projects are visible does not depend on it: grants count wherever
-// RBAC honors them, which is whenever chatSharingDisabled is false.
+// Which projects are listed does not depend on it: as in GET
+// /chats/projects, grant keys select candidates and RBAC decides.
 func (api *API) chatProjectSharingAvailable() bool {
 	return !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))
 }
