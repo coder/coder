@@ -553,6 +553,9 @@ export const MockChatProject: TypesGen.ChatProject = {
 	name: "Launch",
 	description: "Chats for the launch work.",
 	icon: "",
+	limit_templates: false,
+	templates: [],
+	hidden_template_count: 0,
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
 	permissions: { update: true, delete: true, share: true },
@@ -601,6 +604,13 @@ export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
 	name: MockUserMember.name,
 	avatar_url: MockUserMember.avatar_url,
 	role: "use",
+};
+
+export const MockWorkspaceUserLongName: TypesGen.WorkspaceUser = {
+	...MockWorkspaceUser,
+	id: "long-name-workspace-user",
+	username: "a-long-username-for-narrow-views",
+	name: "A Member With An Unusually Long Display Name",
 };
 
 export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {

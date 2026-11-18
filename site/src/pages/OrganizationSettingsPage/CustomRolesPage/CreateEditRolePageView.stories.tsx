@@ -45,7 +45,7 @@ export const Create: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "New Custom Role" }),
+			canvas.getByRole("heading", { name: "New custom role" }),
 		).toBeVisible();
 		await expect(
 			canvas.getByRole("link", { name: /back to roles/i }),
@@ -67,7 +67,7 @@ export const Edit: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "Edit Custom Role" }),
+			canvas.getByRole("heading", { name: "Edit custom role" }),
 		).toBeVisible();
 		await expect(canvas.getByLabelText(/^Name/)).toBeDisabled();
 		await expect(canvas.getByRole("button", { name: "Save" })).toBeEnabled();

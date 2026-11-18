@@ -427,6 +427,7 @@ import {
 	AgentChatPageSkeleton,
 	AgentsPageLayoutSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
+import { EmbedContext } from "./pages/AgentsPage/components/EmbedContext";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
 const AIBridgeLayout = lazy(
@@ -957,9 +958,11 @@ export const router = createBrowserRouter(
 			<Route
 				path="/agents/:agentId/embed"
 				element={
-					<Suspense fallback={<AgentChatPageSkeleton />}>
-						<AgentEmbedPage />
-					</Suspense>
+					<EmbedContext value={{ isEmbedded: true }}>
+						<Suspense fallback={<AgentChatPageSkeleton />}>
+							<AgentEmbedPage />
+						</Suspense>
+					</EmbedContext>
 				}
 			>
 				<Route
