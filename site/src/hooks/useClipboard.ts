@@ -133,14 +133,16 @@ export const useClipboard = (
  * to the clipboard API (the browser is older, or the deployment is only running
  * on HTTP, when the clipboard API is only available in secure contexts).
  *
- * It feels silly that you have to make a whole dummy input just to simulate a
- * clipboard, but that's really the recommended approach for older browsers.
+ * It feels silly that you have to make a whole dummy textarea just to simulate
+ * a clipboard, but that's really the recommended approach for older browsers.
+ * It must be a textarea: an input strips line breaks from its value, which
+ * would flatten multiline text such as copied Markdown.
  *
  * @see {@link https://web.dev/patterns/clipboard/copy-text?hl=en}
  */
 function simulateClipboardWrite(textToCopy: string): boolean {
 	const previousFocusTarget = document.activeElement;
-	const dummyInput = document.createElement("input");
+	const dummyInput = document.createElement("textarea");
 	// Keep the dummy input inside an open dialog so focus traps allow
 	// execCommand("copy") to select it.
 	const activeDialog =
