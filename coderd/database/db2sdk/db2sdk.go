@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -2009,18 +2010,41 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 }
 
 // ChatProject converts a project with the caller's permissions on it.
-func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
-	return codersdk.ChatProject{
-		Permissions:    permissions,
-		ID:             project.ID,
-		OrganizationID: project.OrganizationID,
-		OwnerID:        project.OwnerID,
-		Name:           project.Name,
-		Description:    project.Description,
-		Icon:           project.Icon,
-		CreatedAt:      project.CreatedAt,
-		UpdatedAt:      project.UpdatedAt,
+// templates must be the project's templates as the caller sees them, so the
+// response never identifies a template the caller cannot access.
+func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions, templates chattool.ProjectTemplates) codersdk.ChatProject {
+	converted := codersdk.ChatProject{
+		Permissions:         permissions,
+		ID:                  project.ID,
+		OrganizationID:      project.OrganizationID,
+		OwnerID:             project.OwnerID,
+		Name:                project.Name,
+		Description:         project.Description,
+		Icon:                project.Icon,
+		LimitTemplates:      project.LimitTemplates,
+		Templates:           make([]codersdk.ChatProjectTemplate, 0, len(templates.Templates)),
+		HiddenTemplateCount: templates.HiddenCount,
+		CreatedAt:           project.CreatedAt,
+		UpdatedAt:           project.UpdatedAt,
 	}
+	for _, template := range templates.Templates {
+		converted.Templates = append(converted.Templates, codersdk.ChatProjectTemplate{
+			ID:          template.ID,
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Icon:        template.Icon,
+		})
+	}
+	if templates.DefaultTemplateID.Valid {
+		converted.DefaultTemplate = &codersdk.ChatProjectDefaultTemplate{TemplateID: templates.DefaultTemplateID.UUID}
+		if templates.DefaultPresetID.Valid {
+			converted.DefaultTemplate.PresetID = &templates.DefaultPresetID.UUID
+		}
+		if len(templates.DefaultParameters) > 0 {
+			converted.DefaultTemplate.Parameters = templates.DefaultParameters
+		}
+	}
+	return converted
 }
 
 // ChatProjectInstructions converts a project's stored instructions.
