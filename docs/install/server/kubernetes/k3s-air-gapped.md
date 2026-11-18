@@ -2,29 +2,47 @@
 title: Install Coder on K3s in an air-gapped environment
 ---
 
-This tutorial shows platform engineers how to install Coder on a single-node K3s cluster that has no internet access.
-You stage every artifact on a connected workstation, copy the artifacts to the host, and finish with a running workspace.
+This tutorial helps a Coder deployment administrator install Coder on a single-node K3s cluster with no internet access.
+You stage every artifact on an internet-connected workstation, copy the artifacts to the offline host, and finish with a running workspace.
 
-The steps were tested on a Raspberry Pi 4 Model B with 4&nbsp;GB of memory running Ubuntu Server 26.04 Long-Term Support (LTS).
-The commands use `arm64` artifacts, and the steps were not tested with `amd64` artifacts.
+The steps were tested end to end on a Raspberry Pi 4 Model B (`arm64`) with 4&nbsp;GB of memory running Ubuntu Server 26.04 Long-Term Support (LTS).
+The staging steps were also run for `amd64`, but the installation wasn't tested on an `amd64` host.
 
+This hands-on tutorial skips some background.
 For the concepts behind an air-gapped deployment, refer to [Air-gapped deployments](../../prepare/airgap.md).
 To install Coder on a cluster that has internet access, refer to [Install Coder on Kubernetes](./index.md).
 
-## Before you begin
+## What you stage
 
-You work on two machines.
-The workstation has internet access and prepares everything.
-The host is the machine that runs Coder, and it does not need a route to the internet.
+The host can't download anything, so you stage each of these components on the workstation and copy it to the host.
+
+| Component                                     | Why the host needs it                                                                          | When you need it                                                                 |
+|-----------------------------------------------|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| K3s binary, install script, and image archive | Runs a single-node Kubernetes cluster without pulling images                                   | Always                                                                           |
+| Coder Helm chart                              | Installs Coder without a connection to the chart repository                                    | Always                                                                           |
+| Coder image with a Terraform provider mirror  | Builds templates without the public Terraform registry                                         | Always                                                                           |
+| PostgreSQL image                              | Runs the database that Coder needs, inside the cluster                                         | For this tutorial. A production deployment uses an external PostgreSQL database. |
+| Workspace image with code-server              | Provides the editor that the starter template otherwise downloads when a workspace starts      | When your template uses code-server                                              |
+| Edited Kubernetes starter template            | Uses the workspace image and removes the download from the startup script                      | Always                                                                           |
+| `fake-hwclock` package                        | Keeps the host clock correct across restarts, because the K3s certificates depend on the clock | Only when the host has no battery-backed clock and no time server on its network |
+
+## Prerequisites
+
+You work on two machines: an internet-connected *workstation* that stages the artifacts, and an offline *host* that runs Coder.
 
 You need:
 
-- A workstation with [Docker](https://docs.docker.com/engine/install/) that can build `linux/arm64` images, `zstd`, [Helm](https://helm.sh/docs/intro/install/) 3.5 or later, `kubectl`, and the `coder` CLI.
-- An `arm64` host that runs Ubuntu Server 26.04 LTS, with at least 4&nbsp;GB of memory and 20&nbsp;GB of free storage.
+- A workstation with [Docker](https://docs.docker.com/engine/install/) that can build images for the host's architecture, `zstd`, [Helm](https://helm.sh/docs/intro/install/) 3.5 or later, `kubectl`, and the `coder` CLI.
+- An `arm64` or `amd64` host that runs Ubuntu Server 26.04 LTS, with at least 4&nbsp;GB of memory and 20&nbsp;GB of free storage.
 - SSH access from the workstation to the host as a user who has passwordless `sudo`.
-- A network path from the workstation to the host on ports 22, 6443, and 30080.
+- A local network connection from the workstation to the host on ports 22 (SSH), 6443 (the Kubernetes API), and 30080 (Coder).
 
 The staged artifacts total about 1.5&nbsp;GB, and the steps use about 11&nbsp;GB of storage on the host.
+
+The workstation needs internet access only while you stage the artifacts.
+If your environment doesn't allow one machine on both networks, disconnect the workstation from the internet before you connect it to the host's network.
+If the workstation can never join the host's network, you can carry the staging directory on removable media instead.
+The steps after staging then run on a machine inside the offline network, which this tutorial doesn't cover.
 
 ## Set the host variables
 
@@ -38,12 +56,23 @@ If you open a new shell, set these variables again, and run the `export KUBECONF
    export HOST=<user>@${HOST_ADDRESS}
    ```
 
-   Replace `<host-address>` with the address or host name that your workstation uses to reach the host.
+   Replace `<host-address>` with the host's address or host name on its local network.
    Replace `<user>` with your SSH user on the host.
 
-## Stage the artifacts on the workstation
+1. Set the host architecture and the matching K3s binary name.
 
-Do this section while the workstation has internet access.
+   ```sh
+   export ARCH=arm64
+   export K3S_BINARY=k3s-arm64
+   ```
+
+   For an `amd64` host, set `ARCH=amd64` and `K3S_BINARY=k3s`, because the K3s release names its `amd64` binary `k3s`.
+   To check the architecture, run `ssh ${HOST} uname -m`.
+   The output `aarch64` means `arm64`, and `x86_64` means `amd64`.
+
+## Stage artifacts on the workstation
+
+This is the only section that needs internet access on the workstation.
 
 1. Create a directory for the artifacts and open it.
 
@@ -66,25 +95,28 @@ Do this section while the workstation has internet access.
    export WORKSPACE_IMAGE=coder-workspace:ubuntu-cs${CODE_SERVER_VERSION}
    ```
 
+   These are the versions that the tutorial was tested with.
+   To use a newer K3s release, copy its tag from the [K3s releases page](https://github.com/k3s-io/k3s/releases), and replace the `+` in the tag with `%2B` in `K3S_RELEASE_URL`.
+
    The Coder provider version matches the version that Coder `v2.38.6` is built against.
    To find the provider version for another Coder version, read the `github.com/coder/terraform-provider-coder` line in the `go.mod` file at that version's release tag.
 
 1. Download the K3s binary, the K3s image archive, the checksum list, and the install script.
 
    ```sh
-   curl -fsSLO ${K3S_RELEASE_URL}/k3s-arm64
-   curl -fsSLO ${K3S_RELEASE_URL}/k3s-airgap-images-arm64.tar.zst
-   curl -fsSLO ${K3S_RELEASE_URL}/sha256sum-arm64.txt
+   curl -fsSLO ${K3S_RELEASE_URL}/${K3S_BINARY}
+   curl -fsSLO ${K3S_RELEASE_URL}/k3s-airgap-images-${ARCH}.tar.zst
+   curl -fsSLO ${K3S_RELEASE_URL}/sha256sum-${ARCH}.txt
    curl -fsSL https://get.k3s.io -o install.sh
    ```
 
 1. Check the K3s files against the checksum list.
 
    ```sh
-   grep -E ' (k3s-arm64|k3s-airgap-images-arm64.tar.zst)$' sha256sum-arm64.txt | shasum -a 256 -c -
+   grep -E " (${K3S_BINARY}|k3s-airgap-images-${ARCH}.tar.zst)$" sha256sum-${ARCH}.txt | shasum -a 256 -c -
    ```
 
-   You see `OK` for both files:
+   You see `OK` for both files, here for `arm64`:
 
    ```txt
    k3s-airgap-images-arm64.tar.zst: OK
@@ -115,6 +147,10 @@ Do this section while the workstation has internet access.
 
 The Coder image needs the Terraform providers that your templates use, because the host cannot download them.
 You build an image that carries a filesystem mirror of those providers.
+
+A filesystem mirror suits a proof of concept, because it needs no other service.
+For a long-lived deployment, a provider mirror on your network, such as a Terraform network mirror or an artifact repository, is easier to keep current.
+Refer to [Provider installation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) in the Terraform documentation and to [Air-gapped deployments](../../prepare/airgap.md).
 
 1. Create the Terraform CLI configuration that points to the mirror.
 
@@ -157,8 +193,8 @@ You build an image that carries a filesystem mirror of those providers.
 1. Build the Coder image.
 
    ```sh
-   docker build --platform linux/arm64 \
-     --build-arg TARGETARCH=arm64 \
+   docker build --platform linux/${ARCH} \
+     --build-arg TARGETARCH=${ARCH} \
      --build-arg CODER_VERSION=${CODER_VERSION} \
      --build-arg CODER_PROVIDER_VERSION=${CODER_PROVIDER_VERSION} \
      --build-arg KUBERNETES_PROVIDER_VERSION=${KUBERNETES_PROVIDER_VERSION} \
@@ -168,11 +204,11 @@ You build an image that carries a filesystem mirror of those providers.
 1. Check that the image contains the Coder provider.
 
    ```sh
-   docker run --rm --platform linux/arm64 --entrypoint ls coder-airgap:${CODER_VERSION} \
+   docker run --rm --platform linux/${ARCH} --entrypoint ls coder-airgap:${CODER_VERSION} \
      /home/coder/.terraform.d/plugins/registry.terraform.io/coder/coder
    ```
 
-   You see the provider archive for your version:
+   You see the provider archive for your version and architecture:
 
    ```txt
    2.19.0.json
@@ -201,7 +237,7 @@ You install code-server while you build the workspace image instead.
 1. Build the workspace image.
 
    ```sh
-   docker build --platform linux/arm64 \
+   docker build --platform linux/${ARCH} \
      --build-arg CODE_SERVER_VERSION=${CODE_SERVER_VERSION} \
      -t ${WORKSPACE_IMAGE} workspace-image
    ```
@@ -209,7 +245,7 @@ You install code-server while you build the workspace image instead.
 1. Check the code-server version in the image.
 
    ```sh
-   docker run --rm --platform linux/arm64 --entrypoint /opt/code-server/bin/code-server ${WORKSPACE_IMAGE} --version | tail -1
+   docker run --rm --platform linux/${ARCH} --entrypoint /opt/code-server/bin/code-server ${WORKSPACE_IMAGE} --version | tail -1
    ```
 
    The output starts with your code-server version:
@@ -223,27 +259,30 @@ You install code-server while you build the workspace image instead.
 1. Pull the PostgreSQL image.
 
    ```sh
-   docker pull --platform linux/arm64 postgres:${POSTGRES_VERSION}
+   docker pull --platform linux/${ARCH} postgres:${POSTGRES_VERSION}
    ```
 
 1. Save the three images as compressed archives.
 
    ```sh
-   docker save coder-airgap:${CODER_VERSION} | zstd -T0 -10 -q -o coder-airgap_${CODER_VERSION}_arm64.tar.zst
-   docker save ${WORKSPACE_IMAGE} | zstd -T0 -10 -q -o coder-workspace_arm64.tar.zst
-   docker save postgres:${POSTGRES_VERSION} | zstd -T0 -10 -q -o postgres_${POSTGRES_VERSION}_arm64.tar.zst
+   docker save coder-airgap:${CODER_VERSION} | zstd -T0 -10 -q -o coder-airgap_${CODER_VERSION}_${ARCH}.tar.zst
+   docker save ${WORKSPACE_IMAGE} | zstd -T0 -10 -q -o coder-workspace_${ARCH}.tar.zst
+   docker save postgres:${POSTGRES_VERSION} | zstd -T0 -10 -q -o postgres_${POSTGRES_VERSION}_${ARCH}.tar.zst
    ```
 
 ### Download the clock package
 
-A host without a battery-backed clock, such as a Raspberry Pi 4, starts with the wrong time after each restart.
+Most servers keep the correct time without internet access, because they have a battery-backed clock or a time server on their network.
+If your host has either one, skip this section and [Set the host clock](#set-the-host-clock).
+
+A host with neither, such as a Raspberry Pi 4, starts with the wrong time after each restart.
 With no internet, nothing corrects it, and the K3s certificates depend on the clock.
 The `fake-hwclock` package saves the time at shutdown and restores it at startup.
 
 1. Download the `fake-hwclock` package for the host's operating system.
 
    ```sh
-   docker run --name stage-debs --platform linux/arm64 ubuntu:26.04 \
+   docker run --name stage-debs --platform linux/${ARCH} ubuntu:26.04 \
      bash -c 'mkdir /out && cd /out && apt-get update -qq && apt-get download fake-hwclock'
    docker cp stage-debs:/out/. debs
    docker rm stage-debs
@@ -270,13 +309,14 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
    Examples provide a starting point and are expected to be edited! 🎨
    ```
 
-1. Set the agent architecture to `arm64`.
+1. Set the agent architecture to the host's architecture.
 
    ```sh
-   sed -i.bak 's/arch *= "amd64"/arch = "arm64"/' template/main.tf
+   sed -i.bak "s/arch *= \"amd64\"/arch = \"${ARCH}\"/" template/main.tf
    ```
 
    The starter template sets the architecture to `amd64`, so an `arm64` workspace could not run its agent.
+   On an `amd64` host, the command leaves the template unchanged.
 
 1. Use the workspace image and stop Kubernetes from pulling it.
 
@@ -318,7 +358,7 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
    grep -E 'arch  *=|image  *=|image_pull_policy|code-server/bin' template/main.tf
    ```
 
-   You see the architecture, the code-server path, your workspace image, and the pull policy:
+   You see the architecture, the code-server path, your workspace image, and the pull policy, here for `arm64`:
 
    ```txt
      arch = "arm64"
@@ -367,6 +407,8 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
 
 ## Set the host clock
 
+Skip this section if you skipped the clock package.
+
 1. Install the `fake-hwclock` package on the host.
 
    ```sh
@@ -405,7 +447,7 @@ A production host needs a network time source on your internal network instead o
 1. Install the K3s binary on the host.
 
    ```sh
-   ssh ${HOST} 'sudo install -o root -g root -m 755 ~/airgap/k3s-arm64 /usr/local/bin/k3s'
+   ssh ${HOST} "sudo install -o root -g root -m 755 ~/airgap/${K3S_BINARY} /usr/local/bin/k3s"
    ```
 
    The install script does not download the binary when you skip the download, so the binary must be in place first.
