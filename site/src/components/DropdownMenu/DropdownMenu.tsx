@@ -16,14 +16,31 @@ import {
 	menuSeparatorClass,
 } from "./menuClasses";
 
+const TriggerRefContext =
+	createContext<React.RefObject<HTMLButtonElement | null> | null>(null);
+
 /**
- * Blocks the page below popovers and dialogs while a non-modal menu is open,
- * so the press that dismisses the menu does not reach the element under it.
- * Not a React portal, so ancestor popovers see presses on it as outside.
+ * Non-modal by default: a modal menu sets `aria-hidden` on the rest of the
+ * page while its focusable controls stay in the tab order, which axe reports
+ * as aria-hidden-focus.
  */
-const useOutsideClickCatcher = (active: boolean) => {
+export const DropdownMenu: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Root>
+> = ({
+	modal = false,
+	open: openProp,
+	defaultOpen = false,
+	onOpenChange,
+	...props
+}) => {
+	const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+	const open = openProp ?? uncontrolledOpen;
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	// Blocks the page below popovers and dialogs while a non-modal menu is
+	// open, so the press that dismisses it does not reach the element under
+	// it. Not a React portal, so ancestor popovers see presses as outside.
 	useEffect(() => {
-		if (!active) {
+		if (!open || modal) {
 			return;
 		}
 		const catcher = document.createElement("div");
@@ -61,30 +78,7 @@ const useOutsideClickCatcher = (active: boolean) => {
 				catcher.remove();
 			}
 		};
-	}, [active]);
-};
-
-const TriggerRefContext =
-	createContext<React.RefObject<HTMLButtonElement | null> | null>(null);
-
-/**
- * Non-modal by default: a modal menu sets `aria-hidden` on the rest of the
- * page while its focusable controls stay in the tab order, which axe reports
- * as aria-hidden-focus.
- */
-export const DropdownMenu: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.Root>
-> = ({
-	modal = false,
-	open: openProp,
-	defaultOpen = false,
-	onOpenChange,
-	...props
-}) => {
-	const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
-	const open = openProp ?? uncontrolledOpen;
-	const triggerRef = useRef<HTMLButtonElement>(null);
-	useOutsideClickCatcher(open && !modal);
+	}, [open, modal]);
 	return (
 		<TriggerRefContext value={triggerRef}>
 			<DropdownMenuPrimitive.Root
