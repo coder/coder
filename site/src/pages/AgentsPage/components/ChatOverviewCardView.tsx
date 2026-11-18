@@ -14,21 +14,27 @@ import type {
 	ChatDiffStatus,
 	ChatStatus,
 } from "#/api/typesGenerated";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatCostMicros } from "#/utils/currency";
+import type { EarlierAttachmentsRequest } from "../hooks/useChatAttachments";
 import { buildAgentChatPath } from "../utils/navigation";
+import { AttachmentsErrorAlert } from "./AttachmentsErrorAlert";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
+import {
+	ChatOverviewCardLoadingRows,
+	ChatOverviewCardShell,
+} from "./ChatOverviewCardShell";
 import {
 	getChatStatusDisplay,
 	getPRIconConfig,
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
+import type { DiffStats } from "./GitPanel/gitViews";
 
 const OVERVIEW_MAX_LIST_ROWS = 3;
 /**
@@ -36,22 +42,18 @@ const OVERVIEW_MAX_LIST_ROWS = 3;
  * subagents, and the chat tree in the sidebar already lists all of them.
  */
 const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
-const OVERVIEW_CARD_MAX_HEIGHT = "36rem";
-const OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT = "calc(100vh - 6rem)";
 
 /** Where a card row leads: the right panel tab that holds its details. */
 export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
 
 type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
 
-type OverviewRepo = {
+type OverviewRepo = DiffStats & {
 	root: string;
 	/** The row label. `root` stays the row's key, so names may repeat. */
 	name: string;
 	/** Empty when HEAD is on no branch, such as a detached HEAD. */
 	branch: string;
-	additions: number;
-	deletions: number;
 };
 
 /** Card data. Empty lists and an absent cost hide their sections. */
@@ -74,8 +76,14 @@ export type ChatOverview = {
 };
 
 type ChatOverviewCardViewProps = {
+	id?: string;
 	overview: ChatOverview;
 	isLoading?: boolean;
+	/** A failed request shows its error and a retry in Attachments. */
+	earlierAttachmentsRequest?: Pick<
+		EarlierAttachmentsRequest,
+		"error" | "isRetrying" | "retry"
+	>;
 	onOpenTarget: (target: OverviewTarget) => void;
 	className?: string;
 };
@@ -85,56 +93,26 @@ type ChatOverviewCardViewProps = {
  * nothing to show for it.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
+	id,
 	overview,
 	isLoading = false,
+	earlierAttachmentsRequest,
 	onOpenTarget,
 	className,
 }) => {
 	const { cost } = overview;
-	const headingId = useId();
 	const isEmpty =
 		cost === undefined &&
 		overview.repos.length === 0 &&
 		overview.pullRequests.length === 0 &&
 		overview.subagents.length === 0 &&
-		overview.attachments.length === 0;
+		overview.attachments.length === 0 &&
+		!earlierAttachmentsRequest?.error;
 
 	return (
-		<aside
-			aria-labelledby={headingId}
-			aria-busy={isLoading}
-			className={cn(
-				"flex w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-1.5 text-sm shadow-md",
-				className,
-			)}
-			style={{
-				maxHeight: `min(${OVERVIEW_CARD_MAX_HEIGHT}, ${OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT})`,
-			}}
-		>
-			<h2
-				id={headingId}
-				className="m-0 px-1.5 py-2 text-xs font-medium text-content-secondary"
-			>
-				Overview
-			</h2>
-
+		<ChatOverviewCardShell id={id} isLoading={isLoading} className={className}>
 			{isEmpty &&
-				(isLoading ? (
-					<div role="status" className="flex flex-col gap-2 px-1.5 py-2">
-						<span className="sr-only">Loading overview</span>
-						{[0, 1, 2].map((row) => (
-							<div key={row} aria-hidden className="flex items-center gap-2">
-								<Skeleton variant="circular" className="size-4 shrink-0" />
-								<Skeleton variant="text" className="flex-1" />
-							</div>
-						))}
-					</div>
-				) : (
-					<p className="m-0 px-1.5 py-2 text-xs text-content-secondary">
-						Nothing to show yet. Cost, repositories, pull requests, subagents,
-						and attachments show up here as the agent works.
-					</p>
-				))}
+				(isLoading ? <ChatOverviewCardLoadingRows /> : <EmptyChangesSection />)}
 
 			{cost && (
 				<div className="flex flex-col py-2">
@@ -210,8 +188,16 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						onClick={() => onOpenTarget({ tabId: "summary" })}
 					/>
 				)}
-			/>
-		</aside>
+			>
+				{earlierAttachmentsRequest?.error ? (
+					<AttachmentsErrorAlert
+						className="mt-1"
+						isRetrying={earlierAttachmentsRequest.isRetrying}
+						onRetry={earlierAttachmentsRequest.retry}
+					/>
+				) : null}
+			</OverviewListSection>
+		</ChatOverviewCardShell>
 	);
 };
 
@@ -275,13 +261,29 @@ const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 	return parts.length > 0 ? parts.join(" · ") : undefined;
 };
 
-type RepoChanges = Pick<OverviewRepo, "additions" | "deletions">;
-
-const hasChanges = ({ additions, deletions }: RepoChanges) =>
+const hasChanges = ({ additions, deletions }: DiffStats) =>
 	additions > 0 || deletions > 0;
 
+const EmptyChangesSection: React.FC = () => {
+	const headingId = useId();
+	return (
+		<section
+			aria-labelledby={headingId}
+			className="flex items-center justify-between gap-2 px-1.5 py-2"
+		>
+			<h3
+				id={headingId}
+				className="m-0 text-xs font-normal text-content-secondary"
+			>
+				Changes
+			</h3>
+			<RepoDiffStat additions={0} deletions={0} />
+		</section>
+	);
+};
+
 /** A clean repository shows +0 −0, where the shared badge shows nothing. */
-const RepoDiffStat: React.FC<RepoChanges> = (changes) =>
+const RepoDiffStat: React.FC<DiffStats> = (changes) =>
 	hasChanges(changes) ? (
 		<DiffStatBadge {...changes} />
 	) : (
@@ -310,24 +312,27 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 	);
 };
 
-type OverviewListSectionProps<T> = {
+type OverviewListSectionProps<T> = React.PropsWithChildren<{
 	title: string;
 	items: readonly T[];
 	render: (item: T) => React.ReactNode;
-};
+}>;
 
 /**
- * The toggle stays rendered in both states, so keyboard focus stays on it.
- * Its label names the section, so a screen reader's list of buttons tells
- * the toggles apart.
+ * A titled list, or nothing when the list and `children` are empty. It
+ * shows the first rows and a toggle for the rest, then `children`. The toggle
+ * stays rendered in both states, so keyboard focus stays on it. Its label
+ * names the section, so a screen reader's list of buttons tells the toggles
+ * apart.
  */
 const OverviewListSection = <T,>({
 	title,
 	items,
 	render,
+	children,
 }: OverviewListSectionProps<T>) => {
 	const [expanded, setExpanded] = useState(false);
-	if (items.length === 0) {
+	if (items.length === 0 && !children) {
 		return null;
 	}
 	const hiddenCount = items.length - OVERVIEW_MAX_LIST_ROWS;
@@ -345,6 +350,7 @@ const OverviewListSection = <T,>({
 						: `Show all ${items.length} ${title.toLowerCase()}`}
 				</button>
 			)}
+			{children}
 		</OverviewSection>
 	);
 };

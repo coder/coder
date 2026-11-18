@@ -199,7 +199,7 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 					<div className="min-w-0 lg:flex-1">
 						<FormField
 							field={getFieldHelpers("apiKey")}
-							label="API Key"
+							label="API key"
 							type="password"
 							placeholder="sk-..."
 							disabled={inputDisabled}
