@@ -4847,8 +4847,8 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	// Use only a token from a config that matches the origin, so the token is
-	// never sent to another provider's API host.
+	// Use only a token from a config that matches the origin, so coderd never
+	// sends the token to another provider's API host.
 	var (
 		auth  originAuth
 		token string
@@ -5039,7 +5039,7 @@ type originAuth struct {
 }
 
 // externalAuthForOrigin returns, in configuration order, every external auth
-// config whose regex matches origin and whose git provider can be constructed.
+// config whose regex matches origin and that builds a git provider.
 func (api *API) externalAuthForOrigin(ctx context.Context, origin string) []originAuth {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {

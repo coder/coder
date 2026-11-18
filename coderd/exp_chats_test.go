@@ -12626,7 +12626,7 @@ func rejectedGitHubConfig(srv *httptest.Server, id, displayName string) *externa
 }
 
 // seedRejectedGitHubChat stores a link for providerID and a chat whose diff
-// reference is origin and branch. A non-empty prURL is stored as the
+// reference is origin and branch. It stores a non-empty prURL as the
 // reference's pull request.
 func seedRejectedGitHubChat(
 	ctx context.Context,
@@ -12761,7 +12761,7 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 		chat := seedRejectedGitHubChat(ctx, t, api.Database, "other-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", "")
 
 		// The only link belongs to a provider that does not match the origin, so
-		// no diff is fetched and the GitHub stub never sees that token.
+		// coderd fetches no diff and the GitHub stub never sees that token.
 		res, err := client.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()

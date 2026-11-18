@@ -13,9 +13,9 @@ type ChatDiffReauthNoticeProps = {
 };
 
 /**
- * Shown in place of the diff for a ChatDiffReauthRequired error. The owner
- * reconnects in a popup, and the diff refetches when the popup closes, whether
- * or not the reconnect succeeded.
+ * Replaces the diff when the diff endpoint returns ChatDiffReauthRequired. The
+ * owner reconnects in a popup. The notice refetches the diff when the popup
+ * closes, whether or not the reconnect succeeded.
  */
 export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 	chatId,
