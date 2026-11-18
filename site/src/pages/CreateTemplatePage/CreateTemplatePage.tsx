@@ -4,7 +4,9 @@ import { useNavigate, useSearchParams } from "react-router";
 import { createTemplate } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
@@ -13,6 +15,7 @@ import type { CreateTemplatePageViewProps } from "./types";
 import { UploadTemplateView } from "./UploadTemplateView";
 
 const CreateTemplatePage: React.FC = () => {
+	const { permissions } = useAuthenticated();
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const [searchParams] = useSearchParams();
@@ -82,10 +85,10 @@ const CreateTemplatePage: React.FC = () => {
 	};
 
 	return (
-		<>
-			<title>{pageTitle("Create Template")}</title>
+		<RequirePermission isFeatureVisible={permissions.createTemplates}>
+			<title>{pageTitle("Create template")}</title>
 
-			<FullPageHorizontalForm title="Create Template">
+			<FullPageHorizontalForm title="Create template">
 				{searchParams.has("fromTemplate") ? (
 					<DuplicateTemplateView {...pageViewProps} />
 				) : searchParams.has("exampleId") ? (
@@ -103,7 +106,7 @@ const CreateTemplatePage: React.FC = () => {
 				onCloseAutoFocus={restoreFocusOnDrawerClose}
 				templateVersion={templateVersion}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 
