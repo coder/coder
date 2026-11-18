@@ -685,10 +685,10 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 	return files
 }
 
-// TestComposeBundlesReferencedFiles verifies every file a base's main.tf
-// passes to file() or templatefile() is bundled with the composed template,
-// so terraform plan can read it.
-func TestComposeBundlesReferencedFiles(t *testing.T) {
+// TestBaseBundlesReferencedFiles verifies every file a base's main.tf passes
+// to file() or templatefile() is bundled with the base, so terraform plan can
+// read it.
+func TestBaseBundlesReferencedFiles(t *testing.T) {
 	t.Parallel()
 
 	// Guards against the walk silently finding nothing.
@@ -701,21 +701,11 @@ func TestComposeBundlesReferencedFiles(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			vars := map[string]string{}
-			for _, v := range templatebuilder.BaseVariables(id) {
-				if v.Required {
-					vars[v.Name] = "test"
-				}
-			}
-			result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-				BaseTemplateID:     id,
-				BaseVariableValues: vars,
-				RegistryURL:        "registry.coder.com",
-			})
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", testRenderContext(id))
 			require.NoError(t, err)
-
-			for _, ref := range fileReferences(t, result.MainTF) {
-				assert.Contains(t, result.ExtraFiles, ref, "%q is referenced but not bundled", ref)
+			extraFiles := templatebuilder.BaseExtraFiles(id)
+			for _, ref := range fileReferences(t, rendered) {
+				assert.Contains(t, extraFiles, ref, "%q is referenced but not bundled", ref)
 			}
 		})
 	}
