@@ -10,7 +10,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/lib/pq"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
@@ -52,8 +51,8 @@ const (
 	msgOutcomeCommittedBeforeFailure = "committed database migrations before failure"
 	msgOutcomeUnknown                = "database migration commit outcome unknown"
 	msgOutcomeLockTimeout            = "gave up waiting for database migration lock"
-	msgSchemaDirty                   = "database schema is dirty"
-	msgOutcomeDirty                  = "database migration outcome: dirty schema"
+	msgOutcomeDirty                  = "database schema is dirty"
+	msgOutcomeFailedBeforeStart      = "database migration failed before it started"
 )
 
 type migrationRef struct {
@@ -104,9 +103,9 @@ type reporter struct {
 	total       int
 	position    int
 	stepVersion int
-	// applied lists the migrations that ran in the transaction. They are
+	// applied counts the migrations that ran in the transaction. They are
 	// only saved if it commits.
-	applied []appliedMigration
+	applied int
 	// failed is the migration whose statement failed, if any.
 	failed *failedMigration
 
@@ -252,21 +251,15 @@ func (r *reporter) stepApplied(version int) {
 		return
 	}
 	duration := r.stopHeartbeat()
-	r.applied = append(r.applied, appliedMigration{
-		migrationRef: migrationRef{version: version, name: r.names[version]},
-		duration:     duration,
-	})
+	r.applied++
 
 	fields := append(r.stepFields(version), slog.F("duration_ms", duration.Milliseconds()))
 	r.logStep(msgApplied, fields...)
 }
 
-// statementFailed records which migration failed, how long it ran and
-// PostgreSQL's error. It is called while the step's heartbeat still runs.
+// statementFailed records which migration failed, how long it ran and the
+// driver's error. It is called while the step's heartbeat still runs.
 func (r *reporter) statementFailed(err error) {
-	var pgErr *pq.Error
-	_ = xerrors.As(err, &pgErr)
-
 	var duration time.Duration
 	if r.hb != nil {
 		duration = r.clock.Since(r.hb.since)
@@ -275,7 +268,6 @@ func (r *reporter) statementFailed(err error) {
 		migrationRef: migrationRef{version: r.stepVersion, name: r.names[r.stepVersion]},
 		duration:     duration,
 		err:          err,
-		pgErr:        pgErr,
 	}
 }
 

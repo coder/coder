@@ -38,39 +38,33 @@ const (
 	xactUnknown   = "unknown"
 )
 
-type appliedMigration struct {
-	migrationRef
-	duration time.Duration
-}
-
 type failedMigration struct {
 	migrationRef
 	duration time.Duration
 	// err is the error of the failed statement, as returned by the driver.
 	// It never contains the SQL.
 	err error
-	// pgErr is PostgreSQL's error, nil when the statement failed for
-	// another reason, such as a broken connection.
-	pgErr *pq.Error
 }
 
-// runResult describes how a whole upgrade ended, across all its pending
-// migrations.
+// pgError returns PostgreSQL's error, or nil when the statement failed for
+// another reason, such as a broken connection.
+func (f *failedMigration) pgError() *pq.Error {
+	var pgErr *pq.Error
+	if errors.As(f.err, &pgErr) {
+		return pgErr
+	}
+	return nil
+}
+
+// runResult is what finish learned about how the upgrade ended.
 type runResult struct {
-	StartedAt  time.Time
-	FinishedAt time.Time
-	// FromVersion, TargetVersion and SchemaVersion are database.NilVersion
-	// when there is no version or it is unknown. SchemaVersion is the
-	// version saved after the run, as read from PostgreSQL.
-	FromVersion   int
-	TargetVersion int
-	SchemaVersion int
-	// Applied lists the migrations that ran in the migration transaction.
-	// They are only saved if it committed.
-	Applied           []appliedMigration
-	Failed            *failedMigration
-	TransactionStatus string
-	Outcome           runOutcome
+	outcome runOutcome
+	now     time.Time
+	// finalVersion is the schema version saved after the run: the target on
+	// a commit, otherwise as read from PostgreSQL, or database.NilVersion
+	// when there is none or it is unknown.
+	finalVersion int
+	xactStatus   string
 }
 
 // outcomeInput is what classify decides from.
@@ -115,118 +109,125 @@ func classify(in outcomeInput) runOutcome {
 //
 // finish asks PostgreSQL how the upgrade ended, logs one outcome line, and
 // returns the error for the caller.
-func (r *reporter) finish(err error) (runResult, error) {
+func (r *reporter) finish(err error) error {
+	if errors.Is(err, migrate.ErrNoChange) {
+		// Nothing to migrate is a success.
+		err = nil
+	}
+
 	res := runResult{
-		StartedAt:         r.runStart,
-		FinishedAt:        r.clock.Now(),
-		FromVersion:       r.fromVersion,
-		TargetVersion:     r.targetVersion,
-		SchemaVersion:     r.fromVersion,
-		Applied:           r.applied,
-		Failed:            r.failed,
-		TransactionStatus: xactUnknown,
+		now:          r.clock.Now(),
+		finalVersion: r.fromVersion,
+		xactStatus:   xactUnknown,
 	}
-	// xid is only read once started: before that, an abandoned Lock may
-	// still write it.
-	if r.started && r.total > 0 {
-		res.TransactionStatus, res.SchemaVersion = r.readOutcome(r.xid)
+	switch {
+	case err == nil:
+		// The commit returned without an error, so it happened and saved
+		// the target version. PostgreSQL is only asked when that is
+		// unclear.
+		res.finalVersion = r.targetVersion
+		res.xactStatus = xactCommitted
+	case r.started && r.total > 0:
+		// xid is only read once started: before that, an abandoned Lock
+		// may still write it.
+		res.xactStatus, res.finalVersion = r.readOutcome(r.xid)
 	}
-	res.Outcome = classify(outcomeInput{
+	res.outcome = classify(outcomeInput{
 		err:        err,
 		started:    r.started,
 		total:      r.total,
-		xactStatus: res.TransactionStatus,
+		xactStatus: res.xactStatus,
 	})
-	if res.Outcome == outcomeCommitted && res.SchemaVersion == database.NilVersion {
-		// The commit succeeded, so the target version is what was saved.
-		res.SchemaVersion = res.TargetVersion
-	}
 
 	r.logOutcome(res, err)
 
 	if err != nil {
-		if res.Failed != nil {
-			return res, xerrors.Errorf("up: %w", res.Failed.asError())
+		if r.failed != nil {
+			return xerrors.Errorf("up: %w", r.failed.asError())
 		}
-		return res, xerrors.Errorf("up: %w", err)
+		return xerrors.Errorf("up: %w", err)
 	}
-
-	return res, nil
+	return nil
 }
 
 // logOutcome logs with context.Background: runCtx is already canceled.
 func (r *reporter) logOutcome(res runResult, err error) {
 	ctx := context.Background()
-	total := slog.F("total_duration_ms", res.FinishedAt.Sub(res.StartedAt).Milliseconds())
-	count := slog.F("count", len(res.Applied))
-	xactStatus := slog.F("transaction_status", res.TransactionStatus)
+	total := slog.F("total_duration_ms", res.now.Sub(r.runStart).Milliseconds())
+	count := slog.F("count", r.applied)
+	xactStatus := slog.F("transaction_status", res.xactStatus)
+	finalVersion := versionField("final_version", res.finalVersion)
+	failure := []slog.Field{slog.F("status", "failure"), count}
 
-	switch res.Outcome {
+	switch res.outcome {
 	case outcomeNoChange:
 		// Debug level: most starts have nothing to migrate, and they should
 		// not add a line to every server start.
 		fields := []slog.Field{slog.F("status", "success"), count}
-		fields = append(fields, versionField("schema_version", res.SchemaVersion)...)
+		fields = append(fields, finalVersion...)
 		r.logger.Debug(ctx, msgOutcomeNoChange, append(fields, total)...)
 
 	case outcomeCommitted:
 		fields := []slog.Field{slog.F("status", "success"), count}
-		fields = append(fields, versionField("from_version", res.FromVersion)...)
-		fields = append(fields, versionField("to_version", res.SchemaVersion)...)
+		fields = append(fields, versionField("from_version", r.fromVersion)...)
+		fields = append(fields, finalVersion...)
 		r.logger.Info(ctx, msgOutcomeCommitted, append(fields, xactStatus, total)...)
 
 	case outcomeRolledBack:
-		fields := []slog.Field{slog.F("status", "failure"), count}
-		if res.Failed != nil {
-			fields = append(fields, slog.F("version", res.Failed.version), slog.F("name", res.Failed.name))
+		fields := failure
+		if r.failed != nil {
+			fields = append(fields, slog.F("version", r.failed.version), slog.F("name", r.failed.name))
 		}
-		fields = append(fields, versionField("schema_version", res.SchemaVersion)...)
-		if res.Failed != nil && res.Failed.pgErr != nil {
-			fields = append(fields, slog.F("sqlstate", string(res.Failed.pgErr.Code)))
+		fields = append(fields, finalVersion...)
+		if r.failed != nil {
+			if pgErr := r.failed.pgError(); pgErr != nil {
+				fields = append(fields, slog.F("sqlstate", pgErr.Code))
+			}
 		}
 		fields = append(fields, xactStatus, total)
-		if res.Failed != nil {
-			fields = append(fields, slog.F("failed_duration_ms", res.Failed.duration.Milliseconds()))
+		if r.failed != nil {
+			fields = append(fields, slog.F("failed_duration_ms", r.failed.duration.Milliseconds()))
 		}
+		fields = append(fields, slog.F("error", safeErrorText(r.failed, err)))
 		r.logger.Error(ctx, msgOutcomeRolledBack, fields...)
 
 	case outcomeCommittedBeforeFailure:
-		fields := []slog.Field{slog.F("status", "failure"), count}
-		fields = append(fields, versionField("from_version", res.FromVersion)...)
-		fields = append(fields, versionField("to_version", res.SchemaVersion)...)
-		r.logger.Error(ctx, msgOutcomeCommittedBeforeFailure, append(fields, xactStatus, total)...)
+		fields := failure
+		fields = append(fields, versionField("from_version", r.fromVersion)...)
+		fields = append(fields, finalVersion...)
+		fields = append(fields, xactStatus, total, slog.F("error", safeErrorText(r.failed, err)))
+		r.logger.Error(ctx, msgOutcomeCommittedBeforeFailure, fields...)
 
 	case outcomeUnknown:
-		fields := []slog.Field{slog.F("status", "failure"), count}
-		fields = append(fields, versionField("version", res.FromVersion)...)
-		fields = append(fields, xactStatus, total, slog.F("error", safeErrorText(res, err)))
+		fields := failure
+		fields = append(fields, finalVersion...)
+		fields = append(fields, xactStatus, total, slog.F("error", safeErrorText(r.failed, err)))
 		r.logger.Warn(ctx, msgOutcomeUnknown, fields...)
 
 	case outcomeLockTimeout:
 		// The batch Lock is the first thing m.Up waits for, so the time
 		// since Up called it is the lock wait.
 		r.logger.Error(ctx, msgOutcomeLockTimeout,
-			slog.F("status", "failure"), count, slog.F("waited_ms", res.FinishedAt.Sub(r.upStart).Milliseconds()))
+			append(failure, slog.F("waited_ms", res.now.Sub(r.upStart).Milliseconds()), slog.F("error", safeErrorText(r.failed, err)))...)
 
 	case outcomeDirty:
 		var dirty migrate.ErrDirty
 		_ = errors.As(err, &dirty)
-		dirtyErr := slog.F("error", fmt.Sprintf("dirty database version %d", dirty.Version))
-		r.logger.Error(ctx, msgSchemaDirty,
-			slog.F("status", "failure"), slog.F("version", dirty.Version), dirtyErr)
-		r.logger.Error(ctx, msgOutcomeDirty,
-			slog.F("status", "failure"), count, slog.F("schema_version", dirty.Version), total, dirtyErr)
+		r.logger.Error(ctx, msgOutcomeDirty, append(failure,
+			slog.F("final_version", dirty.Version), total,
+			slog.F("error", fmt.Sprintf("dirty database version %d", dirty.Version)))...)
 
 	case outcomeFailedBeforeStart:
-		// The error is reported by the caller, as without reporting.
+		r.logger.Error(ctx, msgOutcomeFailedBeforeStart,
+			append(failure, total, slog.F("error", safeErrorText(r.failed, err)))...)
 	}
 }
 
 // safeErrorText describes a failure without migration SQL or PostgreSQL's
 // detail text, which can contain row data.
-func safeErrorText(res runResult, err error) string {
-	if res.Failed != nil {
-		return res.Failed.asError().Error()
+func safeErrorText(failed *failedMigration, err error) string {
+	if failed != nil {
+		return failed.asError().Error()
 	}
 	// golang-migrate's database.Error prints the query it ran. Outside a
 	// migration statement that is one of its own short statements, but
@@ -330,8 +331,8 @@ func (r *reporter) savedVersion(ctx context.Context) (int, error) {
 // detail text.
 func (f *failedMigration) asError() *migrationError {
 	cause := f.err
-	if f.pgErr != nil {
-		cause = f.pgErr
+	if pgErr := f.pgError(); pgErr != nil {
+		cause = pgErr
 	}
 	return &migrationError{migrationRef: f.migrationRef, cause: cause}
 }

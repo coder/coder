@@ -11,32 +11,20 @@ import (
 	"github.com/coder/quartz"
 )
 
-// TestOutcome covers the outcome line of runs that end other than with a
-// plain commit, which TestReporter's Success case covers.
+// TestOutcome covers the outcome line of runs through Up that do not commit.
+// TestReporter's cases cover the committed line.
 func TestOutcome(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	t.Run("CommittedFreshInstall", func(t *testing.T) {
-		t.Parallel()
-		db := testSQLDB(t)
-
-		sink := newGoldenSink()
-		fsys := migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`)
-		require.NoError(t, migrations.Up(db, testOptions(sink, quartz.NewMock(t), "test/committed-fresh-install", fsys)...))
-
-		// There was no version before, so from_version is omitted.
-		requireGolden(t, sink, "committed_fresh_install")
-	})
-
 	t.Run("RolledBack", func(t *testing.T) {
 		t.Parallel()
 		db := testSQLDB(t)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int PRIMARY KEY);`))))
 
-		sink := newGoldenSink()
+		sink := migrations.NewGoldenSink()
 		fsys := migrationFS(
 			`CREATE TABLE a (id int PRIMARY KEY);`,
 			`CREATE TABLE b (id int);`,
@@ -65,7 +53,7 @@ func TestOutcome(t *testing.T) {
 		_, err := db.Exec(`UPDATE schema_migrations SET dirty = true`)
 		require.NoError(t, err)
 
-		sink := newGoldenSink()
+		sink := migrations.NewGoldenSink()
 		fsys := migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`)
 		err = migrations.Up(db, testOptions(sink, quartz.NewMock(t), "test/dirty", fsys)...)
 		require.ErrorAs(t, err, new(migrate.ErrDirty))

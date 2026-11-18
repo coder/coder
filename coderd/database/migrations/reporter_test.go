@@ -1,16 +1,10 @@
 package migrations_test
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -19,16 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-// To update the golden files:
-// make gen/golden-files
-var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 // migrationFS returns one migration per statement, named step_1, step_2, ...
 func migrationFS(stmts ...string) fstest.MapFS {
@@ -40,73 +28,10 @@ func migrationFS(stmts ...string) fstest.MapFS {
 	return fsys
 }
 
-// goldenSink writes log entries in the server's human-readable format
-// (sloghuman) without the timestamp, so a run on a mock clock can be
-// compared byte for byte.
-type goldenSink struct {
-	mu    sync.Mutex
-	buf   bytes.Buffer
-	human slog.Sink
-	pids  map[int]string
-}
-
-// zeroTimePrefix is what sloghuman writes for a zero time.
-const zeroTimePrefix = "0001-01-01 00:00:00.000 "
-
-func newGoldenSink() *goldenSink {
-	s := &goldenSink{pids: map[int]string{}}
-	s.human = sloghuman.Sink(&s.buf)
-	return s
-}
-
-func (s *goldenSink) logger() slog.Logger {
-	return slog.Make(s).Leveled(slog.LevelDebug)
-}
-
-// namePID makes String write pid as name. PostgreSQL assigns a new backend
-// PID to every connection, so a raw PID would change the output on every
-// run. A name keeps it stable and still shows that blocked_by reports the
-// session the test made block the migration.
-func (s *goldenSink) namePID(pid int, name string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.pids[pid] = name
-}
-
-func (s *goldenSink) LogEntry(ctx context.Context, e slog.SinkEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	e.Time = time.Time{}
-	s.human.LogEntry(ctx, e)
-}
-
-func (*goldenSink) Sync() {}
-
-func (s *goldenSink) String() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := strings.ReplaceAll(s.buf.String(), "\n"+zeroTimePrefix, "\n")
-	out = strings.TrimPrefix(out, zeroTimePrefix)
-	for pid, name := range s.pids {
-		// sloghuman writes a single blocked_by PID as [6652].
-		out = strings.ReplaceAll(out, "["+strconv.Itoa(pid)+"]", "["+name+"]")
-	}
-	return out
-}
-
 // requireGolden compares the sink's output with testdata/reporter/name.golden.
-func requireGolden(t *testing.T, sink *goldenSink, name string) {
+func requireGolden(t *testing.T, sink *migrations.GoldenSink, name string) {
 	t.Helper()
-	got := sink.String()
-	path := filepath.Join("testdata", "reporter", name+".golden")
-	if *updateGoldenFiles {
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
-		return
-	}
-	want, err := os.ReadFile(path)
-	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" to create it")
-	require.Equal(t, string(want), got, "golden file %s differs, run \"make gen/golden-files\" if the change is intended", path)
+	migrations.RequireGolden(t, name, sink.String())
 }
 
 // waitForLockWait waits until the migration connection, identified by its
@@ -122,9 +47,8 @@ WHERE application_name = $1 AND datname = current_database() AND wait_event_type
 	}, testutil.IntervalFast)
 }
 
-// blockingObserver is a database whose first query blocks until released and
-// ignores cancellation, like a PostgreSQL driver in the middle of a query.
-// Later queries fail at once with errObserverUnavailable.
+// blockingObserver is a database whose queries block until released and
+// ignore cancellation, like a PostgreSQL driver in the middle of a query.
 type blockingObserver struct {
 	entered      chan struct{}
 	release      chan struct{}
@@ -132,14 +56,6 @@ type blockingObserver struct {
 	enteredOnce  sync.Once
 	returnedOnce sync.Once
 }
-
-// observerError is an error without a stack frame, so golden files do not
-// depend on line numbers.
-type observerError string
-
-func (e observerError) Error() string { return string(e) }
-
-const errObserverUnavailable = observerError("observer unavailable")
 
 func newBlockingObserver(t *testing.T) (*blockingObserver, *sql.DB) {
 	t.Helper()
@@ -174,14 +90,7 @@ func (blockingObserverConn) Close() error              { return nil }
 func (blockingObserverConn) Begin() (driver.Tx, error) { return nil, xerrors.New("not supported") }
 
 func (c blockingObserverConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
-	first := false
-	c.o.enteredOnce.Do(func() {
-		first = true
-		close(c.o.entered)
-	})
-	if !first {
-		return nil, errObserverUnavailable
-	}
+	c.o.enteredOnce.Do(func() { close(c.o.entered) })
 	<-c.o.release
 	c.o.returnedOnce.Do(func() { close(c.o.returned) })
 	return nil, xerrors.New("observer released")
@@ -196,10 +105,10 @@ func backendPID(ctx context.Context, t *testing.T, tx *sql.Tx) int {
 
 // testOptions are the options every test run uses: the sink's logger, a mock
 // clock so durations are stable, and a one second heartbeat.
-func testOptions(sink *goldenSink, mClock *quartz.Mock, appName string, fsys fstest.MapFS) []migrations.Option {
+func testOptions(sink *migrations.GoldenSink, mClock *quartz.Mock, appName string, fsys fstest.MapFS) []migrations.Option {
 	return []migrations.Option{
 		migrations.WithFS(fsys),
-		migrations.WithLogger(sink.logger()),
+		migrations.WithLogger(sink.Logger()),
 		migrations.WithAppName(appName),
 		migrations.WithClock(mClock),
 		migrations.WithHeartbeatInterval(time.Second),
@@ -217,7 +126,7 @@ func TestReporter(t *testing.T) {
 		db := testSQLDB(t)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`))))
 
-		sink := newGoldenSink()
+		sink := migrations.NewGoldenSink()
 		fsys := migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`, `CREATE TABLE c (id int);`)
 		require.NoError(t, migrations.Up(db, testOptions(sink, quartz.NewMock(t), "test/success", fsys)...))
 
@@ -230,7 +139,7 @@ func TestReporter(t *testing.T) {
 		fsys := migrationFS(`CREATE TABLE a (id int);`)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(fsys)))
 
-		sink := newGoldenSink()
+		sink := migrations.NewGoldenSink()
 		require.NoError(t, migrations.Up(db, testOptions(sink, quartz.NewMock(t), "test/up-to-date", fsys)...))
 
 		requireGolden(t, sink, "up_to_date")
@@ -245,8 +154,8 @@ func TestReporter(t *testing.T) {
 		holder, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = holder.Rollback() }()
-		sink := newGoldenSink()
-		sink.namePID(backendPID(ctx, t, holder), "holder")
+		sink := migrations.NewGoldenSink()
+		sink.NamePID(backendPID(ctx, t, holder), "holder")
 		_, err = holder.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, migrations.LockID)
 		require.NoError(t, err)
 
@@ -281,8 +190,8 @@ func TestReporter(t *testing.T) {
 		blocker, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = blocker.Rollback() }()
-		sink := newGoldenSink()
-		sink.namePID(backendPID(ctx, t, blocker), "blocker")
+		sink := migrations.NewGoldenSink()
+		sink.NamePID(backendPID(ctx, t, blocker), "blocker")
 		_, err = blocker.ExecContext(ctx, `LOCK TABLE a IN ACCESS SHARE MODE`)
 		require.NoError(t, err)
 
@@ -328,7 +237,7 @@ func TestReporter(t *testing.T) {
 
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
-		sink := newGoldenSink()
+		sink := migrations.NewGoldenSink()
 
 		opts := append(testOptions(sink, mClock, appName, migrationFS(`CREATE TABLE a (id int);`)), migrations.WithObserverDB(observer))
 		done := make(chan error, 1)
@@ -371,7 +280,7 @@ func TestReporter(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
-		sink := newGoldenSink()
+		sink := migrations.NewGoldenSink()
 
 		fsys := migrationFS(`CREATE TABLE a (id int);`, `ALTER TABLE a ADD COLUMN c int;`)
 		opts := append(testOptions(sink, mClock, appName, fsys), migrations.WithObserverDB(observerDB))
@@ -397,8 +306,7 @@ func TestReporter(t *testing.T) {
 		require.NoError(t, testutil.RequireReceive(ctx, t, done))
 
 		// Once the late check returns, its result is discarded, so the golden
-		// file has no heartbeat line. The warning comes from the outcome
-		// query, which the observer fails at once.
+		// file has no heartbeat or warning line.
 		close(observer.release)
 		_ = testutil.TryReceive(ctx, t, observer.returned)
 		advance.MustWait(ctx)

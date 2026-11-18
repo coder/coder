@@ -6,4 +6,4 @@
 [info]  applying database migration  version=2  name=step_2  position=1  total=2
 [info]  database migration applied, pending commit  version=2  name=step_2  position=1  total=2  duration_ms=0
 [info]  applying database migration  version=3  name=step_3  position=2  total=2
-[erro]  migration failed, transaction rolled back, no changes saved  status=failure  count=1  version=3  name=step_3  schema_version=1  sqlstate=23505  transaction_status=aborted  total_duration_ms=0  failed_duration_ms=0
+[erro]  migration failed, transaction rolled back, no changes saved  status=failure  count=1  version=3  name=step_3  final_version=1  sqlstate=23505  transaction_status=aborted  total_duration_ms=0  failed_duration_ms=0  error="migration 3 (step_3): migration failed: duplicate key value violates unique constraint \"a_pkey\" (sqlstate=23505)"
