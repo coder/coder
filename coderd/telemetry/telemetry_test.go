@@ -1330,13 +1330,15 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 	require.NoError(t, err)
 	// A pins two of four projects, unpinned the other two and reorders one;
 	// B pins its only project; C has a shared project and no pins; D has no
-	// projects; suspended E is not counted.
+	// projects, only a grant without read; suspended E is not counted.
 	userA := dbgen.User(t, db, database.User{})
 	userB := dbgen.User(t, db, database.User{})
 	userC := dbgen.User(t, db, database.User{})
-	_ = dbgen.User(t, db, database.User{})
+	userD := dbgen.User(t, db, database.User{})
 	userE := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userC.ID, OrganizationID: org.ID})
+	for _, user := range []database.User{userC, userD} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
 	newProject := func(owner database.User) database.ChatProject {
 		return dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	}
@@ -1354,8 +1356,11 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 	foreignGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: foreignGroup.ID, UserID: userF.ID})
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
-		ID:       a1.ID,
-		UserACL:  database.ChatACL{userC.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		ID: a1.ID,
+		UserACL: database.ChatACL{
+			userC.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+			userD.ID.String(): {Permissions: []policy.Action{policy.ActionShare}},
+		},
 		GroupACL: database.ChatACL{foreignGroup.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 	}))
 
