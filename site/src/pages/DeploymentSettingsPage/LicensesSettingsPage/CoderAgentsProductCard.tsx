@@ -124,7 +124,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 					{actual !== undefined && (
 						<div>
 							<div className="flex items-center gap-1 font-medium text-content-secondary">
-								<span>Agent hours used</span>
+								<span>Agent Hours used</span>
 							</div>
 							<div className="mt-0.5 text-sm text-content-primary">
 								{formatHoursUsed(actual)}
@@ -176,7 +176,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 			<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 				<div>
 					<MetricLabel
-						label="Total Agent hours"
+						label="Total Agent Hours"
 						tooltip={totalAgentHoursTooltip}
 					/>
 					<div className="mt-0.5 text-sm text-content-primary">
