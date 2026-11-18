@@ -14,7 +14,6 @@ import type {
 	ChatDiffStatus,
 	ChatStatus,
 } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
@@ -24,6 +23,7 @@ import {
 import { formatCostMicros } from "#/utils/currency";
 import type { EarlierAttachmentsRequest } from "../hooks/useChatAttachments";
 import { buildAgentChatPath } from "../utils/navigation";
+import { AttachmentsErrorAlert } from "./AttachmentsErrorAlert";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
 import {
@@ -32,7 +32,6 @@ import {
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
 import type { DiffStats } from "./GitPanel/gitViews";
-import { RetryButton } from "./RetryButton";
 
 const OVERVIEW_MAX_LIST_ROWS = 3;
 /**
@@ -221,18 +220,10 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				)}
 			>
 				{earlierAttachmentsRequest?.error ? (
-					<ErrorAlert
-						error={earlierAttachmentsRequest.error}
-						showDebugDetail={false}
-						className="mt-1 p-3"
-						actions={
-							<RetryButton
-								variant="outline"
-								size="sm"
-								isRetrying={earlierAttachmentsRequest.isRetrying}
-								onRetry={earlierAttachmentsRequest.retry}
-							/>
-						}
+					<AttachmentsErrorAlert
+						className="mt-1"
+						isRetrying={earlierAttachmentsRequest.isRetrying}
+						onRetry={earlierAttachmentsRequest.retry}
 					/>
 				) : null}
 			</OverviewListSection>

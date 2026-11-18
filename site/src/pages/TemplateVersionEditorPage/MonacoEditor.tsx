@@ -3,6 +3,7 @@ import * as monaco from "monaco-editor";
 import { useEffect } from "react";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
+import { getMonacoTheme } from "#/theme/monaco";
 
 loader.config({ monaco });
 
@@ -44,7 +45,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 				// Not a biggie!
 			});
 
-		monaco.editor.defineTheme("min", theme.monaco);
+		monaco.editor.defineTheme("min", getMonacoTheme(theme.mode));
 	}, [theme]);
 
 	return (

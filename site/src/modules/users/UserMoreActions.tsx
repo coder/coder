@@ -35,7 +35,7 @@ export const UserMoreActions: React.FC<UserMoreActionsProps> = ({
 					size="icon-lg"
 					variant="subtle"
 					type="button"
-					aria-label="Open menu"
+					aria-label={`Open menu for ${user.username}`}
 				>
 					<EllipsisVerticalIcon aria-hidden="true" />
 				</Button>

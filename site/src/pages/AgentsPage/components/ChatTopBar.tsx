@@ -279,9 +279,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						<span className="truncate text-sm text-content-primary">
+						<h2 className="m-0 truncate text-sm text-content-primary">
 							{chatTitle}
-						</span>
+						</h2>
 						{isSharedChat && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"
@@ -295,7 +295,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					<ChatActionsMenu
 						key={chat.id}
 						align="start"
-						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-[13px]"
 						onArchived={navigateAfterArchive}
 						chat={chat}
 						canManage={canManage}
@@ -341,7 +341,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						<button
 							type="button"
 							className={cn(
-								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 								panel.showSidebarPanel && "lg:hidden",
 							)}
 						>
@@ -405,7 +405,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 			target="_blank"
 			rel="noreferrer"
 			className={cn(
-				"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+				"inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 				className,
 			)}
 		>
@@ -414,7 +414,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 				draft={status.pull_request_draft}
 				className="size-3.5! shrink-0"
 			/>
-			<span className="truncate max-w-[120px] hidden sm:inline">
+			<span className="truncate max-w-30 hidden sm:inline">
 				{status.pull_request_title || (number ? `#${number}` : "PR")}
 			</span>
 			<span className="sm:hidden">{number ?? "PR"}</span>

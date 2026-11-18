@@ -151,13 +151,13 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 			{Boolean(error) && <ErrorAlert error={error} />}
 			<form onSubmit={form.handleSubmit}>
 				<fieldset disabled={form.isSubmitting} className="border-none">
-					<div className="flex flex-row">
+					<div className="flex">
 						<div className="grid items-center gap-1">
 							<Label className="text-sm" htmlFor={`${id}-sync-field`}>
 								Organization sync field
 							</Label>
-							<div className="flex flex-row items-center gap-5">
-								<div className="flex flex-row gap-2 w-72">
+							<div className="flex items-center gap-5">
+								<div className="flex gap-2 w-72">
 									<Input
 										id={`${id}-sync-field`}
 										value={form.values.field}
@@ -179,7 +179,7 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 										Save
 									</Button>
 								</div>
-								<div className="flex flex-row items-center gap-3">
+								<div className="flex items-center gap-3">
 									<Switch
 										id={`${id}-assign-default-org`}
 										checked={form.values.organization_assign_default}
@@ -195,7 +195,7 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 											}
 										}}
 									/>
-									<span className="flex flex-row items-center gap-1">
+									<span className="flex items-center gap-1">
 										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
@@ -214,7 +214,7 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 						</p>
 					)}
 					<div className="flex flex-col gap-7">
-						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
+						<div className="flex pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1 w-72">
 								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
@@ -238,7 +238,10 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 												placeholder="Select IdP organization"
 											/>
 										</ComboboxTrigger>
-										<ComboboxContent className="w-72">
+										<ComboboxContent
+											className="w-72"
+											label="Search IdP organizations"
+										>
 											<ComboboxInput
 												value={inputValue}
 												onValueChange={setInputValue}
@@ -409,7 +412,11 @@ const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 						message="No organization mappings"
 						isCompact
 						cta={
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+							<Link
+								href={docs("/admin/users/idp-sync#organization-sync")}
+								target="_blank"
+								rel="noreferrer"
+							>
 								How to set up IdP organization sync
 							</Link>
 						}
@@ -438,7 +445,7 @@ const OrganizationRow: React.FC<OrganizationRowProps> = ({
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2 text-content-primary">
+				<div className="flex items-center gap-2 text-content-primary">
 					{idpOrg}
 					{!exists && <IdpUnseenClaimWarning />}
 				</div>

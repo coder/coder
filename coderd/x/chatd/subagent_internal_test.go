@@ -47,40 +47,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestSubagentFallbackChatTitle(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "EmptyPrompt",
-			input: "",
-			want:  "New Chat",
-		},
-		{
-			name:  "ShortPrompt",
-			input: "Open Firefox",
-			want:  "Open Firefox",
-		},
-		{
-			name:  "LongPrompt",
-			input: "Please open the Firefox browser and navigate to the settings page",
-			want:  "Please open the Firefox browser and...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := subagentFallbackChatTitle(tt.input)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 type internalTestServerConfig struct {
 	logger           slog.Logger
 	clock            quartz.Clock
@@ -913,7 +879,7 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
-	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
+	require.Equal(t, chatprompt.FallbackTitle("inspect bindings"), childChat.Title)
 	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
 }
 
@@ -2762,7 +2728,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, model.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
 		require.Nil(t, got.reasoningEffort)
 	})
 
@@ -2780,7 +2745,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, override.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, got.provider)
 		require.Equal(t, ptr.Ref("high"), got.reasoningEffort)
 	})
 
@@ -2798,7 +2762,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, model.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
 		require.Nil(t, got.reasoningEffort)
 	})
 
@@ -2812,7 +2775,55 @@ func TestResolveComputerUseModel(t *testing.T) {
 		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
 		require.NoError(t, err)
 		require.Contains(t, reason, `model "gemini-test" uses AI provider`)
-		require.Contains(t, reason, `of type "google"; computer use requires an Anthropic or OpenAI AI provider`)
+		require.Contains(t, reason, `of type "google"; computer use requires `+chatprovider.ComputerUseModelRequirement)
+	})
+
+	t.Run("BedrockClaudeDefaultModel", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		// Bedrock supports ambient credentials, so the provider has no key.
+		user, org, model := seedComputerUseDeps(t, db, database.AIProviderTypeBedrock, "", "us.anthropic.claude-opus-5-5")
+
+		ctx := chatdTestContext(t)
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+	})
+
+	t.Run("BedrockOverride", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			model        string
+			wantOverride bool
+		}{
+			{name: "Claude", model: "anthropic.claude-haiku-4-5-20251001-v1:0", wantOverride: true},
+			{name: "NonClaudeFallsBackToDefault", model: "openai.gpt-5.4"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				db, ps := dbtestutil.NewDB(t)
+				server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+				user, org, model := seedInternalChatDeps(t, db)
+				insertInternalAIProvider(t, db, database.AIProviderTypeBedrock, "", true)
+				override := insertInternalChatModelConfigForProvider(t, db, org.ID, "bedrock", tt.model, true)
+				upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String())
+
+				ctx := chatdTestContext(t)
+				got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+				require.NoError(t, err)
+				require.Empty(t, reason)
+				want := model.ID
+				if tt.wantOverride {
+					want = override.ID
+				}
+				require.Equal(t, want, got.config.ID)
+			})
+		}
 	})
 
 	t.Run("UnsupportedOverrideProviderTypeFallsBackToDefault", func(t *testing.T) {
@@ -2831,7 +2842,6 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, reason)
 		require.Equal(t, model.ID, got.config.ID)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
 		require.Nil(t, got.reasoningEffort)
 	})
 
@@ -3176,6 +3186,78 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 			require.Equal(t, tt.wantError, result["error"])
 		})
 	}
+}
+
+func TestInterruptAgentReportsWhetherItInterrupted(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	user, org, model := seedInternalChatDeps(t, db)
+
+	for _, tc := range []struct {
+		name            string
+		status          database.ChatStatus
+		wantInterrupted bool
+		wantStatus      database.ChatStatus
+	}{
+		// No worker owns the child, so the interruption finishes inline.
+		{name: "Running", status: database.ChatStatusRunning, wantInterrupted: true, wantStatus: database.ChatStatusWaiting},
+		{name: "Waiting", status: database.ChatStatusWaiting, wantStatus: database.ChatStatusWaiting},
+		{name: "Error", status: database.ChatStatusError, wantStatus: database.ChatStatusError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := chatdTestContext(t)
+			parent, child := createParentChildChats(ctx, t, server, user, org, model)
+			setChatStatus(ctx, t, db, child.ID, tc.status, "")
+
+			result := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				parent,
+				parent.LastModelConfigID,
+				"interrupt_agent",
+				interruptAgentArgs{ChatID: child.ID.String()},
+			), false)
+			require.Equal(t, tc.wantInterrupted, result["interrupted"])
+			require.Equal(t, string(tc.wantStatus), result["status"])
+		})
+	}
+}
+
+func TestMessageAgentSteersBusyChild(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+	result := requireToolResponseMap(t, runSubagentTool(
+		ctx,
+		t,
+		server,
+		parent,
+		model.ID,
+		"message_agent",
+		messageAgentArgs{ChatID: child.ID.String(), Message: "change of plan"},
+	), false)
+	require.Equal(t, string(database.ChatStatusRunning), result["status"])
+
+	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1)
+	require.Equal(t, database.ChatBusyBehaviorSteer, queued[0].BusyBehavior)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, childChat.Status)
 }
 
 func TestSpawnAgent_ComputerUseRunsOnSelectedModel(t *testing.T) {
@@ -4422,7 +4504,7 @@ func TestSendAndInterruptSubagent(t *testing.T) {
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
-	_, err := server.sendSubagentMessage(ctx, parent.ID, child.ID, "  ", SendMessageBusyBehaviorQueue)
+	_, err := server.sendSubagentMessage(ctx, parent.ID, child.ID, "  ")
 	require.ErrorContains(t, err, "message is required")
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
@@ -4430,17 +4512,6 @@ func TestSendAndInterruptSubagent(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, interrupted)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
-
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-	result := requireToolResponseMap(t, runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "message_agent", messageAgentArgs{
-		ChatID: child.ID.String(), Message: "redo it", Interrupt: true,
-	}), false)
-	require.Equal(t, true, result["interrupted"])
-	// The unowned run is interrupted at once, so the message is promoted
-	// into history instead of waiting in the queue.
-	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
-	require.NoError(t, err)
-	require.Empty(t, queued)
 }
 
 func TestListAgents(t *testing.T) {
@@ -4535,7 +4606,7 @@ func TestSubagentToolOutputsJSON(t *testing.T) {
 		output any
 		want   string
 	}{
-		{"Spawn", spawnAgentResult(chat), `{` + id + `,"status":"error","title":"child","type":"explore"}`},
+		{"Spawn", subagentChatResult(chat), `{` + id + `,"status":"error","title":"child","type":"explore"}`},
 		{"Action", subagentActionResult(chat, true), `{` + id + `,"interrupted":true,"status":"error","title":"child","type":"explore"}`},
 		{"List", subagentListResult{
 			Agents:   []subagentListEntry{{ChatID: chat.ID.String(), CreatedAt: "c", Status: "s", Title: "t", Type: "y", UpdatedAt: "u"}},

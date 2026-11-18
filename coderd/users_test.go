@@ -2142,7 +2142,7 @@ func TestGetUsersFilter(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
 		res, err := client.Users(testCtx, req)
@@ -2152,6 +2152,20 @@ func TestGetUsersFilter(t *testing.T) {
 			reduced[i] = user.ReducedUser
 		}
 		return reduced
+	})
+
+	t.Run("IncludeSystem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{SearchQuery: "prebuilds"})
+		require.NoError(t, err)
+		require.Empty(t, res.Users)
+
+		res, err = client.Users(ctx, codersdk.UsersRequest{SearchQuery: "prebuilds include_system:true"})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, database.PrebuildsSystemUserID, res.Users[0].ID)
 	})
 }
 
@@ -2264,6 +2278,76 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// then
 		require.Error(t, err)
+	})
+}
+
+func TestUserTerminalFontSize(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	t.Run("valid size", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Zero(t, initial.TerminalFontSize)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     codersdk.TerminalFontGeistMono,
+			TerminalFontSize: 18,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(18), updated.TerminalFontSize)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, int32(18), fetched.TerminalFontSize)
+	})
+
+	t.Run("omitted size preserves previous value", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     codersdk.TerminalFontGeistMono,
+			TerminalFontSize: 14,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(14), updated.TerminalFontSize)
+	})
+
+	t.Run("out of range size", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		for _, size := range []int32{-1, 7, 33} {
+			_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+				ThemePreference:  "light",
+				TerminalFont:     codersdk.TerminalFontGeistMono,
+				TerminalFontSize: size,
+			})
+			require.Error(t, err, "size %d", size)
+		}
 	})
 }
 

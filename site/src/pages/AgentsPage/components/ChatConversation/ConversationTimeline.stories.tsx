@@ -37,7 +37,6 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 				<ChatMessageScroller
 					hasMoreMessages={false}
 					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
 					hasFetchMoreError={false}
 					hasTranscriptRows={true}
 					onFetchMoreMessages={async () => {}}
@@ -244,6 +243,17 @@ const buildInlineAttachmentPart = (
 	mediaType: string,
 	data: string,
 ): TypesGen.ChatFilePart => buildFilePart({ media_type: mediaType, data });
+
+const mockWorkspaceFileReferencePart: TypesGen.ChatWorkspaceFileReferencePart =
+	{
+		type: "workspace-file-reference",
+		workspace_file_path:
+			"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+		workspace_file_name: "dataset.zip",
+		workspace_file_size: 4096,
+		workspace_file_media_type: "application/zip",
+		workspace_file_workspace_id: "ws-1",
+	};
 
 const buildUserMessage = ({
 	id = 1,
@@ -798,6 +808,40 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+/** User messages render Markdown, with chips inline even inside emphasis. */
+export const UserMessageWithMarkdown: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildTextPart("Why does `make test` fail in **"),
+			{
+				type: "file-reference",
+				file_name: "site/src/components/Button.tsx",
+				start_line: 42,
+				end_line: 42,
+				content: "export const Button = ...",
+			},
+			buildTextPart(
+				[
+					"**?",
+					"Steps so far:",
+					"- reran it",
+					"- cleared the cache",
+					"",
+					"```go",
+					"func main() {",
+					'\tfmt.Println("hello")',
+					"}",
+					"```",
+					"Thanks!",
+				].join("\n"),
+			),
+		],
+	}),
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -1284,6 +1328,20 @@ export const UserMessageWithMixedAttachments: Story = {
 	),
 };
 
+/** Visual regression: files without text sit as far from the edge as text. */
+export const UserMessageWithFilesOnly: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildInlineAttachmentPart("image/png", MockPngBase64),
+			buildTextAttachmentPart("storybook-test-text"),
+			mockWorkspaceFileReferencePart,
+		],
+	}),
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -1502,6 +1560,20 @@ export const UserMessageWithSkillChips: Story = {
 						skill_source: "personal",
 						skill_name: "release-notes",
 					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [
+					{ type: "text", text: "# Run " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " first" },
 				],
 			},
 		]),
@@ -1800,11 +1872,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/**
- * Regression: sources-only assistant messages must have consistent
- * bottom spacing before the next user bubble. A spacer div fills the
- * gap that would normally come from the hidden action bar.
- */
+/** Citations remain accessible even when the assistant sends no answer text. */
 export const SourcesOnlyAssistantSpacing: Story = {
 	args: {
 		...defaultArgs,
@@ -1839,10 +1907,6 @@ export const SourcesOnlyAssistantSpacing: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: /^2 sources$/ }));
 	},
 };
 
@@ -1913,7 +1977,7 @@ export const ProviderWebSearchWithCitations: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /searched for coder release notes/i }),
 		);
-		await userEvent.click(canvas.getByRole("button", { name: /^1 source$/ }));
+		await userEvent.click(canvas.getByRole("button", { name: "Sources (1)" }));
 	},
 };
 
@@ -2476,15 +2540,7 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 				role: "user",
 				content: [
 					{ type: "text", text: "Unzip this in my workspace" },
-					{
-						type: "workspace-file-reference",
-						workspace_file_path:
-							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
-						workspace_file_name: "dataset.zip",
-						workspace_file_size: 4096,
-						workspace_file_media_type: "application/zip",
-						workspace_file_workspace_id: "ws-1",
-					},
+					mockWorkspaceFileReferencePart,
 				],
 			},
 		]),

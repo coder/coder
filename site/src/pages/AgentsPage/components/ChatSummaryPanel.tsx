@@ -12,22 +12,24 @@ import {
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
+import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 
 type ChatSummaryPanelProps = {
 	chatId: string;
-	/** Gate reads on tab visibility so the chat, cost, and attachments queries don't run while the tab is hidden. */
-	isVisible: boolean;
 	store: ChatStore;
-} & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
+} & Pick<EarlierMessagesProps, "hasMoreMessages">;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
-	isVisible,
 	store,
 	hasMoreMessages,
-	isHydratingMessages,
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
+	// Gate reads on tab visibility so the chat, cost, and attachments
+	// queries don't run while the tab is hidden.
+	const { isActive, isPanelOpen } = useTabPanelState();
+	const isVisible = isPanelOpen && isActive;
+
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
@@ -46,7 +48,6 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		chatId,
 		store,
 		hasMoreMessages,
-		isHydratingMessages,
 		enabled: isVisible,
 	});
 	const evictedFileIds = deriveEvictedFileIds(

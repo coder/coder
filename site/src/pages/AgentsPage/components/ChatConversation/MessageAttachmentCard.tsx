@@ -88,7 +88,7 @@ const ViewableFileCard: React.FC<ViewableFileCardProps> = ({
 		<div
 			ref={ref}
 			className={cn(
-				"inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link",
+				"inline-flex h-16 w-full items-center gap-1 rounded-md border bg-surface-tertiary pr-2 transition-colors has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link",
 				!expired && "has-[>button:hover]:bg-surface-quaternary",
 			)}
 		>
@@ -96,7 +96,7 @@ const ViewableFileCard: React.FC<ViewableFileCardProps> = ({
 				type="button"
 				aria-labelledby={`${nameId} ${statusId}`}
 				aria-disabled={expired || undefined}
-				className="flex h-full min-w-0 flex-1 items-center gap-3 border-0 bg-transparent py-2 pl-3 text-left focus-visible:outline-hidden aria-disabled:cursor-default"
+				className="flex h-full min-w-0 flex-1 items-center gap-3 bg-transparent py-2 pl-3 text-left focus-visible:outline-hidden aria-disabled:cursor-default"
 				onClick={expired ? undefined : onView}
 			>
 				<FileCardDetails

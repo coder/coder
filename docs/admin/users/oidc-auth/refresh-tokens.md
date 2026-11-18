@@ -22,7 +22,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
 1. In the **Authentication** tab:
 
    - **Platform configuration** > Web
-   - Ensure **Allow public client flows** is `No` (Coder is confidential)
+   - Make sure **Allow public client flows** is `No` (Coder is confidential)
    - **Implicit grant / hybrid flows** can stay unchecked
 
 1. In the **API permissions** tab:
@@ -55,7 +55,7 @@ Learn more in the [Microsoft Entra documentation](https://learn.microsoft.com/en
 
 ### Google
 
-To ensure Coder receives a refresh token when users authenticate with Google directly, set the `prompt` to `consent` in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
+To make sure Coder receives a refresh token when users authenticate with Google directly, set the `prompt` to `consent` in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
 Without this, users will be logged out when their access token expires.
 
 In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params):
@@ -96,7 +96,7 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
      set a value that matches your security policy.
      Ping's default is 30&nbsp;days.
    - **Idle Timeout**:
-     ensure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
+     make sure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
 
 1. Save your changes in PingFederate.
 
@@ -130,7 +130,7 @@ To verify refresh tokens are working correctly:
 
    ### Azure AD
 
-   Use [jwt.ms](https://jwt.ms) to inspect the `id_token` and ensure the `rt_hash` claim is present.
+   Use [jwt.ms](https://jwt.ms) to inspect the `id_token` and make sure the `rt_hash` claim is present.
    This shows that a refresh token was issued.
 
    ### Google
@@ -150,8 +150,15 @@ To verify refresh tokens are working correctly:
 
 1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1&nbsp;hour).
 
-1. Monitor Coder logs for `failed to renew OIDC token: token has expired` messages.
-   There should not be any.
+1. Confirm that users do not receive either of these errors from the API or dashboard:
+
+   - The message `Could not refresh expired OpenID Connect token. Try re-authenticating to resolve this issue.`
+     Coder tried to use the refresh token and the identity provider rejected it.
+   - The detail `OpenID Connect session expired at "<time>". Try signing in again.`
+     Coder has no refresh token for the user.
+     This detail accompanies the message `You are signed out or your session has expired. Please sign in again to continue.`, which Coder also returns for other expired or invalid sessions, so match the detail.
+
+   These errors appear in the API response, not in the Coder logs.
 
 If all verification steps pass successfully, your refresh token configuration is working properly.
 
@@ -178,7 +185,8 @@ If all verification steps pass successfully, your refresh token configuration is
   - `"access_type": "offline"` for Google
 - Configure your identity provider according to the provider-specific instructions above.
 - Have users log out and log in again to obtain refresh tokens.
-  Look for entries containing `failed to renew OIDC token` which might indicate specific provider issues.
+  If users still receive `Could not refresh expired OpenID Connect token. Try re-authenticating to resolve this issue.` after they log in again, check the provider's refresh token configuration.
+  The `detail` field of that response includes the error that the provider returned.
 
 ### Refresh tokens don't work after configuration change
 
@@ -190,7 +198,7 @@ If all verification steps pass successfully, your refresh token configuration is
 **Cause**:
 
 - Existing user sessions don't have refresh tokens stored.
-- Configuration may be incomplete.
+- Configuration might be incomplete.
 
 **Solution**:
 

@@ -14,7 +14,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
@@ -169,7 +168,7 @@ const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[240px]">
+			<DropdownMenuContent align="end" className="w-60">
 				{sections.map((section, index) => (
 					<Fragment key={section.id}>
 						{index > 0 && <DropdownMenuSeparator />}
@@ -200,27 +199,25 @@ const UsageTriggerProgress: React.FC<{
 	sections: readonly UsageSectionData[];
 }> = ({ sections }) => {
 	return (
-		<TooltipProvider delayDuration={150}>
-			<div className="flex shrink-0 items-center gap-2">
-				{sections.map((section) => (
-					<Tooltip key={section.id}>
-						<TooltipTrigger asChild>
-							<div>
-								<UsageRingProgress
-									ariaLabel={section.progressLabel}
-									percent={section.percent}
-									severity={section.severity}
-									icon={section.icon}
-								/>
-							</div>
-						</TooltipTrigger>
-						<TooltipContent side="top" sideOffset={6}>
-							{section.hoverLabel}
-						</TooltipContent>
-					</Tooltip>
-				))}
-			</div>
-		</TooltipProvider>
+		<div className="flex shrink-0 items-center gap-2">
+			{sections.map((section) => (
+				<Tooltip delayDuration={150} key={section.id}>
+					<TooltipTrigger asChild>
+						<div>
+							<UsageRingProgress
+								ariaLabel={section.progressLabel}
+								percent={section.percent}
+								severity={section.severity}
+								icon={section.icon}
+							/>
+						</div>
+					</TooltipTrigger>
+					<TooltipContent side="top" sideOffset={6}>
+						{section.hoverLabel}
+					</TooltipContent>
+				</Tooltip>
+			))}
+		</div>
 	);
 };
 
@@ -267,7 +264,7 @@ const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 	return (
 		<>
 			<div className="flex items-center justify-between gap-2 px-2 py-1.5">
-				<span className="truncate text-sm font-medium text-content-primary">
+				<span className="truncate text-sm text-content-primary">
 					{section.title}
 				</span>
 				<span
@@ -297,26 +294,24 @@ const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 				<div className="flex items-start gap-1.5">
 					<span className="min-w-0 flex-1">{section.detail}</span>
 					{section.tooltip && (
-						<TooltipProvider delayDuration={300}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										type="button"
-										className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
-										aria-label={`${section.title} help`}
-									>
-										<InfoIcon className="size-3.5" />
-									</button>
-								</TooltipTrigger>
-								<TooltipContent
-									side="right"
-									sideOffset={4}
-									className="max-w-48 text-xs"
+						<Tooltip delayDuration={300}>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
+									aria-label={`${section.title} help`}
 								>
-									{section.tooltip}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+									<InfoIcon className="size-3.5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent
+								side="right"
+								sideOffset={4}
+								className="max-w-48 text-xs"
+							>
+								{section.tooltip}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</div>
 			</div>

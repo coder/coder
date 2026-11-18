@@ -54,6 +54,12 @@ func TestDefaultComputerUseDesktopGeometry(t *testing.T) {
 			declaredWidth:  1600,
 			declaredHeight: 900,
 		},
+		{
+			name:           "OpenAICompat",
+			provider:       codersdk.ChatComputerUseProviderOpenAICompat,
+			declaredWidth:  1280,
+			declaredHeight: 720,
+		},
 	}
 
 	for _, tt := range tests {
@@ -129,6 +135,44 @@ func TestComputerUseProviderTool(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
+	})
+
+	t.Run("OpenAICompat", func(t *testing.T) {
+		t.Parallel()
+
+		def, err := chattool.ComputerUseProviderTool(
+			codersdk.ChatComputerUseProviderOpenAICompat,
+			"",
+			geometry.DeclaredWidth,
+			geometry.DeclaredHeight,
+		)
+		require.NoError(t, err)
+		// The chat completions API has no hosted computer tool, so this
+		// flavor is an ordinary function tool.
+		funcTool, ok := def.(fantasy.FunctionTool)
+		require.True(t, ok, "got %T, want a function tool", def)
+		assert.Equal(t, "computer", funcTool.Name)
+		assert.Contains(t, funcTool.Description,
+			fmt.Sprintf("%d by %d pixel", geometry.DeclaredWidth, geometry.DeclaredHeight))
+
+		properties, ok := funcTool.InputSchema["properties"].(map[string]any)
+		require.True(t, ok)
+		action, ok := properties["action"].(map[string]any)
+		require.True(t, ok)
+		enum, ok := action["enum"].([]string)
+		require.True(t, ok, "the action list must be an enum, got %T", action["enum"])
+		assert.Contains(t, enum, "screenshot")
+		assert.Contains(t, enum, "left_click_drag")
+		// The agent desktop has no zoom action.
+		assert.NotContains(t, enum, "zoom")
+		// A failed call halts the rest of the step, which would skip a
+		// release planned after a press.
+		assert.NotContains(t, enum, "left_mouse_down")
+		assert.NotContains(t, enum, "left_mouse_up")
+		// Every function call answers with a screenshot, which cannot carry
+		// the pointer position.
+		assert.NotContains(t, enum, "cursor_position")
+		assert.Equal(t, []string{"action"}, funcTool.InputSchema["required"])
 	})
 
 	t.Run("Unsupported", func(t *testing.T) {
@@ -384,6 +428,75 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
+}
+
+// The function tool answers every action with a screenshot, and only a
+// requested screenshot is stored as a chat attachment.
+func TestComputerUseTool_Run_OpenAICompat_ScreenshotsAfterEveryAction(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	const screenshotPNG = "aW1hZ2UtZGF0YQ=="
+	// The click, the screenshot that follows it, and the requested screenshot.
+	actions := recordDesktopActions(t, mockConn, geometry, 3, screenshotPNG)
+
+	var storedNames []string
+	tool := chattool.NewComputerUseTool(
+		codersdk.ChatComputerUseProviderOpenAICompat,
+		"",
+		geometry.DeclaredWidth,
+		geometry.DeclaredHeight,
+		func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+		func(_ context.Context, name string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
+			storedNames = append(storedNames, name)
+			return chattool.AttachmentMetadata{
+				FileID:    uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+				MediaType: "image/png",
+				Name:      name,
+			}, nil
+		},
+		quartz.NewReal(),
+		slogtest.Make(t, nil),
+	)
+
+	ctx := context.Background()
+	actionResp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "compat-left-click",
+		Name:  "computer",
+		Input: `{"action":"left_click","coordinate":[100,200]}`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "image", actionResp.Type)
+	assert.False(t, actionResp.IsError)
+	expectedImage, err := base64.StdEncoding.DecodeString(screenshotPNG)
+	require.NoError(t, err)
+	assert.Equal(t, expectedImage, actionResp.Data)
+	actionAttachments, err := chattool.AttachmentsFromMetadata(actionResp.Metadata)
+	require.NoError(t, err)
+	assert.Empty(t, actionAttachments, "the screenshot after an action is for the model only")
+
+	requestedResp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "compat-screenshot",
+		Name:  "computer",
+		Input: `{"action":"screenshot"}`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "image", requestedResp.Type)
+	requestedAttachments, err := chattool.AttachmentsFromMetadata(requestedResp.Metadata)
+	require.NoError(t, err)
+	require.Len(t, requestedAttachments, 1)
+
+	require.Len(t, *actions, 3)
+	assertDesktopActionScaled(t, geometry, (*actions)[0])
+	assertDesktopAction(t, (*actions)[0], "left_click", [2]int{100, 200})
+	assert.Equal(t, "screenshot", (*actions)[1].Action)
+	assert.Equal(t, "screenshot", (*actions)[2].Action)
+	require.Len(t, storedNames, 1)
+	assert.Contains(t, storedNames[0], "screenshot-")
 }
 
 func TestComputerUseTool_Run_Wait(t *testing.T) {
@@ -667,6 +780,349 @@ func TestComputerUseTool_AnthropicHaltsStep(t *testing.T) {
 	})
 }
 
+// A coordinate of [0,0] is the top-left pixel and a valid target, so the
+// runner must send it rather than read it as an omitted field.
+func TestComputerUseTool_Run_TopLeftCoordinate(t *testing.T) {
+	t.Parallel()
+	const screenshotPNG = "aW1hZ2UtZGF0YQ=="
+
+	for _, tc := range []struct {
+		name     string
+		provider codersdk.ChatComputerUseProvider
+		version  fantasyanthropic.ComputerUseToolVersion
+	}{
+		{"Anthropic", codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124},
+		{"OpenAICompat", codersdk.ChatComputerUseProviderOpenAICompat, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			geometry := workspacesdk.DefaultDesktopGeometry()
+			actions := recordDesktopActions(t, mockConn, geometry, 2, screenshotPNG)
+
+			tool := chattool.NewComputerUseTool(
+				tc.provider,
+				tc.version,
+				geometry.DeclaredWidth,
+				geometry.DeclaredHeight,
+				func(_ context.Context) (workspacesdk.AgentConn, error) { return mockConn, nil },
+				nil,
+				quartz.NewReal(),
+				slogtest.Make(t, nil),
+			)
+
+			_, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "top-left-click",
+				Name:  "computer",
+				Input: `{"action":"left_click","coordinate":[0,0]}`,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, *actions)
+			assertDesktopAction(t, (*actions)[0], "left_click", [2]int{0, 0})
+		})
+	}
+}
+
+// An omitted or null coordinate stays omitted, so the agent still reports the
+// missing field instead of clicking the top-left pixel. Chat completions
+// models often send null for an optional field.
+func TestComputerUseTool_Run_OmittedCoordinateIsNotTopLeft(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{
+		`{"action":"left_click"}`,
+		`{"action":"left_click","coordinate":null,"start_coordinate":null,"scroll_amount":null,"repeat":null}`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			// The click and the screenshot that follows it.
+			actions := recordDesktopActions(t, mockConn, workspacesdk.DefaultDesktopGeometry(), 2, "aW1hZ2UtZGF0YQ==")
+			resp, err := newOpenAICompatComputerUseTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+				ID:    "click-without-coordinate",
+				Name:  "computer",
+				Input: input,
+			})
+			require.NoError(t, err)
+			require.False(t, resp.IsError, resp.Content)
+			require.NotEmpty(t, *actions)
+			assert.Nil(t, (*actions)[0].Coordinate)
+			assert.Nil(t, (*actions)[0].StartCoordinate)
+			assert.Nil(t, (*actions)[0].ScrollAmount)
+		})
+	}
+}
+
+// Coordinates are forwarded by key presence, so a short or long array must be
+// rejected before it decodes zero-filled into a click at the top-left pixel.
+func TestComputerUseTool_Run_RejectsMalformedCoordinate(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{
+		`{"action":"left_click","coordinate":[]}`,
+		`{"action":"left_click","coordinate":[5]}`,
+		`{"action":"left_click","coordinate":[1,2,3]}`,
+		`{"action":"left_click_drag","start_coordinate":[5],"coordinate":[10,10]}`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+
+			// No expectations: any desktop call fails the test.
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			resp, err := newOpenAICompatComputerUseTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+				ID:    "malformed-coordinate",
+				Name:  "computer",
+				Input: input,
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, "expected 2 elements")
+		})
+	}
+}
+
+// The desktop clamps an off-screen point to the screen edge, so a model that
+// aims off the screenshot learns of the miss instead of acting on the edge.
+func TestComputerUseTool_Run_RejectsOffScreenCoordinate(t *testing.T) {
+	t.Parallel()
+
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	right, bottom := geometry.DeclaredWidth, geometry.DeclaredHeight
+	for name, newTool := range actionPerCallComputerUseTools() {
+		for _, tc := range []struct {
+			input string
+			want  string
+		}{
+			{fmt.Sprintf(`{"action":"left_click","coordinate":[%d,10]}`, right), fmt.Sprintf("coordinate [%d, 10] is outside", right)},
+			{fmt.Sprintf(`{"action":"mouse_move","coordinate":[10,%d]}`, bottom), fmt.Sprintf("coordinate [10, %d] is outside", bottom)},
+			{`{"action":"scroll","coordinate":[-1,10],"scroll_direction":"down","scroll_amount":1}`, "coordinate [-1, 10] is outside"},
+			{`{"action":"left_click_drag","start_coordinate":[10,-5],"coordinate":[20,20]}`, "start_coordinate [10, -5] is outside"},
+		} {
+			t.Run(name+"/"+tc.input, func(t *testing.T) {
+				t.Parallel()
+
+				// No expectations: any desktop call fails the test.
+				mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				resp, err := newTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+					ID:    "off-screen-coordinate",
+					Name:  "computer",
+					Input: tc.input,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, tc.want)
+			})
+		}
+
+		t.Run(name+"/BottomRightPixel", func(t *testing.T) {
+			t.Parallel()
+
+			var actions []workspacesdk.DesktopAction
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+					actions = append(actions, action)
+					return workspacesdk.DesktopActionResponse{}, nil
+				}).MinTimes(1)
+			resp, err := newTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+				ID:    "bottom-right-click",
+				Name:  "computer",
+				Input: fmt.Sprintf(`{"action":"left_click","coordinate":[%d,%d]}`, right-1, bottom-1),
+			})
+			require.NoError(t, err)
+			require.False(t, resp.IsError, resp.Content)
+			assertDesktopAction(t, actions[0], "left_click", [2]int{right - 1, bottom - 1})
+		})
+	}
+}
+
+// A function tool step plans every call of the step against one screen, so a
+// failed action halts the later calls of that step, as for Anthropic.
+func TestComputerUseTool_OpenAICompatHaltsStep(t *testing.T) {
+	t.Parallel()
+
+	const haltedText = "Not executed: an earlier computer action in this turn failed."
+	key := fantasy.ToolCallContent{ToolCallID: "compat_key", ToolName: "computer", Input: `{"action":"key","text":"NotAKey"}`}
+	typeText := fantasy.ToolCallContent{ToolCallID: "compat_type", ToolName: "computer", Input: `{"action":"type","text":"hello"}`}
+	rejected := fantasy.ToolCallContent{ToolCallID: "compat_rejected", ToolName: "computer", Input: `{"action":"left_click",`}
+
+	runStep := func(t *testing.T, conn workspacesdk.AgentConn, observed, executed []fantasy.ToolCallContent) []fantasy.ToolResultContent {
+		t.Helper()
+		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
+			ProviderTools:     []chatloop.ProviderTool{{Runner: newOpenAICompatComputerUseTool(t, conn)}},
+			ToolCalls:         executed,
+			ObservedToolCalls: observed,
+			Clock:             quartz.NewReal(),
+		})
+		require.NoError(t, err)
+		var results []fantasy.ToolResultContent
+		for _, content := range outcome.Content {
+			if result, ok := content.(fantasy.ToolResultContent); ok {
+				results = append(results, result)
+			}
+		}
+		require.Len(t, results, len(executed))
+		return results
+	}
+
+	t.Run("AfterFailure", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		// Only the failing action may reach the desktop.
+		mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+				assert.Equal(t, "key", action.Action)
+				return workspacesdk.DesktopActionResponse{}, xerrors.New("unknown key")
+			}).Times(1)
+
+		calls := []fantasy.ToolCallContent{key, typeText}
+		results := runStep(t, mockConn, calls, calls)
+		failed, ok := results[0].Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok, "%T", results[0].Result)
+		require.ErrorContains(t, failed.Error, "unknown key")
+		halted, ok := results[1].Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok, "%T", results[1].Result)
+		require.EqualError(t, halted.Error, haltedText)
+	})
+
+	t.Run("AfterRejectedCall", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		results := runStep(t, mockConn, []fantasy.ToolCallContent{rejected, typeText}, []fantasy.ToolCallContent{typeText})
+		halted, ok := results[0].Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok, "%T", results[0].Result)
+		require.EqualError(t, halted.Error, haltedText)
+	})
+}
+
+// The desktop also performs actions that a flavor does not declare, such as
+// key_down, which would leave a key held, so the runner rejects them before
+// the desktop.
+func TestComputerUseTool_Run_RejectsUnsupportedAction(t *testing.T) {
+	t.Parallel()
+
+	undeclared := map[string][]string{
+		"Anthropic":    {"key_down", "zoom", ""},
+		"OpenAICompat": {"key_down", "zoom", "", "left_mouse_down", "left_mouse_up", "cursor_position"},
+	}
+	for name, newTool := range actionPerCallComputerUseTools() {
+		for _, action := range undeclared[name] {
+			t.Run(name+"/"+action, func(t *testing.T) {
+				t.Parallel()
+
+				// No expectations: any desktop call fails the test.
+				mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				resp, err := newTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+					ID:    "unsupported-action",
+					Name:  "computer",
+					Input: fmt.Sprintf(`{"action":%q,"text":"shift"}`, action),
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, "unsupported action")
+			})
+		}
+	}
+}
+
+// actionPerCallComputerUseTools returns constructors for the flavors that
+// declare one action per call.
+func actionPerCallComputerUseTools() map[string]func(testing.TB, workspacesdk.AgentConn) fantasy.AgentTool {
+	return map[string]func(testing.TB, workspacesdk.AgentConn) fantasy.AgentTool{
+		"Anthropic": func(t testing.TB, conn workspacesdk.AgentConn) fantasy.AgentTool {
+			return newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, conn)
+		},
+		"OpenAICompat": newOpenAICompatComputerUseTool,
+	}
+}
+
+// The agent scrolls a default amount when scroll_amount is absent, so a zero or
+// negative amount must not reach it looking absent.
+func TestComputerUseTool_Run_ScrollAmount(t *testing.T) {
+	t.Parallel()
+	const screenshotPNG = "aW1hZ2UtZGF0YQ=="
+
+	for _, tc := range []struct {
+		name     string
+		provider codersdk.ChatComputerUseProvider
+		version  fantasyanthropic.ComputerUseToolVersion
+	}{
+		{"Anthropic", codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124},
+		{"OpenAICompat", codersdk.ChatComputerUseProviderOpenAICompat, ""},
+	} {
+		newTool := func(t *testing.T, conn workspacesdk.AgentConn) fantasy.AgentTool {
+			geometry := workspacesdk.DefaultDesktopGeometry()
+			return chattool.NewComputerUseTool(
+				tc.provider,
+				tc.version,
+				geometry.DeclaredWidth,
+				geometry.DeclaredHeight,
+				func(_ context.Context) (workspacesdk.AgentConn, error) { return conn, nil },
+				nil,
+				quartz.NewReal(),
+				slogtest.Make(t, nil),
+			)
+		}
+		scroll := func(amount int) fantasy.ToolCall {
+			return fantasy.ToolCall{
+				ID:    "scroll",
+				Name:  "computer",
+				Input: fmt.Sprintf(`{"action":"scroll","coordinate":[10,20],"scroll_direction":"down","scroll_amount":%d}`, amount),
+			}
+		}
+
+		t.Run(tc.name+"/RejectsNonpositive", func(t *testing.T) {
+			t.Parallel()
+
+			for _, amount := range []int{0, -2} {
+				// No expectations: any desktop call fails the test.
+				mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				resp, err := newTool(t, mockConn).Run(context.Background(), scroll(amount))
+				require.NoError(t, err)
+				assert.True(t, resp.IsError, "scroll_amount %d", amount)
+				assert.Contains(t, resp.Content, "scroll_amount must be at least 1")
+			}
+		})
+
+		t.Run(tc.name+"/ForwardsPositive", func(t *testing.T) {
+			t.Parallel()
+
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			// The scroll and the screenshot that follows it.
+			actions := recordDesktopActions(t, mockConn, workspacesdk.DefaultDesktopGeometry(), 2, screenshotPNG)
+			resp, err := newTool(t, mockConn).Run(context.Background(), scroll(4))
+			require.NoError(t, err)
+			require.False(t, resp.IsError, resp.Content)
+			assertScrollAction(t, (*actions)[0], [2]int{10, 20}, "down", 4)
+		})
+	}
+}
+
+func newOpenAICompatComputerUseTool(t testing.TB, conn workspacesdk.AgentConn) fantasy.AgentTool {
+	t.Helper()
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	return chattool.NewComputerUseTool(
+		codersdk.ChatComputerUseProviderOpenAICompat,
+		"",
+		geometry.DeclaredWidth,
+		geometry.DeclaredHeight,
+		func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return conn, nil
+		},
+		nil,
+		quartz.NewReal(),
+		slogtest.Make(t, nil),
+	)
+}
+
 func TestComputerUseTool_Run_AnthropicKeyRepeat(t *testing.T) {
 	t.Parallel()
 
@@ -692,14 +1148,18 @@ func TestComputerUseTool_Run_AnthropicKeyRepeat(t *testing.T) {
 	t.Run("RejectsOutOfRange", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-
-		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
-		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"Down","repeat":101}`))
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "repeat must be between 1 and 100")
+		// Zero must not read as an omitted repeat and press the key once.
+		for _, repeat := range []int{0, 101} {
+			for name, newTool := range actionPerCallComputerUseTools() {
+				// No expectations: any desktop call fails the test.
+				mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				resp, err := newTool(t, mockConn).Run(context.Background(),
+					anthropicComputerUseCall(fmt.Sprintf(`{"action":"key","text":"Down","repeat":%d}`, repeat)))
+				require.NoError(t, err)
+				assert.True(t, resp.IsError, "%s repeat %d", name, repeat)
+				assert.Contains(t, resp.Content, "repeat must be between 1 and 100")
+			}
+		}
 	})
 }
 

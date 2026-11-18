@@ -13,11 +13,32 @@ import {
 	menuContentClass,
 	menuItemClass,
 	menuSeparatorClass,
+	menuSubContentOffsets,
 } from "../DropdownMenu/menuClasses";
 
 export const ContextMenu = ContextMenuPrimitive.Root;
 
 export const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
+
+const stopRightClick = (event: React.MouseEvent) => {
+	if (event.button === 2) {
+		event.preventDefault();
+		event.stopPropagation();
+	}
+};
+
+/**
+ * Spread on a menu button inside a row that has its own context menu, so a
+ * right-click on the button does not also open the row's context menu.
+ */
+export const preventRowContextMenuProps = {
+	onContextMenuCapture: (event: React.MouseEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+	},
+	onMouseDownCapture: stopRightClick,
+	onPointerDownCapture: stopRightClick,
+};
 
 /** @public */
 export const ContextMenuGroup = ContextMenuPrimitive.Group;
@@ -82,6 +103,7 @@ export const ContextMenuSubContent: React.FC<
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.SubContent
 				className={cn(menuContentClass, className)}
+				{...menuSubContentOffsets}
 				{...props}
 			/>
 		</ContextMenuPrimitive.Portal>

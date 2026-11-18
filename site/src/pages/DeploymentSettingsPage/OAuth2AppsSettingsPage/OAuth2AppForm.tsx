@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -15,7 +14,7 @@ import {
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { UnsavedChangesDialog } from "#/components/Dialog/UnsavedChangesDialog/UnsavedChangesDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
@@ -497,22 +496,10 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 					</Button>
 				</div>
 			</FormFields>
-			<ConfirmDialog
-				type="info"
-				hideCancel={false}
+			<UnsavedChangesDialog
 				open={unsavedChanges.isOpen}
 				onClose={unsavedChanges.onCancel}
 				onConfirm={unsavedChanges.onConfirm}
-				title="Unsaved changes"
-				confirmText="Confirm"
-				description={
-					<div className="flex items-start gap-3">
-						<TriangleAlertIcon className="size-icon-sm mt-1 shrink-0" />
-						<p className="m-0">
-							Your updates haven't been saved. Leave anyway?
-						</p>
-					</div>
-				}
 			/>
 		</Form>
 	);

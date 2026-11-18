@@ -2,23 +2,27 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 )
 
-// liveOf builds a live-route set the way liveRoutes would for a manifest
-// whose pages are the given routes. "/docs" (the landing page) is always live.
-func liveOf(routes ...string) map[string]bool {
-	m := map[string]bool{"/docs": true}
+// liveOf builds a live-route set the way liveRoutes would for a manifest whose
+// pages are the given routes. The docs root is always live.
+func liveOf(routes ...string) routeSet {
+	m := routeSet{"": ""}
 	for _, r := range routes {
-		m[r] = true
+		m[r] = "docs/" + r + ".md"
 	}
 	return m
 }
@@ -58,55 +62,19 @@ func requireProblems(t *testing.T, got []problem, want ...wantProblem) {
 func TestConvertPathToRoute(t *testing.T) {
 	t.Parallel()
 
-	// These mirror convertPathToRoute in the docs website, including its
-	// quirks: the README.md, index.md and .md suffixes are stripped one after
-	// another with a plain suffix match, not per path segment.
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"plain page", "./admin/external-auth.md", "admin/external-auth"},
-		{"no leading dot slash", "admin/external-auth.md", "admin/external-auth"},
-		{"index page", "./admin/templates/index.md", "admin/templates"},
-		{"README page", "./ai-coder/README.md", "ai-coder"},
-		{"root README", "./README.md", ""},
-		{"deeply nested index", "./a/b/c/d/index.md", "a/b/c/d"},
-		{"leading and trailing slashes trimmed", "/admin/users/", "admin/users"},
-		{"non-markdown path is left alone", "./images/logo.svg", "images/logo.svg"},
-		{"file whose name merely ends in index.md", "./install/my-index.md", "install/my-"},
-		{"file whose name merely ends in README.md", "./install/OLD-README.md", "install/OLD-"},
-		{"empty", "", ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range []struct{ in, want string }{
+		{"./README.md", ""},
+		{"./admin/README.md", "admin"},
+		{"./ai-coder/index.md", "ai-coder"},
+		{"./admin/external-auth.md", "admin/external-auth"},
+		{"admin/users.md", "admin/users"},
+		{"./my-index.md", "my-"},
+		{"./admin/", "admin"},
+		{"./install/esr-2.24-2.29-upgrade.md", "install/esr-2.24-2.29-upgrade"},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, convertPathToRoute(tc.in))
-		})
-	}
-}
-
-func TestDocsPagePath(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name   string
-		in     string
-		want   string
-		wantOK bool
-	}{
-		{"empty path has no page", "", "", false},
-		{"root README is the landing page", "./README.md", "/docs", true},
-		{"plain page", "./about.md", "/docs/about", true},
-		{"nested index page", "./admin/templates/index.md", "/docs/admin/templates", true},
-		{"no leading dot slash", "admin/users.md", "/docs/admin/users", true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := docsPagePath(tc.in)
-			require.Equal(t, tc.wantOK, ok)
-			require.Equal(t, tc.want, got)
+			require.Equal(t, tt.want, convertPathToRoute(tt.in))
 		})
 	}
 }
@@ -114,62 +82,157 @@ func TestDocsPagePath(t *testing.T) {
 func TestLiveRoutes(t *testing.T) {
 	t.Parallel()
 
-	m, err := parseManifest([]byte(`{
-		"versions": ["main"],
-		"routes": [
-			{"title": "About", "path": "./README.md", "children": [
-				{"title": "Architecture", "path": "./about/architecture.md"}
-			]},
-			{"title": "Admin", "path": "./admin/index.md", "children": [
-				{"title": "Users", "path": "admin/users.md"},
-				{"title": "Section heading without a page"},
-				{"title": "Deep", "path": "./admin/a/b.md", "children": [
-					{"title": "Deeper", "path": "./admin/a/b/c/index.md"}
-				]}
+	m, err := parseManifest([]byte(`{"routes": [
+		{"title": "About", "path": "./README.md", "children": [
+			{"title": "Section"},
+			{"title": "Users", "path": "./admin/users.md", "children": [
+				{"title": "Groups", "path": "./admin/groups/index.md"}
 			]}
-		]
-	}`))
+		]}
+	]}`))
 	require.NoError(t, err)
-
-	got := liveRoutes(m)
-	for _, want := range []string{
-		"/docs",
-		// The root About page is also served at /docs/about.
-		"/docs/about",
-		"/docs/about/architecture",
-		"/docs/admin",
-		"/docs/admin/users",
-		"/docs/admin/a/b",
-		"/docs/admin/a/b/c",
-	} {
-		require.True(t, got[want], "expected %s to be live; got %v", want, got)
-	}
-	require.False(t, got["/docs/section-heading-without-a-page"])
-	require.Len(t, got, 7)
+	live := liveRoutes(m)
+	require.Equal(t, routeSet{
+		"":             "docs/README.md",
+		"admin/users":  "docs/admin/users.md",
+		"admin/groups": "docs/admin/groups/index.md",
+	}, live)
+	// The classic site's /about alias is not a route in the new format.
+	require.False(t, live.has("about"))
 }
 
-func TestLiveRoutesAboutSpecialCaseOnlyForRootAbout(t *testing.T) {
+func TestLiveRoutesDocsRootAlwaysExists(t *testing.T) {
 	t.Parallel()
 
-	m, err := parseManifest([]byte(`{"routes": [{"title": "Overview", "path": "./README.md"}]}`))
+	m, err := parseManifest([]byte(`{"routes": []}`))
 	require.NoError(t, err)
-	got := liveRoutes(m)
-	require.True(t, got["/docs"])
-	require.False(t, got["/docs/about"], "only a root page titled About is also served at /docs/about")
+	require.True(t, liveRoutes(m).has(""))
+}
+
+func TestHyphenated(t *testing.T) {
+	t.Parallel()
+
+	got := liveOf("install/esr-2.24-2.29-upgrade", "admin/users").hyphenated()
+	require.True(t, got["install/esr-2-24-2-29-upgrade"])
+	require.True(t, got["admin/users"])
+	require.False(t, got["install/esr-2.24-2.29-upgrade"])
 }
 
 func TestParseManifestErrors(t *testing.T) {
 	t.Parallel()
 
-	for name, in := range map[string]string{
-		"not json":      "nope",
-		"no routes key": `{"versions": []}`,
-		"routes object": `{"routes": {}}`,
+	for name, data := range map[string]string{
+		"not json":   "nope",
+		"no routes":  `{}`,
+		"wrong type": `{"routes": "x"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, err := parseManifest([]byte(in))
+			_, err := parseManifest([]byte(data))
 			require.Error(t, err)
+		})
+	}
+}
+
+func TestParseSource(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		in      string
+		want    pattern
+		wantMsg string
+	}{
+		{in: "admin/old", want: pattern{prefix: "admin/old"}},
+		{in: "old", want: pattern{prefix: "old"}},
+		{in: "admin/*", want: pattern{wild: true, prefix: "admin"}},
+		{in: "a/b/c/*", want: pattern{wild: true, prefix: "a/b/c"}},
+		{in: "install.sh", want: pattern{prefix: "install.sh"}},
+		{in: "esr-2.24/up_grade", want: pattern{prefix: "esr-2.24/up_grade"}},
+		{in: "/admin/old", wantMsg: "no leading slash"},
+		{in: "admin/old/", wantMsg: "no trailing slash"},
+		{in: "*", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "/*", wantMsg: "empty route"},
+		{in: "admin/*/x", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "admin/x*", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "admin//old", wantMsg: "empty path segment"},
+		{in: "admin/./old", wantMsg: `segment "." is not allowed`},
+		{in: "admin/../old", wantMsg: `segment ".." is not allowed`},
+		{in: "admin/@main/old", wantMsg: "must match"},
+		{in: "admin/%20old", wantMsg: "must match"},
+		{in: "admin/:path", wantMsg: "must match"},
+		{in: "admin/(.*)", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "admin/old?x=1", wantMsg: "must match"},
+		{in: "admin/old#x", wantMsg: "must match"},
+		{in: "admin/old page", wantMsg: "must match"},
+		{in: "admin/old.md", wantMsg: ".md"},
+		{in: "", wantMsg: "empty route"},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
+			t.Parallel()
+			got, msg := parseSource(tt.in)
+			if tt.wantMsg == "" {
+				require.Empty(t, msg)
+				require.Equal(t, tt.want, got)
+				return
+			}
+			require.Contains(t, msg, tt.wantMsg)
+		})
+	}
+}
+
+func TestParseDestination(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		in      string
+		want    destination
+		wantMsg string
+	}{
+		{in: "/", want: destination{kind: destRoot, raw: "/", valid: true}},
+		{in: "admin/users", want: destination{kind: destRoute, raw: "admin/users", prefix: "admin/users", valid: true}},
+		{in: "admin/*", want: destination{kind: destRoute, raw: "admin/*", prefix: "admin", wild: true, valid: true}},
+		{in: "https://github.com/coder/coder/blob/main/CONTRIBUTING.md", want: destination{kind: destExternal, raw: "https://github.com/coder/coder/blob/main/CONTRIBUTING.md", valid: true}},
+		{in: "https://coder.com/blog/post#section", want: destination{kind: destExternal, raw: "https://coder.com/blog/post#section", valid: true}},
+		{in: "admin/users#web-ides", want: destination{kind: destRoute, raw: "admin/users#web-ides", prefix: "admin/users", fragment: "web-ides", valid: true}},
+		{in: "admin/users#a.b_C-1", want: destination{kind: destRoute, raw: "admin/users#a.b_C-1", prefix: "admin/users", fragment: "a.b_C-1", valid: true}},
+		{in: "admin/users#", wantMsg: "fragment must match"},
+		{in: "admin/users#a#b", wantMsg: "fragment must match"},
+		{in: "admin/users#a b", wantMsg: "fragment must match"},
+		{in: "admin/users#a%20b", wantMsg: "fragment must match"},
+		{in: "admin/*#x", wantMsg: "do not take a fragment"},
+		{in: "/#x", wantMsg: "do not take a fragment"},
+		{in: "#x", wantMsg: "empty route"},
+		{in: "https://github.com/coderx/foo", wantMsg: "must start with"},
+		{in: "https://github.com/other/coder", wantMsg: "must start with"},
+		{in: "https://evil.example/coder.com/", wantMsg: "must start with"},
+		{in: "https://coder.com.evil.example/", wantMsg: "must start with"},
+		{in: "http://coder.com/docs", wantMsg: "must be https://"},
+		{in: "ftp://coder.com/docs", wantMsg: "must be https://"},
+		{in: "https://coder.com:8443/x", wantMsg: "must start with"},
+		{in: "https://coder.com/x/:path", wantMsg: `must not contain ":"`},
+		{in: "https://coder.com/x/*", wantMsg: "wildcard"},
+		{in: "https://coder.com/x y", wantMsg: "whitespace"},
+		{in: "https://github.com/coder/../other-org", wantMsg: `".." path segment`},
+		{in: "https://github.com/coder/%2e%2e/other-org", wantMsg: `".." path segment`},
+		{in: "https://github.com/coder/./coder", wantMsg: `".." path segment`},
+		{in: `https://github.com/coder/x\..\..\other-org`, wantMsg: `must not contain "\"`},
+		{in: "https://coder.com/a..b/c", want: destination{kind: destExternal, raw: "https://coder.com/a..b/c", valid: true}},
+		{in: "/admin/users", wantMsg: "no leading slash"},
+		{in: "admin/users/", wantMsg: "no trailing slash"},
+		{in: "*", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "admin/*/x", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "admin/:path*", wantMsg: `only allowed as a trailing "/*"`},
+		{in: "admin/:path", wantMsg: "must match"},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
+			t.Parallel()
+			got, msg := parseDestination(tt.in)
+			if tt.wantMsg != "" {
+				require.Contains(t, msg, tt.wantMsg)
+				return
+			}
+			require.Empty(t, msg)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -177,637 +240,574 @@ func TestParseManifestErrors(t *testing.T) {
 func TestCheckRedirectsStructure(t *testing.T) {
 	t.Parallel()
 
-	live := liveOf("/docs/admin/users", "/docs/admin/groups")
-
-	cases := []struct {
+	live := liveOf("admin/users", "admin/groups", "ai-coder/ai-gateway")
+	for _, tt := range []struct {
 		name string
-		in   string
+		data string
 		want []wantProblem
 	}{
-		{"empty array is valid", `[]`, nil},
-		{"whitespace and newline only array", "[\n]\n", nil},
-		{
-			"valid rule",
-			`[{"source": "/docs/old", "destination": "/docs/admin/users", "permanent": true}]`,
-			nil,
-		},
-		{
-			"permanent is optional",
-			`[{"source": "/docs/old", "destination": "/docs/admin/users"}]`,
-			nil,
-		},
-		{"not json", `{oops`, []wantProblem{{-1, "not valid JSON"}}},
-		{"empty file", ``, []wantProblem{{-1, "not valid JSON"}}},
-		{"object instead of array", `{"source": "/docs/old"}`, []wantProblem{{-1, "must be a JSON array"}}},
-		{"null", `null`, []wantProblem{{-1, "must be a JSON array"}}},
-		{"entry is not an object", `[1]`, []wantProblem{{0, "must be an object"}}},
-		{"entry is a string", `["/docs/old"]`, []wantProblem{{0, "must be an object"}}},
-		{
-			"missing source",
-			`[{"destination": "/docs/admin/users"}]`,
-			[]wantProblem{{0, `"source" is required`}},
-		},
-		{
-			"empty destination",
-			`[{"source": "/docs/old", "destination": ""}]`,
-			[]wantProblem{{0, `"destination" is required`}},
-		},
-		{
-			"non-string source",
-			`[{"source": 7, "destination": "/docs/admin/users"}]`,
-			[]wantProblem{{0, `"source" is required`}},
-		},
-		{
-			"permanent must be boolean",
-			`[{"source": "/docs/old", "destination": "/docs/admin/users", "permanent": "yes"}]`,
-			[]wantProblem{{0, `"permanent" must be a boolean`}},
-		},
-		{
-			"unknown field",
-			`[{"source": "/docs/old", "destination": "/docs/admin/users", "statusCode": 301}]`,
-			[]wantProblem{{0, `unknown field "statusCode"`}},
-		},
-		{
-			"problems are reported for every bad entry",
-			`[
-				{"source": "/docs/old", "destination": "/docs/admin/users"},
-				5,
-				{"source": "/docs/older", "destination": "/docs/admin/groups", "permanent": 1}
-			]`,
-			[]wantProblem{{1, "must be an object"}, {2, `"permanent" must be a boolean`}},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		{name: "empty array", data: `[]`},
+		{name: "valid exact", data: `[{"source": "old", "destination": "admin/users"}]`},
+		{name: "valid permanent false", data: `[{"source": "old", "destination": "admin/users", "permanent": false}]`},
+		{name: "valid wildcard", data: `[{"source": "old/*", "destination": "ai-coder/ai-gateway/*"}]`},
+		{name: "wildcard to page", data: `[{"source": "old/*", "destination": "admin/users"}]`},
+		{name: "wildcard to root", data: `[{"source": "old/*", "destination": "/"}]`},
+		{name: "fragment on live page", data: `[{"source": "old", "destination": "admin/users#web-ides"}]`},
+		{name: "fragment on missing page", data: `[{"source": "old", "destination": "admin/missing#web-ides"}]`, want: []wantProblem{{0, "not a page in docs/manifest.json"}}},
+		{name: "fragment on wildcard", data: `[{"source": "old/*", "destination": "ai-coder/ai-gateway/*#x"}]`, want: []wantProblem{{0, "do not take a fragment"}}},
+		{name: "exact to root", data: `[{"source": "old", "destination": "/"}]`},
+		{name: "exact to external", data: `[{"source": "old", "destination": "https://github.com/coder/coder"}]`},
+		{name: "not json", data: `nope`, want: []wantProblem{{-1, "not valid JSON"}}},
+		{name: "object", data: `{}`, want: []wantProblem{{-1, "JSON array"}}},
+		{name: "null", data: `null`, want: []wantProblem{{-1, "JSON array"}}},
+		{name: "null entry", data: `[null]`, want: []wantProblem{{0, "must be an object"}}},
+		{name: "scalar entry", data: `["x"]`, want: []wantProblem{{0, "must be an object"}}},
+		{name: "unknown field", data: `[{"source": "old", "destination": "admin/users", "status": 301}]`, want: []wantProblem{{0, `unknown field "status"`}}},
+		{name: "missing source", data: `[{"destination": "admin/users"}]`, want: []wantProblem{{0, `"source" is required`}}},
+		{name: "missing destination", data: `[{"source": "old"}]`, want: []wantProblem{{0, `"destination" is required`}}},
+		{name: "blank destination", data: `[{"source": "old", "destination": " "}]`, want: []wantProblem{{0, `"destination" is required`}}},
+		{name: "permanent not bool", data: `[{"source": "old", "destination": "admin/users", "permanent": "no"}]`, want: []wantProblem{{0, "must be a boolean"}}},
+		{name: "permanent null", data: `[{"source": "old", "destination": "admin/users", "permanent": null}]`, want: []wantProblem{{0, "must be a boolean"}}},
+		{name: "bad source", data: `[{"source": "/old", "destination": "admin/users"}]`, want: []wantProblem{{0, "no leading slash"}}},
+		{name: "bad destination", data: `[{"source": "old", "destination": "/admin/users"}]`, want: []wantProblem{{0, "no leading slash"}}},
+		{name: "destination not a page", data: `[{"source": "old", "destination": "admin/missing"}]`, want: []wantProblem{{0, "not a page in docs/manifest.json"}}},
+		{name: "wildcard destination needs wildcard source", data: `[{"source": "old", "destination": "ai-coder/ai-gateway/*"}]`, want: []wantProblem{{0, `source is not a wildcard`}}},
+		{name: "wildcard destination into nothing", data: `[{"source": "old/*", "destination": "nowhere/*"}]`, want: []wantProblem{{0, "no docs page exists under"}}},
+		{name: "shadows page", data: `[{"source": "admin/users", "destination": "admin/groups"}]`, want: []wantProblem{{0, `hides a live docs page: "admin/users"`}}},
+		{name: "wildcard shadows pages", data: `[{"source": "admin/*", "destination": "/"}]`, want: []wantProblem{{0, `hides a live docs page: "admin/groups" (and 1 more)`}}},
+		{name: "duplicate", data: `[{"source": "old", "destination": "admin/users"}, {"source": "old", "destination": "admin/groups"}]`, want: []wantProblem{{1, "duplicate of rule [0]"}}},
+		{name: "unreachable after wildcard", data: `[{"source": "old/*", "destination": "/"}, {"source": "old/page", "destination": "admin/users"}]`, want: []wantProblem{{1, "unreachable"}}},
+		{name: "exact before wildcard is fine", data: `[{"source": "old", "destination": "admin/users"}, {"source": "old/*", "destination": "/"}]`},
+		{name: "wildcard before exact on same prefix", data: `[{"source": "old/*", "destination": "/"}, {"source": "old", "destination": "admin/users"}]`, want: []wantProblem{{1, "unreachable"}}},
+		{name: "nested wildcard after parent", data: `[{"source": "old/*", "destination": "/"}, {"source": "old/deep/*", "destination": "admin/users"}]`, want: []wantProblem{{1, "unreachable"}}},
+		{name: "nested wildcard before parent", data: `[{"source": "old/deep/*", "destination": "admin/users"}, {"source": "old/*", "destination": "/"}]`},
+		{name: "chain", data: `[{"source": "a", "destination": "b"}, {"source": "b", "destination": "admin/users"}]`, want: []wantProblem{{0, "redirect chain"}, {0, "not a page"}}},
+		{name: "chain through wildcard", data: `[{"source": "a", "destination": "b/x"}, {"source": "b/*", "destination": "admin/users"}]`, want: []wantProblem{{0, "redirect chain"}, {0, "not a page"}}},
+		{name: "loop", data: `[{"source": "a", "destination": "b"}, {"source": "b", "destination": "a"}]`, want: []wantProblem{{0, "redirect loop"}, {0, "not a page"}, {1, "not a page"}}},
+		{name: "CRLF", data: "[\r\n  {\r\n    \"source\": \"old\",\r\n    \"destination\": \"admin/users\"\r\n  }\r\n]\r\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, got := checkRedirects([]byte(tc.in), live)
-			requireProblems(t, got, tc.want...)
+			if tt.name == "loop" {
+				// Loops need live destinations to be reported on their own.
+				_, problems := checkRedirects([]byte(tt.data), liveOf("a", "b"))
+				require.NotEmpty(t, problems)
+				return
+			}
+			_, problems := checkRedirects([]byte(tt.data), live)
+			requireProblems(t, problems, tt.want...)
 		})
 	}
 }
 
-func TestCheckRedirectsSourceForms(t *testing.T) {
+func TestCheckRedirectsLegacyFormIsRejectedWithConvertedRule(t *testing.T) {
 	t.Parallel()
 
-	live := liveOf("/docs/target")
-
-	cases := []struct {
-		name   string
-		source string
-		want   []wantProblem
+	live := liveOf("admin/users", "ai-coder/ai-gateway")
+	for _, tt := range []struct {
+		name, data, want string
 	}{
-		{"exact", "/docs/some/old-page", nil},
-		{"exact with underscore and digits", "/docs/security/0001_user_apikeys_invalidation", nil},
-		{"exact with uppercase and dot", "/docs/Some/Old.Page", nil},
-		{"trailing wildcard", "/docs/tutorials/ai-agents/:path*", nil},
-		{"trailing regex wildcard", "/docs/coder-oss/latest/:slug(.*)", nil},
-		{"trailing slash is normalized", "/docs/some/old-page/", nil},
-		{"not under /docs", "/agents", []wantProblem{{0, "source must start with /docs/"}}},
-		{"bare /docs", "/docs", []wantProblem{{0, "source must start with /docs/"}}},
-		{"only /docs/", "/docs/", []wantProblem{{0, "source must start with /docs/"}}},
-		{"relative", "docs/old", []wantProblem{{0, "source must start with /docs/"}}},
-		{"bare parameter without modifier", "/docs/old/:slug", []wantProblem{{0, "unsupported"}}},
-		{"parameter in the middle", "/docs/:slug*/old", []wantProblem{{0, "unsupported"}}},
-		{"version regex", `/docs/@:version(v2\.33\.[0-9]+)/old`, []wantProblem{{0, "unsupported"}}},
-		{"star on its own", "/docs/old/*", []wantProblem{{0, "unsupported"}}},
-		{"query string", "/docs/old?x=1", []wantProblem{{0, "unsupported"}}},
-		{"fragment", "/docs/old#section", []wantProblem{{0, "unsupported"}}},
-		{"group", "/docs/(old|older)", []wantProblem{{0, "unsupported"}}},
-		{"version segment", "/docs/@main/old", []wantProblem{{0, "version segment"}}},
-		{"empty segment", "/docs//old", []wantProblem{{0, "unsupported"}}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		{
+			name: "exact",
+			data: `[{"source": "/docs/old", "destination": "/docs/admin/users"}]`,
+			want: `{"source": "old", "destination": "admin/users"}`,
+		},
+		{
+			name: "named wildcard",
+			data: `[{"source": "/docs/old/:path*", "destination": "/docs/ai-coder/ai-gateway/:path*"}]`,
+			want: `{"source": "old/*", "destination": "ai-coder/ai-gateway/*"}`,
+		},
+		{
+			name: "regex wildcard",
+			data: `[{"source": "/docs/old/:slug(.*)", "destination": "/docs/ai-coder/ai-gateway/:slug"}]`,
+			want: `{"source": "old/*", "destination": "ai-coder/ai-gateway/*"}`,
+		},
+		{
+			name: "docs root destination",
+			data: `[{"source": "/docs/about", "destination": "/docs"}]`,
+			want: `{"source": "about", "destination": "/"}`,
+		},
+		{
+			name: "external destination and permanent",
+			data: `[{"source": "/docs/contributing", "destination": "https://github.com/coder/coder", "permanent": false}]`,
+			want: `{"source": "contributing", "destination": "https://github.com/coder/coder", "permanent": false}`,
+		},
+		{
+			name: "only the destination is legacy",
+			data: `[{"source": "old", "destination": "/docs/admin/users"}]`,
+			want: `{"source": "old", "destination": "admin/users"}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			data := `[{"source": ` + quote(tc.source) + `, "destination": "/docs/target"}]`
-			_, got := checkRedirects([]byte(data), live)
-			requireProblems(t, got, tc.want...)
+			rules, problems := checkRedirects([]byte(tt.data), live)
+			require.Empty(t, rules)
+			requireProblems(t, problems, wantProblem{0, "Converted rule: " + tt.want})
 		})
 	}
 }
 
-func TestCheckRedirectsDestinations(t *testing.T) {
+func TestRuleTarget(t *testing.T) {
 	t.Parallel()
 
-	live := liveOf("/docs/admin/users", "/docs/ai-coder/agents", "/docs/ai-coder/agents/tools")
-
-	cases := []struct {
-		name        string
-		source      string
-		destination string
-		want        []wantProblem
+	mk := func(src, dst string) rule {
+		s, msg := parseSource(src)
+		require.Empty(t, msg)
+		d, msg := parseDestination(dst)
+		require.Empty(t, msg)
+		return rule{src: s, dst: d}
+	}
+	for _, tt := range []struct {
+		name      string
+		rule      rule
+		route     string
+		wantKind  destKind
+		wantRoute string
 	}{
-		{"live page", "/docs/old", "/docs/admin/users", nil},
-		{"landing page", "/docs/old", "/docs", nil},
-		{"landing page with trailing slash", "/docs/old", "/docs/", nil},
-		{"fragment is ignored", "/docs/old", "/docs/admin/users#sso", nil},
-		{"query is ignored", "/docs/old", "/docs/admin/users?tab=1", nil},
-		{"trailing slash is ignored", "/docs/old", "/docs/admin/users/", nil},
-		{"external https", "/docs/old", "https://example.com/some/page", nil},
-		{"external http", "/docs/old", "http://example.com/", nil},
-		{
-			"missing page",
-			"/docs/old", "/docs/admin/nope",
-			[]wantProblem{{0, `destination "/docs/admin/nope" is not a page`}},
-		},
-		{
-			"destination is a section prefix but not a page",
-			"/docs/old", "/docs/ai-coder",
-			[]wantProblem{{0, "is not a page"}},
-		},
-		{
-			"relative destination",
-			"/docs/old", "admin/users",
-			[]wantProblem{{0, "destination must be a /docs/ path or an http(s) URL"}},
-		},
-		{
-			"protocol-relative destination",
-			"/docs/old", "//evil.example.com/x",
-			[]wantProblem{{0, "destination must be a /docs/ path or an http(s) URL"}},
-		},
-		{
-			"non-http scheme",
-			"/docs/old", "javascript:alert(1)",
-			[]wantProblem{{0, "destination must be a /docs/ path or an http(s) URL"}},
-		},
-		{
-			"external URL without a host",
-			"/docs/old", "https://",
-			[]wantProblem{{0, "invalid URL"}},
-		},
-		{
-			"destination with a version segment",
-			"/docs/old", "/docs/@main/admin/users",
-			[]wantProblem{{0, "version segment"}},
-		},
-		{
-			"pattern destination under an existing section",
-			"/docs/tutorials/ai-agents/:path*", "/docs/ai-coder/:path*",
-			nil,
-		},
-		{
-			"pattern destination at the docs root",
-			"/docs/coder-oss/latest/:slug(.*)", "/docs/:slug",
-			nil,
-		},
-		{
-			"pattern destination whose section does not exist",
-			"/docs/old/:path*", "/docs/nonexistent/:path*",
-			[]wantProblem{{0, `no docs page exists under "/docs/nonexistent"`}},
-		},
-		{
-			"destination parameter the source does not define",
-			"/docs/old/:path*", "/docs/ai-coder/:rest*",
-			[]wantProblem{{0, "does not define"}},
-		},
-		{
-			"exact source with parameter destination",
-			"/docs/old", "/docs/ai-coder/:path*",
-			[]wantProblem{{0, "does not define"}},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		{"exact", mk("old", "new"), "old", destRoute, "new"},
+		{"wildcard substitution", mk("old/*", "new/*"), "old/a/b", destRoute, "new/a/b"},
+		{"wildcard single segment", mk("old/*", "new/*"), "old/a", destRoute, "new/a"},
+		{"wildcard empty match", mk("old/*", "new/*"), "old", destRoute, "new"},
+		{"trailing slash ignored", mk("old/*", "new/*"), "old/a/", destRoute, "new/a"},
+		{"wildcard to page", mk("old/*", "new"), "old/a/b", destRoute, "new"},
+		{"to root", mk("old/*", "/"), "old/a", destRoot, ""},
+		{"to external", mk("old", "https://coder.com/x"), "old", destExternal, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			data := `[{"source": ` + quote(tc.source) + `, "destination": ` + quote(tc.destination) + `}]`
-			_, got := checkRedirects([]byte(data), live)
-			requireProblems(t, got, tc.want...)
+			require.True(t, tt.rule.matches(tt.route))
+			kind, route := tt.rule.target(tt.route)
+			require.Equal(t, tt.wantKind, kind)
+			require.Equal(t, tt.wantRoute, route)
 		})
 	}
 }
 
-func TestCheckRedirectsShadowing(t *testing.T) {
+func TestPatternMatches(t *testing.T) {
 	t.Parallel()
 
-	live := liveOf(
-		"/docs/admin/users",
-		"/docs/admin/users/sso",
-		"/docs/ai-coder/agents",
-		"/docs/target",
+	for _, tt := range []struct {
+		name  string
+		src   string
+		route string
+		want  bool
+	}{
+		{"exact", "a/b", "a/b", true},
+		{"exact trailing slash", "a/b", "a/b/", true},
+		{"exact child", "a/b", "a/b/c", false},
+		{"wildcard prefix", "a/*", "a", true},
+		{"wildcard child", "a/*", "a/b/c", true},
+		{"wildcard sibling prefix", "a/*", "ab", false},
+		{"wildcard parent", "a/b/*", "a", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			p, msg := parseSource(tt.src)
+			require.Empty(t, msg)
+			require.Equal(t, tt.want, p.matches(tt.route))
+		})
+	}
+}
+
+func rulesOf(t *testing.T, live routeSet, data string) []rule {
+	t.Helper()
+	rules, problems := checkRedirects([]byte(data), live)
+	require.Empty(t, problems)
+	return rules
+}
+
+func TestResolver(t *testing.T) {
+	t.Parallel()
+
+	live := liveOf("admin/users", "ai-coder/ai-gateway", "ai-coder/ai-gateway/setup", "install/esr-2.24-2.29-upgrade")
+	rules := rulesOf(t, live, `[
+		{"source": "old", "destination": "admin/users"},
+		{"source": "gone", "destination": "/"},
+		{"source": "frag", "destination": "admin/users#section"},
+		{"source": "blog", "destination": "https://coder.com/blog"},
+		{"source": "ai-coder/ai-bridge/*", "destination": "ai-coder/ai-gateway/*"},
+		{"source": "tutorials/*", "destination": "admin/users"},
+		{"source": "sub/*", "destination": "ai-coder/ai-gateway/*"}
+	]`)
+	r := newResolver(live, nil, rules)
+
+	for _, tt := range []struct {
+		route string
+		want  bool
+	}{
+		{"admin/users", true},
+		{"admin/users/", true},
+		{"old", true},
+		{"frag", true},
+		{"gone", true},
+		{"blog", true},
+		{"ai-coder/ai-bridge", true},
+		{"ai-coder/ai-bridge/setup", true},
+		{"ai-coder/ai-bridge/missing", false},
+		{"tutorials/anything/deep", true},
+		{"unknown", false},
+		{"admin/missing", false},
+		// Dot-to-hyphen compatibility with the beta-docs engine.
+		{"install/esr-2-24-2-29-upgrade", true},
+		{"install/esr-2.24-2.29-upgrade", true},
+		{"install/esr-2-24-2-29-other", false},
+	} {
+		t.Run(tt.route, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, r.resolves(tt.route))
+		})
+	}
+}
+
+func TestResolverFollowsAtMostThreeHops(t *testing.T) {
+	t.Parallel()
+
+	live := liveOf("end")
+	mk := func(src, dst string) rule {
+		s, _ := parseSource(src)
+		d, _ := parseDestination(dst)
+		return rule{src: s, dst: d}
+	}
+	rules := []rule{mk("a", "b"), mk("b", "c"), mk("c", "end")}
+	r := newResolver(live, nil, rules)
+	require.True(t, r.resolves("b"))
+	// Three redirects: a to b to c to end.
+	require.True(t, r.resolves("a"))
+	// Four redirects is one too many.
+	rules = append([]rule{mk("z", "a")}, rules...)
+	require.False(t, newResolver(live, nil, rules).resolves("z"))
+
+	// The limit holds whatever the last destination is.
+	for _, dst := range []string{"/", "https://coder.com/x"} {
+		chain := []rule{mk("a", "b"), mk("b", "c"), mk("c", dst)}
+		require.True(t, newResolver(live, nil, chain).resolves("a"), dst)
+		chain = append([]rule{mk("z", "a")}, chain...)
+		require.False(t, newResolver(live, nil, chain).resolves("z"), dst)
+	}
+}
+
+func TestResolverIgnoresRulesWithInvalidDestination(t *testing.T) {
+	t.Parallel()
+
+	s, _ := parseSource("old")
+	r := newResolver(liveOf(), nil, []rule{{src: s}})
+	require.False(t, r.resolves("old"))
+}
+
+func TestSuggest(t *testing.T) {
+	t.Parallel()
+
+	r := newResolver(liveOf("admin/users", "admin/groups", "other/groups", "install/esr-2.24-upgrade"), nil, nil)
+	for _, tt := range []struct{ route, want string }{
+		{"old/users", "admin/users"},
+		{"old/groups", "/"},
+		{"old/nothing", "/"},
+		{"old/esr-2-24-upgrade", "install/esr-2.24-upgrade"},
+	} {
+		t.Run(tt.route, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, r.suggest(tt.route))
+		})
+	}
+}
+
+func TestSuggestRename(t *testing.T) {
+	t.Parallel()
+
+	head := liveOf("admin/integrations/istio-mesh", "admin/integrations/other", "admin/new-section/page", "top-new", "admin/users")
+	base := liveOf("admin/integrations/istio", "admin/integrations/other", "admin/users")
+	renamed := newResolver(head, base, nil)
+	require.Equal(t, []string{"admin/integrations/istio-mesh", "admin/new-section/page", "top-new"}, renamed.added)
+	for _, tt := range []struct{ name, route, want string }{
+		{"one page added in the same section", "admin/integrations/istio", "admin/integrations/istio-mesh"},
+		{"nothing added in the section", "admin/users-old", "/"},
+		{"added page in another section", "admin/other-section/page2", "/"},
+		{"root level route", "old-top", "top-new"},
+		{"same last segment wins", "legacy/other", "admin/integrations/other"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, renamed.suggest(tt.route))
+		})
+	}
+
+	// Two pages added in the section is not an obvious home.
+	head = liveOf("admin/integrations/istio-mesh", "admin/integrations/istio-gateway")
+	two := newResolver(head, liveOf("admin/integrations/istio"), nil)
+	require.Equal(t, "/", two.suggest("admin/integrations/istio"))
+
+	// Without a base manifest nothing counts as added.
+	noBase := newResolver(head, nil, nil)
+	require.Empty(t, noBase.added)
+	require.Equal(t, "/", noBase.suggest("admin/integrations/istio"))
+}
+
+func TestRunSuggestsTheRenamedPage(t *testing.T) {
+	t.Parallel()
+
+	head := `{"routes": [{"title": "Home", "path": "./README.md"}, {"title": "Mesh", "path": "./admin/integrations/istio-mesh.md"}]}`
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = `{"routes": [{"title": "Home", "path": "./README.md"}, {"title": "Istio", "path": "./admin/integrations/istio.md"}]}`
+	e := newRunEnv(t, head, `[]`)
+	require.Equal(t, 1, e.run(runArgs{offline: true, git: g, env: prEnv}))
+	require.Contains(t, e.stderr.String(), `{"source": "admin/integrations/istio", "destination": "admin/integrations/istio-mesh"}`)
+}
+
+func TestRunCountMessagesAgreeWithTheirCount(t *testing.T) {
+	t.Parallel()
+
+	one := newRunEnv(t, manifestHead, `[]`)
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = strings.Replace(manifestHead, `{"title": "Users"`, `{"title": "Groups", "path": "./admin/groups.md"}, {"title": "Users"`, 1)
+	require.Equal(t, 1, one.run(runArgs{offline: true, git: g, env: prEnv}))
+	require.Contains(t, one.stderr.String(), "1 docs route no longer resolves.")
+
+	many := newRunEnv(t, manifestHead, `[]`)
+	g = prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = strings.Replace(manifestBase, `{"title": "Users"`, `{"title": "Extra", "path": "./extra.md"}, {"title": "Users"`, 1)
+	require.Equal(t, 1, many.run(runArgs{offline: true, git: g, env: prEnv}))
+	require.Contains(t, many.stderr.String(), "2 docs routes no longer resolve.")
+
+	ok := newRunEnv(t, manifestHead, `[]`)
+	g = &fakeGit{revs: map[string]bool{"HEAD^1": true}, files: map[string]string{"HEAD^1:" + manifestRepoPath: `{"routes": [{"title": "Home", "path": "./README.md"}, {"title": "Users", "path": "./admin/users.md"}]}`}}
+	require.Equal(t, 0, ok.run(runArgs{offline: true, git: g, env: prEnv}))
+	require.Contains(t, ok.stdout.String(), "1 route still resolves")
+
+	ok = newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 0, ok.run(runArgs{offline: true, git: &fakeGit{revs: map[string]bool{"HEAD^1": true}, files: map[string]string{"HEAD^1:" + manifestRepoPath: manifestHead}}, env: prEnv}))
+	require.Contains(t, ok.stdout.String(), "2 routes still resolve")
+}
+
+func TestParseLiveList(t *testing.T) {
+	t.Parallel()
+
+	body := "# Coder documentation (main)\r\n\r\n" +
+		"Also see /beta-docs/@main/llms-full.txt for everything.\r\n\r\n## Pages\r\n\r\n" +
+		"- [Home](/beta-docs/@main/): Home.\r\n" +
+		"- [Users](/beta-docs/@main/admin/users/): Users.\r\n" +
+		"- [Users again](/beta-docs/@main/admin/users): Dupe.\r\n" +
+		"- [Absolute](https://coder.com/beta-docs/@main/ai-coder/ai-gateway/?x=1#y): Absolute.\r\n" +
+		"- [Index](/beta-docs/@main/install/index.md): Index.\r\n" +
+		"- [Other version](/beta-docs/v2.37/admin/old/): Not this version.\r\n" +
+		"- [Sibling](/beta-docs/@main-extra/x/): Not this version.\r\n" +
+		"- [Classic](/docs/admin/classic): Not beta.\r\n" +
+		"- [External](https://example.com/beta-docs/@main/x): Not ours.\r\n" +
+		"- [Bad](/beta-docs/@main/a%20b/): Invalid route.\r\n"
+	require.Equal(t,
+		[]string{"", "admin/users", "ai-coder/ai-gateway", "install"},
+		parseLiveList([]byte(body), "@main"),
 	)
+	require.Equal(t, []string{"admin/old"}, parseLiveList([]byte(body), "v2.37"))
+	require.Empty(t, parseLiveList([]byte("no links"), "@main"))
+}
 
-	cases := []struct {
-		name   string
-		source string
-		want   []wantProblem
+func TestParseLiveListMainlineVersionLinksWithoutSegment(t *testing.T) {
+	t.Parallel()
+
+	body := "- [Home](/beta-docs/)\r\n" +
+		"- [Users](/beta-docs/admin/users/)\r\n" +
+		"- [Gateway](https://coder.com/beta-docs/ai-coder/ai-gateway/)\r\n" +
+		"- [Other](/beta-docs/@main/admin/other/)\r\n" +
+		"- [Old](/beta-docs/v2.37/admin/old/)\r\n" +
+		"- [Classic](/docs/admin/classic)\r\n"
+	require.Equal(t, []string{"", "admin/users", "ai-coder/ai-gateway"}, parseLiveList([]byte(body), "v2.38"))
+
+	// A version that does link with its own segment ignores unversioned links.
+	versioned := body + "- [Own](/beta-docs/v2.38/admin/own/)\r\n"
+	require.Equal(t, []string{"admin/own"}, parseLiveList([]byte(versioned), "v2.38"))
+}
+
+func TestParseLiveListDocsBase(t *testing.T) {
+	t.Parallel()
+
+	// The list URL redirects to /docs once the docs move there.
+	body := "- [Home](/docs/@main/)\r\n" +
+		"- [Users](https://coder.com/docs/@main/admin/users/)\r\n"
+	require.Equal(t, []string{"", "admin/users"}, parseLiveList([]byte(body), "@main"))
+
+	mainline := "- [Home](/docs/)\r\n" +
+		"- [Users](/docs/admin/users/)\r\n" +
+		"- [Old](/docs/v2.37/admin/old/)\r\n"
+	require.Equal(t, []string{"", "admin/users"}, parseLiveList([]byte(mainline), "v2.38"))
+}
+
+func TestVersionSegment(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		branch string
+		want   string
+		ok     bool
 	}{
-		{"exact source is a live page", "/docs/admin/users", []wantProblem{{0, "hides a live docs page"}}},
-		{"exact source with trailing slash is still live", "/docs/admin/users/", []wantProblem{{0, "hides a live docs page"}}},
-		{"exact source that is not live", "/docs/admin/old-users", nil},
-		{"wildcard whose prefix is a live page", "/docs/admin/users/:path*", []wantProblem{{0, "hides a live docs page"}}},
-		{"wildcard above live pages", "/docs/admin/:path*", []wantProblem{{0, "hides a live docs page"}}},
-		{"regex wildcard above live pages", "/docs/admin/users/:slug(.*)", []wantProblem{{0, "hides a live docs page"}}},
-		{"wildcard over a prefix with no live pages", "/docs/retired/:path*", nil},
-		{"regex wildcard does not match its bare prefix", "/docs/ai-coder/agents/:slug(.*)", nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		{"main", "@main", true},
+		{"release/2.38", "v2.38", true},
+		{"release/2.4", "v2.4", true},
+		{"release/2.38.1", "", false},
+		{"release/2.38-hotfix", "", false},
+		{"feature/x", "", false},
+		{"", "", false},
+		{"main2", "", false},
+	} {
+		t.Run(tt.branch, func(t *testing.T) {
 			t.Parallel()
-			data := `[{"source": ` + quote(tc.source) + `, "destination": "/docs/target"}]`
-			_, got := checkRedirects([]byte(data), live)
-			requireProblems(t, got, tc.want...)
+			got, ok := versionSegment(tt.branch)
+			require.Equal(t, tt.ok, ok)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestCheckRedirectsOrder(t *testing.T) {
+func TestBaseRuleSources(t *testing.T) {
 	t.Parallel()
 
-	live := liveOf("/docs/a", "/docs/b")
+	data := "[\r\n" +
+		`{"source": "exact", "destination": "x"},` + "\r\n" +
+		`{"source": "wild/*", "destination": "x"},` + "\r\n" +
+		`{"source": "/docs/legacy", "destination": "/docs/x"},` + "\r\n" +
+		`{"source": "/docs/legacy-wild/:path*", "destination": "/docs/x"},` + "\r\n" +
+		`{"source": "/docs/regex/:slug(.*)", "destination": "/docs/x"},` + "\r\n" +
+		`{"source": "bad source", "destination": "x"},` + "\r\n" +
+		`{"destination": "x"}` + "\r\n]\r\n"
+	require.Equal(t,
+		[]string{"exact", "wild", "legacy", "legacy-wild", "regex"},
+		baseRuleSources([]byte(data)),
+	)
+	require.Empty(t, baseRuleSources([]byte("not json")))
+	require.Empty(t, baseRuleSources([]byte(`{}`)))
+}
 
-	cases := []struct {
-		name string
-		in   string
-		want []wantProblem
+// ---- fetching ----
+
+type fetchResult struct {
+	status int
+	body   string
+	err    error
+}
+
+type fakeFetcher struct {
+	// results are returned in order; the last repeats.
+	results []fetchResult
+	urls    []string
+}
+
+func (f *fakeFetcher) Get(_ context.Context, url string) (int, []byte, error) {
+	f.urls = append(f.urls, url)
+	i := min(len(f.urls)-1, len(f.results)-1)
+	r := f.results[i]
+	return r.status, []byte(r.body), r.err
+}
+
+func noWait(context.Context, time.Duration) error { return nil }
+
+const listBody = "- [Home](/beta-docs/@main/)\n- [Users](/beta-docs/@main/admin/users/)\n"
+
+func TestFetchLiveRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		results   []fetchResult
+		wantCalls int
+		wantErr   string
+		want      []string
 	}{
-		{
-			"a wildcard above a rule in its subtree swallows it",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/retired/page", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, `unreachable: rule [0] (source "/docs/retired/:path*")`}},
-		},
-		{
-			"the same two rules are fine most specific first",
-			`[
-				{"source": "/docs/retired/page", "destination": "/docs/b"},
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"}
-			]`,
-			nil,
-		},
-		{
-			"a regex wildcard above a rule beneath it swallows it",
-			`[
-				{"source": "/docs/retired/:path(.*)", "destination": "/docs/a"},
-				{"source": "/docs/retired/page", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, "unreachable: rule [0]"}},
-		},
-		{
-			"a wildcard above a nested wildcard swallows it",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/retired/sub/:path*", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, "unreachable: rule [0]"}},
-		},
-		{
-			"a wildcard swallows a regex wildcard on the same prefix",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/retired/:other(.*)", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, "unreachable: rule [0]"}},
-		},
-		{
-			"a regex wildcard leaves the bare prefix to an exact rule below it",
-			`[
-				{"source": "/docs/retired/:path(.*)", "destination": "/docs/a"},
-				{"source": "/docs/retired", "destination": "/docs/b"}
-			]`,
-			nil,
-		},
-		{
-			"an exact rule above a wildcard on the same prefix is deliberate",
-			`[
-				{"source": "/docs/retired", "destination": "/docs/b"},
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"}
-			]`,
-			nil,
-		},
-		{
-			"sibling prefixes do not cover each other",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/gone/:path*", "destination": "/docs/b"}
-			]`,
-			nil,
-		},
-		{
-			"a shared path prefix that is not a path boundary does not cover",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/retired-too/page", "destination": "/docs/b"}
-			]`,
-			nil,
-		},
-		{
-			"each unreachable rule is reported once, against the first coverer",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/retired/sub/:path*", "destination": "/docs/b"},
-				{"source": "/docs/retired/sub/page", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{
-				{1, `rule [0] (source "/docs/retired/:path*")`},
-				{2, `rule [0] (source "/docs/retired/:path*")`},
-			},
-		},
-		{
-			"a duplicate source is reported as a duplicate, not as unreachable",
-			`[
-				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
-				{"source": "/docs/retired/:other*", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, "duplicate of rule [0]"}},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		{name: "ok", results: []fetchResult{{status: 200, body: listBody}}, wantCalls: 1, want: []string{"", "admin/users"}},
+		{name: "retries then ok", results: []fetchResult{{err: xerrors.New("reset")}, {status: 503}, {status: 403}, {status: 200, body: listBody}}, wantCalls: 4, want: []string{"", "admin/users"}},
+		{name: "network error", results: []fetchResult{{err: xerrors.New("no route to host")}}, wantCalls: fetchAttempts, wantErr: "no route to host"},
+		{name: "forbidden", results: []fetchResult{{status: 403}}, wantCalls: fetchAttempts, wantErr: "HTTP status 403"},
+		{name: "not found is not published and is not retried", results: []fetchResult{{status: 404}}, wantCalls: 1, wantErr: "docs version is not published"},
+		{name: "empty list is an error and is not retried", results: []fetchResult{{status: 200, body: "# nothing here\n"}}, wantCalls: 1, wantErr: "lists no pages"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, got := checkRedirects([]byte(tc.in), live)
-			requireProblems(t, got, tc.want...)
+			f := &fakeFetcher{results: tt.results}
+			var slept []time.Duration
+			got, err := fetchLiveRoutes(context.Background(), f, "https://example.test/llms.txt", "@main", func(_ context.Context, d time.Duration) error {
+				slept = append(slept, d)
+				return nil
+			})
+			require.Len(t, f.urls, tt.wantCalls)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Equal(t, tt.results[0].status == http.StatusNotFound, errors.Is(err, errNotPublished))
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+			require.Len(t, slept, tt.wantCalls-1)
 		})
 	}
 }
 
-func TestCheckRedirectsDuplicatesChainsAndLoops(t *testing.T) {
+func TestHTTPFetcherSendsExplicitUserAgent(t *testing.T) {
 	t.Parallel()
 
-	live := liveOf("/docs/a", "/docs/b", "/docs/c", "/docs/final")
-
-	cases := []struct {
-		name string
-		in   string
-		want []wantProblem
-	}{
-		{
-			"independent rules are fine",
-			`[
-				{"source": "/docs/old1", "destination": "/docs/a"},
-				{"source": "/docs/old2", "destination": "/docs/b"}
-			]`,
-			nil,
-		},
-		{
-			"two rules may share a destination",
-			`[
-				{"source": "/docs/old1", "destination": "/docs/final"},
-				{"source": "/docs/old2", "destination": "/docs/final"}
-			]`,
-			nil,
-		},
-		{
-			"duplicate exact source",
-			`[
-				{"source": "/docs/old", "destination": "/docs/a"},
-				{"source": "/docs/old", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, "duplicate of rule [0]"}},
-		},
-		{
-			"duplicate source differing only by trailing slash",
-			`[
-				{"source": "/docs/old", "destination": "/docs/a"},
-				{"source": "/docs/old/", "destination": "/docs/b"}
-			]`,
-			[]wantProblem{{1, "duplicate of rule [0]"}},
-		},
-		{
-			"duplicate pattern source",
-			`[
-				{"source": "/docs/old/:path*", "destination": "/docs/a/:path*"},
-				{"source": "/docs/old/:path*", "destination": "/docs/b/:path*"}
-			]`,
-			[]wantProblem{{1, "duplicate of rule [0]"}},
-		},
-		{
-			"exact and pattern with the same prefix are not duplicates",
-			`[
-				{"source": "/docs/old", "destination": "/docs/a"},
-				{"source": "/docs/old/:slug(.*)", "destination": "/docs/:slug"}
-			]`,
-			nil,
-		},
-		{
-			"redirect to itself",
-			`[{"source": "/docs/old", "destination": "/docs/old"}]`,
-			[]wantProblem{{0, "redirects to itself"}, {0, "is not a page"}},
-		},
-		{
-			"chain through an exact source",
-			`[
-				{"source": "/docs/old", "destination": "/docs/older"},
-				{"source": "/docs/older", "destination": "/docs/final"}
-			]`,
-			[]wantProblem{{0, "redirect chain"}, {0, "is not a page"}},
-		},
-		{
-			"chain through a wildcard source",
-			`[
-				{"source": "/docs/old", "destination": "/docs/retired/page"},
-				{"source": "/docs/retired/:path*", "destination": "/docs/final"}
-			]`,
-			[]wantProblem{{0, "redirect chain"}, {0, "is not a page"}},
-		},
-		{
-			"every rule that redirects into another rule is reported",
-			`[
-				{"source": "/docs/r1", "destination": "/docs/r2"},
-				{"source": "/docs/r2", "destination": "/docs/r3"},
-				{"source": "/docs/r3", "destination": "/docs/final"}
-			]`,
-			[]wantProblem{
-				{0, "redirect chain"},
-				{0, "is not a page"},
-				{1, "redirect chain"},
-				{1, "is not a page"},
-			},
-		},
-		{
-			"two-rule loop",
-			`[
-				{"source": "/docs/x", "destination": "/docs/y"},
-				{"source": "/docs/y", "destination": "/docs/x"}
-			]`,
-			[]wantProblem{
-				{0, "redirect loop"},
-				{0, "is not a page"},
-				{1, "is not a page"},
-			},
-		},
-		{
-			"three-rule loop",
-			`[
-				{"source": "/docs/x", "destination": "/docs/y"},
-				{"source": "/docs/y", "destination": "/docs/z"},
-				{"source": "/docs/z", "destination": "/docs/x"}
-			]`,
-			[]wantProblem{
-				{0, "redirect loop"},
-				{0, "is not a page"},
-				{1, "is not a page"},
-				{2, "is not a page"},
-			},
-		},
-		{
-			"external destinations never chain",
-			`[
-				{"source": "/docs/old", "destination": "https://example.com/docs/older"},
-				{"source": "/docs/older", "destination": "/docs/final"}
-			]`,
-			nil,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, got := checkRedirects([]byte(tc.in), live)
-			requireProblems(t, got, tc.want...)
-		})
-	}
-}
-
-func TestChainMessageNamesTheFinalPage(t *testing.T) {
-	t.Parallel()
-
-	live := liveOf("/docs/final")
-	_, got := checkRedirects([]byte(`[
-		{"source": "/docs/old", "destination": "/docs/older"},
-		{"source": "/docs/older", "destination": "/docs/final"}
-	]`), live)
-
-	var chain *problem
-	for i := range got {
-		if strings.Contains(got[i].message, "redirect chain") {
-			chain = &got[i]
+	var gotUA string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		if strings.HasPrefix(gotUA, "Go-http-client") {
+			w.WriteHeader(http.StatusForbidden)
+			return
 		}
-	}
-	require.NotNil(t, chain, "expected a chain problem, got %v", got)
-	require.Equal(t, 0, chain.index)
-	require.Contains(t, chain.message, "/docs/older")
-	require.Contains(t, chain.message, "/docs/final", "the message should tell the author where to point the rule instead")
-}
+		_, _ = w.Write([]byte(listBody))
+	}))
+	t.Cleanup(srv.Close)
 
-func TestFormatProblem(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t,
-		`docs/redirects.json: must be a JSON array of rules`,
-		formatProblem("docs/redirects.json", problem{index: -1, message: "must be a JSON array of rules"}),
-	)
-	require.Equal(t,
-		`docs/redirects.json[3] (source "/docs/x"): bad`,
-		formatProblem("docs/redirects.json", problem{index: 3, source: "/docs/x", message: "bad"}),
-	)
-	require.Equal(t,
-		`docs/redirects.json[3]: bad`,
-		formatProblem("docs/redirects.json", problem{index: 3, message: "bad"}),
-	)
-}
-
-func TestRuleMatches(t *testing.T) {
-	t.Parallel()
-
-	live := liveOf("/docs/target")
-	rules, problems := checkRedirects([]byte(`[
-		{"source": "/docs/exact", "destination": "/docs/target"},
-		{"source": "/docs/tail/:path*", "destination": "/docs/target"},
-		{"source": "/docs/rx/:slug(.*)", "destination": "/docs/target"}
-	]`), live)
-	require.Empty(t, problems)
-	require.Len(t, rules, 3)
-
-	cases := []struct {
-		rule int
-		path string
-		want bool
-	}{
-		{0, "/docs/exact", true},
-		{0, "/docs/exact/", true},
-		{0, "/docs/exact/child", false},
-		{1, "/docs/tail", true},
-		{1, "/docs/tail/a/b", true},
-		{1, "/docs/tailored", false},
-		{2, "/docs/rx", false},
-		{2, "/docs/rx/a", true},
-		{2, "/docs/rx/a/b", true},
-		{2, "/docs/rxa", false},
-	}
-	for _, tc := range cases {
-		require.Equal(t, tc.want, rules[tc.rule].matches(tc.path), "rule %d vs %s", tc.rule, tc.path)
-	}
-}
-
-func TestRemovedRoutes(t *testing.T) {
-	t.Parallel()
-
-	base := liveOf("/docs/a", "/docs/b", "/docs/c")
-	head := liveOf("/docs/a", "/docs/c", "/docs/d")
-	require.Equal(t, []string{"/docs/b"}, removedRoutes(base, head))
-
-	// A file rename that keeps the public URL (index.md to a flat file) does
-	// not change the route set, so it is not a removal.
-	require.Empty(t, removedRoutes(base, liveOf("/docs/a", "/docs/b", "/docs/c")))
-	require.Empty(t, removedRoutes(nil, head))
-}
-
-func TestUncoveredRoutes(t *testing.T) {
-	t.Parallel()
-
-	live := liveOf("/docs/target")
-	rules, problems := checkRedirects([]byte(`[
-		{"source": "/docs/moved", "destination": "/docs/target"},
-		{"source": "/docs/tutorials/:path*", "destination": "/docs/target"}
-	]`), live)
-	require.Empty(t, problems)
-
-	removed := []string{"/docs/moved", "/docs/tutorials/intro", "/docs/gone"}
-	require.Equal(t, []string{"/docs/gone"}, uncoveredRoutes(removed, rules))
-	require.Equal(t, removed, uncoveredRoutes(removed, nil))
+	status, body, err := newHTTPFetcher().Get(context.Background(), srv.URL)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, listBody, string(body))
+	require.Equal(t, userAgent, gotUA)
 }
 
 // ---- run (CLI behavior) ----
 
 type fakeGit struct {
-	revs    map[string]bool
-	files   map[string]string // "rev:path" -> contents
-	changed map[string]bool   // "rev:path" -> changed since rev
-	showErr error
+	revs  map[string]bool
+	files map[string]string // "rev:path" -> contents
+	errs  map[string]error  // "rev:path" -> error other than a missing file
 }
 
 func (f *fakeGit) HasRev(rev string) bool { return f.revs[rev] }
 
 func (f *fakeGit) Show(rev, path string) ([]byte, error) {
-	if f.showErr != nil {
-		return nil, f.showErr
+	if err := f.errs[rev+":"+path]; err != nil {
+		return nil, err
 	}
 	s, ok := f.files[rev+":"+path]
 	if !ok {
-		return nil, xerrors.New("not in revision")
+		return nil, xerrors.Errorf("not in revision: %w", fs.ErrNotExist)
 	}
 	return []byte(s), nil
 }
 
-func (f *fakeGit) Changed(rev, path string) (bool, error) {
-	return f.changed[rev+":"+path], nil
-}
-
-const manifestTwoPages = `{"routes": [
+const manifestHead = `{"routes": [
 	{"title": "About", "path": "./README.md"},
 	{"title": "Users", "path": "./admin/users.md"},
-	{"title": "Groups", "path": "./admin/groups.md"}
+	{"title": "Gateway", "path": "./ai-coder/ai-gateway/index.md"}
 ]}`
 
-const manifestOnePage = `{"routes": [
+const manifestBase = `{"routes": [
 	{"title": "About", "path": "./README.md"},
-	{"title": "Users", "path": "./admin/users.md"}
+	{"title": "Users", "path": "./admin/users.md"},
+	{"title": "Groups", "path": "./admin/groups.md"},
+	{"title": "Gateway", "path": "./ai-coder/ai-gateway/index.md"}
 ]}`
 
 type runEnv struct {
-	dir           string
 	manifestPath  string
 	redirectsPath string
 	stdout        bytes.Buffer
 	stderr        bytes.Buffer
 }
 
+// newRunEnv writes the head manifest and redirects into a directory whose name
+// has a space in it, so the flag paths are not assumed to be plain.
 func newRunEnv(t *testing.T, manifest, redirects string) *runEnv {
 	t.Helper()
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "docs dir", "nested")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
 	e := &runEnv{
-		dir:           dir,
 		manifestPath:  filepath.Join(dir, "manifest.json"),
 		redirectsPath: filepath.Join(dir, "redirects.json"),
 	}
@@ -820,217 +820,419 @@ func newRunEnv(t *testing.T, manifest, redirects string) *runEnv {
 	return e
 }
 
-func (e *runEnv) run(base string, git gitReader, env map[string]string) int {
-	return run(options{
+type runArgs struct {
+	base    string
+	branch  string
+	offline bool
+	git     gitReader
+	fetch   fetcher
+	env     map[string]string
+}
+
+func (e *runEnv) run(a runArgs) int {
+	if a.git == nil {
+		a.git = &fakeGit{}
+	}
+	if a.fetch == nil {
+		a.fetch = failingFetcher{}
+	}
+	return run(context.Background(), options{
 		manifestPath:  e.manifestPath,
 		redirectsPath: e.redirectsPath,
-		base:          base,
-		git:           git,
-		getenv:        func(k string) string { return env[k] },
+		base:          a.base,
+		branch:        a.branch,
+		offline:       a.offline,
+		git:           a.git,
+		fetch:         a.fetch,
+		wait:          noWait,
+		getenv:        func(k string) string { return a.env[k] },
 		stdout:        &e.stdout,
 		stderr:        &e.stderr,
 	})
 }
 
+// failingFetcher fails the test run when a check reads the network it should
+// not have.
+type failingFetcher struct{}
+
+func (failingFetcher) Get(context.Context, string) (int, []byte, error) {
+	return 0, nil, xerrors.New("unexpected network access")
+}
+
+func prGit(baseRedirects string) *fakeGit {
+	g := &fakeGit{
+		revs:  map[string]bool{"HEAD^1": true},
+		files: map[string]string{"HEAD^1:" + manifestRepoPath: manifestBase},
+	}
+	if baseRedirects != "" {
+		g.files["HEAD^1:"+redirectsRepoPath] = baseRedirects
+	}
+	return g
+}
+
+var prEnv = map[string]string{"GITHUB_BASE_REF": "main"}
+
 func TestRunAbsentRedirectsFilePasses(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, manifestTwoPages, "")
-	require.Equal(t, 0, e.run("", &fakeGit{}, nil))
-	require.Contains(t, e.stdout.String(), "not found")
-	require.Empty(t, e.stderr.String())
+	e := newRunEnv(t, manifestHead, "")
+	require.Equal(t, 0, e.run(runArgs{offline: true}))
+	require.Contains(t, e.stdout.String(), "nothing to validate")
 }
 
 func TestRunValidRedirectsPasses(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, manifestTwoPages, `[{"source": "/docs/old", "destination": "/docs/admin/users"}]`)
-	require.Equal(t, 0, e.run("", &fakeGit{}, nil))
-	require.Empty(t, e.stderr.String())
-	require.Contains(t, e.stdout.String(), "1 rule")
+	e := newRunEnv(t, manifestHead, `[{"source": "old", "destination": "admin/users"}]`)
+	require.Equal(t, 0, e.run(runArgs{offline: true}))
+	require.Contains(t, e.stdout.String(), "1 rule OK")
+	require.Contains(t, e.stdout.String(), "live page list skipped (-offline)")
 }
 
 func TestRunInvalidRedirectsFailsWithActionableMessages(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, manifestTwoPages, `[
-		{"source": "/docs/old", "destination": "/docs/admin/nope"},
-		{"source": "/docs/admin/users", "destination": "/docs/admin/groups"}
-	]`)
-	require.Equal(t, 1, e.run("", &fakeGit{}, nil))
-	out := e.stderr.String()
-	require.Contains(t, out, `[0] (source "/docs/old")`)
-	require.Contains(t, out, `"/docs/admin/nope" is not a page`)
-	require.Contains(t, out, `[1] (source "/docs/admin/users")`)
-	require.Contains(t, out, "hides a live docs page")
+	e := newRunEnv(t, manifestHead, `[{"source": "/docs/old", "destination": "/docs/admin/users"}]`)
+	require.Equal(t, 1, e.run(runArgs{offline: true}))
+	require.Contains(t, e.stderr.String(), `{"source": "old", "destination": "admin/users"}`)
+	require.Contains(t, e.stderr.String(), "1 problem found")
 }
 
-func TestRunMissingManifestIsAnError(t *testing.T) {
+func TestRunMissingOrBrokenManifestIsAnError(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, "", `[]`)
-	require.Equal(t, 2, e.run("", &fakeGit{}, nil))
-	require.Contains(t, e.stderr.String(), "manifest")
-}
-
-func TestRunInvalidManifestIsAnError(t *testing.T) {
-	t.Parallel()
-
-	e := newRunEnv(t, `{"routes": "nope"}`, `[]`)
-	require.Equal(t, 2, e.run("", &fakeGit{}, nil))
-	require.Contains(t, e.stderr.String(), "manifest")
+	for name, manifest := range map[string]string{"missing": "", "invalid": "nope"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newRunEnv(t, manifest, `[]`)
+			require.Equal(t, 2, e.run(runArgs{offline: true}))
+		})
+	}
 }
 
 func TestRunUnreadableRedirectsFileIsAnError(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, manifestTwoPages, "")
-	// A directory where the file should be: present but unreadable as a file.
+	e := newRunEnv(t, manifestHead, "")
 	require.NoError(t, os.Mkdir(e.redirectsPath, 0o700))
-	require.Equal(t, 2, e.run("", &fakeGit{}, nil))
+	require.Equal(t, 2, e.run(runArgs{offline: true}))
 }
 
-func advisoryGit(redirectsChanged bool) *fakeGit {
-	return &fakeGit{
-		revs:    map[string]bool{"HEAD^1": true, "abc123": true},
-		files:   map[string]string{"HEAD^1:docs/manifest.json": manifestTwoPages},
-		changed: map[string]bool{"HEAD^1:docs/redirects.json": redirectsChanged},
-	}
-}
-
-func TestRunAdvisoryWarnsWhenRoutesRemovedWithoutRedirects(t *testing.T) {
+func TestRunHandlesCRLFInManifestAndRedirects(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, manifestOnePage, "")
-	code := e.run("", advisoryGit(false), map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code, "the advisory check must never fail the run")
-	out := e.stdout.String() + e.stderr.String()
-	require.Contains(t, out, "/docs/admin/groups")
-	require.Contains(t, out, "docs/redirects.json")
+	manifest := strings.ReplaceAll(manifestHead, "\n", "\r\n")
+	redirects := "[\r\n  {\r\n    \"source\": \"old\",\r\n    \"destination\": \"admin/users\"\r\n  }\r\n]\r\n"
+	e := newRunEnv(t, manifest, redirects)
+	require.Equal(t, 0, e.run(runArgs{offline: true}))
+	require.Contains(t, e.stdout.String(), "1 rule OK")
 }
 
-func TestRunAdvisoryUsesGitHubAnnotationsInActions(t *testing.T) {
+func TestRunBaseManifestRemovalFailsWithPasteReadyRule(t *testing.T) {
 	t.Parallel()
 
-	e := newRunEnv(t, manifestOnePage, "")
-	code := e.run("", advisoryGit(false), map[string]string{
-		"GITHUB_BASE_REF": "main",
-		"GITHUB_ACTIONS":  "true",
-	})
-	require.Equal(t, 0, code)
-	var annotation string
-	for _, line := range strings.Split(e.stdout.String()+e.stderr.String(), "\n") {
-		if strings.HasPrefix(line, "::warning ") {
-			annotation = line
-		}
-	}
-	require.NotEmpty(t, annotation, "expected a ::warning annotation")
-	// A workflow command ends at the newline, so the whole message has to be on
-	// the same line.
-	require.Contains(t, annotation, "file=docs/manifest.json")
-	require.Contains(t, annotation, "/docs/admin/groups")
-	require.Contains(t, annotation, "docs/redirects.json")
-}
-
-func TestRunAdvisoryQuietWhenRedirectsFileChanged(t *testing.T) {
-	t.Parallel()
-
-	e := newRunEnv(t, manifestOnePage, `[{"source": "/docs/admin/groups", "destination": "/docs/admin/users"}]`)
-	code := e.run("", advisoryGit(true), map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code)
-	require.NotContains(t, e.stdout.String()+e.stderr.String(), "warning")
-}
-
-func TestRunAdvisoryQuietWhenRedirectsFileChangedForAnotherRule(t *testing.T) {
-	t.Parallel()
-
-	// The change edits docs/redirects.json but no rule covers the removed
-	// route. The author is already working with redirects in this change, so
-	// the advisory stays quiet; it only nudges changes that never touch the
-	// file. Without the "file changed" check this would warn.
-	e := newRunEnv(t, manifestOnePage, `[{"source": "/docs/unrelated", "destination": "/docs/admin/users"}]`)
-	code := e.run("", advisoryGit(true), map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code)
-	require.NotContains(t, e.stdout.String()+e.stderr.String(), "warning")
-}
-
-func TestRunAdvisoryQuietWhenRemovedRouteAlreadyRedirected(t *testing.T) {
-	t.Parallel()
-
-	// The redirects file did not change in this PR, but it already covers the
-	// removed route.
-	e := newRunEnv(t, manifestOnePage, `[{"source": "/docs/admin/groups", "destination": "/docs/admin/users"}]`)
-	code := e.run("", advisoryGit(false), map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code)
-	require.NotContains(t, e.stdout.String()+e.stderr.String(), "warning")
-}
-
-func TestRunAdvisoryQuietWhenNoRouteWasRemoved(t *testing.T) {
-	t.Parallel()
-
-	// Same routes before and after, for example a file rename that keeps its
-	// URL.
-	e := newRunEnv(t, manifestTwoPages, "")
-	code := e.run("", advisoryGit(false), map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code)
-	require.NotContains(t, e.stdout.String()+e.stderr.String(), "warning")
-}
-
-func TestRunAdvisorySkippedWithoutABase(t *testing.T) {
-	t.Parallel()
-
-	e := newRunEnv(t, manifestOnePage, "")
-	code := e.run("", advisoryGit(false), nil)
-	require.Equal(t, 0, code)
-	out := e.stdout.String() + e.stderr.String()
-	require.NotContains(t, out, "::warning")
-	require.Contains(t, out, "skipped")
-}
-
-func TestRunAdvisorySkippedWhenBaseRevisionIsMissing(t *testing.T) {
-	t.Parallel()
-
-	// A shallow checkout has no HEAD^1.
-	g := advisoryGit(false)
-	g.revs = map[string]bool{}
-	e := newRunEnv(t, manifestOnePage, "")
-	code := e.run("", g, map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code)
-	out := e.stdout.String() + e.stderr.String()
-	require.Contains(t, out, "skipped")
-	require.NotContains(t, out, "::warning")
-}
-
-func TestRunAdvisorySkippedWhenBaseHasNoManifest(t *testing.T) {
-	t.Parallel()
-
-	g := advisoryGit(false)
-	g.files = map[string]string{}
-	e := newRunEnv(t, manifestOnePage, "")
-	code := e.run("", g, map[string]string{"GITHUB_BASE_REF": "main"})
-	require.Equal(t, 0, code)
-	require.Contains(t, e.stdout.String()+e.stderr.String(), "skipped")
-}
-
-func TestRunAdvisoryHonorsExplicitBase(t *testing.T) {
-	t.Parallel()
-
-	g := advisoryGit(false)
-	g.files = map[string]string{"abc123:docs/manifest.json": manifestTwoPages}
-	g.changed = map[string]bool{}
-	e := newRunEnv(t, manifestOnePage, "")
-	code := e.run("abc123", g, nil)
-	require.Equal(t, 0, code)
-	require.Contains(t, e.stdout.String()+e.stderr.String(), "/docs/admin/groups")
-}
-
-func TestRunAdvisoryStillRunsWhenRedirectsFileIsInvalid(t *testing.T) {
-	t.Parallel()
-
-	e := newRunEnv(t, manifestOnePage, `{oops`)
-	code := e.run("", advisoryGit(false), map[string]string{"GITHUB_BASE_REF": "main"})
+	e := newRunEnv(t, manifestHead, `[]`)
+	code := e.run(runArgs{offline: true, git: prGit(""), env: prEnv})
 	require.Equal(t, 1, code)
-	require.Contains(t, e.stderr.String(), "not valid JSON")
+	out := e.stderr.String()
+	require.Contains(t, out, `docs route "admin/groups" no longer resolves`)
+	require.Contains(t, out, "docs/admin/groups.md on the base branch")
+	require.Contains(t, out, `{"source": "admin/groups", "destination": "/"}`)
+	require.NotContains(t, out, "admin/users")
+}
+
+func TestRunBaseManifestRemovalCoveredByRulePasses(t *testing.T) {
+	t.Parallel()
+
+	for name, redirects := range map[string]string{
+		"exact":    `[{"source": "admin/groups", "destination": "admin/users"}]`,
+		"wildcard": `[{"source": "admin/groups/*", "destination": "admin/users"}]`,
+		"root":     `[{"source": "admin/groups", "destination": "/"}]`,
+		"external": `[{"source": "admin/groups", "destination": "https://github.com/coder/coder"}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newRunEnv(t, manifestHead, redirects)
+			require.Equal(t, 0, e.run(runArgs{offline: true, git: prGit(""), env: prEnv}), e.stderr.String())
+		})
+	}
+}
+
+func TestRunBaseRulesAreInTheInventory(t *testing.T) {
+	t.Parallel()
+
+	// The base branch redirected "old" in the legacy form. Dropping the rule
+	// from head breaks the old URL.
+	e := newRunEnv(t, manifestHead, `[]`)
+	base := prGit(`[{"source": "/docs/old", "destination": "/docs/admin/users"}, {"source": "/docs/wild/:path*", "destination": "/docs/admin/users"}]`)
+	base.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	require.Equal(t, 1, e.run(runArgs{offline: true, git: base, env: prEnv}))
+	out := e.stderr.String()
+	require.Contains(t, out, `docs route "old" no longer resolves (from a rule in docs/redirects.json on the base branch)`)
+	require.Contains(t, out, `docs route "wild" no longer resolves`)
+}
+
+func TestRunLiveListIsInTheInventory(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeFetcher{results: []fetchResult{{status: 200, body: listBody + "- [Old](/beta-docs/@main/admin/old/)\n"}}}
+	e := newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 1, e.run(runArgs{branch: "main", fetch: f}))
+	require.Equal(t, []string{"https://coder.com/beta-docs/@main/llms.txt"}, f.urls)
+	require.Contains(t, e.stderr.String(), `docs route "admin/old" no longer resolves (from the live page list https://coder.com/beta-docs/@main/llms.txt)`)
+
+	e = newRunEnv(t, manifestHead, `[{"source": "admin/old", "destination": "admin/users"}]`)
+	require.Equal(t, 0, e.run(runArgs{branch: "main", fetch: f}), e.stderr.String())
+}
+
+func TestRunInventoryIsTheUnionOfAllSources(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeFetcher{results: []fetchResult{{status: 200, body: "- [Live only](/beta-docs/@main/live-only/)\n"}}}
+	base := prGit(`[{"source": "rule-only", "destination": "admin/users"}]`)
+	e := newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 1, e.run(runArgs{git: base, fetch: f, env: map[string]string{"GITHUB_BASE_REF": "main"}}))
+	out := e.stderr.String()
+	for _, route := range []string{"admin/groups", "live-only", "rule-only"} {
+		require.Contains(t, out, `docs route "`+route+`" no longer resolves`)
+	}
+	require.Contains(t, out, "3 docs routes no longer resolve")
+	require.Contains(t, out, `  {"source": "admin/groups", "destination": "/"},`)
+}
+
+func TestRunLiveRouteMatchesHeadWithDotsReplacedByHyphens(t *testing.T) {
+	t.Parallel()
+
+	manifest := `{"routes": [{"title": "Home", "path": "./README.md"}, {"title": "ESR", "path": "./install/esr-2.24-2.29-upgrade.md"}]}`
+	f := &fakeFetcher{results: []fetchResult{{status: 200, body: "- [ESR](/beta-docs/@main/install/esr-2-24-2-29-upgrade/)\n- [Home](/beta-docs/@main/)\n"}}}
+	e := newRunEnv(t, manifest, `[]`)
+	require.Equal(t, 0, e.run(runArgs{branch: "main", fetch: f}), e.stderr.String())
+}
+
+func TestRunNetworkFailureIsExitTwo(t *testing.T) {
+	t.Parallel()
+
+	for name, results := range map[string][]fetchResult{
+		"error":      {{err: xerrors.New("connection refused")}},
+		"forbidden":  {{status: 403}},
+		"empty list": {{status: 200, body: "nothing"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := &fakeFetcher{results: results}
+			e := newRunEnv(t, manifestHead, `[]`)
+			env := map[string]string{"GITHUB_ACTIONS": "true", "GITHUB_BASE_REF": "main"}
+			require.Equal(t, 2, e.run(runArgs{git: prGit(""), fetch: f, env: env}))
+			require.Contains(t, e.stderr.String(), "removed-route check could not run")
+		})
+	}
+}
+
+func TestRunOfflineNeverTouchesTheNetwork(t *testing.T) {
+	t.Parallel()
+
+	e := newRunEnv(t, manifestHead, `[]`)
+	env := map[string]string{"GITHUB_ACTIONS": "true", "GITHUB_BASE_REF": "main"}
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	// Nothing is removed, and the head redirects differ from the base, so only
+	// -offline skips the list.
+	require.Equal(t, 0, e.run(runArgs{offline: true, git: g, fetch: failingFetcher{}, env: env}), e.stderr.String())
+	require.Contains(t, e.stdout.String(), "live page list skipped (-offline)")
+}
+
+func TestRunUnpublishedVersionSkipsTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeFetcher{results: []fetchResult{{status: http.StatusNotFound}}}
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	e := newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 0, e.run(runArgs{git: g, fetch: f, env: map[string]string{"GITHUB_BASE_REF": "release/9.99"}}), e.stderr.String())
+	require.Equal(t, []string{"https://coder.com/beta-docs/v9.99/llms.txt"}, f.urls)
+	require.Contains(t, e.stdout.String(), "answered 404, so docs version v9.99 is not published yet")
+}
+
+func TestRunUnchangedDocsSkipTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	const redirects = `[{"source": "admin/groups", "destination": "/"}]`
+	for name, tt := range map[string]struct {
+		manifest, redirects string
+		baseRedirects       string
+		wantFetch           bool
+	}{
+		"unchanged":                {manifest: manifestHead, redirects: redirects, baseRedirects: redirects},
+		"unchanged with CRLF":      {manifest: strings.ReplaceAll(manifestHead, "\n", "\r\n"), redirects: redirects + "\r\n", baseRedirects: redirects + "\n"},
+		"no redirects file at all": {manifest: manifestHead},
+		"manifest changed":         {manifest: manifestHead + "\n", redirects: redirects, baseRedirects: redirects, wantFetch: true},
+		"redirects changed":        {manifest: manifestHead, redirects: `[{"source": "admin/groups", "destination": "admin/users"}]`, baseRedirects: redirects, wantFetch: true},
+		"redirects added":          {manifest: manifestHead, redirects: `[]`, wantFetch: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := prGit(tt.baseRedirects)
+			g.files["HEAD^1:"+manifestRepoPath] = strings.ReplaceAll(manifestHead, "\r\n", "\n")
+			f := &fakeFetcher{results: []fetchResult{{status: 200, body: listBody}}}
+			e := newRunEnv(t, tt.manifest, tt.redirects)
+			require.Equal(t, 0, e.run(runArgs{git: g, fetch: f, env: prEnv}), e.stderr.String())
+			if tt.wantFetch {
+				require.Len(t, f.urls, 1)
+				return
+			}
+			require.Empty(t, f.urls)
+			require.Contains(t, e.stdout.String(), "live page list skipped: docs/manifest.json and docs/redirects.json are unchanged from HEAD^1")
+		})
+	}
+}
+
+func TestRunUnreadableBaseRedirectsIsANoteAndReadsTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	g := prGit("")
+	g.files["HEAD^1:"+manifestRepoPath] = manifestHead
+	g.errs = map[string]error{"HEAD^1:" + redirectsRepoPath: xerrors.New("object is corrupt")}
+	f := &fakeFetcher{results: []fetchResult{{status: 200, body: listBody}}}
+	e := newRunEnv(t, manifestHead, "")
+	require.Equal(t, 0, e.run(runArgs{git: g, fetch: f, env: prEnv}), e.stderr.String())
+	require.Contains(t, e.stdout.String(), "base redirect sources not compared: cannot read docs/redirects.json at HEAD^1: object is corrupt")
+	// The base rules are unknown, so the docs cannot count as unchanged.
+	require.Len(t, f.urls, 1)
+}
+
+func TestFetchLiveRoutesStopsWhenTheContextIsDone(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	f := &fakeFetcher{results: []fetchResult{{status: 503}}}
+	_, err := fetchLiveRoutes(ctx, f, "https://example.test/llms.txt", "@main", sleepContext)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Len(t, f.urls, 1)
+}
+
+func TestRunTargetBranchSelectsTheLiveList(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		branch  string
+		env     map[string]string
+		wantURL string
+		wantMsg string
+	}{
+		{name: "flag main", branch: "main", wantURL: "https://coder.com/beta-docs/@main/llms.txt"},
+		{name: "flag release", branch: "release/2.38", wantURL: "https://coder.com/beta-docs/v2.38/llms.txt"},
+		{name: "pull request base", env: map[string]string{"GITHUB_BASE_REF": "release/2.37"}, wantURL: "https://coder.com/beta-docs/v2.37/llms.txt"},
+		{name: "push", env: map[string]string{"GITHUB_REF_NAME": "main"}, wantURL: "https://coder.com/beta-docs/@main/llms.txt"},
+		{name: "flag overrides environment", branch: "release/2.38", env: map[string]string{"GITHUB_BASE_REF": "main", "GITHUB_REF_NAME": "main"}, wantURL: "https://coder.com/beta-docs/v2.38/llms.txt"},
+		{name: "base ref wins over ref name", env: map[string]string{"GITHUB_BASE_REF": "release/2.38", "GITHUB_REF_NAME": "42/merge"}, wantURL: "https://coder.com/beta-docs/v2.38/llms.txt"},
+		{name: "unpublished branch", branch: "feature/x", wantMsg: `branch "feature/x" has no published docs version`},
+		{name: "unknown branch", wantMsg: "cannot tell the target branch"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := &fakeFetcher{results: []fetchResult{{status: 200, body: listBody + "- [Users](/beta-docs/v2.37/admin/users/)\n- [Users](/beta-docs/v2.38/admin/users/)\n"}}}
+			e := newRunEnv(t, manifestHead, `[]`)
+			require.Equal(t, 0, e.run(runArgs{branch: tt.branch, fetch: f, env: tt.env}), e.stderr.String())
+			if tt.wantURL == "" {
+				require.Empty(t, f.urls)
+				require.Contains(t, e.stdout.String(), tt.wantMsg)
+				return
+			}
+			require.Equal(t, []string{tt.wantURL}, f.urls)
+		})
+	}
+}
+
+func TestRunBaseUnavailableIsSkippedWithANote(t *testing.T) {
+	t.Parallel()
+
+	e := newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 0, e.run(runArgs{offline: true, git: &fakeGit{}, env: prEnv}))
+	require.Contains(t, e.stdout.String(), `revision "HEAD^1" is not available`)
+
+	e = newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 0, e.run(runArgs{offline: true}))
+	require.Contains(t, e.stdout.String(), "not a pull request run")
+
+	e = newRunEnv(t, manifestHead, `[]`)
+	g := &fakeGit{revs: map[string]bool{"v1": true}}
+	require.Equal(t, 0, e.run(runArgs{offline: true, base: "v1", git: g}))
+	require.Contains(t, e.stdout.String(), "cannot read docs/manifest.json at v1")
+}
+
+func TestRunExplicitBaseOverridesEnvironment(t *testing.T) {
+	t.Parallel()
+
+	g := prGit("")
+	g.revs["origin/main"] = true
+	g.files["origin/main:"+manifestRepoPath] = manifestBase
+	e := newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 1, e.run(runArgs{offline: true, base: "origin/main", git: g}))
+}
+
+func TestRunUsesGitHubAnnotationsInActions(t *testing.T) {
+	t.Parallel()
+
+	e := newRunEnv(t, manifestHead, `[]`)
+	env := map[string]string{"GITHUB_ACTIONS": "true", "GITHUB_BASE_REF": "main"}
+	require.Equal(t, 1, e.run(runArgs{offline: true, git: prGit(""), env: env}))
+	require.Contains(t, e.stdout.String(), "::error file=docs/redirects.json,title=Docs route no longer resolves::")
+
+	e = newRunEnv(t, manifestHead, `[]`)
+	require.Equal(t, 1, e.run(runArgs{offline: true, git: prGit(""), env: prEnv}))
+	require.NotContains(t, e.stdout.String(), "::error")
+}
+
+func TestAnnotationEscapes(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t,
+		"::error file=a%2Cb%3Ac,title=t%25::line1%0Aline2%0D100%25",
+		annotation("error", "a,b:c", "t%", "line1\nline2\r100%"),
+	)
+}
+
+func TestRuleJSON(t *testing.T) {
+	t.Parallel()
+
+	f := false
+	require.Equal(t, `{"source": "a", "destination": "b"}`, ruleJSON("a", "b", nil))
+	require.Equal(t, `{"source": "a/*", "destination": "b/*", "permanent": false}`, ruleJSON("a/*", "b/*", &f))
+	require.Equal(t, `{"source": "a", "destination": "https://coder.com/x?a=1&b=2"}`, ruleJSON("a", "https://coder.com/x?a=1&b=2", nil))
+}
+
+func TestConvertLegacy(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		in     string
+		isDest bool
+		want   string
+	}{
+		{"/docs/a/b", false, "a/b"},
+		{"/docs/a/b/", false, "a/b"},
+		{"/docs/a/b#frag", true, "a/b#frag"},
+		{"/docs/a/:path*", false, "a/*"},
+		{"/docs/a/:slug(.*)", false, "a/*"},
+		{"/docs/a/:slug", true, "a/*"},
+		{"/docs", true, "/"},
+		{"/docs", false, ""},
+		{"/docs/:path*", false, ":path*"},
+		{"https://coder.com/x", true, "https://coder.com/x"},
+		{"/documents/x", true, "/documents/x"},
+		{"a/b", false, "a/b"},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
+			t.Parallel()
+			if tt.isDest {
+				require.Equal(t, tt.want, convertLegacyDestination(tt.in))
+				return
+			}
+			require.Equal(t, tt.want, convertLegacy(tt.in))
+		})
+	}
 }
 
 func TestExecGitRejectsOptionLikeRevisions(t *testing.T) {
@@ -1043,59 +1245,51 @@ func TestExecGitRejectsOptionLikeRevisions(t *testing.T) {
 	require.False(t, g.HasRev("--output=somefile"))
 	_, err := g.Show("--help", manifestRepoPath)
 	require.Error(t, err)
-	_, err = g.Changed("-p", redirectsRepoPath)
-	require.Error(t, err)
 }
 
-// TestRepositoryManifest guards the route logic against the real manifest:
-// it must parse, and well-known pages must come out as live routes.
-func TestRepositoryManifest(t *testing.T) {
+func TestExecGitShowMissingFileIsNotExist(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "manifest.json"))
+	g := execGit{}
+	if !g.HasRev("HEAD") {
+		t.Skip("not running inside a git checkout")
+	}
+	_, err := g.Show("HEAD", "docs/does-not-exist.json")
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	_, err = g.Show("HEAD", manifestRepoPath)
+	require.NoError(t, err)
+	// A revision that is not a commit fails for another reason.
+	_, err = g.Show("0000000000000000000000000000000000000000", manifestRepoPath)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, fs.ErrNotExist)
+}
+
+// TestRepositoryFiles runs the structural checks against the repository's own
+// files, so a bad edit to docs/redirects.json fails `go test` as well as
+// `make lint`. It never touches the network.
+func TestRepositoryFiles(t *testing.T) {
+	t.Parallel()
+
+	manifestData, err := os.ReadFile(filepath.Join("..", "..", "docs", "manifest.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		t.Skip("docs/manifest.json not found relative to the test")
 	}
 	require.NoError(t, err)
-
-	m, err := parseManifest(data)
+	m, err := parseManifest(manifestData)
 	require.NoError(t, err)
 	live := liveRoutes(m)
 	require.Greater(t, len(live), 300)
-	require.True(t, live["/docs"])
-	require.True(t, live["/docs/about"])
-	require.True(t, live["/docs/admin/external-auth"])
-}
+	require.True(t, live.has("admin/external-auth"))
 
-// TestRepositoryRedirectsFile runs the real check against the repository's
-// own files, so a bad edit to docs/redirects.json fails `go test` as well as
-// `make lint`. It passes when the file does not exist.
-func TestRepositoryRedirectsFile(t *testing.T) {
-	t.Parallel()
-
-	manifest, err := os.ReadFile(filepath.Join("..", "..", "docs", "manifest.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		t.Skip("docs/manifest.json not found relative to the test")
-	}
-	require.NoError(t, err)
 	redirects, err := os.ReadFile(filepath.Join("..", "..", "docs", "redirects.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		t.Skip("docs/redirects.json does not exist yet")
 	}
 	require.NoError(t, err)
-
-	m, err := parseManifest(manifest)
-	require.NoError(t, err)
-	_, problems := checkRedirects(redirects, liveRoutes(m))
+	_, problems := checkRedirects(redirects, live)
 	var msgs []string
 	for _, p := range problems {
 		msgs = append(msgs, formatProblem("docs/redirects.json", p))
 	}
 	require.Empty(t, problems, strings.Join(msgs, "\n"))
-}
-
-// quote renders a string as a JSON string literal for a test fixture. The
-// fixtures are ASCII, where Go and JSON string escaping agree.
-func quote(s string) string {
-	return strconv.Quote(s)
 }

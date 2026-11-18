@@ -60,7 +60,7 @@ const OAuth2AppRow: React.FC<OAuth2AppRowProps> = ({ app, revoke }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`}>
 			<TableCell>
-				<div className="flex flex-row gap-2 items-center">
+				<div className="flex gap-2 items-center">
 					<Avatar variant="icon" src={app.icon} fallback={app.name} />
 					<span className="font-semibold">{app.name}</span>
 				</div>

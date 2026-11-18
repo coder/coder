@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -330,18 +331,27 @@ func TestAPIKey(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
-		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, xerrors.New("db unavailable"))
+		// Database error details are logged, not returned to the client.
+		const connURL = "postgres://coder:password@db.internal:5432/coder"
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, xerrors.Errorf("dial %s: connection refused", connURL))
 
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
+			Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
 
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.NotContains(t, string(body), connURL)
+		require.NotContains(t, string(body), "db.internal")
+		require.NotContains(t, string(body), "connection refused")
+
 		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.NoError(t, json.Unmarshal(body, &resp))
 		require.NotEqual(t, httpmw.SignedOutErrorMessage, resp.Message)
 		require.Contains(t, resp.Detail, "Internal error fetching API key by id")
 	})

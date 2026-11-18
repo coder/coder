@@ -41,7 +41,7 @@ export const NetworkCallsTable: React.FC<NetworkCallsTableProps> = ({
 		: summary.blocked;
 
 	return (
-		<Collapsible defaultOpen className="border border-solid rounded-md">
+		<Collapsible defaultOpen className="border rounded-md">
 			<div className="flex items-center justify-between gap-2 px-2 py-1">
 				<CollapsibleTrigger asChild>
 					<button
@@ -63,7 +63,7 @@ export const NetworkCallsTable: React.FC<NetworkCallsTableProps> = ({
 				</CollapsibleTrigger>
 				{blocked > 0 && (
 					<Badge svgSize="xs" className="gap-1 text-content-warning">
-						<BanIcon className="flex-shrink-0" />
+						<BanIcon className="shrink-0" />
 						<span className="sr-only">
 							{search ? "Blocked matches: " : "Blocked network calls: "}
 						</span>
@@ -72,7 +72,7 @@ export const NetworkCallsTable: React.FC<NetworkCallsTableProps> = ({
 				)}
 			</div>
 
-			<CollapsibleContent className="border-0 border-t border-solid">
+			<CollapsibleContent className="border-t">
 				<NetworkCallsList
 					calls={calls}
 					search={search}
@@ -105,7 +105,7 @@ const NetworkCallsList: React.FC<{
 					</p>
 				)}
 				{search && isTruncated && (
-					<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-0 border-t border-solid">
+					<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-t">
 						{`0 matches within the first ${search.loaded.toLocaleString(
 							"en-US",
 						)} of ${sessionTotal.toLocaleString("en-US")} network calls.`}
@@ -127,7 +127,7 @@ const NetworkCallsList: React.FC<{
 				))}
 			</ul>
 			{isTruncated && (
-				<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-0 border-t border-solid">
+				<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-t">
 					{search
 						? `${matches.toLocaleString("en-US")} ${
 								matches === 1 ? "match" : "matches"
@@ -153,7 +153,7 @@ const NetworkCallRow: React.FC<NetworkCallRowProps> = ({ call, query }) => {
 	const timestamp = formatDateTime(new Date(call.created_at));
 
 	return (
-		<li className="border-0 border-t border-solid first:border-t-0">
+		<li className="border-t first:border-t-0">
 			<Collapsible>
 				<CollapsibleTrigger asChild>
 					<button
