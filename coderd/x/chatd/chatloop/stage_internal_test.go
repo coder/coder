@@ -63,6 +63,17 @@ func histogramTotals(t *testing.T, registry *prometheus.Registry, name string) (
 	return count, sum
 }
 
+// spanStage returns the stage attribute, since GenAI spans are named after
+// their operation.
+func spanStage(span sdktrace.ReadOnlySpan) Stage {
+	for _, attr := range span.Attributes() {
+		if string(attr.Key) == AttrStage {
+			return Stage(attr.Value.AsString())
+		}
+	}
+	return ""
+}
+
 func metricLabel(metric *dto.Metric, name string) string {
 	for _, label := range metric.GetLabel() {
 		if label.GetName() == name {
@@ -76,7 +87,7 @@ func endedSpan(t *testing.T, spans *tracetest.SpanRecorder, stage Stage) sdktrac
 	t.Helper()
 	var found sdktrace.ReadOnlySpan
 	for _, span := range spans.Ended() {
-		if span.Name() != string(stage) {
+		if spanStage(span) != stage {
 			continue
 		}
 		require.Nil(t, found, "more than one %s span was recorded", stage)
@@ -92,8 +103,8 @@ func requireEndedBefore(t *testing.T, spans *tracetest.SpanRecorder, first, seco
 	t.Helper()
 	var names []string
 	for _, span := range spans.Ended() {
-		if span.Name() == string(first) || span.Name() == string(second) {
-			names = append(names, span.Name())
+		if stage := spanStage(span); stage == first || stage == second {
+			names = append(names, string(stage))
 		}
 	}
 	require.Equal(t, []string{string(first), string(second)}, names)
@@ -115,6 +126,28 @@ func recordedErrorMessage(t *testing.T, span sdktrace.ReadOnlySpan) string {
 	return ""
 }
 
+func spanAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
+	t.Helper()
+	for _, attr := range span.Attributes() {
+		if string(attr.Key) == key {
+			return attr.Value.AsString()
+		}
+	}
+	t.Fatalf("span %s has no %s attribute", span.Name(), key)
+	return ""
+}
+
+func requireNoContentAttributes(t *testing.T, span sdktrace.ReadOnlySpan) {
+	t.Helper()
+	for _, attr := range span.Attributes() {
+		switch string(attr.Key) {
+		case "gen_ai.input.messages", "gen_ai.output.messages",
+			"gen_ai.tool.call.arguments", "gen_ai.tool.call.result":
+			t.Fatalf("span %s captured %s without content capture", span.Name(), attr.Key)
+		}
+	}
+}
+
 type stageMetricsFixture struct {
 	tracer   *StageTracer
 	spans    *tracetest.SpanRecorder
@@ -123,7 +156,7 @@ type stageMetricsFixture struct {
 	clock    *quartz.Mock
 }
 
-func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
+func newStageMetricsFixture(t *testing.T, opts ...StageTracerOption) stageMetricsFixture {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
@@ -134,7 +167,7 @@ func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
 	metrics := NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: true})
 	clock := quartz.NewMock(t)
 	return stageMetricsFixture{
-		tracer:   NewStageTracer(provider, metrics, WithClock(clock)),
+		tracer:   NewStageTracer(provider, metrics, append([]StageTracerOption{WithClock(clock)}, opts...)...),
 		spans:    recorder,
 		registry: registry,
 		metrics:  metrics,
@@ -378,7 +411,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 	t.Parallel()
 
 	stageModel := StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"}
-	generateWith := func(t *testing.T, fixture stageMetricsFixture, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
+	generateWithMessages := func(t *testing.T, fixture stageMetricsFixture, messages []fantasy.Message, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
 		t.Helper()
 		model := &chattest.FakeModel{
 			ProviderName: "anthropic",
@@ -387,13 +420,17 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		}
 		_, err := GenerateAssistant(t.Context(), GenerateAssistantOptions{
 			Model:      model,
-			Messages:   []fantasy.Message{},
+			Messages:   messages,
 			Clock:      fixture.clock,
 			Metrics:    fixture.metrics,
 			Stages:     fixture.tracer,
 			StageModel: stageModel,
 		})
 		return err
+	}
+	generateWith := func(t *testing.T, fixture stageMetricsFixture, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
+		t.Helper()
+		return generateWithMessages(t, fixture, []fantasy.Message{}, streamFn)
 	}
 
 	generate := func(t *testing.T, fixture stageMetricsFixture, parts []fantasy.StreamPart) error {
@@ -416,11 +453,29 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 
 		err := generate(t, fixture, []fantasy.StreamPart{
 			{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"},
-			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				ID:           "msg_1",
+				FinishReason: fantasy.FinishReasonStop,
+				Usage:        fantasy.Usage{InputTokens: 10, OutputTokens: 5, CacheReadTokens: 3, CacheCreationTokens: 2},
+			},
 		})
 		require.NoError(t, err)
 
 		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, "chat claude", stream.Name())
+		require.Subset(t, stream.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.provider.name", "aws.bedrock"),
+			attribute.String("gen_ai.request.model", "claude"),
+			attribute.String("gen_ai.response.id", "msg_1"),
+			attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}),
+			attribute.Int("gen_ai.usage.input_tokens", 15),
+			attribute.Int("gen_ai.usage.output_tokens", 5),
+			attribute.Int("gen_ai.usage.cache_read.input_tokens", 3),
+			attribute.Int("gen_ai.usage.cache_creation.input_tokens", 2),
+		})
+		requireNoContentAttributes(t, stream)
 		ttft := endedSpan(t, fixture.spans, StageTimeToFirstToken)
 		require.Equal(t, codes.Unset, stream.Status().Code)
 		require.Equal(t, codes.Unset, ttft.Status().Code)
@@ -433,6 +488,35 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			attribute.String(AttrReasoningEffort, stageModel.Effort),
 		})
 		requireStreamObserved(t, fixture)
+	})
+
+	t.Run("ContentCaptureRecordsOnlyTheStep", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		messages := []fantasy.Message{
+			{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system prompt"}}},
+			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "earlier prompt"}}},
+			{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{fantasy.ToolCallPart{ToolCallID: "call-1", ToolName: "read_file", Input: `{"path":"a"}`}}},
+			{Role: fantasy.MessageRoleTool, Content: []fantasy.MessagePart{fantasy.ToolResultPart{ToolCallID: "call-1", Output: fantasy.ToolResultOutputContentText{Text: "file body"}}}},
+		}
+		err := generateWithMessages(t, fixture, messages, func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		})
+		require.NoError(t, err)
+
+		stream := endedSpan(t, fixture.spans, StageStream)
+		require.JSONEq(t,
+			`[{"role":"tool","parts":[{"type":"tool_call_response","id":"call-1","response":"file body"}]}]`,
+			spanAttribute(t, stream, "gen_ai.input.messages"))
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
+			spanAttribute(t, stream, "gen_ai.output.messages"))
 	})
 
 	t.Run("OpenFailureEndsStreamWithError", func(t *testing.T) {
@@ -520,23 +604,28 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 	t.Parallel()
 
 	stageModel := StageModel{Provider: "openai", ProviderType: "openai", Model: "gpt-test", Effort: "high"}
-	execute := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool) PersistedStep {
+	executeWithBuiltins := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool, builtins map[string]bool) PersistedStep {
 		t.Helper()
 		ctx := ContextWithScope(t.Context(), ScopeTurn)
 		ctx, step := fixture.tracer.Start(ctx, StageGenerationStep)
 		defer step.End(nil)
 		result, err := ExecuteLocalTools(ctx, ExecuteLocalToolsOptions{
-			Tools:         []fantasy.AgentTool{tool},
-			ActiveTools:   []string{tool.Info().Name},
-			ToolCalls:     []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: tool.Info().Name, Input: "{}"}},
-			ModelProvider: "openai",
-			ModelName:     "gpt-test",
-			Stages:        fixture.tracer,
-			StageModel:    stageModel,
-			Clock:         fixture.clock,
+			Tools:            []fantasy.AgentTool{tool},
+			ActiveTools:      []string{tool.Info().Name},
+			ToolCalls:        []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: tool.Info().Name, Input: "{}"}},
+			BuiltinToolNames: builtins,
+			ModelProvider:    "openai",
+			ModelName:        "gpt-test",
+			Stages:           fixture.tracer,
+			StageModel:       stageModel,
+			Clock:            fixture.clock,
 		})
 		require.NoError(t, err)
 		return result
+	}
+	execute := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool) PersistedStep {
+		t.Helper()
+		return executeWithBuiltins(t, fixture, tool, nil)
 	}
 
 	t.Run("RunsToolOnStageContext", func(t *testing.T) {
@@ -560,9 +649,35 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Contains(t, toolCall.Attributes(), attribute.String(AttrProvider, "openai"))
 		require.Contains(t, toolCall.Attributes(), attribute.String(AttrModel, "gpt-test"))
 		require.Contains(t, toolCall.Attributes(), attribute.String(AttrScope, string(ScopeTurn)))
+		require.Equal(t, "execute_tool read_file", toolCall.Name())
+		require.Subset(t, toolCall.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "execute_tool"),
+			attribute.String("gen_ai.tool.name", "read_file"),
+			attribute.String("gen_ai.tool.call.id", "call-1"),
+			attribute.String("gen_ai.tool.type", "extension"),
+		})
+		requireNoContentAttributes(t, toolCall)
 		count, ok := stageSampleCount(t, fixture.registry, StageToolCall)
 		require.True(t, ok)
 		require.Equal(t, uint64(1), count)
+	})
+
+	t.Run("ContentCaptureRecordsPayloads", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("file body"), nil
+			})
+
+		executeWithBuiltins(t, fixture, tool, map[string]bool{"read_file": true})
+
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		require.Subset(t, toolCall.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.tool.type", "function"),
+			attribute.String("gen_ai.tool.call.arguments", "{}"),
+			attribute.String("gen_ai.tool.call.result", "file body"),
+		})
 	})
 
 	t.Run("ErrorResultEndsWithoutError", func(t *testing.T) {
@@ -596,6 +711,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		toolCall := endedSpan(t, fixture.spans, StageToolCall)
 		require.Equal(t, codes.Error, toolCall.Status().Code)
 		require.Equal(t, runErr.Error(), recordedErrorMessage(t, toolCall))
+		require.NotEmpty(t, spanAttribute(t, toolCall, "error.type"))
 	})
 
 	t.Run("PanicEndsWithError", func(t *testing.T) {
@@ -644,7 +760,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 			require.IsType(t, fantasy.ToolResultOutputContentError{}, toolResult.Result)
 		}
 		for _, span := range fixture.spans.Ended() {
-			require.NotEqual(t, string(StageToolCall), span.Name())
+			require.NotEqual(t, StageToolCall, spanStage(span))
 		}
 		_, ok := stageSampleCount(t, fixture.registry, StageToolCall)
 		require.False(t, ok)

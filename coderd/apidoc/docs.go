@@ -22314,6 +22314,10 @@ const docTemplate = `{
                 },
                 "stream_silence_timeout": {
                     "type": "integer"
+                },
+                "trace_content_capture_enabled": {
+                    "description": "TraceContentCaptureEnabled records prompts, responses, and tool\npayloads on Coder Agents OpenTelemetry spans.",
+                    "type": "boolean"
                 }
             }
         },

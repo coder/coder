@@ -369,6 +369,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	stepCtx := chatdebug.ReuseStep(ctx)
 	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream)
 	streamSpan.SetModel(opts.StageModel)
+	streamSpan.SetInferenceRequest(call)
 	attempt, streamErr := guardedStream(
 		streamCtx,
 		provider,
@@ -399,6 +400,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	streamSpan.SetInferenceResponse(InferenceResponse{
+		ResponseID:   result.providerResponseID,
+		FinishReason: result.finishReason,
+		Usage:        result.usage,
+		Content:      result.content,
+	})
 	// Observe before error handling so failed or rejected responses are still counted.
 	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
@@ -1259,6 +1266,7 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 				attribute.String(AttrToolName, tc.ToolName),
 			)
 			toolSpan.SetModel(b.opts.StageModel)
+			toolSpan.SetTool(tc, genAIToolType(b.opts.BuiltinToolNames, tc.ToolName))
 			return toolCtx
 		}
 		var execErr error
@@ -1281,6 +1289,7 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
+			toolSpan.SetToolResult(executions[i].content)
 			toolSpan.End(execErr)
 		}()
 		callCtx := ctx

@@ -35,11 +35,22 @@ func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace
 	return stageSpansByStart(t, recorder, chatloop.StageChatTurn)
 }
 
+// spanStage returns the stage attribute, since GenAI spans are named after
+// their operation.
+func spanStage(span sdktrace.ReadOnlySpan) chatloop.Stage {
+	for _, attr := range span.Attributes() {
+		if string(attr.Key) == chatloop.AttrStage {
+			return chatloop.Stage(attr.Value.AsString())
+		}
+	}
+	return ""
+}
+
 func stageSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder, stage chatloop.Stage) []sdktrace.ReadOnlySpan {
 	t.Helper()
 	var spans []sdktrace.ReadOnlySpan
 	for _, span := range recorder.Ended() {
-		if chatloop.Stage(span.Name()) == stage {
+		if spanStage(span) == stage {
 			spans = append(spans, span)
 		}
 	}
@@ -63,7 +74,7 @@ func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 	require.Len(t, ended, 2)
 	acquisition, chatTurn := ended[0], ended[1]
 	require.Equal(t, string(chatloop.StageAcquisition), acquisition.Name())
-	require.Equal(t, string(chatloop.StageChatTurn), chatTurn.Name())
+	require.Equal(t, "invoke_agent coder", chatTurn.Name())
 	require.Equal(t, triggerAt.UTC(), chatTurn.StartTime().UTC())
 	require.Equal(t, triggerAt.UTC(), acquisition.StartTime().UTC())
 	require.False(t, acquisition.StartTime().Before(chatTurn.StartTime()))

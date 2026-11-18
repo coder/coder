@@ -1167,7 +1167,8 @@ title: Schemas
     "max_prompt_bytes": 0,
     "max_queued_messages_per_chat": 0,
     "max_steps_per_turn": 0,
-    "stream_silence_timeout": 0
+    "stream_silence_timeout": 0,
+    "trace_content_capture_enabled": true
   }
 }
 ```
@@ -2949,7 +2950,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "max_prompt_bytes": 0,
   "max_queued_messages_per_chat": 0,
   "max_steps_per_turn": 0,
-  "stream_silence_timeout": 0
+  "stream_silence_timeout": 0,
+  "trace_content_capture_enabled": true
 }
 ```
 
@@ -2971,6 +2973,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
 | `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
 | `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
+| `trace_content_capture_enabled`    | boolean                    | false    |              | Trace content capture enabled records prompts, responses, and tool payloads on Coder Agents OpenTelemetry spans.                          |
 
 ## codersdk.ChatContext
 
@@ -8413,7 +8416,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "max_prompt_bytes": 0,
         "max_queued_messages_per_chat": 0,
         "max_steps_per_turn": 0,
-        "stream_silence_timeout": 0
+        "stream_silence_timeout": 0,
+        "trace_content_capture_enabled": true
       }
     },
     "allow_workspace_renames": true,
@@ -9053,7 +9057,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "max_prompt_bytes": 0,
       "max_queued_messages_per_chat": 0,
       "max_steps_per_turn": 0,
-      "stream_silence_timeout": 0
+      "stream_silence_timeout": 0,
+      "trace_content_capture_enabled": true
     }
   },
   "allow_workspace_renames": true,

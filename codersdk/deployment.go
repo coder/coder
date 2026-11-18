@@ -4450,6 +4450,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "debugLoggingEnabled",
 		},
 		{
+			Name:        "Chat: Trace Content Capture Enabled",
+			Description: "Record prompts, model responses, and tool call arguments and results on Coder Agents OpenTelemetry spans. This content can contain sensitive data. Requires tracing to be enabled with --trace.",
+			Flag:        "chat-trace-content-capture-enabled",
+			Env:         "CODER_CHAT_TRACE_CONTENT_CAPTURE_ENABLED",
+			Value:       &c.AI.Chat.TraceContentCaptureEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "traceContentCaptureEnabled",
+		},
+		{
 			Name:        "Chat: Hook URL",
 			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
@@ -5097,14 +5107,17 @@ type AIBridgeProxyConfig struct {
 
 // ChatConfig configures Coder Agents chats.
 type ChatConfig struct {
-	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
-	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	// TraceContentCaptureEnabled records prompts, responses, and tool
+	// payloads on Coder Agents OpenTelemetry spans.
+	TraceContentCaptureEnabled serpent.Bool     `json:"trace_content_capture_enabled" typescript:",notnull"`
+	HookURL                    serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret                 serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout                serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled                serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure          serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	StreamSilenceTimeout       serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
 	// MaxStepsPerTurn is the maximum number of steps in a chat turn.
 	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
 	// MaxGenerationRetries is the maximum number of consecutive retries

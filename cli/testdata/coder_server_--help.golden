@@ -317,6 +317,11 @@ Configure the background chat processing daemon.
           before the attempt is canceled and retried. This also bounds the time
           to first token. Set to 0 to disable. Must be no more than 24h.
 
+      --chat-trace-content-capture-enabled bool, $CODER_CHAT_TRACE_CONTENT_CAPTURE_ENABLED (default: false)
+          Record prompts, model responses, and tool call arguments and results
+          on Coder Agents OpenTelemetry spans. This content can contain
+          sensitive data. Requires tracing to be enabled with --trace.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

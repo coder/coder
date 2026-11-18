@@ -843,6 +843,11 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # Record prompts, model responses, and tool call arguments and results on Coder
+  # Agents OpenTelemetry spans. This content can contain sensitive data. Requires
+  # tracing to be enabled with --trace.
+  # (default: false, type: bool)
+  traceContentCaptureEnabled: false
   # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
   # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
   # agent-lifecycle-hooks experiment.

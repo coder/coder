@@ -1811,6 +1811,17 @@ How often to reconcile workspace prebuilds state.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-trace-content-capture-enabled
+
+| Property    | Value                                                  |
+|-------------|--------------------------------------------------------|
+| Type        | <code>bool</code>                                      |
+| Environment | <code>$CODER_CHAT_TRACE_CONTENT_CAPTURE_ENABLED</code> |
+| YAML        | <code>chat.traceContentCaptureEnabled</code>           |
+| Default     | <code>false</code>                                     |
+
+Record prompts, model responses, and tool call arguments and results on Coder Agents OpenTelemetry spans. This content can contain sensitive data. Requires tracing to be enabled with --trace.
+
 ### --chat-max-steps-per-turn
 
 | Property    | Value                                       |

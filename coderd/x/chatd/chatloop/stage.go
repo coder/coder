@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -95,6 +96,9 @@ type StageTracer struct {
 	tracer  trace.Tracer
 	metrics *Metrics
 	clock   quartz.Clock
+	// captureContent records prompts, responses, and tool payloads on
+	// GenAI spans.
+	captureContent bool
 }
 
 // StageTracerOption configures a StageTracer.
@@ -104,6 +108,14 @@ type StageTracerOption func(*StageTracer)
 func WithClock(clock quartz.Clock) StageTracerOption {
 	return func(t *StageTracer) {
 		t.clock = clock
+	}
+}
+
+// WithContentCapture records prompts, responses, and tool payloads on
+// GenAI spans. They can contain sensitive data, so it is off by default.
+func WithContentCapture(enabled bool) StageTracerOption {
+	return func(t *StageTracer) {
+		t.captureContent = enabled
 	}
 }
 
@@ -253,8 +265,9 @@ func (t *StageTracer) startSpan(
 	}
 	opts = append(opts, trace.WithTimestamp(start))
 	chatKind := chatKindFromContext(ctx)
-	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...))
-	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), string(stage), opts...)
+	name, genAIAttrs := stageSpanStart(ctx, stage)
+	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...), trace.WithAttributes(genAIAttrs...))
+	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), name, opts...)
 	return ctx, &StageSpan{
 		tracer:   t,
 		stage:    stage,
@@ -288,6 +301,12 @@ func (s *StageSpan) SetModel(model StageModel) {
 	}
 	s.model = model
 	s.span.SetAttributes(model.attributes()...)
+	if s.stage == StageStream {
+		if model.Model != "" {
+			s.span.SetName(semconv.GenAIOperationNameChat.Value.AsString() + " " + model.Model)
+		}
+		s.span.SetAttributes(genAIModelAttributes(model)...)
+	}
 }
 
 // SpanContext returns the span context of the stage span.
@@ -340,6 +359,9 @@ func (s *StageSpan) closeSpanAt(err error, end time.Time) time.Duration {
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())
+		if s.span.IsRecording() {
+			s.span.SetAttributes(semconv.ErrorTypeKey.String(errorType(err)))
+		}
 	}
 	s.span.End(trace.WithTimestamp(end))
 	return end.Sub(s.start)
@@ -365,15 +387,20 @@ func (t *StageTracer) Record(
 	}
 	scope := scopeFromContext(ctx)
 	chatKind := chatKindFromContext(ctx)
-	_, span := t.otelTracer().Start(ctx, string(stage),
+	name, genAIAttrs := stageSpanStart(ctx, stage)
+	_, span := t.otelTracer().Start(ctx, name,
 		trace.WithTimestamp(start),
 		trace.WithAttributes(attrs...),
 		trace.WithAttributes(model.attributes()...),
 		trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...),
+		trace.WithAttributes(genAIAttrs...),
 	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		if span.IsRecording() {
+			span.SetAttributes(semconv.ErrorTypeKey.String(errorType(err)))
+		}
 	}
 	span.End(trace.WithTimestamp(end))
 	t.observe(stage, scope, chatKind, model, end.Sub(start))

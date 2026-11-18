@@ -707,6 +707,18 @@ Must be no more than 24h.
 - YAML key: `chat.streamSilenceTimeout`
 - Default value: `10m0s`
 
+### Trace content capture enabled
+
+Record prompts, model responses, and tool call arguments and results on Coder Agents OpenTelemetry spans.
+This content can contain sensitive data.
+Requires tracing to be enabled with --trace.
+
+- Type: `bool`
+- Environment variable: `CODER_CHAT_TRACE_CONTENT_CAPTURE_ENABLED`
+- CLI flag: [`--chat-trace-content-capture-enabled`](../../reference/cli/server/index.md#--chat-trace-content-capture-enabled)
+- YAML key: `chat.traceContentCaptureEnabled`
+- Default value: `false`
+
 ## Client
 
 These options change the behavior of how clients interact with the Coder.
