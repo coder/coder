@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -690,42 +691,70 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 func TestComposeBundlesReferencedFiles(t *testing.T) {
 	t.Parallel()
 
-	// path.module is the template root, where ExtraFiles are written.
-	evalCtx := &hcl.EvalContext{Variables: map[string]cty.Value{
-		"path": cty.ObjectVal(map[string]cty.Value{"module": cty.StringVal(".")}),
-	}}
-	references := 0
-	for _, id := range templatebuilder.BaseTemplateIDs() {
-		vars := map[string]string{}
-		for _, v := range templatebuilder.BaseVariables(id) {
-			if v.Required {
-				vars[v.Name] = "test"
-			}
-		}
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID:     id,
-			BaseVariableValues: vars,
-			RegistryURL:        "registry.coder.com",
-		})
-		require.NoError(t, err, id)
+	// Guards against the walk silently finding nothing.
+	require.Equal(t, []string{"a.tftpl"},
+		fileReferences(t, []byte(`x = templatefile("${path.module}/a.tftpl", {})`)))
 
-		file, diags := hclsyntax.ParseConfig(result.MainTF, "main.tf", hcl.InitialPos)
-		require.False(t, diags.HasErrors(), "%s: %s", id, diags)
-		diags = hclsyntax.VisitAll(file.Body.(*hclsyntax.Body), func(node hclsyntax.Node) hcl.Diagnostics {
-			call, ok := node.(*hclsyntax.FunctionCallExpr)
-			if !ok || (call.Name != "file" && call.Name != "templatefile") || len(call.Args) == 0 {
-				return nil
+	ids := templatebuilder.BaseTemplateIDs()
+	slices.Sort(ids)
+	for _, id := range ids {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			vars := map[string]string{}
+			for _, v := range templatebuilder.BaseVariables(id) {
+				if v.Required {
+					vars[v.Name] = "test"
+				}
 			}
-			val, diags := call.Args[0].Value(evalCtx)
-			if diags.HasErrors() {
-				return diags
+			result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+				BaseTemplateID:     id,
+				BaseVariableValues: vars,
+				RegistryURL:        "registry.coder.com",
+			})
+			require.NoError(t, err)
+
+			for _, ref := range fileReferences(t, result.MainTF) {
+				assert.Contains(t, result.ExtraFiles, ref, "%q is referenced but not bundled", ref)
 			}
-			references++
-			name := path.Clean(val.AsString())
-			assert.Contains(t, result.ExtraFiles, name, "%s references %q but does not bundle it", id, name)
-			return nil
 		})
-		require.False(t, diags.HasErrors(), "%s: file path must be a literal: %s", id, diags)
 	}
-	require.NotZero(t, references, "expected at least one base to reference a file")
+}
+
+// fileReferences returns the paths that mainTF passes to file() and
+// templatefile(), relative to the template root.
+func fileReferences(t *testing.T, mainTF []byte) []string {
+	t.Helper()
+
+	file, diags := hclsyntax.ParseConfig(mainTF, "main.tf", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "%s", diags)
+	body, ok := file.Body.(*hclsyntax.Body)
+	require.True(t, ok)
+
+	// path.module is the template root, where ExtraFiles are written.
+	pathObj := cty.ObjectVal(map[string]cty.Value{
+		"module": cty.StringVal("."),
+	})
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{"path": pathObj},
+	}
+
+	var refs []string
+	diags = hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if !ok || len(call.Args) == 0 {
+			return nil
+		}
+		if call.Name != "file" && call.Name != "templatefile" {
+			return nil
+		}
+		val, diags := call.Args[0].Value(evalCtx)
+		if diags.HasErrors() {
+			return diags
+		}
+		refs = append(refs, path.Clean(val.AsString()))
+		return nil
+	})
+	require.False(t, diags.HasErrors(), "file path must be a literal: %s", diags)
+	return refs
 }
