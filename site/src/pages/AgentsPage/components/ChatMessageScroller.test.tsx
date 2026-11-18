@@ -1,9 +1,13 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	flushLayout,
+	setupMessageScrollerLayout,
+	viewport,
+} from "#/testHelpers/messageScrollerLayout";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatMessageScroller } from "./ChatMessageScroller";
@@ -101,178 +105,147 @@ it.each([true, false])(
 	},
 );
 
-// Stacks the transcript rows at the given heights, otherRowHeight for rows not
-// listed, in a viewport of viewportHeight, with the tail spacer below them.
-const mockLayout = (
-	viewportHeight: number,
-	heights: Record<string, number>,
-	otherRowHeight: number,
-) => {
-	const heightOf = (row: HTMLElement) =>
-		heights[row.dataset.messageId ?? ""] ?? otherRowHeight;
-	const rowTop = (row: HTMLElement) => {
-		let top = 0;
-		for (const other of document.querySelectorAll<HTMLElement>(
-			"[data-message-id]",
-		)) {
-			if (other === row) {
-				return top;
-			}
-			top += heightOf(other);
-		}
-		return top;
-	};
-	vi.spyOn(Element.prototype, "clientHeight", "get").mockImplementation(
-		function (this: Element) {
-			return isViewport(this) ? viewportHeight : 0;
-		},
-	);
-	vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(
-		function (this: Element) {
-			if (!isViewport(this)) {
-				return 0;
-			}
-			const rows = this.querySelectorAll<HTMLElement>("[data-message-id]");
-			const last = rows[rows.length - 1];
-			const spacer = this.querySelector<HTMLElement>(
-				"[data-message-scroller-spacer]",
-			);
-			const spacerHeight =
-				spacer && !spacer.hidden ? Number.parseFloat(spacer.style.height) : 0;
-			return (last ? rowTop(last) + heightOf(last) : 0) + spacerHeight;
-		},
-	);
-	vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
-		function (this: Element) {
-			if (!(this instanceof HTMLElement) || !this.dataset.messageId) {
-				return new DOMRect();
-			}
-			const scrollTop =
-				document.querySelector('[aria-label="Messages"]')?.scrollTop ?? 0;
-			return new DOMRect(0, rowTop(this) - scrollTop, 0, heightOf(this));
-		},
-	);
-};
-
-const mockMessage = (
-	id: number,
-	role: TypesGen.ChatMessageRole,
-	text: string,
-): TypesGen.ChatMessage => ({
+const mockFirstQuestion: TypesGen.ChatMessage = {
 	...MockChatMessage,
-	id,
-	role,
-	content: [{ type: "text", text }],
-});
-
-// A browser reports a resize after each change to the transcript's height.
-const resize = async () => {
-	act(() => {
-		for (const observer of MockResizeObserver.instances) {
-			observer.simulateResize(0);
-		}
-	});
-	await nextFrames();
+	id: 1,
+	content: [{ type: "text", text: "First question" }],
+};
+const mockFirstAnswer: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 2,
+	role: "assistant",
+	content: [{ type: "text", text: "First answer" }],
+};
+const sentContent: TypesGen.ChatMessagePart[] = [
+	{ type: "text", text: "Second question" },
+];
+const mockSentMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 3,
+	content: sentContent,
+};
+const mockLongReply: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	content: [{ type: "text", text: "A long answer" }],
 };
 
-// Sends from a waiting chat, then lets the stream store the message, stream a
-// long reply and end the turn.
-const runTurnWithLongReply = async (
-	beforeStreamStoresSend?: (viewport: HTMLElement) => void,
-) => {
-	// The pending row has an ID chosen at the click, so it takes the 40px for
-	// rows not listed.
-	mockLayout(
-		400,
-		{
-			"message:1": 300,
-			"message:2": 300,
-			"live-assistant": 600,
-			"message:4": 600,
-		},
-		40,
-	);
-	MockResizeObserver.reset();
-	vi.stubGlobal("ResizeObserver", MockResizeObserver);
-	const store = createChatStore();
-	store.upsertDurableMessages([
-		mockMessage(1, "user", "First question"),
-		mockMessage(2, "assistant", "First answer"),
-	]);
-	store.applyServerChatStatus("waiting");
-	renderWithAuth(
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			<ChatPageTimeline
-				organizationId="organization-id"
-				store={store}
-				persistedError={undefined}
-				hasMoreMessages={false}
-				isFetchingMoreMessages={false}
-				hasFetchMoreError={false}
-				onFetchMoreMessages={() => {}}
-				urlTransform={(url) => url}
-				mcpServers={[]}
-			/>
-		</MessageScroller.Provider>,
-	);
-	const viewport = await screen.findByLabelText("Messages");
-	await nextFrames();
+const rowHeights: Record<string, number> = {
+	"message:1": 300,
+	"message:2": 300,
+	"live-assistant": 600,
+	"message:4": 600,
+};
+// A pending row's ID is chosen at the click, so rows not listed are the sent
+// message, as a pending row and once stored.
+const sentRowHeight = 40;
 
-	await act(async () => {
-		void store.runPendingAction(
+describe("ChatMessageScroller hold on a sent message", () => {
+	setupMessageScrollerLayout({
+		rowHeight: (messageId) => rowHeights[messageId] ?? sentRowHeight,
+	});
+
+	const renderWaitingChat = async () => {
+		const store = createChatStore();
+		store.upsertDurableMessages([mockFirstQuestion, mockFirstAnswer]);
+		store.applyServerChatStatus("waiting");
+		renderWithAuth(
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="organization-id"
+					store={store}
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={() => {}}
+					urlTransform={(url) => url}
+					mcpServers={[]}
+				/>
+			</MessageScroller.Provider>,
+		);
+		await screen.findByRole("region", { name: "Messages" });
+		await flushLayout();
+		return store;
+	};
+
+	const send = (
+		store: ReturnType<typeof createChatStore>,
+		request: () => Promise<unknown>,
+	) =>
+		store.runPendingAction(
 			{
 				kind: "send",
 				chatID: MockChatMessage.chat_id,
-				content: [{ type: "text", text: "Second question" }],
+				content: sentContent,
 				busyBehavior: "queue",
 			},
-			() => Promise.resolve(),
+			request,
 		);
-	});
-	await nextFrames();
-	const heldScrollTop = viewport.scrollTop;
-	beforeStreamStoresSend?.(viewport);
 
-	// One stream frame stores the sent message, starts the turn and streams
-	// the first part of the reply.
-	act(() => {
-		store.batch(() => {
-			store.upsertDurableMessages([mockMessage(3, "user", "Second question")]);
-			store.applyServerChatStatus("running");
-			store.applyMessagePart({ type: "text", text: "A long answer" });
+	// Sends from a waiting chat, then lets the stream store the message,
+	// stream a long reply and end the turn.
+	const runTurnWithLongReply = async (beforeStreamStoresSend?: () => void) => {
+		const store = await renderWaitingChat();
+		await act(async () => {
+			void send(store, () => Promise.resolve());
 		});
-	});
-	await resize();
-	act(() => {
-		store.batch(() => {
-			store.upsertDurableMessages([
-				mockMessage(4, "assistant", "A long answer"),
-			]);
-			store.applyServerChatStatus("waiting");
+		await flushLayout();
+		const heldScrollTop = viewport().scrollTop;
+		beforeStreamStoresSend?.();
+
+		// The stored message mounts in the same commit as the reply's first row.
+		act(() => {
+			store.batch(() => {
+				store.upsertDurableMessages([mockSentMessage]);
+				store.applyServerChatStatus("running");
+				store.applyMessagePart({ type: "text", text: "A long answer" });
+			});
 		});
-	});
-	await resize();
-	return { viewport, heldScrollTop };
-};
+		await flushLayout();
+		act(() => {
+			store.batch(() => {
+				store.upsertDurableMessages([mockLongReply]);
+				store.clearStreamState();
+				store.applyServerChatStatus("waiting");
+			});
+		});
+		await flushLayout();
+		return heldScrollTop;
+	};
 
-it("holds a sent message at the top through a long reply after the stream replaces its pending row", async () => {
-	const { viewport, heldScrollTop } = await runTurnWithLongReply();
+	it("leaves no blank space below a long reply after the stream replaces the sent message's pending row", async () => {
+		const heldScrollTop = await runTurnWithLongReply();
 
-	expect(viewport.scrollTop).toBe(heldScrollTop);
-	expect(
-		viewport.querySelector<HTMLElement>("[data-message-scroller-spacer]")
-			?.hidden,
-	).toBe(true);
-});
-
-it("leaves the view where the reader scrolled before the stream replaces the pending row", async () => {
-	let scrolledTop = 0;
-	const { viewport } = await runTurnWithLongReply((viewport) => {
-		fireEvent.wheel(viewport, { deltaY: -400 });
-		viewport.scrollTop -= 400;
-		fireEvent.scroll(viewport);
-		scrolledTop = viewport.scrollTop;
+		expect(viewport().scrollTop).toBe(heldScrollTop);
+		// The transcript ends at the reply's last row.
+		expect(viewport().scrollHeight).toBe(300 + 300 + sentRowHeight + 600);
 	});
 
-	expect(viewport.scrollTop).toBe(scrolledTop);
+	it("leaves the view where the reader scrolled before the stream replaces the pending row", async () => {
+		let scrolledTop = 0;
+		await runTurnWithLongReply(() => {
+			fireEvent.wheel(viewport(), { deltaY: -400 });
+			viewport().scrollTop -= 400;
+			fireEvent.scroll(viewport());
+			scrolledTop = viewport().scrollTop;
+		});
+
+		expect(viewport().scrollTop).toBe(scrolledTop);
+	});
+
+	it("returns to the end with no blank space when a send fails", async () => {
+		const store = await renderWaitingChat();
+		await act(async () => {
+			await expect(
+				send(store, () => Promise.reject(new Error("send failed"))),
+			).rejects.toThrow("send failed");
+		});
+		await flushLayout();
+
+		const historyHeight = 300 + 300;
+		expect(viewport().scrollHeight).toBe(historyHeight);
+		expect(viewport().scrollTop).toBe(historyHeight - viewport().clientHeight);
+	});
 });
