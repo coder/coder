@@ -28,7 +28,7 @@ function getDuplicationUrlParams(
 
 /**
  * Takes a workspace, and returns out a function that will navigate the user to
- * the 'Create Workspace' page, pre-filling the form with as much information
+ * the 'Create workspace' page, pre-filling the form with as much information
  * about the workspace as possible.
  */
 export function useWorkspaceDuplication(workspace?: Workspace) {

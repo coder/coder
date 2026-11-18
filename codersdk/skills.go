@@ -17,6 +17,10 @@ type SkillMetadata struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Enabled     bool      `json:"enabled"`
+	// DisplayName labels a project skill's action. When it is empty, clients
+	// show Name instead. It is always empty for personal and organization
+	// skills.
+	DisplayName string `json:"display_name"`
 	// Action reports whether a project skill is offered as a one-click
 	// action above project composers. It is always false for personal and
 	// organization skills.
@@ -33,6 +37,9 @@ type SkillMetadata struct {
 // content.
 type Skill struct {
 	SkillMetadata
+	// Content is the SKILL.md file, with its `disable-model-invocation`
+	// frontmatter key set to agree with `model_invocable`. A stored file whose
+	// key the server cannot set, such as a list, is returned unchanged.
 	Content string `json:"content"`
 }
 
@@ -40,10 +47,16 @@ type Skill struct {
 type CreateSkillRequest struct {
 	// Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	// frontmatter must include name, may include description, and must be
-	// followed by a non-empty body.
+	// followed by a non-empty body. A `disable-model-invocation` key must
+	// hold a value the server can replace with true or false, so a list is
+	// rejected.
 	Content string `json:"content"`
 	// Action is only accepted for project skills and defaults to false.
 	Action *bool `json:"action,omitempty"`
+	// DisplayName is only accepted for project skills. It must be a single
+	// line of at most MaxSkillDisplayNameLength characters, and surrounding
+	// whitespace is trimmed.
+	DisplayName *string `json:"display_name,omitempty"`
 	// ModelInvocable defaults to false when the content's frontmatter sets
 	// disable-model-invocation: true, and to true otherwise.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
@@ -54,13 +67,26 @@ type CreateSkillRequest struct {
 type UpdateSkillRequest struct {
 	// Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	// frontmatter must include name, may include description, and must be
-	// followed by a non-empty body.
+	// followed by a non-empty body. A `disable-model-invocation` key must
+	// hold a value the server can replace with true or false, so a list is
+	// rejected.
 	Content *string `json:"content,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
 	// Action is only accepted for project skills.
-	Action         *bool `json:"action,omitempty"`
+	Action *bool `json:"action,omitempty"`
+	// ModelInvocable is left unchanged when unset, unless the new content
+	// frontmatter sets `disable-model-invocation` to a boolean: true turns it
+	// off and false turns it on.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
+	// DisplayName is only accepted for project skills. An empty value
+	// clears it.
+	DisplayName *string `json:"display_name,omitempty"`
 }
+
+// MaxSkillDisplayNameLength is the maximum length of a skill display name,
+// counted in Unicode code points after surrounding whitespace is trimmed, not
+// in bytes or UTF-16 units.
+const MaxSkillDisplayNameLength = 64
 
 // OrganizationSkillRole is a role a user or group holds in an organization
 // skill's access control list.
