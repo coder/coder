@@ -212,17 +212,16 @@ describe("AddWorkspaceUserOrGroup", () => {
 		);
 
 		const user = userEvent.setup();
-		await user.click(screen.getByRole("button", { name: /^User or group/ }));
+		const trigger = screen.getByRole("button", { name: /^User or group/ });
+		await user.click(trigger);
 		await user.click(
 			await screen.findByRole("option", {
 				name: new RegExp(MockOrganizationMember.username),
 			}),
 		);
-		expect(
-			screen.getByRole("button", {
-				name: `User or group ${MockOrganizationMember.email}`,
-			}),
-		).toHaveAttribute("aria-expanded", "false");
+		expect(trigger).toHaveAccessibleName(
+			`User or group ${MockOrganizationMember.email}`,
+		);
 		await user.click(screen.getByRole("combobox", { name: /^Role/ }));
 		await user.click(await screen.findByRole("option", { name: "Admin" }));
 		await user.click(screen.getByRole("button", { name: "Add member" }));
