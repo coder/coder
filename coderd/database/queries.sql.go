@@ -8280,26 +8280,7 @@ const getChatProjectPinTelemetry = `-- name: GetChatProjectPinTelemetry :one
 WITH project_users AS (
     SELECT id AS project_id, owner_id AS user_id FROM chat_projects
     UNION
-    SELECT granted.project_id, organization_members.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal FROM chat_projects
-    ) granted
-    JOIN organization_members
-        ON organization_members.user_id = granted.principal::uuid
-        AND organization_members.organization_id = granted.organization_id
-    WHERE $1::boolean
-        AND granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
-    UNION
-    SELECT granted.project_id, group_members_expanded.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal FROM chat_projects
-    ) granted
-    JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
-    JOIN organization_members
-        ON organization_members.user_id = group_members_expanded.user_id
-        AND organization_members.organization_id = granted.organization_id
-    WHERE $1::boolean
-        AND granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
+    SELECT project_id, user_id FROM chat_project_read_grant_members WHERE $1::boolean
 ),
 per_user AS (
     SELECT
@@ -8444,46 +8425,30 @@ org_member_counts AS (
     GROUP BY organization_members.organization_id
 ),
 project_members AS (
+    -- org_member_counts already counts the owner of an Everyone project who
+    -- is a member of its organization.
     SELECT id AS project_id, owner_id AS user_id FROM accessible
+    WHERE id NOT IN (SELECT project_id FROM everyone_projects)
+        OR NOT EXISTS (
+            SELECT 1 FROM organization_members
+            WHERE organization_members.user_id = accessible.owner_id
+                AND organization_members.organization_id = accessible.organization_id
+        )
     UNION
-    SELECT granted.project_id, organization_members.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal
-        FROM accessible
-        WHERE $1::boolean AND id NOT IN (SELECT project_id FROM everyone_projects)
-    ) granted
-    JOIN organization_members
-        ON organization_members.user_id = granted.principal::uuid
-        AND organization_members.organization_id = granted.organization_id
-    WHERE granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
-    UNION
-    SELECT granted.project_id, group_members_expanded.user_id
-    FROM (
-        SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal
-        FROM accessible
-        WHERE $1::boolean AND id NOT IN (SELECT project_id FROM everyone_projects)
-    ) granted
-    JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
-    -- A granted group from another organization only reaches its members
-    -- who also belong to the project's organization.
-    JOIN organization_members
-        ON organization_members.user_id = group_members_expanded.user_id
-        AND organization_members.organization_id = granted.organization_id
-    WHERE granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
+    SELECT project_id, user_id FROM chat_project_read_grant_members
+    -- An array lets the planner filter the view's project scans; a join or
+    -- IN would expand the grants of every project first.
+    WHERE $1::boolean AND project_id = ANY(ARRAY(
+        SELECT id FROM accessible
+        EXCEPT
+        SELECT project_id FROM everyone_projects
+    ))
 ),
 member_counts AS (
     SELECT project_members.project_id, COUNT(*) AS member_count
     FROM project_members
     JOIN users ON users.id = project_members.user_id
     WHERE users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
-        -- Only an owner outside the organization is left to add to
-        -- org_member_counts.
-        AND NOT EXISTS (
-            SELECT 1 FROM everyone_projects
-            JOIN organization_members ON organization_members.organization_id = everyone_projects.organization_id
-            WHERE everyone_projects.project_id = project_members.project_id
-                AND organization_members.user_id = project_members.user_id
-        )
     GROUP BY project_members.project_id
 ),
 own_chats AS (
@@ -8549,10 +8514,9 @@ type GetChatProjectSummariesByUserIDRow struct {
 // non-archived chats. Entries match regardless of the actions they grant,
 // so callers must authorize each row; pins on projects the user can no
 // longer see are never returned.
-// Users who can use each project: the owner, granted users who are
-// organization members, and members of granted groups (including the
-// Everyone group). As in IsChatProjectUsableByUserID, only grants with
-// read count. Counted only while project sharing is available;
+// Users who can use each project: the owner and the users its read grants
+// reach (chat_project_read_grant_members). Counted only while project
+// sharing is available;
 // otherwise every project counts its owner alone. Suspended users cannot
 // sign in, so they are not counted.
 //
