@@ -168,7 +168,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={canUpdateTemplate}>
-			<title>{pageTitle(templateName, "Template Editor")}</title>
+			<title>{pageTitle(templateName, "Template editor")}</title>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
