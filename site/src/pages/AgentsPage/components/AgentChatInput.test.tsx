@@ -397,6 +397,7 @@ describe("AgentChatInput", () => {
 		await user.keyboard("{Enter}");
 		expect(onSend).toHaveBeenCalledWith(
 			"explain `/home/coder/repo/src/main.go`",
+			undefined,
 		);
 	});
 
