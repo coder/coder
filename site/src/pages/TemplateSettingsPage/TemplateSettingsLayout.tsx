@@ -55,11 +55,15 @@ export const TemplateSettingsLayout: React.FC = () => {
 		enabled: templateQuery.isSuccess,
 	});
 
+	const error = templateQuery.error ?? permissionsQuery.error;
+	if (error && (!templateQuery.data || !permissionsQuery.data)) {
+		return <ErrorAlert error={error} />;
+	}
+
 	if (!templateQuery.data || !permissionsQuery.data) {
 		return <Loader />;
 	}
 
-	const error = templateQuery.isError || permissionsQuery.isError;
 	// We override `organization_name` here because we may have fallen back to
 	// `"default"` while fetching if the deployment does not have the
 	// organizations feature enabled, and so we need to make sure consumers do the
@@ -123,23 +127,22 @@ export const TemplateSettingsLayout: React.FC = () => {
 
 				<section className="px-4 sm:px-6 lg:px-10 max-w-(--breakpoint-2xl) mx-auto">
 					<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-28 lg:py-10">
-						{error ? (
-							<ErrorAlert error={error} />
-						) : (
-							<TemplateSettings.Provider
-								value={{
-									template: templateQuery.data,
-									permissions: permissionsQuery.data,
-								}}
-							>
-								<Sidebar />
-								<div className="grow min-w-0">
-									<Suspense fallback={<Loader />}>
-										<Outlet />
-									</Suspense>
-								</div>
-							</TemplateSettings.Provider>
-						)}
+						<TemplateSettings.Provider
+							value={{
+								template: templateQuery.data,
+								permissions: permissionsQuery.data,
+							}}
+						>
+							<Sidebar
+								canUpdateTemplate={permissionsQuery.data.canUpdateTemplate}
+							/>
+							<div className="grow min-w-0">
+								{Boolean(error) && <ErrorAlert error={error} />}
+								<Suspense fallback={<Loader />}>
+									<Outlet />
+								</Suspense>
+							</div>
+						</TemplateSettings.Provider>
 					</div>
 				</section>
 			</div>

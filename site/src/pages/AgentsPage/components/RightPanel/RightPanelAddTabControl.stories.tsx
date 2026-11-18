@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
@@ -174,6 +174,16 @@ export const Default: Story = {
 		await userEvent.click(body.getByText("8080"));
 		await expect(args.onOpenPort).toHaveBeenCalledWith(
 			expect.objectContaining({ port: 8080 }),
+		);
+	},
+};
+
+export const PortsSubmenuOpen: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Add panel" }));
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: /^Ports/ }),
 		);
 	},
 };

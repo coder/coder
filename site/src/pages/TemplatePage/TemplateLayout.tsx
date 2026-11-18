@@ -3,7 +3,6 @@ import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { API } from "#/api/api";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
@@ -11,37 +10,22 @@ import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
+	type TemplatePermissions,
+	templatePermissionChecks,
+} from "#/modules/permissions/templates";
+import {
 	type WorkspacePermissions,
 	workspacePermissionChecks,
 } from "#/modules/permissions/workspaces";
 import { TemplatePageHeader } from "./TemplatePageHeader";
-
-const templatePermissions = (
-	templateId: string,
-): AuthorizationRequest["checks"] => ({
-	canUpdateTemplate: {
-		object: {
-			resource_type: "template",
-			resource_id: templateId,
-		},
-		action: "update",
-	},
-	canReadInsights: {
-		object: {
-			resource_type: "template",
-			resource_id: templateId,
-		},
-		action: "view_insights",
-	},
-});
 
 const fetchTemplate = async (organizationId: string, templateName: string) => {
 	const template = await API.getTemplateByName(organizationId, templateName);
 
 	const [activeVersion, permissions] = await Promise.all([
 		API.getTemplateVersion(template.active_version_id),
-		API.checkAuthorization({
-			checks: templatePermissions(template.id),
+		API.checkAuthorization<TemplatePermissions>({
+			checks: templatePermissionChecks(template.id),
 		}),
 	]);
 
@@ -72,7 +56,7 @@ export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 	children = <Outlet />,
 }) => {
 	const navigate = useNavigate();
-	const { user: me } = useAuthenticated();
+	const { user: me, permissions: authPermissions } = useAuthenticated();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { data, error, isLoading } = useQuery({
@@ -118,6 +102,7 @@ export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 	return (
 		<div className="pb-12">
 			<TemplatePageHeader
+				canCreateTemplates={authPermissions.createTemplates}
 				template={data.template}
 				activeVersion={data.activeVersion}
 				permissions={data.permissions}
