@@ -95,7 +95,8 @@ func TestChatProjectPins(t *testing.T) {
 }
 
 // TestChatProjectPinsTokenScope checks that a pin, as the caller's personal
-// data, cannot be changed by an API key that may only read.
+// data, cannot be written by an API key that lacks user:update_personal or
+// cannot read the project.
 func TestChatProjectPinsTokenScope(t *testing.T) {
 	t.Parallel()
 
@@ -109,22 +110,32 @@ func TestChatProjectPinsTokenScope(t *testing.T) {
 	newScopedClient := func(scopes ...database.APIKeyScope) *codersdk.ExperimentalClient {
 		_, token := dbgen.APIKey(t, db, database.APIKey{
 			UserID: firstUser.UserID,
-			Scopes: append(database.APIKeyScopes{"organization:read", "chat_project:read"}, scopes...),
+			Scopes: append(database.APIKeyScopes{"organization:read"}, scopes...),
 		})
 		scoped := codersdk.New(client.URL)
 		scoped.SetSessionToken(token)
 		return codersdk.NewExperimentalClient(scoped)
 	}
 
-	readOnly := newScopedClient()
+	readOnly := newScopedClient("chat_project:read")
 	requireSDKError(t, readOnly.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}), http.StatusForbidden)
 	requireSDKError(t, readOnly.UnpinChatProject(ctx, orgID, project.ID), http.StatusForbidden)
 
 	// The same key with user:update_personal may change the pin, so that
 	// scope is the one the read-only key lacks.
-	personal := newScopedClient("user:update_personal")
+	personal := newScopedClient("chat_project:read", "user:update_personal")
 	require.NoError(t, personal.UnpinChatProject(ctx, orgID, project.ID))
 	require.NoError(t, personal.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}))
+
+	// Creating a project pins it for its creator, so a key that may create
+	// projects also needs both of the pin's permissions.
+	createReq := codersdk.CreateChatProjectRequest{Name: "Scoped Create"}
+	_, err := newScopedClient("chat_project:create", "chat_project:read").CreateChatProject(ctx, orgID, createReq)
+	requireSDKError(t, err, http.StatusForbidden)
+	_, err = newScopedClient("chat_project:create", "user:update_personal").CreateChatProject(ctx, orgID, createReq)
+	requireSDKError(t, err, http.StatusForbidden)
+	_, err = newScopedClient("chat_project:create", "chat_project:read", "user:update_personal").CreateChatProject(ctx, orgID, createReq)
+	require.NoError(t, err)
 }
 
 func TestChatProjectPinsConcurrentWrites(t *testing.T) {
