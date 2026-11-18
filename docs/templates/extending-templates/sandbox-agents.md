@@ -408,7 +408,7 @@ Fast startup isn't isolation, but it decides whether people use the sandbox.
 An agent that starts a new workspace for each task creates many more workspaces than a person does.
 If the sandbox takes minutes to start, users run the agent on their own machine instead, outside every control on this page.
 
-To see a Kubernetes template go from 1.5&nbsp;minutes to 2&nbsp;seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs).
+To see a Kubernetes template go from 98&nbsp;seconds to 1.8&nbsp;seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs&t=514s).
 
 | Method                                                         | How it works                                                                                       | Tradeoffs                                                                                 |
 |----------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
