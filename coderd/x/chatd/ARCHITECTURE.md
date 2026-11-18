@@ -1233,7 +1233,7 @@ Subagent model and effort resolution follows this precedence:
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
 
-`applyReasoningEffort` clamps `none` and `minimal` to `low` for GPT-6 Astra and its dated snapshots (`chatopenai.IsGPT6Astra`, a case-insensitive prefix match on `gpt-6-astra`), because that model rejects `none` with HTTP 400 and lists no `minimal` effort.
+`applyReasoningEffort` clamps `none` and `minimal` to `low` for GPT-6 Astra, GPT-6.1 Sol, GPT-6.2 Astra, and GPT-6.2 Sol, and for their dated snapshots (`openAILowFloorPrefixes`, case-insensitive prefix matches on the model ID), because these models reject `none` and `minimal` with HTTP 400.
 
 ##### OpenAI transport selection
 
