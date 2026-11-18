@@ -746,6 +746,50 @@ export const ScopeToggle: Story = {
 	},
 };
 
+export const ScopeToggleKeyboard: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.keyboard("{ArrowRight}");
+		await within(canvasElement.ownerDocument.body).findByRole("option", {
+			name: "Include workspaces shared with alice",
+		});
+		await userEvent.keyboard("{End}");
+	},
+};
+
+// Two Owner chips disable the scope row.
+export const ScopeToggleKeyboardDisabled: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice owner:bob"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: ScopeToggleKeyboard.play,
+};
+
+export const ScopeToggleNoMatches: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "owner:nobody");
+	},
+};
+
+export const ScopeToggleMobile: Story = {
+	...ScopeToggle,
+	parameters: MobileCategoryNavigation.parameters,
+	beforeEach: MobileCategoryNavigation.beforeEach,
+	play: MobileCategoryNavigation.play,
+};
+
 export const ScopeToggleTypedMatch: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {
