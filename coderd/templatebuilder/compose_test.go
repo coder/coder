@@ -6,9 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -717,8 +715,6 @@ func TestQuickstartCppInstallGuard(t *testing.T) {
 	}
 	bash, err := exec.LookPath("bash")
 	require.NoError(t, err)
-	head, err := exec.LookPath("head")
-	require.NoError(t, err)
 
 	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
 	require.NoError(t, err)
@@ -743,31 +739,24 @@ func TestQuickstartCppInstallGuard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// PATH holds only stubs, so the host's real toolchain can't
-			// influence the result.
-			binDir := t.TempDir()
-			writeExecutable := func(name, content string) {
-				path := filepath.Join(binDir, name)
-				require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-				require.NoError(t, os.Chmod(path, 0o700))
-			}
-			require.NoError(t, os.Symlink(head, filepath.Join(binDir, "head")))
-			stub := "#!" + bash + "\necho stub 1.0\n"
+			// Stubs are shell functions rather than files on PATH: writing
+			// and executing files races with concurrent forks (ETXTBSY,
+			// golang/go#22315). PATH is an empty directory, so the host's
+			// toolchain can't influence the result.
+			var prelude strings.Builder
 			for _, tool := range tt.present {
-				writeExecutable(tool, stub)
+				prelude.WriteString(tool + "() { echo stub 1.0; }\n")
 			}
-			// The sudo stub records its arguments and "installs" nothing.
-			logPath := filepath.Join(t.TempDir(), "sudo.log")
-			sudo := "#!" + bash + "\necho \"$@\" >> " + logPath + "\n"
-			writeExecutable("sudo", sudo)
+			// sudo records its arguments and "installs" nothing.
+			prelude.WriteString("sudo() { echo \"SUDO: $*\"; }\n")
+			prelude.WriteString("head() { IFS= read -r l; printf '%s\\n' \"$l\"; }\n")
 
-			cmd := exec.Command(bash, "-c", script)
-			cmd.Env = []string{"PATH=" + binDir, "HOME=" + t.TempDir()}
+			cmd := exec.Command(bash, "-c", prelude.String()+script)
+			cmd.Env = []string{"PATH=" + t.TempDir()}
 			out, err := cmd.CombinedOutput()
 			require.NoError(t, err, string(out))
 
-			logged, _ := os.ReadFile(logPath)
-			installed := strings.Contains(string(logged), "install")
+			installed := strings.Contains(string(out), "SUDO: apt-get install")
 			require.Equal(t, tt.wantInstall, installed, "output: %s", out)
 		})
 	}
