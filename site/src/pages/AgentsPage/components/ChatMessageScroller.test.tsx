@@ -106,16 +106,19 @@ it.each([true, false])(
 	},
 );
 
-// Stacks the rows at the given heights in a viewport of viewportHeight, with
-// the tail spacer below them. The layout never resizes on its own, and the
+// Stacks the rows at the given heights, otherRowHeight for rows not listed, in
+// a viewport of viewportHeight, with the tail spacer below them. The layout never resizes on its own, and the
 // unit setup's ResizeObserver polyfill calls back after DOM changes, so a
 // controllable one replaces it.
 const mockLayout = (
 	viewportHeight: number,
 	heights: Record<string, number>,
+	otherRowHeight = 0,
 ) => {
 	MockResizeObserver.reset();
 	vi.stubGlobal("ResizeObserver", MockResizeObserver);
+	const heightOf = (row: HTMLElement) =>
+		heights[row.dataset.messageId ?? ""] ?? otherRowHeight;
 	const rowTop = (row: HTMLElement) => {
 		let top = 0;
 		for (const other of document.querySelectorAll<HTMLElement>(
@@ -124,7 +127,7 @@ const mockLayout = (
 			if (other === row) {
 				return top;
 			}
-			top += heights[other.dataset.messageId ?? ""] ?? 0;
+			top += heightOf(other);
 		}
 		return top;
 	};
@@ -143,9 +146,7 @@ const mockLayout = (
 			);
 			const rows = this.querySelectorAll<HTMLElement>("[data-message-id]");
 			const last = rows[rows.length - 1];
-			const rowsBottom = last
-				? rowTop(last) + (heights[last.dataset.messageId ?? ""] ?? 0)
-				: 0;
+			const rowsBottom = last ? rowTop(last) + heightOf(last) : 0;
 			const spacerHeight =
 				spacer && !spacer.hidden ? Number.parseFloat(spacer.style.height) : 0;
 			return rowsBottom + spacerHeight;
@@ -158,12 +159,7 @@ const mockLayout = (
 			}
 			const scrollTop =
 				document.querySelector('[aria-label="Messages"]')?.scrollTop ?? 0;
-			return new DOMRect(
-				0,
-				rowTop(this) - scrollTop,
-				0,
-				heights[this.dataset.messageId] ?? 0,
-			);
+			return new DOMRect(0, rowTop(this) - scrollTop, 0, heightOf(this));
 		},
 	);
 };
@@ -181,7 +177,6 @@ const transcript = (
 		<ChatMessageScroller
 			hasMoreMessages={false}
 			isFetchingMoreMessages={false}
-			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			hasTranscriptRows
 			onFetchMoreMessages={vi.fn()}
@@ -565,14 +560,14 @@ it("keeps the spacer a jump in flight needs while it scrolls and when the turn e
 	mockLayout(400, { 1: 200, 2: 200, 3: 200 });
 	const row3Top = 200 + 200;
 	// The smooth jump stays in flight: the view does not move.
-	Element.prototype.scrollTo = function (
+	vi.spyOn(Element.prototype, "scrollTo").mockImplementation(function (
 		this: Element,
 		options?: ScrollToOptions | number,
 	) {
 		if (typeof options === "object" && options.behavior !== "smooth") {
 			this.scrollTop = options.top ?? 0;
 		}
-	};
+	});
 	const rows: Row[] = [
 		{ id: "1", children: <JumpButton /> },
 		{ id: "2" },
@@ -610,60 +605,91 @@ const mockMessage = (
 	content: [{ type: "text", text }],
 });
 
-it("moves a short reply to the end of the view when the chat stops running", async () => {
-	mockLayout(400, {
-		"message:1": 300,
-		"message:2": 300,
-		"message:3": 40,
-		"message:4": 60,
-	});
-	const store = createChatStore();
-	store.replaceMessages([
-		mockMessage(1, "user", "First question"),
-		mockMessage(2, "assistant", "First answer"),
-	]);
-	store.setChatStatus("waiting");
-	renderWithAuth(
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			<ChatPageTimeline
-				organizationId="organization-id"
-				store={store}
-				persistedError={undefined}
-				hasMoreMessages={false}
-				isFetchingMoreMessages={false}
-				isHydratingMessages={false}
-				hasFetchMoreError={false}
-				onFetchMoreMessages={async () => {}}
-				urlTransform={(url) => url}
-				mcpServers={[]}
-			/>
-		</MessageScroller.Provider>,
-	);
-	const viewport = await screen.findByLabelText("Messages");
-	await nextFrames();
+it.each([
+	{ start: "the stream reports the sent message", pendingAtClick: false },
+	{ start: "the sent message is pending at the click", pendingAtClick: true },
+])(
+	"moves a short reply to the end of the view when the chat stops running after $start",
+	async ({ pendingAtClick }) => {
+		// A pending row has an ID chosen at the click, so it takes otherRowHeight.
+		mockLayout(
+			400,
+			{
+				"message:1": 300,
+				"message:2": 300,
+				"message:3": 40,
+				"message:4": 60,
+			},
+			40,
+		);
+		const store = createChatStore();
+		store.upsertDurableMessages([
+			mockMessage(1, "user", "First question"),
+			mockMessage(2, "assistant", "First answer"),
+		]);
+		store.applyServerChatStatus("waiting");
+		renderWithAuth(
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="organization-id"
+					store={store}
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={async () => {}}
+					urlTransform={(url) => url}
+					mcpServers={[]}
+				/>
+			</MessageScroller.Provider>,
+		);
+		const viewport = await screen.findByLabelText("Messages");
+		await nextFrames();
 
-	await act(async () => {
-		store.upsertDurableMessages([mockMessage(3, "user", "Second question")]);
-		store.setChatStatus("running");
-	});
-	await nextFrames();
-	await act(async () => {
-		store.upsertDurableMessages([mockMessage(4, "assistant", "Short answer")]);
-	});
-	await nextFrames();
-	const spacer = viewport.querySelector<HTMLElement>(
-		"[data-message-scroller-spacer]",
-	);
-	// The scroller holds the second question at the top above blank space.
-	expect(spacer?.hidden).toBe(false);
+		if (pendingAtClick) {
+			await act(async () => {
+				void store.runPendingAction(
+					{
+						kind: "send",
+						chatID: MockChatMessage.chat_id,
+						content: [{ type: "text", text: "Second question" }],
+						busyBehavior: "queue",
+					},
+					() => Promise.resolve(),
+				);
+			});
+			await nextFrames();
+			// The pending row places the hold before the stream reports anything.
+			expect(
+				viewport.querySelector<HTMLElement>("[data-message-scroller-spacer]")
+					?.hidden,
+			).toBe(false);
+		}
+		await act(async () => {
+			store.upsertDurableMessages([mockMessage(3, "user", "Second question")]);
+			store.applyServerChatStatus("running");
+		});
+		await nextFrames();
+		await act(async () => {
+			store.upsertDurableMessages([
+				mockMessage(4, "assistant", "Short answer"),
+			]);
+		});
+		await nextFrames();
+		const spacer = viewport.querySelector<HTMLElement>(
+			"[data-message-scroller-spacer]",
+		);
+		// The scroller holds the second question at the top above blank space.
+		expect(spacer?.hidden).toBe(false);
 
-	await act(async () => {
-		store.setChatStatus("waiting");
-	});
-	await nextFrames();
+		await act(async () => {
+			store.applyServerChatStatus("waiting");
+		});
+		await nextFrames();
 
-	expect(spacer?.hidden).toBe(true);
-	expect(viewport.scrollTop).toBe(
-		viewport.scrollHeight - viewport.clientHeight,
-	);
-});
+		expect(spacer?.hidden).toBe(true);
+		expect(viewport.scrollTop).toBe(
+			viewport.scrollHeight - viewport.clientHeight,
+		);
+	},
+);
