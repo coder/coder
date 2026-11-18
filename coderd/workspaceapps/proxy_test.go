@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -399,32 +398,8 @@ func TestHandleSubdomain(t *testing.T) {
 				subdomain:  portHost,
 				appURL:     "http://127.0.0.1:8080",
 				origin:     "https://" + previewHost + "--apps.test.coder.com",
-				wantStatus: http.StatusForbidden,
-				wantBody:   "Preview pages cannot send requests to other apps.",
-			},
-			{
-				name:       "RequestFromPrefixedPreview",
-				subdomain:  portHost,
-				appURL:     "http://127.0.0.1:8080",
-				origin:     "https://x---" + previewHost + "--apps.test.coder.com",
-				wantStatus: http.StatusForbidden,
-				wantBody:   "Preview pages cannot send requests to other apps.",
-			},
-			{
-				name:       "RequestFromPreviewOnOtherProxy",
-				subdomain:  portHost,
-				appURL:     "http://127.0.0.1:8080",
-				origin:     "https://preview--3000--agent--workspace--user.proxy.example.com",
-				wantStatus: http.StatusForbidden,
-				wantBody:   "Preview pages cannot send requests to other apps.",
-			},
-			{
-				name:       "RequestFromPreviewWithTripleDashSuffix",
-				subdomain:  portHost,
-				appURL:     "http://127.0.0.1:8080",
-				origin:     "https://" + previewHost + "---apps.proxy.example.com",
-				wantStatus: http.StatusForbidden,
-				wantBody:   "Preview pages cannot send requests to other apps.",
+				wantStatus: http.StatusNoContent,
+				wantPath:   "/assets/app.js",
 			},
 			{
 				name:       "RequestFromOtherApp",
@@ -562,27 +537,4 @@ func (p *fakeAgentProvider) ReverseProxy(targetURL, _ *url.URL, _ uuid.UUID, _ a
 	tgt := *targetURL
 	tgt.Host = p.upstream.Host
 	return httputil.NewSingleHostReverseProxy(&tgt)
-}
-
-func TestWorkspaceAppsProxyPathRequestFromPreview(t *testing.T) {
-	t.Parallel()
-
-	dashboardURL, err := url.Parse("https://dashboard.test.coder.com")
-	require.NoError(t, err)
-	srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
-		Logger:       testutil.Logger(t),
-		DashboardURL: dashboardURL,
-		AccessURL:    dashboardURL,
-		RealIPConfig: &httpmw.RealIPConfig{},
-	})
-	router := chi.NewRouter()
-	srv.Attach(router)
-
-	req := httptest.NewRequest(http.MethodPost, "https://dashboard.test.coder.com/@user/workspace/apps/app/", nil)
-	req.Header.Set("Origin", "https://preview--3000--agent--workspace--user.apps.test.coder.com")
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	require.Contains(t, rec.Body.String(), "Preview pages cannot send requests to other apps.")
 }

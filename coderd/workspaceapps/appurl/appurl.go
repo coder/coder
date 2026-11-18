@@ -187,25 +187,6 @@ func ParsePreviewSlug(slug string) (Preview, bool) {
 	return Preview{Port: uint16(port)}, true
 }
 
-// IsPreviewHostname reports whether hostname is a preview app host under any
-// wildcard app hostname, including those of workspace proxies, whose patterns
-// can add a suffix to the first label.
-func IsPreviewHostname(hostname string) bool {
-	label, _, _ := strings.Cut(hostname, ".")
-	// A wildcard suffix can itself contain "---", so cut only before the
-	// preview slug.
-	if i := strings.LastIndex(label, "---"+previewSlugPrefix); i >= 0 {
-		label = label[i+len("---"):]
-	}
-
-	parts := strings.Split(label, "--")
-	if len(parts) < 5 {
-		return false
-	}
-	_, ok := ParsePreviewSlug(parts[0] + "--" + parts[1])
-	return ok
-}
-
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
 // the subdomain is not a valid application URL hostname, returns a non-nil
 // error. If the hostname is not a subdomain of the given base hostname, returns

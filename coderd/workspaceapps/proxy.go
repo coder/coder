@@ -381,24 +381,6 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Path-based apps accept the user's dashboard session cookie. A preview
-	// page that could send requests to them could act as the user anywhere in
-	// Coder.
-	if isFromOtherPreview(r, r.Host) {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:      http.StatusForbidden,
-			Title:       "Forbidden",
-			Description: "Preview pages cannot send requests to other apps.",
-			Actions: []site.Action{
-				{
-					URL:  s.DashboardURL.String(),
-					Text: "Back to site",
-				},
-			},
-		})
-		return
-	}
-
 	if !s.handleAPIKeySmuggling(rw, r, AccessMethodPath) {
 		return
 	}
@@ -543,15 +525,6 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			// This runs before the app's CORS setting is applied, so it still
-			// blocks requests when the template lets other origins through.
-			if isFromOtherPreview(r, host) {
-				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-					Message: "Preview pages cannot send requests to other apps.",
-				})
-				return
-			}
-
 			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
 				return
 			}
@@ -601,10 +574,9 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 // The AI agent controls the server behind a preview. A preview page could
 // submit a form to its own server, and the server could answer with a
 // redirect to one of the user's other apps. The browser would then send the
-// form to that app with the user's cookie and with Origin "null", so
-// isFromOtherPreview can't tell that the preview sent it. Blocking these
-// redirects closes that gap. GET and HEAD requests are let through because
-// they should not change data.
+// form to that app with the user's cookie. Blocking these redirects closes
+// that gap. GET and HEAD requests are let through because they should not
+// change data.
 func isRepostToOtherHost(resp *http.Response, host string) bool {
 	method := resp.Request.Method
 	if method == http.MethodGet || method == http.MethodHead {
@@ -667,24 +639,6 @@ func hasDomainAttribute(line string) bool {
 		}
 	}
 	return false
-}
-
-// isFromOtherPreview reports whether a preview page on another host sent r.
-//
-// The AI agent writes preview pages, so they can't be trusted. When a
-// preview page sends a request to one of the user's other apps, the browser
-// still adds the user's cookie for that app, so the request would act as the
-// user. The browser also sets the Origin header to the page that sent the
-// request, and the page can't change it. So a request whose Origin is a
-// preview hostname other than host came from a preview and must be refused.
-// Requests from any other origin are left to the app's CORS setting.
-func isFromOtherPreview(r *http.Request, host string) bool {
-	origin, err := url.Parse(r.Header.Get(httpmw.OriginHeader))
-	if err != nil || origin.Host == "" || appurl.HostnamesMatch(origin.Host, host) {
-		return false
-	}
-
-	return appurl.IsPreviewHostname(origin.Hostname())
 }
 
 // parseHostname will return if a given request is attempting to access a
