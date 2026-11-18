@@ -1,11 +1,13 @@
 package coderd
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -45,9 +47,28 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	compactChatProjectPinOrders(rows)
 	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, func(row database.GetChatProjectSummariesByUserIDRow) codersdk.ChatProjectSummary {
 		return db2sdk.ChatProjectSummary(row, api.convertChatProject(r, row.ChatProject))
 	}))
+}
+
+// compactChatProjectPinOrders renumbers the pinned rows 1..N in their
+// current order. The query numbers pins before authorization drops rows,
+// such as a project whose grant lacks read, which would leave gaps.
+func compactChatProjectPinOrders(rows []database.GetChatProjectSummariesByUserIDRow) {
+	pinned := make([]*database.GetChatProjectSummariesByUserIDRow, 0, len(rows))
+	for i := range rows {
+		if rows[i].Pinned {
+			pinned = append(pinned, &rows[i])
+		}
+	}
+	slices.SortFunc(pinned, func(a, b *database.GetChatProjectSummariesByUserIDRow) int {
+		return cmp.Compare(a.PinOrder, b.PinOrder)
+	})
+	for i, row := range pinned {
+		row.PinOrder = int32(i + 1) //nolint:gosec // Bounded by the number of projects.
+	}
 }
 
 // @Summary Pin chat project
