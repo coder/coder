@@ -466,6 +466,7 @@ func requireDisconnectLog(t *testing.T, sink *testutil.FakeSink, message, client
 
 // requireDebugFlushed asserts whether the logger should have flushed.
 func requireDebugFlushed(t *testing.T, sink *testutil.FakeSink, reason codersdk.DisconnectReason) {
+	t.Helper()
 	// Debug logs should flush based on whether the disconnect was expected.
 	debugEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelDebug })
 	if !reason.Expected() {
