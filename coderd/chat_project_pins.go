@@ -120,6 +120,16 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
 			return err
 		}
+		if pinOrder.Valid {
+			rows, err := tx.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
+				UserID:     apiKey.UserID,
+				ACLEnabled: !api.chatSharingDisabled(),
+			})
+			if err != nil {
+				return xerrors.Errorf("list visible chat project pins: %w", err)
+			}
+			pinOrder.Int32 = chatProjectPinPosition(rows, project.ID, pinOrder.Int32)
+		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
 			UserID:     apiKey.UserID,
 			ProjectID:  project.ID,
@@ -138,6 +148,44 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatProjectPinPosition translates a requested position among the pins
+// the user sees into a position for PinChatProject. That query counts
+// every pin its access predicate matches, but authorization can still
+// hide some of them, such as a project whose grant lacks read, and a
+// hidden pin between two visible ones would otherwise absorb the move.
+// rows must be the authorized summaries: their pin orders number the
+// matched pins, target included, in the order PinChatProject uses.
+func chatProjectPinPosition(rows []database.GetChatProjectSummariesByUserIDRow, projectID uuid.UUID, requested int32) int32 {
+	var targetOrder int32
+	visible := make([]int32, 0, len(rows))
+	for _, row := range rows {
+		switch {
+		case !row.Pinned:
+		case row.ChatProject.ID == projectID:
+			targetOrder = row.PinOrder
+		default:
+			visible = append(visible, row.PinOrder)
+		}
+	}
+	if len(visible) == 0 {
+		return 1
+	}
+	slices.Sort(visible)
+	// PinChatProject numbers the other pins without the target.
+	position := func(order int32) int32 {
+		if targetOrder != 0 && targetOrder < order {
+			return order - 1
+		}
+		return order
+	}
+	if int(requested) <= len(visible) {
+		// Take the place of the visible pin now shown at that position.
+		return position(visible[requested-1])
+	}
+	// Go right after the last visible pin.
+	return position(visible[len(visible)-1]) + 1
 }
 
 // @Summary Unpin chat project
