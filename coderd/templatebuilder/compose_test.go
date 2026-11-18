@@ -6,10 +6,15 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"path"
 	"regexp"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 )
@@ -679,16 +684,16 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 	return files
 }
 
-// fileReferencePattern matches Terraform file() and templatefile() calls with
-// a literal path, optionally prefixed with ${path.module}/.
-var fileReferencePattern = regexp.MustCompile(`\b(?:templatefile|file)\(\s*"(?:\$\{path\.module\}/)?([^"]+)"`)
-
 // TestComposeBundlesReferencedFiles verifies every file a base's main.tf
-// references is bundled with the composed template, so terraform plan can
-// read it.
+// passes to file() or templatefile() is bundled with the composed template,
+// so terraform plan can read it.
 func TestComposeBundlesReferencedFiles(t *testing.T) {
 	t.Parallel()
 
+	// path.module is the template root, where ExtraFiles are written.
+	evalCtx := &hcl.EvalContext{Variables: map[string]cty.Value{
+		"path": cty.ObjectVal(map[string]cty.Value{"module": cty.StringVal(".")}),
+	}}
 	references := 0
 	for _, id := range templatebuilder.BaseTemplateIDs() {
 		vars := map[string]string{}
@@ -703,11 +708,24 @@ func TestComposeBundlesReferencedFiles(t *testing.T) {
 			RegistryURL:        "registry.coder.com",
 		})
 		require.NoError(t, err, id)
-		for _, m := range fileReferencePattern.FindAllSubmatch(result.MainTF, -1) {
+
+		file, diags := hclsyntax.ParseConfig(result.MainTF, "main.tf", hcl.InitialPos)
+		require.False(t, diags.HasErrors(), "%s: %s", id, diags)
+		diags = hclsyntax.VisitAll(file.Body.(*hclsyntax.Body), func(node hclsyntax.Node) hcl.Diagnostics {
+			call, ok := node.(*hclsyntax.FunctionCallExpr)
+			if !ok || (call.Name != "file" && call.Name != "templatefile") || len(call.Args) == 0 {
+				return nil
+			}
+			val, diags := call.Args[0].Value(evalCtx)
+			if diags.HasErrors() {
+				return diags
+			}
 			references++
-			require.Contains(t, result.ExtraFiles, string(m[1]),
-				"%s references %q but does not bundle it", id, m[1])
-		}
+			name := path.Clean(val.AsString())
+			assert.Contains(t, result.ExtraFiles, name, "%s references %q but does not bundle it", id, name)
+			return nil
+		})
+		require.False(t, diags.HasErrors(), "%s: file path must be a literal: %s", id, diags)
 	}
 	require.NotZero(t, references, "expected at least one base to reference a file")
 }
