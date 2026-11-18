@@ -51,7 +51,7 @@ export const OrganizationProvisionerKeysPageView: React.FC<
 	return (
 		<section className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<SettingsHeader>
-				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Provisioner keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Manage provisioner keys used to authenticate provisioner instances.{" "}
 					<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />
@@ -77,7 +77,7 @@ export const OrganizationProvisionerKeysPageView: React.FC<
 						<TableRow>
 							<TableHead>Name</TableHead>
 							<TableHead>Tags</TableHead>
-							<TableHead>Active Provisioners</TableHead>
+							<TableHead>Active provisioners</TableHead>
 							<TableHead>Created</TableHead>
 						</TableRow>
 					</TableHeader>

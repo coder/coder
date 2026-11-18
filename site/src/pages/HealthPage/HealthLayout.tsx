@@ -49,7 +49,7 @@ export const HealthLayout: React.FC = () => {
 		database: "Database",
 		pubsub: "Pubsub",
 		workspace_proxy: "Workspace Proxy",
-		provisioner_daemons: "Provisioner Daemons",
+		provisioner_daemons: "Provisioner daemons",
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
 

@@ -34,6 +34,10 @@ export const terminalFontLabels: Record<TerminalFontName, string> = {
 	"": "", // needed for enum completeness, otherwise fails the build
 };
 export const DEFAULT_TERMINAL_FONT = "geist-mono";
+export const DEFAULT_TERMINAL_FONT_SIZE = 16;
+export const terminalFontSizes = [
+	10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 28, 32,
+];
 
 export const navHeight = 62;
 export const containerWidth = 1380;

@@ -378,6 +378,14 @@ func (b *Buffer) ToolCompletions(key Key) map[int]ToolCompletion {
 	return maps.Clone(episode.toolCompletions)
 }
 
+// EpisodeCount returns the number of tracked episodes so tests can assert
+// that episode state is reclaimed and does not leak.
+func (b *Buffer) EpisodeCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.episodes)
+}
+
 // SubscribeToEpisode replays existing parts and streams new parts.
 //
 // Subscribers may attach before CreateEpisode is called. In that case the
