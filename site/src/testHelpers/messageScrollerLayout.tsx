@@ -6,9 +6,10 @@ import {
 	useMessageScrollerVisibility,
 } from "#/vendor/message-scroller";
 
-// jsdom has no layout. Rows stack by their data-height in a fixed viewport
-// that clamps scrollTop the way a browser does, with a classic scrollbar past
-// its clientWidth.
+// jsdom has no layout. Rows stack by their data-height, or by the height a
+// rowHeight override gives their message ID, in a fixed viewport that clamps
+// scrollTop the way a browser does, with a classic scrollbar past its
+// clientWidth.
 const VIEWPORT_HEIGHT = 400;
 export const VIEWPORT_WIDTH = 800;
 export const SCROLLBAR_WIDTH = 10;
@@ -113,9 +114,8 @@ export const visibleRowsAfterLayout = async () => {
 
 /**
  * Installs the layout mocks for the enclosing describe block. Call it at the
- * top of a describe that renders a transcript with renderTranscript. Rows take
- * their data-height, or with rowHeight, the height it returns for their
- * message ID.
+ * top of a describe that renders a transcript. Rows take their data-height,
+ * or with rowHeight, the height it returns for their message ID.
  */
 export const setupMessageScrollerLayout = (
 	options: { rowHeight?: (messageId: string) => number } = {},
