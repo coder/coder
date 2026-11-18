@@ -1764,6 +1764,42 @@ func TestDeleteWorkspaceSecrets(t *testing.T) {
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
 }
 
+// TestDeleteWorkspaceBuildProvisionerState covers
+// workspace_builds.provisioner_state. Delete clears state that is stored
+// encrypted and keeps the build row.
+func TestDeleteWorkspaceBuildProvisionerState(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+
+	encBuild := seedWorkspaceBuild(t, f.rawDB).Build.ID
+	require.NoError(t, f.cryptDBA.UpdateWorkspaceBuildProvisionerStateByID(f.ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+		ID:                    encBuild,
+		UpdatedAt:             dbtime.Now(),
+		ProvisionerState:      []byte("encrypted-state"),
+		ProvisionerStateKeyID: sql.NullString{},
+	}))
+	plainBuild := seedWorkspaceBuild(t, f.rawDB).Build.ID
+	require.NoError(t, f.rawDB.UpdateWorkspaceBuildProvisionerStateByID(f.ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+		ID:                    plainBuild,
+		UpdatedAt:             dbtime.Now(),
+		ProvisionerState:      []byte("plain-state"),
+		ProvisionerStateKeyID: sql.NullString{},
+	}))
+
+	f.delete(t)
+
+	encRow, err := f.rawDB.GetWorkspaceBuildProvisionerStateByID(f.ctx, encBuild)
+	require.NoError(t, err)
+	require.Empty(t, encRow.ProvisionerState, "encrypted state should have been cleared")
+	require.False(t, encRow.ProvisionerStateKeyID.Valid)
+
+	plainRow, err := f.rawDB.GetWorkspaceBuildProvisionerStateByID(f.ctx, plainBuild)
+	require.NoError(t, err)
+	require.Equal(t, []byte("plain-state"), plainRow.ProvisionerState, "never-encrypted state should survive")
+
+	requireAllKeysRevoked(f.ctx, t, f.rawDB)
+}
+
 // TestDeleteGitSSHKey covers the gitsshkeys table (per-user Git SSH private
 // keys). Unlike the tables above, Delete's SQL clears this row in place
 // with an UPDATE rather than deleting it, so the user can regenerate a key

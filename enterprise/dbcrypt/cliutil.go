@@ -567,28 +567,15 @@ func rewriteWorkspaceBuildStates(ctx context.Context, log slog.Logger, cryptDB d
 	}
 }
 
-// buildStateRewriteAttempts is how many times rewriteWorkspaceBuildState
-// tries a build whose state keeps changing before it gives up.
-const buildStateRewriteAttempts = 3
-
 // rewriteWorkspaceBuildState saves the provisioner state of one workspace
 // build again. The control plane can store new state for the build while the
 // sweep runs, so the state is read and written in one repeatable read
 // transaction. If the row changes after the read, Postgres fails the write
 // instead of replacing the new state, and the build is read again.
 func rewriteWorkspaceBuildState(ctx context.Context, cryptDB database.Store, buildID uuid.UUID, wantKeyID string) error {
-	var err error
-	for attempt := 0; attempt < buildStateRewriteAttempts; attempt++ {
-		err = cryptDB.InTx(func(tx database.Store) error {
-			return rewriteWorkspaceBuildStateInTx(ctx, tx, buildID, wantKeyID)
-		}, &database.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
-		})
-		if !database.IsSerializedError(err) {
-			return err
-		}
-	}
-	return err
+	return database.ReadModifyUpdate(cryptDB, func(tx database.Store) error {
+		return rewriteWorkspaceBuildStateInTx(ctx, tx, buildID, wantKeyID)
+	})
 }
 
 // rewriteWorkspaceBuildStateInTx is the body of the transaction that

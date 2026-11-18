@@ -928,20 +928,53 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	seedBuild := func(t *testing.T, db database.Store) uuid.UUID {
+	seedBuild := func(t *testing.T, db database.Store) dbfake.WorkspaceResponse {
 		t.Helper()
 		org := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
 		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
-		}).Do().Build.ID
+		}).Do()
 	}
+
+	t.Run("Insert", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		first := seedBuild(t, db)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: first.Workspace.OrganizationID,
+		})
+
+		state := []byte("terraform-state")
+		buildID := uuid.New()
+		require.NoError(t, crypt.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+			ID:                    buildID,
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			WorkspaceID:           first.Workspace.ID,
+			TemplateVersionID:     first.Build.TemplateVersionID,
+			BuildNumber:           first.Build.BuildNumber + 1,
+			Transition:            database.WorkspaceTransitionStart,
+			InitiatorID:           first.Build.InitiatorID,
+			JobID:                 job.ID,
+			ProvisionerState:      state,
+			ProvisionerStateKeyID: sql.NullString{},
+			Reason:                database.BuildReasonInitiator,
+		}))
+
+		raw, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.Equal(t, ciphers[0].HexDigest(), raw.ProvisionerStateKeyID.String)
+		decrypted, err := ciphers[0].Decrypt(raw.ProvisionerState)
+		require.NoError(t, err)
+		require.Equal(t, state, decrypted)
+	})
 
 	t.Run("UpdateAndGet", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
-		buildID := seedBuild(t, db)
+		buildID := seedBuild(t, db).Build.ID
 
 		state := []byte("terraform-state")
 		require.NoError(t, crypt.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
@@ -969,7 +1002,7 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 	t.Run("EmptyStateStaysPlaintext", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, _ := setup(t)
-		buildID := seedBuild(t, db)
+		buildID := seedBuild(t, db).Build.ID
 
 		require.NoError(t, crypt.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 			ID:                    buildID,
@@ -986,7 +1019,7 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 	t.Run("PlaintextPassthrough", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, _ := setup(t)
-		buildID := seedBuild(t, db)
+		buildID := seedBuild(t, db).Build.ID
 
 		// A row written before encryption was enabled.
 		state := []byte("pre-encryption-state")
@@ -1000,6 +1033,57 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, state, row.ProvisionerState, "plaintext rows must read through unchanged")
 	})
+
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("KeyNotLoaded", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, _ := setup(t)
+			other := initCipher(t)
+			require.NoError(t, db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+				Number:          2,
+				ActiveKeyDigest: other.HexDigest(),
+				Test:            fakeBase64RandomData(t, 32),
+			}))
+			stored, err := other.Encrypt([]byte("terraform-state"))
+			require.NoError(t, err)
+
+			requireProvisionerStateDecryptErr(t, db, crypt, seedBuild(t, db).Build.ID, stored, other.HexDigest())
+		})
+
+		t.Run("CorruptState", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+
+			requireProvisionerStateDecryptErr(t, db, crypt, seedBuild(t, db).Build.ID, []byte("not-ciphertext"), ciphers[0].HexDigest())
+		})
+	})
+}
+
+// requireProvisionerStateDecryptErr stores the given bytes as a build's state
+// under keyID. It then checks that reading the state and sweeping it both
+// return a DecryptFailedError, and that the sweep leaves the row as stored.
+func requireProvisionerStateDecryptErr(t *testing.T, db database.Store, crypt *dbCrypt, buildID uuid.UUID, stored []byte, keyID string) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	require.NoError(t, db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+		ID:                    buildID,
+		UpdatedAt:             dbtime.Now(),
+		ProvisionerState:      stored,
+		ProvisionerStateKeyID: sql.NullString{String: keyID, Valid: true},
+	}))
+
+	var derr *DecryptFailedError
+	_, err := crypt.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+	require.ErrorAs(t, err, &derr)
+
+	err = rewriteWorkspaceBuildStates(ctx, testutil.Logger(t), crypt, "")
+	require.ErrorAs(t, err, &derr)
+	raw, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+	require.NoError(t, err)
+	require.Equal(t, stored, raw.ProvisionerState)
+	require.Equal(t, keyID, raw.ProvisionerStateKeyID.String)
 }
 
 // stateWriterStore stores new provisioner state for a build right after the
