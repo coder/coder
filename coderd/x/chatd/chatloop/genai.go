@@ -365,8 +365,9 @@ func toolCallPart(id, name, input string) genAIPart {
 	if json.Valid([]byte(input)) {
 		part.Arguments = json.RawMessage(input)
 	} else if input != "" {
-		encoded, _ := json.Marshal(input)
-		part.Arguments = encoded
+		if encoded, err := json.Marshal(input); err == nil {
+			part.Arguments = encoded
+		}
 	}
 	return part
 }
