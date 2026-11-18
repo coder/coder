@@ -3,7 +3,11 @@ title: Install Coder on Kubernetes
 ---
 
 You can install Coder on Kubernetes (K8s) using Helm.
-We run on most Kubernetes distributions, including [OpenShift](../openshift.md).
+Coder runs on most Kubernetes distributions, including Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), Google Kubernetes Engine (GKE), K3s, and [OpenShift](../openshift.md).
+Kubernetes is the recommended platform for deployments that others depend on.
+
+If your cluster can't reach the internet, follow the [air-gapped installation guide](../../prepare/airgap.md) for the container image and Helm values.
+To evaluate an offline installation on a single machine, follow [Install Coder on K3s in an air-gapped environment](./k3s-air-gapped.md).
 
 ## Requirements
 

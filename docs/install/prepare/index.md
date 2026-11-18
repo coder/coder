@@ -5,6 +5,7 @@ title: Prepare prerequisites
 Preparation gathers the external pieces a deployment depends on.
 Most of them are owned by another team, so their lead time, not the installation itself, usually sets your timeline.
 Start the slowest items first.
+For the CPU, memory, database, and platform versions the control plane itself needs, refer to [Installation requirements](../server/requirements.md).
 
 ## What to gather
 
