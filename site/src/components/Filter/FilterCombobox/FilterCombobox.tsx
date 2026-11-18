@@ -9,6 +9,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
 import {
 	InputGroupAddon,
@@ -46,7 +47,6 @@ import {
 	FilterComboboxRoot,
 	FilterComboboxStatus,
 	isListNavigationKey,
-	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
