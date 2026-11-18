@@ -226,6 +226,9 @@ Coder stores API keys and provisioner keys as hashes, but stores OAuth tokens, u
 1. Rotate the database credentials, then update [`--postgres-url`](../../reference/cli/server/index.md#--postgres-url) on every control plane replica and restart it.
 1. Treat stored external authentication tokens as exposed.
    Revoke them in each external provider.
+1. Restart every workspace.
+   The database stores workspace agent tokens in plaintext, even with database encryption on.
+   Each build issues new agent tokens, and Coder rejects the tokens from earlier builds.
 1. If the attacker could write to the database, restore it from a backup taken before the incident.
 
 ### Control plane
