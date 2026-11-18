@@ -23,8 +23,8 @@ import type { MessageAttachment } from "./ChatConversation/messageHelpers";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Newest first; undefined until the first message page loads. */
-	attachments: readonly MessageAttachment[] | undefined;
+	/** Newest first. */
+	attachments: readonly MessageAttachment[];
 	evictedFileIds: ReadonlySet<string>;
 	isLoadingEarlierAttachments: boolean;
 	earlierAttachmentsError: unknown;
@@ -44,13 +44,11 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	isRetrying,
 	onRetry,
 }) => {
-	const isLoading = attachments === undefined || isLoadingEarlierAttachments;
-	const isComplete = !isLoading && !earlierAttachmentsError;
-	const listed = attachments ?? [];
+	const isComplete = !isLoadingEarlierAttachments && !earlierAttachmentsError;
 	const isEvicted = ({ file }: MessageAttachment) =>
 		file.file_id !== undefined && evictedFileIds.has(file.file_id);
-	const kept = listed.filter((attachment) => !isEvicted(attachment));
-	const evicted = listed.filter(isEvicted);
+	const kept = attachments.filter((attachment) => !isEvicted(attachment));
+	const evicted = attachments.filter(isEvicted);
 	const deletedTextFileCount = useQueries({
 		queries: kept.flatMap(({ file }) => {
 			const fileId = getStoredTextFileId(file);
@@ -87,8 +85,10 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 					attachments={kept.filter(({ role }) => role === "user")}
 				/>
 				{evicted.length > 0 && <ExpiredAttachments attachments={evicted} />}
-				{isLoading && <Spinner loading size="sm" label="Loading attachments" />}
-				{isComplete && listed.length === 0 && (
+				{isLoadingEarlierAttachments && (
+					<Spinner loading size="sm" label="Loading attachments" />
+				)}
+				{isComplete && attachments.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">
 						No attachments yet.
 					</p>
