@@ -638,7 +638,7 @@ describe("CreateWorkspacePage", () => {
 		});
 	});
 
-	describe("External Authentication", () => {
+	describe("External authentication", () => {
 		it("displays external auth providers", async () => {
 			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 				MockTemplateVersionExternalAuthGithub,

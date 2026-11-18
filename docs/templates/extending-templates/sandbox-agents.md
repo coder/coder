@@ -9,8 +9,10 @@ Common traits of a sandbox include:
 - **Network isolation**: agents run with no (or limited) network access, which reduces the risk of data loss, a compromised supply chain, or prompt injection.
 - **Secrets isolation**: agents run with isolated or scoped-down secrets and identity, compared to the user, which reduces the blast radius.
 
-Many sandbox runtimes boot in milliseconds, but in Coder the sandbox is a workspace, so it also waits for the workspace build: Terraform, scheduling, the image pull, the agent connection, and startup scripts.
-[Fast startup](#fast-startup) covers how to hide that wait with prebuilt workspaces and warm pools.
+A Coder sandbox is a workspace, so it waits for a workspace build: Terraform, scheduling, the image pull, the agent connection, and startup scripts.
+In exchange, the sandbox runs on any infrastructure a Coder template can provision.
+With [prebuilt workspaces](./prebuilt-workspaces.md) and a template that keeps the Pod at claim, a Kubernetes sandbox can be ready in about 2&nbsp;seconds.
+For this and other methods, refer to [Fast startup](#fast-startup).
 
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the previous definitions.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
@@ -405,6 +407,8 @@ Examples and references:
 Fast startup isn't isolation, but it decides whether people use the sandbox.
 An agent that starts a new workspace for each task creates many more workspaces than a person does.
 If the sandbox takes minutes to start, users run the agent on their own machine instead, outside every control on this page.
+
+To see a Kubernetes template go from 98&nbsp;seconds to 1.8&nbsp;seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs&t=514s).
 
 | Method                                                         | How it works                                                                                       | Tradeoffs                                                                                 |
 |----------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|

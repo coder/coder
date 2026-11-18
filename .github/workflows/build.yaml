@@ -125,7 +125,7 @@ jobs:
             echo "GPG_KMS_KEY is not set, skipping."
             exit 0
           fi
-          go run ./scripts/gpgkms public-key -key "$GPG_KMS_KEY" > "$RUNNER_TEMP/gpg-kms-public.key"
+          ./scripts/gpgkms.sh public-key -key "$GPG_KMS_KEY" > "$RUNNER_TEMP/gpg-kms-public.key"
           gpg --show-keys --with-fingerprint "$RUNNER_TEMP/gpg-kms-public.key"
           {
             echo "### Cloud KMS release signing key"

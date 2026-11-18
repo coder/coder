@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { BellIcon } from "lucide-react";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { UnreadBadge } from "./UnreadBadge";
+import { formatUnreadCount, UnreadBadge } from "./UnreadBadge";
 
 type InboxButtonProps = ButtonProps & {
 	unreadCount: number;
@@ -12,7 +12,17 @@ export const InboxButton: React.FC<InboxButtonProps> = ({
 	...props
 }) => {
 	return (
-		<Button size="icon-lg" variant="outline" className="relative" {...props}>
+		<Button
+			size="icon-lg"
+			variant="outline"
+			className="relative"
+			aria-label={
+				unreadCount > 0
+					? `Notifications, ${formatUnreadCount(unreadCount)} unread`
+					: "Notifications"
+			}
+			{...props}
+		>
 			<BellIcon />
 			{unreadCount > 0 && (
 				<UnreadBadge

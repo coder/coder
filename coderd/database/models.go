@@ -5879,6 +5879,8 @@ type ExternalAuthLink struct {
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
 	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+	// The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.
+	OAuthExtraKeyID sql.NullString `db:"oauth_extra_key_id" json:"oauth_extra_key_id"`
 }
 
 type File struct {
