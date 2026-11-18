@@ -10,7 +10,7 @@ import { cn } from "cn";
 export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
 
 export const menuContentClass = cn(
-	"z-50 min-w-48 rounded-md border bg-surface-primary p-2 text-content-secondary shadow-md",
+	"z-50 min-w-[min(12rem,var(--radix-popper-available-width))] max-w-(--radix-popper-available-width) rounded-md border bg-surface-primary p-2 text-content-secondary shadow-md",
 	menuMaxHeightClassName,
 	"overflow-y-auto overflow-x-hidden",
 	"origin-(--radix-popper-transform-origin) ease-out-strong",

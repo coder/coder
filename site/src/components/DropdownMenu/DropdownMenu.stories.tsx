@@ -66,3 +66,33 @@ export const OpenTallerThanViewport: Story = {
 		await user.click(canvas.getByText("Admin Settings"));
 	},
 };
+
+export const NarrowViewport: Story = {
+	args: {
+		children: (
+			<>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline">Filters</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start">
+					<DropdownMenuItem>Created workspaces</DropdownMenuItem>
+					<DropdownMenuItem>
+						Builds started by a user, including scheduled and prebuilt workspace
+						builds across every organization
+					</DropdownMenuItem>
+					<DropdownMenuItem>
+						View advanced filtering options in the Coder documentation
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</>
+		),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		await user.click(within(canvasElement).getByText("Filters"));
+	},
+};
