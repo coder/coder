@@ -1455,6 +1455,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/templates/{template}": {
+            "put": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Attach template to chat project",
+                "operationId": "attach-template-to-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Detach template from chat project",
+                "operationId": "detach-template-from-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/members/{user}/skill-preferences": {
             "get": {
                 "produces": [
@@ -4316,6 +4410,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/watch": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -4325,8 +4420,8 @@ const docTemplate = `{
                 "summary": "Watch chat events for a user via WebSockets",
                 "operationId": "watch-chat-events-for-a-user-via-websockets",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatWatchEvent"
                         }
@@ -5128,7 +5223,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
-                "description": "Each WebSocket message is a JSON array of events.\n\nThe server increases a chat's ` + "`" + `snapshot_version` + "`" + ` by 1 each time it changes the chat's messages, queue, or status.\nA change's ` + "`" + `snapshot_version` + "`" + ` is the chat's ` + "`" + `snapshot_version` + "`" + ` when the server made the change.\nOnly the newest messages page, which ` + "`" + `GET /api/v2/chats/{chat}/messages` + "`" + ` returns when you set neither ` + "`" + `before_id` + "`" + ` nor ` + "`" + `after_id` + "`" + `, includes the chat's ` + "`" + `snapshot_version` + "`" + `.\nThe server reads ` + "`" + `snapshot_version` + "`" + ` before the messages and the queue, so the page can include changes with a higher ` + "`" + `snapshot_version` + "`" + `.\nThe stream can send changes that are already in the page.\n\nThe server reads the chat when the stream opens and each time the chat changes.\nEach read sends the changes since the previous read.\nWhen you set ` + "`" + `snapshot_version` + "`" + ` to a value ` + "`" + `S` + "`" + `, the first read sends what changed at a ` + "`" + `snapshot_version` + "`" + ` of ` + "`" + `S` + "`" + ` or greater:\n\n- A ` + "`" + `message` + "`" + ` event for each message that isn't deleted.\n- A ` + "`" + `history_reset` + "`" + ` event for each edit.\n- A ` + "`" + `queue_update` + "`" + ` event, if the queue changed.\n\nThe server ignores ` + "`" + `after_id` + "`" + ` when you set ` + "`" + `snapshot_version` + "`" + `.\nThe server returns ` + "`" + `400 Bad Request` + "`" + ` when ` + "`" + `snapshot_version` + "`" + ` isn't an integer, is less than 1, or is greater than the chat's ` + "`" + `snapshot_version` + "`" + `.\n\nOn a stream that you open with ` + "`" + `snapshot_version` + "`" + `, the ` + "`" + `message` + "`" + `, ` + "`" + `queue_update` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events include ` + "`" + `snapshot_version` + "`" + `.\nEach read sends these events in order of ` + "`" + `snapshot_version` + "`" + `.\nWithin one ` + "`" + `snapshot_version` + "`" + `, the read sends the ` + "`" + `history_reset` + "`" + ` event first, then the ` + "`" + `message` + "`" + ` events in order of message ID, then the ` + "`" + `queue_update` + "`" + ` event.\nThe ` + "`" + `status` + "`" + `, ` + "`" + `error` + "`" + `, ` + "`" + `action_required` + "`" + `, ` + "`" + `retry` + "`" + `, and ` + "`" + `preview_reset` + "`" + ` events of the read come after them.\nThe server sends ` + "`" + `message_part` + "`" + ` events between reads.\n\nA ` + "`" + `history_reset` + "`" + ` event on such a stream includes ` + "`" + `history_reset.from_message_id` + "`" + `, the ID of a message that was edited.\nThe edit deleted that message and every message after it.\nWhen managing history state, delete every message with that ID or higher.\nAfter the ` + "`" + `history_reset` + "`" + ` event, the stream sends each message with that ID or higher that isn't deleted.\n\nA messages page that you request with ` + "`" + `before_id` + "`" + ` includes no ` + "`" + `snapshot_version` + "`" + `.\nIf an edit occurs after the server reads the page, the page can contain messages that the edit deleted.\n\nOn each new connection, the server sends the chat's current status again.\nWhen the chat has an error, a pending retry, or pending tool calls, the server also sends the ` + "`" + `error` + "`" + `, ` + "`" + `retry` + "`" + `, or ` + "`" + `action_required` + "`" + ` event again.\nThe server then again sends the ` + "`" + `message_part` + "`" + ` events of the response that the agent is writing, from its first part.\n\nWhen you don't set ` + "`" + `snapshot_version` + "`" + `, the events don't include ` + "`" + `snapshot_version` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events don't include ` + "`" + `from_message_id` + "`" + `.\nAfter a ` + "`" + `history_reset` + "`" + ` event, the server sends every message in the chat as ` + "`" + `message` + "`" + ` events.\nOn a new connection, when ` + "`" + `after_id` + "`" + ` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.\nWhen ` + "`" + `after_id` + "`" + ` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a ` + "`" + `history_reset` + "`" + ` event if the chat has a deleted message.\n\nWhen the server can't subscribe to the chat or read it, the server returns ` + "`" + `500 Internal Server Error` + "`" + ` and doesn't open the WebSocket connection.",
+                "description": "Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.\n\nEach WebSocket message is a JSON array of events.\n\nThe server increases a chat's ` + "`" + `snapshot_version` + "`" + ` by 1 each time it changes the chat's messages, queue, or status.\nA change's ` + "`" + `snapshot_version` + "`" + ` is the chat's ` + "`" + `snapshot_version` + "`" + ` when the server made the change.\nOnly the newest messages page, which ` + "`" + `GET /api/v2/chats/{chat}/messages` + "`" + ` returns when you set neither ` + "`" + `before_id` + "`" + ` nor ` + "`" + `after_id` + "`" + `, includes the chat's ` + "`" + `snapshot_version` + "`" + `.\nThe server reads ` + "`" + `snapshot_version` + "`" + ` before the messages and the queue, so the page can include changes with a higher ` + "`" + `snapshot_version` + "`" + `.\nThe stream can send changes that are already in the page.\n\nThe server reads the chat when the stream opens and each time the chat changes.\nEach read sends the changes since the previous read.\nWhen you set ` + "`" + `snapshot_version` + "`" + ` to a value ` + "`" + `S` + "`" + `, the first read sends what changed at a ` + "`" + `snapshot_version` + "`" + ` of ` + "`" + `S` + "`" + ` or greater:\n\n- A ` + "`" + `message` + "`" + ` event for each message that isn't deleted.\n- A ` + "`" + `history_reset` + "`" + ` event for each edit.\n- A ` + "`" + `queue_update` + "`" + ` event, if the queue changed.\n\nThe server ignores ` + "`" + `after_id` + "`" + ` when you set ` + "`" + `snapshot_version` + "`" + `.\nThe server returns ` + "`" + `400 Bad Request` + "`" + ` when ` + "`" + `snapshot_version` + "`" + ` isn't an integer, is less than 1, or is greater than the chat's ` + "`" + `snapshot_version` + "`" + `.\n\nOn a stream that you open with ` + "`" + `snapshot_version` + "`" + `, the ` + "`" + `message` + "`" + `, ` + "`" + `queue_update` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events include ` + "`" + `snapshot_version` + "`" + `.\nEach read sends these events in order of ` + "`" + `snapshot_version` + "`" + `.\nWithin one ` + "`" + `snapshot_version` + "`" + `, the read sends the ` + "`" + `history_reset` + "`" + ` event first, then the ` + "`" + `message` + "`" + ` events in order of message ID, then the ` + "`" + `queue_update` + "`" + ` event.\nThe ` + "`" + `status` + "`" + `, ` + "`" + `error` + "`" + `, ` + "`" + `action_required` + "`" + `, ` + "`" + `retry` + "`" + `, and ` + "`" + `preview_reset` + "`" + ` events of the read come after them.\nThe server sends ` + "`" + `message_part` + "`" + ` events between reads.\n\nA ` + "`" + `history_reset` + "`" + ` event on such a stream includes ` + "`" + `history_reset.from_message_id` + "`" + `, the ID of a message that was edited.\nThe edit deleted that message and every message after it.\nWhen managing history state, delete every message with that ID or higher.\nAfter the ` + "`" + `history_reset` + "`" + ` event, the stream sends each message with that ID or higher that isn't deleted.\n\nA messages page that you request with ` + "`" + `before_id` + "`" + ` includes no ` + "`" + `snapshot_version` + "`" + `.\nIf an edit occurs after the server reads the page, the page can contain messages that the edit deleted.\n\nOn each new connection, the server sends the chat's current status again.\nWhen the chat has an error, a pending retry, or pending tool calls, the server also sends the ` + "`" + `error` + "`" + `, ` + "`" + `retry` + "`" + `, or ` + "`" + `action_required` + "`" + ` event again.\nThe server then again sends the ` + "`" + `message_part` + "`" + ` events of the response that the agent is writing, from its first part.\n\nWhen you don't set ` + "`" + `snapshot_version` + "`" + `, the events don't include ` + "`" + `snapshot_version` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events don't include ` + "`" + `from_message_id` + "`" + `.\nAfter a ` + "`" + `history_reset` + "`" + ` event, the server sends every message in the chat as ` + "`" + `message` + "`" + ` events.\nOn a new connection, when ` + "`" + `after_id` + "`" + ` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.\nWhen ` + "`" + `after_id` + "`" + ` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a ` + "`" + `history_reset` + "`" + ` event if the chat has a deleted message.\n\nWhen the server can't subscribe to the chat or read it, the server returns ` + "`" + `500 Internal Server Error` + "`" + ` and doesn't open the WebSocket connection.",
                 "produces": [
                     "application/json"
                 ],
@@ -5160,8 +5255,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -5179,6 +5274,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/git": {
             "get": {
+                "description": "Upgrades to a WebSocket. Each server message is either a ` + "`" + `changes` + "`" + ` message with a delta of repository changes after the previous message or an ` + "`" + `error` + "`" + ` message, and you can send ` + "`" + `{\"type\": \"refresh\"}` + "`" + ` to request an immediate re-scan.",
                 "produces": [
                     "application/json"
                 ],
@@ -5198,8 +5294,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
                         }
@@ -5214,6 +5310,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/parts": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends no events until you send a control message with ` + "`" + `history_version` + "`" + ` and ` + "`" + `generation_attempt` + "`" + `, and then each message is a JSON array holding a batch of one or more events.",
                 "produces": [
                     "application/json"
                 ],
@@ -5233,8 +5330,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -11449,6 +11546,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
+                "description": "Returns the template version that precedes the named version.",
                 "produces": [
                     "application/json"
                 ],
@@ -11489,7 +11587,7 @@ const docTemplate = `{
                         }
                     },
                     "204": {
-                        "description": "No Content"
+                        "description": "The template version has no previous version"
                     }
                 },
                 "security": [
@@ -16974,6 +17072,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a list of ` + "`" + `codersdk.WorkspaceAgentMetadata` + "`" + ` and ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -16993,8 +17092,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -18772,6 +18871,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a ` + "`" + `codersdk.Workspace` + "`" + `, ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `, and ` + "`" + `ping` + "`" + ` events have no data. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -18791,8 +18891,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -23712,8 +23812,20 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default_template": {
+                    "description": "DefaultTemplate is omitted when the project has none or the caller\ncannot access it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
+                },
+                "hidden_template_count": {
+                    "description": "HiddenTemplateCount is the number of attached templates the caller\ncannot access. Nothing else about them is returned.",
+                    "type": "integer"
                 },
                 "icon": {
                     "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
@@ -23722,6 +23834,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to its attached\ntemplates, and to none when nothing is attached. When false, the chats\ncan use every template their owner can use.",
+                    "type": "boolean"
                 },
                 "name": {
                     "description": "Name is a display label and is not unique; ID identifies the project.",
@@ -23737,6 +23853,13 @@ const docTemplate = `{
                 },
                 "permissions": {
                     "$ref": "#/definitions/codersdk.ChatProjectPermissions"
+                },
+                "templates": {
+                    "description": "Templates are the attached templates the caller can access. Deprecated\ntemplates and templates that do not allow agents are left out.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectTemplate"
+                    }
                 },
                 "updated_at": {
                     "type": "string",
@@ -23766,6 +23889,27 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatProjectUser"
                     }
+                }
+            }
+        },
+        "codersdk.ChatProjectDefaultTemplate": {
+            "type": "object",
+            "properties": {
+                "parameters": {
+                    "description": "Parameters are parameter values, keyed by name, applied when a chat\ncreates a workspace from the template. Values the chat passes take\nprecedence.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "preset_id": {
+                    "description": "PresetID is a preset of the template's active version, applied when a\nchat creates a workspace from the template without choosing a preset.\nIt is mutually exclusive with Parameters.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -23912,6 +24056,24 @@ const docTemplate = `{
                 "ChatProjectRoleAdmin",
                 "ChatProjectRoleDeleted"
             ]
+        },
+        "codersdk.ChatProjectTemplate": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatProjectUser": {
             "type": "object",
@@ -24761,14 +24923,34 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate must name one of TemplateIDs.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to TemplateIDs.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "template_ids": {
+                    "description": "TemplateIDs are attached to the new project.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 }
             }
         },
@@ -25115,7 +25297,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
                     "type": "string"
                 },
                 "display_name": {
@@ -31556,6 +31738,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
+                    "description": "Content is the SKILL.md file, with its ` + "`" + `disable-model-invocation` + "`" + `\nfrontmatter key set to agree with ` + "`" + `model_invocable` + "`" + `. A stored file whose\nkey the server cannot set, such as a list, is returned unchanged.",
                     "type": "string"
                 },
                 "created_at": {
@@ -33242,11 +33425,22 @@ const docTemplate = `{
         "codersdk.UpdateChatProjectRequest": {
             "type": "object",
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate replaces the project's default template, preset, and\nparameters as a whole when set. A zero TemplateID clears them.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
+                },
+                "limit_templates": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -33570,7 +33764,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
                     "type": "string"
                 },
                 "display_name": {
@@ -33581,6 +33775,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "model_invocable": {
+                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets ` + "`" + `disable-model-invocation` + "`" + ` to a boolean: true turns it\noff and false turns it on.",
                     "type": "boolean"
                 }
             }

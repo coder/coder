@@ -31,11 +31,9 @@ async function resetSearch(page: Page, username: string) {
 	}
 
 	// Filter by the auditor test user to prevent race conditions
-	await expect(page.getByRole("button", { name: "User: All" })).toBeVisible();
+	await expect(page.getByText("All users")).toBeVisible();
 	await page.getByPlaceholder("Search...").fill(`username:${username}`);
-	await expect(
-		page.getByRole("button", { name: "User: All" }),
-	).not.toBeVisible();
+	await expect(page.getByText("All users")).not.toBeVisible();
 }
 
 test.describe("audit logs", () => {
@@ -110,8 +108,8 @@ test.describe("audit logs", () => {
 
 		// Filter by resource type
 		await resetSearch(page, username);
-		await page.getByRole("button", { name: "Resource type: All" }).click();
-		const workspaceBuildsOption = page.getByText("Workspace Build");
+		await page.getByText("All resource types").click();
+		const workspaceBuildsOption = page.getByText("Workspace build");
 		await workspaceBuildsOption.scrollIntoViewIfNeeded({ timeout: 5000 });
 		await workspaceBuildsOption.click();
 		// Our workspace build should be visible
@@ -119,13 +117,11 @@ test.describe("audit logs", () => {
 		// Logins should no longer be visible
 		await expect(page.getByText(loginMessage)).not.toBeVisible();
 		await page.getByLabel("Clear search").click();
-		await expect(
-			page.getByRole("button", { name: "Resource type: All" }),
-		).toBeVisible();
+		await expect(page.getByText("All resource types")).toBeVisible();
 
 		// Filter by action type
 		await resetSearch(page, username);
-		await page.getByRole("button", { name: "Action: All" }).click();
+		await page.getByText("All actions").click();
 		await page.getByText("Login", { exact: true }).click();
 		// Logins should be visible
 		await expect(page.getByText(loginMessage).first()).toBeVisible();

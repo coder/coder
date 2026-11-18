@@ -56,7 +56,7 @@ The auto-archive window is stored as the `agents_chat_auto_archive_days` key in 
 The default is `0` (disabled).
 Set to a positive number of days to enable auto-archiving.
 
-Admins can set the window in the dashboard under **AI Settings** > **Coder Agents** > **Lifecycle**.
+Admins can set the window in the dashboard under **AI settings** > **Coder Agents** > **Lifecycle**.
 
 Use the admin API to read or update the value:
 

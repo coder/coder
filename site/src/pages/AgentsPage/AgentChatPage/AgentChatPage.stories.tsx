@@ -1383,7 +1383,7 @@ export const WithMessageHistory: Story = {
 
 		await changeReasoningEffort("{ArrowRight}");
 		await editLastMessage();
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await user.click(canvas.getByRole("button", { name: "Save edit" }));
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
 			expect(
@@ -1406,7 +1406,7 @@ export const WithMessageHistory: Story = {
 
 		await editLastMessage();
 		await changeReasoningEffort("{ArrowLeft}");
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await user.click(canvas.getByRole("button", { name: "Save edit" }));
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(2);
 		});
@@ -1498,7 +1498,7 @@ export const StaleEditedModelUsesUsableLocalModel: Story = {
 		).not.toBeInTheDocument();
 		await userEvent.click(modelSelector);
 		await userEvent.click(canvas.getByRole("button", { name: "Edit message" }));
-		await userEvent.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Save edit" }));
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
 		});
@@ -3406,7 +3406,7 @@ export const EditAppliesMCPServerSelection: Story = {
 		// Close the plus menu via its trigger; Escape would exit edit mode.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Save Edit" }),
+			await canvas.findByRole("button", { name: "Save edit" }),
 		);
 
 		await waitFor(() => {
@@ -3465,7 +3465,7 @@ export const EditInFlightShowsDraftWorkspaceUpload: Story = {
 		await canvas.findByRole("button", { name: "Remove archive.zip" });
 		await userEvent.click(canvas.getByRole("button", { name: "Edit message" }));
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Save Edit" }),
+			await canvas.findByRole("button", { name: "Save edit" }),
 		);
 		await canvas.findByRole("button", { name: "Remove archive.zip" });
 	},

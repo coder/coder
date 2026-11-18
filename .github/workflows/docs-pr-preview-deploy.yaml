@@ -47,7 +47,10 @@ permissions: {}
 
 jobs:
   engine:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Off for now: the DOCS_ENGINE_APP_ID and DOCS_ENGINE_APP_PRIVATE_KEY secrets
+    # this job reads aren't set, so it fails on every docs PR. The other jobs
+    # need this one and skip with it. Drop "false && " to turn previews back on.
+    if: false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -71,7 +71,7 @@ export const SearchFiltersEvents: Story = {
 		});
 		const promptByText = (text: string) =>
 			canvas
-				.getAllByRole("paragraph")
+				.getAllByRole("blockquote")
 				.find((element) => element.textContent === text);
 
 		await expect(promptByText("Summarize the project structure")).toBeVisible();
