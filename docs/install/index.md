@@ -12,7 +12,7 @@ To choose a guide, answer three questions:
 
 1. Can the deployment reach the internet?
    If it can't, also read [Deployments without internet access](#deployments-without-internet-access).
-1. Does Coder run in containers or on virtual machines?
+1. Does Coder run on Kubernetes, in a container, or on a Linux host or virtual machine?
 1. Does Coder run in the cloud or on premises?
 
 Choose the guide that matches your answers, then follow it to the end.
@@ -21,7 +21,7 @@ Each guide finishes with a deployment you can sign in to.
 - **[Kubernetes](./server/kubernetes/index.md)** (recommended): run Coder in containers on a Kubernetes cluster, in the cloud or on premises, with the Helm chart.
   The guide works on most clusters, including Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), Google Kubernetes Engine (GKE), and K3s.
   For a cluster that you manage with [Rancher](./server/rancher.md) or run on [OpenShift](./server/openshift.md), follow that guide instead.
-- **[Docker](./server/docker.md)**: run Coder and PostgreSQL in containers on one Linux host.
+- **[Docker](./server/docker.md)**: run Coder in a container on one Linux host, with PostgreSQL in a container or on a separate server.
 - **[RHEL-family Linux](./server/rpm.md)**: install Coder from an RPM package and run it as a `systemd` service on one Red Hat Enterprise Linux (RHEL) family host or virtual machine.
 - **[Cloud platforms](./server/cloud/index.md)**: launch Coder from a marketplace listing or on a virtual machine in AWS, Google Cloud, or Azure.
   To install on a cluster you already run in the cloud, use the Kubernetes guide.
@@ -59,7 +59,7 @@ To try an air-gapped deployment from start to finish on one machine, follow [Ins
 ## Move from evaluation to production
 
 An evaluation deployment skips the decisions a production deployment needs, and you don't have to start over to make them.
-The [Quickstart](../get-started/index.md), for example, runs Coder on one machine and launches a first workspace in about 10&nbsp;minutes.
+The [Quickstart](../get-started/index.md), for example, runs Coder on one machine and launches a first workspace in under 10&nbsp;minutes.
 When `CODER_ACCESS_URL` isn't set, `coder server` opens a tunnel and gives you a `try.coder.app` URL, so you don't need DNS records or TLS certificates.
 Because anyone can reach that URL, the server prints a setup token in its output, and the setup page asks for the token before it creates the first account.
 You create the first account with a password and can switch it to GitHub sign-in afterward under **Account** > **Security**, so you don't set up an identity provider application, and you don't need a license.
@@ -83,7 +83,7 @@ The phases are recommendations, not a gate: you can install the control plane at
 | [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | A proof of concept can use the built-in database and skip the license and the identity provider application |
 | [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | Never: every deployment needs this phase                                                                    |
 | [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | An evaluation, until real users depend on the deployment                                                    |
-| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | Until the deployment is running                                                                             |
+| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | Only after the deployment is running                                                                        |
 
 Each phase page ends with a link to the next one, so you can also enter anywhere and keep reading in order.
 Most of the prerequisites in phase 2 belong to another team, so start the slowest requests early.
