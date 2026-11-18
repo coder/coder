@@ -68,7 +68,7 @@
 
 2. **Use helper scripts**:
    - `./coderd/database/migrations/create_migration.sh "migration name"` - Creates new migration files
-   - `./coderd/database/migrations/fix_migration_numbers.sh` - Renumbers migrations to avoid conflicts
+   - `./coderd/database/migrations/fix_migration_numbers.sh` - Renumbers migrations and rewrites `LATEST` after another migration merges first
    - `./coderd/database/migrations/create_fixture.sh "fixture name"` - Creates test fixtures for migrations
 
 3. **Update database queries**:

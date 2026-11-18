@@ -1,0 +1,6 @@
+# The newest migration. Every PR that adds a migration changes the line
+# below, so two such PRs conflict in git instead of merging into a
+# duplicate migration number. create_migration.sh and
+# fix_migration_numbers.sh keep it up to date, and
+# scripts/check_migrations_latest.sh checks it.
+000644_chat_project_templates

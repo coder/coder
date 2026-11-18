@@ -161,6 +161,16 @@ Then write queries into the generated `.up.sql` and `.down.sql` files and commit
 them into the repository. The down script should make a best-effort to retain as
 much data as possible.
 
+`create_migration.sh` also updates
+[`migrations/LATEST`](../coderd/database/migrations/LATEST) to name your new
+migration. Commit it with the migration. Every PR that adds a migration changes
+that file, so when another migration merges first, GitHub reports your PR as
+conflicting instead of letting it merge a duplicate migration number. To fix it,
+update your branch from `main`, take either side of the `LATEST` conflict, and
+run `./coderd/database/migrations/fix_migration_numbers.sh`. The script
+renumbers your migrations and rewrites `LATEST`. `make lint` fails if `LATEST`
+does not name the newest migration or if two migrations share a number.
+
 Run `make gen` to generate models.
 
 #### Database fixtures (for testing migrations)

@@ -64,30 +64,35 @@ main() {
 		git_add_files+=("${new_file}" "${old_file}")
 	done <<<"${diff_files}"
 
+	# Point LATEST at the renumbered migration. If rebasing on main left LATEST
+	# conflicted, this also resolves it.
+	../../../scripts/check_migrations_latest.sh --write
+	git_add_files+=("LATEST")
+
 	# Renumber fixtures if there's a matching migration in this branch (as compared to main).
 	diff_files="$(diff -u <(echo "${main_files}") <(echo "${head_files}") | sed -E -ne 's;^\+(testdata/[^/]*/0.*);\1;p' | sort -n || true)"
 	if [[ -z "${diff_files}" ]]; then
 		echo "No testdata fixtures to rename, skipping."
-		return
+	else
+		while read -r file; do
+			old_file="${file}"
+			dir=$(dirname "${file}")
+			file=$(basename "${file}")
+			num="${file:0:6}"
+			set +u
+			new_num="${prefix_map["${num}"]}"
+			set -u
+			if [[ -z "${new_num}" ]]; then
+				echo "Skipping ${old_file}, no matching migration in ${SCRIPT_DIR}"
+				continue
+			fi
+			name="${file:7:-4}"
+			new_file="${dir}/${new_num}_${name}.sql"
+			echo "Renaming ${old_file} to ${new_file}"
+			mv "${old_file}" "${new_file}"
+			git_add_files+=("${new_file}" "${old_file}")
+		done <<<"${diff_files}"
 	fi
-	while read -r file; do
-		old_file="${file}"
-		dir=$(dirname "${file}")
-		file=$(basename "${file}")
-		num="${file:0:6}"
-		set +u
-		new_num="${prefix_map["${num}"]}"
-		set -u
-		if [[ -z "${new_num}" ]]; then
-			echo "Skipping ${old_file}, no matching migration in ${SCRIPT_DIR}"
-			continue
-		fi
-		name="${file:7:-4}"
-		new_file="${dir}/${new_num}_${name}.sql"
-		echo "Renaming ${old_file} to ${new_file}"
-		mv "${old_file}" "${new_file}"
-		git_add_files+=("${new_file}" "${old_file}")
-	done <<<"${diff_files}"
 
 	git add "${git_add_files[@]}"
 	git status
