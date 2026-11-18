@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,8 @@ func TestTitleText(t *testing.T) {
 	}
 }
 
+const titleRuneBudget = chatprompt.TitlePasteBytePrefix / utf8.UTFMax
+
 func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 	t.Parallel()
 
@@ -147,11 +150,11 @@ func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
 	}
 	// Multi-byte runes ensure truncation cannot split a UTF-8 sequence.
-	content := strings.Repeat("é", chatprompt.SyntheticPasteTitleBudgetForTest+10)
+	content := strings.Repeat("é", titleRuneBudget+10)
 
 	got := chatprompt.TitleText(parts, map[uuid.UUID]string{pasteFileID: content})
 
-	require.Len(t, []rune(got), chatprompt.SyntheticPasteTitleBudgetForTest)
+	require.Len(t, []rune(got), titleRuneBudget)
 	require.True(t, strings.HasPrefix(content, got))
 }
 
@@ -190,7 +193,7 @@ func TestTitlePasteText(t *testing.T) {
 		})
 
 		require.Equal(t, full, bounded)
-		require.Len(t, []rune(bounded), chatprompt.SyntheticPasteTitleBudgetForTest)
+		require.Len(t, []rune(bounded), titleRuneBudget)
 	})
 }
 

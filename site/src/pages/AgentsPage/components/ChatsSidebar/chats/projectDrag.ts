@@ -142,7 +142,7 @@ export const chatDragAnnouncements = {
 		const over = announcedTarget(target);
 		return over
 			? `Chat ${chat.title} is over ${over}.`
-			: `Chat ${chat.title} is not over a project or Chats.`;
+			: `Chat ${chat.title} is not over a project or chats.`;
 	},
 	dragend: ({ operation: { source, target }, canceled }: DragEndEvent) => {
 		const chat = draggedChatOf(source);
