@@ -701,7 +701,8 @@ func TestBaseBundlesReferencedFiles(t *testing.T) {
 			require.NoError(t, err)
 			extraFiles := templatebuilder.BaseExtraFiles(id)
 			for _, ref := range fileReferences(t, rendered) {
-				assert.Contains(t, extraFiles, ref, "%q is referenced but not bundled", ref)
+				_, ok := extraFiles[ref]
+				assert.True(t, ok, "%q is referenced but not bundled", ref)
 			}
 		})
 	}
