@@ -1590,6 +1590,7 @@ func TestAgent_SFTP(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
 				RxBytes: wantSomeBytes,
 				TxBytes: wantSomeBytes,
 			},
@@ -1629,6 +1630,7 @@ func TestAgent_SFTP(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
 				RxBytes: wantSomeBytes,
 				TxBytes: wantSomeBytes,
 			},
