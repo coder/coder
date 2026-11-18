@@ -761,7 +761,11 @@ func TestBaseBundlesReferencedFiles(t *testing.T) {
 			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", testRenderContext(id))
 			require.NoError(t, err)
 			extraFiles := templatebuilder.BaseExtraFiles(id)
-			for _, ref := range fileReferences(t, rendered) {
+			refs := fileReferences(t, rendered)
+			if len(extraFiles) > 0 {
+				require.NotEmpty(t, refs, "bundles files but no file() or templatefile() call was found")
+			}
+			for _, ref := range refs {
 				_, ok := extraFiles[ref]
 				assert.True(t, ok, "%q is referenced but not bundled", ref)
 			}
