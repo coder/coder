@@ -32925,8 +32925,55 @@ func (q *sqlQuerier) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.
 	return err
 }
 
+const getTemplateVersionIDsWithSensitiveVariables = `-- name: GetTemplateVersionIDsWithSensitiveVariables :many
+SELECT DISTINCT
+    template_version_id
+FROM
+    template_version_variables
+WHERE
+    sensitive
+    AND value != ''
+    AND template_version_id > $1::uuid
+ORDER BY
+    template_version_id
+LIMIT
+    $2::int
+`
+
+type GetTemplateVersionIDsWithSensitiveVariablesParams struct {
+	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Returns a page of template versions that have at least one sensitive
+// variable with a value across the deployment, ordered by id. Pass the last
+// returned id as after_id to fetch the next page. Used only by the dbcrypt
+// key rotation utility.
+func (q *sqlQuerier) GetTemplateVersionIDsWithSensitiveVariables(ctx context.Context, arg GetTemplateVersionIDsWithSensitiveVariablesParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionIDsWithSensitiveVariables, arg.AfterID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var template_version_id uuid.UUID
+		if err := rows.Scan(&template_version_id); err != nil {
+			return nil, err
+		}
+		items = append(items, template_version_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTemplateVersionVariables = `-- name: GetTemplateVersionVariables :many
-SELECT template_version_id, name, description, type, value, default_value, required, sensitive FROM template_version_variables WHERE template_version_id = $1 ORDER BY name
+SELECT template_version_id, name, description, type, value, default_value, required, sensitive, value_key_id FROM template_version_variables WHERE template_version_id = $1 ORDER BY name
 `
 
 func (q *sqlQuerier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error) {
@@ -32947,6 +32994,7 @@ func (q *sqlQuerier) GetTemplateVersionVariables(ctx context.Context, templateVe
 			&i.DefaultValue,
 			&i.Required,
 			&i.Sensitive,
+			&i.ValueKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -32969,6 +33017,7 @@ INSERT INTO
         description,
         type,
         value,
+        value_key_id,
         default_value,
         required,
         sensitive
@@ -32980,21 +33029,23 @@ VALUES
         $3,
         $4,
         $5,
+        $9,
         $6,
         $7,
         $8
-    ) RETURNING template_version_id, name, description, type, value, default_value, required, sensitive
+    ) RETURNING template_version_id, name, description, type, value, default_value, required, sensitive, value_key_id
 `
 
 type InsertTemplateVersionVariableParams struct {
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	Name              string    `db:"name" json:"name"`
-	Description       string    `db:"description" json:"description"`
-	Type              string    `db:"type" json:"type"`
-	Value             string    `db:"value" json:"value"`
-	DefaultValue      string    `db:"default_value" json:"default_value"`
-	Required          bool      `db:"required" json:"required"`
-	Sensitive         bool      `db:"sensitive" json:"sensitive"`
+	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name              string         `db:"name" json:"name"`
+	Description       string         `db:"description" json:"description"`
+	Type              string         `db:"type" json:"type"`
+	Value             string         `db:"value" json:"value"`
+	DefaultValue      string         `db:"default_value" json:"default_value"`
+	Required          bool           `db:"required" json:"required"`
+	Sensitive         bool           `db:"sensitive" json:"sensitive"`
+	ValueKeyID        sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error) {
@@ -33007,6 +33058,7 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 		arg.DefaultValue,
 		arg.Required,
 		arg.Sensitive,
+		arg.ValueKeyID,
 	)
 	var i TemplateVersionVariable
 	err := row.Scan(
@@ -33018,8 +33070,39 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 		&i.DefaultValue,
 		&i.Required,
 		&i.Sensitive,
+		&i.ValueKeyID,
 	)
 	return i, err
+}
+
+const updateTemplateVersionVariableValue = `-- name: UpdateTemplateVersionVariableValue :exec
+UPDATE
+    template_version_variables
+SET
+    value = $1,
+    value_key_id = $2
+WHERE
+    template_version_id = $3
+    AND name = $4
+`
+
+type UpdateTemplateVersionVariableValueParams struct {
+	Value             string         `db:"value" json:"value"`
+	ValueKeyID        sql.NullString `db:"value_key_id" json:"value_key_id"`
+	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name              string         `db:"name" json:"name"`
+}
+
+// Rewrites a variable value in place. Used by `coder server dbcrypt`
+// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+func (q *sqlQuerier) UpdateTemplateVersionVariableValue(ctx context.Context, arg UpdateTemplateVersionVariableValueParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionVariableValue,
+		arg.Value,
+		arg.ValueKeyID,
+		arg.TemplateVersionID,
+		arg.Name,
+	)
+	return err
 }
 
 const getTemplateVersionWorkspaceTags = `-- name: GetTemplateVersionWorkspaceTags :many

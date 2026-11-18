@@ -3408,6 +3408,14 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateVersionIDsWithSensitiveVariables(ctx context.Context, arg database.GetTemplateVersionIDsWithSensitiveVariablesParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionIDsWithSensitiveVariables(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionIDsWithSensitiveVariables").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionIDsWithSensitiveVariables").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateVersionParameters(ctx, templateVersionID)
@@ -6286,6 +6294,14 @@ func (m queryMetricsStore) UpdateTemplateVersionTerraformValuesCachedPlan(ctx co
 	r0 := m.s.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionTerraformValuesCachedPlan").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionTerraformValuesCachedPlan").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateVersionVariableValue(ctx context.Context, arg database.UpdateTemplateVersionVariableValueParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionVariableValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionVariableValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionVariableValue").Inc()
 	return r0
 }
 

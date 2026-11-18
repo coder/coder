@@ -5339,6 +5339,15 @@ func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg
 	return tv, nil
 }
 
+func (q *querier) GetTemplateVersionIDsWithSensitiveVariables(ctx context.Context, arg database.GetTemplateVersionIDsWithSensitiveVariablesParams) ([]uuid.UUID, error) {
+	// Deployment-wide listing exists only for the dbcrypt key rotation
+	// utility.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionIDsWithSensitiveVariables(ctx, arg)
+}
+
 func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	// An actor can read template version parameters if they can read the related template.
 	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
@@ -8888,6 +8897,13 @@ func (q *querier) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Con
 		return err
 	}
 	return q.db.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionVariableValue(ctx context.Context, arg database.UpdateTemplateVersionVariableValueParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionVariableValue(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {

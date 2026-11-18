@@ -979,6 +979,11 @@ type sqlcQuerier interface {
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
+	// Returns a page of template versions that have at least one sensitive
+	// variable with a value across the deployment, ordered by id. Pass the last
+	// returned id as after_id to fetch the next page. Used only by the dbcrypt
+	// key rotation utility.
+	GetTemplateVersionIDsWithSensitiveVariables(ctx context.Context, arg GetTemplateVersionIDsWithSensitiveVariablesParams) ([]uuid.UUID, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
 	GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
 	// Returns a page of template versions that hold a cached plan across the
@@ -1779,6 +1784,9 @@ type sqlcQuerier interface {
 	// Rewrites a cached plan in place. Used by `coder server dbcrypt`
 	// maintenance commands to re-encrypt or decrypt the plan at rest.
 	UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg UpdateTemplateVersionTerraformValuesCachedPlanParams) error
+	// Rewrites a variable value in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt sensitive values at rest.
+	UpdateTemplateVersionVariableValue(ctx context.Context, arg UpdateTemplateVersionVariableValueParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAIProviderKey, error)

@@ -22243,6 +22243,58 @@ func TestGetTemplateVersionTerraformValuesCachedPlanKeyIDsPaginates(t *testing.T
 	require.Equal(t, 3, pages)
 }
 
+func TestGetTemplateVersionIDsWithSensitiveVariablesPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	seedVersion := func(variables ...database.TemplateVersionVariable) uuid.UUID {
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		for _, variable := range variables {
+			variable.TemplateVersionID = version.ID
+			dbgen.TemplateVersionVariable(t, db, variable)
+		}
+		return version.ID
+	}
+
+	// Versions without a sensitive value must not be listed.
+	seedVersion(database.TemplateVersionVariable{Name: "plain", Value: "value"})
+	seedVersion(database.TemplateVersionVariable{Name: "empty", Sensitive: true})
+	var want []uuid.UUID
+	for range 5 {
+		// Two sensitive values: the version is listed once, not per variable.
+		want = append(want, seedVersion(
+			database.TemplateVersionVariable{Name: "first", Value: "value", Sensitive: true},
+			database.TemplateVersionVariable{Name: "second", Value: "value", Sensitive: true},
+		))
+	}
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetTemplateVersionIDsWithSensitiveVariables(ctx, database.GetTemplateVersionIDsWithSensitiveVariablesParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		got = append(got, page...)
+		afterID = page[len(page)-1]
+	}
+	require.Equal(t, want, got, "every version with a sensitive value is listed once, in id order")
+	require.Equal(t, 3, pages)
+}
+
 func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
 	t.Parallel()
 

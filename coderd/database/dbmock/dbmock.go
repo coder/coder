@@ -6430,6 +6430,21 @@ func (mr *MockStoreMockRecorder) GetTemplateVersionByTemplateIDAndName(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionByTemplateIDAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionByTemplateIDAndName), ctx, arg)
 }
 
+// GetTemplateVersionIDsWithSensitiveVariables mocks base method.
+func (m *MockStore) GetTemplateVersionIDsWithSensitiveVariables(ctx context.Context, arg database.GetTemplateVersionIDsWithSensitiveVariablesParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateVersionIDsWithSensitiveVariables", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateVersionIDsWithSensitiveVariables indicates an expected call of GetTemplateVersionIDsWithSensitiveVariables.
+func (mr *MockStoreMockRecorder) GetTemplateVersionIDsWithSensitiveVariables(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionIDsWithSensitiveVariables", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionIDsWithSensitiveVariables), ctx, arg)
+}
+
 // GetTemplateVersionParameters mocks base method.
 func (m *MockStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	m.ctrl.T.Helper()
@@ -11883,6 +11898,20 @@ func (m *MockStore) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.C
 func (mr *MockStoreMockRecorder) UpdateTemplateVersionTerraformValuesCachedPlan(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionTerraformValuesCachedPlan", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionTerraformValuesCachedPlan), ctx, arg)
+}
+
+// UpdateTemplateVersionVariableValue mocks base method.
+func (m *MockStore) UpdateTemplateVersionVariableValue(ctx context.Context, arg database.UpdateTemplateVersionVariableValueParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionVariableValue", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionVariableValue indicates an expected call of UpdateTemplateVersionVariableValue.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionVariableValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionVariableValue", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionVariableValue), ctx, arg)
 }
 
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.

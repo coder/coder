@@ -271,6 +271,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting sensitive template version variables")
+	if err := rewriteTemplateVersionVariables(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -526,6 +531,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting sensitive template version variables")
+	if err := rewriteTemplateVersionVariables(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -661,6 +671,48 @@ func rewriteCachedPlans(ctx context.Context, log slog.Logger, cryptDB database.S
 	}
 }
 
+// rewriteTemplateVersionVariables saves the value of every sensitive template
+// version variable again through cryptDB, which stores it with wantKeyID.
+// Values already stored with wantKeyID are skipped. See
+// rewriteWorkspaceBuildStates for the values of wantKeyID.
+func rewriteTemplateVersionVariables(ctx context.Context, log slog.Logger, cryptDB database.Store, wantKeyID string) error {
+	afterID := uuid.Nil
+	for {
+		page, err := cryptDB.GetTemplateVersionIDsWithSensitiveVariables(ctx, database.GetTemplateVersionIDsWithSensitiveVariablesParams{
+			AfterID:    afterID,
+			LimitCount: keyIDPageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list template versions with sensitive variables after id=%s: %w", afterID, err)
+		}
+		for _, versionID := range page {
+			variables, err := cryptDB.GetTemplateVersionVariables(ctx, versionID)
+			if err != nil {
+				return xerrors.Errorf("get variables for template version %s: %w", versionID, err)
+			}
+			for _, variable := range variables {
+				if !variable.Sensitive || variable.Value == "" || variable.ValueKeyID.String == wantKeyID {
+					continue
+				}
+				err = cryptDB.UpdateTemplateVersionVariableValue(ctx, database.UpdateTemplateVersionVariableValueParams{
+					TemplateVersionID: versionID,
+					Name:              variable.Name,
+					Value:             variable.Value,
+					ValueKeyID:        sql.NullString{}, // Set by cryptDB.
+				})
+				if err != nil {
+					return xerrors.Errorf("rewrite variable %s of template version %s: %w", variable.Name, versionID, err)
+				}
+				log.Debug(ctx, "rewrote template version variable", slog.F("template_version_id", versionID), slog.F("name", variable.Name), slog.F("key_id", wantKeyID))
+			}
+		}
+		if len(page) < keyIDPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1]
+	}
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -729,6 +781,13 @@ UPDATE workspace_builds
 -- or dynamic-parameter render; callers already handle a missing row.
 DELETE FROM template_version_terraform_values
 	WHERE cached_plan_key_id IS NOT NULL;
+-- Encrypted template variable values cannot be recovered without the keys.
+-- Clear them; affected templates need a new version that provides the values
+-- again.
+UPDATE template_version_variables
+	SET value = '',
+		value_key_id = NULL
+	WHERE value_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
