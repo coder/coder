@@ -127,6 +127,8 @@ const getAgentBorderClass = (
 	);
 };
 
+// Matches the log source display name that coderd assigns to startup scripts.
+// sentence-case-expect: this is an API value, not UI text.
 const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
 
 // A script is considered failed if it exited with a non-zero code, or if its
@@ -338,7 +340,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		error: boolean;
 	}[] = [
 		{
-			title: "All Logs",
+			title: "All logs",
 			value: "all",
 			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 			error: false,
@@ -349,6 +351,8 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	const shouldExpandLogs =
 		showLogs || (!hasStartupFeatures && hasConnectivityIssues);
 	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
+	const isLoadingLogs =
+		shouldExpandLogs && !(hasConnectivityIssues || shouldShowLogsTabs);
 	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
@@ -575,18 +579,21 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 							</Button>
 						</CollapsibleTrigger>
 					</div>
+					{/* Outside the collapsible content so it is mounted before logs load. */}
+					<span role="status" className="sr-only">
+						{isLoadingLogs && "Loading logs"}
+					</span>
 					<CollapsibleContent>
 						<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
 							{/*
 								Gate the spinner on `shouldExpandLogs` so it does not flash while
 								CollapsibleContent is closing.
 							*/}
-							{shouldExpandLogs &&
-								!(hasConnectivityIssues || shouldShowLogsTabs) && (
-									<div className="h-75 flex items-center justify-center">
-										<Spinner size="lg" loading className="block mx-auto" />
-									</div>
-								)}
+							{isLoadingLogs && (
+								<div className="h-75 flex items-center justify-center">
+									<Spinner size="lg" loading className="block mx-auto" />
+								</div>
+							)}
 							{hasConnectivityIssues && (
 								<div className="mb-4 flex flex-col gap-3">
 									{connectivityIssues.map((issue) => (
@@ -716,6 +723,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
 													</TooltipContent>
 												</Tooltip>
+												<span role="status" className="sr-only">
+													{showCopiedSuccess && "Copied"}
+												</span>
 
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}

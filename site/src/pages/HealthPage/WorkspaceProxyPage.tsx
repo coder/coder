@@ -97,7 +97,7 @@ const WorkspaceProxyPage: React.FC = () => {
 												</Pill>
 											</TooltipTrigger>
 											<TooltipContent side="bottom">
-												Wildcard Hostname
+												Wildcard hostname
 											</TooltipContent>
 										</Tooltip>
 									)}
@@ -113,12 +113,12 @@ const WorkspaceProxyPage: React.FC = () => {
 									)}
 									{region.derp_enabled && (
 										<BooleanPill value={region.derp_enabled}>
-											DERP Enabled
+											DERP enabled
 										</BooleanPill>
 									)}
 									{region.derp_only && (
 										<BooleanPill value={region.derp_only}>
-											DERP Only
+											DERP only
 										</BooleanPill>
 									)}
 									{region.deleted && (

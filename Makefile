@@ -468,6 +468,12 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 
 		if [[ "$${CODER_SIGN_GPG:-0}" == "1" ]]; then
 			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
+			# Cloud KMS signature, only present when CODER_GPG_KMS_KEY is set.
+			if [[ -f "$@.v2.asc" ]]; then
+				cp "$@.v2.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.v2.asc"
+			else
+				rm -f "./site/out/bin/coder-$$os-$$arch$$dot_ext.v2.asc"
+			fi
 		fi
 	fi
 
@@ -848,9 +854,11 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags. Also fails on table header cells with no text.
+# and unclosed container tags. Also fails on table header cells with no text,
+# and on ARIA, role, tabindex, and lang attributes and iframe, object, area,
+# form control, and meta elements.
 lint/docs-html:
-	echo "--- check for invalid inline HTML and empty table headers in docs"
+	echo "--- check for invalid inline HTML, empty table headers, and disallowed elements in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 

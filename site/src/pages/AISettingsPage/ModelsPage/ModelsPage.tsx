@@ -30,7 +30,7 @@ const ModelsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Models", "AI Settings")}</title>
+			<title>{pageTitle("Models", "AI settings")}</title>
 
 			<ModelsPageView
 				key={organization.id}

@@ -40,6 +40,17 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 
+const roleLabels: Record<WorkspaceRole, string> = {
+	use: "Use",
+	admin: "Admin",
+	"": "",
+};
+
+// Speech input users activate a control by its visible text, so the
+// accessible name has to include the selected role.
+const getRoleSelectLabel = (label: string, value: WorkspaceRole) =>
+	roleLabels[value] ? `${label}: ${roleLabels[value]}` : label;
+
 type RoleSelectProps = {
 	value: WorkspaceRole;
 	memberOrGroupName: string;
@@ -53,17 +64,11 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 	disabled,
 	onValueChange,
 }) => {
-	const roleLabels: Record<WorkspaceRole, string> = {
-		use: "Use",
-		admin: "Admin",
-		"": "",
-	};
-
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
 			<SelectTrigger
 				className="w-40 h-auto"
-				aria-label={`Role for ${memberOrGroupName}`}
+				aria-label={getRoleSelectLabel(`Role for ${memberOrGroupName}`, value)}
 			>
 				<SelectValue>
 					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
@@ -104,9 +109,13 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 }) => {
 	return (
 		<form action={onSubmit}>
-			<div className="flex items-center gap-2">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 				{children}
-				<Button disabled={disabled || isLoading} type="submit">
+				<Button
+					disabled={disabled || isLoading}
+					type="submit"
+					className="w-full sm:w-auto"
+				>
 					<Spinner loading={isLoading}>
 						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
@@ -134,7 +143,10 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			onValueChange={(val: WorkspaceRole) => onChange(val)}
 			disabled={disabled}
 		>
-			<SelectTrigger className="w-40" aria-label="Role">
+			<SelectTrigger
+				className="w-full sm:w-40"
+				aria-label={getRoleSelectLabel("Role", value)}
+			>
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>
@@ -230,8 +242,8 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		>
 			<TableRow>
 				<TableHead className="w-[50%] py-2">Member</TableHead>
-				<TableHead className="w-[40%] py-2">Role</TableHead>
-				<TableHead className="w-[10%] py-2" />
+				<TableHead className="w-[40%] py-2 max-sm:px-1">Role</TableHead>
+				<TableHead className="w-[10%] py-2 max-sm:px-1" />
 			</TableRow>
 		</TableHeader>
 	);
@@ -250,7 +262,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				<>
 					{workspaceACL.group.map((group) => (
 						<TableRow key={group.id}>
-							<TableCell className="py-2 w-[50%]">
+							<TableCell className="py-2 w-[50%] max-sm:whitespace-nowrap">
 								<AvatarData
 									avatar={
 										<Avatar
@@ -263,7 +275,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 									subtitle={getGroupSubtitle(group)}
 								/>
 							</TableCell>
-							<TableCell className="py-2 w-[40%]">
+							<TableCell className="py-2 w-[40%] max-sm:px-1">
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
@@ -276,7 +288,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								)}
 							</TableCell>
 
-							<TableCell className="py-2 w-[10%]">
+							<TableCell className="py-2 w-[10%] max-sm:px-1">
 								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
@@ -304,14 +316,14 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 					{workspaceACL.users.map((user) => (
 						<TableRow key={user.id}>
-							<TableCell className="py-2 w-[50%]">
+							<TableCell className="py-2 w-[50%] max-sm:whitespace-nowrap">
 								<AvatarData
 									title={user.username}
 									subtitle={user.name}
 									src={user.avatar_url}
 								/>
 							</TableCell>
-							<TableCell className="py-2 w-[40%]">
+							<TableCell className="py-2 w-[40%] max-sm:px-1">
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
@@ -324,7 +336,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								)}
 							</TableCell>
 
-							<TableCell className="py-2 w-[10%]">
+							<TableCell className="py-2 w-[10%] max-sm:px-1">
 								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
@@ -369,7 +381,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				wrapperClassName={cn(isCompact && "max-h-60")}
 				// Without row controls, keyboard users need the scroll area itself to be focusable.
 				wrapperProps={
-					isCompact && !canShareWorkspace
+					!canShareWorkspace
 						? {
 								tabIndex: 0,
 								role: "region",

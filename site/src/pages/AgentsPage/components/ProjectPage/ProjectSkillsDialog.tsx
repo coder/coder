@@ -42,7 +42,6 @@ import {
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
-	withDisabledModelInvocation,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
 import {
@@ -127,11 +126,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 			downloadSkillFile(name, (skillName) =>
 				queryClient
 					.fetchQuery(scope.detail(skillName))
-					.then((skill) =>
-						skill.model_invocable
-							? skill.content
-							: withDisabledModelInvocation(skill.content),
-					),
+					.then((skill) => skill.content),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {
@@ -201,6 +196,8 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								content,
 								action: values.action,
 								model_invocable: values.modelInvocable,
+								// A hidden display name keeps its stored value.
+								display_name: values.action ? values.displayName : undefined,
 							};
 							const onSuccess = () => {
 								closeEditor();

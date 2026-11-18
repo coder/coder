@@ -14,7 +14,7 @@ const AIBridgeSessionsLayout: React.FC<React.PropsWithChildren> = () => {
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI Sessions</span>
+						<span>AI sessions</span>
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>

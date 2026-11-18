@@ -232,7 +232,7 @@ The template builder guides you through creating one without writing any Terrafo
      `my-docker-template`
    - **Display name** and **Description**: fill in as you like.
 
-1. Select **Create Template**.
+1. Select **Create template**.
    Coder composes and validates the Terraform configuration, then creates your template.
 
    ![Template builder base selection step](../images/templatebuilder_01_bases.png)
@@ -257,7 +257,7 @@ Now it's time to launch a workspace.
 
 ## Step 5: Launch your workspace
 
-1. After the template is ready, select **+ Create Workspace**.
+1. After the template is ready, select **+ Create workspace**.
 
 1. Give the workspace a name.
 
@@ -330,7 +330,7 @@ If you don't have a project in mind, ask the agent to generate something small y
 
 The Quickstart template is a starting point.
 [Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
-Each task takes about 10 minutes.
+Each task takes about 10&nbsp;minutes.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 

@@ -27,7 +27,7 @@ describe("CreateUserForm", () => {
 
 			await user.click(await screen.findByTestId("login-type-input"));
 			const option = await screen.findByRole("option", {
-				name: /service account/i,
+				name: "Service account Requires a Premium license. Cannot log in interactively. Intended for automated pipelines, bots, and other non-human access.",
 			});
 
 			expect(option).toHaveAttribute("aria-disabled", "true");
