@@ -2635,7 +2635,8 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 }
 
 // AttachChatProjectTemplate attaches a template to a chat project. It
-// succeeds when the template is already attached.
+// succeeds when the template is already attached, unless the template has
+// since been deprecated or closed to agents.
 func (c *ExperimentalClient) AttachChatProjectTemplate(ctx context.Context, organizationID, projectID, templateID uuid.UUID) error {
 	return c.chatProjectTemplateRequest(ctx, http.MethodPut, organizationID, projectID, templateID)
 }
