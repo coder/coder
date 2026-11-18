@@ -604,6 +604,25 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		})
 	})
 
+	t.Run("ContentCaptureKeepsRequiredEmptyFields", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "empty"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "empty"},
+			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+		})
+		require.NoError(t, err)
+
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":""},{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
+			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
+	})
+
 	t.Run("ContentCaptureRecordsPartialResponseFinishReason", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t, WithContentCapture(true))
@@ -834,7 +853,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Subset(t, toolCall.Attributes(), []attribute.KeyValue{
 			attribute.String("gen_ai.tool.type", "function"),
 			attribute.String("gen_ai.tool.call.arguments", "{}"),
-			attribute.String("gen_ai.tool.call.result", "file body"),
+			attribute.String("gen_ai.tool.call.result", `"file body"`),
 		})
 	})
 

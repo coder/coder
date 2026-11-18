@@ -194,7 +194,7 @@ func (s *StageSpan) SetTool(call fantasy.ToolCallContent, toolType string) {
 	}
 	s.span.SetAttributes(attrs...)
 	if s.capturesContent() && call.Input != "" {
-		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), truncateJSONValue(call.Input)))
+		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), jsonAttributeValue(call.Input)))
 	}
 }
 
@@ -203,7 +203,7 @@ func (s *StageSpan) SetToolResult(result fantasy.ToolResultContent) {
 	if !s.capturesContent() || result.Result == nil {
 		return
 	}
-	s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallResultKey), truncateJSONValue(toolResultText(result.Result))))
+	s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallResultKey), jsonAttributeValue(toolResultText(result.Result))))
 }
 
 // SetInferenceRequest records request attributes of a chat span. With
@@ -318,6 +318,27 @@ type genAIPart struct {
 	Name      string          `json:"name,omitempty"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
 	Response  string          `json:"response,omitempty"`
+}
+
+// MarshalJSON keeps the fields each part type requires, even when they
+// are empty.
+func (p genAIPart) MarshalJSON() ([]byte, error) {
+	switch p.Type {
+	case "text", "reasoning":
+		return json.Marshal(struct {
+			Type    string `json:"type"`
+			Content string `json:"content"`
+		}{p.Type, p.Content})
+	case "tool_call_response":
+		return json.Marshal(struct {
+			Type     string `json:"type"`
+			ID       string `json:"id,omitempty"`
+			Response string `json:"response"`
+		}{p.Type, p.ID, p.Response})
+	default:
+		type plain genAIPart
+		return json.Marshal(plain(p))
+	}
 }
 
 // stepInputMessages returns the non-system messages after the last
@@ -467,11 +488,11 @@ func clipMessages(messages []genAIMessage, budget int) []genAIMessage {
 	return clipped
 }
 
-// truncateJSONValue returns s when it fits. Otherwise it returns a JSON
-// string of a prefix of s that fits, so consumers that parse tool payloads
-// as JSON still can.
-func truncateJSONValue(s string) string {
-	if len(s) <= MaxContentAttributeBytes {
+// jsonAttributeValue returns s when it is JSON that fits. Otherwise it
+// returns a JSON string of s, or of a prefix that fits, since the
+// conventions record tool payloads as serialized JSON on spans.
+func jsonAttributeValue(s string) string {
+	if len(s) <= MaxContentAttributeBytes && json.Valid([]byte(s)) {
 		return s
 	}
 	// JSON escaping can expand text, so halve the budget until it fits.

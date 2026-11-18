@@ -84,4 +84,4 @@ With content capture enabled:
 File attachments, images, and source citations are not recorded.
 Each content attribute is limited to 64 KiB.
 When messages exceed the limit, the text of each message part is shortened so the value stays valid JSON.
-A longer tool argument or result is shortened and recorded as a JSON string.
+A tool argument or result that is not JSON, or that exceeds the limit, is recorded as a JSON string, shortened if needed.
