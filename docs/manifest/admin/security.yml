@@ -14,9 +14,6 @@ children:
     description: Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.
     path: ./admin/security/database-encryption.md
     state: [premium]
-  - title: Cut off workspace access
-    description: Stop users from reaching workspaces right away during a security incident, then restore access.
-    path: ./admin/security/cut-off-workspace-access.md
   - title: Security - best practices
     description: Follow security best practices to harden your Coder deployment against common risks.
     path: ./admin/security/security-best-practices.md

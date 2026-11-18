@@ -4,9 +4,8 @@ title: Disaster recovery
 
 This page is for Coder deployment administrators and database administrators who plan how a self-hosted deployment recovers from an outage or data loss.
 It explains what to back up, what high availability does and doesn't protect against, what users experience during a control plane outage, and what a database restore leaves behind.
-To respond to a security incident by removing access to workspaces, refer to [Cut off access to workspaces during a security incident](../../admin/security/cut-off-workspace-access.md).
 
-## Back up the database
+## Back up the database often
 
 The control plane keeps its state in PostgreSQL.
 Users, organizations, templates and template versions, workspaces and their build history, and the Terraform state of each workspace build are all stored there.
