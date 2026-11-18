@@ -636,6 +636,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Unset, stream.Status().Code)
+		require.Contains(t, stream.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
 		require.JSONEq(t,
 			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
 			spanAttribute(t, stream, "gen_ai.output.messages"))

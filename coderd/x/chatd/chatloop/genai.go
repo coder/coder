@@ -246,9 +246,7 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 	if resp.ResponseID != "" {
 		attrs = append(attrs, semconv.GenAIResponseID(resp.ResponseID))
 	}
-	if resp.FinishReason != "" {
-		attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
-	}
+	attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
 	attrs = append(attrs, usageAttributes(resp.Usage)...)
 	s.span.SetAttributes(attrs...)
 	if !s.capturesContent() || len(resp.Content) == 0 {
