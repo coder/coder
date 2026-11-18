@@ -1,22 +1,38 @@
+import { useId } from "react";
+import { useQuery } from "react-query";
 import { getErrorMessage, isApiValidationError } from "#/api/errors";
+import { templateVersionPresets } from "#/api/queries/templates";
 import type { CreateChatProjectRequest, Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
 import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { SettingSwitch } from "../../SettingSwitch";
 
-/** Form state for a project's templates. */
+/** Form state for a project's templates and the defaults its chats use. */
 export type ChatProjectTemplatesValues = {
 	/** Whether chats can only use the selected templates. */
 	limitTemplates: boolean;
 	templateIds: readonly string[];
+	/** Empty when the project has no default template. */
+	defaultTemplateId: string;
+	defaultPresetId: string;
 };
+
+const noDefaultTemplate = "none";
 
 /** The create request, the saved state, and a draft all take this shape. */
 export type ChatProjectTemplatesSettings = Required<
 	Pick<CreateChatProjectRequest, "limit_templates" | "template_ids">
->;
+> &
+	Pick<CreateChatProjectRequest, "default_template">;
 
 /** Returns the form state for saved templates, or an empty form when none. */
 export const chatProjectTemplatesValues = (
@@ -24,6 +40,8 @@ export const chatProjectTemplatesValues = (
 ): ChatProjectTemplatesValues => ({
 	limitTemplates: templates?.limit_templates ?? false,
 	templateIds: templates?.template_ids ?? [],
+	defaultTemplateId: templates?.default_template?.template_id ?? "",
+	defaultPresetId: templates?.default_template?.preset_id ?? "",
 });
 
 /**
@@ -34,12 +52,24 @@ export const chatProjectTemplatesValues = (
 export const chatProjectTemplatesRequest = (
 	values: ChatProjectTemplatesValues,
 	eligible: readonly Template[],
-): ChatProjectTemplatesSettings => ({
-	limit_templates: values.limitTemplates,
-	template_ids: values.templateIds.filter((id) =>
-		eligible.some((template) => template.id === id),
-	),
-});
+): ChatProjectTemplatesSettings => {
+	const request = {
+		limit_templates: values.limitTemplates,
+		template_ids: values.templateIds.filter((id) =>
+			eligible.some((template) => template.id === id),
+		),
+	};
+	if (!request.template_ids.includes(values.defaultTemplateId)) {
+		return request;
+	}
+	return {
+		...request,
+		default_template: {
+			template_id: values.defaultTemplateId,
+			preset_id: values.defaultPresetId || undefined,
+		},
+	};
+};
 
 /**
  * Returns the server's rejection of the templates in a save error. Forms
@@ -49,7 +79,9 @@ export const chatProjectTemplatesRequest = (
 export const templatesValidationDetail = (error: unknown) =>
 	isApiValidationError(error)
 		? error.response.data.validations?.find(
-				(validation) => validation.field === "template_ids",
+				(validation) =>
+					validation.field === "template_ids" ||
+					validation.field.startsWith("default_template."),
 			)?.detail
 		: undefined;
 
@@ -79,23 +111,36 @@ type ChatProjectTemplatesFieldsProps = {
 };
 
 /**
- * Fields that pick a project's templates and whether its chats are limited to
- * them.
+ * Fields that pick a project's templates, whether its chats are limited to
+ * them, an optional default template, and that template's default preset.
  */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
 > = ({ templates, templatesError, saveError, value, onChange, disabled }) => {
+	const defaultTemplateId = useId();
 	const limitsToNothing =
 		value.limitTemplates && value.templateIds.length === 0;
 	const options = (templates ?? []).map((template) => ({
 		value: template.id,
 		label: templateLabel(template),
 	}));
+	const selectedTemplates = (templates ?? []).filter((template) =>
+		value.templateIds.includes(template.id),
+	);
+	const defaultTemplate = selectedTemplates.find(
+		(template) => template.id === value.defaultTemplateId,
+	);
 
 	const setTemplateIds = (templateIds: readonly string[]) => {
+		if (templateIds.includes(value.defaultTemplateId)) {
+			onChange({ ...value, templateIds });
+			return;
+		}
 		onChange({
 			...value,
 			templateIds,
+			defaultTemplateId: "",
+			defaultPresetId: "",
 		});
 	};
 
@@ -170,9 +215,105 @@ export const ChatProjectTemplatesFields: React.FC<
 					onChange({ ...value, limitTemplates })
 				}
 			/>
+			{selectedTemplates.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label htmlFor={defaultTemplateId}>Default template</Label>
+					<Select
+						value={value.defaultTemplateId || noDefaultTemplate}
+						onValueChange={(id) =>
+							onChange({
+								...value,
+								defaultTemplateId: id === noDefaultTemplate ? "" : id,
+								defaultPresetId: "",
+							})
+						}
+						disabled={disabled}
+					>
+						<SelectTrigger id={defaultTemplateId}>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={noDefaultTemplate}>None</SelectItem>
+							{selectedTemplates.map((template) => (
+								<SelectItem key={template.id} value={template.id}>
+									{templateLabel(template)}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+			{defaultTemplate && (
+				<ChatProjectDefaultPreset
+					templateVersionId={defaultTemplate.active_version_id}
+					value={value.defaultPresetId}
+					onChange={(defaultPresetId) =>
+						onChange({ ...value, defaultPresetId })
+					}
+					disabled={disabled}
+				/>
+			)}
 			{saveError && (
 				<p role="alert" className="m-0 text-sm text-content-destructive">
 					{saveError}
+				</p>
+			)}
+		</>
+	);
+};
+
+type ChatProjectDefaultPresetProps = {
+	readonly templateVersionId: string;
+	/** Empty when no preset is selected. */
+	readonly value: string;
+	readonly onChange: (presetId: string) => void;
+	readonly disabled: boolean;
+};
+
+const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
+	templateVersionId,
+	value,
+	onChange,
+	disabled,
+}) => {
+	const selectId = useId();
+	const presetsQuery = useQuery(templateVersionPresets(templateVersionId));
+
+	if (presetsQuery.isPending) {
+		return <Skeleton className="h-10 w-full" />;
+	}
+	// The server returns null rather than [] for a version without presets.
+	const presets = presetsQuery.data ?? [];
+
+	return (
+		<>
+			{presetsQuery.data !== undefined && presets.length === 0 && (
+				<p className="m-0 text-sm text-content-secondary">
+					This template has no presets.
+				</p>
+			)}
+			{presets.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label htmlFor={selectId}>Default preset</Label>
+					<Select value={value} onValueChange={onChange} disabled={disabled}>
+						<SelectTrigger id={selectId}>
+							<SelectValue placeholder="Select a preset" />
+						</SelectTrigger>
+						<SelectContent>
+							{presets.map((preset) => (
+								<SelectItem key={preset.ID} value={preset.ID}>
+									{preset.Name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+			{/* Shown with cached presets too, since a failed refetch means they
+			    may be out of date. */}
+			{presetsQuery.error && (
+				<p role="alert" className="m-0 text-sm text-content-destructive">
+					{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
 				</p>
 			)}
 		</>
