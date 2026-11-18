@@ -8276,130 +8276,16 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
-const getChatProjectPinTelemetry = `-- name: GetChatProjectPinTelemetry :one
-WITH project_users AS (
-    SELECT id AS project_id, owner_id AS user_id FROM chat_projects
-    UNION
-    SELECT project_id, user_id FROM chat_project_read_grant_members WHERE $1::boolean
-),
-per_user AS (
-    SELECT
-        COUNT(*) AS projects,
-        COUNT(pins.project_id) AS pinned,
-        COUNT(*) FILTER (WHERE pins.source = 'migration') AS pinned_migration,
-        COUNT(*) FILTER (WHERE pins.source = 'default') AS pinned_default,
-        COUNT(*) FILTER (WHERE pins.source = 'user') AS pinned_user,
-        -- Owners get a pin on every project when it is created or by the
-        -- upgrade migration, so an owned project without one was unpinned.
-        COUNT(*) FILTER (WHERE pins.project_id IS NULL AND chat_projects.owner_id = project_users.user_id) AS unpinned_owned
-    FROM project_users
-    JOIN users ON users.id = project_users.user_id
-        AND users.status = 'active'::user_status AND users.deleted = false AND users.is_system = false
-    JOIN chat_projects ON chat_projects.id = project_users.project_id
-    LEFT JOIN chat_project_pins pins
-        ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
-    GROUP BY project_users.user_id
-),
-bucketed AS (
-    SELECT
-        projects, pinned, pinned_migration, pinned_default, pinned_user, unpinned_owned,
-        unpinned_owned > 0 OR pinned_user > 0 AS acted,
-        CASE
-            WHEN pinned = 0 THEN 0
-            WHEN pinned = projects THEN 100
-            WHEN pinned * 4 <= projects THEN 25
-            WHEN pinned * 2 <= projects THEN 50
-            WHEN pinned * 4 <= projects * 3 THEN 75
-            ELSE 99
-        END AS bucket
-    FROM per_user
-)
-SELECT
-    COUNT(*)::bigint AS users_with_projects,
-    COUNT(*) FILTER (WHERE unpinned_owned > 0)::bigint AS users_with_unpinned_owned,
-    COALESCE(SUM(pinned_migration), 0)::bigint AS pinned_migration,
-    COALESCE(SUM(pinned_default), 0)::bigint AS pinned_default,
-    COALESCE(SUM(pinned_user), 0)::bigint AS pinned_user,
-    COALESCE(SUM(unpinned_owned), 0)::bigint AS unpinned_owned,
-    COUNT(*) FILTER (WHERE bucket = 0)::bigint AS all_share_0,
-    COUNT(*) FILTER (WHERE bucket = 25)::bigint AS all_share_1_25,
-    COUNT(*) FILTER (WHERE bucket = 50)::bigint AS all_share_26_50,
-    COUNT(*) FILTER (WHERE bucket = 75)::bigint AS all_share_51_75,
-    COUNT(*) FILTER (WHERE bucket = 99)::bigint AS all_share_76_99,
-    COUNT(*) FILTER (WHERE bucket = 100)::bigint AS all_share_100,
-    COUNT(*) FILTER (WHERE acted AND bucket = 0)::bigint AS acted_share_0,
-    COUNT(*) FILTER (WHERE acted AND bucket = 25)::bigint AS acted_share_1_25,
-    COUNT(*) FILTER (WHERE acted AND bucket = 50)::bigint AS acted_share_26_50,
-    COUNT(*) FILTER (WHERE acted AND bucket = 75)::bigint AS acted_share_51_75,
-    COUNT(*) FILTER (WHERE acted AND bucket = 99)::bigint AS acted_share_76_99,
-    COUNT(*) FILTER (WHERE acted AND bucket = 100)::bigint AS acted_share_100
-FROM bucketed
-`
-
-type GetChatProjectPinTelemetryRow struct {
-	UsersWithProjects      int64 `db:"users_with_projects" json:"users_with_projects"`
-	UsersWithUnpinnedOwned int64 `db:"users_with_unpinned_owned" json:"users_with_unpinned_owned"`
-	PinnedMigration        int64 `db:"pinned_migration" json:"pinned_migration"`
-	PinnedDefault          int64 `db:"pinned_default" json:"pinned_default"`
-	PinnedUser             int64 `db:"pinned_user" json:"pinned_user"`
-	UnpinnedOwned          int64 `db:"unpinned_owned" json:"unpinned_owned"`
-	AllShare0              int64 `db:"all_share_0" json:"all_share_0"`
-	AllShare125            int64 `db:"all_share_1_25" json:"all_share_1_25"`
-	AllShare2650           int64 `db:"all_share_26_50" json:"all_share_26_50"`
-	AllShare5175           int64 `db:"all_share_51_75" json:"all_share_51_75"`
-	AllShare7699           int64 `db:"all_share_76_99" json:"all_share_76_99"`
-	AllShare100            int64 `db:"all_share_100" json:"all_share_100"`
-	ActedShare0            int64 `db:"acted_share_0" json:"acted_share_0"`
-	ActedShare125          int64 `db:"acted_share_1_25" json:"acted_share_1_25"`
-	ActedShare2650         int64 `db:"acted_share_26_50" json:"acted_share_26_50"`
-	ActedShare5175         int64 `db:"acted_share_51_75" json:"acted_share_51_75"`
-	ActedShare7699         int64 `db:"acted_share_76_99" json:"acted_share_76_99"`
-	ActedShare100          int64 `db:"acted_share_100" json:"acted_share_100"`
-}
-
-// Aggregates pin usage over each active, non-system user's accessible
-// projects. Grants count only when @acl_enabled and they include read,
-// matching the summaries. No identifiers leave this query.
-// A user has acted when their current pins show it: a user pin (left by
-// pinning or reordering) or an unpinned owned project. Unpinning deletes
-// the pin, so a user whose only action was unpinning projects shared with
-// them does not count.
-func (q *sqlQuerier) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error) {
-	row := q.db.QueryRowContext(ctx, getChatProjectPinTelemetry, aclEnabled)
-	var i GetChatProjectPinTelemetryRow
-	err := row.Scan(
-		&i.UsersWithProjects,
-		&i.UsersWithUnpinnedOwned,
-		&i.PinnedMigration,
-		&i.PinnedDefault,
-		&i.PinnedUser,
-		&i.UnpinnedOwned,
-		&i.AllShare0,
-		&i.AllShare125,
-		&i.AllShare2650,
-		&i.AllShare5175,
-		&i.AllShare7699,
-		&i.AllShare100,
-		&i.ActedShare0,
-		&i.ActedShare125,
-		&i.ActedShare2650,
-		&i.ActedShare5175,
-		&i.ActedShare7699,
-		&i.ActedShare100,
-	)
-	return i, err
-}
-
 const getChatProjectSummariesByUserID = `-- name: GetChatProjectSummariesByUserID :many
 WITH accessible AS (
     SELECT id, organization_id, owner_id, user_acl, group_acl
     FROM chat_projects
     WHERE archived_at IS NULL AND (owner_id = $2::uuid
         OR (
-            -- Grants count only while RBAC honors them, as in
-            -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
-            $3::boolean
-            AND (user_acl ? ($2::uuid)::text OR group_acl ?| ARRAY(
+            -- Grant keys select candidates even while chat sharing is
+            -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
+            -- role can still let the caller read the project.
+            (user_acl ? ($2::uuid)::text OR group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = $2::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = $2::uuid
@@ -8495,7 +8381,6 @@ ORDER BY lower(chat_projects.name), chat_projects.id
 type GetChatProjectSummariesByUserIDParams struct {
 	CountSharedMembers bool      `db:"count_shared_members" json:"count_shared_members"`
 	UserID             uuid.UUID `db:"user_id" json:"user_id"`
-	ACLEnabled         bool      `db:"acl_enabled" json:"acl_enabled"`
 }
 
 type GetChatProjectSummariesByUserIDRow struct {
@@ -8527,7 +8412,7 @@ type GetChatProjectSummariesByUserIDRow struct {
 // expanding the group into a row per member for every project.
 // Read through idx_chats_owner.
 func (q *sqlQuerier) GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.CountSharedMembers, arg.UserID, arg.ACLEnabled)
+	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.CountSharedMembers, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -8599,8 +8484,7 @@ WITH current_pins AS (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = $1::uuid
             OR (
-                $3::boolean
-                AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
+                (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
                     SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
                     UNION ALL
                     SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
@@ -8624,7 +8508,7 @@ ranked AS (
 ),
 target AS (
     SELECT LEAST(GREATEST(COALESCE(
-        $4::integer,
+        $3::integer,
         (SELECT position FROM current_pins WHERE project_id = $2::uuid),
         pinned_count + 1
     ), 1), pinned_count + 1) :: integer AS position
@@ -8645,25 +8529,21 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 `
 
 type PinChatProjectParams struct {
-	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
-	ProjectID  uuid.UUID     `db:"project_id" json:"project_id"`
-	ACLEnabled bool          `db:"acl_enabled" json:"acl_enabled"`
-	PinOrder   sql.NullInt32 `db:"pin_order" json:"pin_order"`
+	UserID    uuid.UUID     `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID     `db:"project_id" json:"project_id"`
+	PinOrder  sql.NullInt32 `db:"pin_order" json:"pin_order"`
 }
 
 // Pins a project, or moves an already pinned project, to pin_order. Without
 // pin_order a new pin goes to the end and an existing pin keeps its place.
-// Positions count only pins the user can still see, as the summaries do, and
-// are clamped to [1, count]. Pins on projects the user can no longer see, or
-// on archived projects, move after the visible ones. Callers must hold the per-user pin lock so
+// Positions count the pins GetChatProjectSummariesByUserID matches and are
+// clamped to [1, count], so callers must translate a position the user sees
+// past matched pins that authorization hides. Pins the summaries no longer
+// match, such as pins on archived projects, move after the others. Callers
+// must hold the per-user pin lock so
 // concurrent writes cannot interleave.
 func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, pinChatProject,
-		arg.UserID,
-		arg.ProjectID,
-		arg.ACLEnabled,
-		arg.PinOrder,
-	)
+	_, err := q.db.ExecContext(ctx, pinChatProject, arg.UserID, arg.ProjectID, arg.PinOrder)
 	return err
 }
 
@@ -8678,8 +8558,7 @@ updates AS (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = $1::uuid
         OR (
-            $3::boolean
-            AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
+            (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
@@ -8703,17 +8582,16 @@ WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id
 `
 
 type UnpinChatProjectParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
-	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
 }
 
 // Deletes a pin and compacts the remaining pins to 1..N.
 // Unpinning a project that is not pinned changes nothing. Like
-// PinChatProject, pins the user can still see on unarchived projects come
-// first, and callers must hold the per-user pin lock.
+// PinChatProject, pins the summaries still match come first, and callers
+// must hold the per-user pin lock.
 func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.ACLEnabled)
+	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID)
 	return err
 }
 
