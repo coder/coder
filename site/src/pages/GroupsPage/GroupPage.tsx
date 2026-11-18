@@ -167,7 +167,7 @@ const GroupPage: React.FC = () => {
 					/>
 					<SettingsHeaderTitle>
 						<span className="block min-w-0 truncate">
-							{groupData.display_name || groupData.name || "Unknown Group"}
+							{groupData.display_name || groupData.name || "Unknown group"}
 						</span>
 					</SettingsHeaderTitle>
 				</div>
@@ -283,7 +283,7 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({
 			>
 				<DialogContent
 					data-testid="dialog"
-					className="max-w-md gap-4 border-border bg-surface-primary p-8 text-content-primary"
+					className="max-w-md gap-4 bg-surface-primary p-8 text-content-primary"
 				>
 					<DialogTitle className="font-semibold text-content-primary">
 						Add user(s)

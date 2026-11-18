@@ -6,6 +6,7 @@ import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import * as M from "#/testHelpers/entities";
 import {
+	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 	withWebSocket,
@@ -132,8 +133,15 @@ const meta: Meta<typeof AgentRow> = {
 		workspace: M.MockWorkspace,
 		initialMetadata: defaultAgentMetadata,
 	},
-	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
+	decorators: [
+		withAuthProvider,
+		withProxyProvider(),
+		withDashboardProvider,
+		withWebSocket,
+	],
 	parameters: {
+		user: M.MockUserOwner,
+		permissions: M.MockPermissions,
 		queries: [
 			{
 				key: ["portForward", M.MockWorkspaceAgent.id],
@@ -215,8 +223,8 @@ export const ConnectingWithStartupLogs: Story = {
 		const canvas = within(canvasElement);
 
 		// Agent is connecting (hasConnectivityIssues=true) but no script has failed.
-		// Old code snapped to the Startup Script tab; the fix keeps us on All Logs.
-		const allLogsTab = await canvas.findByRole("tab", { name: "All Logs" });
+		// Old code snapped to the Startup Script tab; the fix keeps us on All logs.
+		const allLogsTab = await canvas.findByRole("tab", { name: "All logs" });
 		await waitFor(() =>
 			expect(allLogsTab).toHaveAttribute("data-state", "active"),
 		);
@@ -343,8 +351,8 @@ export const StartErrorWithoutFailedSourceLogs: Story = {
 		// Wait for a non-failed source tab to render, confirming logs streamed in.
 		await canvas.findByRole("tab", { name: "coder" });
 
-		// All Logs must stay active because no failed source has rendered logs.
-		const allLogsTab = canvas.getByRole("tab", { name: "All Logs" });
+		// All logs must stay active because no failed source has rendered logs.
+		const allLogsTab = canvas.getByRole("tab", { name: "All logs" });
 		await waitFor(() =>
 			expect(allLogsTab).toHaveAttribute("data-state", "active"),
 		);

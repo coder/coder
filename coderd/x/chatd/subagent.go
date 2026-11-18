@@ -72,9 +72,8 @@ type waitAgentArgs struct {
 }
 
 type messageAgentArgs struct {
-	ChatID    string `json:"chat_id"`
-	Message   string `json:"message"`
-	Interrupt bool   `json:"interrupt,omitempty"`
+	ChatID  string `json:"chat_id"`
+	Message string `json:"message"`
 }
 
 type interruptAgentArgs struct {
@@ -447,7 +446,7 @@ func (p *Server) subagentTools(
 					// prompt.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				return toolJSONResponse(spawnAgentResult(chat)), nil
+				return toolJSONResponse(subagentChatResult(chat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -511,17 +510,13 @@ func (p *Server) subagentTools(
 		fantasy.NewAgentTool(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
-				"agent. If the agent is idle, it resumes work on the "+
-				"message. If it is busy, the message is queued behind its "+
-				"current work and any earlier queued messages; set interrupt "+
-				"to true for corrections, changed scope, or a handoff that "+
-				"returns the child's task to you, so its current work stops "+
-				"first. Interrupting does not clear earlier queued messages, "+
-				"and the tool result does not confirm the child has stopped. "+
-				"Use wait_agent to collect the child's response. A handoff is "+
-				"acknowledged only when wait_agent returns the child's response "+
-				"to your handoff message; a message_agent result or an "+
-				"interrupting status is not an acknowledgment.",
+				"agent. If the agent is idle, it starts a new turn. If it "+
+				"is busy, the message is delivered before its next model "+
+				"call, and its current work continues. Use wait_agent to "+
+				"collect the child's response. A handoff is "+
+				"acknowledged only when wait_agent returns the child's "+
+				"response to your handoff message; a message_agent result is "+
+				"not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -531,16 +526,11 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 				targetChatInfo := p.subagentTargetChatInfo(ctx, targetChatID, "message")
-				busyBehavior := SendMessageBusyBehaviorQueue
-				if args.Interrupt {
-					busyBehavior = SendMessageBusyBehaviorInterrupt
-				}
-				chat, err := p.sendSubagentMessage(ctx, currentChat().ID, targetChatID, args.Message, busyBehavior)
+				chat, err := p.sendSubagentMessage(ctx, currentChat().ID, targetChatID, args.Message)
 				if err != nil {
 					return subagentErrorResponse(err, targetChatInfo), nil
 				}
-				interrupted := args.Interrupt && targetChatInfo != nil && targetChatInfo.Status == database.ChatStatusRunning
-				return toolJSONResponse(subagentActionResult(chat, interrupted)), nil
+				return toolJSONResponse(subagentChatResult(chat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -549,7 +539,9 @@ func (p *Server) subagentTools(
 				"status may briefly read interrupting before transitioning "+
 				"to waiting, running if there are queued messages, or "+
 				"paused if its owner is editing its next queued message. "+
-				"Resume with message_agent or leave it idle.",
+				"Use it only to stop the child. To send a message to a "+
+				"busy child, call message_agent; do not interrupt the "+
+				"child first.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -682,7 +674,7 @@ type subagentListResult struct {
 	Total    int                 `json:"total"`
 }
 
-func spawnAgentResult(chat database.Chat) any {
+func subagentChatResult(chat database.Chat) any {
 	return struct {
 		ChatID string `json:"chat_id"`
 		Status string `json:"status"`

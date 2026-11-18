@@ -6,7 +6,7 @@ coder:
 
   env:
     - name: CODER_PRIMARY_ACCESS_URL
-      value: "https://dev.coder.com"
+      value: "https://coder.example.com"
     - name: CODER_PROXY_SESSION_TOKEN
       valueFrom:
         secretKeyRef:

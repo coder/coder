@@ -18,11 +18,11 @@ Planned coverage:
 - Em-dash and en-dash mirror in Vale
 - Product-voice rules
 
-## Authoring a new rule
+## Author a new rule
 
 1. Write a YAML file under this directory.
    Name it after the rule's intent, for example `InclusiveLanguage.yml` or `ProductVoice.yml`.
-2. Each rule's `message:` should link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor.
+2. Each rule's `message:` must link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor.
 
    A contributor reading a Vale warning can then jump straight to the guidance.
 3. Land at `level: warning` first.

@@ -58,9 +58,7 @@ export const ClosedWithCustomRange: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /April 10-16/ }),
-		).toBeInTheDocument();
+		expect(canvas.getByRole("combobox")).toHaveTextContent(/April 10-16/);
 	},
 };
 
@@ -70,7 +68,7 @@ export const OpenShowsOnlyQuickPicks: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		await waitFor(() => {
 			expect(
@@ -119,7 +117,7 @@ export const SelectQuickPick: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		const preset = await screen.findByRole("radio", { name: "Last hour" });
 		await userEvent.click(preset);
@@ -129,9 +127,7 @@ export const SelectQuickPick: Story = {
 			expect(screen.queryByRole("radio", { name: "Custom range" })).toBeNull();
 		});
 		expect(args.onChange).toHaveBeenCalledTimes(1);
-		expect(
-			canvas.getByRole("button", { name: /Last hour/ }),
-		).toBeInTheDocument();
+		expect(canvas.getByRole("combobox")).toHaveTextContent(/Last hour/);
 	},
 };
 
@@ -141,7 +137,7 @@ export const CustomRangeExpanded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		const customRadio = await screen.findByRole("radio", {
 			name: "Custom range",
@@ -177,7 +173,7 @@ export const ApplyCustomRange: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
@@ -212,9 +208,7 @@ export const ApplyCustomRange: Story = {
 		await waitFor(() => {
 			expect(screen.queryByRole("grid")).toBeNull();
 		});
-		expect(
-			canvas.getByRole("button", { name: /April 10-16/ }),
-		).toBeInTheDocument();
+		expect(canvas.getByRole("combobox")).toHaveTextContent(/April 10-16/);
 	},
 };
 
@@ -224,7 +218,7 @@ export const SelectSingleDay: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
@@ -247,9 +241,9 @@ export const SelectSingleDay: Story = {
 		await waitFor(() => {
 			expect(screen.queryByRole("grid")).toBeNull();
 		});
-		expect(
-			canvas.getByRole("button", { name: /April 10, 12:00 AM - 11:59 PM/ }),
-		).toBeInTheDocument();
+		expect(canvas.getByRole("combobox")).toHaveTextContent(
+			/April 10, 12:00 AM - 11:59 PM/,
+		);
 	},
 };
 
@@ -259,7 +253,7 @@ export const InvalidTimeDisablesApply: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		// Reopening with a committed custom value restores the expanded panel.
 		await waitFor(() => {
@@ -312,7 +306,7 @@ export const EndBeforeStartShowsError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 
 		await waitFor(() => {
 			expect(screen.getByRole("grid")).toBeInTheDocument();
@@ -335,7 +329,7 @@ export const CancelDiscardsDraft: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("button");
+		const trigger = canvas.getByRole("combobox");
 		const originalText = trigger.textContent;
 
 		await userEvent.click(trigger);
@@ -350,7 +344,7 @@ export const CancelDiscardsDraft: Story = {
 		await waitFor(() => {
 			expect(screen.queryByRole("grid")).toBeNull();
 		});
-		expect(canvas.getByRole("button").textContent).toBe(originalText);
+		expect(canvas.getByRole("combobox").textContent).toBe(originalText);
 	},
 };
 
@@ -363,9 +357,9 @@ export const IntraDayTriggerLabel: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /April 12, 9:00 AM - 11:00 AM/ }),
-		).toBeInTheDocument();
+		expect(canvas.getByRole("combobox")).toHaveTextContent(
+			/April 12, 9:00 AM - 11:00 AM/,
+		);
 	},
 };
 
@@ -379,7 +373,7 @@ export const RangeLimits: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("combobox"));
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
 		);

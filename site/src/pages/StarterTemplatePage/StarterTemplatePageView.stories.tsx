@@ -5,6 +5,7 @@ import { StarterTemplatePageView } from "./StarterTemplatePageView";
 const meta: Meta<typeof StarterTemplatePageView> = {
 	title: "pages/StarterTemplatePage",
 	component: StarterTemplatePageView,
+	args: { canCreateTemplates: true },
 };
 
 export default meta;
@@ -23,4 +24,8 @@ export const WithError: Story = {
 		}),
 		starterTemplate: undefined,
 	},
+};
+
+export const ReadOnly: Story = {
+	args: { starterTemplate: MockTemplateExample, canCreateTemplates: false },
 };

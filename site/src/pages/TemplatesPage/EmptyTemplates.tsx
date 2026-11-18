@@ -60,11 +60,11 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 						Templates are written in Terraform and describe the infrastructure
 						for workspaces. You can start using a starter template below or{" "}
 						<Link
-							href={docs("/admin/templates/creating-templates")}
+							href={docs("/templates/creating-templates")}
 							target="_blank"
 							rel="noreferrer"
 							showExternalIcon={false}
-							className="p-0 text-xs"
+							className="pl-0 text-xs"
 						>
 							create your own
 						</Link>
@@ -101,7 +101,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			message="Create a Template"
+			message="Create a template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
 		/>

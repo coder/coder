@@ -116,7 +116,9 @@ export const NetworkDisabledKeyboard: Story = {
 	},
 	play: async ({ canvas }) => {
 		// Earlier rows, such as the token usage badges, are also focusable.
-		const info = canvas.getByRole("button", { name: "More info" });
+		const info = canvas.getByRole("button", {
+			name: "About network monitoring",
+		});
 		while (document.activeElement !== info) {
 			// Storybook's user-event tabs from the keydown target, so it cannot
 			// follow focus out of an open interactive tooltip such as the cost

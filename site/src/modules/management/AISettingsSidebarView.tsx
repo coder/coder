@@ -37,7 +37,7 @@ const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
 		className={({ isActive }) =>
 			cn(
 				"relative -ml-px text-sm text-content-secondary no-underline font-medium py-2 pl-4 pr-3 transition-colors",
-				"border-0 border-solid border-l border-l-transparent hover:text-content-primary",
+				"border-l border-l-transparent hover:text-content-primary",
 				isActive &&
 					"border-l-content-primary font-semibold text-content-primary",
 			)
@@ -48,7 +48,7 @@ const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
 );
 
 const SubNavGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-	<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+	<div className="flex flex-col gap-1 ml-3 border-l border-l-border">
 		{children}
 	</div>
 );

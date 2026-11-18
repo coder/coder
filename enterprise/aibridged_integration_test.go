@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -650,8 +651,9 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 
 // TestIntegrationResolvedOrganization validates that the organization coderd
 // resolves in IsAuthorized is used for the whole request: the budget check,
-// the interception record, and the effective group and spend that cost
-// records.
+// the interception record, and the effective group, price and spend that cost
+// records. Each case uses its own user, who is a member of their own orgs A
+// and B, against a shared deployment.
 func TestIntegrationResolvedOrganization(t *testing.T) {
 	t.Parallel()
 
@@ -676,53 +678,9 @@ func TestIntegrationResolvedOrganization(t *testing.T) {
 		Options: &coderdtest.Options{Database: db, Pubsub: ps},
 	})
 
-	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
-		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
-		Lifetime:  time.Hour,
-		Scope:     codersdk.APIKeyScopeAll,
-	})
-	require.NoError(t, err)
-
-	// Given: the user is in orgs A and B. Group gA has the higher limit, so it
-	// wins site-wide, and its spend is already over the limit. Group gB is
-	// under its limit.
-	now := dbtime.Now()
-	budgetedGroup := func(limitMicros int64) database.Group {
-		org := dbgen.Organization(t, db, database.Organization{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
-		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-			GroupID:          group.ID,
-			SpendLimitMicros: limitMicros,
-		})
-		require.NoError(t, err)
-		return group
-	}
-	groupA := budgetedGroup(100_000_000)
-	groupB := budgetedGroup(10_000_000)
-	const groupASpendMicros = 150_000_000
-	_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-		UserID:           user.ID,
-		EffectiveGroupID: groupA.ID,
-		Day:              now,
-		CostMicros:       groupASpendMicros,
-	})
-	require.NoError(t, err)
-
-	// Given: a workspace in org B and its session token.
-	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: groupB.OrganizationID,
-		OwnerID:        user.ID,
-	}).Do().Workspace
-	_, workspaceToken := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
-		TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
-	})
-
-	// Given: the model has a site-wide custom price and a different price in
-	// each of orgs A and B, so the price used identifies the organization.
+	// Given: the model has a site-wide custom price. Each case also sets a
+	// different price in its orgs A and B, so the price used identifies the
+	// organization.
 	const siteWideInputPrice, orgAInputPrice, orgBInputPrice int64 = 2_000_000, 3_000_000, 4_000_000
 	aiProvider := dbgen.AIProvider(t, db, database.AIProvider{
 		Name: config.ProviderOpenAI,
@@ -736,86 +694,246 @@ func TestIntegrationResolvedOrganization(t *testing.T) {
 	}})
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceCustom}))
-	for orgID, inputPrice := range map[uuid.UUID]int64{
-		groupA.OrganizationID: orgAInputPrice,
-		groupB.OrganizationID: orgBInputPrice,
-	} {
-		require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
-			OrganizationID: orgID,
-			ProviderID:     aiProvider.ID,
-			Model:          "gpt-4.1",
-			InputPrice:     sql.NullInt64{Int64: inputPrice, Valid: true},
-			OutputPrice:    sql.NullInt64{Int64: 8_000_000, Valid: true},
-		}))
-	}
 
 	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
 	require.NoError(t, err)
-	logger := testutil.Logger(t)
-	srv, err := aibridged.New(ctx, func(ctx context.Context) (aibridged.DRPCClient, error) {
+	srv, err := aibridged.New(ctx, func(context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, testTracer, nil, nil)
+	}, testutil.Logger(t), testTracer, nil, nil)
 	require.NoError(t, err, "create new aibridged")
 	require.NoError(t, srv.ReplaceProviders(ctx, []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-key")}),
 	}))
 	t.Cleanup(func() { _ = srv.Shutdown(ctx) })
 
-	serve := func(token string) *httptest.ResponseRecorder {
+	// fixture is the state each case starts from.
+	type fixture struct {
+		userID         uuid.UUID
+		groupA, groupB database.Group
+		workspace      database.WorkspaceTable
+	}
+
+	// newRequest builds the chat completion request every case sends, without
+	// credentials. Direct requests add a token with directRequest, and delegated
+	// requests authenticate through the context instead.
+	newRequest := func(ctx context.Context, t *testing.T) *http.Request {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/chat/completions",
 			bytes.NewBufferString(`{"messages":[{"role":"user","content":"hi"}],"model":"gpt-4.1"}`))
 		require.NoError(t, err)
-		req.Header.Add("Authorization", "Bearer "+token)
 		req.Header.Add("Accept", "application/json")
-		rec := httptest.NewRecorder()
-		srv.ServeHTTP(rec, req)
-		return rec
+		return req
+	}
+	// directRequest authenticates with a token in the Authorization header.
+	directRequest := func(ctx context.Context, t *testing.T, token string) *http.Request {
+		req := newRequest(ctx, t)
+		req.Header.Add("Authorization", "Bearer "+token)
+		return req
 	}
 
-	// When: the user sends a normal API token, the request resolves to org A
-	// through the site-wide effective group, where the user is over budget.
-	rec := serve(apiKey.Key)
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.Contains(t, rec.Body.String(), "AI budget of US$100.00 exceeded")
+	tests := []struct {
+		name string
+		// initialSpendA is the spend already recorded in group A before the
+		// request.
+		initialSpendA int64
+		// request builds the request the user sends.
+		request func(ctx context.Context, t *testing.T, f fixture) *http.Request
+		// wantGroup returns the group, and so the organization, the request is
+		// attributed to.
+		wantGroup      func(f fixture) database.Group
+		wantSource     database.AIBridgeInterceptionOrganizationSource
+		wantInputPrice int64
+		wantWorkspace  bool
+	}{
+		{
+			// When: the user sends a normal API token, the request resolves
+			// to org A through the site-wide effective group, because group A
+			// has the higher limit.
+			name: "effective group",
+			request: func(ctx context.Context, t *testing.T, f fixture) *http.Request {
+				_, token := dbgen.APIKey(t, db, database.APIKey{UserID: f.userID})
+				return directRequest(ctx, t, token)
+			},
+			wantGroup:      func(f fixture) database.Group { return f.groupA },
+			wantSource:     database.AibridgeInterceptionOrganizationSourceEffectiveGroup,
+			wantInputPrice: orgAInputPrice,
+		},
+		{
+			// When: the user sends the session token of a workspace in org B,
+			// the request resolves to org B instead of the effective group.
+			name: "workspace session token",
+			request: func(ctx context.Context, t *testing.T, f fixture) *http.Request {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    f.userID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(f.userID, f.workspace.ID),
+				})
+				return directRequest(ctx, t, token)
+			},
+			wantGroup:      func(f fixture) database.Group { return f.groupB },
+			wantSource:     database.AibridgeInterceptionOrganizationSourceWorkspace,
+			wantInputPrice: orgBInputPrice,
+			wantWorkspace:  true,
+		},
+		{
+			// When: a delegated chatd request carries org B as the chat's
+			// organization, the request resolves to org B instead of the
+			// effective group.
+			name: "delegated organization",
+			request: func(ctx context.Context, t *testing.T, f fixture) *http.Request {
+				key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: f.userID})
+				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, key.ID)
+				ctx = agplaibridge.WithDelegatedAttribution(ctx, agplaibridge.Attribution{DelegatedOrganizationID: f.groupB.OrganizationID})
+				return newRequest(ctx, t)
+			},
+			wantGroup:      func(f fixture) database.Group { return f.groupB },
+			wantSource:     database.AibridgeInterceptionOrganizationSourceChatd,
+			wantInputPrice: orgBInputPrice,
+		},
+		{
+			// When: a delegated chatd request carries org B as the chat's
+			// organization and the chat's workspace in org B, the request
+			// resolves to org B through the delegated organization, and the
+			// workspace is recorded on the interception.
+			name: "delegated organization with workspace",
+			request: func(ctx context.Context, t *testing.T, f fixture) *http.Request {
+				key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: f.userID})
+				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, key.ID)
+				ctx = agplaibridge.WithDelegatedAttribution(ctx, agplaibridge.Attribution{
+					WorkspaceID:             f.workspace.ID,
+					DelegatedOrganizationID: f.groupB.OrganizationID,
+				})
+				return newRequest(ctx, t)
+			},
+			wantGroup:      func(f fixture) database.Group { return f.groupB },
+			wantSource:     database.AibridgeInterceptionOrganizationSourceChatd,
+			wantInputPrice: orgBInputPrice,
+			wantWorkspace:  true,
+		},
+		{
+			// When: the user is over group A's 100 USD limit and sends the session
+			// token of a workspace in org B. Unlike the other cases, this checks that
+			// IsBudgetExceeded uses the resolved org B, not the site-wide group A, so
+			// the request is allowed.
+			name:          "budget follows the resolved org",
+			initialSpendA: 150_000_000,
+			request: func(ctx context.Context, t *testing.T, f fixture) *http.Request {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    f.userID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(f.userID, f.workspace.ID),
+				})
+				return directRequest(ctx, t, token)
+			},
+			wantGroup:      func(f fixture) database.Group { return f.groupB },
+			wantSource:     database.AibridgeInterceptionOrganizationSourceWorkspace,
+			wantInputPrice: orgBInputPrice,
+			wantWorkspace:  true,
+		},
+	}
 
-	// When: the user sends the workspace session token, the request resolves
-	// to org B, where the user is under budget.
-	rec = serve(workspaceToken)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Then: only the allowed request is recorded, with org B as its
-	// organization.
-	interceptions, err := db.GetAIBridgeInterceptions(ctx)
-	require.NoError(t, err)
-	require.Len(t, interceptions, 1)
-	intc := interceptions[0]
-	require.Equal(t, uuid.NullUUID{UUID: groupB.OrganizationID, Valid: true}, intc.OrganizationID)
-	require.Equal(t, database.NullAIBridgeInterceptionOrganizationSource{
-		AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
-		Valid:                                  true,
-	}, intc.OrganizationSource)
-	require.Equal(t, uuid.NullUUID{UUID: workspace.ID, Valid: true}, intc.WorkspaceID)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			now := dbtime.Now()
 
-	// Then: cost prices the request with org B's price and attributes the
-	// token usage and the spend to org B's group, and org A's group spend is
-	// unchanged.
-	tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
-	require.NoError(t, err)
-	require.Len(t, tokens, 1)
-	require.Equal(t, uuid.NullUUID{UUID: groupB.ID, Valid: true}, tokens[0].EffectiveGroupID)
-	require.Equal(t, sql.NullInt64{Int64: orgBInputPrice, Valid: true}, tokens[0].InputPriceMicros)
-	require.True(t, tokens[0].CostMicros.Valid)
-	require.Positive(t, tokens[0].CostMicros.Int64)
+			// Given: the user is in orgs A and B, with a budgeted group in
+			// each. Group A has the higher limit, so it wins site-wide. Each
+			// org has its own price for the model.
+			_, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+			f := fixture{userID: user.ID}
+			budgetedGroup := func(limitMicros, inputPrice int64) database.Group {
+				org := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: f.userID})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: f.userID, GroupID: group.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+					GroupID:          group.ID,
+					SpendLimitMicros: limitMicros,
+				})
+				require.NoError(t, err)
+				require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+					OrganizationID: org.ID,
+					ProviderID:     aiProvider.ID,
+					Model:          "gpt-4.1",
+					InputPrice:     sql.NullInt64{Int64: inputPrice, Valid: true},
+					OutputPrice:    sql.NullInt64{Int64: 8_000_000, Valid: true},
+				}))
+				return group
+			}
+			f.groupA = budgetedGroup(100_000_000, orgAInputPrice)
+			f.groupB = budgetedGroup(10_000_000, orgBInputPrice)
 
-	spendSince := func(groupID uuid.UUID) int64 {
-		spend, err := db.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
-			UserID:           user.ID,
-			EffectiveGroupID: groupID,
-			PeriodStart:      dbtime.StartOfDay(now),
+			// Given: a workspace in org B.
+			f.workspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: f.groupB.OrganizationID,
+				OwnerID:        f.userID,
+			}).Do().Workspace
+
+			// Given: the spend already recorded in group A, if any.
+			if tt.initialSpendA > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           f.userID,
+					EffectiveGroupID: f.groupA.ID,
+					Day:              now,
+					CostMicros:       tt.initialSpendA,
+				})
+				require.NoError(t, err)
+			}
+
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, tt.request(ctx, t, f))
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+			// Then: the request is recorded with the resolved organization
+			// and its source.
+			wantGroup := tt.wantGroup(f)
+			all, err := db.GetAIBridgeInterceptions(ctx)
+			require.NoError(t, err)
+			var interceptions []database.AIBridgeInterception
+			for _, intc := range all {
+				if intc.InitiatorID == f.userID {
+					interceptions = append(interceptions, intc)
+				}
+			}
+			require.Len(t, interceptions, 1)
+			intc := interceptions[0]
+			require.Equal(t, uuid.NullUUID{UUID: wantGroup.OrganizationID, Valid: true}, intc.OrganizationID)
+			require.Equal(t, database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: tt.wantSource,
+				Valid:                                  true,
+			}, intc.OrganizationSource)
+			if tt.wantWorkspace {
+				require.Equal(t, uuid.NullUUID{UUID: f.workspace.ID, Valid: true}, intc.WorkspaceID)
+			}
+
+			// Then: cost prices the request with the resolved org's price and
+			// attributes the token usage and the spend to that org's group.
+			// The other group's spend is unchanged.
+			tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.Len(t, tokens, 1)
+			require.Equal(t, uuid.NullUUID{UUID: wantGroup.ID, Valid: true}, tokens[0].EffectiveGroupID)
+			require.Equal(t, sql.NullInt64{Int64: tt.wantInputPrice, Valid: true}, tokens[0].InputPriceMicros)
+			require.True(t, tokens[0].CostMicros.Valid)
+			require.Positive(t, tokens[0].CostMicros.Int64)
+
+			spendSince := func(groupID uuid.UUID) int64 {
+				spend, err := db.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+					UserID:           f.userID,
+					EffectiveGroupID: groupID,
+					PeriodStart:      dbtime.StartOfDay(now),
+				})
+				require.NoError(t, err)
+				return spend.SpendMicros
+			}
+			cost := tokens[0].CostMicros.Int64
+			if wantGroup.ID == f.groupA.ID {
+				require.Equal(t, tt.initialSpendA+cost, spendSince(f.groupA.ID))
+				require.Zero(t, spendSince(f.groupB.ID))
+			} else {
+				require.Equal(t, cost, spendSince(f.groupB.ID))
+				require.Equal(t, tt.initialSpendA, spendSince(f.groupA.ID))
+			}
 		})
-		require.NoError(t, err)
-		return spend.SpendMicros
 	}
-	require.Equal(t, tokens[0].CostMicros.Int64, spendSince(groupB.ID))
-	require.EqualValues(t, groupASpendMicros, spendSince(groupA.ID))
 }

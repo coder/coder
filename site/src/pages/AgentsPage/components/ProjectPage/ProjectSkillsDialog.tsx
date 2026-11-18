@@ -42,7 +42,6 @@ import {
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
-	withDisabledModelInvocation,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
 import {
@@ -127,11 +126,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 			downloadSkillFile(name, (skillName) =>
 				queryClient
 					.fetchQuery(scope.detail(skillName))
-					.then((skill) =>
-						skill.model_invocable
-							? skill.content
-							: withDisabledModelInvocation(skill.content),
-					),
+					.then((skill) => skill.content),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {
@@ -201,6 +196,8 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								content,
 								action: values.action,
 								model_invocable: values.modelInvocable,
+								// A hidden display name keeps its stored value.
+								display_name: values.action ? values.displayName : undefined,
 							};
 							const onSuccess = () => {
 								closeEditor();
@@ -264,7 +261,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 							) : null}
 							{skillsQuery.isLoading && <Loader />}
 							{skillsQuery.isSuccess && skills.length === 0 && (
-								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
+								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center text-sm text-content-secondary">
 									{canEdit ? (
 										<>
 											<p className="m-0">
@@ -331,7 +328,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								</Table>
 							)}
 						</div>
-						<DialogFooter className="border-t border-border px-6 py-4">
+						<DialogFooter className="border-t px-6 py-4">
 							<Button variant="outline" onClick={() => handleOpenChange(false)}>
 								Close
 							</Button>
@@ -508,7 +505,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 					<SkillEditorBodyField placeholder="Describe when and how the agent should use this skill." />
 				</SkillEditorFields>
 				{canEdit && (
-					<DialogFooter className="border-t border-border px-6 py-4">
+					<DialogFooter className="border-t px-6 py-4">
 						<SkillEditorSubmitButton>Save</SkillEditorSubmitButton>
 					</DialogFooter>
 				)}

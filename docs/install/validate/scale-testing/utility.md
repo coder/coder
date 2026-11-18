@@ -7,7 +7,7 @@ For scale-testing Kubernetes clusters we recommend that you install and use the 
 
 Learn more about [Coder’s architecture](../../plan/architecture.md) and our [scale-testing methodology](../scale-testing.md).
 
-For more information about scaling, see our [Coder scaling best practices](../../../tutorials/best-practices/scale-coder.md).
+For more information about scaling, see our [Coder scaling best practices](../scale-coder.md).
 
 ## Recent scale tests
 
@@ -29,12 +29,12 @@ Review the [Reference Architectures](../../plan/sizing/index.md#node-sizing) for
 
 ## Scale testing utility
 
-Since Coder's performance is highly dependent on the templates and workflows you support, you may wish to use our internal scale testing utility against your own environments.
+Since Coder's performance is highly dependent on the templates and workflows you support, you might want to use our internal scale testing utility against your own environments.
 
 > [!IMPORTANT]
 > This utility is experimental.
 >
-> It is not subject to any compatibility guarantees and may cause interruptions for your users.
+> It is not subject to any compatibility guarantees and might cause interruptions for your users.
 > To avoid potential outages and orphaned resources, we recommend that you run scale tests on a secondary "staging" environment or a dedicated Kubernetes playground cluster.
 >
 > Run it against a production environment at your own risk.
@@ -184,7 +184,7 @@ This dashboard provides insights into various aspects, including:
 Note: Database metrics are disabled by default and can be enabled by setting the environment variable `CODER_PROMETHEUS_COLLECT_DB_METRICS` to `true`.
 
 It is highly recommended to deploy a solution for centralized log collection and aggregation.
-The presence of error logs may indicate an underscaled deployment of Coder, necessitating action from operators.
+The presence of error logs might indicate an underscaled deployment of Coder, necessitating action from operators.
 
 ## Autoscaling
 
@@ -207,7 +207,7 @@ When scaling down (or performing upgrades), schedule these outside normal workin
 
 When running on Kubernetes on cloud infrastructure (that is, not bare metal), many operators choose to employ a _cluster_ autoscaler that adds and removes Kubernetes _nodes_ according to load.
 Coder can coexist with such cluster autoscalers, but we recommend you take steps to prevent the autoscaler from evicting `coderd` pods, as an eviction will cause the same interruptions as described above.
-For example, if you are using the [Kubernetes cluster autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict), you may wish to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as an annotation on the `coderd` deployment.
+For example, if you are using the [Kubernetes cluster autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict), you might want to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as an annotation on the `coderd` deployment.
 
 ## Troubleshooting
 

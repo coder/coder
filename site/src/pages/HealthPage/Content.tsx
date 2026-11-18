@@ -179,7 +179,7 @@ export const Pill: React.FC<PillProps> = ({
 	return (
 		<div
 			className={cn(
-				"inline-flex items-center h-8 rounded-full border border-solid border-border text-xs font-medium p-2 gap-2 cursor-default",
+				"inline-flex items-center h-8 rounded-full border text-xs font-medium p-2 gap-2 cursor-default",
 				className,
 			)}
 			{...divProps}

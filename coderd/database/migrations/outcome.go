@@ -110,44 +110,31 @@ func classify(in outcomeInput) runOutcome {
 	}
 }
 
-// finish is called when the upgrade has ended. err is golang-migrate's
-// error.
+// finish is called once on Up's goroutine, after m.Up returned and the run
+// was canceled. err is golang-migrate's error.
 //
-// finish stops the heartbeats, asks PostgreSQL how the upgrade ended, logs
-// one outcome line, and returns the error for the caller.
-// With a nil reporter, when reporting is off, it only returns err, wrapped the same way
-// as without reporting.
+// finish asks PostgreSQL how the upgrade ended, logs one outcome line, and
+// returns the error for the caller.
 func (r *reporter) finish(err error) (runResult, error) {
-	if r == nil {
-		if err != nil {
-			return runResult{}, xerrors.Errorf("up: %w", err)
-		}
-		return runResult{}, nil
-	}
-	r.close()
-
-	r.mu.Lock()
 	res := runResult{
 		StartedAt:         r.runStart,
 		FinishedAt:        r.clock.Now(),
 		FromVersion:       r.fromVersion,
 		TargetVersion:     r.targetVersion,
 		SchemaVersion:     r.fromVersion,
-		Applied:           append([]appliedMigration(nil), r.applied...),
+		Applied:           r.applied,
 		Failed:            r.failed,
 		TransactionStatus: xactUnknown,
 	}
-	started, total, xid := r.started, r.total, r.xid
-	lockWaitStart := r.lockWaitStart
-	r.mu.Unlock()
-
-	if started && total > 0 {
-		res.TransactionStatus, res.SchemaVersion = r.readOutcome(xid)
+	// xid is only read once started: before that, an abandoned Lock may
+	// still write it.
+	if r.started && r.total > 0 {
+		res.TransactionStatus, res.SchemaVersion = r.readOutcome(r.xid)
 	}
 	res.Outcome = classify(outcomeInput{
 		err:        err,
-		started:    started,
-		total:      total,
+		started:    r.started,
+		total:      r.total,
 		xactStatus: res.TransactionStatus,
 	})
 	if res.Outcome == outcomeCommitted && res.SchemaVersion == database.NilVersion {
@@ -155,7 +142,7 @@ func (r *reporter) finish(err error) (runResult, error) {
 		res.SchemaVersion = res.TargetVersion
 	}
 
-	r.logOutcome(res, err, lockWaitStart)
+	r.logOutcome(res, err)
 
 	if err != nil {
 		if res.Failed != nil {
@@ -167,7 +154,8 @@ func (r *reporter) finish(err error) (runResult, error) {
 	return res, nil
 }
 
-func (r *reporter) logOutcome(res runResult, err error, lockWaitStart time.Time) {
+// logOutcome logs with context.Background: runCtx is already canceled.
+func (r *reporter) logOutcome(res runResult, err error) {
 	ctx := context.Background()
 	total := slog.F("total_duration_ms", res.FinishedAt.Sub(res.StartedAt).Milliseconds())
 	count := slog.F("count", len(res.Applied))
@@ -179,13 +167,13 @@ func (r *reporter) logOutcome(res runResult, err error, lockWaitStart time.Time)
 		// not add a line to every server start.
 		fields := []slog.Field{slog.F("status", "success"), count}
 		fields = append(fields, versionField("schema_version", res.SchemaVersion)...)
-		r.logger.Debug(ctx, "database migration outcome: no change", append(fields, total)...)
+		r.logger.Debug(ctx, msgOutcomeNoChange, append(fields, total)...)
 
 	case outcomeCommitted:
 		fields := []slog.Field{slog.F("status", "success"), count}
 		fields = append(fields, versionField("from_version", res.FromVersion)...)
 		fields = append(fields, versionField("to_version", res.SchemaVersion)...)
-		r.logger.Info(ctx, "committed database migrations", append(fields, xactStatus, total)...)
+		r.logger.Info(ctx, msgOutcomeCommitted, append(fields, xactStatus, total)...)
 
 	case outcomeRolledBack:
 		fields := []slog.Field{slog.F("status", "failure"), count}
@@ -200,37 +188,33 @@ func (r *reporter) logOutcome(res runResult, err error, lockWaitStart time.Time)
 		if res.Failed != nil {
 			fields = append(fields, slog.F("failed_duration_ms", res.Failed.duration.Milliseconds()))
 		}
-		r.logger.Error(ctx, "migration failed, transaction rolled back, no changes saved", fields...)
+		r.logger.Error(ctx, msgOutcomeRolledBack, fields...)
 
 	case outcomeCommittedBeforeFailure:
 		fields := []slog.Field{slog.F("status", "failure"), count}
 		fields = append(fields, versionField("from_version", res.FromVersion)...)
 		fields = append(fields, versionField("to_version", res.SchemaVersion)...)
-		r.logger.Error(ctx, "committed database migrations before failure", append(fields, xactStatus, total)...)
+		r.logger.Error(ctx, msgOutcomeCommittedBeforeFailure, append(fields, xactStatus, total)...)
 
 	case outcomeUnknown:
 		fields := []slog.Field{slog.F("status", "failure"), count}
 		fields = append(fields, versionField("version", res.FromVersion)...)
 		fields = append(fields, xactStatus, total, slog.F("error", safeErrorText(res, err)))
-		r.logger.Warn(ctx, "database migration commit outcome unknown", fields...)
+		r.logger.Warn(ctx, msgOutcomeUnknown, fields...)
 
 	case outcomeLockTimeout:
-		// Count from when Coder started waiting for the migration lock, or
-		// from the start of the upgrade if it never had to wait.
-		waitStart := lockWaitStart
-		if waitStart.IsZero() {
-			waitStart = res.StartedAt
-		}
-		r.logger.Error(ctx, "gave up waiting for database migration lock",
-			slog.F("status", "failure"), count, slog.F("waited_ms", res.FinishedAt.Sub(waitStart).Milliseconds()))
+		// The batch Lock is the first thing m.Up waits for, so the time
+		// since Up called it is the lock wait.
+		r.logger.Error(ctx, msgOutcomeLockTimeout,
+			slog.F("status", "failure"), count, slog.F("waited_ms", res.FinishedAt.Sub(r.upStart).Milliseconds()))
 
 	case outcomeDirty:
 		var dirty migrate.ErrDirty
 		_ = errors.As(err, &dirty)
 		dirtyErr := slog.F("error", fmt.Sprintf("dirty database version %d", dirty.Version))
-		r.logger.Error(ctx, "database schema is dirty",
+		r.logger.Error(ctx, msgSchemaDirty,
 			slog.F("status", "failure"), slog.F("version", dirty.Version), dirtyErr)
-		r.logger.Error(ctx, "database migration outcome: dirty schema",
+		r.logger.Error(ctx, msgOutcomeDirty,
 			slog.F("status", "failure"), count, slog.F("schema_version", dirty.Version), total, dirtyErr)
 
 	case outcomeFailedBeforeStart:
@@ -268,9 +252,10 @@ func describeDBError(e database.Error) string {
 
 // readOutcome asks PostgreSQL whether the migration transaction committed,
 // using the ID captured when it started, and which schema version is saved.
-// It never waits longer than observerQueryTimeout: canceling a query only
-// asks PostgreSQL to abort it, and a query that does not return in time is
-// left to finish on its own while the run reports an unknown outcome.
+// It never waits longer than observerQueryTimeout. The queries run in a
+// goroutine it does not wait for, because canceling a lib/pq query still
+// blocks until the server answers; a late one finishes on its own while the
+// run reports an unknown outcome.
 func (r *reporter) readOutcome(xid string) (string, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), observerQueryTimeout)
 	defer cancel()
@@ -294,12 +279,20 @@ func (r *reporter) readOutcome(xid string) (string, int) {
 	select {
 	case o := <-done:
 		if o.err != nil {
-			r.observerError(ctx, o.err)
+			r.observerError(o.err)
 		}
 		return o.status, o.version
 	case <-ctx.Done():
-		r.observerError(context.Background(), ctx.Err())
+		r.observerError(ctx.Err())
 		return xactUnknown, database.NilVersion
+	}
+}
+
+// observerError logs the first failed reporting query of the run only.
+// Reporting failures never affect the migration.
+func (r *reporter) observerError(err error) {
+	if r.observerFailed.CompareAndSwap(false, true) {
+		r.logger.Warn(context.Background(), msgObserverFailed, slog.Error(err))
 	}
 }
 

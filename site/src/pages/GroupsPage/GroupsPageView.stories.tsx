@@ -204,7 +204,7 @@ export const WithSearchAndPagination: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Filter")).toHaveValue("group");
+		await expect(canvas.getByLabelText("Search")).toHaveValue("group");
 	},
 };
 

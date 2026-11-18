@@ -101,7 +101,7 @@ export const SecretsPageView: React.FC<SecretsPageViewProps> = ({
 					{filePathEnabled
 						? "Secrets with an environment variable or file path are injected into workspaces you own when they start. Each environment variable and file path must be unique."
 						: "File path delivery is disabled. Environment variables still work; saved paths remain blocked until delivery is enabled."}{" "}
-					<SettingsHeaderDocsLink href={docs("/user-guides/user-secrets")} />
+					<SettingsHeaderDocsLink href={docs("/workspaces/user-secrets")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

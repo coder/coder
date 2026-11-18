@@ -111,38 +111,23 @@ func TestFinishLockTimeout(t *testing.T) {
 
 	r.lockStarted()
 	r.setBackend(1, "1")
+	r.upStart = mClock.Now()
 	r.lockWaitStarted(phaseBatch)
 	mClock.Advance(2 * time.Minute)
 
+	// As in Up: the run is canceled, then finished.
+	r.cancel()
 	res, err := r.finish(migrate.ErrLockTimeout)
 	require.ErrorIs(t, err, migrate.ErrLockTimeout)
 	require.Equal(t, "up: timeout: can't acquire database lock", err.Error())
 	require.Equal(t, outcomeLockTimeout, res.Outcome)
 
-	line := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Message == "gave up waiting for database migration lock"
-	})
-	require.Len(t, line, 1)
-	require.Equal(t, slog.LevelError, line[0].Level)
-	require.Equal(t, []string{"status", "count", "waited_ms"}, entryFieldNames(line[0]))
-	require.Equal(t, "failure", entryField(line[0], "status"))
-	require.Equal(t, 0, entryField(line[0], "count"))
-	require.Equal(t, int64(120000), entryField(line[0], "waited_ms"))
-}
-
-// TestFinishWithoutReporter covers plain Up: the error is the same as
-// without reporting.
-func TestFinishWithoutReporter(t *testing.T) {
-	t.Parallel()
-
-	var r *reporter
-	_, err := r.finish(nil)
-	require.NoError(t, err)
-
-	failed := xerrors.New("boom")
-	_, err = r.finish(failed)
-	require.ErrorIs(t, err, failed)
-	require.Equal(t, "up: boom", err.Error())
+	line := onlyOutcomeEntry(t, sink, msgOutcomeLockTimeout)
+	require.Equal(t, slog.LevelError, line.Level)
+	require.Equal(t, []string{"status", "count", "waited_ms"}, entryFieldNames(line))
+	require.Equal(t, "failure", entryField(line, "status"))
+	require.Equal(t, 0, entryField(line, "count"))
+	require.Equal(t, int64(120000), entryField(line, "waited_ms"))
 }
 
 // TestFinishCommittedBeforeFailure covers a commit whose reply was lost:
@@ -157,7 +142,7 @@ func TestFinishCommittedBeforeFailure(t *testing.T) {
 	require.EqualError(t, err, "up: commit tx on unlock: driver: bad connection")
 	require.Equal(t, outcomeCommittedBeforeFailure, res.Outcome)
 
-	line := onlyOutcomeEntry(t, sink, "committed database migrations before failure")
+	line := onlyOutcomeEntry(t, sink, msgOutcomeCommittedBeforeFailure)
 	require.Equal(t, slog.LevelError, line.Level)
 	require.Equal(t, []string{
 		"status", "count", "from_version", "to_version", "transaction_status", "total_duration_ms",
@@ -189,7 +174,7 @@ func TestFinishUnknown(t *testing.T) {
 	require.EqualError(t, err, "up: migration 3 (step_3): migration failed: unexpected EOF")
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 
-	line := onlyOutcomeEntry(t, sink, "database migration commit outcome unknown")
+	line := onlyOutcomeEntry(t, sink, msgOutcomeUnknown)
 	require.Equal(t, slog.LevelWarn, line.Level)
 	require.Equal(t, []string{
 		"status", "count", "version", "transaction_status", "total_duration_ms", "error",
@@ -212,10 +197,10 @@ func TestFinishCommittedVersionUnreadable(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, outcomeCommitted, res.Outcome)
 
-	line := onlyOutcomeEntry(t, sink, "committed database migrations")
+	line := onlyOutcomeEntry(t, sink, msgOutcomeCommitted)
 	require.Equal(t, 3, entryField(line, "to_version"))
 	require.Equal(t, xactUnknown, entryField(line, "transaction_status"))
-	onlyOutcomeEntry(t, sink, "database migration progress details unavailable")
+	onlyOutcomeEntry(t, sink, msgObserverFailed)
 }
 
 func TestSafeErrorText(t *testing.T) {

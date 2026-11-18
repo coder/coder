@@ -77,7 +77,7 @@ func GetMigrationsHash() string {
 }
 
 // setup prepares a migration run over migs, or the embedded migrations when
-// migs is nil. A nil reporter reports nothing.
+// migs is nil.
 func setup(db *sql.DB, migs fs.FS, r *reporter) (source.Driver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
@@ -96,9 +96,7 @@ func setup(db *sql.DB, migs fs.FS, r *reporter) (source.Driver, *migrate.Migrate
 		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	if r != nil {
-		r.source = sourceDriver
-	}
+	r.source = sourceDriver
 	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db, reporter: r, phase: phaseBatch}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
@@ -147,11 +145,7 @@ func WithFS(fsys fs.FS) Option {
 	}
 }
 
-// WithLogger writes the progress of the migrations to logger: waits for the
-// migration lock, each migration as it is applied, and a heartbeat every 10
-// seconds while a wait or a migration lasts. The migration connection is
-// named coder-migrate/<version> in pg_stat_activity. Without it, migrations
-// report nothing.
+// WithLogger logs the progress of the migrations to logger.
 func WithLogger(logger slog.Logger) Option {
 	return func(o *upOptions) {
 		o.logger = &logger
@@ -167,7 +161,7 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 	r := newReporter(db, o)
 	_, m, err := setup(db, o.fs, r)
 	if err != nil {
-		r.close()
+		r.cancel()
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
 	defer func() {
@@ -182,19 +176,22 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 		retErr = srcErr
 	}()
 
+	r.upStart = r.clock.Now()
 	err = m.Up()
+	r.cancel()
 	if errors.Is(err, migrate.ErrNoChange) {
 		// It's OK if no changes happened!
 		err = nil
 	}
-
 	_, err = r.finish(err)
 	return err
 }
 
 // Down runs all down SQL migrations.
 func Down(db *sql.DB) error {
-	_, m, err := setup(db, migrations, nil)
+	r := newReporter(db, upOptions{})
+	defer r.cancel()
+	_, m, err := setup(db, migrations, r)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -216,7 +213,9 @@ func Down(db *sql.DB) error {
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
-	sourceDriver, m, err := setup(db, migrations, nil)
+	r := newReporter(db, upOptions{})
+	defer r.cancel()
+	sourceDriver, m, err := setup(db, migrations, r)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -282,14 +281,17 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 // Stepper cannot be closed pre-emptively, it must be run to completion
 // (or until an error is encountered).
 func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
-	_, m, err := setup(db, migrations, nil)
+	r := newReporter(db, upOptions{})
+	_, m, err := setup(db, migrations, r)
 	if err != nil {
+		r.cancel()
 		return nil, xerrors.Errorf("migrate setup: %w", err)
 	}
 
 	return func() (version uint, more bool, err error) {
 		defer func() {
 			if !more {
+				r.cancel()
 				srcErr, dbErr := m.Close()
 				if err != nil {
 					return

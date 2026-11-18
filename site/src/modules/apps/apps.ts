@@ -18,7 +18,8 @@ type SessionTokenHandler = {
 	path: string;
 };
 
-// The only deep-link handlers that may receive the session token.
+// The only deep-link handlers that may receive the session token. Keep in
+// sync with sessionTokenHandlers in cli/open.go.
 const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
 	...[
 		"vscode",
@@ -203,6 +204,9 @@ export const isSessionTokenLinkBlocked = (
  * True when the link opens a known Coder handler, its only `url` param is this
  * deployment (the current origin or `accessUrl`), and the placeholder is its
  * only `token`.
+ *
+ * `coder open app` mirrors this check in cli/open.go. Add cases to
+ * sessionTokenDestinationCases.json, which both test suites run.
  */
 export const isSessionTokenDestinationTrusted = (
 	appUrl: string,

@@ -15,15 +15,23 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// inlineImageCapFor returns the provider's inline image cap. Fails
-// the test if the provider has no documented cap.
-func inlineImageCapFor(t *testing.T, provider string) int {
+// routedModel returns a model whose requests reach the configured
+// provider through the transport client.
+func routedModel(transport, provider string) chatprovider.Model {
+	return chatprovider.NewModel(&chattest.FakeModel{ProviderName: transport, ModelName: "model"}, nil).
+		WithConfiguredProvider(provider)
+}
+
+// inlineImageCapFor returns the route's inline image cap. Fails the
+// test if the route has no documented cap.
+func inlineImageCapFor(t *testing.T, model chatprovider.Model) int {
 	t.Helper()
-	imageCap, ok := chatprovider.InlineImageCapBytes(provider)
-	require.Truef(t, ok, "expected provider %q to have an inline image cap", provider)
+	imageCap, ok := model.InlineImageCapBytes()
+	require.Truef(t, ok, "expected route %q/%q to have an inline image cap", model.RouteProvider(), model.Provider())
 	return imageCap
 }
 
@@ -34,10 +42,11 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 	t.Parallel()
 
 	// Computed so the table tracks any future cap retune.
-	anthropicCap := inlineImageCapFor(t, "anthropic")
+	anthropicCap := inlineImageCapFor(t, routedModel("anthropic", "anthropic"))
 
 	tests := []struct {
 		name             string
+		transport        string
 		provider         string
 		mimetype         string
 		size             int
@@ -46,6 +55,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 	}{
 		{
 			name:             "OversizedAnthropicPNG_Rejected",
+			transport:        "anthropic",
 			provider:         "anthropic",
 			mimetype:         "image/png",
 			size:             anthropicCap + 1,
@@ -54,6 +64,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "OversizedAnthropicJPEG_Rejected",
+			transport:        "anthropic",
 			provider:         "anthropic",
 			mimetype:         "image/jpeg",
 			size:             anthropicCap + 1024,
@@ -65,6 +76,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 			// Anthropic's docs say "5 MB maximum" without
 			// specifying inclusivity, so reject strictly.
 			name:             "AtLimitAnthropicImage_Rejected",
+			transport:        "anthropic",
 			provider:         "anthropic",
 			mimetype:         "image/png",
 			size:             anthropicCap,
@@ -73,6 +85,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "JustUnderLimitAnthropicImage_Accepted",
+			transport:        "anthropic",
 			provider:         "anthropic",
 			mimetype:         "image/png",
 			size:             anthropicCap - 1,
@@ -81,6 +94,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "UndersizedAnthropicImage_Accepted",
+			transport:        "anthropic",
 			provider:         "anthropic",
 			mimetype:         "image/png",
 			size:             1024,
@@ -88,8 +102,9 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 			expectProviderID: "anthropic",
 		},
 		{
-			// Bedrock reuses Anthropic's cap.
+			// Bedrock Claude models use the Anthropic transport and its cap.
 			name:             "OversizedBedrockPNG_Rejected",
+			transport:        "anthropic",
 			provider:         "bedrock",
 			mimetype:         "image/png",
 			size:             anthropicCap + 1,
@@ -97,7 +112,19 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 			expectProviderID: "bedrock",
 		},
 		{
+			// Other Bedrock models use the OpenAI transport, which has
+			// no inline image cap.
+			name:             "OversizedBedrockOpenAIPNG_Accepted",
+			transport:        "openai",
+			provider:         "bedrock",
+			mimetype:         "image/png",
+			size:             anthropicCap + 1,
+			expectReject:     false,
+			expectProviderID: "bedrock",
+		},
+		{
 			name:             "OversizedOpenAIImage_Accepted",
+			transport:        "openai",
 			provider:         "openai",
 			mimetype:         "image/png",
 			size:             anthropicCap + 1,
@@ -106,6 +133,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "OversizedAnthropicText_Accepted",
+			transport:        "anthropic",
 			provider:         "anthropic",
 			mimetype:         "text/plain",
 			size:             anthropicCap + 1,
@@ -114,6 +142,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "ProviderMixedCase_Rejected",
+			transport:        "anthropic",
 			provider:         "Anthropic",
 			mimetype:         "image/png",
 			size:             anthropicCap + 1,
@@ -122,6 +151,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "ProviderAllCaps_Rejected",
+			transport:        "anthropic",
 			provider:         "ANTHROPIC",
 			mimetype:         "image/png",
 			size:             anthropicCap + 1,
@@ -130,6 +160,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 		{
 			name:             "ProviderPaddedWhitespace_Rejected",
+			transport:        "anthropic",
 			provider:         "  anthropic  ",
 			mimetype:         "image/png",
 			size:             anthropicCap + 1,
@@ -170,7 +201,8 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 				Return([]database.ChatFile{row}, nil).
 				Times(1)
 
-			resolver := server.chatFileResolver(tc.provider)
+			model := routedModel(tc.transport, tc.provider)
+			resolver := server.chatFileResolver(model)
 			got, err := resolver(ctx, []uuid.UUID{fileID})
 
 			if tc.expectReject {
@@ -187,7 +219,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 				// the wrapped developer error.
 				displayName := chatprovider.ProviderDisplayName(tc.expectProviderID)
 				require.Contains(t, classified.Message, displayName)
-				imageCap := inlineImageCapFor(t, tc.expectProviderID)
+				imageCap := inlineImageCapFor(t, model)
 				//nolint:gosec // imageCap is a small positive constant defined in chatprovider.
 				require.Contains(t, classified.Message, humanize.IBytes(uint64(imageCap)))
 				require.NotContains(
@@ -218,7 +250,8 @@ func TestChatFileResolver_MultiFileFailsFastOnFirstOversized(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	server := &Server{db: db}
 
-	anthropicCap := inlineImageCapFor(t, "anthropic")
+	anthropicModel := routedModel("anthropic", "anthropic")
+	anthropicCap := inlineImageCapFor(t, anthropicModel)
 	// Shared buffer; ok files take small prefixes.
 	buf := make([]byte, anthropicCap+1)
 	okFileA := database.ChatFile{
@@ -246,7 +279,7 @@ func TestChatFileResolver_MultiFileFailsFastOnFirstOversized(t *testing.T) {
 		Return([]database.ChatFile{okFileA, oversized, okFileB}, nil).
 		Times(1)
 
-	resolver := server.chatFileResolver("anthropic")
+	resolver := server.chatFileResolver(anthropicModel)
 	got, err := resolver(ctx, ids)
 	require.Error(t, err)
 	require.Nil(t, got)
@@ -274,7 +307,7 @@ func TestChatFileResolver_PropagatesDBError(t *testing.T) {
 		Return(nil, sentinel).
 		Times(1)
 
-	resolver := server.chatFileResolver("anthropic")
+	resolver := server.chatFileResolver(routedModel("anthropic", "anthropic"))
 	got, err := resolver(ctx, []uuid.UUID{fileID})
 	require.ErrorIs(t, err, sentinel)
 	require.Nil(t, got)
@@ -294,7 +327,7 @@ func TestChatFileResolver_UnknownProviderSkipsCapCheck(t *testing.T) {
 	// Exactly 1 byte above the Anthropic cap is enough to prove
 	// the backstop is skipped for uncapped providers; no need to
 	// allocate tens of MiB in CI.
-	overAnyCap := inlineImageCapFor(t, "anthropic") + 1
+	overAnyCap := inlineImageCapFor(t, routedModel("anthropic", "anthropic")) + 1
 	row := database.ChatFile{
 		ID:       fileID,
 		Name:     "huge.png",
@@ -306,7 +339,7 @@ func TestChatFileResolver_UnknownProviderSkipsCapCheck(t *testing.T) {
 		Return([]database.ChatFile{row}, nil).
 		Times(1)
 
-	resolver := server.chatFileResolver("openrouter")
+	resolver := server.chatFileResolver(routedModel("openai-compat", "openrouter"))
 	got, err := resolver(ctx, []uuid.UUID{fileID})
 	require.NoError(t, err)
 	require.Contains(t, got, fileID)
