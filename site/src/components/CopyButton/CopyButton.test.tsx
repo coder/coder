@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { onTestFinished } from "vitest";
 import { renderComponent } from "#/testHelpers/renderHelpers";
@@ -27,6 +27,8 @@ describe("CopyButton", () => {
 			(user: UserEvent) =>
 				user.pointer({ keys: "[MouseLeft]", target: document.body }),
 		],
+		// fireEvent, because user.click sends pointerdown first.
+		["click", async () => fireEvent.click(document.body)],
 	])("keeps the confirmation until the user's next %s", async (_, dismiss) => {
 		vi.useFakeTimers();
 		onTestFinished(() => {
@@ -42,9 +44,15 @@ describe("CopyButton", () => {
 		);
 
 		act(() => vi.advanceTimersByTime(60_000));
+		await user.keyboard("{Shift}");
 		expect(status).toHaveTextContent("Copied");
 
 		await dismiss(user);
 		expect(status).toBeEmptyDOMElement();
+
+		await user.click(
+			screen.getByRole("button", { name: "Copy workspace name" }),
+		);
+		await vi.waitFor(() => expect(status).toHaveTextContent("Copied"));
 	});
 });
