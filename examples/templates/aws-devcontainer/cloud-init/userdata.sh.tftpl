@@ -1,4 +1,8 @@
 #!/bin/bash
+# Disable apt download retries before anything runs apt, including the Docker
+# install script. Retries are the attack path for CVE-2026-109518.
+echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-coder-disable-retries
+
 # Install Docker
 if ! command -v docker &> /dev/null
 then

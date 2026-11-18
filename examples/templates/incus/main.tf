@@ -130,6 +130,10 @@ resource "coder_script" "packages" {
   script       = <<-EOF
     #!/bin/bash
     set -e
+    # Disable apt download retries, the attack path for CVE-2026-109518.
+    # Cloud-init writes this file only on an instance's first boot, so
+    # write it again on every start.
+    echo 'Acquire::Retries "0";' | sudo tee /etc/apt/apt.conf.d/99-coder-disable-retries >/dev/null
     PACKAGES=(docker.io)
     MISSING=()
     for pkg in "$${PACKAGES[@]}"; do
@@ -194,6 +198,12 @@ users:
     shell: /bin/bash
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
 write_files:
+  # Disable apt download retries before runcmd runs apt. Retries are the
+  # attack path for CVE-2026-109518.
+  - path: /etc/apt/apt.conf.d/99-coder-disable-retries
+    permissions: "0644"
+    content: |
+      Acquire::Retries "0";
   # Pre-start script that reads the agent token and URL from the Incus guest
   # API (/dev/incus/sock) and writes them to an env file. This runs as a
   # separate oneshot unit (coder-agent-config.service) before the agent starts,

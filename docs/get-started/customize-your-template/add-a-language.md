@@ -782,6 +782,10 @@ has_language() {
   esac
 }
 
+# Disable apt download retries before anything runs apt, including the
+# NodeSource setup script. Retries are the attack path for CVE-2026-109518.
+echo 'Acquire::Retries "0";' | sudo tee /etc/apt/apt.conf.d/99-coder-disable-retries >/dev/null
+
 # ...existing language branches...
 
 if has_language ruby; then
