@@ -131,20 +131,21 @@ const ContextResourceGroup: React.FC<ContextResourceGroupProps> = ({
 type ContextResourceTreeDirectoryProps = {
 	className?: string;
 	dir: string;
+	icon?: LucideIcon;
 	children: React.ReactNode;
 };
 
 /** Omits the directory level for resources without a parent path. */
 export const ContextResourceTreeDirectory: React.FC<
 	ContextResourceTreeDirectoryProps
-> = ({ dir, children, className }) =>
+> = ({ dir, icon = FolderIcon, children, className }) =>
 	dir ? (
 		<ContextResourceGroup
 			kind="directory"
 			className={className}
 			header={
 				<ContextResourceRow
-					icon={FolderIcon}
+					icon={icon}
 					name={dir}
 					title={dir}
 					appearance="path"
