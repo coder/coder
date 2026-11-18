@@ -37,6 +37,9 @@ type SkillMetadata struct {
 // content.
 type Skill struct {
 	SkillMetadata
+	// Content is the SKILL.md file, with its `disable-model-invocation`
+	// frontmatter key set to agree with `model_invocable`. A stored file whose
+	// key the server cannot set, such as a list, is returned unchanged.
 	Content string `json:"content"`
 }
 
@@ -44,7 +47,9 @@ type Skill struct {
 type CreateSkillRequest struct {
 	// Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	// frontmatter must include name, may include description, and must be
-	// followed by a non-empty body.
+	// followed by a non-empty body. A `disable-model-invocation` key must
+	// hold a value the server can replace with true or false, so a list is
+	// rejected.
 	Content string `json:"content"`
 	// Action is only accepted for project skills and defaults to false.
 	Action *bool `json:"action,omitempty"`
@@ -62,11 +67,16 @@ type CreateSkillRequest struct {
 type UpdateSkillRequest struct {
 	// Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	// frontmatter must include name, may include description, and must be
-	// followed by a non-empty body.
+	// followed by a non-empty body. A `disable-model-invocation` key must
+	// hold a value the server can replace with true or false, so a list is
+	// rejected.
 	Content *string `json:"content,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
 	// Action is only accepted for project skills.
-	Action         *bool `json:"action,omitempty"`
+	Action *bool `json:"action,omitempty"`
+	// ModelInvocable is left unchanged when unset, unless the new content
+	// frontmatter sets `disable-model-invocation` to a boolean: true turns it
+	// off and false turns it on.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
 	// DisplayName is only accepted for project skills. An empty value
 	// clears it.

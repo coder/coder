@@ -701,13 +701,11 @@ export const AIProviderTypes: AIProviderType[] = [
  */
 export interface AISpendPeriodWindow {
 	/**
-	 * PeriodStart is the inclusive lower bound of the current budget
-	 * period.
+	 * PeriodStart is the inclusive lower bound of the applied period.
 	 */
 	readonly period_start: string;
 	/**
-	 * PeriodEnd is the exclusive upper bound of the current budget
-	 * period.
+	 * PeriodEnd is the exclusive upper bound of the applied period.
 	 */
 	readonly period_end: string;
 }
@@ -4778,7 +4776,9 @@ export interface CreateSkillRequest {
 	/**
 	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * followed by a non-empty body. A `disable-model-invocation` key must
+	 * hold a value the server can replace with true or false, so a list is
+	 * rejected.
 	 */
 	readonly content: string;
 	/**
@@ -10231,6 +10231,11 @@ export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
  * content.
  */
 export interface Skill extends SkillMetadata {
+	/**
+	 * Content is the SKILL.md file, with its `disable-model-invocation`
+	 * frontmatter key set to agree with `model_invocable`. A stored file whose
+	 * key the server cannot set, such as a list, is returned unchanged.
+	 */
 	readonly content: string;
 }
 
@@ -11164,6 +11169,55 @@ export interface TransitionStats {
 	readonly P95: number | null;
 }
 
+// From codersdk/aimodelprices.go
+/**
+ * UnpricedAIModel is a requested model with token usage recorded without a
+ * price on one provider, and without a price now.
+ */
+export interface UnpricedAIModel {
+	/**
+	 * ProviderName is the name of the configured provider.
+	 */
+	readonly provider_name: string;
+	/**
+	 * ProviderDisplayName falls back to the provider name when unset.
+	 */
+	readonly provider_display_name: string;
+	/**
+	 * ProviderIcon is empty when the provider has no configured icon.
+	 */
+	readonly provider_icon: string;
+	/**
+	 * ProviderType is the type of the configured provider.
+	 */
+	readonly provider_type: AIProviderType;
+	/**
+	 * Model is the model the client requested.
+	 */
+	readonly model: string;
+	/**
+	 * TokenCount is the number of tokens used without a price in the period.
+	 */
+	readonly token_count: number;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * UnpricedAIModels lists the models with token usage recorded without a price
+ * in the organization over the applied period. Only models without a price now
+ * are listed.
+ */
+export interface UnpricedAIModels extends AISpendPeriodWindow {
+	/**
+	 * Count is the number of models listed.
+	 */
+	readonly count: number;
+	/**
+	 * Models are ordered by unpriced token count, highest first.
+	 */
+	readonly models: readonly UnpricedAIModel[];
+}
+
 // From codersdk/aiproviders.go
 /**
  * UpdateAIProviderRequest is the payload for partially updating an
@@ -11604,7 +11658,9 @@ export interface UpdateSkillRequest {
 	/**
 	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * followed by a non-empty body. A `disable-model-invocation` key must
+	 * hold a value the server can replace with true or false, so a list is
+	 * rejected.
 	 */
 	readonly content?: string;
 	readonly enabled?: boolean;
@@ -11612,6 +11668,11 @@ export interface UpdateSkillRequest {
 	 * Action is only accepted for project skills.
 	 */
 	readonly action?: boolean;
+	/**
+	 * ModelInvocable is left unchanged when unset, unless the new content
+	 * frontmatter sets `disable-model-invocation` to a boolean: true turns it
+	 * off and false turns it on.
+	 */
 	readonly model_invocable?: boolean;
 	/**
 	 * DisplayName is only accepted for project skills. An empty value
