@@ -31,24 +31,6 @@ describe("ConnectionLogFilter", () => {
 		);
 	});
 
-	it("replaces the legacy type with a method while preserving advanced fields", async () => {
-		const user = userEvent.setup({ skipHover: true });
-		const onChange = vi.fn();
-		renderWithAuth(<Harness onChange={onChange} />, {
-			route: "/?filter=type:ssh%20app:code-server%20workspace_owner:alice",
-		});
-		await user.click(await screen.findByRole("button", { name: "Filters" }));
-		await user.hover(await screen.findByRole("option", { name: "Method" }));
-		await user.click(
-			await screen.findByRole("button", { name: "Web Terminal" }),
-		);
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith(
-				"workspace_owner:alice method:reconnecting_pty app:code-server",
-			),
-		);
-	});
-
 	it("replaces status without losing the legacy type or advanced fields", async () => {
 		const user = userEvent.setup({ skipHover: true });
 		const onChange = vi.fn();

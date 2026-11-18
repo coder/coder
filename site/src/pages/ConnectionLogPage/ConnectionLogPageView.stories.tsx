@@ -143,17 +143,24 @@ export const DeprecatedType: Story = {
 	},
 };
 
+const mockInvalidFilterError = mockApiError({
+	message: "Invalid connection log search query.",
+	validations: [
+		{ field: "status", detail: "Status must be ongoing or completed." },
+	],
+});
+
 export const InvalidFilter: Story = {
 	args: {
-		...ConnectionLog.args,
+		connectionLogs: undefined,
+		connectionLogsQuery: mockInitialRenderResult,
+		error: mockInvalidFilterError,
 		filterProps: {
-			...defaultFilterProps,
-			error: mockApiError({
-				message: "Invalid connection log search query.",
-				validations: [
-					{ field: "status", detail: "Status must be ongoing or completed." },
-				],
+			...getDefaultFilterProps<FilterProps>({
+				query: "status:invalid",
+				values: { status: "invalid" },
 			}),
+			error: mockInvalidFilterError,
 		},
 	},
 };
