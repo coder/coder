@@ -3465,7 +3465,7 @@ export const EditInFlightShowsDraftWorkspaceUpload: Story = {
 		await canvas.findByRole("button", { name: "Remove archive.zip" });
 		await userEvent.click(canvas.getByRole("button", { name: "Edit message" }));
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Save Edit" }),
+			await canvas.findByRole("button", { name: "Save edit" }),
 		);
 		await canvas.findByRole("button", { name: "Remove archive.zip" });
 	},

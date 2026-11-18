@@ -621,7 +621,7 @@ describe("ChatPageInput", () => {
 				editingTarget: { kind: "history", id: 1 },
 			});
 			await user.click(
-				await screen.findByRole("button", { name: "Save Edit" }),
+				await screen.findByRole("button", { name: "Save edit" }),
 			);
 			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
 			expect(onSend.mock.calls[1][0].workspaceUploads).toBeUndefined();
