@@ -8481,7 +8481,7 @@ own_chats AS (
     GROUP BY c.project_id
 )
 SELECT
-    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl,
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters,
     (pins.project_id IS NOT NULL)::boolean AS pinned,
     -- Numbered over the returned pins, so pins the user can no longer see
     -- leave no gaps.
@@ -8552,6 +8552,10 @@ func (q *sqlQuerier) GetChatProjectSummariesByUserID(ctx context.Context, arg Ge
 			&i.ChatProject.UpdatedAt,
 			&i.ChatProject.UserACL,
 			&i.ChatProject.GroupACL,
+			&i.ChatProject.LimitTemplates,
+			&i.ChatProject.DefaultTemplateID,
+			&i.ChatProject.DefaultTemplateVersionPresetID,
+			&i.ChatProject.DefaultParameters,
 			&i.Pinned,
 			&i.PinOrder,
 			&i.OwnChatCount,
