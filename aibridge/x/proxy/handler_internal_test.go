@@ -104,6 +104,21 @@ func (*failingStartRecorder) RecordInterception(context.Context, *recorder.Inter
 	return io.ErrClosedPipe
 }
 
+// cancelOnWrite simulates a client that disconnects mid-stream: its first
+// write cancels the client request with errClientGone and fails.
+type cancelOnWrite struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelCauseFunc
+}
+
+// errClientGone is the cancellation cause cancelOnWrite sets.
+var errClientGone = xerrors.New("client gone")
+
+func (w cancelOnWrite) Write([]byte) (int, error) {
+	w.cancel(errClientGone)
+	return 0, errClientGone
+}
+
 type blockingEndRecorder struct {
 	testutil.MockRecorder
 	started chan context.Context
@@ -819,7 +834,9 @@ func TestForwardingRecordsInterception(t *testing.T) {
 		transportError bool
 		readError      bool
 		abort          bool
-		statuses       []int
+		// cancel disconnects the client once response bytes reach it.
+		cancel   bool
+		statuses []int
 		// body is the upstream response body.
 		body        string
 		wantStatus  int
@@ -920,11 +937,23 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			wantMessage: io.ErrUnexpectedEOF.Error(),
 			wantHint:    utils.MaskSecret(userSecretKey),
 		},
+		{
+			name:       "ClientCanceled",
+			abort:      true,
+			cancel:     true,
+			statuses:   []int{http.StatusOK},
+			body:       "chunk",
+			wantStatus: http.StatusOK,
+			wantError:  recorder.ErrorTypeUnknown,
+			// The cancellation cause replaces errForwardingAborted.
+			wantMessage: errClientGone.Error(),
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var calls atomic.Int32
-			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tc.readError {
 					w.Header().Set("Content-Length", "100")
 				}
@@ -933,6 +962,11 @@ func TestForwardingRecordsInterception(t *testing.T) {
 					_, _ = io.WriteString(w, "chunk")
 				}
 				_, _ = io.WriteString(w, tc.body)
+				if tc.cancel {
+					// Keep the stream open until the client cancellation reaches upstream.
+					w.(http.Flusher).Flush()
+					<-r.Context().Done()
+				}
 			}))
 			t.Cleanup(upstream.Close)
 
@@ -960,13 +994,20 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			}
 
 			response := httptest.NewRecorder()
+			var w http.ResponseWriter = response
+			if tc.cancel {
+				ctx, cancel := context.WithCancelCause(req.Context())
+				t.Cleanup(func() { cancel(nil) })
+				req = req.WithContext(ctx)
+				w = cancelOnWrite{ResponseRecorder: response, cancel: cancel}
+			}
 			if tc.abort {
 				// Set ServerContextKey so ReverseProxy panics with ErrAbortHandler
-				// when it reads the truncated upstream body.
+				// when copying the upstream body fails.
 				req = req.WithContext(context.WithValue(req.Context(), http.ServerContextKey, &http.Server{ReadHeaderTimeout: codertestutil.WaitShort}))
-				require.PanicsWithValue(t, http.ErrAbortHandler, func() { h.ServeHTTP(response, req) })
+				require.PanicsWithValue(t, http.ErrAbortHandler, func() { h.ServeHTTP(w, req) })
 			} else {
-				h.ServeHTTP(response, req)
+				h.ServeHTTP(w, req)
 			}
 			require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
 			require.Equal(t, tc.wantStatus, response.Code)
