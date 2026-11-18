@@ -44,7 +44,7 @@ export const UserOrGroupAutocomplete: React.FC<
 	onChange,
 	organizationId,
 	exclude,
-	className = "w-80",
+	className = "w-full sm:w-80",
 	id,
 	triggerAriaLabelledBy,
 	triggerRef,

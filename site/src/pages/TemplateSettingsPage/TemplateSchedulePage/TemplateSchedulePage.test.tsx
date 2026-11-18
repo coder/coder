@@ -17,6 +17,13 @@ import {
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
 import TemplateSchedulePage from "./TemplateSchedulePage";
 
+beforeEach(() => {
+	vi.spyOn(API, "getInboxNotifications").mockResolvedValue({
+		notifications: [],
+		unread_count: 0,
+	});
+});
+
 const validFormValues: TemplateScheduleFormValues = {
 	default_ttl_ms: 1,
 	activity_bump_ms: 1,
@@ -86,7 +93,7 @@ const fillAndSubmitForm = async ({
 
 	if (time_til_dormant_ms) {
 		const inactivityTtlField = screen.getByRole("switch", {
-			name: /Dormancy Threshold/i,
+			name: /Dormancy threshold/i,
 		});
 		await user.click(inactivityTtlField);
 	}
