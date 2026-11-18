@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
@@ -94,14 +94,24 @@ it("adds no description to the focused trigger when the label fits", async () =>
 	expect(trigger).toHaveAccessibleDescription("");
 });
 
-it("shows a truncated option's full label while it is highlighted", async () => {
+it("dismisses a truncated option's tooltip, then the dropdown, with Escape", async () => {
 	const user = userEvent.setup();
-	renderLongLabelFilter(200);
+	const trigger = renderLongLabelFilter(200);
 
 	await user.tab();
 	await user.keyboard("{Enter}");
-	await screen.findByRole("option", { name: longOption.label });
 	expect(await screen.findByRole("tooltip")).toHaveTextContent(
 		longOption.label,
 	);
+
+	await user.keyboard("{Escape}");
+	await waitFor(() => {
+		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+	});
+	expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+	await user.keyboard("{Escape}");
+	await waitFor(() => {
+		expect(trigger).toHaveAttribute("aria-expanded", "false");
+	});
 });

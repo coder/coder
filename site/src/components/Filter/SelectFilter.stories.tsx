@@ -98,7 +98,7 @@ const mockLongOption: SelectFilterOption = {
 	value: "long-option",
 };
 
-export const LongLabels: Story = {
+export const LongOptionHighlighted: Story = {
 	args: {
 		options: [mockLongOption, ...options.slice(0, 3)],
 		selectedOption: mockLongOption,
@@ -111,10 +111,14 @@ export const LongLabels: Story = {
 			</div>
 		),
 	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+	},
 };
 
-export const LongLabelTooltip: Story = {
-	...LongLabels,
+export const TruncatedTriggerFocused: Story = {
+	...LongOptionHighlighted,
 	play: async () => {
 		await userEvent.tab();
 	},

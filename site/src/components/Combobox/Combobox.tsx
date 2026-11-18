@@ -92,6 +92,7 @@ export const ComboboxButton = ({
 	ref,
 	...props
 }: ComboboxButtonProps) => {
+	const { open: isPopoverOpen } = useCombobox();
 	const labelRef = useRef<HTMLSpanElement>(null);
 	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 	const label = selectedOption?.label ?? placeholder;
@@ -106,7 +107,7 @@ export const ComboboxButton = ({
 				const span = labelRef.current;
 				setIsTooltipOpen(
 					open &&
-						props["aria-expanded"] !== true &&
+						!isPopoverOpen &&
 						span !== null &&
 						span.scrollWidth > span.clientWidth,
 				);
@@ -237,11 +238,15 @@ export const ComboboxItem = ({
 
 const ComboboxItemHighlightContext = createContext(false);
 
+type ComboboxItemLabelProps = {
+	children: string;
+};
+
 /**
  * Single-line option label that shows its full text in a tooltip while the
  * option is highlighted, by pointer or arrow keys, and the text is truncated.
  */
-export const ComboboxItemLabel: React.FC<{ children: string }> = ({
+export const ComboboxItemLabel: React.FC<ComboboxItemLabelProps> = ({
 	children,
 }) => {
 	const isHighlighted = useContext(ComboboxItemHighlightContext);
@@ -259,7 +264,16 @@ export const ComboboxItemLabel: React.FC<{ children: string }> = ({
 	}, [isHighlighted]);
 
 	return (
-		<Tooltip open={isTooltipOpen}>
+		<Tooltip
+			open={isTooltipOpen}
+			// Escape reaches the tooltip before the popover, so honor its close
+			// request. The next Escape then closes the popover.
+			onOpenChange={(open) => {
+				if (!open) {
+					setIsTooltipOpen(false);
+				}
+			}}
+		>
 			<TooltipTrigger asChild>
 				<span ref={labelRef} className="min-w-0 flex-1 truncate">
 					{children}
