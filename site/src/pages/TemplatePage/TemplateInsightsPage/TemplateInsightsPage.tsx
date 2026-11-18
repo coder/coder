@@ -277,7 +277,7 @@ const ActiveUsersPanel: React.FC<ActiveUsersPanelProps> = ({
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
-					{interval === "day" ? "Daily" : "Weekly"} Active Users
+					{interval === "day" ? "Daily" : "Weekly"} active users
 					<InfoTooltip size="small">
 						<TooltipTitle>How do we calculate active users?</TooltipTitle>
 						<TooltipMessage>
@@ -423,7 +423,7 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
-					App & IDE Usage
+					App & IDE usage
 					<InfoTooltip size="small">
 						<TooltipTitle>How is app usage calculated?</TooltipTitle>
 						<TooltipMessage>
