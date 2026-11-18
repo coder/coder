@@ -8,9 +8,6 @@ go 1.26.10
 // See: https://github.com/kylecarbs/chroma/commit/9e036e0631f38ef60de5ee8eec7a42e9cb7da423
 replace github.com/alecthomas/chroma/v2 => github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3
 
-// Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
-replace github.com/hashicorp/terraform-config-inspect => github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e
-
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
@@ -235,7 +232,7 @@ require (
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/hc-install v0.9.4
-	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
+	github.com/hashicorp/terraform-config-inspect v0.0.0-20260904064934-75d64de68c31
 	github.com/hashicorp/terraform-json v0.29.0
 	github.com/hashicorp/yamux v0.1.2
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02

@@ -6,6 +6,7 @@ import (
 	"log"
 	"testing"
 
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -623,6 +624,72 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNew_TerraformStacks(t *testing.T) {
+	t.Parallel()
+
+	// Terraform ignores Stacks files when it loads a module, so they must not
+	// contribute to, or break, the parsed module.
+	t.Run("StacksFilesIgnored", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		err := tfparse.WriteArchive(testutil.CreateTar(t, map[string]string{
+			"main.tf": `
+				variable "region" {
+					type    = string
+					default = "us"
+				}`,
+			"x.tfcomponent.hcl": `
+				required_providers {
+					coder = {
+						source = "coder/coder"
+					}
+				}
+				variable "component_only" {
+					type = string
+				}
+				component "a" {
+					source = "./m"
+				}`,
+			"y.tfstack.hcl": `
+				variable "stack_only" {
+					type = string
+				}`,
+		}), "application/x-tar", tmpDir)
+		require.NoError(t, err)
+
+		parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(testutil.Logger(t)))
+		require.Empty(t, diags)
+
+		variables, err := parser.TemplateVariables()
+		require.NoError(t, err)
+		require.Len(t, variables, 1)
+		require.Equal(t, "region", variables[0].Name)
+	})
+
+	// tfconfig panics on a Stacks block in a module file. Callers do not
+	// recover panics, so it must surface as an error diagnostic.
+	t.Run("ComponentBlockInModuleFile", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		err := tfparse.WriteArchive(testutil.CreateTar(t, map[string]string{
+			"main.tf": `
+				component "a" {
+					source = "./m"
+				}`,
+		}), "application/x-tar", tmpDir)
+		require.NoError(t, err)
+
+		var diags tfconfig.Diagnostics
+		require.NotPanics(t, func() {
+			_, diags = tfparse.New(tmpDir, tfparse.WithLogger(testutil.Logger(t)))
+		})
+		require.True(t, diags.HasErrors())
+		require.ErrorContains(t, diags.Err(), `unhandled block type "component"`)
+	})
 }
 
 // Last run results:

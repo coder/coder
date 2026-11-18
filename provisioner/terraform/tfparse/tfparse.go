@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"slices"
@@ -70,12 +71,48 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 
 	var diags tfconfig.Diagnostics
 	if p.module == nil {
-		m, ds := tfconfig.LoadModule(workdir)
+		m, ds := loadModule(workdir)
 		diags = ds
 		p.module = m
 	}
 
 	return &p, diags
+}
+
+// loadModule loads the Terraform module in workdir. It only exposes the files
+// Terraform loads for a module, and reports a panic in tfconfig as an error
+// diagnostic because callers do not recover panics.
+func loadModule(workdir string) (m *tfconfig.Module, diags tfconfig.Diagnostics) {
+	defer func() {
+		if r := recover(); r != nil {
+			m = tfconfig.NewModule(workdir)
+			diags = tfconfig.Diagnostics{{
+				Severity: tfconfig.DiagError,
+				Summary:  "Failed to load module",
+				Detail:   fmt.Sprintf("Unexpected error while parsing the module: %v", r),
+			}}
+		}
+	}()
+	return tfconfig.LoadModuleFromFilesystem(moduleFS{tfconfig.NewOsFs()}, workdir)
+}
+
+// moduleFS is a tfconfig.FS whose directory listings only contain the files
+// Terraform loads for a module: those ending in .tf or .tf.json, override
+// files included. tfconfig also reads Terraform Stacks files as module files,
+// panics on the Stacks-only blocks they contain, and may learn new suffixes.
+type moduleFS struct {
+	tfconfig.FS
+}
+
+func (f moduleFS) ReadDir(dirname string) ([]os.FileInfo, error) {
+	infos, err := f.FS.ReadDir(dirname)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(infos, func(info os.FileInfo) bool {
+		name := info.Name()
+		return !strings.HasSuffix(name, ".tf") && !strings.HasSuffix(name, ".tf.json")
+	}), nil
 }
 
 // WorkspaceTags looks for all coder_workspace_tags datasource in the module
