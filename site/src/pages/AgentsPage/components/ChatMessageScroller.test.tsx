@@ -175,9 +175,9 @@ const resize = async () => {
 	await nextFrames();
 };
 
-// Sends a message from a waiting chat and lets the stream store it and start
-// a long reply, as a turn does since the pending row anchors the scroller.
-const startTurnWithLongReply = async (
+// Sends from a waiting chat, then lets the stream store the message, stream a
+// long reply and end the turn.
+const runTurnWithLongReply = async (
 	beforeStreamStoresSend?: (viewport: HTMLElement) => void,
 ) => {
 	// The pending row has an ID chosen at the click, so it takes the 40px for
@@ -256,7 +256,7 @@ const startTurnWithLongReply = async (
 };
 
 it("holds a sent message at the top through a long reply after the stream replaces its pending row", async () => {
-	const { viewport, heldScrollTop } = await startTurnWithLongReply();
+	const { viewport, heldScrollTop } = await runTurnWithLongReply();
 
 	expect(viewport.scrollTop).toBe(heldScrollTop);
 	expect(
@@ -267,7 +267,7 @@ it("holds a sent message at the top through a long reply after the stream replac
 
 it("leaves the view where the reader scrolled before the stream replaces the pending row", async () => {
 	let scrolledTop = 0;
-	const { viewport } = await startTurnWithLongReply((viewport) => {
+	const { viewport } = await runTurnWithLongReply((viewport) => {
 		fireEvent.wheel(viewport, { deltaY: -400 });
 		viewport.scrollTop -= 400;
 		fireEvent.scroll(viewport);
