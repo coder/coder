@@ -520,8 +520,8 @@ function useMessageScrollerController({
         }
       }
 
-      // LOCAL CHANGE: a row that replaces the held one, as a stored message
-      // replaces its pending row while the reply starts, takes over the hold.
+      // LOCAL CHANGE: while the held element is detached, the first unhandled
+      // anchor takes the hold, as when a stored message replaces its pending row.
       const heldElement = streamingTurnRef.current
 
       if (
