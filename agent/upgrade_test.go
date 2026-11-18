@@ -162,7 +162,7 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 		{
 			name:    "UnexpectedDisconnect",
 			reason:  "process exited with error status: 1",
-			error:   "process exited with error status: 1",
+			error:   "Process exited with status 1",
 			write:   "exit 1\n",
 			rxBytes: wantSomeBytes,
 			code:    1,
@@ -228,7 +228,7 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 				if tc.error == "" {
 					require.NoError(t, err, "waiting for session to exit")
 				} else {
-					require.Error(t, err, tc.error)
+					require.ErrorContains(t, err, tc.error)
 				}
 			}
 
