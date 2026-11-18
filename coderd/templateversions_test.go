@@ -630,6 +630,72 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		}
 	})
 
+	t.Run("ClassicParameterFlowModuleSourceReference", func(t *testing.T) {
+		t.Parallel()
+		// Templates on the classic parameter flow read workspace tags with
+		// tfparse. It must accept a module source or version that references
+		// a const variable, which Terraform 1.15 and later allow.
+
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			UseClassicParameterFlow: new(true),
+		})
+		require.NoError(t, err)
+		require.True(t, template.UseClassicParameterFlow)
+
+		tarFile := testutil.CreateTar(t, map[string]string{
+			`main.tf`: `
+				variable "registry" {
+					type    = string
+					const   = true
+					default = "registry.example.com/acme"
+				}
+				variable "module_version" {
+					type    = string
+					const   = true
+					default = "1.2.3"
+				}
+				module "dotfiles" {
+					source  = "${var.registry}/dotfiles/coder"
+					version = var.module_version
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"registry" = var.registry
+					}
+				}`,
+		})
+		fi, err := client.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+		require.NoError(t, err)
+
+		tv, err := client.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          testutil.GetRandomNameHyphenated(t),
+			TemplateID:    template.ID,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			Provisioner:   codersdk.ProvisionerTypeTerraform,
+			FileID:        fi.ID,
+		})
+		require.NoError(t, err)
+
+		pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, map[string]string{
+			"registry": "registry.example.com/acme",
+			"owner":    "",
+			"scope":    "organization",
+		}, pj.Tags)
+	})
+
 	t.Run("Presets", func(t *testing.T) {
 		t.Parallel()
 		store, ps := dbtestutil.NewDB(t)
