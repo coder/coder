@@ -93,6 +93,37 @@ export const WithSearch: Story = {
 	},
 };
 
+const mockLongOption: SelectFilterOption = {
+	label: "Meridian Systems Engineering",
+	value: "long-option",
+};
+
+export const LongOptionHighlighted: Story = {
+	args: {
+		options: [mockLongOption, ...options.slice(0, 3)],
+		selectedOption: mockLongOption,
+		width: 150,
+	},
+	decorators: [
+		(Story) => (
+			<div className="flex w-40">
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+	},
+};
+
+export const TruncatedTriggerFocused: Story = {
+	...LongOptionHighlighted,
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
 export const LoadingOptions: Story = {
 	args: {
 		options: undefined,
