@@ -166,12 +166,8 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 				/>
 				<span className="min-w-0 max-w-104 flex-1 truncate">{chat.title}</span>
 				<span className="ml-auto flex shrink-0 items-center gap-3">
+					<ChatPRStateIcon chat={chat} />
 					{showCost && <ProjectChatCost chat={chat} />}
-					{/* Reserves the PR icon's column on every row so the cost badges
-					    line up whether or not a chat has a PR. */}
-					<span className="grid size-3.5 shrink-0 place-items-center">
-						<ChatPRStateIcon chat={chat} />
-					</span>
 				</span>
 			</Link>
 			<div className="grid size-7 shrink-0 place-items-center *:[grid-area:1/1]">
