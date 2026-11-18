@@ -91,6 +91,11 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Icon:           seed.Icon,
+
+		LimitTemplates:                 seed.LimitTemplates,
+		DefaultTemplateID:              seed.DefaultTemplateID,
+		DefaultTemplateVersionPresetID: seed.DefaultTemplateVersionPresetID,
+		DefaultParameters:              pqtype.NullRawMessage{RawMessage: seed.DefaultParameters, Valid: len(seed.DefaultParameters) > 0},
 	})
 	require.NoError(t, err, "insert chat project")
 	return project
@@ -108,6 +113,20 @@ func ChatProjectPin(t testing.TB, db database.Store, seed database.ChatProjectPi
 		err = db.PinChatProject(genCtx, database.PinChatProjectParams{UserID: seed.UserID, ProjectID: seed.ProjectID, ACLEnabled: true, PinOrder: sql.NullInt32{}})
 		require.NoError(t, err, "pin chat project")
 	}
+}
+
+// ChatProjectTemplate attaches a template to a chat project.
+func ChatProjectTemplate(t testing.TB, db database.Store, seed database.ChatProjectTemplate) database.ChatProjectTemplate {
+	t.Helper()
+
+	attached, err := db.InsertChatProjectTemplates(genCtx, database.InsertChatProjectTemplatesParams{
+		ProjectID:   seed.ProjectID,
+		TemplateIDs: []uuid.UUID{seed.TemplateID},
+		CreatedBy:   takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "attach chat project template")
+	require.Len(t, attached, 1, "template was already attached or is outside the project's organization")
+	return attached[0]
 }
 
 func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {

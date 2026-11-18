@@ -23,6 +23,7 @@ You can add instructions here
 \`\`\``;
 
 const defaultArgs: TemplateVersionPageViewProps = {
+	canUpdateTemplate: true,
 	organizationName: MockTemplate.organization_name,
 	templateName: MockTemplate.name,
 	versionName: MockTemplateVersion.name,
@@ -64,4 +65,8 @@ export const WithError: Story = {
 			message: "Error on loading the template version",
 		}),
 	},
+};
+
+export const ReadOnly: Story = {
+	args: { canUpdateTemplate: false, currentFiles: undefined },
 };

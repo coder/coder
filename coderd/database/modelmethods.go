@@ -152,6 +152,15 @@ func (i ChatProjectInstruction) Auditable(projectName string) AuditableChatProje
 	}
 }
 
+// AuditableChatProjectTemplates is the audit-log representation of the
+// templates attached to a chat project. Attachments are rows of their own,
+// so attaching or detaching one leaves the project row unchanged.
+type AuditableChatProjectTemplates struct {
+	ProjectID   uuid.UUID   `json:"project_id"`
+	ProjectName string      `json:"project_name"`
+	TemplateIDs []uuid.UUID `json:"template_ids"`
+}
+
 // Auditable returns an object that can be used in audit logs.
 // Covers both group and group member changes.
 func (g Group) Auditable(members []GroupMember) AuditableGroup {
@@ -213,6 +222,13 @@ func (p ChatProject) RBACObject() rbac.Object {
 }
 
 func (r GetChatProjectSummariesByUserIDRow) RBACObject() rbac.Object {
+	return r.ChatProject.RBACObject()
+}
+
+// RBACObject authorizes an attachment through its project. Access to the
+// attached template is a separate check, because an attachment never grants
+// access to its template.
+func (r GetChatProjectTemplatesByProjectIDsRow) RBACObject() rbac.Object {
 	return r.ChatProject.RBACObject()
 }
 
