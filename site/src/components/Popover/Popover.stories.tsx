@@ -63,7 +63,7 @@ export const NarrowViewport: Story = {
 				<PopoverTrigger asChild>
 					<Button>Click here!</Button>
 				</PopoverTrigger>
-				<PopoverContent align="start" className="w-[404px]">
+				<PopoverContent align="start" className="w-101">
 					{content}
 				</PopoverContent>
 			</Popover>

@@ -58,7 +58,11 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 			>
 				<Icon />
 			</TooltipTrigger>
-			<TooltipContent side={side} align="center" className="max-w-xs">
+			<TooltipContent
+				side={side}
+				align="center"
+				className="max-w-[min(20rem,var(--radix-popper-available-width))]"
+			>
 				{children}
 			</TooltipContent>
 		</Tooltip>

@@ -67,7 +67,7 @@ export const NarrowViewport: Story = {
 					<SelectValue placeholder="Select a login type" />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value="service-account" className="whitespace-normal">
+					<SelectItem value="service-account">
 						Service account: cannot log in interactively. Intended for automated
 						pipelines, bots, and other non-human access.
 					</SelectItem>
