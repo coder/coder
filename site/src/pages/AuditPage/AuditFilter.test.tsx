@@ -80,15 +80,15 @@ describe("AuditFilter", () => {
 	});
 
 	it.each([
-		["resource_type:", "Experiment Rule", "resource_type:experiment_rule"],
+		["resource_type:", "Experiment rule", "resource_type:experiment_rule"],
 		[
 			"resource_type:",
-			"Chat Instruction Settings",
+			"Chat instruction settings",
 			"resource_type:chat_instruction_settings",
 		],
 		[
 			"resource_type:",
-			"Chat Operational Settings",
+			"Chat operational settings",
 			"resource_type:chat_operational_settings",
 		],
 		["action:", "Create", "action:create"],

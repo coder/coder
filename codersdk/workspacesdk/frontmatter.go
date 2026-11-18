@@ -104,12 +104,22 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 // person can invoke it. Any other value, and content whose frontmatter
 // does not parse, leaves the skill model-invocable.
 func SkillDisablesModelInvocation(content string) bool {
+	disabled, _ := SkillDisableModelInvocationValue(content)
+	return disabled
+}
+
+// SkillDisableModelInvocationValue returns the value of
+// disable-model-invocation in a skill meta file's frontmatter. ok is false
+// when the key is absent or is not a YAML boolean, and when the frontmatter
+// does not parse. Stored skills use ok to tell false, which turns automatic
+// use back on, from a file that says nothing.
+func SkillDisableModelInvocationValue(content string) (disabled, ok bool) {
 	frontmatter, _, err := splitSkillFrontmatter(content)
 	if err != nil {
-		return false
+		return false, false
 	}
-	disabled, _ := frontmatter["disable-model-invocation"].(bool)
-	return disabled
+	disabled, ok = frontmatter["disable-model-invocation"].(bool)
+	return disabled, ok
 }
 
 // splitSkillFrontmatter decodes the YAML frontmatter of a skill meta file

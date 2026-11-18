@@ -543,7 +543,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 			className="flex h-full min-h-0 min-w-0 overflow-hidden"
 		>
 			{showTree && (
-				<aside className="h-full min-h-0 w-72 shrink-0 border-r">
+				<aside className="h-full min-h-0 w-72 shrink-0">
 					<DiffFileTree
 						files={sortedFiles}
 						activePath={activeFile}
