@@ -201,7 +201,15 @@
 	],
 	"openai": [
 		{
+			"modelIdentifier": "gpt-6.2-astra",
+			"reasoningEffort": "medium"
+		},
+		{
 			"modelIdentifier": "gpt-6-astra",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-6.2-sol",
 			"reasoningEffort": "medium"
 		},
 		{
@@ -254,7 +262,13 @@
 	],
 	"openrouter": [
 		{
+			"modelIdentifier": "openai/gpt-6.2-astra"
+		},
+		{
 			"modelIdentifier": "openai/gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6.2-sol"
 		},
 		{
 			"modelIdentifier": "openai/gpt-6.1-sol"
@@ -371,7 +385,13 @@
 	],
 	"vercel": [
 		{
+			"modelIdentifier": "openai/gpt-6.2-astra"
+		},
+		{
 			"modelIdentifier": "openai/gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6.2-sol"
 		},
 		{
 			"modelIdentifier": "openai/gpt-6.1-sol"

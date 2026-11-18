@@ -771,7 +771,7 @@ export const ImportSecretsParseError: Story = {
 		);
 		expect(dialog.getByText("Line 2 must contain KEY=VALUE.")).toBeVisible();
 		expect(dialog.queryByText("Response data")).not.toBeInTheDocument();
-		expect(dialog.queryByText("Stack Trace")).not.toBeInTheDocument();
+		expect(dialog.queryByText("Stack trace")).not.toBeInTheDocument();
 	},
 };
 

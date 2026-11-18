@@ -66,7 +66,7 @@ const TemplateSettingsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.canUpdateTemplate}>
-			<title>{pageTitle(template.name, "General Settings")}</title>
+			<title>{pageTitle(template.name, "General settings")}</title>
 
 			<TemplateSettingsPageView
 				isSubmitting={isSubmitting}

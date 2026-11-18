@@ -17,7 +17,7 @@ export const RolesHelpPopover: React.FC = () => {
 					target="_blank"
 					rel="noreferrer"
 				>
-					User Roles
+					User roles
 				</Link>
 			</TooltipMessage>
 		</InfoTooltip>
