@@ -2,13 +2,16 @@ import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { useChatOverviewCard } from "../hooks/useChatOverviewCard";
+import { getPersistedOverviewCardOpen } from "../utils/overviewCardStorage";
 import {
 	ChatOverviewCardLoadingRows,
 	ChatOverviewCardShell,
 	chatOverviewCardPositionClassName,
+	chatOverviewContainerClassName,
+	chatOverviewReserveClassName,
 } from "./ChatOverviewCardShell";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
+import { useEmbedContext } from "./EmbedContext";
 import {
 	RIGHT_PANEL_OPEN_KEY,
 	RIGHT_PANEL_WIDTH_KEY,
@@ -139,7 +142,7 @@ export const RightPanelSkeleton: React.FC = () => (
 	</div>
 );
 
-export const ChatOverviewCardSkeleton: React.FC<{ id: string }> = ({ id }) => (
+export const ChatOverviewCardSkeleton: React.FC<{ id?: string }> = ({ id }) => (
 	<ChatOverviewCardShell
 		id={id}
 		isLoading
@@ -178,17 +181,24 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 export const AgentChatPageSkeleton: React.FC = () => {
 	const rightPanel = getRightPanelState();
 	const [chatFullWidth] = useChatFullWidth();
-	const overviewCard = useChatOverviewCard(rightPanel.open);
+	const { isEmbedded } = useEmbedContext();
+	const isOverviewCardShown =
+		!rightPanel.open &&
+		!chatFullWidth &&
+		!isEmbedded &&
+		getPersistedOverviewCardOpen();
 
 	return (
 		<div
-			ref={overviewCard.chatRef}
-			className="relative flex h-full min-h-0 min-w-0 flex-1"
+			className={cn(
+				"relative flex h-full min-h-0 min-w-0 flex-1",
+				chatOverviewContainerClassName,
+			)}
 		>
 			<div
 				className={cn(
 					"relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
-					overviewCard.reserveClassName,
+					isOverviewCardShown && chatOverviewReserveClassName,
 				)}
 			>
 				<div className="relative z-10 flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -197,9 +207,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 					<div className="flex-1" />
 					<Skeleton className="size-7 rounded" />
 					<Skeleton className="size-7 rounded" />
-					{overviewCard.isCardShown && (
-						<ChatOverviewCardSkeleton id={overviewCard.cardId} />
-					)}
+					{isOverviewCardShown && <ChatOverviewCardSkeleton />}
 				</div>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden pr-[var(--chat-overview-reserve,0px)] scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">

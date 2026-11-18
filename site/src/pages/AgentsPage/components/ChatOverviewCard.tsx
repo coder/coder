@@ -24,7 +24,10 @@ import {
 	selectSubagentStatusOverrides,
 	useChatSelector,
 } from "./ChatConversation/chatStore";
-import { chatOverviewCardPositionClassName } from "./ChatOverviewCardShell";
+import {
+	chatOverviewCardPositionClassName,
+	chatOverviewHiddenWhenNarrowClassName,
+} from "./ChatOverviewCardShell";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
@@ -55,6 +58,7 @@ export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
 				className={cn(
 					"size-7 text-content-secondary hover:text-content-primary",
 					isOpen && "bg-surface-secondary text-content-primary",
+					chatOverviewHiddenWhenNarrowClassName,
 				)}
 				aria-label="Toggle overview"
 				aria-expanded={isOpen}

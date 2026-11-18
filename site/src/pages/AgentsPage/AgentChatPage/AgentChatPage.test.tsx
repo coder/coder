@@ -33,7 +33,6 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { MockSkill } from "#/testHelpers/skills";
 import {
 	createMockWebSocket,
@@ -108,38 +107,8 @@ const renderChatPage = (chat: Chat) =>
 		children: [{ path: ":agentId", element: <AgentChatPage /> }],
 	});
 
-/**
- * Lets the test set the chat width that the overview card measures. Call it
- * before rendering the page.
- */
-const stubChatWidth = () => {
-	MockResizeObserver.reset();
-	vi.stubGlobal("ResizeObserver", MockResizeObserver);
-	document.documentElement.style.fontSize = "16px";
-	return async (widthPx: number) => {
-		// The loading view observes the chat too, so wait for the loaded
-		// chat's transcript and look the observer up again on every try.
-		const chatObserver = () =>
-			MockResizeObserver.instances.findLast(
-				(observer) =>
-					observer.disconnect.mock.calls.length === 0 &&
-					observer.observe.mock.calls.some(
-						([element]) =>
-							element instanceof HTMLElement &&
-							element.contains(
-								screen.queryByRole("region", { name: "Messages" }),
-							),
-					),
-			);
-		await waitFor(() => expect(chatObserver()).toBeDefined());
-		act(() => chatObserver()?.simulateResize(widthPx));
-	};
-};
-
 afterEach(() => {
 	vi.restoreAllMocks();
-	vi.unstubAllGlobals();
-	document.documentElement.style.fontSize = "";
 	localStorage.clear();
 });
 
@@ -326,10 +295,8 @@ describe("AgentChatPage", () => {
 
 	it("shows the overview card in a new chat and keeps the toggle's choice", async () => {
 		mockChatPageApi(MockChat);
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		const firstPage = renderChatPage(MockChat);
-		await setChatWidth(1600);
 
 		await user.click(
 			await screen.findByRole("button", {
@@ -341,7 +308,6 @@ describe("AgentChatPage", () => {
 
 		firstPage.unmount();
 		renderChatPage(MockChat);
-		await setChatWidth(1600);
 		await screen.findByRole("button", {
 			name: "Toggle overview",
 			expanded: false,
@@ -351,10 +317,8 @@ describe("AgentChatPage", () => {
 	it("focuses a row's panel tab and hides the overview card while the panel is open", async () => {
 		const chat = { ...MockChat, diff_statuses: [MockChatDiffStatus] };
 		mockChatPageApi(chat);
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		renderChatPage(chat);
-		await setChatWidth(1600);
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",
@@ -373,20 +337,6 @@ describe("AgentChatPage", () => {
 		expect(localStorage.getItem(overviewCardOpenStorageKey)).toBeNull();
 	});
 
-	it("does not request the overview card's data in a narrow chat", async () => {
-		mockChatPageApi(MockChat);
-		mockOlderMessages();
-		const getChatAttachments = vi
-			.spyOn(API.experimental, "getChatAttachments")
-			.mockResolvedValue({ attachments: [] });
-		const setChatWidth = stubChatWidth();
-		renderChatPage(MockChat);
-
-		await setChatWidth(72 * 16 - 1);
-
-		expect(getChatAttachments).not.toHaveBeenCalled();
-	});
-
 	it("retries the overview card's earlier attachments after a failure", async () => {
 		mockChatPageApi(MockChat);
 		mockOlderMessages();
@@ -394,10 +344,8 @@ describe("AgentChatPage", () => {
 			.spyOn(API.experimental, "getChatAttachments")
 			.mockRejectedValueOnce(new Error("Failed to get chat attachments."))
 			.mockResolvedValueOnce({ attachments: [] });
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		renderChatPage(MockChat);
-		await setChatWidth(1600);
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",

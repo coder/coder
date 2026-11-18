@@ -5,9 +5,22 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 const OVERVIEW_CARD_MAX_HEIGHT = "36rem";
 const OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT = "calc(100vh - 6rem)";
 
+export const chatOverviewContainerClassName = "@container/chat";
+export const chatOverviewHiddenWhenNarrowClassName = "@max-[72rem]/chat:hidden";
+
 /** Places the card below the chat top bar, at the chat's right edge. */
-export const chatOverviewCardPositionClassName =
-	"absolute top-full right-4 z-20 mt-2";
+export const chatOverviewCardPositionClassName = cn(
+	"absolute top-full right-4 z-20 mt-2",
+	chatOverviewHiddenWhenNarrowClassName,
+);
+
+/**
+ * Apply while the card is open. Sets `--chat-overview-reserve`, the right
+ * padding the transcript and composer leave so the card does not cover them.
+ * From 84rem the centered transcript already clears the card.
+ */
+export const chatOverviewReserveClassName =
+	"@min-[72rem]/chat:@max-[84rem]/chat:[--chat-overview-reserve:18rem]";
 
 type ChatOverviewCardShellProps = React.PropsWithChildren<{
 	id?: string;
