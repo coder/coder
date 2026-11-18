@@ -8,6 +8,7 @@ import {
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { file, uploadFile } from "#/api/queries/files";
 import {
 	createTemplateVersion,
@@ -21,9 +22,15 @@ import type {
 	PatchTemplateVersionRequest,
 	TemplateVersion,
 } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import {
+	type TemplatePermissions,
+	templatePermissionChecks,
+} from "#/modules/permissions/templates";
 import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
 import { existsFile, type FileTree, traverse } from "#/utils/filetree";
 import { pageTitle } from "#/utils/page";
@@ -48,6 +55,13 @@ const TemplateVersionEditorPage: React.FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
+	const permissionsQuery = useQuery({
+		...checkAuthorization<TemplatePermissions>({
+			checks: templatePermissionChecks(templateQuery.data?.id ?? ""),
+		}),
+		enabled: Boolean(templateQuery.data),
+	});
+	const canUpdateTemplate = permissionsQuery.data?.canUpdateTemplate ?? false;
 	const templateVersionOptions = templateVersionByName(
 		organizationName,
 		templateName,
@@ -55,12 +69,15 @@ const TemplateVersionEditorPage: React.FC = () => {
 	);
 	const activeTemplateVersionQuery = useQuery({
 		...templateVersionOptions,
+		enabled: canUpdateTemplate,
 		placeholderData: keepPreviousData,
 		refetchInterval({ state }) {
 			return state.data?.job.status === "pending" ? 1_000 : false;
 		},
 	});
-	const { data: activeTemplateVersion } = activeTemplateVersionQuery;
+	const activeTemplateVersion = canUpdateTemplate
+		? activeTemplateVersionQuery.data
+		: undefined;
 	const uploadFileMutation = useMutation(uploadFile());
 	const createTemplateVersionMutation = useMutation(
 		createTemplateVersion(organizationName),
@@ -72,7 +89,12 @@ const TemplateVersionEditorPage: React.FC = () => {
 	const logs = useWatchVersionLogs(activeTemplateVersion, {
 		onDone: activeTemplateVersionQuery.refetch,
 	});
-	const { fileTree, setFileTree, tarFile } = useFileTree(activeTemplateVersion);
+	const {
+		fileTree,
+		setFileTree,
+		tarFile,
+		error: fileError,
+	} = useFileTree(activeTemplateVersion);
 	const {
 		missingVariables,
 		setIsMissingVariablesDialogOpen,
@@ -126,9 +148,28 @@ const TemplateVersionEditorPage: React.FC = () => {
 		}
 	}, [activeTemplateVersion?.job.tags]);
 
+	const error =
+		templateQuery.error ??
+		permissionsQuery.error ??
+		activeTemplateVersionQuery.error ??
+		fileError;
+	if (
+		error &&
+		(!templateQuery.data ||
+			!permissionsQuery.data ||
+			!activeTemplateVersion ||
+			!fileTree)
+	) {
+		return <ErrorAlert error={error} />;
+	}
+	if (!templateQuery.data || !permissionsQuery.data) {
+		return <Loader fullscreen />;
+	}
+
 	return (
-		<>
+		<RequirePermission isFeatureVisible={canUpdateTemplate}>
 			<title>{pageTitle(templateName, "Template Editor")}</title>
+			{Boolean(error) && <ErrorAlert error={error} />}
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
 				<Loader fullscreen />
@@ -244,7 +285,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 					}}
 				/>
 			)}
-		</>
+		</RequirePermission>
 	);
 };
 
@@ -285,7 +326,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		};
 	}, [fileQuery.data]);
 
-	return { fileTree, setFileTree, tarFile };
+	return { fileTree, setFileTree, tarFile, error: fileQuery.error };
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
