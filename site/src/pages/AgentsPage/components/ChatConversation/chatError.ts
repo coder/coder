@@ -58,13 +58,7 @@ export function isChatDiffReauthRequired(
 		typeof value === "object" &&
 		value !== null &&
 		"kind" in value &&
-		value.kind === "external_auth_reauth_required" &&
-		"provider_id" in value &&
-		typeof value.provider_id === "string" &&
-		"provider_display_name" in value &&
-		typeof value.provider_display_name === "string" &&
-		"can_reconnect" in value &&
-		typeof value.can_reconnect === "boolean"
+		value.kind === "external_auth_reauth_required"
 	);
 }
 

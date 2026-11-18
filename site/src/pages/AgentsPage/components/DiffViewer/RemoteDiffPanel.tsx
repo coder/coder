@@ -84,7 +84,6 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	// The provider rejected the chat owner's token.
 	const diffError = diffContentsQuery.error;
 	const reauth =
 		isAxiosError(diffError) &&
