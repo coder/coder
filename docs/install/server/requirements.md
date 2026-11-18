@@ -8,11 +8,11 @@ For the items other teams usually provide, such as DNS records, certificates, an
 
 ## Control plane
 
-| Resource         | Requirement                                                |
-|------------------|------------------------------------------------------------|
-| CPU and memory   | 2&nbsp;CPU cores and 4&nbsp;GB of memory to evaluate Coder |
-| Operating system | Linux, for every platform guide in this section            |
-| Architecture     | `amd64`, `arm64`, or `armv7`                               |
+| Resource         | Requirement                                                 |
+|------------------|-------------------------------------------------------------|
+| CPU and memory   | 2&nbsp;CPU cores and 4&nbsp;GiB of memory to evaluate Coder |
+| Operating system | Linux, for every guide that Coder maintains in this section |
+| Architecture     | `amd64`, `arm64`, or `armv7`                                |
 
 On Kubernetes, the Helm chart requests and limits the Coder container to 2&nbsp;CPU cores and 4&nbsp;GiB of memory unless you set `coder.resources` in your values file.
 To try Coder on macOS or Windows, follow the [Quickstart](../../get-started/index.md) instead.
@@ -48,7 +48,7 @@ For production, use an [external PostgreSQL database](./external-database.md) wi
 - An [access URL](../../admin/setup/index.md#access-url): a hostname or IP address that both users and workspaces can reach.
 - Without an access URL, `coder server` creates a public URL through a tunnel, which needs internet access.
 - A [wildcard access URL](../../admin/setup/index.md#wildcard-access-url), such as `*.coder.example.com`, if you want to forward ports from the dashboard or serve workspace apps on subdomains.
-  The wildcard hostname needs a DNS record that resolves to Coder.
+  The wildcard hostname needs a DNS record that resolves to Coder, and a TLS certificate that covers it.
 
 ## Internet access
 
