@@ -33,7 +33,7 @@ type SelectionAnchor = {
 type DragState = {
 	anchorId: string;
 	pointerId: number;
-	select: boolean;
+	checked: boolean;
 	initialIds: ReadonlySet<string>;
 	expectedIds: ReadonlySet<string>;
 	// Consecutive pointer events can arrive before a selection update renders.
@@ -148,22 +148,21 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 		checked: boolean,
 		initialIds: ReadonlySet<string>,
 	) => {
+		const anchorIndex = rows.findIndex((row) => row.id === anchorId);
+		const endIndex = rows.findIndex((row) => row.id === endId);
+		const range = rows.slice(
+			Math.min(anchorIndex, endIndex),
+			Math.max(anchorIndex, endIndex) + 1,
+		);
 		const ids = new Set(initialIds);
-		const endpoints = new Set([anchorId, endId]);
-		let inRange = false;
-		for (const row of rows) {
-			if (endpoints.delete(row.id)) {
-				inRange = true;
+		for (const row of range) {
+			if (row.disabled) {
+				continue;
 			}
-			if (inRange && !row.disabled) {
-				if (checked) {
-					ids.add(row.id);
-				} else {
-					ids.delete(row.id);
-				}
-			}
-			if (endpoints.size === 0) {
-				break;
+			if (checked) {
+				ids.add(row.id);
+			} else {
+				ids.delete(row.id);
 			}
 		}
 		return ids;
@@ -224,7 +223,7 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 		dragRef.current = {
 			anchorId: id,
 			pointerId: event.pointerId,
-			select: !selectedIds.has(id),
+			checked: !selectedIds.has(id),
 			initialIds,
 			expectedIds: initialIds,
 			renderedIds: selectedIds,
@@ -263,12 +262,12 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 		const ids = getRangeSelection(
 			drag.anchorId,
 			id,
-			drag.select,
+			drag.checked,
 			drag.initialIds,
 		);
 		anchorRef.current = {
 			id: drag.anchorId,
-			checked: drag.select,
+			checked: drag.checked,
 			range: { initialIds: drag.initialIds, expectedIds: ids },
 		};
 		drag.renderedIds = selectedIds;

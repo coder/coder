@@ -137,78 +137,46 @@ describe("SelectableTable", () => {
 		"selects, shrinks, and deselects anchored ranges with %s without activating rows",
 		async (gesture) => {
 			const user = userEvent.setup();
+			const extendRangeTo = async (id: string, tabOffset: number) => {
+				if (gesture === "Shift-click") {
+					await user.keyboard("{Shift>}");
+					await user.click(checkboxFor(id));
+					await user.keyboard("{/Shift}");
+					return;
+				}
+				for (let i = 0; i < Math.abs(tabOffset); i++) {
+					await user.tab({ shift: tabOffset < 0 });
+				}
+				await user.keyboard("{Shift>} {/Shift}");
+			};
 			const onRowClick = vi.fn();
 			const onSelectionChange = renderSelection({
 				initialIds: ["foxtrot", "stale"],
 				onRowClick,
 			});
 			await user.click(checkboxFor("alpha"));
-			if (gesture === "Shift-click") {
-				await user.keyboard("{Shift>}");
-				await user.click(checkboxFor("delta"));
-				await user.keyboard("{/Shift}");
-			} else {
-				await user.tab();
-				await user.tab();
-				await user.keyboard("{Shift>} {/Shift}");
-			}
+			await extendRangeTo("delta", 2);
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["alpha", "charlie", "delta", "foxtrot", "stale"]),
 			);
-			if (gesture === "Shift-click") {
-				await user.keyboard("{Shift>}");
-				await user.click(checkboxFor("charlie"));
-				await user.keyboard("{/Shift}");
-			} else {
-				await user.tab({ shift: true });
-				await user.keyboard("{Shift>} {/Shift}");
-			}
+			await extendRangeTo("charlie", -1);
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["alpha", "charlie", "foxtrot", "stale"]),
 			);
-			if (gesture === "Shift-click") {
-				await user.keyboard("{Shift>}");
-				await user.click(checkboxFor("delta"));
-				await user.keyboard("{/Shift}");
-			} else {
-				await user.tab();
-				await user.keyboard("{Shift>} {/Shift}");
-			}
+			await extendRangeTo("delta", 1);
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["alpha", "charlie", "delta", "foxtrot", "stale"]),
 			);
 			await user.click(checkboxFor("delta"));
-			if (gesture === "Shift-click") {
-				await user.keyboard("{Shift>}");
-				await user.click(checkboxFor("alpha"));
-				await user.keyboard("{/Shift}");
-			} else {
-				await user.tab({ shift: true });
-				await user.tab({ shift: true });
-				await user.keyboard("{Shift>} {/Shift}");
-			}
+			await extendRangeTo("alpha", -2);
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["foxtrot", "stale"]),
 			);
-			if (gesture === "Shift-click") {
-				await user.keyboard("{Shift>}");
-				await user.click(checkboxFor("charlie"));
-				await user.keyboard("{/Shift}");
-			} else {
-				await user.tab();
-				await user.keyboard("{Shift>} {/Shift}");
-			}
+			await extendRangeTo("charlie", 1);
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["alpha", "foxtrot", "stale"]),
 			);
-			if (gesture === "Shift-click") {
-				await user.keyboard("{Shift>}");
-				await user.click(checkboxFor("delta"));
-				await user.keyboard("{/Shift}");
-			} else {
-				await user.tab();
-				await user.keyboard("{Shift>} {/Shift}");
-			}
+			await extendRangeTo("delta", 1);
 			expect(onSelectionChange).toHaveBeenLastCalledWith(
 				new Set(["alpha", "charlie", "foxtrot", "stale"]),
 			);
