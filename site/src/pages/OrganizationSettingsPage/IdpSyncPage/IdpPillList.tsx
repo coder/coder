@@ -12,7 +12,7 @@ type PillListProps = {
 
 export const IdpPillList: React.FC<PillListProps> = ({ roles }) => {
 	return (
-		<div className="flex flex-row gap-2">
+		<div className="flex gap-2">
 			{roles.length > 0 ? (
 				<Badge
 					className="w-fit"

@@ -5,6 +5,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 // genericListener is either a Listener or ListenerWithErr
@@ -87,7 +90,21 @@ func (*MemoryPubsub) Close() error {
 	return nil
 }
 
-func NewInMemory() Pubsub {
+// BackendMemory is the backend name reported by MemoryPubsub.
+const BackendMemory = "memory"
+
+// HealthReport implements ReportingPubsub.
+func (*MemoryPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	return healthsdk.PubsubReport{
+		BaseReport: healthsdk.BaseReport{
+			Severity: health.SeverityOK,
+			Warnings: []health.Message{},
+		},
+		Backend: BackendMemory,
+	}
+}
+
+func NewInMemory() ReportingPubsub {
 	return &MemoryPubsub{
 		listeners: make(map[string]map[uuid.UUID]genericListener),
 	}

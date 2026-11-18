@@ -1,11 +1,13 @@
 package reports
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"io"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -375,8 +377,9 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 	}
 
 	// Fetch the models used without a price.
-	unpricedModels, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
-		Since:              dbtime.Time(since).UTC(),
+	unpricedModels, err := db.GetUnpricedAIModels(ctx, database.GetUnpricedAIModelsParams{
+		PeriodStart:        dbtime.Time(since).UTC(),
+		PeriodEnd:          dbtime.Time(now).UTC(),
 		PriceableProviders: providers.SupportedStrings(),
 	})
 	if err != nil {
@@ -391,7 +394,7 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 			return xerrors.Errorf("unable to fetch owners: %w", err)
 		}
 
-		reportData := buildDataForReportUnpricedAIModels(unpricedModels)
+		reportData := buildDataForReportUnpricedAIModels(unpricedAIModelsByProviderType(unpricedModels))
 		for _, owner := range owners {
 			if _, err := enqueuer.EnqueueWithData(ctx, owner.ID, notifications.TemplateAIModelsUnpricedReport,
 				map[string]string{},
@@ -416,16 +419,51 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 	return nil
 }
 
+// unpricedAIModel is a model used without a price, across every provider of
+// its type.
+type unpricedAIModel struct {
+	providerType string
+	model        string
+	tokenCount   int64
+}
+
+// unpricedAIModelsByProviderType merges the models of providers that share a
+// type, since site-wide prices are keyed by provider type, and sorts them by
+// token usage, most first.
+func unpricedAIModelsByProviderType(rows []database.GetUnpricedAIModelsRow) []unpricedAIModel {
+	type key struct{ providerType, model string }
+	modelIndex := make(map[key]int, len(rows))
+	models := make([]unpricedAIModel, 0, len(rows))
+	for _, row := range rows {
+		k := key{providerType: row.ProviderType, model: row.Model}
+		if i, ok := modelIndex[k]; ok {
+			models[i].tokenCount += row.TokenCount
+			continue
+		}
+		modelIndex[k] = len(models)
+		models = append(models, unpricedAIModel{providerType: row.ProviderType, model: row.Model, tokenCount: row.TokenCount})
+	}
+	slices.SortFunc(models, func(a, b unpricedAIModel) int {
+		return cmp.Or(
+			cmp.Compare(b.tokenCount, a.tokenCount),
+			cmp.Compare(a.providerType, b.providerType),
+			cmp.Compare(strings.ToLower(a.model), strings.ToLower(b.model)),
+			cmp.Compare(a.model, b.model),
+		)
+	})
+	return models
+}
+
 // buildDataForReportUnpricedAIModels renders the models most used first, so
 // the models dropped by the limit are the ones with the least unreported
 // usage.
-func buildDataForReportUnpricedAIModels(unpricedModels []database.GetUnpricedAIModelsSinceRow) map[string]any {
+func buildDataForReportUnpricedAIModels(unpricedModels []unpricedAIModel) map[string]any {
 	reportedCount := min(len(unpricedModels), unpricedAIModelsLimit)
 	reportedModels := make([]map[string]any, 0, reportedCount)
-	for _, row := range unpricedModels[:reportedCount] {
+	for _, m := range unpricedModels[:reportedCount] {
 		reportedModels = append(reportedModels, map[string]any{
-			"provider": row.ProviderType,
-			"model":    row.Model,
+			"provider": m.providerType,
+			"model":    m.model,
 		})
 	}
 

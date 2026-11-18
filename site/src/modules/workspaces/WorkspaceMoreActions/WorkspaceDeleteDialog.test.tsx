@@ -117,18 +117,18 @@ describe("WorkspaceDeleteDialog", () => {
 		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
 	});
 
-	it("unchecks Orphan Resources when reopened", async () => {
+	it("unchecks Orphan resources when reopened", async () => {
 		const user = userEvent.setup();
 		renderDialog(MockFailedWorkspace, true);
 
 		await user.click(
-			screen.getByRole("checkbox", { name: /Orphan Resources/ }),
+			screen.getByRole("checkbox", { name: /Orphan resources/ }),
 		);
 		await user.keyboard("{Escape}");
 		await reopen(user);
 
 		expect(
-			screen.getByRole("checkbox", { name: /Orphan Resources/ }),
+			screen.getByRole("checkbox", { name: /Orphan resources/ }),
 		).not.toBeChecked();
 	});
 });

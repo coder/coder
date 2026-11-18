@@ -4,7 +4,7 @@ title: Additional clusters
 
 With Coder, you can deploy workspaces in additional Kubernetes clusters using different [authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication) in the Terraform provider.
 
-![Region picker in "Create Workspace" screen](../../images/admin/integrations/kube-region-picker.png)
+![Region picker in "Create workspace" screen](../../images/admin/integrations/kube-region-picker.png)
 
 ## Option 1) Kubernetes contexts and kubeconfig
 
@@ -52,7 +52,7 @@ If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/co
 ### Create a Coder template
 
 You can start from our [example template](../../../examples/templates/kubernetes).
-From there, add [template parameters](../templates/extending-templates/parameters/index.md) to allow developers to pick their desired cluster.
+From there, add [template parameters](../../templates/extending-templates/parameters/index.md) to allow developers to pick their desired cluster.
 
 ```tf
 # main.tf
@@ -83,7 +83,7 @@ provider "kubernetes" {
 ## Option 2) Kubernetes ServiceAccounts
 
 Alternatively, you can authenticate with remote clusters with ServiceAccount tokens.
-Coder can store these secrets on your behalf with [managed Terraform variables](../templates/extending-templates/variables.md).
+Coder can store these secrets on your behalf with [managed Terraform variables](../../templates/extending-templates/variables.md).
 
 Alternatively, these could also be fetched from Kubernetes secrets or even [HashiCorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
 
@@ -214,7 +214,7 @@ If you're on a Windows machine (or if one of the commands fail), try grabbing th
 kubectl cluster-info
 
 # Get cluster CA and token (base64 encoded)
-kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data}"
+kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data}"
 
 coder templates push \
     --variable host=API_ADDRESS \

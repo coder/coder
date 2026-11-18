@@ -10,7 +10,7 @@ However, there are often benefits to running external provisioner daemons:
 
 - **Isolate APIs:**
   Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
-  See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
+  See [Provider Authentication](../../../templates/extending-templates/provider-authentication.md) for more details.
 
 - **Isolate secrets**:
   Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
@@ -22,7 +22,7 @@ However, there are often benefits to running external provisioner daemons:
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
+Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://coder.com/downloads).
 Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
@@ -76,7 +76,7 @@ Keep reading to see instructions for running provisioners on Kubernetes, Docker,
 ## User Tokens
 
 A user account with the role `Template Admin` or `Owner` can start provisioners using their user account.
-This may be beneficial if you are running provisioners via [automation](../../../reference/index.md).
+This can be beneficial if you are running provisioners via [automation](../../../reference/index.md).
 
 ```sh
 coder login https://<your-coder-url>
@@ -146,11 +146,11 @@ This can also be done in the UI when building a template:
 ![template tags](../../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via [workspace tags](../../../../examples/workspace-tags) inside the Terraform.
-See the [workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md) for more information.
+See the [workspace tags documentation](../../../templates/extending-templates/workspace-tags.md) for more information.
 
 > [!NOTE]
 > Workspace tags defined with the `coder_workspace_tags` data source template **do not** automatically apply to the template import job!
-> You may need to specify the desired tags when importing the template.
+> You might need to specify the desired tags when importing the template.
 
 A provisioner can run a given build job if one of the below is true:
 
@@ -173,7 +173,7 @@ It will also not pick up any build jobs from templates with the tag `scope=user`
 > [!NOTE]
 > If you only run tagged provisioners, you will need to specify a set of tags that matches at least one provisioner for _all_ template import jobs and workspace build jobs.
 >
-> You may wish to run at least one additional provisioner with no additional tags so that provisioner jobs with no additional tags defined will be picked up instead of potentially remaining in the Pending state indefinitely.
+> You might wish to run at least one additional provisioner with no additional tags so that provisioner jobs with no additional tags defined will be picked up instead of potentially remaining in the Pending state indefinitely.
 
 This is illustrated in the below table:
 
@@ -212,7 +212,7 @@ This is illustrated in the below table:
 
 Provisioners can broadly be categorized by scope: `organization` or `user`.
 The scope of a provisioner can be specified with [`-tag=scope=<scope>`](../../../reference/cli/provisioner/start.md#-t---tag) when starting the provisioner daemon.
-Only users with at least the [Template Admin](../../../admin/users/index.md#roles) role or higher may create organization-scoped provisioner daemons.
+Only users with at least the [Template Admin](../../../admin/users/index.md#roles) role or higher can create organization-scoped provisioner daemons.
 
 There are two exceptions:
 

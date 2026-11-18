@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
@@ -10,7 +9,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { UnsavedChangesDialog } from "#/components/Dialog/UnsavedChangesDialog/UnsavedChangesDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
@@ -437,9 +436,6 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 	const iconField = (
 		<div className="flex flex-col gap-2">
 			<Label htmlFor="icon">Icon</Label>
-			<div className="text-xs text-content-secondary">
-				Optional. URL or emoji shown for this provider.
-			</div>
 			<IconField
 				id="icon"
 				value={form.values.icon}
@@ -447,6 +443,9 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 				onChange={(event) => handleIconChange(event.target.value)}
 				onPickEmoji={handleIconChange}
 			/>
+			<div className="text-xs text-content-secondary">
+				Optional. URL or emoji shown for this provider.
+			</div>
 		</div>
 	);
 
@@ -586,6 +585,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("name")}
 								label="Name"
 								description="Unique identifier (used in urls, can't be changed)"
+								descriptionPosition="below"
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
 								disabled={editing}
@@ -594,6 +594,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("displayName")}
 								label="Display name"
 								description="Friendly name. Defaults to name if blank."
+								descriptionPosition="below"
 								className="w-full"
 							/>
 						</div>
@@ -633,6 +634,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("name")}
 								label="Name"
 								description="Unique identifier (used in urls, can't be changed)"
+								descriptionPosition="below"
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
 								disabled={editing}
@@ -641,6 +643,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("displayName")}
 								label="Display name"
 								description="Friendly name. Defaults to name if blank."
+								descriptionPosition="below"
 								className="w-full"
 							/>
 						</div>
@@ -675,6 +678,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								backendFieldName: "base_url",
 							})}
 							label="Endpoint"
+							descriptionPosition="below"
 							description={
 								<>
 									In the format of{" "}
@@ -693,7 +697,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 							}
 						/>
 						{!isMantle && (
-							<>
+							<div className="flex flex-col gap-2">
 								<div className="grid grid-cols-2 items-start gap-4">
 									<FormField
 										required
@@ -722,44 +726,46 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 									</DocsLink>
 									.
 								</p>
-							</>
+							</div>
 						)}
-						<div className="grid grid-cols-2 items-start gap-4">
-							<CredentialField
-								label="Access key"
-								helpers={getFieldHelpers("accessKey")}
-								onBlur={() => handleCredentialBlur("accessKey")}
-								onFocus={() => handleCredentialFocus("accessKey")}
-							/>
-							<CredentialField
-								label="Access key secret"
-								helpers={getFieldHelpers("accessKeySecret")}
-								onBlur={() => handleCredentialBlur("accessKeySecret")}
-								onFocus={() => handleCredentialFocus("accessKeySecret")}
-							/>
+						<div className="flex flex-col gap-2">
+							<div className="grid grid-cols-2 items-start gap-4">
+								<CredentialField
+									label="Access key"
+									helpers={getFieldHelpers("accessKey")}
+									onBlur={() => handleCredentialBlur("accessKey")}
+									onFocus={() => handleCredentialFocus("accessKey")}
+								/>
+								<CredentialField
+									label="Access key secret"
+									helpers={getFieldHelpers("accessKeySecret")}
+									onBlur={() => handleCredentialBlur("accessKeySecret")}
+									onFocus={() => handleCredentialFocus("accessKeySecret")}
+								/>
+							</div>
+							<p className="text-xs text-content-secondary m-0">
+								Optional. Leave both fields blank to authenticate with the AWS
+								environment (IAM role, instance profile, AWS_PROFILE).{" "}
+								<DocsLink
+									size="sm"
+									href={docs(
+										"/ai-governance/ai-gateway/providers#amazon-bedrock",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									View docs
+								</DocsLink>
+							</p>
 						</div>
-						<p className="text-xs text-content-secondary m-0">
-							Optional. Leave both fields blank to authenticate with the AWS
-							environment (IAM role, instance profile, AWS_PROFILE).{" "}
-							<DocsLink
-								size="sm"
-								href={docs("/ai-coder/ai-gateway/providers#amazon-bedrock")}
-								target="_blank"
-								rel="noreferrer"
-							>
-								View docs
-							</DocsLink>
-						</p>
 						<FormField
 							field={getFieldHelpers("roleArn")}
 							label="Role ARN"
+							description="Optional. When a role ARN is set, the gateway assumes that role (using the base identity) before calling Bedrock."
+							descriptionPosition="below"
 							className="w-full"
 							placeholder="arn:aws:iam::123456789012:role/BedrockRole"
 						/>
-						<p className="text-xs text-content-secondary m-0">
-							Optional. When a role ARN is set, the gateway assumes that role
-							(using the base identity) before calling Bedrock.
-						</p>
 						{editing && awsExternalId && (
 							<div className="flex flex-col gap-2">
 								<Label>External ID</Label>
@@ -789,22 +795,10 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 					</Button>
 				</div>
 			</FormFields>
-			<ConfirmDialog
-				type="info"
-				hideCancel={false}
+			<UnsavedChangesDialog
 				open={unsavedChanges.isOpen}
 				onClose={unsavedChanges.onCancel}
 				onConfirm={unsavedChanges.onConfirm}
-				title="Unsaved changes"
-				confirmText="Confirm"
-				description={
-					<div className="flex items-start gap-3">
-						<TriangleAlertIcon className="size-icon-sm mt-1 shrink-0" />
-						<p className="m-0">
-							Your updates haven't been saved. Leave anyway?
-						</p>
-					</div>
-				}
 			/>
 		</Form>
 	);

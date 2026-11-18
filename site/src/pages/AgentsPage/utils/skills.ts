@@ -43,6 +43,8 @@ export type SkillFormValues = {
 	body: string;
 	/** Project skills only: offers the skill above project composers. */
 	action?: boolean;
+	/** Project skills only: labels the action instead of the name. */
+	displayName?: string;
 	/** Project skills only: lets agents find and load the skill. */
 	modelInvocable?: boolean;
 };
@@ -58,6 +60,7 @@ export const emptySkillFormValues: SkillFormValues = {
 export const emptyProjectSkillFormValues: SkillFormValues = {
 	...emptySkillFormValues,
 	action: false,
+	displayName: "",
 	modelInvocable: true,
 };
 
@@ -249,6 +252,7 @@ export const skillFormValuesFromSkill = (
 			description: skill.description,
 			body: parsed.values.body,
 			action: skill.action,
+			displayName: skill.display_name,
 			modelInvocable: skill.model_invocable,
 		},
 	};
@@ -282,27 +286,6 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	frontmatter.push("---");
 
 	return `${frontmatter.join("\n")}\n${body}\n`;
-};
-
-/**
- * Adds `disable-model-invocation: true` to SKILL.md frontmatter that lacks
- * it, so a downloaded manual-only skill keeps that setting when re-imported.
- * Content the marker would push past the size limit is returned unchanged.
- */
-export const withDisabledModelInvocation = (content: string): string => {
-	const opening = /^---(\r?\n)/.exec(content);
-	const frontmatterEnd = content.search(/\r?\n---/);
-	if (!opening || frontmatterEnd < 3) {
-		return content;
-	}
-	if (/^disable-model-invocation:/m.test(content.slice(0, frontmatterEnd))) {
-		return content;
-	}
-	const newline = opening[1];
-	const marked = `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
-	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
-		? content
-		: marked;
 };
 
 export const getSkillContentSizeBytes = (content: string): number =>

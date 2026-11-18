@@ -12,10 +12,6 @@ import (
 	"github.com/coder/safedial"
 )
 
-// ConvertCallResultForTest exposes convertCallResult for external
-// tests.
-var ConvertCallResultForTest = convertCallResult
-
 // ConnectAllForTest exposes connectAll with an injectable connect
 // timeout and a reaperDone hook that fires after an abandoned
 // connect goroutine has been drained and its late session closed.
@@ -71,6 +67,10 @@ const ToolCallIDMetaKeyForTest = toolCallIDMetaKey
 
 // MaxInlineToolResultBytesForTest exposes the result cap.
 const MaxInlineToolResultBytesForTest = maxInlineToolResultBytes
+
+// MaxInProcessToolResultTextBytesForTest exposes the in-process result
+// text cap.
+const MaxInProcessToolResultTextBytesForTest = maxInProcessToolResultTextBytes
 
 // MaxInlineHTTPResponseBytesForTest exposes the body cap.
 const MaxInlineHTTPResponseBytesForTest = maxInlineHTTPResponseBytes

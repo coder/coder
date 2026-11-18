@@ -30,7 +30,7 @@ To troubleshoot claims, set `CODER_LOG_FILTER=".*got oidc claims.*"` and follow 
 Coder will log the claim fields returned by the upstream identity provider in a message containing the string `got oidc claims`, as well as the user info returned.
 
 > [!NOTE]
-> If you need to ensure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
+> If you need to make sure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
 
 ### Email Addresses
 
@@ -45,8 +45,10 @@ If your upstream identity provider users a different claim, you can set `CODER_O
 ### Email Address Verification
 
 Coder requires all OIDC email addresses to be verified by default.
-If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
-If needed, you can disable this behavior with the following setting:
+The identity provider must send the `email_verified` claim with the value `true`.
+Coder also accepts the string form of `true`, such as `"true"`.
+Some identity providers omit this claim.
+If the claim is missing, Coder rejects the login unless you disable this check with the following setting:
 
 ```dotenv
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
@@ -63,7 +65,7 @@ If your upstream identity provider uses a different claim, you can set `CODER_OI
 
 > [!NOTE]
 > If this claim is empty, the email address will be stripped of the domain, and become the username (for example, `example@coder.com` becomes `example`).
-> To avoid conflicts, Coder may also append a random word to the resulting username.
+> To avoid conflicts, Coder might also append a random word to the resulting username.
 
 ## OIDC Login Customization
 
@@ -124,7 +126,7 @@ CODER_DISABLE_PASSWORD_AUTH=true
 >
 > Coder's SCIM 2.0 implementation is not a fully certified or guaranteed implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
 > It is intended to cover common user provisioning and deprovisioning flows with the major identity providers (Okta, Microsoft Entra ID, and so on).
-> Specific attributes, endpoints, or behaviors required by your IdP may not be supported, and compatibility may change between releases.
+> Specific attributes, endpoints, or behaviors required by your IdP might not be supported, and compatibility might change between releases.
 > If you depend on a specific SCIM behavior, [contact us](https://coder.com/contact) before rolling it out broadly.
 > See [coder/coder#15830](https://github.com/coder/coder/issues/15830) for tracked gaps and ongoing work.
 
@@ -159,7 +161,8 @@ Behavior notes:
   `DELETE /scim/v2/Users/{id}` and deactivation (`active: false`) both [suspend](../index.md#suspend-a-user) the user.
 - Re-activating or re-creating a previously suspended user places them in the dormant state, and they become active again on their next login.
 - Usernames are immutable.
-  Attempts to change `userName` via `PUT` or `PATCH` return a `mutability` error.
+  Coder does not change `userName` through `PUT` or `PATCH`.
+  A `PUT` request that changes `userName` returns a 400 error.
 
 The SCIM 2.0 handler will eventually become the default behavior.
 

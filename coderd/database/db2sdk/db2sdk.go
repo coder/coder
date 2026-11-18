@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -537,6 +538,32 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 	return envs, nil
 }
 
+// RedactedEnvValue replaces non-empty environment variable values in API
+// responses. Template authors commonly pass credentials through coder_env, and
+// there is no way to tell which values are sensitive. It matches the marker
+// used by the support bundle and the agent debug manifest.
+const RedactedEnvValue = "***REDACTED***"
+
+// redactEnv returns a copy of envs with every non-empty value replaced by
+// RedactedEnvValue. Keys are preserved so users can see which variables are
+// set. Empty values carry no secret and are kept as is.
+func redactEnv(envs map[string]string) map[string]string {
+	if envs == nil {
+		return nil
+	}
+	redacted := make(map[string]string, len(envs))
+	for k, v := range envs {
+		if v != "" {
+			v = RedactedEnvValue
+		}
+		redacted[k] = v
+	}
+	return redacted
+}
+
+// WorkspaceAgent converts a database agent to its API representation.
+// Environment variable values are redacted with RedactedEnvValue; the agent
+// receives the real values through its manifest instead.
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
@@ -582,7 +609,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		LogSources:               logSources,
 		Version:                  dbAgent.Version,
 		APIVersion:               dbAgent.APIVersion,
-		EnvironmentVariables:     envs,
+		EnvironmentVariables:     redactEnv(envs),
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
 		Apps:                     apps,
@@ -1641,6 +1668,46 @@ func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) coder
 	}
 }
 
+func OrganizationAISpendOverviewUsers(rows []database.ListOrganizationAISpendPerUserRow) []codersdk.OrganizationAISpendOverviewUser {
+	users := make([]codersdk.OrganizationAISpendOverviewUser, 0, len(rows))
+	// userIndex maps a user to their position in users, which keeps the
+	// query's user order.
+	userIndex := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		i, ok := userIndex[row.UserID]
+		if !ok {
+			i = len(users)
+			userIndex[row.UserID] = i
+			users = append(users, codersdk.OrganizationAISpendOverviewUser{
+				UserID:      row.UserID,
+				Username:    row.Username,
+				Name:        row.Name,
+				AvatarURL:   row.AvatarURL,
+				SpendMicros: row.SpendMicros,
+				Groups:      []codersdk.OrganizationAISpendOverviewGroup{},
+			})
+		}
+		users[i].Groups = append(users[i].Groups, codersdk.OrganizationAISpendOverviewGroup{
+			GroupID:          row.GroupID,
+			GroupName:        row.GroupName,
+			GroupDisplayName: row.GroupDisplayName,
+			SpendMicros:      row.GroupSpendMicros,
+		})
+	}
+	return users
+}
+
+func OrganizationAISpendOverviewIntervals(rows []database.GetOrganizationAISpendPerDayRow) []codersdk.OrganizationAISpendOverviewInterval {
+	return slice.List(rows, func(row database.GetOrganizationAISpendPerDayRow) codersdk.OrganizationAISpendOverviewInterval {
+		start := row.Day.UTC()
+		return codersdk.OrganizationAISpendOverviewInterval{
+			StartTime:   start,
+			EndTime:     start.AddDate(0, 0, 1),
+			SpendMicros: row.SpendMicros,
+		}
+	})
+}
+
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
 	member := codersdk.GroupMemberAISpend{
 		UserID:           row.UserID,
@@ -1798,6 +1865,7 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ChatID:        message.ChatID,
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
+		BusyBehavior:  codersdk.ChatBusyBehavior(message.BusyBehavior),
 		CreatedAt:     message.CreatedAt,
 		EditingSince:  nullTimePtr(message.EditingSince),
 	}
@@ -1842,6 +1910,21 @@ func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
 		out = append(out, AIModelPrice(dbPrice))
 	}
 	return out
+}
+
+func UnpricedAIModel(row database.GetUnpricedAIModelsRow) codersdk.UnpricedAIModel {
+	providerDisplayName := row.ProviderName
+	if row.ProviderDisplayName.Valid && row.ProviderDisplayName.String != "" {
+		providerDisplayName = row.ProviderDisplayName.String
+	}
+	return codersdk.UnpricedAIModel{
+		ProviderName:        row.ProviderName,
+		ProviderDisplayName: providerDisplayName,
+		ProviderIcon:        row.ProviderIcon,
+		ProviderType:        codersdk.AIProviderType(row.ProviderType),
+		Model:               row.Model,
+		TokenCount:          row.TokenCount,
+	}
 }
 
 func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
@@ -2503,12 +2586,19 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 	return out
 }
 
-// Skill converts a database Skill to an SDK Skill.
+// Skill converts a database Skill to an SDK Skill. The stored content is
+// the file as uploaded, so the returned content has its
+// disable-model-invocation key set to agree with ModelInvocable. Every client
+// then gets a file that other tools read the same way. Uploads are checked
+// so that the key can always be set. A skill stored before that check can
+// still fail it, and its content is returned as stored.
 func Skill(skill database.Skill) codersdk.Skill {
+	content, _ := skills.WithModelInvocable(skill.Content, skill.ModelInvocable)
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
 			ID:             skill.ID,
 			Name:           skill.Name,
+			DisplayName:    skill.DisplayName,
 			Description:    skill.Description,
 			Enabled:        skill.Enabled,
 			Action:         skill.Action,
@@ -2516,7 +2606,7 @@ func Skill(skill database.Skill) codersdk.Skill {
 			CreatedAt:      skill.CreatedAt,
 			UpdatedAt:      skill.UpdatedAt,
 		},
-		Content: skill.Content,
+		Content: content,
 	}
 }
 
@@ -2528,6 +2618,7 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 		metadata = append(metadata, codersdk.SkillMetadata{
 			ID:             row.ID,
 			Name:           row.Name,
+			DisplayName:    row.DisplayName,
 			Description:    row.Description,
 			Enabled:        row.Enabled,
 			Action:         row.Action,

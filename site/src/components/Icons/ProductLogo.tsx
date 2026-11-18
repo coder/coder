@@ -24,7 +24,7 @@ export const ProductLogo: React.FC<{ className?: string }> = ({
 			onLoad={(e) => {
 				e.currentTarget.style.display = "inline";
 			}}
-			className={cn("h-12 max-w-[200px] application-logo", className)}
+			className={cn("h-12 max-w-50 application-logo", className)}
 		/>
 	) : (
 		<CoderLogo className={cn("h-12", className)} />

@@ -53,7 +53,6 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
-	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseArray,
@@ -510,18 +509,11 @@ const SubagentRenderer: React.FC<ToolRendererProps> = ({
 	if (rawTitle) {
 		title = rawTitle;
 	}
-	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
-		status,
+		isError ? "error" : status,
 	);
-	let subagentIsError = subagentToolStatus === "error";
-	if (!subagentIsError) {
-		const toolFailed = status === "error" || isError;
-		if (toolFailed && !subagentCompleted) {
-			subagentIsError = true;
-		}
-	}
+	const subagentIsError = subagentToolStatus === "error";
 
 	// Detect timeout from the result. A timed-out wait_agent
 	// returns a structured payload with timed_out: true
@@ -899,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 			</div>
 		)}
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"
@@ -988,7 +980,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	modelIntent,
 }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
 	// Media payloads are base64 blobs; keep them out of the text formatters.

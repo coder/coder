@@ -26,6 +26,12 @@ export const DefaultDisabled: Story = {
 	},
 };
 
+export const DefaultAriaDisabled: Story = {
+	args: {
+		"aria-disabled": true,
+	},
+};
+
 export const DefaultSmall: Story = {
 	args: {
 		size: "sm",
@@ -42,6 +48,13 @@ export const OutlineDisabled: Story = {
 	args: {
 		variant: "outline",
 		disabled: true,
+	},
+};
+
+export const OutlineAriaDisabled: Story = {
+	args: {
+		variant: "outline",
+		"aria-disabled": true,
 	},
 };
 
@@ -65,6 +78,13 @@ export const SubtleDisabled: Story = {
 	},
 };
 
+export const SubtleAriaDisabled: Story = {
+	args: {
+		variant: "subtle",
+		"aria-disabled": true,
+	},
+};
+
 export const SubtleSmall: Story = {
 	args: {
 		variant: "subtle",
@@ -83,6 +103,13 @@ export const DestructiveDisabled: Story = {
 	args: {
 		...Destructive.args,
 		disabled: true,
+	},
+};
+
+export const DestructiveAriaDisabled: Story = {
+	args: {
+		...Destructive.args,
+		"aria-disabled": true,
 	},
 };
 

@@ -242,7 +242,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 						Add a user to this Coder deployment.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<form
 						onSubmit={form.handleSubmit}
 						autoComplete="off"
@@ -319,7 +319,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 												>
 													<span className="absolute right-2 top-2 flex items-center justify-center">
 														<SelectPrimitive.ItemIndicator>
-															<CheckIcon className="size-icon-sm" />
+															<CheckIcon className="size-icon-sm text-content-primary" />
 														</SelectPrimitive.ItemIndicator>
 													</span>
 													<div className="flex flex-col py-0.5">

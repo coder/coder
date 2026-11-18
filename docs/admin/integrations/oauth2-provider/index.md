@@ -20,7 +20,7 @@ This enables integrations where external applications can leverage Coder's authe
 ## Enable OAuth2 provider
 
 The provider is off by default.
-While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
+While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 applications** page is hidden.
 Turn it on with the CLI flag:
 
 ```sh
@@ -63,7 +63,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
 
 <a id="method-1-web-ui"></a>
 
-1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+1. Navigate to **Deployment Settings** > **OAuth2 applications**.
 2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
    - **Name**:
@@ -124,7 +124,7 @@ curl -X PUT \
 `scope` is kept when omitted.
 Refer to [Scopes](./scopes.md) for how to change it.
 
-Add an optional `scope` field to restrict which scopes the application's clients may request.
+Add an optional `scope` field to restrict which scopes the application's clients can request.
 Refer to [Scopes](./scopes.md) for how the allowlist is applied and how to change it later.
 
 Generate a client secret:
@@ -149,7 +149,7 @@ An owner must turn it on before any client can self-register.
 
 Change the setting in the web UI:
 
-1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+1. Navigate to **Deployment Settings** > **OAuth2 applications**.
 2. Select the **Settings** tab.
 3. Select **Enable** or **Disable** next to **Dynamic Client Registration**.
 
@@ -186,8 +186,8 @@ Disabling only blocks *new* self-registrations.
 Applications that already registered while it was enabled keep authorizing and exchanging tokens normally.
 Disabling does not revoke or otherwise affect them.
 
-An application may list several `redirect_uris`, whether it registered itself or an admin created it.
-A request may present any of them, and the code it receives can only be exchanged with that same URI.
+An application can list several `redirect_uris`, whether it registered itself or an admin created it.
+A request can present any of them, and the code it receives can only be exchanged with that same URI.
 The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
 An admin can edit the list through the management API, and a self-registered client can update its own list with its registration access token.
 The admin `PUT` also validates the stored name, so a self-registered client whose name has leading or trailing whitespace can only be updated with its registration access token.

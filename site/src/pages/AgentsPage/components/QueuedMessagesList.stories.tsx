@@ -54,6 +54,25 @@ export const SingleMessage: Story = {
 	},
 };
 
+export const ReadOnly: Story = {
+	args: {
+		messages: [MockChatQueuedMessage],
+		onDelete: undefined,
+		onPromote: undefined,
+		onEdit: undefined,
+		onEndEdit: undefined,
+	},
+};
+
+export const RemoveOnly: Story = {
+	args: {
+		messages: [MockChatQueuedMessage],
+		onPromote: undefined,
+		onEdit: undefined,
+		onEndEdit: undefined,
+	},
+};
+
 // Several messages queued up at once. The phone viewport hides the
 // Enter-to-send hint below the sm breakpoint.
 export const SeveralMessages: Story = {
@@ -184,6 +203,24 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+// Steer rows offer no Send now, and a steer head gets no Enter-to-send hint.
+export const GroupedByLane: Story = {
+	args: {
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...buildMessage(2, textContent("Skip the flaky test")),
+				busy_behavior: "steer",
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+};
+
 // One row with every action.
 export const HeadRowActions: Story = {
 	args: {
@@ -244,6 +281,33 @@ export const WaitingBehindHeadUnderEdit: Story = {
 	},
 };
 
+// A steer row under edit holds every steer row, so the steer row above it
+// waits too. Its Waiting badge shows its tooltip.
+export const SteerRowUnderEditHoldsLane: Story = {
+	args: {
+		queuedMessageUnderEditID: 2,
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 2,
+				busy_behavior: "steer",
+				content: textContent("Skip the flaky test"),
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [waitingAbove] = canvas.getAllByRole("button", { name: "Waiting" });
+		await userEvent.hover(waitingAbove);
+	},
+};
+
 // The queue head is under edit on a paused chat, so the Enter-to-send hint is
 // hidden, and the Cancel edit tooltip says cancelling sends the head.
 export const HeadUnderEdit: Story = {
@@ -287,61 +351,19 @@ export const PausedEditBehindHead: Story = {
 	},
 };
 
-// The begin request is in flight: the row shows as under edit and the Enter
-// hint is hidden because Enter saves the edit.
-export const BeginRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		showEnterToSendHint: false,
-		messages: [
-			buildMessage(1, textContent("Run the test suite")),
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-// The end request is in flight while the row still carries the server
-// marker: the row shows no edit state.
-export const EndRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: null,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-let rejectQueuedDelete: ((error: Error) => void) | undefined;
-
-// Deleting hides the row optimistically and disables sibling actions while
-// pending; a rejected delete restores the row and re-enables actions.
-export const DeleteRejectionRestoresRow: Story = {
+// The second row is a pending send that the server has not stored yet, so
+// its actions are unavailable.
+export const PendingRowDisablesActions: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
-			buildMessage(2, textContent("Second queued")),
+			buildMessage(Number.MAX_SAFE_INTEGER, textContent("Not stored yet")),
 		],
-		onDelete: () =>
-			new Promise<void>((_, reject) => {
-				rejectQueuedDelete = reject;
-			}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const removeButtons = canvas.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await userEvent.click(removeButtons[0]);
-
-		if (!rejectQueuedDelete) {
-			throw new Error("onDelete was not invoked");
-		}
-		rejectQueuedDelete(new Error("delete failed"));
+		const sendPending = canvas.getAllByRole("button", { name: "Send now" })[1];
+		await userEvent.hover(sendPending);
 	},
 };
 
