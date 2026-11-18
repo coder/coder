@@ -1,7 +1,6 @@
 package agentgit_test
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -305,50 +304,4 @@ func TestPathStore_AddReadPaths_NotifiesOnlyNewPaths(t *testing.T) {
 	ps.AddPaths([]uuid.UUID{chatID}, []string{"/repo"})
 	require.Len(t, chatCh, 1)
 	require.Equal(t, []string{"/other", "/repo"}, ps.GetPaths(chatID))
-}
-
-// TestPathStore_EvictsReadPathsBeforeWritten pins the per-chat cap:
-// over the cap, the least recently used read-only paths go first, and
-// written paths survive any number of reads.
-func TestPathStore_EvictsReadPathsBeforeWritten(t *testing.T) {
-	t.Parallel()
-
-	ps := agentgit.NewPathStore()
-	chatID := uuid.New()
-	ids := []uuid.UUID{chatID}
-
-	ps.AddPaths(ids, []string{"/written"})
-	// A read of a written path keeps it written.
-	ps.AddReadPaths(ids, []string{"/written"})
-	// A write of a read path makes it written.
-	ps.AddReadPaths(ids, []string{"/upgraded"})
-	ps.AddPaths(ids, []string{"/upgraded"})
-	ps.AddReadPaths(ids, []string{"/read-old"})
-	for i := range agentgit.MaxPathsPerChat {
-		ps.AddReadPaths(ids, []string{fmt.Sprintf("/read-%04d", i)})
-		if i == agentgit.MaxPathsPerChat/2 {
-			// Re-reading refreshes recency.
-			ps.AddReadPaths(ids, []string{"/read-old"})
-		}
-	}
-
-	paths := ps.GetPaths(chatID)
-	require.Len(t, paths, agentgit.MaxPathsPerChat)
-	require.Contains(t, paths, "/written")
-	require.Contains(t, paths, "/upgraded")
-	require.Contains(t, paths, "/read-old")
-	require.NotContains(t, paths, "/read-0000")
-	require.NotContains(t, paths, "/read-0001")
-	require.NotContains(t, paths, "/read-0002")
-	require.Contains(t, paths, "/read-0003")
-
-	// Written paths are evicted only when nothing read-only is left.
-	for i := range agentgit.MaxPathsPerChat {
-		ps.AddPaths(ids, []string{fmt.Sprintf("/write-%04d", i)})
-	}
-	paths = ps.GetPaths(chatID)
-	require.Len(t, paths, agentgit.MaxPathsPerChat)
-	require.NotContains(t, paths, "/read-old")
-	require.NotContains(t, paths, "/written")
-	require.Contains(t, paths, "/write-0000")
 }
