@@ -44,3 +44,25 @@ export const OpenWithHover: Story = {
 		await user.hover(menuItem);
 	},
 };
+
+export const OpenTallerThanViewport: Story = {
+	args: {
+		children: (
+			<>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline">Admin Settings</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent>
+					{Array.from({ length: 40 }, (_, i) => (
+						<DropdownMenuItem key={i}>Item {i + 1}</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</>
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(canvas.getByText("Admin Settings"));
+	},
+};

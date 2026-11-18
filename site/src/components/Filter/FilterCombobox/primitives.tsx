@@ -13,6 +13,7 @@ import {
 	keyboardHighlightRingClassName,
 	useHighlightSource,
 } from "#/components/Command/useHighlightSource";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
 import {
 	Popover,
@@ -27,13 +28,6 @@ import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 // `components/Combobox` single-select primitives. They overlap cosmetically
 // with `components/Command`; a future consolidation into a variant-driven
 // `Command*` layer could remove the duplication.
-
-/**
- * Height cap for the popup, bounded only by the space Radix reports to the
- * viewport edge, and for each menu inside it when the caller makes the popup
- * `overflow-visible` so flyouts can extend past it, as `FilterCombobox` does.
- */
-export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
 
 const LIST_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End"]);
 // cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
