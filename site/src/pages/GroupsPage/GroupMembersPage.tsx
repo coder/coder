@@ -25,7 +25,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { UsersFilter } from "#/components/Filter/UsersFilter";
+import { MembersFilter } from "#/components/Filter/MembersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
@@ -125,7 +125,7 @@ const GroupMembersPage: React.FC = () => {
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
-			<UsersFilter {...filterProps} />
+			<MembersFilter {...filterProps} />
 
 			<PaginationContainer
 				query={membersQuery}
