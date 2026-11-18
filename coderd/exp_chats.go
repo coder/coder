@@ -4477,6 +4477,22 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		var reauthErr *chatDiffReauthError
+		if xerrors.As(err, &reauthErr) {
+			canReconnect := httpmw.APIKey(r).UserID == chat.OwnerID
+			message := "The chat owner must reconnect " + reauthErr.DisplayName + " to load this diff."
+			if canReconnect {
+				message = "Reconnect " + reauthErr.DisplayName + " to load this diff."
+			}
+			httpapi.Write(ctx, rw, http.StatusFailedDependency, codersdk.ChatDiffReauthRequired{
+				Message:             message,
+				Code:                codersdk.ChatDiffReauthRequiredCode,
+				ProviderID:          reauthErr.ProviderID,
+				ProviderDisplayName: reauthErr.DisplayName,
+				CanReconnect:        canReconnect,
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat diff.",
 			Detail:  err.Error(),
@@ -4851,7 +4867,7 @@ func (api *API) resolveChatDiffContents(
 		}
 		diff, err := gp.FetchPullRequestDiff(ctx, *token, ref)
 		if err != nil {
-			return result, err
+			return result, api.chatDiffFetchError(reference.RepositoryRef.RemoteOrigin, err)
 		}
 		result.Diff = diff
 		return result, nil
@@ -4862,10 +4878,40 @@ func (api *API) resolveChatDiffContents(
 		Branch: reference.RepositoryRef.Branch,
 	})
 	if err != nil {
-		return result, err
+		return result, api.chatDiffFetchError(reference.RepositoryRef.RemoteOrigin, err)
 	}
 	result.Diff = diff
 	return result, nil
+}
+
+// chatDiffReauthError reports that the provider rejected the chat owner's
+// access token, so the owner must reconnect the provider to load the diff.
+type chatDiffReauthError struct {
+	ProviderID  string
+	DisplayName string
+	err         error
+}
+
+func (e *chatDiffReauthError) Error() string { return e.err.Error() }
+
+func (e *chatDiffReauthError) Unwrap() error { return e.err }
+
+// chatDiffFetchError marks a token rejection from the provider for origin as
+// a chatDiffReauthError. Other errors are returned unchanged.
+func (api *API) chatDiffFetchError(origin string, err error) error {
+	if !xerrors.Is(err, gitprovider.ErrTokenRejected) {
+		return err
+	}
+	for _, config := range api.ExternalAuthConfigs {
+		if config.Regex != nil && config.Regex.MatchString(origin) {
+			return &chatDiffReauthError{
+				ProviderID:  config.ID,
+				DisplayName: config.DisplayName,
+				err:         err,
+			}
+		}
+	}
+	return err
 }
 
 // resolveChatDiffReference builds the diff reference from the cached

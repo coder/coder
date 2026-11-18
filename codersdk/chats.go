@@ -2071,6 +2071,20 @@ type ChatDiffContents struct {
 	Diff           string    `json:"diff,omitempty"`
 }
 
+// ChatDiffReauthRequiredCode is the code of a chat diff error response
+// when the chat owner must reconnect the external auth provider.
+const ChatDiffReauthRequiredCode = "external_auth_reauth_required"
+
+// ChatDiffReauthRequired is the error body returned with status 424 when
+// the provider rejects the chat owner's access token.
+type ChatDiffReauthRequired struct {
+	Message             string `json:"message"`
+	Code                string `json:"code"`
+	ProviderID          string `json:"provider_id"`
+	ProviderDisplayName string `json:"provider_display_name"`
+	CanReconnect        bool   `json:"can_reconnect"`
+}
+
 // Chat git watch error messages. These are the user-visible messages
 // the server returns in 400 responses from
 // /api/v2/chats/{id}/stream/git when the chat cannot be

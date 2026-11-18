@@ -2692,6 +2692,26 @@ export interface ChatDiffContents {
 
 // From codersdk/chats.go
 /**
+ * ChatDiffReauthRequired is the error body returned with status 424 when
+ * the provider rejects the chat owner's access token.
+ */
+export interface ChatDiffReauthRequired {
+	readonly message: string;
+	readonly code: string;
+	readonly provider_id: string;
+	readonly provider_display_name: string;
+	readonly can_reconnect: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDiffReauthRequiredCode is the code of a chat diff error response
+ * when the chat owner must reconnect the external auth provider.
+ */
+export const ChatDiffReauthRequiredCode = "external_auth_reauth_required";
+
+// From codersdk/chats.go
+/**
  * ChatDiffStatus represents cached diff status for a chat. The URL
  * may point to a pull request or a branch page depending on whether
  * a PR has been opened.

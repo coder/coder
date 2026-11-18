@@ -12,7 +12,9 @@ import {
 import { useClipboard } from "#/hooks/useClipboard";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { ChatDiffReauthNotice } from "../DiffViewer/ChatDiffReauthNotice";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
+import { getChatDiffReauthRequired } from "../DiffViewer/chatDiffReauth";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
@@ -81,6 +83,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
+	const reauthRequired = getChatDiffReauthRequired(diffContentsQuery.error);
 
 	const parsedFiles = parseDiffString(diffContent);
 
@@ -153,16 +156,22 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 					</div>
 				</div>
 			)}
-			<CommentableDiffViewer
-				parsedFiles={parsedFiles}
-				isExpanded={isExpanded}
-				diffStyle={diffStyle}
-				isLoading={diffContentsQuery.isLoading}
-				error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
-				chatInputRef={chatInputRef}
-				scrollToFile={scrollTarget}
-				onScrollToFileComplete={handleScrollComplete}
-			/>
+			{reauthRequired ? (
+				<ChatDiffReauthNotice chatId={chatId} reauth={reauthRequired} />
+			) : (
+				<CommentableDiffViewer
+					parsedFiles={parsedFiles}
+					isExpanded={isExpanded}
+					diffStyle={diffStyle}
+					isLoading={diffContentsQuery.isLoading}
+					error={
+						diffContentsQuery.isError ? diffContentsQuery.error : undefined
+					}
+					chatInputRef={chatInputRef}
+					scrollToFile={scrollTarget}
+					onScrollToFileComplete={handleScrollComplete}
+				/>
+			)}
 		</div>
 	);
 };
