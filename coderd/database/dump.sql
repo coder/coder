@@ -2373,15 +2373,6 @@ CREATE TABLE chat_project_pins (
 
 COMMENT ON TABLE chat_project_pins IS 'Per-user pinned chat projects. Pins can outlive project access, so readers must check access.';
 
-CREATE TABLE chat_project_templates (
-    project_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    created_by uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-COMMENT ON TABLE chat_project_templates IS 'Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.';
-
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2421,6 +2412,137 @@ COMMENT ON COLUMN chat_projects.default_template_id IS 'Attached template recomm
 COMMENT ON COLUMN chat_projects.default_template_version_preset_id IS 'Preset applied when a chat creates a workspace from the default template without choosing one.';
 
 COMMENT ON COLUMN chat_projects.default_parameters IS 'Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.';
+
+CREATE TABLE group_members (
+    user_id uuid NOT NULL,
+    group_id uuid NOT NULL
+);
+
+CREATE TABLE groups (
+    id uuid NOT NULL,
+    name text NOT NULL,
+    organization_id uuid NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL,
+    quota_allowance integer DEFAULT 0 NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    source group_source DEFAULT 'user'::group_source NOT NULL,
+    chat_spend_limit_micros bigint,
+    CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)))
+);
+
+COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
+
+COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
+
+CREATE TABLE organization_members (
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    roles text[] DEFAULT '{}'::text[] NOT NULL
+);
+
+CREATE TABLE users (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
+    hashed_password bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::login_type NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL,
+    github_com_user_id bigint,
+    hashed_one_time_passcode bytea,
+    one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false NOT NULL,
+    is_service_account boolean DEFAULT false NOT NULL,
+    chat_spend_limit_micros bigint,
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
+    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
+    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
+    CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
+);
+
+COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.name IS 'Name of the Coder user';
+
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
+
+COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
+
+COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
+
+COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
+
+CREATE VIEW group_members_expanded AS
+ WITH all_members AS (
+         SELECT group_members.user_id,
+            group_members.group_id
+           FROM group_members
+        UNION
+         SELECT organization_members.user_id,
+            organization_members.organization_id AS group_id
+           FROM organization_members
+        )
+ SELECT users.id AS user_id,
+    users.email AS user_email,
+    users.username AS user_username,
+    users.hashed_password AS user_hashed_password,
+    users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.status AS user_status,
+    users.rbac_roles AS user_rbac_roles,
+    users.login_type AS user_login_type,
+    users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.last_seen_at AS user_last_seen_at,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
+    users.name AS user_name,
+    users.github_com_user_id AS user_github_com_user_id,
+    users.is_system AS user_is_system,
+    users.is_service_account AS user_is_service_account,
+    groups.organization_id,
+    groups.name AS group_name,
+    all_members.group_id
+   FROM ((all_members
+     JOIN users ON ((users.id = all_members.user_id)))
+     JOIN groups ON ((groups.id = all_members.group_id)))
+  WHERE (users.deleted = false);
+
+CREATE VIEW chat_project_read_grant_members AS
+ SELECT chat_projects.id AS project_id,
+    organization_members.user_id
+   FROM ((chat_projects
+     CROSS JOIN LATERAL jsonb_each(chat_projects.user_acl) grants(principal, entry))
+     JOIN organization_members ON (((organization_members.user_id = (grants.principal)::uuid) AND (organization_members.organization_id = chat_projects.organization_id))))
+  WHERE ((grants.entry -> 'permissions'::text) ?| ARRAY['read'::text, '*'::text])
+UNION ALL
+ SELECT chat_projects.id AS project_id,
+    group_members_expanded.user_id
+   FROM (((chat_projects
+     CROSS JOIN LATERAL jsonb_each(chat_projects.group_acl) grants(principal, entry))
+     JOIN group_members_expanded ON ((group_members_expanded.group_id = (grants.principal)::uuid)))
+     JOIN organization_members ON (((organization_members.user_id = group_members_expanded.user_id) AND (organization_members.organization_id = chat_projects.organization_id))))
+  WHERE ((grants.entry -> 'permissions'::text) ?| ARRAY['read'::text, '*'::text]);
+
+CREATE TABLE chat_project_templates (
+    project_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_templates IS 'Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2571,48 +2693,6 @@ COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
 COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
-
-CREATE TABLE users (
-    id uuid NOT NULL,
-    email text NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    hashed_password bytea NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'dormant'::user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint,
-    hashed_one_time_passcode bytea,
-    one_time_passcode_expires_at timestamp with time zone,
-    is_system boolean DEFAULT false NOT NULL,
-    is_service_account boolean DEFAULT false NOT NULL,
-    chat_spend_limit_micros bigint,
-    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
-    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
-    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
-    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
-    CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
-);
-
-COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-COMMENT ON COLUMN users.name IS 'Name of the Coder user';
-
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
-
-COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
-
-COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
-
-COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
-
-COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -2807,70 +2887,6 @@ CREATE TABLE group_ai_budgets (
 );
 
 COMMENT ON TABLE group_ai_budgets IS 'Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.';
-
-CREATE TABLE group_members (
-    user_id uuid NOT NULL,
-    group_id uuid NOT NULL
-);
-
-CREATE TABLE groups (
-    id uuid NOT NULL,
-    name text NOT NULL,
-    organization_id uuid NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL,
-    quota_allowance integer DEFAULT 0 NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL,
-    source group_source DEFAULT 'user'::group_source NOT NULL,
-    chat_spend_limit_micros bigint,
-    CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)))
-);
-
-COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
-
-COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
-
-CREATE TABLE organization_members (
-    user_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{}'::text[] NOT NULL
-);
-
-CREATE VIEW group_members_expanded AS
- WITH all_members AS (
-         SELECT group_members.user_id,
-            group_members.group_id
-           FROM group_members
-        UNION
-         SELECT organization_members.user_id,
-            organization_members.organization_id AS group_id
-           FROM organization_members
-        )
- SELECT users.id AS user_id,
-    users.email AS user_email,
-    users.username AS user_username,
-    users.hashed_password AS user_hashed_password,
-    users.created_at AS user_created_at,
-    users.updated_at AS user_updated_at,
-    users.status AS user_status,
-    users.rbac_roles AS user_rbac_roles,
-    users.login_type AS user_login_type,
-    users.avatar_url AS user_avatar_url,
-    users.deleted AS user_deleted,
-    users.last_seen_at AS user_last_seen_at,
-    users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    users.name AS user_name,
-    users.github_com_user_id AS user_github_com_user_id,
-    users.is_system AS user_is_system,
-    users.is_service_account AS user_is_service_account,
-    groups.organization_id,
-    groups.name AS group_name,
-    all_members.group_id
-   FROM ((all_members
-     JOIN users ON ((users.id = all_members.user_id)))
-     JOIN groups ON ((groups.id = all_members.group_id)))
-  WHERE (users.deleted = false);
 
 CREATE TABLE inbox_notifications (
     id uuid NOT NULL,
