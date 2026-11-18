@@ -520,14 +520,14 @@ function useMessageScrollerController({
         }
       }
 
-      // LOCAL CHANGE: while the held element is detached, the first unhandled
-      // anchor takes the hold, as when a stored message replaces its pending
-      // row. With none, the hold ends at the end, as when a send fails.
+      // LOCAL CHANGE: a row that replaces the held one, as a stored message
+      // replaces its pending row while the reply starts, takes over the hold.
       const heldElement = streamingTurnRef.current
-      const heldElementDetached =
-        heldElement !== null && !heldElement.isConnected
 
-      if (items.length === previousItemCount || heldElementDetached) {
+      if (
+        items.length === previousItemCount ||
+        (heldElement !== null && !heldElement.isConnected)
+      ) {
         const anchor = getUnanchoredScrollAnchor(
           items,
           handledScrollAnchorsRef.current
@@ -547,10 +547,7 @@ function useMessageScrollerController({
 
       // Appends with no new anchor (and content-only updates) fall through here:
       // keep following the end if we still are, otherwise just recommit state.
-      if (
-        heldElementDetached || // LOCAL CHANGE
-        (modeRef.current === "following-bottom" && autoScrollRef.current)
-      ) {
+      if (modeRef.current === "following-bottom" && autoScrollRef.current) {
         scrollToEnd({ behavior: "auto" })
       } else {
         commitScrollState()
