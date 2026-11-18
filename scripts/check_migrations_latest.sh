@@ -30,10 +30,14 @@ if [[ $# -gt 0 ]]; then
 	fi
 fi
 
+# A loop rather than an array literal, because shfmt parses a [0-9] glob
+# inside an array literal as an index assignment.
+migrations=()
 shopt -s nullglob
-migrations=("${migrations_dir}"/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql)
+for migration in "${migrations_dir}"/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+	migrations+=("${migration##*/}")
+done
 shopt -u nullglob
-migrations=("${migrations[@]##*/}")
 
 mapfile -t ups < <(printf '%s\n' "${migrations[@]}" | grep '\.up\.sql$' | LC_ALL=C sort)
 if [[ ${#ups[@]} -eq 0 ]]; then
@@ -83,8 +87,11 @@ if [[ ${#entries[@]} -ne 1 ]]; then
 	exit 1
 fi
 
-if [[ "${entries[0]}" != "$newest" ]]; then
-	log "ERROR: ${latest_file} names ${entries[0]}, but the newest migration is ${newest}."
+# Migration names contain no whitespace, so strip all of it. This tolerates
+# trailing spaces and CRLF line endings.
+entry="${entries[0]//[[:space:]]/}"
+if [[ "$entry" != "$newest" ]]; then
+	log "ERROR: ${latest_file} names ${entry}, but the newest migration is ${newest}."
 	log "$fix_hint"
 	failed=1
 fi

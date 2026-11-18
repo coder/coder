@@ -132,7 +132,7 @@ roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user
 
 ### Migration Issues
 
-1. **Migration conflicts**: A conflict in `migrations/LATEST` means another migration merged first. Update from `main`, take either side, then run `fix_migration_numbers.sh` to renumber and rewrite `LATEST`
+1. **Migration conflicts**: A conflict in `migrations/LATEST` means another migration merged first, or a lower PR in a stack squash-merged. Merge or rebase onto `main`, then run `fix_migration_numbers.sh` while the conflict is open. It renumbers only taken numbers, rewrites and stages `LATEST`. For a cherry-pick, backport, or revert, run `./scripts/check_migrations_latest.sh --write` instead
 2. **Missing down migration**: Always create both up and down files
 3. **Schema inconsistencies**: Verify against existing schema
 

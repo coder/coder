@@ -8,6 +8,14 @@ list_migrations() {
 	git ls-tree -r --name-only "${branch}" -- . | grep -E '[0-9]{6}.*' | sort -n
 }
 
+# Lists migrations in the index rather than HEAD, so the script also works in
+# the middle of a merge or rebase. Mid-rebase, HEAD does not yet contain the
+# branch's migrations, but the index does. uniq drops the extra entries that
+# conflicted paths have, one per merge stage.
+list_index_migrations() {
+	git ls-files -- . | grep -E '[0-9]{6}.*' | sort -n | uniq
+}
+
 main() {
 	cd "${SCRIPT_DIR}"
 
@@ -31,7 +39,7 @@ main() {
 	)"
 	head_files="$(
 		set -e
-		list_migrations HEAD
+		list_index_migrations
 	)"
 
 	declare -A prefix_map=()
@@ -59,13 +67,19 @@ main() {
 		fi
 		name="${file:7:-4}"
 		new_file="${new_num}_${name}.sql"
+		# A stacked PR, or a branch that was already renumbered, can keep its
+		# number. It still needs LATEST rewritten below.
+		if [[ "${new_file}" == "${old_file}" ]]; then
+			echo "Keeping ${old_file}, its number is already free"
+			continue
+		fi
 		echo "Renaming ${old_file} to ${new_file}"
 		mv "${old_file}" "${new_file}"
 		git_add_files+=("${new_file}" "${old_file}")
 	done <<<"${diff_files}"
 
-	# Point LATEST at the renumbered migration. If rebasing on main left LATEST
-	# conflicted, this also resolves it.
+	# Point LATEST at the newest migration. If merging or rebasing on main left
+	# LATEST conflicted, this also resolves it.
 	../../../scripts/check_migrations_latest.sh --write
 	git_add_files+=("LATEST")
 
@@ -88,6 +102,10 @@ main() {
 			fi
 			name="${file:7:-4}"
 			new_file="${dir}/${new_num}_${name}.sql"
+			if [[ "${new_file}" == "${old_file}" ]]; then
+				echo "Keeping ${old_file}, its number is already free"
+				continue
+			fi
 			echo "Renaming ${old_file} to ${new_file}"
 			mv "${old_file}" "${new_file}"
 			git_add_files+=("${new_file}" "${old_file}")

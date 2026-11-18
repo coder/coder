@@ -166,10 +166,20 @@ much data as possible.
 migration. Commit it with the migration. Every PR that adds a migration changes
 that file, so when another migration merges first, GitHub reports your PR as
 conflicting instead of letting it merge a duplicate migration number. To fix it,
-update your branch from `main`, take either side of the `LATEST` conflict, and
-run `./coderd/database/migrations/fix_migration_numbers.sh`. The script
-renumbers your migrations and rewrites `LATEST`. `make lint` fails if `LATEST`
-does not name the newest migration or if two migrations share a number.
+merge or rebase your branch onto `main`, and while the `LATEST` conflict is
+still open, run `./coderd/database/migrations/fix_migration_numbers.sh`. The
+script renumbers your migrations if their numbers are taken, rewrites `LATEST`,
+and stages the result, so you don't need to edit the conflict by hand. Then
+commit, or continue the rebase. `make lint` fails if `LATEST` does not name the
+newest migration or if two migrations share a number.
+
+Every pair of open PRs that add migrations conflicts on `LATEST`, even when
+their numbers don't collide. This includes stacked PRs: once the lower PR
+squash-merges, the next PR conflicts. Running `fix_migration_numbers.sh` keeps
+numbers that are still free and only rewrites `LATEST`. When a cherry-pick,
+backport, or revert conflicts on `LATEST`, resolve it with
+`./scripts/check_migrations_latest.sh --write`, which names the newest
+migration on the current branch.
 
 Run `make gen` to generate models.
 
