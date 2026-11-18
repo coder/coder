@@ -82,9 +82,21 @@
 							]
 						},
 						{
-							"title": "Migrate from Ona (formerly Gitpod)",
-							"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
-							"path": "./install/plan/migrate-from-ona.md"
+							"title": "Migrate to Coder",
+							"description": "Move developer environments from another platform to a self-hosted Coder deployment.",
+							"path": "./install/plan/migrate.md",
+							"children": [
+								{
+									"title": "Migrate from Ona (formerly Gitpod)",
+									"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
+									"path": "./install/plan/migrate/ona.md"
+								},
+								{
+									"title": "Migrate from Microsoft Dev Box",
+									"description": "Move Microsoft Dev Box dev centers, projects, and pools to Coder templates, with Windows workspaces on Azure.",
+									"path": "./install/plan/migrate/dev-box.md"
+								}
+							]
 						}
 					]
 				},
@@ -462,6 +474,11 @@
 							"title": "Docker in workspaces",
 							"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
 							"path": "./templates/extending-templates/docker-in-workspaces.md"
+						},
+						{
+							"title": "Sandbox agents",
+							"description": "Run AI agents in workspaces with fast startup and kernel, network, and secret isolation.",
+							"path": "./templates/extending-templates/sandbox-agents.md"
 						},
 						{
 							"title": "Workspace tags",
@@ -1055,6 +1072,11 @@
 							"title": "AI Governance cost control",
 							"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
 							"path": "./ai-governance/ai-gateway/cost-controls.md"
+						},
+						{
+							"title": "Request organization",
+							"description": "How AI Gateway assigns each request to an organization, and how that affects budgets and spend.",
+							"path": "./ai-governance/ai-gateway/request-organization.md"
 						},
 						{
 							"title": "Reference",

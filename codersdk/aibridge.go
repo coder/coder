@@ -61,11 +61,9 @@ type UserAIBudgetSummary struct {
 // AISpendPeriodWindow is the [Start, End) window over which AI spend is
 // aggregated.
 type AISpendPeriodWindow struct {
-	// PeriodStart is the inclusive lower bound of the current budget
-	// period.
+	// PeriodStart is the inclusive lower bound of the applied period.
 	PeriodStart time.Time `json:"period_start" format:"date-time"`
-	// PeriodEnd is the exclusive upper bound of the current budget
-	// period.
+	// PeriodEnd is the exclusive upper bound of the applied period.
 	PeriodEnd time.Time `json:"period_end" format:"date-time"`
 }
 
@@ -453,7 +451,8 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 type AIBridgeListModelsFilter struct {
 	// Limit defaults to 100, max is 1000.
 	Pagination Pagination
-	// Model keeps only identifiers starting with this literal prefix.
+	// Model keeps only identifiers that contain this literal substring,
+	// ignoring case.
 	Model string
 }
 

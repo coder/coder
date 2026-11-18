@@ -485,7 +485,7 @@ version = "95009df793fb85bcbe71628e6dded30e5cfdb3c3"
 backend = "go:github.com/coder/paralleltestctx/cmd/paralleltestctx"
 
 [[tools."go:github.com/coder/sqlc/cmd/sqlc"]]
-version = "337309bfb9524f38466a5090e310040fc7af0203"
+version = "fb627c9c93f089ff1888f6799ca348986b2818e0"
 backend = "go:github.com/coder/sqlc/cmd/sqlc"
 
 [[tools."go:github.com/coder/whichtests"]]
