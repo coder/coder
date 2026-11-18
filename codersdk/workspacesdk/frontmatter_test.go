@@ -245,11 +245,13 @@ func TestSkillDisablesModelInvocation(t *testing.T) {
 		name  string
 		value string
 		want  bool
+		// wantBoolean is whether the key holds a YAML boolean at all.
+		wantBoolean bool
 	}{
-		{name: "True", value: "true", want: true},
-		{name: "TitleCaseTrue", value: "True", want: true},
+		{name: "True", value: "true", want: true, wantBoolean: true},
+		{name: "TitleCaseTrue", value: "True", want: true, wantBoolean: true},
 		{name: "Absent", value: "", want: false},
-		{name: "False", value: "false", want: false},
+		{name: "False", value: "false", want: false, wantBoolean: true},
 		{name: "QuotedTrue", value: `"true"`, want: false},
 		{name: "Yes", value: "yes", want: false},
 		{name: "One", value: "1", want: false},
@@ -266,6 +268,9 @@ func TestSkillDisablesModelInvocation(t *testing.T) {
 			content := "---\nname: manual-only\ndescription: Runs on request\n" + key + "---\nBody text.\n"
 
 			require.Equal(t, tt.want, workspacesdk.SkillDisablesModelInvocation(content))
+			disabled, ok := workspacesdk.SkillDisableModelInvocationValue(content)
+			require.Equal(t, tt.want, disabled)
+			require.Equal(t, tt.wantBoolean, ok)
 			name, description, body, err := workspacesdk.ParseSkillFrontmatter(content)
 			require.NoError(t, err)
 			require.Equal(t, "manual-only", name)

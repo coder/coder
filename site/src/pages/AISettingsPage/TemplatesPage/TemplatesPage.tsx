@@ -82,7 +82,7 @@ const TemplatesPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={canManageTemplates}>
-			<title>{pageTitle("Templates", "AI Settings")}</title>
+			<title>{pageTitle("Templates", "AI settings")}</title>
 
 			<TemplatesPageView
 				filter={filter}

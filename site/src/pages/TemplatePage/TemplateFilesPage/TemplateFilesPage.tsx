@@ -61,7 +61,7 @@ const TemplateFilesPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.canUpdateTemplate}>
-			<title>{getTemplatePageTitle("Source Code", template)}</title>
+			<title>{getTemplatePageTitle("Source code", template)}</title>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
@@ -71,7 +71,7 @@ const TemplateFilesPage: React.FC = () => {
 						Awesome, you just created a new template!
 					</AlertTitle>
 					<AlertDescription>
-						To customize it further you can edit the Terraform or Coder Template
+						To customize it further you can edit the Terraform or Coder template
 						directly. You can use our template agent skill to help you.
 					</AlertDescription>
 					<div className="flex items-center gap-2 mt-4">
