@@ -8,9 +8,10 @@ WHERE user_id = @user_id::uuid;
 -- name: PinChatProject :exec
 -- Pins a project, or moves an already pinned project, to pin_order. Without
 -- pin_order a new pin goes to the end and an existing pin keeps its place.
--- Positions count only pins the user can still see, as the summaries do, and
--- are clamped to [1, count]. Pins on projects the user can no longer see move
--- after the visible ones. Callers must hold the per-user pin lock so
+-- Positions count the pins GetChatProjectSummariesByUserID matches and are
+-- clamped to [1, count], so callers must translate a position the user sees
+-- past matched pins that authorization hides. Pins the summaries no longer
+-- match move after the others. Callers must hold the per-user pin lock so
 -- concurrent writes cannot interleave.
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
@@ -19,8 +20,7 @@ WITH current_pins AS (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = @user_id::uuid
             OR (
-                @acl_enabled::boolean
-                AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                     SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                     UNION ALL
                     SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -66,8 +66,8 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 -- name: UnpinChatProject :exec
 -- Deletes a pin and compacts the remaining pins to 1..N.
 -- Unpinning a project that is not pinned changes nothing. Like
--- PinChatProject, pins the user can still see come first, and callers must
--- hold the per-user pin lock.
+-- PinChatProject, pins the summaries still match come first, and callers
+-- must hold the per-user pin lock.
 WITH deleted AS (
     DELETE FROM chat_project_pins
     WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid
@@ -78,8 +78,7 @@ updates AS (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = @user_id::uuid
         OR (
-            @acl_enabled::boolean
-            AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+            (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -112,10 +111,10 @@ WITH accessible AS (
     FROM chat_projects
     WHERE owner_id = @user_id::uuid
         OR (
-            -- Grants count only while RBAC honors them, as in
-            -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
-            @acl_enabled::boolean
-            AND (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
+            -- Grant keys select candidates even while chat sharing is
+            -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
+            -- role can still let the caller read the project.
+            (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -217,69 +216,3 @@ LEFT JOIN chat_project_pins pins
     ON pins.user_id = @user_id::uuid AND pins.project_id = chat_projects.id
 LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
 ORDER BY lower(chat_projects.name), chat_projects.id;
-
--- name: GetChatProjectPinTelemetry :one
--- Aggregates pin usage over each active, non-system user's accessible
--- projects. Grants count only when @acl_enabled and they include read,
--- matching the summaries. No identifiers leave this query.
-WITH project_users AS (
-    SELECT id AS project_id, owner_id AS user_id FROM chat_projects
-    UNION
-    SELECT project_id, user_id FROM chat_project_read_grant_members WHERE @acl_enabled::boolean
-),
-per_user AS (
-    SELECT
-        COUNT(*) AS projects,
-        COUNT(pins.project_id) AS pinned,
-        COUNT(*) FILTER (WHERE pins.source = 'migration') AS pinned_migration,
-        COUNT(*) FILTER (WHERE pins.source = 'default') AS pinned_default,
-        COUNT(*) FILTER (WHERE pins.source = 'user') AS pinned_user,
-        -- Owners get a pin on every project when it is created or by the
-        -- upgrade migration, so an owned project without one was unpinned.
-        COUNT(*) FILTER (WHERE pins.project_id IS NULL AND chat_projects.owner_id = project_users.user_id) AS unpinned_owned
-    FROM project_users
-    JOIN users ON users.id = project_users.user_id
-        AND users.status = 'active'::user_status AND users.deleted = false AND users.is_system = false
-    JOIN chat_projects ON chat_projects.id = project_users.project_id
-    LEFT JOIN chat_project_pins pins
-        ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
-    GROUP BY project_users.user_id
-),
--- A user has acted when their current pins show it: a user pin (left by
--- pinning or reordering) or an unpinned owned project. Unpinning deletes
--- the pin, so a user whose only action was unpinning projects shared with
--- them does not count.
-bucketed AS (
-    SELECT
-        *,
-        unpinned_owned > 0 OR pinned_user > 0 AS acted,
-        CASE
-            WHEN pinned = 0 THEN 0
-            WHEN pinned = projects THEN 100
-            WHEN pinned * 4 <= projects THEN 25
-            WHEN pinned * 2 <= projects THEN 50
-            WHEN pinned * 4 <= projects * 3 THEN 75
-            ELSE 99
-        END AS bucket
-    FROM per_user
-)
-SELECT
-    COUNT(*)::bigint AS users_with_projects,
-    COUNT(*) FILTER (WHERE unpinned_owned > 0)::bigint AS users_with_unpinned_owned,
-    COALESCE(SUM(pinned_migration), 0)::bigint AS pinned_migration,
-    COALESCE(SUM(pinned_default), 0)::bigint AS pinned_default,
-    COALESCE(SUM(pinned_user), 0)::bigint AS pinned_user,
-    COALESCE(SUM(unpinned_owned), 0)::bigint AS unpinned_owned,
-    COUNT(*) FILTER (WHERE bucket = 0)::bigint AS all_share_0,
-    COUNT(*) FILTER (WHERE bucket = 25)::bigint AS all_share_1_25,
-    COUNT(*) FILTER (WHERE bucket = 50)::bigint AS all_share_26_50,
-    COUNT(*) FILTER (WHERE bucket = 75)::bigint AS all_share_51_75,
-    COUNT(*) FILTER (WHERE bucket = 99)::bigint AS all_share_76_99,
-    COUNT(*) FILTER (WHERE bucket = 100)::bigint AS all_share_100,
-    COUNT(*) FILTER (WHERE acted AND bucket = 0)::bigint AS acted_share_0,
-    COUNT(*) FILTER (WHERE acted AND bucket = 25)::bigint AS acted_share_1_25,
-    COUNT(*) FILTER (WHERE acted AND bucket = 50)::bigint AS acted_share_26_50,
-    COUNT(*) FILTER (WHERE acted AND bucket = 75)::bigint AS acted_share_51_75,
-    COUNT(*) FILTER (WHERE acted AND bucket = 99)::bigint AS acted_share_76_99,
-    COUNT(*) FILTER (WHERE acted AND bucket = 100)::bigint AS acted_share_100
-FROM bucketed;

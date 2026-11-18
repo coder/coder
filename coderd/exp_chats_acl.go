@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -282,7 +283,7 @@ func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter) bo
 }
 
 func (api *API) chatSharingDisabled() bool {
-	return acl.ChatSharingDisabled(api.DeploymentValues)
+	return rbac.ChatACLDisabled() || (api.DeploymentValues != nil && bool(api.DeploymentValues.DisableChatSharing))
 }
 
 type ChatACLUpdateValidator codersdk.UpdateChatACL
