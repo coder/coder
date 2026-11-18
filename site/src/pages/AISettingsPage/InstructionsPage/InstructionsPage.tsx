@@ -63,7 +63,7 @@ const InstructionsPage: React.FC = () => {
 				organizationPermissionsQuery.error != null
 			}
 		>
-			<title>{pageTitle("Instructions", "AI Settings")}</title>
+			<title>{pageTitle("Instructions", "AI settings")}</title>
 
 			<InstructionsPageView
 				canEditDeploymentConfig={permissions.editDeploymentConfig}
