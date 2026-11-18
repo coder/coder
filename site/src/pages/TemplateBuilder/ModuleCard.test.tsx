@@ -9,6 +9,7 @@ const renderCard = () => {
 		<ModuleCard
 			name="Docker Containers"
 			description="Provision Docker containers as Coder workspaces."
+			detailsUrl="https://registry.coder.com/modules/docker"
 			onSelect={onSelect}
 		/>,
 	);
@@ -22,6 +23,13 @@ describe(ModuleCard.name, () => {
 			screen.getByRole("checkbox", { name: /Docker Containers/ }),
 		);
 		expect(onSelect).toHaveBeenCalledTimes(1);
+	});
+
+	it("includes the module name in the details link name", () => {
+		renderCard();
+		expect(screen.getByRole("link")).toHaveAccessibleName(
+			/^View details for Docker Containers/,
+		);
 	});
 
 	it("toggles when the checkbox is activated with the keyboard", async () => {
