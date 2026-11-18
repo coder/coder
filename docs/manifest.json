@@ -1548,6 +1548,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Incident response",
+							"description": "Contain a security incident, cut off access to workspaces when needed, and restore access.",
+							"path": "./admin/security/incident-response.md"
+						},
+						{
 							"title": "Security - best practices",
 							"description": "Follow security best practices to harden your Coder deployment against common risks.",
 							"path": "./admin/security/security-best-practices.md"
