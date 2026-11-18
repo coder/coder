@@ -1,50 +1,22 @@
-import { useId } from "react";
-import { useQuery } from "react-query";
-import { getErrorMessage } from "#/api/errors";
-import { templateVersionPresets } from "#/api/queries/templates";
+import { getErrorMessage, isApiValidationError } from "#/api/errors";
 import type { CreateChatProjectRequest, Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
 import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
-import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { SettingSwitch } from "../../SettingSwitch";
-import { ChatProjectDefaultParameters } from "./ChatProjectDefaultParameters";
 
-/** Form state for a project's templates and the defaults its chats use. */
+/** Form state for a project's templates. */
 export type ChatProjectTemplatesValues = {
 	/** Whether chats can only use the selected templates. */
 	limitTemplates: boolean;
 	templateIds: readonly string[];
-	/** Empty when the project has no default template. */
-	defaultTemplateId: string;
-	/**
-	 * Picks which of `defaultPresetId` or `defaultParameters` is saved; the
-	 * other is ignored.
-	 */
-	defaultsKind: "preset" | "parameters";
-	defaultPresetId: string;
-	/**
-	 * Values by parameter name. A missing name uses the template default; an
-	 * empty string is an explicit empty value.
-	 */
-	defaultParameters: Readonly<Record<string, string>>;
 };
-
-const noDefaultTemplate = "none";
 
 /** The create request, the saved state, and a draft all take this shape. */
 export type ChatProjectTemplatesSettings = Required<
 	Pick<CreateChatProjectRequest, "limit_templates" | "template_ids">
-> &
-	Pick<CreateChatProjectRequest, "default_template">;
+>;
 
 /** Returns the form state for saved templates, or an empty form when none. */
 export const chatProjectTemplatesValues = (
@@ -52,12 +24,6 @@ export const chatProjectTemplatesValues = (
 ): ChatProjectTemplatesValues => ({
 	limitTemplates: templates?.limit_templates ?? false,
 	templateIds: templates?.template_ids ?? [],
-	defaultTemplateId: templates?.default_template?.template_id ?? "",
-	defaultsKind: templates?.default_template?.parameters
-		? "parameters"
-		: "preset",
-	defaultPresetId: templates?.default_template?.preset_id ?? "",
-	defaultParameters: templates?.default_template?.parameters ?? {},
 });
 
 /**
@@ -68,34 +34,24 @@ export const chatProjectTemplatesValues = (
 export const chatProjectTemplatesRequest = (
 	values: ChatProjectTemplatesValues,
 	eligible: readonly Template[],
-): ChatProjectTemplatesSettings => {
-	const request = {
-		limit_templates: values.limitTemplates,
-		template_ids: values.templateIds.filter((id) =>
-			eligible.some((template) => template.id === id),
-		),
-	};
-	if (!request.template_ids.includes(values.defaultTemplateId)) {
-		return request;
-	}
-	if (values.defaultsKind === "preset") {
-		return {
-			...request,
-			default_template: {
-				template_id: values.defaultTemplateId,
-				preset_id: values.defaultPresetId || undefined,
-			},
-		};
-	}
-	const parameters = values.defaultParameters;
-	return {
-		...request,
-		default_template: {
-			template_id: values.defaultTemplateId,
-			parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
-		},
-	};
-};
+): ChatProjectTemplatesSettings => ({
+	limit_templates: values.limitTemplates,
+	template_ids: values.templateIds.filter((id) =>
+		eligible.some((template) => template.id === id),
+	),
+});
+
+/**
+ * Returns the server's rejection of the templates in a save error. Forms
+ * have no field named after these validations, so the templates fields show
+ * it through `saveError`.
+ */
+export const templatesValidationDetail = (error: unknown) =>
+	isApiValidationError(error)
+		? error.response.data.validations?.find(
+				(validation) => validation.field === "template_ids",
+			)?.detail
+		: undefined;
 
 const templateLabel = (template: Template) =>
 	template.display_name || template.name;
@@ -123,38 +79,23 @@ type ChatProjectTemplatesFieldsProps = {
 };
 
 /**
- * Fields that pick a project's templates, whether its chats are limited to
- * them, an optional default template, and that template's default preset or
- * parameter values.
+ * Fields that pick a project's templates and whether its chats are limited to
+ * them.
  */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
 > = ({ templates, templatesError, saveError, value, onChange, disabled }) => {
-	const defaultTemplateId = useId();
 	const limitsToNothing =
 		value.limitTemplates && value.templateIds.length === 0;
 	const options = (templates ?? []).map((template) => ({
 		value: template.id,
 		label: templateLabel(template),
 	}));
-	const selectedTemplates = (templates ?? []).filter((template) =>
-		value.templateIds.includes(template.id),
-	);
-	const defaultTemplate = selectedTemplates.find(
-		(template) => template.id === value.defaultTemplateId,
-	);
 
 	const setTemplateIds = (templateIds: readonly string[]) => {
-		if (templateIds.includes(value.defaultTemplateId)) {
-			onChange({ ...value, templateIds });
-			return;
-		}
 		onChange({
 			...value,
 			templateIds,
-			defaultTemplateId: "",
-			defaultPresetId: "",
-			defaultParameters: {},
 		});
 	};
 
@@ -229,176 +170,11 @@ export const ChatProjectTemplatesFields: React.FC<
 					onChange({ ...value, limitTemplates })
 				}
 			/>
-			{selectedTemplates.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label htmlFor={defaultTemplateId}>Default template</Label>
-					<Select
-						value={value.defaultTemplateId || noDefaultTemplate}
-						onValueChange={(id) =>
-							onChange({
-								...value,
-								defaultTemplateId: id === noDefaultTemplate ? "" : id,
-								defaultPresetId: "",
-								defaultParameters: {},
-							})
-						}
-						disabled={disabled}
-					>
-						<SelectTrigger id={defaultTemplateId}>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={noDefaultTemplate}>None</SelectItem>
-							{selectedTemplates.map((template) => (
-								<SelectItem key={template.id} value={template.id}>
-									{templateLabel(template)}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-			)}
-			{defaultTemplate && (
-				<ChatProjectDefaultsFields
-					template={defaultTemplate}
-					value={value}
-					onChange={onChange}
-					disabled={disabled}
-				/>
-			)}
 			{saveError && (
 				<p role="alert" className="m-0 text-sm text-content-destructive">
 					{saveError}
 				</p>
 			)}
 		</>
-	);
-};
-
-type ChatProjectDefaultsFieldsProps = {
-	readonly template: Template;
-	readonly value: ChatProjectTemplatesValues;
-	readonly onChange: (value: ChatProjectTemplatesValues) => void;
-	readonly disabled: boolean;
-};
-
-const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
-	template,
-	value,
-	onChange,
-	disabled,
-}) => {
-	const presetKindId = useId();
-	const parametersKindId = useId();
-
-	return (
-		<div className="flex flex-col gap-3">
-			<RadioGroup
-				aria-label="Default values"
-				className="flex gap-4"
-				value={value.defaultsKind}
-				onValueChange={(kind) =>
-					onChange({
-						...value,
-						defaultsKind: kind === "parameters" ? "parameters" : "preset",
-						defaultPresetId: "",
-						defaultParameters: {},
-					})
-				}
-				disabled={disabled}
-			>
-				<div className="flex items-center gap-2">
-					<RadioGroupItem id={presetKindId} value="preset" />
-					<Label htmlFor={presetKindId} className="font-normal">
-						Preset
-					</Label>
-				</div>
-				<div className="flex items-center gap-2">
-					<RadioGroupItem id={parametersKindId} value="parameters" />
-					<Label htmlFor={parametersKindId} className="font-normal">
-						Parameter values
-					</Label>
-				</div>
-			</RadioGroup>
-			{value.defaultsKind === "preset" && (
-				<ChatProjectDefaultPreset
-					templateVersionId={template.active_version_id}
-					value={value.defaultPresetId}
-					onChange={(defaultPresetId) =>
-						onChange({ ...value, defaultPresetId })
-					}
-					disabled={disabled}
-				/>
-			)}
-			{value.defaultsKind === "parameters" && (
-				// Keyed by version, so another template or a new active version
-				// never shows the previous one's parameters.
-				<ChatProjectDefaultParameters
-					key={template.active_version_id}
-					templateVersionId={template.active_version_id}
-					value={value.defaultParameters}
-					onChange={(defaultParameters) =>
-						onChange({ ...value, defaultParameters })
-					}
-					disabled={disabled}
-				/>
-			)}
-		</div>
-	);
-};
-
-type ChatProjectDefaultPresetProps = {
-	readonly templateVersionId: string;
-	/** Empty when no preset is selected. */
-	readonly value: string;
-	readonly onChange: (presetId: string) => void;
-	readonly disabled: boolean;
-};
-
-const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
-	templateVersionId,
-	value,
-	onChange,
-	disabled,
-}) => {
-	const selectId = useId();
-	const presetsQuery = useQuery(templateVersionPresets(templateVersionId));
-
-	if (presetsQuery.data === undefined && presetsQuery.error) {
-		return (
-			<p role="alert" className="m-0 text-sm text-content-destructive">
-				{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
-			</p>
-		);
-	}
-	if (presetsQuery.data === undefined) {
-		return <Skeleton className="h-10 w-full" />;
-	}
-	// The server returns null rather than [] for a version without presets.
-	const presets = presetsQuery.data ?? [];
-	if (presets.length === 0) {
-		return (
-			<p className="m-0 text-sm text-content-secondary">
-				This template has no presets.
-			</p>
-		);
-	}
-
-	return (
-		<div className="flex flex-col gap-2">
-			<Label htmlFor={selectId}>Default preset</Label>
-			<Select value={value} onValueChange={onChange} disabled={disabled}>
-				<SelectTrigger id={selectId}>
-					<SelectValue placeholder="Select a preset" />
-				</SelectTrigger>
-				<SelectContent>
-					{presets.map((preset) => (
-						<SelectItem key={preset.ID} value={preset.ID}>
-							{preset.Name}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-		</div>
 	);
 };

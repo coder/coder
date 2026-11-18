@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
@@ -6,34 +6,18 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	Preset,
-	Template,
-} from "#/api/typesGenerated";
+import type { Template } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
-	MockDropdownParameter,
 	MockOrganization2,
-	MockPreviewParameter1,
-	MockSwitchParameter,
 	MockTemplate,
-	MockUserOwner,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
-
-vi.mock("#/hooks/useAuthenticated", async () => {
-	const { MockUserOwner } = await import("#/testHelpers/entities");
-	return {
-		useAuthenticated: () => ({ user: MockUserOwner, permissions: {} }),
-	};
-});
 
 // The icon field renders external images, which read the active theme.
 const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -509,59 +493,20 @@ const mockFirstTemplate: Template = {
 	id: "template-1",
 	name: "docker",
 	display_name: "Docker",
-	active_version_id: "version-1",
 };
 const mockSecondTemplate: Template = {
 	...MockTemplate,
 	id: "template-2",
 	name: "kubernetes",
 	display_name: "Kubernetes",
-	active_version_id: "version-2",
 };
-const mockPreset: Preset = {
-	ID: "preset-1",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
-};
-const mockEvaluateRoute = `/api/v2/templateversions/${mockFirstTemplate.active_version_id}/dynamic-parameters/evaluate`;
 describe("ChatProjectDialog templates", () => {
-	/**
-	 * Returns the bodies of the parameter evaluations requested so far. The
-	 * template has a monitoring switch only for the medium instance type.
-	 */
 	const useTemplateHandlers = () => {
-		const evaluations: DynamicParametersRequest[] = [];
 		server.use(
 			http.get("/api/v2/templates", () =>
 				HttpResponse.json([mockFirstTemplate, mockSecondTemplate]),
 			),
-			http.get("/api/v2/templateversions/:versionId/presets", () =>
-				HttpResponse.json([mockPreset]),
-			),
-			http.post<never, DynamicParametersRequest>(
-				mockEvaluateRoute,
-				async ({ request }) => {
-					const evaluation = await request.json();
-					evaluations.push(evaluation);
-					return HttpResponse.json({
-						id: 0,
-						diagnostics: [],
-						parameters: [
-							MockDropdownParameter,
-							MockPreviewParameter1,
-							...(evaluation.inputs[MockDropdownParameter.name] === "t3.medium"
-								? [MockSwitchParameter]
-								: []),
-						],
-					} satisfies DynamicParametersResponse);
-				},
-			),
 		);
-		return evaluations;
 	};
 
 	const startCreate = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -570,16 +515,6 @@ describe("ChatProjectDialog templates", () => {
 			"New",
 		);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-	};
-
-	const pickDefaultTemplate = async (
-		user: ReturnType<typeof userEvent.setup>,
-		name: string,
-	) => {
-		await user.click(
-			screen.getByRole("combobox", { name: "Default template" }),
-		);
-		await user.click(screen.getByRole("option", { name }));
 	};
 
 	it("creates a project limited to every eligible template", async () => {
@@ -602,196 +537,6 @@ describe("ChatProjectDialog templates", () => {
 				}),
 			);
 		});
-	});
-
-	it("submits a default template with a preset", async () => {
-		useTemplateHandlers();
-		const user = userEvent.setup();
-		const { props } = renderDialog();
-
-		await startCreate(user);
-		await pickDefaultTemplate(user, "Kubernetes");
-		await user.click(
-			await screen.findByRole("combobox", { name: "Default preset" }),
-		);
-		await user.click(screen.getByRole("option", { name: "Small" }));
-		await user.click(screen.getByRole("button", { name: "Create project" }));
-
-		await waitFor(() => {
-			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					limit_templates: false,
-					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
-					default_template: {
-						template_id: mockSecondTemplate.id,
-						preset_id: mockPreset.ID,
-					},
-				}),
-			);
-		});
-	});
-
-	const openParameterValues = async (
-		user: ReturnType<typeof userEvent.setup>,
-	) => {
-		await startCreate(user);
-		await pickDefaultTemplate(user, "Docker");
-		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
-	};
-
-	const pickInstanceType = async (
-		user: ReturnType<typeof userEvent.setup>,
-		name: string,
-	) => {
-		await openParameterValues(user);
-		const parameter = await screen.findByRole("group", {
-			name: MockDropdownParameter.display_name,
-		});
-		await user.click(within(parameter).getByRole("combobox"));
-		await user.click(screen.getByRole("option", { name }));
-	};
-
-	it("saves a default for a parameter that another changed value adds", async () => {
-		const evaluations = useTemplateHandlers();
-		const user = userEvent.setup();
-		const { props } = renderDialog();
-
-		await pickInstanceType(user, "t3.medium");
-		await user.click(
-			await screen.findByRole("switch", {
-				name: MockSwitchParameter.display_name,
-			}),
-		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
-
-		const instanceType = { [MockDropdownParameter.name]: "t3.medium" };
-		const parameters = { ...instanceType, [MockSwitchParameter.name]: "false" };
-		await waitFor(() => {
-			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
-					default_template: { template_id: mockFirstTemplate.id, parameters },
-				}),
-			);
-		});
-		await waitFor(() => {
-			expect(evaluations).toEqual([
-				{ id: 0, owner_id: MockUserOwner.id, inputs: {} },
-				{ id: 0, owner_id: MockUserOwner.id, inputs: instanceType },
-				{ id: 0, owner_id: MockUserOwner.id, inputs: parameters },
-			]);
-		});
-	});
-
-	it("waits for a pause in typing before it evaluates the template again", async () => {
-		const evaluations = useTemplateHandlers();
-		const user = userEvent.setup();
-		renderDialog();
-
-		await openParameterValues(user);
-		const parameter = await screen.findByRole("group", {
-			name: MockPreviewParameter1.display_name,
-		});
-		await user.type(within(parameter).getByRole("textbox"), "def");
-
-		await waitFor(
-			() => {
-				expect(evaluations.map(({ inputs }) => inputs)).toEqual([
-					{},
-					{ [MockPreviewParameter1.name]: "abcdef" },
-				]);
-			},
-			{ timeout: 2000 },
-		);
-	});
-
-	it("tries a failed evaluation again without losing the changed value", async () => {
-		const evaluations = useTemplateHandlers();
-		let failNextChange = true;
-		server.use(
-			http.post<never, DynamicParametersRequest>(
-				mockEvaluateRoute,
-				async ({ request }) => {
-					const { inputs } = await request.clone().json();
-					if (!failNextChange || Object.keys(inputs).length === 0) {
-						// Falls through to the handler that answers the evaluation.
-						return undefined;
-					}
-					failNextChange = false;
-					return HttpResponse.json(
-						{ message: "Evaluation failed." },
-						{ status: 500 },
-					);
-				},
-			),
-		);
-		const user = userEvent.setup();
-		const { props } = renderDialog();
-
-		await pickInstanceType(user, "t3.small");
-		await user.click(await screen.findByRole("button", { name: "Retry" }));
-
-		expect(
-			screen.getByRole("group", { name: "Parameter values" }),
-		).toHaveFocus();
-		const parameters = { [MockDropdownParameter.name]: "t3.small" };
-		await waitFor(() => {
-			expect(evaluations.at(-1)?.inputs).toEqual(parameters);
-		});
-		await user.click(screen.getByRole("button", { name: "Create project" }));
-		await waitFor(() => {
-			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					default_template: { template_id: mockFirstTemplate.id, parameters },
-				}),
-			);
-		});
-	});
-
-	it("returns a parameter to the template default", async () => {
-		useTemplateHandlers();
-		const user = userEvent.setup();
-		const { props } = renderDialog();
-
-		await pickInstanceType(user, "t3.small");
-		await user.click(
-			screen.getByRole("button", {
-				name: `Use template default for ${MockDropdownParameter.display_name}`,
-			}),
-		);
-
-		expect(
-			screen.getByRole("group", { name: MockDropdownParameter.display_name }),
-		).toHaveFocus();
-		await user.click(screen.getByRole("button", { name: "Create project" }));
-		await waitFor(() => {
-			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					default_template: { template_id: mockFirstTemplate.id },
-				}),
-			);
-		});
-	});
-
-	it("clears the default when its template is removed", async () => {
-		useTemplateHandlers();
-		const user = userEvent.setup();
-		const { props } = renderDialog();
-
-		await startCreate(user);
-		await pickDefaultTemplate(user, "Kubernetes");
-		await user.click(screen.getByRole("combobox", { name: "Templates" }));
-		await user.keyboard("{Backspace}");
-		await user.click(screen.getByRole("button", { name: "Create project" }));
-
-		await waitFor(() => {
-			expect(props.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({ template_ids: [mockFirstTemplate.id] }),
-			);
-		});
-		expect(props.onSubmit).toHaveBeenCalledWith(
-			expect.not.objectContaining({ default_template: expect.anything() }),
-		);
 	});
 
 	it("starts with no templates when the organization changes", async () => {
