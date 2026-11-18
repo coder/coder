@@ -540,7 +540,6 @@ describe("GitPanel view requests", () => {
 							chatId="test-chat"
 							onRefresh={() => true}
 							repositories={new Map()}
-							isExpanded={false}
 							isGitStatusLoading={false}
 							everDirty={new Set()}
 							chatInputRef={{ current: null }}
