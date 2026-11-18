@@ -2310,6 +2310,64 @@ func TestTemplateVersionVariables(t *testing.T) {
 		require.Equal(t, "*redacted*", actualVariables[0].DefaultValue)
 		require.Equal(t, "*redacted*", actualVariables[0].Value)
 	})
+
+	t.Run("Values are kept out of the job input", func(t *testing.T) {
+		t.Parallel()
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:      "example_variable",
+				Type:      "string",
+				Required:  true,
+				Sensitive: true,
+			},
+		}
+		const providedValue = "example-variable-value"
+
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:                 db,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		// A template admin, not the owner: the placeholder variable rows are
+		// written with a system-restricted context, and this guards the
+		// authorization of that path for non-owner users.
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, user.OrganizationID,
+			createEchoResponses(templateVariables),
+			func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.UserVariableValues = []codersdk.VariableValue{
+					{
+						Name:  templateVariables[0].Name,
+						Value: providedValue,
+					},
+				}
+			},
+		)
+		templateVersion := coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Empty(t, templateVersion.Job.Error)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// The job input must not carry the value.
+		job, err := db.GetProvisionerJobByID(ctx, templateVersion.Job.ID)
+		require.NoError(t, err)
+		require.NotContains(t, string(job.Input), providedValue, "user variable values must not be stored in the job input")
+		require.NotContains(t, string(job.Input), "example_variable")
+
+		// The value was still resolved for the import: the parsed variable
+		// row replaced the placeholder and holds the provided value.
+		variables, err := db.GetTemplateVersionVariables(ctx, templateVersion.ID)
+		require.NoError(t, err)
+		require.Len(t, variables, 1)
+		require.Equal(t, "example_variable", variables[0].Name)
+		require.Equal(t, providedValue, variables[0].Value)
+		require.Equal(t, "string", variables[0].Type)
+		require.True(t, variables[0].Required, "placeholder row must be replaced by the parsed variable")
+	})
 }
 
 func TestTemplateVersionPatch(t *testing.T) {

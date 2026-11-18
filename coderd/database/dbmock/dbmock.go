@@ -1674,6 +1674,20 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), ctx, arg)
 }
 
+// DeleteTemplateVersionVariablesByTemplateVersionID mocks base method.
+func (m *MockStore) DeleteTemplateVersionVariablesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTemplateVersionVariablesByTemplateVersionID", ctx, templateVersionID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteTemplateVersionVariablesByTemplateVersionID indicates an expected call of DeleteTemplateVersionVariablesByTemplateVersionID.
+func (mr *MockStoreMockRecorder) DeleteTemplateVersionVariablesByTemplateVersionID(ctx, templateVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTemplateVersionVariablesByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).DeleteTemplateVersionVariablesByTemplateVersionID), ctx, templateVersionID)
+}
+
 // DeleteUnlinkedChatFilesByIDs mocks base method.
 func (m *MockStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	m.ctrl.T.Helper()

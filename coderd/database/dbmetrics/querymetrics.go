@@ -968,6 +968,14 @@ func (m queryMetricsStore) DeleteTailnetTunnel(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteTemplateVersionVariablesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteTemplateVersionVariablesByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("DeleteTemplateVersionVariablesByTemplateVersionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteTemplateVersionVariablesByTemplateVersionID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUnlinkedChatFilesByIDs(ctx, arg)

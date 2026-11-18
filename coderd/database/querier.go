@@ -264,6 +264,10 @@ type sqlcQuerier interface {
 	DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg DeleteStaleWorkspaceAgentContextResourcesParams) error
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
+	// Deletes all variables of a template version. Import jobs use this to
+	// replace the placeholder rows that hold user-provided values with the
+	// variables parsed from the template.
+	DeleteTemplateVersionVariablesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) error
 	DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error)
 	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
