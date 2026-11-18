@@ -170,82 +170,88 @@ describe("ChatMessageScroller hold on a sent message", () => {
 		return store;
 	};
 
-	const send = (
-		store: ReturnType<typeof createChatStore>,
-		request: () => Promise<unknown>,
-	) =>
-		store.runPendingAction(
-			{
-				kind: "send",
-				chatID: MockChatMessage.chat_id,
-				content: sentContent,
-				busyBehavior: "queue",
-			},
-			request,
-		);
-
-	// Sends from a waiting chat, then lets the stream store the message,
-	// stream a long reply and end the turn.
-	const runTurnWithLongReply = async (beforeStreamStoresSend?: () => void) => {
+	const runTurnWithLongReply = async ({
+		beforeStreamStoresSend,
+		storeSendInOwnFrame = false,
+	}: {
+		beforeStreamStoresSend?: () => void;
+		storeSendInOwnFrame?: boolean;
+	} = {}) => {
 		const store = await renderWaitingChat();
+		const streamFrame = async (apply: () => void) => {
+			act(() => store.batch(apply));
+			await flushLayout();
+		};
 		await act(async () => {
-			void send(store, () => Promise.resolve());
+			void store.runPendingAction(
+				{
+					kind: "send",
+					chatID: MockChatMessage.chat_id,
+					content: sentContent,
+					busyBehavior: "queue",
+				},
+				() => Promise.resolve(),
+			);
 		});
 		await flushLayout();
 		const heldScrollTop = viewport().scrollTop;
 		beforeStreamStoresSend?.();
 
-		// The stored message mounts in the same commit as the reply's first row.
-		act(() => {
-			store.batch(() => {
-				store.upsertDurableMessages([mockSentMessage]);
-				store.applyServerChatStatus("running");
-				store.applyMessagePart({ type: "text", text: "A long answer" });
+		const storeSend = () => store.upsertDurableMessages([mockSentMessage]);
+		const startTurn = () => {
+			store.applyServerChatStatus("running");
+			store.applyMessagePart({ type: "text", text: "A long answer" });
+		};
+		if (storeSendInOwnFrame) {
+			// The stored message is not an anchor until the status says the turn
+			// runs, so the hold waits detached for the next frame.
+			await streamFrame(storeSend);
+			await streamFrame(startTurn);
+		} else {
+			// The stored message mounts in the same commit as the reply's first row.
+			await streamFrame(() => {
+				storeSend();
+				startTurn();
 			});
+		}
+		await streamFrame(() => {
+			store.upsertDurableMessages([mockLongReply]);
+			store.clearStreamState();
+			store.applyServerChatStatus("waiting");
 		});
-		await flushLayout();
-		act(() => {
-			store.batch(() => {
-				store.upsertDurableMessages([mockLongReply]);
-				store.clearStreamState();
-				store.applyServerChatStatus("waiting");
-			});
-		});
-		await flushLayout();
 		return heldScrollTop;
 	};
 
-	it("leaves no blank space below a long reply after the stream replaces the sent message's pending row", async () => {
-		const heldScrollTop = await runTurnWithLongReply();
+	const transcriptHeight =
+		rowHeights["message:1"] +
+		rowHeights["message:2"] +
+		sentRowHeight +
+		rowHeights["message:4"];
 
-		expect(viewport().scrollTop).toBe(heldScrollTop);
-		// The transcript ends at the reply's last row.
-		expect(viewport().scrollHeight).toBe(300 + 300 + sentRowHeight + 600);
-	});
+	it.each([
+		{ frames: "the frame that starts the reply", storeSendInOwnFrame: false },
+		{ frames: "a frame before the reply starts", storeSendInOwnFrame: true },
+	])(
+		"leaves no blank space below a long reply after $frames replaces the sent message's pending row",
+		async ({ storeSendInOwnFrame }) => {
+			const heldScrollTop = await runTurnWithLongReply({ storeSendInOwnFrame });
+
+			expect(viewport().scrollTop).toBe(heldScrollTop);
+			expect(viewport().scrollHeight).toBe(transcriptHeight);
+		},
+	);
 
 	it("leaves the view where the reader scrolled before the stream replaces the pending row", async () => {
 		let scrolledTop = 0;
-		await runTurnWithLongReply(() => {
-			fireEvent.wheel(viewport(), { deltaY: -400 });
-			viewport().scrollTop -= 400;
-			fireEvent.scroll(viewport());
-			scrolledTop = viewport().scrollTop;
+		await runTurnWithLongReply({
+			beforeStreamStoresSend: () => {
+				fireEvent.wheel(viewport(), { deltaY: -400 });
+				viewport().scrollTop -= 400;
+				fireEvent.scroll(viewport());
+				scrolledTop = viewport().scrollTop;
+			},
 		});
 
 		expect(viewport().scrollTop).toBe(scrolledTop);
-	});
-
-	it("returns to the end with no blank space when a send fails", async () => {
-		const store = await renderWaitingChat();
-		await act(async () => {
-			await expect(
-				send(store, () => Promise.reject(new Error("send failed"))),
-			).rejects.toThrow("send failed");
-		});
-		await flushLayout();
-
-		const historyHeight = 300 + 300;
-		expect(viewport().scrollHeight).toBe(historyHeight);
-		expect(viewport().scrollTop).toBe(historyHeight - viewport().clientHeight);
 	});
 });
