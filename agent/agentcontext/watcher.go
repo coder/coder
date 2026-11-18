@@ -185,7 +185,11 @@ func (w *Watcher) SyncLatest(ctx context.Context, capture func() ([]ScanRoot, Re
 	// Remove directories no longer wanted.
 	for path := range cur {
 		if role, ok := desired[path]; ok {
-			next[path] = role
+			// A removed directory lost its watch, so it stays only
+			// if the re-add below succeeds.
+			if _, gone := removed[path]; !gone {
+				next[path] = role
+			}
 			continue
 		}
 		_ = w.watcher.Remove(path)
