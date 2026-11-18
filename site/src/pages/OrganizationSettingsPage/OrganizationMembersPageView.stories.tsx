@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
@@ -7,7 +9,9 @@ import {
 	MockOwnerRole,
 	MockUserAdminRole,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
@@ -82,5 +86,39 @@ export const NoEdit: Story = {
 export const UpdatingMember: Story = {
 	args: {
 		isUpdatingMemberRoles: true,
+	},
+};
+
+export const FiltersOpen: Story = {
+	parameters: { pixel: { matrix: pixelWithTablet } },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+export const SelectedFilters: Story = {
+	args: {
+		filterProps: getDefaultFilterProps({
+			query: "service_account:true",
+			values: { service_account: "true" },
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+export const InvalidFilter: Story = {
+	args: {
+		error: mockApiError({
+			message: "Invalid member search query.",
+			validations: [
+				{ field: "status", detail: "Status must be a valid user status." },
+			],
+		}),
 	},
 };

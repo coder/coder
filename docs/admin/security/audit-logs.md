@@ -165,6 +165,19 @@ Actions: `create`, `write`, `delete`
 </tbody>
 </table>
 
+### AuditableChatProjectTemplates
+
+Actions: `write`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>project_id</code></td><td>No</td></tr>
+<tr><td><code>project_name</code></td><td>No</td></tr>
+<tr><td><code>template_ids</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### Group
 
 Actions: `create`, `write`, `delete`
@@ -402,10 +415,14 @@ Actions: `create`, `write`, `delete`
 <tbody>
 <tr><td><code>archived_at</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>default_parameters</code></td><td>Yes</td></tr>
+<tr><td><code>default_template_id</code></td><td>Yes</td></tr>
+<tr><td><code>default_template_version_preset_id</code></td><td>Yes</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>limit_templates</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
