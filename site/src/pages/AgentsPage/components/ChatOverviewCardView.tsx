@@ -31,7 +31,7 @@ import {
 	getPRIconConfig,
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
-import type { DiffStats } from "./GitPanel/gitViews";
+import { type DiffStats, type GitView, viewIdFor } from "./GitPanel/gitViews";
 
 const OVERVIEW_MAX_LIST_ROWS = 3;
 /**
@@ -42,8 +42,10 @@ const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
 const OVERVIEW_CARD_MAX_HEIGHT = "36rem";
 const OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT = "calc(100vh - 6rem)";
 
-/** Where a card row leads: the right panel tab that holds its details. */
-export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
+/** Where a card row leads: a right panel tab, and for Git its view. */
+export type OverviewTarget =
+	| { tabId: "summary" }
+	| { tabId: "git"; view: GitView };
 
 type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
 
@@ -174,7 +176,11 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						detail={<RepoDiffStat {...repo} />}
 						onClick={
 							hasChanges(repo)
-								? () => onOpenTarget({ tabId: "git" })
+								? () =>
+										onOpenTarget({
+											tabId: "git",
+											view: { type: "local", repoRoot: repo.root },
+										})
 								: undefined
 						}
 					/>
@@ -199,7 +205,12 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 									deletions={status.deletions}
 								/>
 							}
-							onClick={() => onOpenTarget({ tabId: "git" })}
+							onClick={() =>
+								onOpenTarget({
+									tabId: "git",
+									view: { type: "remote", refId: viewIdFor(status) },
+								})
+							}
 						/>
 					);
 				}}

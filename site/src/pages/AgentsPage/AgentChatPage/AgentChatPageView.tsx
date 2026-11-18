@@ -29,6 +29,7 @@ import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedF
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import { ChatOverviewCard } from "../components/ChatOverviewCard";
+import type { OverviewTarget } from "../components/ChatOverviewCardView";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -378,6 +379,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		setSidebarTabId(tabId);
 	};
 
+	const openOverviewTarget = (target: OverviewTarget) => {
+		overview.recordTarget(target);
+		activateRightPanelTab(target.tabId);
+	};
+
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
 			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
@@ -617,7 +623,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									store={store}
 									repositories={gitWatcher.repositories}
 									hasMoreMessages={hasMoreMessages}
-									onOpenTarget={(target) => activateRightPanelTab(target.tabId)}
+									onOpenTarget={openOverviewTarget}
 								/>
 							)}
 						</div>
@@ -734,6 +740,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
 							chatTitle={chat.title}
+							focusRequestId={overview.focusRequestId}
+							onFocusRequestApplied={overview.onFocusRequestApplied}
 							addTabControl={(closeTab) => (
 								<RightPanelAddTabControl
 									workspace={workspace}
@@ -775,6 +783,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									remoteDiffStats={chat.diff_statuses}
 									primaryDiffStatus={chat.diff_status}
 									chatInputRef={editing.chatInputRef}
+									viewRequest={overview.gitViewRequest}
+									onViewRequestApplied={overview.onGitViewRequestApplied}
 								/>
 							</SidebarTab>
 
