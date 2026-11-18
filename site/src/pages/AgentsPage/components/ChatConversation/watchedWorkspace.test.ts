@@ -66,6 +66,49 @@ describe("isWatchedWorkspaceViewUnchanged", () => {
 		).toBe(false);
 	});
 
+	it("is false when only the build log overflow flag changes", () => {
+		const mockWorkspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				job: { ...MockWorkspace.latest_build.job, logs_overflowed: true },
+			},
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				mockWorkspace,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+
+	it("is false when only the bound agent log overflow flag changes", () => {
+		const mockWorkspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				resources: MockWorkspace.latest_build.resources.map((resource) => ({
+					...resource,
+					agents: resource.agents?.map((agent) =>
+						agent.id === MockWorkspaceAgent.id
+							? { ...agent, logs_overflowed: true }
+							: agent,
+					),
+				})),
+			},
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				mockWorkspace,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+
 	it("is false when the latest build changes", () => {
 		const next: Workspace = {
 			...MockWorkspace,

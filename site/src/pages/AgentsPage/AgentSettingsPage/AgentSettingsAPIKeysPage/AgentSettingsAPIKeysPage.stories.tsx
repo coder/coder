@@ -220,7 +220,7 @@ export const SavingSingleProvider: Story = {
 		const panel = within(
 			await canvas.findByRole("article", { name: "OpenAI" }),
 		);
-		await userEvent.type(panel.getByLabelText("API Key"), "sk-test-key");
+		await userEvent.type(panel.getByLabelText("API key"), "sk-test-key");
 		await userEvent.click(panel.getByRole("button", { name: "Save" }));
 	},
 };
@@ -257,7 +257,7 @@ export const ClearsMaskedApiKeyOnFocus: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(await canvas.findByLabelText("API Key"));
+		await userEvent.click(await canvas.findByLabelText("API key"));
 	},
 };
 

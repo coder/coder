@@ -23,7 +23,11 @@ import {
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { getFormHelpers } from "#/utils/formUtils";
+import {
+	countCharacters,
+	getFormHelpers,
+	maxCharacters,
+} from "#/utils/formUtils";
 import {
 	ChatProjectTemplatesFields,
 	type ChatProjectTemplatesSettings,
@@ -53,19 +57,6 @@ type ChatProjectFormState = Omit<
 const chatProjectNameMaxChars = 64;
 const chatProjectDescriptionMaxChars = 1024;
 const chatProjectIconMaxChars = 256;
-
-// Counts code points of the value as submitted, as the server does. Yup's
-// max() and native maxLength count UTF-16 units.
-const measureLength = (value: string) => [...value.trim()].length;
-
-const maxCharacters = (label: string, max: number) =>
-	Yup.string()
-		.trim()
-		.test(
-			"max-characters",
-			`${label} cannot be longer than ${max} characters.`,
-			(value = "") => measureLength(value) <= max,
-		);
 
 const validationSchema = Yup.object({
 	name: maxCharacters("Name", chatProjectNameMaxChars).required(
@@ -225,15 +216,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form, error);
 	const nameField = getFieldHelpers("name", {
 		maxLength: chatProjectNameMaxChars,
-		measureLength,
+		measureLength: countCharacters,
 	});
 	const descriptionField = getFieldHelpers("description", {
 		maxLength: chatProjectDescriptionMaxChars,
-		measureLength,
+		measureLength: countCharacters,
 	});
 	const iconField = getFieldHelpers("icon", {
 		maxLength: chatProjectIconMaxChars,
-		measureLength,
+		measureLength: countCharacters,
 	});
 	const organizationField = getFieldHelpers("organizationId");
 	const selectedOrganization = organizations.find(
