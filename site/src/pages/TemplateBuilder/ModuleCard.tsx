@@ -9,7 +9,7 @@ type ModuleCardProps = {
 	name: string;
 	description: string;
 	iconUrl?: string;
-	detailsUrl?: string;
+	detailsUrl: string;
 	official?: boolean;
 	selected?: boolean;
 	onSelect?: () => void;

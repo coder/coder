@@ -39,9 +39,11 @@ describe(TemplateCard.name, () => {
 
 	it("names each details link after its template", () => {
 		renderCards();
-		expect(
-			screen.getByRole("link", { name: /Kubernetes Pods/ }),
-		).toHaveAccessibleName(/^View details for Kubernetes Pods/);
+		const [docker, kubernetes] = screen.getAllByRole("link");
+		expect(docker).toHaveAccessibleName(/^View details for Docker Containers/);
+		expect(kubernetes).toHaveAccessibleName(
+			/^View details for Kubernetes Pods/,
+		);
 	});
 
 	it("selects once with Space and once per arrow key", async () => {
