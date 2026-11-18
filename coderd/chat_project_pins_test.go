@@ -263,7 +263,7 @@ func TestChatProjectSummaries(t *testing.T) {
 	// build, grants still decide which projects are visible, as in the
 	// project list, but only owners are counted.
 	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{}))
-	rows, err := db.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{UserID: alice.ID, ACLEnabled: true})
+	rows, err := db.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{UserID: alice.ID})
 	require.NoError(t, err)
 	aliceSummaries := make(map[uuid.UUID]database.GetChatProjectSummariesByUserIDRow, len(rows))
 	for _, row := range rows {
@@ -325,7 +325,7 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 
 	// A pin from before sharing was disabled takes no visible position.
 	require.NoError(t, db.PinChatProject(ctx, database.PinChatProjectParams{
-		UserID: memberUser.ID, ProjectID: project.ID, ACLEnabled: true, PinOrder: sql.NullInt32{Int32: 1, Valid: true},
+		UserID: memberUser.ID, ProjectID: project.ID, PinOrder: sql.NullInt32{Int32: 1, Valid: true},
 	}))
 	x := createChatProject(t, member, orgID, "Hidden Pin X")
 	y := createChatProject(t, member, orgID, "Hidden Pin Y")
@@ -337,6 +337,16 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 	require.NoError(t, member.UnpinChatProject(ctx, orgID, x.ID))
 	require.NoError(t, member.PinChatProject(ctx, orgID, x.ID, codersdk.PinChatProjectRequest{}))
 	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
+
+	// The owner role still reads a project that keeps a grant for its
+	// holder, so the summaries list it, as the project list does.
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       x.ID,
+		UserACL:  database.ChatACL{firstUser.UserID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		GroupACL: database.ChatACL{},
+	}))
+	require.Contains(t, chatProjectSummariesByID(ctx, t, client), x.ID)
+	requireSummariesMatchList(ctx, t, client)
 }
 
 func TestListChatsExcludeOwnProjectChats(t *testing.T) {
