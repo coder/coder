@@ -131,9 +131,9 @@ const RateLimitPadding = 5 * time.Minute
 // ErrDiffTooLarge is returned when a diff exceeds MaxDiffSize.
 var ErrDiffTooLarge = xerrors.Errorf("diff exceeds maximum size of %d bytes", MaxDiffSize)
 
-// ErrTokenRejected reports that the provider rejected the access token, for
-// example because the user revoked it. Retrying with the same token cannot
-// succeed.
+// ErrTokenRejected reports that the provider rejected the access token with
+// HTTP 401, for example because the user revoked it. Retrying with the same
+// token cannot succeed.
 var ErrTokenRejected = xerrors.New("provider rejected the access token")
 
 // Provider defines the interface that all Git hosting providers

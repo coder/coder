@@ -5,6 +5,7 @@ import type {
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
+	ChatDiffReauthRequired,
 	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
@@ -307,6 +308,15 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	additions: 1,
 	deletions: 0,
 	changed_files: 1,
+};
+
+export const MockChatDiffReauthRequired: ChatDiffReauthRequired = {
+	message:
+		"GitHub rejected your saved credentials. Reconnect GitHub to load this diff.",
+	kind: "external_auth_reauth_required",
+	provider_id: "github-test",
+	provider_display_name: "GitHub",
+	can_reconnect: true,
 };
 
 export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {

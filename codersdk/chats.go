@@ -2071,18 +2071,18 @@ type ChatDiffContents struct {
 	Diff           string    `json:"diff,omitempty"`
 }
 
-// ChatDiffReauthRequiredCode is the code of a chat diff error response
-// when the chat owner must reconnect the external auth provider.
-const ChatDiffReauthRequiredCode = "external_auth_reauth_required"
-
 // ChatDiffReauthRequired is the error body returned with status 424 when
 // the provider rejects the chat owner's access token.
 type ChatDiffReauthRequired struct {
-	Message             string `json:"message"`
-	Code                string `json:"code"`
+	Response
+	// Kind is ChatErrorKindExternalAuthReauthRequired.
+	Kind ChatErrorKind `json:"kind"`
+	// ProviderID is the external auth config ID used in
+	// /external-auth/{provider}.
 	ProviderID          string `json:"provider_id"`
 	ProviderDisplayName string `json:"provider_display_name"`
-	CanReconnect        bool   `json:"can_reconnect"`
+	// CanReconnect is true only when the requester is the chat owner.
+	CanReconnect bool `json:"can_reconnect"`
 }
 
 // Chat git watch error messages. These are the user-visible messages
@@ -2174,19 +2174,20 @@ type ChatStreamStatus struct {
 type ChatErrorKind string
 
 const (
-	ChatErrorKindGeneric              ChatErrorKind = "generic"
-	ChatErrorKindOverloaded           ChatErrorKind = "overloaded"
-	ChatErrorKindRateLimit            ChatErrorKind = "rate_limit"
-	ChatErrorKindTimeout              ChatErrorKind = "timeout"
-	ChatErrorKindStreamSilenceTimeout ChatErrorKind = "stream_silence_timeout"
-	ChatErrorKindAuth                 ChatErrorKind = "auth"
-	ChatErrorKindConfig               ChatErrorKind = "config"
-	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
-	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
-	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
-	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
-	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
-	ChatErrorKindHookDenied           ChatErrorKind = "hook_denied"
+	ChatErrorKindGeneric                    ChatErrorKind = "generic"
+	ChatErrorKindOverloaded                 ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit                  ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout                    ChatErrorKind = "timeout"
+	ChatErrorKindStreamSilenceTimeout       ChatErrorKind = "stream_silence_timeout"
+	ChatErrorKindAuth                       ChatErrorKind = "auth"
+	ChatErrorKindConfig                     ChatErrorKind = "config"
+	ChatErrorKindUsageLimit                 ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey                 ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled           ChatErrorKind = "provider_disabled"
+	ChatErrorKindExternalAuthReauthRequired ChatErrorKind = "external_auth_reauth_required"
+	ChatErrorKindContentFilter              ChatErrorKind = "content_filter"
+	ChatErrorKindHookDispatchFailed         ChatErrorKind = "hook_dispatch_failed"
+	ChatErrorKindHookDenied                 ChatErrorKind = "hook_denied"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.

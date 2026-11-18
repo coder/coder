@@ -1,85 +1,125 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import { chatDiffContentsFamilyKey } from "#/api/queries/chats";
 import type { ChatDiffReauthRequired } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
+import { MockChatDiffReauthRequired } from "#/testHelpers/chatEntities";
+import { MockGithubExternalAuth } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { ChatDiffReauthNotice } from "./ChatDiffReauthNotice";
+import {
+	ChatDiffReauthNotice,
+	POPUP_POLL_INTERVAL_MS,
+} from "./ChatDiffReauthNotice";
 
-const reauth: ChatDiffReauthRequired = {
-	message: "Reconnect GitHub to load this diff.",
-	code: "external_auth_reauth_required",
-	provider_id: "github-test",
-	provider_display_name: "GitHub",
-	can_reconnect: true,
-};
+// Only `closed` is read from the popup. Window.closed is readonly, so the stub is mutable.
+type PopupStub = { closed: boolean };
 
-const renderNotice = (props: ChatDiffReauthRequired) => {
+const openPopup = (popup: PopupStub) =>
+	vi.spyOn(window, "open").mockReturnValue(popup as Window);
+
+const renderNotice = (
+	reauth: ChatDiffReauthRequired = MockChatDiffReauthRequired,
+) => {
 	const queryClient = createTestQueryClient();
 	const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 	render(
 		<QueryClientProvider client={queryClient}>
-			<ChatDiffReauthNotice chatId="chat-1" reauth={props} />
+			<ChatDiffReauthNotice chatId="chat-1" reauth={reauth} />
 		</QueryClientProvider>,
 	);
 	return { user: userEvent.setup(), invalidateSpy };
 };
 
+const reconnectButton = () =>
+	screen.getByRole("button", { name: "Reconnect GitHub" });
+
 describe("ChatDiffReauthNotice", () => {
+	beforeEach(() => {
+		vi.spyOn(API, "getExternalAuthProvider").mockResolvedValue(
+			MockGithubExternalAuth,
+		);
+	});
+
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
-	it("shows no reconnect action to a viewer who is not the chat owner", () => {
-		renderNotice({ ...reauth, can_reconnect: false });
+	it("opens the provider page in a popup and ignores clicks while connecting", async () => {
+		const openSpy = openPopup({ closed: false });
+		const { user } = renderNotice();
 
-		expect(
-			screen.getByText(
-				"The chat owner must reconnect GitHub to load this diff.",
-			),
-		).toBeInTheDocument();
-		expect(screen.queryByRole("button")).not.toBeInTheDocument();
-	});
-
-	it("opens the provider page in a popup and reloads the diff when it closes", async () => {
-		const popup = { closed: false };
-		const openSpy = vi
-			.spyOn(window, "open")
-			.mockReturnValue(popup as unknown as Window);
-		const { user, invalidateSpy } = renderNotice(reauth);
-
-		await user.click(screen.getByRole("button", { name: "Reconnect GitHub" }));
-
+		await user.click(reconnectButton());
 		expect(openSpy).toHaveBeenCalledWith(
 			"/external-auth/github-test",
 			"_blank",
 			"width=900,height=600",
 		);
-		expect(
-			screen.getByRole("button", { name: "Waiting for reconnect…" }),
-		).toBeDisabled();
 
-		popup.closed = true;
-		await waitFor(() =>
-			expect(invalidateSpy).toHaveBeenCalledWith(
-				expect.objectContaining({
-					queryKey: expect.arrayContaining(["diff-contents"]),
-				}),
-			),
+		await user.click(
+			screen.getByRole("button", { name: "Waiting for reconnect…" }),
 		);
-		expect(
-			screen.getByRole("button", { name: "Reconnect GitHub" }),
-		).toBeEnabled();
+		expect(openSpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("stays idle when the browser blocks the popup", async () => {
-		vi.spyOn(window, "open").mockReturnValue(null);
-		const { user } = renderNotice(reauth);
+	it("reloads the diff when the popup closes", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const popup = { closed: false };
+		const openSpy = openPopup(popup);
+		const { user, invalidateSpy } = renderNotice();
 
-		await user.click(screen.getByRole("button", { name: "Reconnect GitHub" }));
+		await user.click(reconnectButton());
+		popup.closed = true;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(POPUP_POLL_INTERVAL_MS);
+		});
 
-		expect(
-			screen.getByRole("button", { name: "Reconnect GitHub" }),
-		).toBeEnabled();
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				queryKey: chatDiffContentsFamilyKey("chat-1"),
+			}),
+		);
+		await user.click(reconnectButton());
+		expect(openSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("ends connecting and reloads the diff once the provider reports the account authenticated", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const openSpy = openPopup({ closed: false });
+		vi.spyOn(API, "getExternalAuthProvider").mockResolvedValue({
+			...MockGithubExternalAuth,
+			authenticated: true,
+		});
+		const { user, invalidateSpy } = renderNotice();
+
+		await user.click(reconnectButton());
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(POPUP_POLL_INTERVAL_MS);
+		});
+
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				queryKey: chatDiffContentsFamilyKey("chat-1"),
+			}),
+		);
+		await user.click(reconnectButton());
+		expect(openSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("reports a blocked popup and stays ready to reconnect", async () => {
+		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+		const toastSpy = vi.spyOn(toast, "error");
+		const { user } = renderNotice();
+
+		await user.click(reconnectButton());
+		expect(toastSpy).toHaveBeenCalledWith(
+			"Pop-up blocked. Allow pop-ups to reconnect.",
+		);
+
+		await user.click(reconnectButton());
+		expect(openSpy).toHaveBeenCalledTimes(2);
 	});
 });

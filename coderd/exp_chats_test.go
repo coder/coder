@@ -12596,6 +12596,183 @@ func TestPostChatMessages_FallbackTitleForEmptyCreatedChat(t *testing.T) {
 	require.Equal(t, chatprompt.FallbackTitle(text), refreshed.Title)
 }
 
+// startRejectedGitHub starts a fake GitHub that rejects every request, as it
+// does for a revoked token. It returns the server and the origin of a
+// repository on it.
+func startRejectedGitHub(t *testing.T) (*httptest.Server, string) {
+	t.Helper()
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message": "Bad credentials"}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, "https://" + strings.TrimPrefix(srv.URL, "https://") + "/acme/project.git"
+}
+
+// rejectedGitHubConfig returns a GitHub external auth config for srv.
+func rejectedGitHubConfig(srv *httptest.Server, id, displayName string) *externalauth.Config {
+	host := strings.TrimPrefix(srv.URL, "https://")
+	return &externalauth.Config{
+		ID:           id,
+		Type:         "github",
+		DisplayName:  displayName,
+		Regex:        regexp.MustCompile(`^https?://` + regexp.QuoteMeta(host) + `(/.*)?$`),
+		APIBaseURL:   srv.URL + "/api/v3",
+		HTTPClient:   srv.Client(),
+		RefreshGroup: new(singleflight.Group),
+	}
+}
+
+// seedRejectedGitHubChat stores a GitHub link for ownerID and a chat whose
+// diff reference points at origin and branch. A non-empty prURL is stored as
+// the reference's pull request.
+func seedRejectedGitHubChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	providerID string,
+	ownerID uuid.UUID,
+	orgID uuid.UUID,
+	modelConfigID uuid.UUID,
+	origin string,
+	branch string,
+	prURL string,
+) database.Chat {
+	t.Helper()
+
+	_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+		ProviderID:       providerID,
+		UserID:           ownerID,
+		OAuthAccessToken: "revoked-git-token",
+		OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+		CreatedAt:        dbtime.Now(),
+		UpdatedAt:        dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    orgID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Title:             "diff with rejected token",
+	})
+	_, err = db.UpsertChatDiffStatusReference(dbauthz.AsSystemRestricted(ctx), database.UpsertChatDiffStatusReferenceParams{
+		ChatID:          chat.ID,
+		Url:             sql.NullString{String: prURL, Valid: prURL != ""},
+		GitBranch:       branch,
+		GitRemoteOrigin: origin,
+		StaleAt:         dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	return chat
+}
+
+// diffRequestPath returns the diff endpoint path for the chat's ref.
+func diffRequestPath(chatID uuid.UUID, origin, branch string) string {
+	return fmt.Sprintf("/api/v2/chats/%s/diff?origin=%s&branch=%s", chatID, url.QueryEscape(origin), url.QueryEscape(branch))
+}
+
+func TestGetChatDiffContentsReauthRequired(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PullRequestDiff", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		gitHub, origin := startRejectedGitHub(t)
+		prURL := strings.TrimSuffix(origin, ".git") + "/pull/7"
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues:    coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{rejectedGitHubConfig(gitHub, "github-test", "GitHub Test")},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedRejectedGitHubChat(ctx, t, api.Database, "github-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", prURL)
+
+		res, err := client.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusFailedDependency, res.StatusCode)
+		raw, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		// The provider body can carry account details, so it must not reach the client.
+		require.NotContains(t, string(raw), "Bad credentials")
+		var body codersdk.ChatDiffReauthRequired
+		require.NoError(t, json.Unmarshal(raw, &body))
+		require.Equal(t, codersdk.ChatErrorKindExternalAuthReauthRequired, body.Kind)
+		require.Equal(t, "github-test", body.ProviderID)
+		require.Equal(t, "GitHub Test", body.ProviderDisplayName)
+		require.Equal(t, "GitHub Test rejected your saved credentials. Reconnect GitHub Test to load this diff.", body.Message)
+		require.True(t, body.CanReconnect)
+	})
+
+	t.Run("ViewerCannotReconnect", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		gitHub, origin := startRejectedGitHub(t)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues:    coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{rejectedGitHubConfig(gitHub, "github-test", "GitHub Test")},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedRejectedGitHubChat(ctx, t, api.Database, "github-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", "")
+
+		memberRaw, member := coderdtest.CreateAnotherUser(t, rawClient, user.OrganizationID)
+		require.NoError(t, client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{member.ID.String(): codersdk.ChatRoleRead},
+		}))
+
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		res, err := memberClient.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusFailedDependency, res.StatusCode)
+		var body codersdk.ChatDiffReauthRequired
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.False(t, body.CanReconnect)
+		require.Equal(t, "GitHub Test rejected the chat owner's saved credentials. Ask the chat owner to reconnect GitHub Test.", body.Message)
+	})
+
+	t.Run("UsesProviderMatchingOrigin", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		gitHub, origin := startRejectedGitHub(t)
+		// The first matching config has no git provider, so the origin's
+		// provider must be the one named in the response.
+		unsupported := rejectedGitHubConfig(gitHub, "unsupported-test", "Unsupported")
+		unsupported.Type = "unsupported"
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues:    coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{unsupported, rejectedGitHubConfig(gitHub, "github-test", "GitHub Test")},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedRejectedGitHubChat(ctx, t, api.Database, "github-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", "")
+
+		res, err := client.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusFailedDependency, res.StatusCode)
+		var body codersdk.ChatDiffReauthRequired
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Equal(t, "github-test", body.ProviderID)
+	})
+}
+
 func TestGetChatDiffStatus(t *testing.T) {
 	t.Parallel()
 
@@ -12950,85 +13127,6 @@ func TestGetChatDiffContents(t *testing.T) {
 		require.Equal(t, origin, statuses[0].GitRemoteOrigin)
 		require.True(t, statuses[0].Url.Valid)
 		require.Equal(t, prURL, statuses[0].Url.String)
-	})
-
-	t.Run("RejectedTokenRequiresReauth", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// GitHub rejects every request, as it does for a revoked token.
-		githubServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"message": "Bad credentials"}`))
-		}))
-		t.Cleanup(githubServer.Close)
-		host := strings.TrimPrefix(githubServer.URL, "https://")
-		origin := "https://" + host + "/acme/project.git"
-
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			ExternalAuthConfigs: []*externalauth.Config{
-				{
-					ID:           "github-test",
-					Type:         "github",
-					Regex:        regexp.MustCompile(`^https?://` + regexp.QuoteMeta(host) + `(/.*)?$`),
-					APIBaseURL:   githubServer.URL + "/api/v3",
-					HTTPClient:   githubServer.Client(),
-					RefreshGroup: new(singleflight.Group),
-				},
-			},
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		db := api.Database
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
-			ProviderID:       "github-test",
-			UserID:           user.UserID,
-			OAuthAccessToken: "revoked-git-token",
-			OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
-			CreatedAt:        dbtime.Now(),
-			UpdatedAt:        dbtime.Now(),
-		})
-		require.NoError(t, err)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "diff with rejected token",
-		})
-		_, err = db.UpsertChatDiffStatusReference(
-			dbauthz.AsSystemRestricted(ctx),
-			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:          chat.ID,
-				Url:             sql.NullString{},
-				GitBranch:       "feature/revoked",
-				GitRemoteOrigin: origin,
-				StaleAt:         time.Now().UTC().Add(time.Hour),
-			},
-		)
-		require.NoError(t, err)
-
-		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/v2/chats/%s/diff?origin=%s&branch=feature%%2Frevoked", chat.ID, url.QueryEscape(origin)), nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-
-		require.Equal(t, http.StatusFailedDependency, res.StatusCode)
-		raw, err := io.ReadAll(res.Body)
-		require.NoError(t, err)
-		// The provider body can carry account details, so it must not reach the client.
-		require.NotContains(t, string(raw), "Bad credentials")
-		var body codersdk.ChatDiffReauthRequired
-		require.NoError(t, json.Unmarshal(raw, &body))
-		require.Equal(t, codersdk.ChatDiffReauthRequiredCode, body.Code)
-		require.Equal(t, "github-test", body.ProviderID)
-		require.True(t, body.CanReconnect)
 	})
 
 	t.Run("DiscoveryWriteDoesNotReorderPrimary", func(t *testing.T) {

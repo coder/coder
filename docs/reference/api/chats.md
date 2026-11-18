@@ -356,13 +356,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                                         |
-|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                      |
-| `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                |
-| `plan_mode`    | `plan`                                                                                                                                                                                                                                                                           |
-| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                  |
+| Property       | Value(s)                                                                                                                                                                                                                                                                                                          |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                                                       |
+| `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `external_auth_reauth_required`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                                                 |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                                                                            |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2640,9 +2640,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDiffContents](schemas.md#codersdkchatdiffcontents) |
+| Status | Meaning                                                               | Description       | Schema                                                                       |
+|--------|-----------------------------------------------------------------------|-------------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)               | OK                | [codersdk.ChatDiffContents](schemas.md#codersdkchatdiffcontents)             |
+| 424    | [Failed Dependency](https://tools.ietf.org/html/rfc2518#section-10.5) | Failed Dependency | [codersdk.ChatDiffReauthRequired](schemas.md#codersdkchatdiffreauthrequired) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4625,7 +4626,7 @@ Status Code **200**
 
 | Property        | Value(s)                                                                                                                                                                                                                                                                                                                |
 |-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
+| `kind`          | `auth`, `config`, `content_filter`, `external_auth_reauth_required`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                               |
 | `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
 | `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 | `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |

@@ -4,10 +4,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	type ChatDiffReauthRequired,
-	ChatDiffReauthRequiredCode,
-} from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import {
 	Tooltip,
@@ -17,6 +13,7 @@ import {
 import { useClipboard } from "#/hooks/useClipboard";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { isChatDiffReauthRequired } from "../ChatConversation/chatError";
 import { ChatDiffReauthNotice } from "../DiffViewer/ChatDiffReauthNotice";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
@@ -87,12 +84,11 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	// A 424 with this code means GitHub rejected the chat owner's token.
+	// The provider rejected the chat owner's token.
 	const diffError = diffContentsQuery.error;
-	const reauthRequired =
-		isAxiosError<ChatDiffReauthRequired>(diffError) &&
-		diffError.response?.status === 424 &&
-		diffError.response.data?.code === ChatDiffReauthRequiredCode
+	const reauth =
+		isAxiosError(diffError) &&
+		isChatDiffReauthRequired(diffError.response?.data)
 			? diffError.response.data
 			: undefined;
 
@@ -167,8 +163,8 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 					</div>
 				</div>
 			)}
-			{reauthRequired ? (
-				<ChatDiffReauthNotice chatId={chatId} reauth={reauthRequired} />
+			{reauth ? (
+				<ChatDiffReauthNotice chatId={chatId} reauth={reauth} />
 			) : (
 				<CommentableDiffViewer
 					parsedFiles={parsedFiles}

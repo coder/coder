@@ -274,6 +274,74 @@ func TestGitLabConstructorErrorReturnsNilInterface(t *testing.T) {
 	require.True(t, gp == nil, "provider must be nil when construction fails, got %T", gp)
 }
 
+func TestGitLabTokenRejected(t *testing.T) {
+	t.Parallel()
+
+	unauthorized := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	}
+
+	t.Run("PullRequestDiff", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(unauthorized))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestDiff(
+			t.Context(),
+			"revoked-token",
+			gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1},
+		)
+		require.ErrorIs(t, err, gitprovider.ErrTokenRejected)
+	})
+
+	t.Run("BranchDiff", func(t *testing.T) {
+		t.Parallel()
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/repository/compare", unauthorized)
+
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchBranchDiff(
+			t.Context(),
+			"revoked-token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
+		)
+		require.ErrorIs(t, err, gitprovider.ErrTokenRejected)
+	})
+
+	t.Run("ClientCall", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(unauthorized))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestStatus(
+			t.Context(),
+			"revoked-token",
+			gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1},
+		)
+		require.ErrorIs(t, err, gitprovider.ErrTokenRejected)
+	})
+}
+
 func TestGitLabRateLimit(t *testing.T) {
 	t.Parallel()
 

@@ -1,14 +1,17 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClientProvider } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatDiffReauthRequired } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { MockChatDiffReauthRequired } from "#/testHelpers/chatEntities";
+import { MockGithubExternalAuth } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes from "#/theme";
 import { ThemeContextProvider } from "#/theme/context";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { POPUP_POLL_INTERVAL_MS } from "./ChatDiffReauthNotice";
 import { RemoteDiffPanel } from "./RemoteDiffPanel";
 
 const axiosError = (status: number, data: unknown): AxiosError =>
@@ -20,16 +23,10 @@ const axiosError = (status: number, data: unknown): AxiosError =>
 		data,
 	});
 
-const reauth: ChatDiffReauthRequired = {
-	message: "Reconnect GitHub to load this diff.",
-	code: "external_auth_reauth_required",
-	provider_id: "github-test",
-	provider_display_name: "GitHub",
-	can_reconnect: true,
-};
+// Only `closed` is read from the popup. Window.closed is readonly, so the stub is mutable.
+const popupStub = (): { closed: boolean } => ({ closed: false });
 
-const renderPanel = (error: unknown) => {
-	vi.spyOn(API.experimental, "getChatDiffContents").mockRejectedValue(error);
+const renderPanel = () => {
 	const chatInputRef: React.RefObject<ChatMessageInputRef | null> = {
 		current: null,
 	};
@@ -54,35 +51,47 @@ const renderPanel = (error: unknown) => {
 };
 
 describe("RemoteDiffPanel reauth handling", () => {
+	beforeEach(() => {
+		vi.spyOn(API, "getExternalAuthProvider").mockResolvedValue(
+			MockGithubExternalAuth,
+		);
+	});
+
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
-	it("offers a reconnect to the chat owner when the provider rejected the token", async () => {
-		renderPanel(axiosError(424, reauth));
+	it("reloads the diff after the owner closes the reconnect popup", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const diffSpy = vi
+			.spyOn(API.experimental, "getChatDiffContents")
+			.mockRejectedValueOnce(axiosError(424, MockChatDiffReauthRequired))
+			.mockResolvedValueOnce({ chat_id: "chat-1", diff: "" });
+		const popup = popupStub();
+		vi.spyOn(window, "open").mockReturnValue(popup as Window);
+		renderPanel();
 
-		expect(
+		const user = userEvent.setup();
+		await user.click(
 			await screen.findByRole("button", { name: "Reconnect GitHub" }),
-		).toBeInTheDocument();
+		);
+		popup.closed = true;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(POPUP_POLL_INTERVAL_MS);
+		});
+
+		await waitFor(() => expect(diffSpy).toHaveBeenCalledTimes(2));
 	});
 
-	it("asks a viewer to have the owner reconnect", async () => {
-		renderPanel(axiosError(424, { ...reauth, can_reconnect: false }));
+	it("does not open a popup for other failures", async () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockRejectedValue(
+			axiosError(500, { message: "Failed to get chat diff." }),
+		);
+		const openSpy = vi.spyOn(window, "open");
+		renderPanel();
 
-		expect(
-			await screen.findByText(
-				"The chat owner must reconnect GitHub to load this diff.",
-			),
-		).toBeInTheDocument();
-		expect(screen.queryByRole("button")).not.toBeInTheDocument();
-	});
-
-	it("keeps the error alert for other failures", async () => {
-		renderPanel(axiosError(500, { message: "Failed to get chat diff." }));
-
-		expect(
-			await screen.findByText("Failed to get chat diff."),
-		).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: /Reconnect/ })).toBeNull();
+		await screen.findByText("Failed to get chat diff.");
+		expect(openSpy).not.toHaveBeenCalled();
 	});
 });

@@ -256,6 +256,9 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return "", rlErr
 		}
+		if resp.StatusCode == http.StatusUnauthorized {
+			return "", xerrors.Errorf("%w: gitlab request failed with status %d", ErrTokenRejected, resp.StatusCode)
+		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
 			return "", g.wrapError(
@@ -344,6 +347,9 @@ func (g *gitlabProvider) FetchBranchDiff(
 	if resp.StatusCode != http.StatusOK {
 		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return "", rlErr
+		}
+		if resp.StatusCode == http.StatusUnauthorized {
+			return "", xerrors.Errorf("%w: gitlab request failed with status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -585,9 +591,12 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 
 // wrapError converts library errors to our domain errors (e.g. rate limits).
 func (g *gitlabProvider) wrapError(err error, action string) error {
-	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
+	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok && errResp.Response != nil {
 		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return rlErr
+		}
+		if errResp.Response.StatusCode == http.StatusUnauthorized {
+			return xerrors.Errorf("gitlab %s: %w: %v", action, ErrTokenRejected, err)
 		}
 	}
 	return xerrors.Errorf("gitlab %s: %w", action, err)

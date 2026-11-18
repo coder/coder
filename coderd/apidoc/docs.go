@@ -4728,6 +4728,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatDiffContents"
                         }
+                    },
+                    "424": {
+                        "description": "Failed Dependency",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDiffReauthRequired"
+                        }
                     }
                 },
                 "security": [
@@ -22396,6 +22402,45 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatDiffReauthRequired": {
+            "type": "object",
+            "properties": {
+                "can_reconnect": {
+                    "description": "CanReconnect is true only when the requester is the chat owner.",
+                    "type": "boolean"
+                },
+                "detail": {
+                    "description": "Detail is a debug message that provides further insight into why the\naction failed. This information can be technical and a regular golang\nerr.Error() text.\n- \"database: too many open connections\"\n- \"stat: too many open files\"",
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "Kind is ChatErrorKindExternalAuthReauthRequired.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatErrorKind"
+                        }
+                    ]
+                },
+                "message": {
+                    "description": "Message is an actionable message that depicts actions the request took.\nThese messages should be fully formed sentences with proper punctuation.\nExamples:\n- \"A user has been created.\"\n- \"Failed to create a user.\"",
+                    "type": "string"
+                },
+                "provider_display_name": {
+                    "type": "string"
+                },
+                "provider_id": {
+                    "description": "ProviderID is the external auth config ID used in\n/external-auth/{provider}.",
+                    "type": "string"
+                },
+                "validations": {
+                    "description": "Validations are form field-specific friendly error messages. They will be\nshown on a form field in the UI. These can also be used to add additional\ncontext if there is a set of errors in the primary 'Message'.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ValidationError"
+                    }
+                }
+            }
+        },
         "codersdk.ChatDiffStatus": {
             "type": "object",
             "properties": {
@@ -22513,6 +22558,7 @@ const docTemplate = `{
                 "usage_limit",
                 "missing_key",
                 "provider_disabled",
+                "external_auth_reauth_required",
                 "content_filter",
                 "hook_dispatch_failed",
                 "hook_denied"
@@ -22528,6 +22574,7 @@ const docTemplate = `{
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
+                "ChatErrorKindExternalAuthReauthRequired",
                 "ChatErrorKindContentFilter",
                 "ChatErrorKindHookDispatchFailed",
                 "ChatErrorKindHookDenied"
