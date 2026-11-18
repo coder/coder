@@ -12695,7 +12695,7 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 		require.NotContains(t, string(raw), "Bad credentials")
 		var body codersdk.ChatDiffReauthRequired
 		require.NoError(t, json.Unmarshal(raw, &body))
-		require.Equal(t, codersdk.ChatErrorKindExternalAuthReauthRequired, body.Kind)
+		require.Equal(t, codersdk.ChatDiffErrorKindExternalAuthReauthRequired, body.Kind)
 		require.Equal(t, "github-test", body.ProviderID)
 		require.Equal(t, "GitHub Test", body.ProviderDisplayName)
 		require.Equal(t, "GitHub Test rejected your saved credentials. Reconnect GitHub Test to load this diff.", body.Message)

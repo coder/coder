@@ -22402,6 +22402,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatDiffErrorKind": {
+            "type": "string",
+            "enum": [
+                "external_auth_reauth_required"
+            ],
+            "x-enum-varnames": [
+                "ChatDiffErrorKindExternalAuthReauthRequired"
+            ]
+        },
         "codersdk.ChatDiffReauthRequired": {
             "type": "object",
             "properties": {
@@ -22414,10 +22423,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "kind": {
-                    "description": "Kind is external_auth_reauth_required.",
+                    "description": "Kind is always external_auth_reauth_required.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/codersdk.ChatErrorKind"
+                            "$ref": "#/definitions/codersdk.ChatDiffErrorKind"
                         }
                     ]
                 },
@@ -22558,7 +22567,6 @@ const docTemplate = `{
                 "usage_limit",
                 "missing_key",
                 "provider_disabled",
-                "external_auth_reauth_required",
                 "content_filter",
                 "hook_dispatch_failed",
                 "hook_denied"
@@ -22574,7 +22582,6 @@ const docTemplate = `{
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
-                "ChatErrorKindExternalAuthReauthRequired",
                 "ChatErrorKindContentFilter",
                 "ChatErrorKindHookDispatchFailed",
                 "ChatErrorKindHookDenied"

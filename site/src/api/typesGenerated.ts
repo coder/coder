@@ -2691,15 +2691,22 @@ export interface ChatDiffContents {
 }
 
 // From codersdk/chats.go
+export type ChatDiffErrorKind = "external_auth_reauth_required";
+
+export const ChatDiffErrorKinds: ChatDiffErrorKind[] = [
+	"external_auth_reauth_required",
+];
+
+// From codersdk/chats.go
 /**
  * ChatDiffReauthRequired is the error body returned with status 424 when
  * the provider rejects the chat owner's access token.
  */
 export interface ChatDiffReauthRequired extends Response {
 	/**
-	 * Kind is external_auth_reauth_required.
+	 * Kind is always external_auth_reauth_required.
 	 */
-	readonly kind: ChatErrorKind;
+	readonly kind: ChatDiffErrorKind;
 	/**
 	 * ProviderID is the external auth config ID used in
 	 * /external-auth/{provider}.
@@ -2780,7 +2787,6 @@ export type ChatErrorKind =
 	| "auth"
 	| "config"
 	| "content_filter"
-	| "external_auth_reauth_required"
 	| "generic"
 	| "hook_denied"
 	| "hook_dispatch_failed"
@@ -2796,7 +2802,6 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
 	"content_filter",
-	"external_auth_reauth_required",
 	"generic",
 	"hook_denied",
 	"hook_dispatch_failed",

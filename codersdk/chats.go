@@ -2071,12 +2071,19 @@ type ChatDiffContents struct {
 	Diff           string    `json:"diff,omitempty"`
 }
 
+// ChatDiffErrorKind classifies an error body from the chat diff endpoint.
+type ChatDiffErrorKind string
+
+// ChatDiffErrorKindExternalAuthReauthRequired is the kind of
+// ChatDiffReauthRequired.
+const ChatDiffErrorKindExternalAuthReauthRequired ChatDiffErrorKind = "external_auth_reauth_required"
+
 // ChatDiffReauthRequired is the error body returned with status 424 when
 // the provider rejects the chat owner's access token.
 type ChatDiffReauthRequired struct {
 	Response
-	// Kind is external_auth_reauth_required.
-	Kind ChatErrorKind `json:"kind"`
+	// Kind is always external_auth_reauth_required.
+	Kind ChatDiffErrorKind `json:"kind"`
 	// ProviderID is the external auth config ID used in
 	// /external-auth/{provider}.
 	ProviderID          string `json:"provider_id"`
@@ -2174,20 +2181,19 @@ type ChatStreamStatus struct {
 type ChatErrorKind string
 
 const (
-	ChatErrorKindGeneric                    ChatErrorKind = "generic"
-	ChatErrorKindOverloaded                 ChatErrorKind = "overloaded"
-	ChatErrorKindRateLimit                  ChatErrorKind = "rate_limit"
-	ChatErrorKindTimeout                    ChatErrorKind = "timeout"
-	ChatErrorKindStreamSilenceTimeout       ChatErrorKind = "stream_silence_timeout"
-	ChatErrorKindAuth                       ChatErrorKind = "auth"
-	ChatErrorKindConfig                     ChatErrorKind = "config"
-	ChatErrorKindUsageLimit                 ChatErrorKind = "usage_limit"
-	ChatErrorKindMissingKey                 ChatErrorKind = "missing_key"
-	ChatErrorKindProviderDisabled           ChatErrorKind = "provider_disabled"
-	ChatErrorKindExternalAuthReauthRequired ChatErrorKind = "external_auth_reauth_required"
-	ChatErrorKindContentFilter              ChatErrorKind = "content_filter"
-	ChatErrorKindHookDispatchFailed         ChatErrorKind = "hook_dispatch_failed"
-	ChatErrorKindHookDenied                 ChatErrorKind = "hook_denied"
+	ChatErrorKindGeneric              ChatErrorKind = "generic"
+	ChatErrorKindOverloaded           ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit            ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout              ChatErrorKind = "timeout"
+	ChatErrorKindStreamSilenceTimeout ChatErrorKind = "stream_silence_timeout"
+	ChatErrorKindAuth                 ChatErrorKind = "auth"
+	ChatErrorKindConfig               ChatErrorKind = "config"
+	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
+	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
+	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
+	ChatErrorKindHookDenied           ChatErrorKind = "hook_denied"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -2206,7 +2212,6 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindContentFilter,
 	ChatErrorKindHookDispatchFailed,
 	ChatErrorKindHookDenied,
-	ChatErrorKindExternalAuthReauthRequired,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the

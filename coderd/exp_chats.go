@@ -4486,7 +4486,7 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 			}
 			httpapi.Write(ctx, rw, http.StatusFailedDependency, codersdk.ChatDiffReauthRequired{
 				Response:            codersdk.Response{Message: message},
-				Kind:                codersdk.ChatErrorKindExternalAuthReauthRequired,
+				Kind:                codersdk.ChatDiffErrorKindExternalAuthReauthRequired,
 				ProviderID:          reauthErr.ProviderID,
 				ProviderDisplayName: reauthErr.DisplayName,
 				CanReconnect:        canReconnect,

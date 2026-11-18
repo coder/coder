@@ -3162,13 +3162,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pull_request_url` | string | false    |              |             |
 | `remote_origin`    | string | false    |              |             |
 
+## codersdk.ChatDiffErrorKind
+
+```json
+"external_auth_reauth_required"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `external_auth_reauth_required` |
+
 ## codersdk.ChatDiffReauthRequired
 
 ```json
 {
   "can_reconnect": true,
   "detail": "string",
-  "kind": "generic",
+  "kind": "external_auth_reauth_required",
   "message": "string",
   "provider_display_name": "string",
   "provider_id": "string",
@@ -3187,7 +3201,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `can_reconnect`         | boolean                                                       | false    |              | Can reconnect is true only when the requester is the chat owner.                                                                                                                                                                   |
 | `detail`                | string                                                        | false    |              | Detail is a debug message that provides further insight into why the action failed. This information can be technical and a regular golang err.Error() text. - "database: too many open connections" - "stat: too many open files" |
-| `kind`                  | [codersdk.ChatErrorKind](#codersdkchaterrorkind)              | false    |              | Kind is external_auth_reauth_required.                                                                                                                                                                                             |
+| `kind`                  | [codersdk.ChatDiffErrorKind](#codersdkchatdifferrorkind)      | false    |              | Kind is always external_auth_reauth_required.                                                                                                                                                                                      |
 | `message`               | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
 | `provider_display_name` | string                                                        | false    |              |                                                                                                                                                                                                                                    |
 | `provider_id`           | string                                                        | false    |              | Provider ID is the external auth config ID used in /external-auth/{provider}.                                                                                                                                                      |
@@ -3281,9 +3295,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                  |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `content_filter`, `external_auth_reauth_required`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileDownloadURLResponse
 
