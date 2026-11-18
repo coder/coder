@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useRef } from "react";
 import type { StepId } from "./steps";
 
 const StepHeadingRefContext = createContext<
@@ -8,40 +8,20 @@ const StepHeadingRefContext = createContext<
 /** Hands the current step's heading to `useStepHeadingFocus`. */
 export const StepHeadingRefProvider = StepHeadingRefContext.Provider;
 
-function focusIfPending(
-	heading: HTMLHeadingElement | null,
-	pendingRef: React.RefObject<boolean>,
-) {
-	if (heading && pendingRef.current) {
-		heading.focus({ preventScroll: true });
-		pendingRef.current = false;
-	}
-}
-
 /**
  * Returns a ref for `StepHeadingRefProvider` that focuses the step heading on
- * each step change, waiting for a loading step's heading to mount. Page load
- * keeps the browser's default focus.
+ * each step change, once the heading mounts. Page load keeps the browser's
+ * default focus.
  */
 export function useStepHeadingFocus(
 	stepId: StepId,
 ): React.RefCallback<HTMLHeadingElement> {
-	const headingRef = useRef<HTMLHeadingElement | null>(null);
-	const pendingRef = useRef(false);
-	const handledStepIdRef = useRef(stepId);
-
-	useEffect(() => {
-		if (handledStepIdRef.current === stepId) {
-			return;
+	const focusedStepIdRef = useRef(stepId);
+	return (node) => {
+		if (node && focusedStepIdRef.current !== stepId) {
+			node.focus({ preventScroll: true });
+			focusedStepIdRef.current = stepId;
 		}
-		handledStepIdRef.current = stepId;
-		pendingRef.current = true;
-		focusIfPending(headingRef.current, pendingRef);
-	}, [stepId]);
-
-	return (node: HTMLHeadingElement | null) => {
-		headingRef.current = node;
-		focusIfPending(node, pendingRef);
 	};
 }
 
