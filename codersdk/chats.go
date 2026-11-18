@@ -235,10 +235,23 @@ type ChatProject struct {
 	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
-	Icon        string                 `json:"icon"`
-	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
-	Permissions ChatProjectPermissions `json:"permissions"`
+	Icon string `json:"icon"`
+	// LimitTemplates restricts the project's chats to its attached
+	// templates, and to none when nothing is attached. When false, the chats
+	// can use every template their owner can use.
+	LimitTemplates bool `json:"limit_templates"`
+	// Templates are the attached templates the caller can access. Deprecated
+	// templates and templates that do not allow agents are left out.
+	Templates []ChatProjectTemplate `json:"templates"`
+	// HiddenTemplateCount is the number of attached templates the caller
+	// cannot access. Nothing else about them is returned.
+	HiddenTemplateCount int `json:"hidden_template_count"`
+	// DefaultTemplate is omitted when the project has none or the caller
+	// cannot access it.
+	DefaultTemplate *ChatProjectDefaultTemplate `json:"default_template,omitempty"`
+	CreatedAt       time.Time                   `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time                   `json:"updated_at" format:"date-time"`
+	Permissions     ChatProjectPermissions      `json:"permissions"`
 }
 
 // ChatProjectPermissions are the actions the caller may take on a project.
@@ -248,19 +261,56 @@ type ChatProjectPermissions struct {
 	Share  bool `json:"share"`
 }
 
+// ChatProjectTemplate is a workspace template attached to a chat project.
+// Attaching a template does not grant access to it.
+type ChatProjectTemplate struct {
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
+	Icon        string    `json:"icon"`
+}
+
+// ChatProjectDefaultTemplate is the attached template a project recommends
+// to its chats, with the preset or parameter values to create workspaces
+// from it.
+type ChatProjectDefaultTemplate struct {
+	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
+	// PresetID is a preset of the template's active version, applied when a
+	// chat creates a workspace from the template without choosing a preset.
+	// It is mutually exclusive with Parameters.
+	PresetID *uuid.UUID `json:"preset_id,omitempty" format:"uuid"`
+	// Parameters are parameter values, keyed by name, applied when a chat
+	// creates a workspace from the template. Values the chat passes take
+	// precedence.
+	Parameters map[string]string `json:"parameters,omitempty"`
+}
+
 // CreateChatProjectRequest creates a chat project in the organization named
 // by the route.
 type CreateChatProjectRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description"`
 	Icon        string `json:"icon,omitempty"`
+	// LimitTemplates restricts the project's chats to TemplateIDs.
+	LimitTemplates bool `json:"limit_templates,omitempty"`
+	// TemplateIDs are attached to the new project.
+	TemplateIDs []uuid.UUID `json:"template_ids,omitempty" format:"uuid"`
+	// DefaultTemplate must name one of TemplateIDs.
+	DefaultTemplate *ChatProjectDefaultTemplate `json:"default_template,omitempty"`
 }
 
-// UpdateChatProjectRequest updates a chat project.
+// UpdateChatProjectRequest updates a chat project. Templates are attached
+// and detached one at a time with AttachChatProjectTemplate and
+// DetachChatProjectTemplate, so a caller never replaces attachments they
+// cannot see.
 type UpdateChatProjectRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Icon        *string `json:"icon,omitempty"`
+	Name           *string `json:"name,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	Icon           *string `json:"icon,omitempty"`
+	LimitTemplates *bool   `json:"limit_templates,omitempty"`
+	// DefaultTemplate replaces the project's default template, preset, and
+	// parameters as a whole when set. A zero TemplateID clears them.
+	DefaultTemplate *ChatProjectDefaultTemplate `json:"default_template,omitempty"`
 }
 
 // ChatProjectRole is the access a project ACL grants.
@@ -2582,6 +2632,31 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	}
 	var project ChatProject
 	return project, ReadBodyAsJSON(res, &project)
+}
+
+// AttachChatProjectTemplate attaches a template to a chat project. It
+// succeeds when the template is already attached, unless the template has
+// since been deprecated or closed to agents.
+func (c *ExperimentalClient) AttachChatProjectTemplate(ctx context.Context, organizationID, projectID, templateID uuid.UUID) error {
+	return c.chatProjectTemplateRequest(ctx, http.MethodPut, organizationID, projectID, templateID)
+}
+
+// DetachChatProjectTemplate detaches a template from a chat project. A
+// template the caller cannot access is reported as not found.
+func (c *ExperimentalClient) DetachChatProjectTemplate(ctx context.Context, organizationID, projectID, templateID uuid.UUID) error {
+	return c.chatProjectTemplateRequest(ctx, http.MethodDelete, organizationID, projectID, templateID)
+}
+
+func (c *ExperimentalClient) chatProjectTemplateRequest(ctx context.Context, method string, organizationID, projectID, templateID uuid.UUID) error {
+	res, err := c.Request(ctx, method, fmt.Sprintf("%s/templates/%s", chatProjectPath(organizationID, projectID), templateID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // DeleteChatProject deletes a chat project and detaches its chats.

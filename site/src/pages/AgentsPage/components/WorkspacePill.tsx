@@ -129,7 +129,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			}}
 		>
 			{/* Sizing (floor, growth, natural-width cap) is owned by the
-			 * wrapper in AgentChatInput; this span just fills it. */}
+			 * wrapper in ChatToolBadges; this span just fills it. */}
 			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs text-content-secondary">
 				<Tooltip
 					open={!inOverflowPopover && tooltipOpen}
@@ -259,7 +259,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 							<DropdownMenuItem asChild>
 								<Link to={route} target="_blank" rel="noreferrer">
 									<MonitorIcon className="size-3.5" />
-									View Workspace
+									View workspace
 								</Link>
 							</DropdownMenuItem>
 							{onRemoveWorkspace && (
@@ -380,7 +380,7 @@ const CopySSHMenuItem: React.FC<{
 			}}
 		>
 			<CopyIcon className="size-3.5" />
-			Copy SSH Command
+			Copy SSH command
 		</DropdownMenuItem>
 	);
 };

@@ -122,7 +122,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	});
 	const maxPortShareHelperId = `${maxPortShareField.id}-helper`;
 	const corsBehaviorField = getFieldHelpers("cors_behavior", {
-		helperText: "Use Passthru to bypass Coder's built-in CORS protection.",
+		helperText: "Use passthru to bypass Coder's built-in CORS protection.",
 	});
 	const corsBehaviorHelperId = `${corsBehaviorField.id}-helper`;
 	const moduleCacheDisabledByDeployment =
@@ -391,7 +391,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 							helperText:
 								"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
 						})}
-						label="Deprecation Message"
+						label="Deprecation message"
 						disabled={
 							isSubmitting || (!template.deprecated && !accessControlEnabled)
 						}
@@ -411,16 +411,16 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 			</FormSection>
 
 			<FormSection
-				title="Port Sharing"
-				description="Shared ports with the Public sharing level can be accessed by anyone,
-          while ports with the Authenticated sharing level can only be accessed
-          by authenticated Coder users. Ports with the Owner sharing level can
+				title="Port sharing"
+				description="Shared ports with the public sharing level can be accessed by anyone,
+          while ports with the authenticated sharing level can only be accessed
+          by authenticated Coder users. Ports with the owner sharing level can
           only be accessed by the workspace owner."
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
 						<Label htmlFor={maxPortShareField.id}>
-							Maximum Port Sharing Level
+							Maximum port sharing level
 						</Label>
 						<Select
 							value={
@@ -481,12 +481,12 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 			</FormSection>
 
 			<FormSection
-				title="CORS Behavior"
+				title="CORS behavior"
 				description="Control how Cross-Origin Resource Sharing (CORS) requests are handled for all shared ports."
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
-						<Label htmlFor={corsBehaviorField.id}>CORS Behavior</Label>
+						<Label htmlFor={corsBehaviorField.id}>CORS behavior</Label>
 						<Select
 							value={form.values.cors_behavior}
 							onValueChange={(value) => {

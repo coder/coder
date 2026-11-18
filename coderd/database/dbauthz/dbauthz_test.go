@@ -1426,6 +1426,35 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
 	}))
+	s.Run("GetChatProjectTemplatesByProjectIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		rows := []database.GetChatProjectTemplatesByProjectIDsRow{{
+			ChatProjectTemplate: testutil.Fake(s.T(), faker, database.ChatProjectTemplate{ProjectID: project.ID}),
+			ChatProject:         project,
+		}}
+		dbm.EXPECT().GetChatProjectTemplatesByProjectIDs(gomock.Any(), []uuid.UUID{project.ID}).Return(rows, nil).AnyTimes()
+		check.Args([]uuid.UUID{project.ID}).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("InsertChatProjectTemplates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		template := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.InsertChatProjectTemplatesParams{ProjectID: project.ID, TemplateIDs: []uuid.UUID{template.ID}, CreatedBy: uuid.New()}
+		rows := []database.ChatProjectTemplate{{ProjectID: project.ID, TemplateID: template.ID, CreatedBy: arg.CreatedBy}}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), template.ID).Return(template, nil).AnyTimes()
+		dbm.EXPECT().InsertChatProjectTemplates(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionUpdate, template, policy.ActionUse).Returns(rows)
+	}))
+	s.Run("DeleteChatProjectTemplate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		template := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.DeleteChatProjectTemplateParams{ProjectID: project.ID, TemplateID: template.ID}
+		row := database.ChatProjectTemplate{ProjectID: project.ID, TemplateID: template.ID}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), template.ID).Return(template, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatProjectTemplate(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionUpdate, template, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatProjectInstructionsByProjectID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		row := database.GetChatProjectInstructionsByProjectIDRow{
