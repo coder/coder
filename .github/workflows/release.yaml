@@ -949,9 +949,22 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
+      # Pinned to a release and checked against its SHA-256, which matches both
+      # GitHub's asset digest and the wingetcreate.exe.txt checksum file Microsoft
+      # publishes alongside it. To update, take both values from a newer release
+      # at https://github.com/microsoft/winget-create/releases.
       - name: Install wingetcreate
         run: |
-          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/download/$env:WINGETCREATE_VERSION/wingetcreate.exe" -OutFile wingetcreate.exe
+          $hash = (Get-FileHash -Algorithm SHA256 -Path wingetcreate.exe).Hash
+          if ($hash -ne $env:WINGETCREATE_SHA256) {
+            Remove-Item wingetcreate.exe
+            throw "wingetcreate.exe $env:WINGETCREATE_VERSION checksum mismatch: got $hash"
+          }
+        env:
+          WINGETCREATE_VERSION: v1.28.1.0
+          WINGETCREATE_SHA256: 63D980BA79E97042395BD6EB5992C2DB9E01E9E7A8A22958A95C288F27310413
 
       - name: Submit updated manifest to winget-pkgs
         run: |

@@ -17,7 +17,6 @@ import {
 	parseSkillTrigger,
 	SKILL_MAX_SIZE_BYTES,
 	tryParseSkillMarkdown,
-	withDisabledModelInvocation,
 } from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
@@ -417,24 +416,5 @@ describe("activeOrganizationSkills", () => {
 		expect(activeOrganizationSkills([MockDisabledSkill], undefined)).toEqual(
 			[],
 		);
-	});
-});
-
-describe("withDisabledModelInvocation", () => {
-	it.each([
-		["LF", "---\nname: triage\n---\nTriage issues.\n"],
-		["CRLF", "---\r\nname: triage\r\n---\r\nTriage issues.\r\n"],
-	])(
-		"marks %s frontmatter so re-importing keeps the skill manual",
-		(_, content) => {
-			expect(
-				parseSkillMarkdown(withDisabledModelInvocation(content)).modelInvocable,
-			).toBe(false);
-		},
-	);
-
-	it("leaves content unmarked when the marker would pass the size limit", () => {
-		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
-		expect(withDisabledModelInvocation(content)).toBe(content);
 	});
 });

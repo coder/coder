@@ -18,6 +18,7 @@ import {
 
 const ownerCategory: FilterCategory = {
 	key: "owner",
+	optionsKey: "owner",
 	label: "Owner",
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
@@ -53,6 +54,7 @@ const OWNER_NAMES = Array.from(
 // search, like a user beyond the first page of results.
 const manyOwnersCategory: FilterCategory = {
 	key: "owner",
+	optionsKey: "owner",
 	label: "Owner",
 	getOptions: async (query) =>
 		[...OWNER_NAMES, ...(query ? ["zed"] : [])]
@@ -62,6 +64,7 @@ const manyOwnersCategory: FilterCategory = {
 
 const statusCategory: FilterCategory = {
 	key: "status",
+	optionsKey: "status",
 	label: "Status",
 	inlineOptions: true,
 	getOptions: async (query) =>
@@ -72,6 +75,7 @@ const statusCategory: FilterCategory = {
 
 const emptyTemplateCategory: FilterCategory = {
 	key: "template",
+	optionsKey: "template",
 	label: "Template",
 	getOptions: async () => [],
 };
@@ -97,6 +101,7 @@ const flushTimers = () => act(() => vi.advanceTimersByTimeAsync(0));
 
 const attributesCategory: FilterCategory = {
 	key: "attribute",
+	optionsKey: "attribute",
 	label: "Attributes",
 	chipKeys: ["outdated", "dormant"],
 	inlineOptions: true,
@@ -211,11 +216,17 @@ describe("FilterCombobox", () => {
 				categories={[
 					{
 						key: "template",
+						optionsKey: "template",
 						label: "Template",
 						hideWhenSingleOption: true,
 						getOptions: hideable,
 					},
-					{ key: "owner", label: "Owner", getOptions: other },
+					{
+						key: "owner",
+						optionsKey: "owner",
+						label: "Owner",
+						getOptions: other,
+					},
 				]}
 				initialValue=""
 				onChange={vi.fn()}
@@ -229,6 +240,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -261,6 +273,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -295,6 +308,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -328,6 +342,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -359,6 +374,7 @@ describe("FilterCombobox", () => {
 		const { user, filtersButton } = setup([
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => {
@@ -387,6 +403,7 @@ describe("FilterCombobox", () => {
 				ownerCategory,
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => {
@@ -429,6 +446,7 @@ describe("FilterCombobox", () => {
 			[
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions,
@@ -482,6 +500,7 @@ describe("FilterCombobox", () => {
 			[
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: (query) => {
@@ -980,6 +999,7 @@ describe("FilterCombobox", () => {
 	it("holds back typed text once one category's search matches while another is pending", async () => {
 		const templateCategory: FilterCategory = {
 			key: "template",
+			optionsKey: "template",
 			label: "Template",
 			getOptions: async (query) =>
 				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
@@ -1492,6 +1512,7 @@ describe("FilterCombobox", () => {
 				[
 					{
 						key: "owner",
+						optionsKey: "owner",
 						label: "Owner",
 						getOptions: async (query) =>
 							query === ""
@@ -1822,6 +1843,7 @@ describe("FilterCombobox", () => {
 				{
 					...manyOwnersCategory,
 					key: "user",
+					optionsKey: "user",
 					label: "User",
 					getOptions: getUserOptions,
 				},
@@ -1977,6 +1999,7 @@ describe("FilterCombobox", () => {
 		const { user, onChange, input } = setup([
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [{ label: "Docker", value: "docker" }],
@@ -1984,6 +2007,7 @@ describe("FilterCombobox", () => {
 			{
 				...manyOwnersCategory,
 				key: "owner",
+				optionsKey: "owner",
 				getOptions: async () => [
 					{ label: "alice", value: "alice" },
 					{ label: "bob", value: "bob" },
@@ -2042,6 +2066,7 @@ describe("FilterCombobox", () => {
 				{ ...ownerCategory, getOptions: neverResolves },
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => {
@@ -2191,6 +2216,7 @@ describe("FilterCombobox", () => {
 		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus([
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: neverResolves,
@@ -2770,6 +2796,7 @@ describe("FilterCombobox", () => {
 		describe("typing the scope phrase", () => {
 			const templateCategory: FilterCategory = {
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				getOptions: async () => [{ label: "Docker", value: "docker" }],
 			};
@@ -3051,6 +3078,7 @@ describe("FilterCombobox", () => {
 				ownerCategory,
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => [{ label: "docker", value: "docker" }],
@@ -3079,6 +3107,7 @@ describe("FilterCombobox", () => {
 				ownerCategory,
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => [{ label: "docker", value: "docker" }],
@@ -3114,6 +3143,7 @@ describe("FilterCombobox", () => {
 					ownerCategory,
 					{
 						key: "template",
+						optionsKey: "template",
 						label: "Template",
 						hideWhenSingleOption: true,
 						getOptions: async () => [{ label: "docker", value: "docker" }],
@@ -3164,6 +3194,7 @@ describe("FilterCombobox", () => {
 								ownerCategory,
 								{
 									key: "template",
+									optionsKey: "template",
 									label: "Template",
 									hideWhenSingleOption: true,
 									getOptions: async () => [

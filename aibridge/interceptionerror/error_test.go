@@ -134,3 +134,38 @@ func TestCategorizeTruncatesMessage(t *testing.T) {
 	assert.Less(t, len(gotMsg), maxRecordedErrorMessageBytes)
 	assert.Positive(t, len(gotMsg))
 }
+
+func TestTruncateMessage(t *testing.T) {
+	t.Parallel()
+
+	const maxRecordedErrorMessageBytes = 1024
+
+	// '€' is 3 bytes, so the cap splits the 342nd rune.
+	multiByteRune := strings.Repeat("€", maxRecordedErrorMessageBytes)
+	for _, tc := range []struct {
+		name string
+		msg  string
+		want string
+	}{
+		{
+			name: "AtCap",
+			msg:  strings.Repeat("a", maxRecordedErrorMessageBytes),
+			want: strings.Repeat("a", maxRecordedErrorMessageBytes),
+		},
+		{
+			name: "OverCap",
+			msg:  strings.Repeat("a", maxRecordedErrorMessageBytes+1),
+			want: strings.Repeat("a", maxRecordedErrorMessageBytes),
+		},
+		{
+			name: "SplitRuneDropped",
+			msg:  multiByteRune,
+			want: multiByteRune[:maxRecordedErrorMessageBytes/3*3],
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, interceptionerror.TruncateMessage(tc.msg))
+		})
+	}
+}

@@ -7,10 +7,15 @@ import (
 	"io"
 	"net/http"
 	"sync"
+
+	"golang.org/x/xerrors"
 )
 
 // maxSourceRead bounds one source read.
 const maxSourceRead = 32 << 10
+
+// ErrCaptureInProgress reports that capture has not finished.
+var ErrCaptureInProgress = xerrors.New("capture in progress")
 
 // TeeBuffer retains every byte read from source. Only the replayBody that
 // NewRequest and NewResponse install reads the source. The caller must limit
@@ -88,6 +93,33 @@ func (b *TeeBuffer) Wait(ctx context.Context) ([]byte, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// Err reports the capture result without waiting. A nil error means the
+// source completed, ErrCaptureInProgress means capture has not finished,
+// io.ErrClosedPipe means Close interrupted it, and any other error came from
+// the source.
+func (b *TeeBuffer) Err() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	switch b.err {
+	case nil:
+		return ErrCaptureInProgress
+	case io.EOF: //nolint:errorlint // Only bare EOF means completion.
+		return nil
+	default:
+		return b.err
+	}
+}
+
+// Bytes returns the bytes retained so far without waiting. They are complete
+// once Err no longer reports ErrCaptureInProgress. The bytes are read-only and
+// stay valid after Close.
+func (b *TeeBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	// Clamp capacity so appending to the result allocates new storage.
+	return b.data[:len(b.data):len(b.data)]
 }
 
 // teeRead reads from the source until it makes progress, appends read
