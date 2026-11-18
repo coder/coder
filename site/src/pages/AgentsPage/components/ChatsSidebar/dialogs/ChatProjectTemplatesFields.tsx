@@ -6,6 +6,7 @@ import type { CreateChatProjectRequest, Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
 import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	Select,
 	SelectContent,
@@ -15,6 +16,7 @@ import {
 } from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { SettingSwitch } from "../../SettingSwitch";
+import { ChatProjectDefaultParameters } from "./ChatProjectDefaultParameters";
 
 /** Form state for a project's templates and the defaults its chats use. */
 export type ChatProjectTemplatesValues = {
@@ -23,7 +25,17 @@ export type ChatProjectTemplatesValues = {
 	templateIds: readonly string[];
 	/** Empty when the project has no default template. */
 	defaultTemplateId: string;
+	/**
+	 * Picks which of `defaultPresetId` or `defaultParameters` is saved; the
+	 * other is ignored.
+	 */
+	defaultsKind: "preset" | "parameters";
 	defaultPresetId: string;
+	/**
+	 * Values by parameter name. A missing name uses the template default; an
+	 * empty string is an explicit empty value.
+	 */
+	defaultParameters: Readonly<Record<string, string>>;
 };
 
 const noDefaultTemplate = "none";
@@ -41,7 +53,11 @@ export const chatProjectTemplatesValues = (
 	limitTemplates: templates?.limit_templates ?? false,
 	templateIds: templates?.template_ids ?? [],
 	defaultTemplateId: templates?.default_template?.template_id ?? "",
+	defaultsKind: templates?.default_template?.parameters
+		? "parameters"
+		: "preset",
 	defaultPresetId: templates?.default_template?.preset_id ?? "",
+	defaultParameters: templates?.default_template?.parameters ?? {},
 });
 
 /**
@@ -62,11 +78,21 @@ export const chatProjectTemplatesRequest = (
 	if (!request.template_ids.includes(values.defaultTemplateId)) {
 		return request;
 	}
+	if (values.defaultsKind === "preset") {
+		return {
+			...request,
+			default_template: {
+				template_id: values.defaultTemplateId,
+				preset_id: values.defaultPresetId || undefined,
+			},
+		};
+	}
+	const parameters = values.defaultParameters;
 	return {
 		...request,
 		default_template: {
 			template_id: values.defaultTemplateId,
-			preset_id: values.defaultPresetId || undefined,
+			parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
 		},
 	};
 };
@@ -112,7 +138,8 @@ type ChatProjectTemplatesFieldsProps = {
 
 /**
  * Fields that pick a project's templates, whether its chats are limited to
- * them, an optional default template, and that template's default preset.
+ * them, an optional default template, and that template's default preset or
+ * parameter values.
  */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
@@ -141,6 +168,7 @@ export const ChatProjectTemplatesFields: React.FC<
 			templateIds,
 			defaultTemplateId: "",
 			defaultPresetId: "",
+			defaultParameters: {},
 		});
 	};
 
@@ -225,6 +253,7 @@ export const ChatProjectTemplatesFields: React.FC<
 								...value,
 								defaultTemplateId: id === noDefaultTemplate ? "" : id,
 								defaultPresetId: "",
+								defaultParameters: {},
 							})
 						}
 						disabled={disabled}
@@ -244,12 +273,10 @@ export const ChatProjectTemplatesFields: React.FC<
 				</div>
 			)}
 			{defaultTemplate && (
-				<ChatProjectDefaultPreset
-					templateVersionId={defaultTemplate.active_version_id}
-					value={value.defaultPresetId}
-					onChange={(defaultPresetId) =>
-						onChange({ ...value, defaultPresetId })
-					}
+				<ChatProjectDefaultsFields
+					template={defaultTemplate}
+					value={value}
+					onChange={onChange}
 					disabled={disabled}
 				/>
 			)}
@@ -259,6 +286,78 @@ export const ChatProjectTemplatesFields: React.FC<
 				</p>
 			)}
 		</>
+	);
+};
+
+type ChatProjectDefaultsFieldsProps = {
+	readonly template: Template;
+	readonly value: ChatProjectTemplatesValues;
+	readonly onChange: (value: ChatProjectTemplatesValues) => void;
+	readonly disabled: boolean;
+};
+
+const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
+	template,
+	value,
+	onChange,
+	disabled,
+}) => {
+	const presetKindId = useId();
+	const parametersKindId = useId();
+
+	return (
+		<div className="flex flex-col gap-3">
+			<RadioGroup
+				aria-label="Default values"
+				className="flex gap-4"
+				value={value.defaultsKind}
+				onValueChange={(kind) =>
+					onChange({
+						...value,
+						defaultsKind: kind === "parameters" ? "parameters" : "preset",
+						defaultPresetId: "",
+						defaultParameters: {},
+					})
+				}
+				disabled={disabled}
+			>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem id={presetKindId} value="preset" />
+					<Label htmlFor={presetKindId} className="font-normal">
+						Preset
+					</Label>
+				</div>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem id={parametersKindId} value="parameters" />
+					<Label htmlFor={parametersKindId} className="font-normal">
+						Parameter values
+					</Label>
+				</div>
+			</RadioGroup>
+			{value.defaultsKind === "preset" && (
+				<ChatProjectDefaultPreset
+					templateVersionId={template.active_version_id}
+					value={value.defaultPresetId}
+					onChange={(defaultPresetId) =>
+						onChange({ ...value, defaultPresetId })
+					}
+					disabled={disabled}
+				/>
+			)}
+			{value.defaultsKind === "parameters" && (
+				// Keyed by version, so another template or a new active version
+				// never shows the previous one's parameters.
+				<ChatProjectDefaultParameters
+					key={template.active_version_id}
+					templateVersionId={template.active_version_id}
+					value={value.defaultParameters}
+					onChange={(defaultParameters) =>
+						onChange({ ...value, defaultParameters })
+					}
+					disabled={disabled}
+				/>
+			)}
+		</div>
 	);
 };
 
