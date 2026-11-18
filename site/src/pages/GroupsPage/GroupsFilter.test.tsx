@@ -5,7 +5,11 @@ import { useFilter } from "#/components/Filter/Filter";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { GroupsFilter } from "./GroupsFilter";
 
-const Harness = ({ onChange }: { onChange: (query: string) => void }) => {
+type HarnessProps = {
+	onChange: (query: string) => void;
+};
+
+const Harness: React.FC<HarnessProps> = ({ onChange }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = useFilter({
 		searchParams,
@@ -19,11 +23,11 @@ it("updates and clears group name searches", async () => {
 	const user = userEvent.setup();
 	const onChange = vi.fn();
 	renderWithAuth(<Harness onChange={onChange} />);
-	const input = await screen.findByRole("combobox", { name: "Search groups…" });
+	const input = await screen.findByRole("textbox", { name: "Search groups…" });
 	await user.type(input, "Platform Engineering");
 	await waitFor(() =>
 		expect(onChange).toHaveBeenLastCalledWith("Platform Engineering"),
 	);
-	await user.clear(input);
+	await user.click(screen.getByRole("button", { name: "Clear search" }));
 	await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 });

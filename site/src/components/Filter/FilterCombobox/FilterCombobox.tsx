@@ -4,6 +4,7 @@ import {
 	ChevronRightIcon,
 	ListFilterIcon,
 	SearchIcon,
+	XIcon,
 } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
@@ -11,8 +12,10 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
 import {
+	InputGroup,
 	InputGroupAddon,
 	InputGroupButton,
+	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -84,6 +87,7 @@ const mobileOverlayClassName =
 type FilterComboboxProps = Readonly<{
 	value: string;
 	onChange: (query: string) => void;
+	/** An empty list renders a plain search textbox without a popup. */
 	categories: readonly FilterCategory[];
 	placeholder?: string;
 	className?: string;
@@ -95,11 +99,10 @@ type FilterComboboxProps = Readonly<{
 }>;
 
 /**
- * Filter input that shows applied filters as chips and opens a cmdk menu. The
- * menu lists categories, which open as pointer flyouts or as keyboard and
- * mobile drill-ins; option rows for categories with `inlineOptions`; and
- * cross-category value suggestions for typed text. State lives in
- * `useFilterCombobox`.
+ * Filter input that renders a plain search textbox when no categories exist.
+ * Otherwise, applied filters are chips and a cmdk menu offers categories
+ * as pointer flyouts or keyboard and mobile drill-ins, inline options, and
+ * cross-category value suggestions. State lives in `useFilterCombobox`.
  */
 export function FilterCombobox({
 	value,
@@ -291,6 +294,71 @@ export function FilterCombobox({
 		actions.selectCategory(categoryKey);
 	};
 
+	const errorContent = invalid && (
+		<span
+			id={errorId}
+			role="alert"
+			className="text-sm text-content-destructive"
+		>
+			{errorMessage}
+		</span>
+	);
+
+	if (categories.length === 0) {
+		return (
+			<>
+				<InputGroup className={className}>
+					<InputGroupAddon className="h-9.5 self-start px-2">
+						<SearchIcon aria-hidden className="size-icon-sm" />
+					</InputGroupAddon>
+					<InputGroupInput
+						{...passwordManagerIgnoreProps}
+						ref={setInputRef}
+						className="h-9.5 pr-2 text-sm font-medium text-content-primary focus:placeholder:text-transparent"
+						aria-label={placeholder}
+						aria-invalid={invalid || undefined}
+						aria-errormessage={invalid ? errorId : undefined}
+						placeholder={placeholder}
+						value={inputValue}
+						onBlur={actions.dismiss}
+						onKeyDown={actions.onInputKeyDown}
+						onChange={(event) =>
+							actions.onInputValueChange(event.currentTarget.value)
+						}
+					/>
+					{inputValue !== "" && (
+						<InputGroupAddon align="inline-end">
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<InputGroupButton
+										type="button"
+										size="icon"
+										onMouseDown={(event) => event.preventDefault()}
+										onClick={(event) => {
+											const hadFocus =
+												document.activeElement === event.currentTarget;
+											actions.clearAll();
+											if (hadFocus) {
+												actions.focusInput();
+											}
+										}}
+									>
+										<XIcon aria-hidden />
+										<span className="sr-only">Clear search</span>
+									</InputGroupButton>
+								</TooltipTrigger>
+								<TooltipContent align="end" sideOffset={8} alignOffset={-8}>
+									Clear search
+								</TooltipContent>
+							</Tooltip>
+						</InputGroupAddon>
+					)}
+				</InputGroup>
+				{errorContent}
+			</>
+		);
+	}
+
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
 		categoryPlaceholderCount === 0 &&
@@ -360,47 +428,45 @@ export function FilterCombobox({
 				<FilterComboboxInputGroup
 					className={cn(className, mobileOverlay && mobileOverlayClassName)}
 				>
-					{categories.length > 0 && (
-						<InputGroupAddon className="self-stretch items-start border-r p-0">
-							<InputGroupButton
-								type="button"
-								variant="subtle"
-								aria-label="Filters"
-								aria-expanded={open}
-								aria-haspopup="listbox"
-								className={cn(
-									"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
-									chipValues.length > 0 && "text-content-primary",
+					<InputGroupAddon className="self-stretch items-start border-r p-0">
+						<InputGroupButton
+							type="button"
+							variant="subtle"
+							aria-label="Filters"
+							aria-expanded={open}
+							aria-haspopup="listbox"
+							className={cn(
+								"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
+								chipValues.length > 0 && "text-content-primary",
+							)}
+							onMouseDown={(event) => {
+								// Keeps focus in the combobox input, which both menu
+								// actions focus, so aria-activedescendant navigation works.
+								event.preventDefault();
+							}}
+							onClick={(event) => {
+								// Keyboard and assistive-technology activation (detail 0)
+								// only opens the menu; pointer clicks toggle it.
+								if (event.detail === 0) {
+									actions.showAllFilters();
+									return;
+								}
+								actions.toggleMenu();
+							}}
+						>
+							<span className="flex size-5 shrink-0 items-center justify-center">
+								{chipValues.length > 0 ? (
+									<ListFilterActiveIcon
+										aria-hidden
+										data-testid="filter-active-icon"
+										className="size-5!"
+									/>
+								) : (
+									<ListFilterIcon aria-hidden className="size-icon-sm" />
 								)}
-								onMouseDown={(event) => {
-									// Keeps focus in the combobox input, which both menu
-									// actions focus, so aria-activedescendant navigation works.
-									event.preventDefault();
-								}}
-								onClick={(event) => {
-									// Keyboard and assistive-technology activation (detail 0)
-									// only opens the menu; pointer clicks toggle it.
-									if (event.detail === 0) {
-										actions.showAllFilters();
-										return;
-									}
-									actions.toggleMenu();
-								}}
-							>
-								<span className="flex size-5 shrink-0 items-center justify-center">
-									{chipValues.length > 0 ? (
-										<ListFilterActiveIcon
-											aria-hidden
-											data-testid="filter-active-icon"
-											className="size-5!"
-										/>
-									) : (
-										<ListFilterIcon aria-hidden className="size-icon-sm" />
-									)}
-								</span>
-							</InputGroupButton>
-						</InputGroupAddon>
-					)}
+							</span>
+						</InputGroupButton>
+					</InputGroupAddon>
 					<InputGroupAddon className="h-9.5 self-start px-2">
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
@@ -616,15 +682,7 @@ export function FilterCombobox({
 					)}
 				</FilterComboboxContent>
 			</FilterComboboxRoot>
-			{invalid && (
-				<span
-					id={errorId}
-					role="alert"
-					className="text-sm text-content-destructive"
-				>
-					{errorMessage}
-				</span>
-			)}
+			{errorContent}
 		</>
 	);
 }
