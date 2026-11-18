@@ -322,6 +322,40 @@ describe("AgentChatInput", () => {
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
 	});
 
+	it("accepts typing without sending while a send is pending", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				inputRef={inputRef}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Next message");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("Next message");
+		});
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
 	it.each([
 		["a pending send settles", { isLoading: true }],
 		["the composer is enabled", { isDisabled: true }],
@@ -351,6 +385,51 @@ describe("AgentChatInput", () => {
 			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1"),
 		);
 	});
+
+	it.each([
+		{ lockWhileLoading: false, focused: "Elsewhere" },
+		{ lockWhileLoading: true, focused: "Chat message" },
+	])(
+		"focuses $focused when a send completes with lockWhileLoading $lockWhileLoading",
+		async ({ lockWhileLoading, focused }) => {
+			const user = userEvent.setup();
+			const input = (isLoading: boolean) => (
+				<AppProviders>
+					<button type="button">Elsewhere</button>
+					<AgentChatInput
+						onSend={vi.fn()}
+						isDisabled={false}
+						isLoading={isLoading}
+						lockWhileLoading={lockWhileLoading}
+						selectedModel={modelOptions[0].id}
+						onModelChange={vi.fn()}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder="Select model"
+						hasModelOptions
+						canConfigureAgentSetup={false}
+						initialValue=""
+						onContentChange={vi.fn()}
+						planModeEnabled={false}
+						onPlanModeToggle={vi.fn()}
+						isModelCatalogLoading={false}
+					/>
+				</AppProviders>
+			);
+			const { rerender } = render(input(true), { wrapper: MemoryRouter });
+
+			const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+			await user.click(elsewhere);
+			rerender(input(false));
+			// Lexical moves DOM focus in its update commit, after this render.
+			await act(async () => {});
+
+			expect(
+				screen.getByRole(focused === "Elsewhere" ? "button" : "textbox", {
+					name: focused,
+				}),
+			).toHaveFocus();
+		},
+	);
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
@@ -847,7 +926,7 @@ describe("AgentChatInput", () => {
 
 	it.each([
 		["history", "Stop", "onInterrupt"],
-		["queued", "Save Edit", "onSend"],
+		["queued", "Save edit", "onSend"],
 	] as const)(
 		"a %s edit while streaming puts %s in the footer slot",
 		async (editingKind, buttonName, calledHandler) => {
@@ -1468,7 +1547,7 @@ describe("AgentChatInput", () => {
 		// Plain Enter sends only once the shortcut preference has loaded.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
+				screen.getByRole("button", { name: /^(Send|Queue|Save edit)$/ }),
 			).toHaveAttribute("aria-keyshortcuts", "Enter");
 		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));

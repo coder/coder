@@ -186,7 +186,7 @@ Instead, it reports the forwarded channel that Toolbox keeps open as one connect
 With a session ID and the logs, rebuild the timeline of the session.
 
 > [!TIP]
-> To see every connection in the session from the dashboard, open the **Connection Log** page, open an entry's details, and select **View related connections**.
+> To see every connection in the session from the dashboard, open the **Connection log** page, open an entry's details, and select **View related connections**.
 > The page lists the connections in the same workspace that share the client session ID.
 > The details also show the **Client session ID** with a copy button, which you can use to search the `coderd` and agent logs.
 

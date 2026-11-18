@@ -12,6 +12,7 @@ import (
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sony/gobreaker/v2"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
@@ -151,6 +152,40 @@ func TestExecute_CustomIsFailure(t *testing.T) {
 	assert.True(t, errors.Is(err, circuitbreaker.ErrCircuitOpen))
 	assert.Equal(t, int32(1), calls.Load()) // No new call
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestExecute_HandlerPanic(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		status int
+		value  any
+		open   bool
+	}{
+		{name: "Abort", status: http.StatusOK, value: http.ErrAbortHandler},
+		{name: "AbortAfter503", status: http.StatusServiceUnavailable, value: http.ErrAbortHandler, open: true},
+		{name: "WrappedAbort", status: http.StatusOK, value: xerrors.Errorf("wrapped: %w", http.ErrAbortHandler), open: true},
+		{name: "OtherPanic", status: http.StatusOK, value: "unexpected panic", open: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cbs := circuitbreaker.NewProviderCircuitBreakers("test", &config.CircuitBreaker{
+				FailureThreshold: 1, Interval: time.Minute, Timeout: time.Minute, MaxRequests: 1,
+			}, slogtest.Make(t, nil), nil)
+			assert.PanicsWithValue(t, tc.value, func() {
+				_ = cbs.Execute("/v1/messages", "test-model", httptest.NewRecorder(), func(w http.ResponseWriter) error {
+					w.WriteHeader(tc.status)
+					panic(tc.value)
+				})
+			})
+			err := cbs.Execute("/v1/messages", "test-model", httptest.NewRecorder(), func(http.ResponseWriter) error { return nil })
+			if tc.open {
+				assert.ErrorIs(t, err, circuitbreaker.ErrCircuitOpen)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestExecute_OnStateChange(t *testing.T) {

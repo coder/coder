@@ -13,7 +13,7 @@ This lets an entire team work in environments that are identically configured an
 ## Create workspaces
 
 You can create a workspace in the UI.
-Log in to your Coder instance, go to the **Templates** tab, find the template you need, and select **Create Workspace**.
+Log in to your Coder instance, go to the **Templates** tab, find the template you need, and select **Create workspace**.
 
 ![Creating a workspace in the UI](../images/creating-workspace-ui.png)
 
@@ -124,7 +124,7 @@ Users can choose to opt-in to automatic updates to update to the active template
 
 Note: If a template is updated such that new parameter inputs are required from the user, autostart will be disabled for the workspace until the user has manually updated the workspace.
 
-![Automatic Updates](../images/workspace-automatic-updates.png)
+![Automatic updates](../images/workspace-automatic-updates.png)
 
 ## Bulk operations
 
