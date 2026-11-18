@@ -74,16 +74,16 @@ const actionOptions: FilterOption[] = AuditActions.filter(
 ).map((action) => ({ value: action, label: capitalize(action) }));
 
 const resourceTypeLabels: Partial<Record<ResourceType, string>> = {
-	api_key: "API Key",
-	git_ssh_key: "Git SSH Key",
-	template_version: "Template Version",
-	workspace_build: "Workspace Build",
-	chat_instruction_settings: "Chat Instruction Settings",
-	chat_organization_system_prompt: "Chat Organization System Prompt",
-	chat_project_instructions: "Chat Project Instructions",
-	chat_project_skill: "Chat Project Skill",
-	chat_operational_settings: "Chat Operational Settings",
-	experiment_rule: "Experiment Rule",
+	api_key: "API key",
+	git_ssh_key: "Git SSH key",
+	template_version: "Template version",
+	workspace_build: "Workspace build",
+	chat_instruction_settings: "Chat instruction settings",
+	chat_organization_system_prompt: "Chat organization system prompt",
+	chat_project_instructions: "Chat project instructions",
+	chat_project_skill: "Chat project skill",
+	chat_operational_settings: "Chat operational settings",
+	experiment_rule: "Experiment rule",
 };
 
 const resourceOptions: FilterOption[] = ResourceTypes.map((type) => ({

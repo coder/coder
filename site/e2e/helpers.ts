@@ -83,7 +83,7 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	await page.goto("/login", { waitUntil: "domcontentloaded" });
 	await page.getByLabel("Email").fill(options.email);
 	await page.getByLabel("Password").fill(options.password);
-	await page.getByRole("button", { name: "Sign In" }).click();
+	await page.getByRole("button", { name: "Sign in" }).click();
 	// Sign-in triggers a hard navigation to "/", then React Router
 	// client-side redirects to "/workspaces" without firing a load event.
 	// waitForURL alone resolves on the URL change, before WorkspacesPage

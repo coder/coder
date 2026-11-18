@@ -2,7 +2,6 @@ package chatopenai
 
 import (
 	"fmt"
-	"strings"
 
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
@@ -61,14 +60,4 @@ func UsesResponsesAPI(modelID string, override *bool) bool {
 		return *override
 	}
 	return fantasyopenai.IsResponsesModel(modelID)
-}
-
-// IsGPT6Astra matches gpt-6-astra and its dated snapshots.
-func IsGPT6Astra(modelID string) bool {
-	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6-astra")
-}
-
-// IsGPT61Sol matches gpt-6.1-sol and its dated snapshots.
-func IsGPT61Sol(modelID string) bool {
-	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6.1-sol")
 }

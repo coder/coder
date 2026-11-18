@@ -93,7 +93,7 @@ export const CreateEditRolePageView: React.FC<CreateEditRolePageViewProps> = ({
 			<div className="pt-6">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
-						{isEditing ? "Edit Custom Role" : "New Custom Role"}
+						{isEditing ? "Edit custom role" : "New custom role"}
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Set a name and permissions for this role.

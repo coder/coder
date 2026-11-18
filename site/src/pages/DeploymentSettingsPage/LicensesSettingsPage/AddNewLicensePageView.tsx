@@ -61,7 +61,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 				<Button asChild variant="outline">
 					<RouterLink to="/deployment/licenses">
 						<ChevronLeftIcon />
-						All Licenses
+						All licenses
 					</RouterLink>
 				</Button>
 			</div>
@@ -71,8 +71,8 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 			<FileUpload
 				isUploading={isUploading}
 				onUpload={onUpload}
-				removeLabel="Remove File"
-				title="Upload Your License"
+				removeLabel="Remove file"
+				title="Upload your license"
 				description="Select a text file that contains your license key."
 			/>
 
@@ -80,7 +80,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 				<DividerWithText>or</DividerWithText>
 
 				<Fieldset
-					title="Paste Your License"
+					title="Paste your license"
 					onSubmit={(e) => {
 						e.preventDefault();
 
@@ -93,7 +93,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 					}}
 					button={
 						<Button type="submit" disabled={isSavingLicense}>
-							Upload License
+							Upload license
 						</Button>
 					}
 				>
