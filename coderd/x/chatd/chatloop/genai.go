@@ -1,6 +1,7 @@
 package chatloop
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -233,20 +234,36 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 		attrs = append(attrs, semconv.GenAIResponseID(resp.ResponseID))
 	}
 	if resp.FinishReason != "" {
-		attrs = append(attrs, semconv.GenAIResponseFinishReasons(string(resp.FinishReason)))
+		attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
 	}
 	attrs = append(attrs, usageAttributes(resp.Usage)...)
 	s.span.SetAttributes(attrs...)
 	if !s.capturesContent() || len(resp.Content) == 0 {
 		return
 	}
+	// The output message schema requires a finish reason, which a stream
+	// that ended without a finish part did not report.
+	finishReason := cmp.Or(resp.FinishReason, fantasy.FinishReasonUnknown)
 	msg := genAIMessage{
 		Role:         string(fantasy.MessageRoleAssistant),
 		Parts:        contentParts(resp.Content),
-		FinishReason: string(resp.FinishReason),
+		FinishReason: genAIFinishReason(finishReason),
 	}
 	if encoded, ok := encodeMessages([]genAIMessage{msg}); ok {
 		s.span.SetAttributes(attribute.String(string(semconv.GenAIOutputMessagesKey), encoded))
+	}
+}
+
+// genAIFinishReason maps fantasy finish reasons to the values the GenAI
+// output message schema defines.
+func genAIFinishReason(reason fantasy.FinishReason) string {
+	switch reason {
+	case fantasy.FinishReasonToolCalls:
+		return "tool_call"
+	case fantasy.FinishReasonContentFilter:
+		return "content_filter"
+	default:
+		return string(reason)
 	}
 }
 
@@ -389,6 +406,9 @@ func toolResultText(output fantasy.ToolResultOutputContent) string {
 	}
 }
 
+// encodeMessages marshals messages within MaxContentAttributeBytes. When
+// they do not fit, it clips every part's text to a shrinking budget so the
+// value stays valid JSON.
 func encodeMessages(messages []genAIMessage) (string, bool) {
 	if len(messages) == 0 {
 		return "", false
@@ -397,17 +417,59 @@ func encodeMessages(messages []genAIMessage) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return truncateContent(string(encoded)), true
+	if len(encoded) <= MaxContentAttributeBytes {
+		return string(encoded), true
+	}
+	parts := 0
+	for _, msg := range messages {
+		parts += len(msg.Parts)
+	}
+	// JSON escaping can expand text, so halve the budget until it fits.
+	for budget := MaxContentAttributeBytes / max(parts, 1); budget > 0; budget /= 2 {
+		encoded, err = json.Marshal(clipMessages(messages, budget))
+		if err != nil {
+			return "", false
+		}
+		if len(encoded) <= MaxContentAttributeBytes {
+			return string(encoded), true
+		}
+	}
+	return "", false
+}
+
+func clipMessages(messages []genAIMessage, budget int) []genAIMessage {
+	clipped := make([]genAIMessage, len(messages))
+	for i, msg := range messages {
+		clipped[i] = msg
+		clipped[i].Parts = make([]genAIPart, len(msg.Parts))
+		for j, part := range msg.Parts {
+			part.Content = truncateBytes(part.Content, budget)
+			part.Response = truncateBytes(part.Response, budget)
+			if len(part.Arguments) > budget {
+				// Clipped arguments are no longer a JSON object, so they
+				// are recorded as a string.
+				if encoded, err := json.Marshal(truncateBytes(string(part.Arguments), budget)); err == nil {
+					part.Arguments = encoded
+				} else {
+					part.Arguments = nil
+				}
+			}
+			clipped[i].Parts[j] = part
+		}
+	}
+	return clipped
 }
 
 // truncateContent cuts s to MaxContentAttributeBytes on a rune boundary.
-// Truncated JSON is no longer valid; consumers should treat the value as
-// text once it reaches the limit.
 func truncateContent(s string) string {
-	if len(s) <= MaxContentAttributeBytes {
+	return truncateBytes(s, MaxContentAttributeBytes)
+}
+
+func truncateBytes(s string, limit int) string {
+	if len(s) <= limit {
 		return s
 	}
-	cut := MaxContentAttributeBytes
+	cut := limit
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}

@@ -400,12 +400,16 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
-	streamSpan.SetInferenceResponse(InferenceResponse{
+	inference := InferenceResponse{
 		ResponseID:   result.providerResponseID,
 		FinishReason: result.finishReason,
 		Usage:        result.usage,
 		Content:      result.content,
-	})
+	}
+	if processErr != nil {
+		inference.FinishReason = fantasy.FinishReasonError
+	}
+	streamSpan.SetInferenceResponse(inference)
 	// Observe before error handling so failed or rejected responses are still counted.
 	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {

@@ -2,6 +2,8 @@ package chatloop
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -517,6 +519,50 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		require.JSONEq(t,
 			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
 			spanAttribute(t, stream, "gen_ai.output.messages"))
+	})
+
+	t.Run("ContentCaptureKeepsOversizedMessagesValidJSON", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		prompt := strings.Repeat(`"quoted" `, MaxContentAttributeBytes)
+		err := generateWithMessages(t, fixture, []fantasy.Message{
+			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: prompt}}},
+		}, func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		})
+		require.NoError(t, err)
+
+		input := spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.input.messages")
+		require.LessOrEqual(t, len(input), MaxContentAttributeBytes)
+		var messages []genAIMessage
+		require.NoError(t, json.Unmarshal([]byte(input), &messages))
+		require.Len(t, messages, 1)
+		require.Len(t, messages[0].Parts, 1)
+		require.True(t, strings.HasPrefix(prompt, messages[0].Parts[0].Content))
+	})
+
+	t.Run("ContentCaptureRecordsPartialResponseFinishReason", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+
+		streamErr := xerrors.New("provider dropped the connection")
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "partial"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+			{Type: fantasy.StreamPartTypeError, Error: streamErr},
+		})
+		require.ErrorContains(t, err, streamErr.Error())
+
+		require.JSONEq(t,
+			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
+			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
 	})
 
 	t.Run("OpenFailureEndsStreamWithError", func(t *testing.T) {

@@ -51,7 +51,7 @@ The `chat` span carries the model call's details:
 | `gen_ai.request.model`                     | The model name                                                |
 | `gen_ai.request.max_tokens`                | The output token limit, if one is set                         |
 | `gen_ai.response.id`                       | The response ID the provider reported, if any                 |
-| `gen_ai.response.finish_reasons`           | Why the model stopped, such as `stop` or `tool-calls`         |
+| `gen_ai.response.finish_reasons`           | Why the model stopped, such as `stop` or `tool_call`          |
 | `gen_ai.usage.input_tokens`                | Input tokens, including cache reads and cache writes          |
 | `gen_ai.usage.output_tokens`               | Output tokens, including reasoning tokens                     |
 | `gen_ai.usage.cache_read.input_tokens`     | Input tokens read from the provider's prompt cache            |
@@ -80,4 +80,6 @@ With content capture enabled:
 - Each `execute_tool` span records `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result`.
 
 File attachments and images are recorded by media type only.
-Each content attribute is limited to 64 KiB, and longer values are cut off.
+Each content attribute is limited to 64 KiB.
+When messages exceed the limit, the text of each message part is shortened so the value stays valid JSON.
+Longer tool arguments and results are cut off.

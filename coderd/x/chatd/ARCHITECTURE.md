@@ -1015,8 +1015,6 @@ The runner is responsible for subscribing to the `chat:update:{chat_id}` pubsub 
 
 ### Lifecycle tracing
 
-TODO(CODAGT-1523): document the GenAI semantic convention mapping. `chat_turn`, `stream`, and `tool_call` spans are now named `invoke_agent coder`, `chat {model}`, and `execute_tool {tool}`; every stage span carries a `stage` attribute; GenAI spans carry `gen_ai.*` and chat identity attributes from `chatloop.ChatIdentity`, which `withStageIdentity` now also puts on the context; and `--chat-trace-content-capture-enabled` records message and tool payloads.
-
 The runner owns a `chat_turn` trace span for each turn it runs, implemented by `runnerTurnSpan` in `turn_trace.go`. The span and the stages inside it are emitted through `chatloop.StageTracer`, which produces an OpenTelemetry span and an observation on the `coderd_chatd_stage_duration_seconds{stage, scope, chat_kind}` histogram from a single `End` call, so wherever both exist the trace and metric durations cannot disagree. The stages that are the provider's work on a model (`stream` and `provider_attempt`) are observed a second time on `coderd_chatd_model_stage_duration_seconds{stage, provider_type, chat_kind, model}`, the only stage family that carries the model, so the series count scales with the number of models only where the model explains the duration. Only turn-scoped stages are observed on the model family; background model calls appear in `coderd_chatd_stage_duration_seconds{scope="background"}` without a model. Per-model time to first token is `coderd_chatd_ttft_seconds`, which observes the same elapsed time as the `time_to_first_token` stage. Failed windows are observed like successful ones, except `time_to_first_token` and `chat_turn`: a `chat_turn` is observed only when its turn completed, so the histogram measures how long a reply takes, and every other outcome is on the span only. Every closed turn, whatever its outcome, is counted once in `coderd_chatd_turn_outcomes_total{outcome, chat_kind}` with the same value as its `turn_outcome` attribute. Tracing is enabled by the `TracerProvider` server option. A nil provider disables spans without disabling the histogram. The stage metric families are registered only when the `chat-stage-metrics` experiment is enabled; spans are emitted either way.
 
 `chat_turn` is a standalone trace root. The HTTP request that triggered the turn ran on a different goroutine, and often a different replica, from the worker that runs it, and no trace context is persisted with the message, so there is nothing to parent the span to.
@@ -1072,6 +1070,20 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 
 - `acquisition` and `queue_wait`: described above.
 - `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
+
+#### GenAI semantic conventions
+
+Three stages are also GenAI operations, and their spans follow the OpenTelemetry GenAI semantic conventions (semconv v1.41.0, the last core release that ships them) so tracing backends can attribute model usage without custom mapping. `genai.go` in `chatloop` owns the mapping.
+
+- `chat_turn` is named `invoke_agent coder` and carries `gen_ai.operation.name=invoke_agent` and `gen_ai.agent.name=coder`.
+- `stream` is named `chat {model}` once `SetModel` runs. Before the stream opens it records `gen_ai.provider.name`, `gen_ai.request.model`, and the request's output token limit and temperature. After the stream is consumed it records the response ID, the finish reason, and token usage, whether or not the stream failed. `gen_ai.usage.input_tokens` adds cache reads and cache writes to fantasy's `InputTokens`, which excludes them, because the conventions count them as input. `gen_ai.provider.name` maps the configured provider type to the conventions' well-known values and passes other types through.
+- `tool_call` is named `execute_tool {tool}` and carries the tool name, call ID, and `gen_ai.tool.type`: `function` for built-in tools and `extension` for every other tool.
+
+The span name follows the operation, so every stage span carries a `stage` attribute with its stage name, the same value as the histogram's `stage` label. Read the stage from that attribute, not from the span name. The pre-existing attributes (`chat_id`, `provider`, `model`, `tool_name`, ...) stay on the spans.
+
+`withStageIdentity` also puts a `chatloop.ChatIdentity` on the context, built from the chat row: the chat, owner, organization, workspace, parent chat, and root chat IDs. The three GenAI spans record it as `gen_ai.conversation.id`, `user.id`, and `coder.*` attributes, so each model call can be attributed to a user without joining other data. A turn takes the identity when it opens, so a workspace the turn creates appears on spans from the next turn. A failed stage span also records `error.type`, the classified error kind.
+
+Content capture is a deployment option (`--chat-trace-content-capture-enabled`) passed to the tracer as `WithContentCapture`, and is off by default. It runs only on spans that are recording. When it is on, a `chat` span records the messages after the last assistant message in its prompt, which are the user prompt or tool results the call answers, as `gen_ai.input.messages`, and its own output as `gen_ai.output.messages`. A span therefore never carries the whole conversation. System messages and file bytes are left out. A `tool_call` span records the tool's arguments and result. Each value is limited to `MaxContentAttributeBytes`. Message values shrink every part's text until they fit, so they remain valid JSON; tool payloads are cut off.
 
 ### Event shape
 
