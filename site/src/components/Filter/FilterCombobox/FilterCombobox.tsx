@@ -1125,7 +1125,7 @@ const useFlyoutOptions = (
 	const debouncedQuery = debouncedSearchKey === searchKey ? trimmedQuery : "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
-			categoryKey ?? "",
+			category?.optionsKey ?? "",
 			category?.getOptions,
 			debouncedQuery,
 			category !== undefined && debouncedQuery.length > 0,

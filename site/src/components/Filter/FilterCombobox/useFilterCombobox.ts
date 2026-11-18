@@ -553,7 +553,7 @@ export const useFilterCombobox = ({
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
-				category.key,
+				category.optionsKey,
 				category.getOptions,
 				"",
 				unfilteredOptionsEnabled ||
@@ -678,7 +678,7 @@ export const useFilterCombobox = ({
 
 	const activeOptionsQuery = useQuery(
 		filterComboboxOptions(
-			activeCategoryKey ?? "",
+			activeCategory?.optionsKey ?? "",
 			activeCategory?.getOptions,
 			debouncedActiveOptionsQuery,
 			activeCategoryKey !== null,
@@ -725,7 +725,7 @@ export const useFilterCombobox = ({
 	const suggestionOptions = useQueries({
 		queries: optionLookupCategories.map((category) =>
 			filterComboboxOptions(
-				category.key,
+				category.optionsKey,
 				category.getOptions,
 				debouncedTypeaheadQuery,
 				debouncedTypeaheadQuery.length > 0 &&
@@ -1154,7 +1154,7 @@ export const useFilterCombobox = ({
 			return undefined;
 		}
 		const options = filterComboboxOptions(
-			category.key,
+			category.optionsKey,
 			category.getOptions,
 			"",
 			true,
@@ -1194,7 +1194,12 @@ export const useFilterCombobox = ({
 			const [unfiltered, filtered] = await Promise.all([
 				unfilteredForMenuCheck(category),
 				queryClient.fetchQuery(
-					filterComboboxOptions(category.key, category.getOptions, text, true),
+					filterComboboxOptions(
+						category.optionsKey,
+						category.getOptions,
+						text,
+						true,
+					),
 				),
 			]);
 			// Chips may change while the lookup runs, so read the last sent query.
