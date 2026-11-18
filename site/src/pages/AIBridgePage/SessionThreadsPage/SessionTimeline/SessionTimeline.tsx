@@ -56,12 +56,12 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 	highlight,
 	expandToMatch = false,
 }) => {
-	const contentRef = useRef<HTMLParagraphElement>(null);
+	const contentRef = useRef<HTMLQuoteElement>(null);
 	// Only user toggles are stored, so expansion follows the search.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isExpanded = userToggled ?? expandToMatch;
 
-	// The paragraph always renders its full text, so one scrollHeight
+	// The quote always renders its full text, so one scrollHeight
 	// measurement suffices for the collapse toggle.
 	const [fullHeight, setFullHeight] = useState(0);
 	useEffect(() => {
@@ -82,7 +82,9 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 	return (
 		<div className="relative">
-			<p
+			{/* Prompt and thinking text is verbatim user or model output, so it is
+				quoted as written instead of parsed into lists or headings. */}
+			<blockquote
 				ref={contentRef}
 				style={
 					isExpandable && !isExpanded
@@ -94,7 +96,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
 				<HighlightText text={text} highlight={highlight ?? ""} />
-			</p>
+			</blockquote>
 			{isExpandable && (
 				<div
 					className={cn(
@@ -249,7 +251,13 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 						timestamp={timestamp}
 						serverURL={serverURL}
 					/>
-					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto">
+					<pre
+						// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll long input from here.
+						tabIndex={0}
+						role="region"
+						aria-label={`${tool} input`}
+						className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					>
 						<span>
 							<HighlightText text={tool} highlight={highlight} />
 						</span>

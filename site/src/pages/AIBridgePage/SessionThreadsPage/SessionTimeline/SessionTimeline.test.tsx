@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MockAIBridgeThread, MockSession } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { SessionTimeline } from "./SessionTimeline";
@@ -24,5 +25,28 @@ describe(SessionTimeline.name, () => {
 		const threads = screen.getByRole("list", { name: "Threads" });
 		expect(threads.tagName).toBe("OL");
 		expect(within(threads).getAllByRole("listitem")).toHaveLength(3);
+	});
+
+	it("lets keyboard users focus the tool call input to scroll it", async () => {
+		const user = userEvent.setup();
+		renderComponent(
+			<SessionTimeline
+				initiator={MockSession.initiator}
+				threads={[MockAIBridgeThread]}
+				networkCalls={[]}
+				searchQuery=""
+				hasNextPage={false}
+				isFetchingNextPage={false}
+				onFetchNextPage={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /Agentic loop/ }));
+		await user.click(screen.getByRole("button", { name: /Tool call/ }));
+		await user.tab();
+		await user.tab();
+		expect(
+			screen.getByRole("region", { name: "list_directory input" }),
+		).toHaveFocus();
 	});
 });

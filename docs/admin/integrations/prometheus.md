@@ -37,6 +37,8 @@ kind: Service
 metadata:
   name: coder-prom
   namespace: coder
+  labels:
+    app.kubernetes.io/name: coder-prom
 spec:
   clusterIP: None
   ports:
@@ -89,13 +91,16 @@ spec:
     - coder
   selector:
     matchLabels:
-      app.kubernetes.io/name: coder
+      app.kubernetes.io/name: coder-prom
 ```
 
 ## Available metrics
 
 You must first enable `coderd_agentstats_*` with the flag `--prometheus-collect-agent-stats`, or the environment variable `CODER_PROMETHEUS_COLLECT_AGENT_STATS` before they can be retrieved from the deployment.
 They will always be available from the agent.
+
+`coderd_workspace_last_used_timestamp_seconds` is also off by default.
+Refer to [Workspace last used time](#workspace-last-used-time).
 
 The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 
@@ -321,6 +326,7 @@ Every `coderd` replica exports the full set of `coderd_insights_*` series, each 
 | `coderd_workspace_builds_total`                                          | counter   | The number of workspaces started, updated, or deleted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `status` `template_name` `template_version` `workspace_name` `workspace_owner` `workspace_transition` |
 | `coderd_workspace_creation_duration_seconds`                             | histogram | Time to create a workspace by organization, template, preset, and type (regular or prebuild).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `organization_name` `preset_name` `template_name` `type`                                              |
 | `coderd_workspace_creation_total`                                        | counter   | Total regular (non-prebuilt) workspace creations by organization, template, and preset.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `organization_name` `preset_name` `template_name`                                                     |
+| `coderd_workspace_last_used_timestamp_seconds`                           | gauge     | The last time each workspace was used, as a Unix timestamp in seconds. Every replica reports the same database-derived value; aggregate with max, not sum.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `organization_name` `template_name` `workspace_id` `workspace_name` `workspace_owner`                 |
 | `coderd_workspace_latest_build_status`                                   | gauge     | The current workspace statuses by template, transition, and owner for all non-deleted workspaces.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `status` `template_name` `template_version` `workspace_owner` `workspace_transition`                  |
 | `go_gc_duration_seconds`                                                 | summary   | A summary of the pause duration of garbage collection cycles.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |                                                                                                       |
 | `go_goroutines`                                                          | gauge     | Number of goroutines that currently exist.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |                                                                                                       |
@@ -379,8 +385,7 @@ Each app counts its own minutes, so a user with VS Code and Cursor open in the s
 `slug="unknown"` holds sessions reported without an app name, or with the reserved name `overflow`.
 
 Per template, every built-in app Coder recognizes gets a series, and so do the 64 busiest other apps.
-The same app name under two connection methods counts as two apps.
-The rest add up under `slug="overflow"` of their connection method, which can count a minute more than once.
+The rest add up under one series, `connection_method="ssh"` with `slug="overflow"`, which can count a minute more than once.
 The template insights page in the dashboard uses the same rule, but applies the limit across all selected templates instead of per template.
 
 #### Upgrade from the family series
@@ -412,6 +417,54 @@ The sum counts a minute twice if two of the apps were open at once.
 
 In the example, the inner `max by` keeps one series per app, and the outer `sum` adds the apps for each template.
 
+### Workspace last used time
+
+`coderd_workspace_last_used_timestamp_seconds` reports when each workspace was last used, as a Unix timestamp in seconds.
+It's the value the [dormancy threshold](../../templates/managing-templates/schedule.md#dormancy-threshold) measures inactivity from.
+
+The metric is off by default.
+Enable it with the flag `--prometheus-collect-workspace-stats` or the environment variable `CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS`.
+
+#### Series and cost
+
+* Every workspace has a series, including stopped and unclaimed prebuilt workspaces. Unclaimed prebuilt workspaces have `workspace_owner="prebuilds"`.
+* The `workspace_id` label identifies the workspace, so a new workspace that reuses a deleted workspace's name gets its own series.
+* Deleting a workspace or its owner removes its series.
+* Every `coderd` replica reports every series, so aggregate with `max`, not `sum`.
+* Each replica adds one active series per workspace to your Prometheus server.
+
+#### What counts as use
+
+* Traffic on any connection to the workspace agent counts, such as SSH, an IDE, the web terminal, or port forwarding.
+* Traffic to a workspace app through Coder counts.
+* By default, a running `coder ssh` or `coder port-forward` command counts once a minute, even without traffic.
+
+The value is also set to the current time when:
+
+* The workspace is created.
+* Someone activates a dormant workspace.
+* A template admin resets the inactivity period of the template's workspaces.
+
+#### Accuracy
+
+With default settings, the value trails real use by up to about 2.5&nbsp;minutes, plus your scrape interval:
+
+| Step                                                                 | Default interval |
+|----------------------------------------------------------------------|------------------|
+| The workspace agent reports activity                                 | 30&nbsp;seconds  |
+| Coder saves activity, with the time of the save, not of the activity | 1&nbsp;minute    |
+| The metric refreshes                                                 | 1&nbsp;minute    |
+
+Use the metric for alerts measured in hours or days.
+
+#### Example
+
+This query returns workspaces that nobody has used for 30&nbsp;days, excluding unclaimed prebuilt workspaces:
+
+```promql
+time() - max by (organization_name, template_name, workspace_owner, workspace_name, workspace_id) (coderd_workspace_last_used_timestamp_seconds{workspace_owner!="prebuilds"}) > 30 * 24 * 3600
+```
+
 ### Note on Prometheus native histogram support
 
 The following metrics support native histograms:
@@ -421,6 +474,8 @@ The following metrics support native histograms:
 * `coderd_template_workspace_build_duration_seconds`
 * `coder_pubsub_send_duration_seconds`
 * `coder_pubsub_receive_duration_seconds`
+* `coderd_provisioner_job_queue_wait_seconds`
+* `coder_ai_gateway_cost_control_enforcement_duration_seconds`
 
 Native histograms are an **experimental** Prometheus feature that removes the need to predefine bucket boundaries and allows higher-resolution buckets that adapt to deployment characteristics.
 Whether a metric is exposed as classic or native depends entirely on the Prometheus server configuration (see [Prometheus docs](https://prometheus.io/docs/specs/native_histograms/) for details):

@@ -132,6 +132,7 @@ const meta: Meta<typeof AgentRow> = {
 		},
 		workspace: M.MockWorkspace,
 		initialMetadata: defaultAgentMetadata,
+		template: M.MockTemplate,
 	},
 	decorators: [
 		withAuthProvider,
@@ -223,8 +224,8 @@ export const ConnectingWithStartupLogs: Story = {
 		const canvas = within(canvasElement);
 
 		// Agent is connecting (hasConnectivityIssues=true) but no script has failed.
-		// Old code snapped to the Startup Script tab; the fix keeps us on All Logs.
-		const allLogsTab = await canvas.findByRole("tab", { name: "All Logs" });
+		// Old code snapped to the Startup Script tab; the fix keeps us on All logs.
+		const allLogsTab = await canvas.findByRole("tab", { name: "All logs" });
 		await waitFor(() =>
 			expect(allLogsTab).toHaveAttribute("data-state", "active"),
 		);
@@ -351,8 +352,8 @@ export const StartErrorWithoutFailedSourceLogs: Story = {
 		// Wait for a non-failed source tab to render, confirming logs streamed in.
 		await canvas.findByRole("tab", { name: "coder" });
 
-		// All Logs must stay active because no failed source has rendered logs.
-		const allLogsTab = canvas.getByRole("tab", { name: "All Logs" });
+		// All logs must stay active because no failed source has rendered logs.
+		const allLogsTab = canvas.getByRole("tab", { name: "All logs" });
 		await waitFor(() =>
 			expect(allLogsTab).toHaveAttribute("data-state", "active"),
 		);
@@ -505,6 +506,19 @@ export const HideApp: Story = {
 				},
 			],
 		},
+	},
+};
+
+export const TemplateBrowserOnly: Story = {
+	args: {
+		agent: M.MockWorkspaceAgentReady,
+		template: { ...M.MockTemplate, browser_only: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(M.MockWorkspaceAgentReady.name);
+		expect(canvas.queryByText("Connect via SSH")).not.toBeInTheDocument();
+		expect(canvas.queryByText("VS Code Desktop")).not.toBeInTheDocument();
 	},
 };
 

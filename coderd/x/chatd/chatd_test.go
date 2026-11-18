@@ -1788,7 +1788,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -1801,11 +1801,13 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 			},
 		})
 		return err
-	}))
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	_, err = rawDB.ExecContext(ctx,
 		"UPDATE chats SET requires_action_deadline_at = $1 WHERE id = $2",
 		time.Now().Add(-time.Hour), created.Chat.ID)
@@ -1872,10 +1874,11 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	deadWorkerID := uuid.New()
 	deadRunnerID := uuid.New()
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: deadWorkerID, RunnerID: deadRunnerID})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	// Simulate a chat left running by a dead replica with a stale
 	// heartbeat (well beyond the stale threshold).
 	_, err = rawDB.ExecContext(ctx,
@@ -2025,7 +2028,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -3806,7 +3809,7 @@ func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -3889,7 +3892,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 
 	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	cancelAll()
 
@@ -3898,7 +3901,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	// Subscribe with afterMessageID set to the second message's ID.
 	// Only the third message (inserted after msg2) should appear.
-	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
 	require.True(t, ok)
 	cancelPartial()
 
@@ -3912,7 +3915,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
 	require.True(t, ok)
 	cancelReset()
 
@@ -3982,7 +3985,7 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded after the edit gets neither a reset nor the
 	// messages it holds.
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID, 0)
 	require.True(t, ok)
 	cancel()
 	require.False(t, slices.ContainsFunc(snapshot, isHistoryReset))
@@ -3990,7 +3993,7 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded before the edit holds deleted messages, so it
 	// gets a reset with the live history.
-	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID)
+	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID, 0)
 	require.True(t, ok)
 	cancel()
 	require.True(t, slices.ContainsFunc(snapshot, isHistoryReset))
@@ -5424,7 +5427,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -5432,8 +5435,9 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 				}),
 			})
 			return err
-		}))
-		chat, err := db.GetChatByID(ctx, chat.ID)
+		})
+		require.NoError(t, err)
+		chat, err = db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
@@ -5664,7 +5668,7 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -5672,8 +5676,9 @@ func TestActiveServer_ManualClear(t *testing.T) {
 				}),
 			})
 			return err
-		}))
-		chat, err := db.GetChatByID(ctx, chat.ID)
+		})
+		require.NoError(t, err)
+		chat, err = db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
@@ -9466,7 +9471,7 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 				// A worker acquires the chat, sees it interrupted, and
 				// abandons it before its runner starts.
 				machine := chatstate.NewChatMachine(db, ps, chat.ID)
-				require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					if _, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()}); err != nil {
 						return err
 					}
@@ -9475,7 +9480,8 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 					}
 					_, err := tx.Abandon(chatstate.AbandonInput{})
 					return err
-				}))
+				})
+				require.NoError(t, err)
 			}
 			chat, err = db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
@@ -10793,7 +10799,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -13614,9 +13620,14 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
 		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   localDefault.AIProviderID,
+			OrganizationID: org.ID,
+		})
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, chatModel.ID, "first")
 		testutil.TryReceive(ctx, t, firstRunStarted)
+		disableChatModelConfig(t, db, chatModel)
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		close(allowFirstRunFinish)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
@@ -13667,9 +13678,14 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
 		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   localDefault.AIProviderID,
+			OrganizationID: org.ID,
+		})
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, chatModel.ID, "first")
 		testutil.TryReceive(ctx, t, streamStarted)
+		disableChatModelConfig(t, db, chatModel)
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		current, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -13708,7 +13724,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: localDefault.ID,
+			LastModelConfigID: foreignModel.ID,
 			Title:             "resolve explicit queued promotion",
 			Status:            database.ChatStatusError,
 		})
@@ -13734,7 +13750,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: localDefault.ID,
+			LastModelConfigID: foreignModel.ID,
 			Title:             "resolve error send promotion",
 			Status:            database.ChatStatusError,
 		})
@@ -13783,6 +13799,22 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, messages)
 	})
+}
+
+func disableChatModelConfig(t *testing.T, db database.Store, model database.ChatModelConfig) {
+	t.Helper()
+	_, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
+		ID:                   model.ID,
+		DisplayName:          model.DisplayName,
+		Model:                model.Model,
+		Enabled:              false,
+		IsDefault:            model.IsDefault,
+		ContextLimit:         model.ContextLimit,
+		CompressionThreshold: model.CompressionThreshold,
+		Options:              model.Options,
+		AIProviderID:         model.AIProviderID,
+	})
+	require.NoError(t, err)
 }
 
 func insertQueuedMessage(
@@ -14005,7 +14037,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Advisor deltas are transient; a late subscriber misses them.
-	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	liveCollectorDone := make(chan struct{})
 	go func() {

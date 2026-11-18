@@ -133,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC216WithRole(context.Context, string) (
-	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC217WithRole(context.Context, string) (
+	proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -466,6 +466,39 @@ func TestAgent_Stats_Magic(t *testing.T) {
 				RxBytes: 7,               // exit command
 				TxBytes: wantIgnoreBytes, // might get a prompt
 			},
+		)
+	})
+
+	t.Run("TracksZed", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Uses a POSIX shell comment to mimic Zed's proxy command")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+		stdin, err := session.StdinPipe()
+		require.NoError(t, err)
+		// Zed sends no app name; the agent detects its proxy command line.
+		err = session.Start("cat # .zed_server/zed-remote-server-stable-1.0.0 proxy --identifier test")
+		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			s, ok := <-stats
+			return ok && s.SessionCounts["zed"] == 1 && s.SessionCounts["ssh"] == 0
+		}, testutil.WaitLong, testutil.IntervalFast, "never saw zed session")
+
+		_ = stdin.Close()
+		require.NoError(t, session.Wait())
+
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: "zed"},
+			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 		)
 	})
 

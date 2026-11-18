@@ -349,6 +349,17 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 
 Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
 
+### --prometheus-collect-workspace-stats
+
+| Property    | Value                                                         |
+|-------------|---------------------------------------------------------------|
+| Type        | <code>bool</code>                                             |
+| Environment | <code>$CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS</code>        |
+| YAML        | <code>introspection.prometheus.collect_workspace_stats</code> |
+| Default     | <code>false</code>                                            |
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
 ### --pprof-enable
 
 | Property    | Value                                   |
@@ -945,7 +956,7 @@ Allow site-owners to access workspace apps from workspaces they do not own. Owne
 | Environment | <code>$CODER_EXPERIMENTS</code> |
 | YAML        | <code>experiments</code>        |
 
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.
 
 ### --update-check
 
@@ -1398,7 +1409,7 @@ The interval in which coderd should be checking the status of workspace proxies.
 | YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
 | Default     | <code>CRON_TZ=UTC 0 0 ** *</code>                             |
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).
 
 ### --allow-custom-quiet-hours
 
@@ -1886,7 +1897,18 @@ Maximum time to wait for the next streamed part from the chat model before the a
 | YAML        | <code>ai_gateway.enabled</code>        |
 | Default     | <code>true</code>                      |
 
-Whether to start an in-memory AI Gateway instance.
+Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
+
+### --ai-gateway-embedded-enabled
+
+| Property    | Value                                           |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_EMBEDDED_ENABLED</code> |
+| YAML        | <code>ai_gateway.embedded_enabled</code>        |
+| Default     | <code>true</code>                               |
+
+Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.
 
 ### --ai-gateway-retention
 

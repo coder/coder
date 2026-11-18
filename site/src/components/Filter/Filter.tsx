@@ -193,7 +193,7 @@ export const Filter: React.FC<FilterProps> = ({
 							ref={textboxInputRef}
 							className="w-full"
 							value={queryCopy}
-							aria-label="Filter"
+							aria-label="Search"
 							aria-invalid={shouldDisplayError}
 							aria-describedby={hasError(error) ? errorId : undefined}
 							onChange={(query) => {

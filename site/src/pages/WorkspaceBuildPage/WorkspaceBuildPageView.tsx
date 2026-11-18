@@ -37,7 +37,12 @@ import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/Work
 import { formatDate } from "#/utils/time";
 import { displayWorkspaceBuildDuration } from "#/utils/workspace";
 import { WorkspaceDeletedBanner } from "../WorkspacePage/WorkspaceDeletedBanner";
-import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
+import {
+	Sidebar,
+	SidebarCaption,
+	SidebarItemSkeleton,
+	SidebarLink,
+} from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
 
@@ -150,20 +155,19 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 					<SidebarCaption>Builds</SidebarCaption>
 					{!builds &&
 						Array.from({ length: 15 }, (_, i) => (
-							<SidebarItem key={i}>
+							<SidebarItemSkeleton key={i}>
 								<WorkspaceBuildDataSkeleton />
-							</SidebarItem>
+							</SidebarItemSkeleton>
 						))}
 
 					{builds?.map((build) => (
-						<Link
+						<SidebarLink
 							key={build.id}
 							to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+							active={build.build_number === activeBuildNumber}
 						>
-							<SidebarItem active={build.build_number === activeBuildNumber}>
-								<WorkspaceBuildData build={build} />
-							</SidebarItem>
-						</Link>
+							<WorkspaceBuildData build={build} />
+						</SidebarLink>
 					))}
 				</Sidebar>
 

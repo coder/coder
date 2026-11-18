@@ -32,7 +32,7 @@ At this stage, the template administrator faces two choices:
    If the administrator doesn't input a value via CLI, Coder automatically uses this default during the push.
 
 After the initial push, variables are stored in the database table, associated with the specific template version.
-They can be conveniently managed via _Template Settings_ without requiring an extra push.
+They can be conveniently managed via _Template settings_ without requiring an extra push.
 
 ### Resolved values vs. default values
 
@@ -46,7 +46,7 @@ If you encounter a situation where you need to override template settings for va
 1. Create a `terraform.tfvars` file in the template directory:
 
    ```tf
-   coder_image = newimage:tag
+   coder_image = "newimage:tag"
    ```
 
 1. Push the new template revision using Coder CLI:

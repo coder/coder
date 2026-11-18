@@ -413,6 +413,7 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
+  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -441,6 +442,7 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `embedded_enabled`                  | boolean | false    |              | Embedded enabled controls whether coderd starts the in-memory AI Gateway. It only takes effect when Enabled is true.                                                                                                                                                   |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1129,6 +1131,7 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
+    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -3809,18 +3812,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                            |
-|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                |
-| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
+| Name               | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------|-------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`         | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                                                                                           |
+| `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot version, a number that the server increases each time it changes the chat's messages, queue or status. The server sets it only when the request has neither before_id nor after_id. Pass it as the stream's snapshot_version parameter. The server reads this version before the page's messages and queued messages, so the page can include changes made at a higher version. The stream can send changes that are already in the page. |
+| `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatModel
 
@@ -5033,9 +5038,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
+  "hidden_template_count": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "limit_templates": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5044,23 +5059,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "share": true,
     "update": true
   },
+  "templates": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
-|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string                                                             | false    |              |                                                                                               |
-| `description`     | string                                                             | false    |              |                                                                                               |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string                                                             | false    |              |                                                                                               |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string                                                             | false    |              |                                                                                               |
-| `owner_id`        | string                                                             | false    |              |                                                                                               |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
-| `updated_at`      | string                                                             | false    |              |                                                                                               |
+| Name                    | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                      |
+|-------------------------|----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `default_template`      | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template is omitted when the project has none or the caller cannot access it.                                                                                            |
+| `description`           | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `hidden_template_count` | integer                                                                    | false    |              | Hidden template count is the number of attached templates the caller cannot access. Nothing else about them is returned.                                                         |
+| `icon`                  | string                                                                     | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                    |
+| `id`                    | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `limit_templates`       | boolean                                                                    | false    |              | Limit templates restricts the project's chats to its attached templates, and to none when nothing is attached. When false, the chats can use every template their owner can use. |
+| `name`                  | string                                                                     | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                            |
+| `organization_id`       | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `owner_id`              | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `permissions`           | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions)         | false    |              |                                                                                                                                                                                  |
+| `templates`             | array of [codersdk.ChatProjectTemplate](#codersdkchatprojecttemplate)      | false    |              | Templates are the attached templates the caller can access. Deprecated templates and templates that do not allow agents are left out.                                            |
+| `updated_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
 
 ## codersdk.ChatProjectACL
 
@@ -5122,6 +5149,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
 | `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
 | `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
+
+## codersdk.ChatProjectDefaultTemplate
+
+```json
+{
+  "parameters": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `parameters`       | object | false    |              | Parameters are parameter values, keyed by name, applied when a chat creates a workspace from the template. Values the chat passes take precedence.                                     |
+| » `[any property]` | string | false    |              |                                                                                                                                                                                        |
+| `preset_id`        | string | false    |              | Preset ID is a preset of the template's active version, applied when a chat creates a workspace from the template without choosing a preset. It is mutually exclusive with Parameters. |
+| `template_id`      | string | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.ChatProjectGroup
 
@@ -5266,6 +5315,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.ChatProjectTemplate
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.ChatProjectUser
 
@@ -5515,6 +5584,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
+  "history_reset": {
+    "from_message_id": 0
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -5719,6 +5791,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
   },
+  "snapshot_version": 0,
   "status": {
     "status": "waiting"
   },
@@ -5728,17 +5801,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                                             |
-|-------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                         |
-| `chat_id`         | string                                                                 | false    |              |                                                                                                         |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                         |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                         |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                         |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages. |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                         |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                         |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                         |
+| Name               | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+|--------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `chat_id`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `history_reset`    | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                        |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                        |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `snapshot_version` | integer                                                                | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events. |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                |
 
 ## codersdk.ChatStreamEventType
 
@@ -5753,6 +5828,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                                                                                   |
 |----------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+
+## codersdk.ChatStreamHistoryReset
+
+```json
+{
+  "from_message_id": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                   |
+|-------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept. |
 
 ## codersdk.ChatStreamMessagePart
 
@@ -7039,19 +7128,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
-  "name": "string"
+  "limit_templates": true,
+  "name": "string",
+  "template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | true     |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                   |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template must name one of TemplateIDs.                |
+| `description`      | string                                                                     | false    |              |                                                               |
+| `icon`             | string                                                                     | false    |              |                                                               |
+| `limit_templates`  | boolean                                                                    | false    |              | Limit templates restricts the project's chats to TemplateIDs. |
+| `name`             | string                                                                     | true     |              |                                                               |
+| `template_ids`     | array of string                                                            | false    |              | Template ids are attached to the new project.                 |
 
 ## codersdk.CreateChatRequest
 
@@ -7377,17 +7481,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "action": true,
   "content": "string",
+  "display_name": "string",
   "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                                                                                                                                          |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.                                                                                                                         |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                                                                                                                                               |
 
 ## codersdk.CreateTemplateRequest
 
@@ -7410,6 +7516,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
@@ -7440,6 +7547,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name, so this defaults to false.                                                                                                            |
 | `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is a Premium feature.                                                                                                                                                                 |
 | `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is a Premium feature.                                                                                                                                                                    |
+| `browser_only`                        | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. Defaults to false. Enabling it requires the browser-only entitlement.                                                                                       |
 | `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
 | `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
@@ -8271,6 +8379,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
+        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8606,6 +8715,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
+      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -8909,6 +9019,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
+      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -9244,6 +9355,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
+    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -9976,9 +10088,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agent-plugins`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -10571,8 +10683,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
 | `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
-| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
-| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                                     |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                                   |
 | `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
 | `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
@@ -10630,11 +10742,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.GroupMembersResponse
 
@@ -12566,6 +12678,140 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendOverview
+
+```json
+{
+  "count": 0,
+  "intervals": [
+    {
+      "end_time": "2019-08-24T14:15:22Z",
+      "spend_micros": 0,
+      "start_time": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "median_spend_micros": 0,
+    "spend_micros": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "groups": [
+        {
+          "group_display_name": "string",
+          "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+          "group_name": "string",
+          "spend_micros": 0
+        }
+      ],
+      "name": "string",
+      "spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                            |
+|----------------|-------------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`        | integer                                                                                               | false    |              | Count is the number of users with spend in the period.                                                                                                                                                                                 |
+| `intervals`    | array of [codersdk.OrganizationAISpendOverviewInterval](#codersdkorganizationaispendoverviewinterval) | false    |              | Intervals holds the daily spend, one interval per UTC day in the period (omitting days after the current day). Days without spend are zero. When the period includes the current day, its interval only has the spend recorded so far. |
+| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                         |
+| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                       |
+| `totals`       | [codersdk.OrganizationAISpendOverviewTotals](#codersdkorganizationaispendoverviewtotals)              | false    |              |                                                                                                                                                                                                                                        |
+| `users`        | array of [codersdk.OrganizationAISpendOverviewUser](#codersdkorganizationaispendoverviewuser)         | false    |              | Users is the requested page, most spend first.                                                                                                                                                                                         |
+
+## codersdk.OrganizationAISpendOverviewGroup
+
+```json
+{
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                              |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------|
+| `group_display_name` | string  | false    |              |                                                                          |
+| `group_id`           | string  | false    |              |                                                                          |
+| `group_name`         | string  | false    |              |                                                                          |
+| `spend_micros`       | integer | false    |              | Spend micros is the user's spend attributed to this group in the period. |
+
+## codersdk.OrganizationAISpendOverviewInterval
+
+```json
+{
+  "end_time": "2019-08-24T14:15:22Z",
+  "spend_micros": 0,
+  "start_time": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `end_time`     | string  | false    |              |             |
+| `spend_micros` | integer | false    |              |             |
+| `start_time`   | string  | false    |              |             |
+
+## codersdk.OrganizationAISpendOverviewTotals
+
+```json
+{
+  "median_spend_micros": 0,
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                                       |
+|-----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `median_spend_micros` | integer | false    |              | Median spend micros is the median spend across users with spend in the period. It is zero when no user has spend. |
+| `spend_micros`        | integer | false    |              | Spend micros is the total spend of all users in the period.                                                       |
+
+## codersdk.OrganizationAISpendOverviewUser
+
+```json
+{
+  "avatar_url": "string",
+  "groups": [
+    {
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "spend_micros": 0
+    }
+  ],
+  "name": "string",
+  "spend_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                            | Required | Restrictions | Description                                                                       |
+|----------------|-------------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `avatar_url`   | string                                                                                          | false    |              |                                                                                   |
+| `groups`       | array of [codersdk.OrganizationAISpendOverviewGroup](#codersdkorganizationaispendoverviewgroup) | false    |              | Groups are the groups the user's spend was attributed to, most spend first.       |
+| `name`         | string                                                                                          | false    |              |                                                                                   |
+| `spend_micros` | integer                                                                                         | false    |              | Spend micros is the user's total spend in the period, across all of their groups. |
+| `user_id`      | string                                                                                          | false    |              |                                                                                   |
+| `username`     | string                                                                                          | false    |              |                                                                                   |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -12605,8 +12851,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
 |-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
-| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
-| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                          |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                        |
 | `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
 | `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
 | `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
@@ -12926,11 +13172,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                            | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                            | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.OrganizationMember
 
@@ -13922,6 +14168,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
+  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13934,6 +14181,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
+| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
@@ -15069,6 +15317,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "display_name": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_invocable": true,
@@ -15079,17 +15328,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
-| `content`         | string  | false    |              |                                                                                                                                                           |
-| `created_at`      | string  | false    |              |                                                                                                                                                           |
-| `description`     | string  | false    |              |                                                                                                                                                           |
-| `enabled`         | boolean | false    |              |                                                                                                                                                           |
-| `id`              | string  | false    |              |                                                                                                                                                           |
-| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
-| `name`            | string  | false    |              |                                                                                                                                                           |
-| `updated_at`      | string  | false    |              |                                                                                                                                                           |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills.                                                    |
+| `content`         | string  | false    |              | Content is the SKILL.md file, with its `disable-model-invocation` frontmatter key set to agree with `model_invocable`. A stored file whose key the server cannot set, such as a list, is returned unchanged. |
+| `created_at`      | string  | false    |              |                                                                                                                                                                                                              |
+| `description`     | string  | false    |              |                                                                                                                                                                                                              |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.                                                          |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                              |
+| `id`              | string  | false    |              |                                                                                                                                                                                                              |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.                                                             |
+| `name`            | string  | false    |              |                                                                                                                                                                                                              |
+| `updated_at`      | string  | false    |              |                                                                                                                                                                                                              |
 
 ## codersdk.SkillMetadata
 
@@ -15098,6 +15348,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "action": true,
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "display_name": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_invocable": true,
@@ -15113,6 +15364,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
 | `created_at`      | string  | false    |              |                                                                                                                                                           |
 | `description`     | string  | false    |              |                                                                                                                                                           |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
 | `enabled`         | boolean | false    |              |                                                                                                                                                           |
 | `id`              | string  | false    |              |                                                                                                                                                           |
 | `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
@@ -15308,6 +15560,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -15351,47 +15604,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                |
-|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                               |
-| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                   |
-| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                              |
-| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                            |
-| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                |
-| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                            |
-| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                            |
-| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                    |
-| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.                           |
-| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                            |
-| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache. |
-| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                |
-| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                |
-| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                  |
+|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                                 |
+| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                     |
+| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                                |
+| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                              |
+| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                  |
+| `browser_only`                        | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one. |
+| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                              |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                              |
+| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                      |
+| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.                             |
+| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                              |
+| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache.   |
+| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                  |
+| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                  |
+| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
 
 #### Enumerated Values
 
@@ -15801,6 +16055,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -16757,6 +17012,59 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UnpricedAIModel
+
+```json
+{
+  "model": "string",
+  "provider_display_name": "string",
+  "provider_icon": "string",
+  "provider_name": "string",
+  "provider_type": "openai",
+  "token_count": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                               | Required | Restrictions | Description                                                             |
+|-------------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `model`                 | string                                             | false    |              | Model is the model the client requested.                                |
+| `provider_display_name` | string                                             | false    |              | Provider display name falls back to the provider name when unset.       |
+| `provider_icon`         | string                                             | false    |              | Provider icon is empty when the provider has no configured icon.        |
+| `provider_name`         | string                                             | false    |              | Provider name is the name of the configured provider.                   |
+| `provider_type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Provider type is the type of the configured provider.                   |
+| `token_count`           | integer                                            | false    |              | Token count is the number of tokens used without a price in the period. |
+
+## codersdk.UnpricedAIModels
+
+```json
+{
+  "count": 0,
+  "models": [
+    {
+      "model": "string",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "provider_name": "string",
+      "provider_type": "openai",
+      "token_count": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                          | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `count`        | integer                                                       | false    |              | Count is the number of models listed.                            |
+| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are ordered by unpriced token count, highest first.       |
+| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the applied period. |
+
 ## codersdk.UpdateAIProviderRequest
 
 ```json
@@ -17206,19 +17514,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
+  "limit_templates": true,
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | false    |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                                                                                          |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template replaces the project's default template, preset, and parameters as a whole when set. A zero TemplateID clears them. |
+| `description`      | string                                                                     | false    |              |                                                                                                                                      |
+| `icon`             | string                                                                     | false    |              |                                                                                                                                      |
+| `limit_templates`  | boolean                                                                    | false    |              |                                                                                                                                      |
+| `name`             | string                                                                     | false    |              |                                                                                                                                      |
 
 ## codersdk.UpdateChatRequest
 
@@ -17538,6 +17857,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 {
   "action": true,
   "content": "string",
+  "display_name": "string",
   "enabled": true,
   "model_invocable": true
 }
@@ -17545,12 +17865,13 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
-| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                                                                                                |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                                                                                                                                                |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                                                                                            |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter sets `disable-model-invocation` to a boolean: true turns it off and false turns it on.                                                                                                                    |
 
 ## codersdk.UpdateTemplateACL
 
@@ -17597,6 +17918,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "deprecation_message": "string",
@@ -17630,6 +17952,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `allow_workspace_renames`          | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                                                                                                                                                                                      |
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement can only be set if your license includes the advanced template scheduling feature. If you attempt to set this value while unlicensed, it will be ignored.                                                                                                                                                                            |
+| `browser_only`                     | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. Enabling it requires the browser-only entitlement; disabling it does not.                                                                                                                                                  |
 | `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
@@ -17654,6 +17977,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 8,
   "theme_dark": "light",
   "theme_light": "light",
   "theme_mode": "sync",
@@ -17663,13 +17987,14 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
-|--------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
-| `theme_dark`       | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
-| `theme_light`      | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
-| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| Name                 | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
+|----------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| `terminal_font_size` | integer                                                | false    |              | Terminal font size is optional for backward compatibility. When zero, the server leaves the persisted terminal font size unchanged.                                                                                                                                                                                |
+| `theme_dark`         | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
+| `theme_light`        | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
+| `theme_mode`         | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
+| `theme_preference`   | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
@@ -18255,8 +18580,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
 | `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
 | `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
-| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
-| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                         |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                       |
 | `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.UserActivity
@@ -18351,6 +18676,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_dark": "string",
   "theme_light": "string",
   "theme_mode": "",
@@ -18360,13 +18686,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
-| `theme_dark`       | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
-| `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
-| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+| Name                 | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|----------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `terminal_font_size` | integer                                                | false    |              | Terminal font size is the web terminal font size in pixels. Zero means the user has not chosen a size, and the web terminal will use the default.                                                                                                                                                                                         |
+| `theme_dark`         | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_light`        | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_mode`         | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_preference`   | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserChatCompactionThreshold
 
@@ -21435,9 +21762,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EPS01`, `EPS02`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 
@@ -21962,9 +22289,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Websocket`, `WorkspaceProxy` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Pubsub`, `Websocket`, `WorkspaceProxy` |
 
 ## healthsdk.HealthSettings
 
@@ -22293,6 +22620,18 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       }
     ]
   },
+  "pubsub": {
+    "backend": "string",
+    "dismissed": true,
+    "error": "string",
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
   "websocket": {
@@ -22365,6 +22704,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `pubsub`              | [healthsdk.PubsubReport](#healthsdkpubsubreport)                         | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`                | string                                                                   | false    |              | Time is the time the report was generated at.                                       |
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
@@ -22491,6 +22831,33 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 |----------------------|----------------------------------------------------------|----------|--------------|-------------|
 | `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
+
+## healthsdk.PubsubReport
+
+```json
+{
+  "backend": "string",
+  "dismissed": true,
+  "error": "string",
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                      | Required | Restrictions | Description                                  |
+|-------------|-------------------------------------------|----------|--------------|----------------------------------------------|
+| `backend`   | string                                    | false    |              | Backend is the pubsub implementation in use. |
+| `dismissed` | boolean                                   | false    |              |                                              |
+| `error`     | string                                    | false    |              |                                              |
+| `severity`  | [health.Severity](#healthseverity)        | false    |              |                                              |
+| `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                              |
 
 ## healthsdk.STUNReport
 

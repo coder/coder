@@ -1,4 +1,5 @@
 import { SquareCheckBigIcon } from "lucide-react";
+import { useId } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
 import type { InboxNotification } from "#/api/typesGenerated";
@@ -16,6 +17,8 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 	notification,
 	onMarkNotificationAsRead,
 }) => {
+	const contentId = useId();
+
 	return (
 		<div
 			className="flex items-stretch gap-3 p-3 group"
@@ -27,33 +30,40 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
-				<Markdown
+				<div
+					id={contentId}
 					className="text-content-secondary prose-sm font-medium wrap-anywhere"
-					components={{
-						a: ({ node, ...props }) => {
-							// Notifications also link back into this deployment via
-							// absolute URLs; only other origins open a new tab.
-							const isExternal =
-								props.href?.startsWith("http") &&
-								URL.parse(props.href)?.origin !== location.origin;
-							return (
-								<Link
-									{...props}
-									target={isExternal ? "_blank" : undefined}
-									rel={isExternal ? "noreferrer" : undefined}
-								/>
-							);
-						},
-					}}
 				>
-					{notification.content}
-				</Markdown>
+					<Markdown
+						components={{
+							a: ({ node, ...props }) => {
+								// Notifications also link back into this deployment via
+								// absolute URLs; only other origins open a new tab.
+								const isExternal =
+									props.href?.startsWith("http") &&
+									URL.parse(props.href)?.origin !== location.origin;
+								return (
+									<Link
+										{...props}
+										target={isExternal ? "_blank" : undefined}
+										rel={isExternal ? "noreferrer" : undefined}
+									/>
+								);
+							},
+						}}
+					>
+						{notification.content}
+					</Markdown>
+				</div>
 				<div className="flex items-center gap-1">
 					{notification.actions.map((action) => {
 						return (
 							<Button variant="outline" size="sm" key={action.label} asChild>
 								<RouterLink
 									to={action.url}
+									// Action labels like "View workspace" are ambiguous across
+									// notifications without the message they act on.
+									aria-describedby={contentId}
 									onClick={() => {
 										onMarkNotificationAsRead(notification.id);
 									}}

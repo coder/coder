@@ -23,6 +23,16 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
+const LogsViewport: React.FC<React.ComponentProps<"div">> = (props) => (
+	<div
+		{...props}
+		// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll the logs from here.
+		tabIndex={0}
+		role="region"
+		aria-label="Agent logs"
+	/>
+);
+
 type AgentLogsProps = Omit<
 	React.ComponentProps<typeof List>,
 	"children" | "itemSize" | "itemCount" | "itemKey"
@@ -108,6 +118,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	return (
 		<div className="bg-surface-secondary relative">
 			<List
+				outerElementType={LogsViewport}
 				{...listProps}
 				ref={mergeListRef}
 				itemCount={logs.length}
@@ -117,7 +128,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"py-4 [&>div]:relative bg-surface-secondary",
+					"py-4 [&>div]:relative bg-surface-secondary peer focus-visible:outline-hidden",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
@@ -165,6 +176,11 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					);
 				}}
 			</List>
+			{/* Drawn over the list so row backgrounds cannot hide the focus ring. */}
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-content-link"
+			/>
 
 			{overflowed && (
 				<Tooltip>

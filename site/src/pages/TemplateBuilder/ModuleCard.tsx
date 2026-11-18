@@ -9,7 +9,7 @@ type ModuleCardProps = {
 	name: string;
 	description: string;
 	iconUrl?: string;
-	detailsUrl?: string;
+	detailsUrl: string;
 	official?: boolean;
 	selected?: boolean;
 	onSelect?: () => void;
@@ -57,7 +57,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 				</p>
 
 				<Link href={detailsUrl} target="_blank" className="text-xs font-normal">
-					View details
+					View details <span className="sr-only">for {name}</span>
 				</Link>
 			</div>
 		</div>

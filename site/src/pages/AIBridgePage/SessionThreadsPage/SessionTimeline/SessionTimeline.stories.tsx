@@ -279,6 +279,13 @@ export const SearchFiltersToolCalls: Story = {
 	},
 };
 
+export const ToolCallInputFocused: Story = {
+	args: SearchFiltersToolCalls.args,
+	play: async ({ canvas }) => {
+		(await canvas.findByRole("region", { name: "read_file input" })).focus();
+	},
+};
+
 // A prompt-only search leaves tool calls alone: the empty match set must not
 // filter them out when the user opens the loop by hand.
 export const SearchPromptMatchKeepsToolCalls: Story = {

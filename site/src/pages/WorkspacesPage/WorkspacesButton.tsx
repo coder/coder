@@ -66,7 +66,7 @@ export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 			<ComboboxContent
 				align="end"
 				className="w-[320px] max-w-[320px] overflow-hidden"
-				label="Search workspace templates"
+				label="Type/select a workspace template"
 			>
 				<ComboboxInput placeholder="Type/select a workspace template" />
 				<ComboboxList

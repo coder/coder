@@ -200,7 +200,7 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 			} `json:"parameters"`
 		} `json:"paths"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(apidoc.SwaggerInfo.ReadDoc()), &swagger))
+	require.NoError(t, json.Unmarshal([]byte(swaggerDoc()), &swagger))
 
 	assertNoDuplicates := func(where string, values []any) {
 		t.Helper()

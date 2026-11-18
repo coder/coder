@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
+import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
 import {
 	type ChatOverview,
@@ -47,6 +49,10 @@ const mockChatOverview: ChatOverview = {
 			},
 		},
 	],
+	subagents: [
+		{ id: "sub-1", title: "Find the flaky queue test", status: "running" },
+		{ id: "sub-2", title: "Measure CI cost per job", status: "waiting" },
+	],
 	attachments: [
 		mockAttachment("ci-cost-plan.html", "text/html"),
 		mockAttachment("flaky-test-report.md", "text/markdown"),
@@ -60,6 +66,7 @@ const mockEmptyChatOverview: ChatOverview = {
 	isSubagent: false,
 	repos: [],
 	pullRequests: [],
+	subagents: [],
 	attachments: [],
 };
 
@@ -109,6 +116,7 @@ export const SubagentCost: Story = {
 			...mockChatOverview,
 			cost: { total_cost_micros: 4_120_000, unpriced_request_count: 2 },
 			isSubagent: true,
+			subagents: [],
 		},
 	},
 };
@@ -116,6 +124,16 @@ export const SubagentCost: Story = {
 export const CostUnavailable: Story = {
 	args: {
 		overview: { ...mockChatOverview, cost: "unavailable" },
+	},
+};
+
+export const EarlierAttachmentsError: Story = {
+	args: {
+		earlierAttachmentsRequest: {
+			error: mockApiError({ message: "Failed to get chat attachments." }),
+			isRetrying: false,
+			retry: fn(),
+		},
 	},
 };
 
@@ -163,5 +181,45 @@ export const ManyRowsExpanded: Story = {
 				name: "Show all 5 repositories",
 			}),
 		);
+	},
+};
+
+const mockBusyStatuses: Partial<Record<number, ChatStatus>> = {
+	0: "running",
+	16: "running",
+	32: "error",
+	48: "running",
+	64: "requires_action",
+	80: "running",
+	96: "interrupting",
+};
+
+/**
+ * A large chat lists 5 of its 7 non-idle subagents, the ones that need the user
+ * first, and counts all 112.
+ */
+export const ManySubagents: Story = {
+	args: {
+		overview: {
+			...mockChatOverview,
+			subagents: Array.from({ length: 112 }, (_, index) => ({
+				id: `sub-${index}`,
+				title: `Subagent ${index + 1}`,
+				status: mockBusyStatuses[index] ?? "waiting",
+			})),
+		},
+	},
+};
+
+/** Every subagent is idle: the section keeps only its count. */
+export const IdleSubagents: Story = {
+	args: {
+		overview: {
+			...mockEmptyChatOverview,
+			subagents: mockChatOverview.subagents.map((subagent) => ({
+				...subagent,
+				status: "waiting",
+			})),
+		},
 	},
 };

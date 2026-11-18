@@ -185,7 +185,7 @@ An app served through an external workspace proxy is not covered by this rule.
 The proxy forwards the client's request to the primary as a header regardless of how the client sent it to the proxy, so a token sent only in the query string to the proxy can still authenticate, and no warning is logged.
 
 Each ignored token writes a log line containing `oauth2 access token ignored: sent in the URL query string` with the `api_key_id`, `user_id`, `app_id`, `path`, `remote_addr`, and `user_agent` of the request.
-The `app_id` matches the application in the **OAuth2 Applications** admin page, and the `user_id` names the user whose authorization the integration is using.
+The `app_id` matches the application in the **OAuth2 applications** admin page, and the `user_id` names the user whose authorization the integration is using.
 Search the Coder logs for that string to find the integration that sends the token in the URL.
 The ignored token stays valid and is not marked as used.
 
@@ -257,7 +257,7 @@ An integration that relied on that error to catch a misspelled optional paramete
 
 `resource` must be an absolute URI without a fragment (RFC 8707).
 A value that is not redirects to your registered callback with `error=invalid_target`, an `error_description` naming the field, and the `state` you sent.
-`POST /oauth2/token` already answered `invalid_target` for the same value.
+`POST /oauth2/tokens` already answered `invalid_target` for the same value.
 
 If anything else in the request also failed, the answer is `invalid_request` instead, naming every failing field.
 Correct them all before retrying: a retry that fixes only `resource` fails again.

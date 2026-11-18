@@ -38,6 +38,8 @@ const REQUIRED_VARIABLES = [
 	"--git-merged",
 	"--surface-git-added",
 	"--surface-git-deleted",
+	"--surface-git-added-emphasis",
+	"--surface-git-deleted-emphasis",
 	// Extended palette surface. These carry semantic color meaning in
 	// alerts, badges, chips, and syntax highlighting. A concrete theme
 	// must resolve every token after base mode and variant overrides are

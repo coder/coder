@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import {
+	type ChatListInput,
 	chat as chatById,
 	chatDiffContents,
 	chatEntityKey,
@@ -20,10 +21,11 @@ import {
 } from "#/api/queries/chats";
 import type {
 	Chat,
+	ChatDiffStatus,
 	ChatWatchEvent,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -204,6 +206,88 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 		} finally {
 			unsubscribe();
 		}
+	});
+});
+
+describe("AgentsPageLayout diff status events", () => {
+	const mockMergedDiffStatus: ChatDiffStatus = {
+		...MockChatDiffStatus,
+		pull_request_state: "merged",
+	};
+	const mockChatWithOpenPR: Chat = {
+		...MockChat,
+		diff_status: MockChatDiffStatus,
+		diff_statuses: [MockChatDiffStatus],
+	};
+	const mockPullRequestMergedEvent: ChatWatchEvent = {
+		kind: "diff_status_change",
+		chat: { ...MockChat, diff_status: mockMergedDiffStatus },
+		changed_diff_status: {
+			ref: {
+				remote_origin: MockChatDiffStatus.remote_origin ?? "",
+				git_branch: MockChatDiffStatus.git_branch ?? "",
+			},
+			status: mockMergedDiffStatus,
+		},
+	};
+	const unfiltered: ChatListInput = {
+		sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+	};
+	const openPRsOnly: ChatListInput = { ...unfiltered, prStatuses: ["open"] };
+	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
+
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+			mockChatWithOpenPR,
+		]);
+		publishChatWatchEvent = mockChatWatchSocket();
+	});
+
+	const listedPullRequestState = (
+		queryClient: QueryClient,
+		input: ChatListInput,
+	) =>
+		queryClient
+			.getQueryData<InfiniteData<Chat[]>>(infiniteChats(input).queryKey)
+			?.pages.flat()[0]?.diff_status?.pull_request_state;
+
+	it("updates the listed chat without refetching the list when no PR status filter is set", async () => {
+		const { queryClient } = renderLayout();
+		await waitFor(() =>
+			expect(listedPullRequestState(queryClient, unfiltered)).toBe("open"),
+		);
+		const listRequests = vi.mocked(API.experimental.getChats).mock.calls.length;
+
+		publishChatWatchEvent(mockPullRequestMergedEvent);
+
+		expect(listedPullRequestState(queryClient, unfiltered)).toBe("merged");
+		// A refetch would start in the same tick as the event.
+		await act(async () => {});
+		expect(API.experimental.getChats).toHaveBeenCalledTimes(listRequests);
+	});
+
+	it("refetches the list when a PR status filter is selected after mount", async () => {
+		const { queryClient, router } = renderLayout();
+		// Mount unfiltered first, so the watch handler predates the filter.
+		await waitFor(() =>
+			expect(listedPullRequestState(queryClient, unfiltered)).toBe("open"),
+		);
+		await act(() => router.navigate("/agents?pr_status=open"));
+		await waitFor(() =>
+			expect(listedPullRequestState(queryClient, openPRsOnly)).toBe("open"),
+		);
+
+		// The merged chat no longer matches the filter.
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+		publishChatWatchEvent(mockPullRequestMergedEvent);
+
+		await waitFor(() =>
+			expect(
+				queryClient.getQueryData<InfiniteData<Chat[]>>(
+					infiniteChats(openPRsOnly).queryKey,
+				)?.pages,
+			).toEqual([[]]),
+		);
 	});
 });
 

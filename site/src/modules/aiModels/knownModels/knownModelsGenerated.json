@@ -670,6 +670,19 @@
 	"openai": [
 		{
 			"provider": "openai",
+			"modelIdentifier": "gpt-6.2-astra",
+			"displayName": "GPT-6.2 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"reasoningEffort": "medium",
+			"inputCost": 8,
+			"outputCost": 40,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 10
+		},
+		{
+			"provider": "openai",
 			"modelIdentifier": "gpt-6-astra",
 			"displayName": "GPT-6 Astra",
 			"aliases": [],
@@ -680,6 +693,19 @@
 			"outputCost": 50,
 			"cacheReadCost": 1,
 			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "openai",
+			"modelIdentifier": "gpt-6.2-sol",
+			"displayName": "GPT-6.2 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"reasoningEffort": "medium",
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "openai",
@@ -832,6 +858,18 @@
 	"openrouter": [
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "openai/gpt-6.2-astra",
+			"displayName": "GPT-6.2 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 8,
+			"outputCost": 40,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 10
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "openai/gpt-6-astra",
 			"displayName": "GPT-6 Astra",
 			"aliases": [],
@@ -841,6 +879,18 @@
 			"outputCost": 50,
 			"cacheReadCost": 1,
 			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "openai/gpt-6.2-sol",
+			"displayName": "GPT-6.2 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "openrouter",
@@ -943,9 +993,9 @@
 			"aliases": [],
 			"contextLimit": 131072,
 			"maxOutputTokens": 65536,
-			"inputCost": 0.014,
-			"outputCost": 0.053,
-			"cacheReadCost": 0.013
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "openrouter",
@@ -954,9 +1004,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.192,
+			"inputCost": 0.2,
 			"outputCost": 16,
-			"cacheReadCost": 0.182
+			"cacheReadCost": 0.19
 		},
 		{
 			"provider": "openrouter",
@@ -965,9 +1015,9 @@
 			"aliases": [],
 			"contextLimit": 262144,
 			"maxOutputTokens": 235929,
-			"inputCost": 0.6,
-			"outputCost": 3.5,
-			"cacheReadCost": 0.15
+			"inputCost": 0.7,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.17
 		},
 		{
 			"provider": "openrouter",
@@ -986,9 +1036,9 @@
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
-			"inputCost": 0.15,
-			"outputCost": 0.5,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.0399,
+			"outputCost": 0.0784,
 			"cacheReadCost": 0.03
 		},
 		{
@@ -998,9 +1048,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.006,
+			"inputCost": 0.007,
 			"outputCost": 6.8,
-			"cacheReadCost": 0.005
+			"cacheReadCost": 0.006
 		},
 		{
 			"provider": "openrouter",
@@ -1177,8 +1227,8 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.045,
-			"outputCost": 0.5,
+			"inputCost": 0.051,
+			"outputCost": 0.567,
 			"cacheReadCost": 0.018
 		},
 		{
@@ -1187,10 +1237,10 @@
 			"displayName": "DeepSeek V4 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
-			"inputCost": 0.091,
-			"outputCost": 0.182,
-			"cacheReadCost": 0.0182
+			"maxOutputTokens": 393216,
+			"inputCost": 0.09,
+			"outputCost": 0.18,
+			"cacheReadCost": 0.018
 		},
 		{
 			"provider": "openrouter",
@@ -1199,9 +1249,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 393216,
-			"inputCost": 1.6,
-			"outputCost": 3.2,
-			"cacheReadCost": 0.135
+			"inputCost": 0.9,
+			"outputCost": 1.5,
+			"cacheReadCost": 0.25
 		},
 		{
 			"provider": "openrouter",
@@ -1273,6 +1323,18 @@
 	"vercel": [
 		{
 			"provider": "vercel",
+			"modelIdentifier": "openai/gpt-6.2-astra",
+			"displayName": "GPT-6.2 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 8,
+			"outputCost": 40,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 10
+		},
+		{
+			"provider": "vercel",
 			"modelIdentifier": "openai/gpt-6-astra",
 			"displayName": "GPT-6 Astra",
 			"aliases": [],
@@ -1282,6 +1344,18 @@
 			"outputCost": 50,
 			"cacheReadCost": 1,
 			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "openai/gpt-6.2-sol",
+			"displayName": "GPT-6.2 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "vercel",
@@ -1613,10 +1687,10 @@
 			"displayName": "DeepSeek V4.1 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 32768,
+			"maxOutputTokens": 1048576,
 			"inputCost": 0.3,
 			"outputCost": 1.2,
-			"cacheReadCost": 0.007
+			"cacheReadCost": 0.006
 		},
 		{
 			"provider": "vercel",
@@ -1691,8 +1765,8 @@
 			"modelIdentifier": "minimax/minimax-m3",
 			"displayName": "MiniMax M3",
 			"aliases": [],
-			"contextLimit": 512000,
-			"maxOutputTokens": 512000,
+			"contextLimit": 1000000,
+			"maxOutputTokens": 1000000,
 			"inputCost": 0.3,
 			"outputCost": 1.2,
 			"cacheReadCost": 0.06

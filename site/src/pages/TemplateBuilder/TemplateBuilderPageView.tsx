@@ -341,7 +341,7 @@ export const TemplateBuilderPageView: React.FC<
 								form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
 								disabled={state.hasProvisioners === false}
 							>
-								Create Template
+								Create template
 							</Button>
 						) : (
 							<Button onClick={handleNext}>Continue</Button>

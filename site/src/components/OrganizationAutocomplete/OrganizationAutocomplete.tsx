@@ -155,7 +155,7 @@ export const OrganizationAutocomplete: React.FC<
 										{getOrganizationLabel(org, labelContext)}
 									</span>
 									{value?.id === org.id && (
-										<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+										<CheckIcon className="ml-auto size-icon-sm shrink-0 text-content-primary" />
 									)}
 								</CommandItem>
 							))}

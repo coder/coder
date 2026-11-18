@@ -55,11 +55,7 @@ export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 			{/* Show only the current page when the widget is too narrow for the
 			    full row of page blocks and both arrows. */}
 			<div className="contents @sm:hidden">
-				<NumberedPageButton
-					highlighted
-					pageNumber={currentPage}
-					totalPages={totalPages}
-				/>
+				<NumberedPageButton highlighted pageNumber={currentPage} />
 			</div>
 			<div className="hidden @sm:contents">
 				<PaginationRow
@@ -114,7 +110,6 @@ const PaginationRow: React.FC<PaginationRowProps> = ({
 					<NumberedPageButton
 						key={pageEntry}
 						pageNumber={pageEntry}
-						totalPages={totalPages}
 						highlighted={pageEntry === currentPage}
 						onClick={() => onChange(pageEntry)}
 					/>
