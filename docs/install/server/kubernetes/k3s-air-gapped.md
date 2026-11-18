@@ -16,15 +16,15 @@ To install Coder on a cluster that has internet access, refer to [Install Coder 
 
 The host can't download anything, so you stage each of these components on the workstation and copy it to the host.
 
-| Component                                     | Why the host needs it                                                                          | When you need it                                                                 |
-|-----------------------------------------------|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| K3s binary, install script, and image archive | Runs a single-node Kubernetes cluster without pulling images                                   | Always                                                                           |
-| Coder Helm chart                              | Installs Coder without a connection to the chart repository                                    | Always                                                                           |
-| Coder image with a Terraform provider mirror  | Builds templates without the public Terraform registry                                         | Always                                                                           |
-| PostgreSQL image                              | Runs the database that Coder needs, inside the cluster                                         | For this tutorial. A production deployment uses an external PostgreSQL database. |
-| Workspace image with code-server              | Provides the editor that the starter template otherwise downloads when a workspace starts      | When your template uses code-server                                              |
-| Edited Kubernetes starter template            | Uses the workspace image and removes the download from the startup script                      | Always                                                                           |
-| `fake-hwclock` package                        | Keeps the host clock correct across restarts, because the K3s certificates depend on the clock | Only when the host has no battery-backed clock and no time server on its network |
+| Component                                     | Why the host needs it                                                                          | When you need it                                                                                            |
+|-----------------------------------------------|------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| K3s binary, install script, and image archive | Runs a single-node Kubernetes cluster without pulling images                                   | Always                                                                                                      |
+| Coder Helm chart                              | Installs Coder without a connection to the chart repository                                    | Always                                                                                                      |
+| Coder image with a Terraform provider mirror  | Builds templates without the public Terraform registry                                         | Always                                                                                                      |
+| PostgreSQL image                              | Runs the database that Coder needs, inside the cluster                                         | For this tutorial. A production deployment uses an [external PostgreSQL database](../external-database.md). |
+| Workspace image with code-server              | Provides the editor that the starter template otherwise downloads when a workspace starts      | When your template uses code-server                                                                         |
+| Edited Kubernetes starter template            | Uses the workspace image and removes the download from the startup script                      | Always                                                                                                      |
+| `fake-hwclock` package                        | Keeps the host clock correct across restarts, because the K3s certificates depend on the clock | Only when the host has no battery-backed clock and no time server on its network                            |
 
 ## Prerequisites
 
@@ -208,7 +208,7 @@ Refer to [Provider installation](https://developer.hashicorp.com/terraform/cli/c
      /home/coder/.terraform.d/plugins/registry.terraform.io/coder/coder
    ```
 
-   You see the provider archive for your version and architecture:
+   You see the provider archive for your version and architecture, here for `arm64`:
 
    ```txt
    2.19.0.json
@@ -272,7 +272,7 @@ You install code-server while you build the workspace image instead.
 
 ### Download the clock package
 
-Most servers keep the correct time without internet access, because they have a battery-backed clock or a time server on their network.
+Many servers keep the correct time without internet access, because they have a battery-backed clock or a time server on their network.
 If your host has either one, skip this section and [Set the host clock](#set-the-host-clock).
 
 A host with neither, such as a Raspberry Pi 4, starts with the wrong time after each restart.
@@ -397,7 +397,7 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
    ```
 
    The command prints one line for every staged file, and every line ends with `OK`.
-   For example:
+   For example, on `arm64`:
 
    ```txt
    ./k3s-arm64: OK
