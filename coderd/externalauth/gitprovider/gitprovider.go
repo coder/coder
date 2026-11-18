@@ -246,12 +246,15 @@ func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.D
 	return 0
 }
 
-// checkRateLimitError returns a *RateLimitError when resp indicates a
-// rate limit (HTTP 403 or 429) with recognizable retry headers;
-// otherwise nil. A nil resp returns nil.
-func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
+// checkResponseError returns ErrTokenRejected when resp is HTTP 401, and a
+// *RateLimitError when resp indicates a rate limit (HTTP 403 or 429) with
+// recognizable retry headers; otherwise nil. A nil resp returns nil.
+func checkResponseError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
 	if resp == nil {
 		return nil
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return ErrTokenRejected
 	}
 	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
 		return nil

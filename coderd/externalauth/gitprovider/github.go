@@ -436,11 +436,8 @@ func (g *githubProvider) decodeJSON(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+		if rlErr := checkResponseError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
 			return rlErr
-		}
-		if resp.StatusCode == http.StatusUnauthorized {
-			return xerrors.Errorf("%w: github request failed with status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -494,11 +491,8 @@ func (g *githubProvider) fetchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+		if rlErr := checkResponseError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
 			return "", rlErr
-		}
-		if resp.StatusCode == http.StatusUnauthorized {
-			return "", xerrors.Errorf("%w: github diff request failed with status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {

@@ -253,11 +253,8 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkResponseError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return "", rlErr
-		}
-		if resp.StatusCode == http.StatusUnauthorized {
-			return "", xerrors.Errorf("%w: gitlab get merge request raw diffs: status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -345,11 +342,8 @@ func (g *gitlabProvider) FetchBranchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkResponseError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return "", rlErr
-		}
-		if resp.StatusCode == http.StatusUnauthorized {
-			return "", xerrors.Errorf("%w: gitlab compare branches: status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -591,12 +585,9 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 
 // wrapError converts library errors to our domain errors (e.g. rate limits).
 func (g *gitlabProvider) wrapError(err error, action string) error {
-	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok && errResp.Response != nil {
-		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset"); rlErr != nil {
+	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
+		if rlErr := checkResponseError(errResp.Response, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return rlErr
-		}
-		if errResp.Response.StatusCode == http.StatusUnauthorized {
-			return xerrors.Errorf("gitlab %s: %w: %v", action, ErrTokenRejected, err)
 		}
 	}
 	return xerrors.Errorf("gitlab %s: %w", action, err)
