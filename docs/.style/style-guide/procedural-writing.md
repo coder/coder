@@ -75,8 +75,8 @@ No Vale rule.*
 ## Keep steps short
 
 Write the instruction of each step in 20 words or fewer.
-The instruction is the step's first paragraph: the action, and an expected result if the step states one.
-Paragraphs below the instruction explain the step, and they follow the body prose target instead.
+The instruction is the step's first sentence: the action.
+Sentences after the instruction, in the same paragraph or below it, explain the step, and they follow the body prose target instead.
 Code blocks, images, and tables inside a step don't count toward the limit.
 Count words as [How to count words](./voice-and-tone.md#how-to-count-words) describes.
 Body prose gets a flexible 25-word target (refer to [Keep sentences and paragraphs short](./voice-and-tone.md#keep-sentences-and-paragraphs-short)).
@@ -104,7 +104,7 @@ Do not cut words that carry meaning to meet the limit.
 
 *Adapted from ASD-STE100 Issue 9, rule 5.1.
 Enforced by `Coder.StepLength` (`warning`).
-The rule counts the words in the first paragraph of each ordered-list step and flags instructions over 20.
+The rule counts the words in the first sentence of each ordered-list step and flags instructions over 20.
 It approximates [How to count words](./voice-and-tone.md#how-to-count-words), and its header comment lists the approximations.*
 
 ## Use a full clause after before, after, when, and while
