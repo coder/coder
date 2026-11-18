@@ -22,7 +22,7 @@ const mockCost: TypesGen.ChatCost = {
 
 const createStore = () => {
 	const store = createChatStore();
-	store.replaceMessages([MockChatMessage]);
+	store.upsertDurableMessages([MockChatMessage]);
 	return store;
 };
 
@@ -55,7 +55,6 @@ const meta: Meta<typeof ChatOverviewCard> = {
 			],
 		]),
 		hasMoreMessages: false,
-		isHydratingMessages: false,
 		onOpenTarget: fn(),
 	},
 	render: (args) => <ChatOverviewCard {...args} store={createStore()} />,

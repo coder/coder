@@ -57,7 +57,6 @@ type ChatOverviewCardProps = {
 	store: ChatStore;
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	hasMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	onOpenTarget: (target: OverviewTarget) => void;
 };
 
@@ -70,7 +69,6 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	store,
 	repositories,
 	hasMoreMessages,
-	isHydratingMessages,
 	onOpenTarget,
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
@@ -85,7 +83,6 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		chatId: chat.id,
 		store,
 		hasMoreMessages,
-		isHydratingMessages,
 		enabled: true,
 	});
 
@@ -117,9 +114,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		<ChatOverviewCardView
 			overview={overview}
 			isLoading={
-				(showCost && costQuery.isPending) ||
-				isHydratingMessages ||
-				earlierAttachmentsRequest.isLoading
+				(showCost && costQuery.isPending) || earlierAttachmentsRequest.isLoading
 			}
 			earlierAttachmentsRequest={earlierAttachmentsRequest}
 			onOpenTarget={onOpenTarget}
