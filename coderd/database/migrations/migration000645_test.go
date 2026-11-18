@@ -12,14 +12,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Migration 000644 moves chats out of projects their owners can no longer
+// Migration 000645 moves chats out of projects their owners can no longer
 // use and leaves the rest.
-func TestMigration000644RemovesChatsFromUnusableChatProjects(t *testing.T) {
+func TestMigration000645RemovesChatsFromUnusableChatProjects(t *testing.T) {
 	t.Parallel()
 
 	sqlDB := testSQLDB(t)
-	// 000644 changes only data, so the schema at 000643 is the current one.
-	stepTo(t, sqlDB, 643)
+	// 000645 changes only data, so the schema at 000644 is the current one.
+	stepTo(t, sqlDB, 644)
 	db := database.New(sqlDB)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -54,7 +54,7 @@ func TestMigration000644RemovesChatsFromUnusableChatProjects(t *testing.T) {
 		chats[chat.ID] = tc.inProject
 	}
 
-	stepTo(t, sqlDB, 644)
+	stepTo(t, sqlDB, 645)
 
 	for id, inProject := range chats {
 		got, err := db.GetChatByID(ctx, id)
