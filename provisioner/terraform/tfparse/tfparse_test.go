@@ -11,7 +11,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -674,8 +673,7 @@ func TestNew_TerraformStacks(t *testing.T) {
 		require.ElementsMatch(t, []string{"region", "zone"}, names)
 	})
 
-	// tfconfig panics on a Stacks block in a module file. Callers do not
-	// recover panics, so it must surface as an error diagnostic.
+	// tfconfig panics on a component block in a .tf file.
 	t.Run("ComponentBlockInModuleFile", func(t *testing.T) {
 		t.Parallel()
 
@@ -688,11 +686,9 @@ func TestNew_TerraformStacks(t *testing.T) {
 		}), "application/x-tar", tmpDir)
 		require.NoError(t, err)
 
-		// The recovered panic is logged as an error.
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		var diags tfconfig.Diagnostics
 		require.NotPanics(t, func() {
-			_, diags = tfparse.New(tmpDir, tfparse.WithLogger(logger))
+			_, diags = tfparse.New(tmpDir, tfparse.WithLogger(testutil.Logger(t)))
 		})
 		require.True(t, diags.HasErrors())
 		require.ErrorContains(t, diags.Err(), `unhandled block type "component"`)

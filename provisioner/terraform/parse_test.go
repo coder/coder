@@ -432,20 +432,31 @@ func TestParse(t *testing.T) {
 			ParseErrorContains: "Unsuitable value",
 		},
 		{
-			Name: "terraform-stacks-file-ignored",
+			Name: "required-providers-from-const-variable-and-local",
 			Files: map[string]string{
-				"main.tf": `variable "A" {
-					default = "wow"
-				}`,
-				"x.tfcomponent.hcl": `component "a" {
-					source = "./m"
+				"main.tf": `variable "provider_version" {
+					type    = string
+					const   = true
+					default = "2.8.0"
+				}
+				locals {
+					provider_source = "coder/coder"
+				}
+				terraform {
+					required_providers {
+						coder = {
+							source  = local.provider_source
+							version = var.provider_version
+						}
+					}
 				}`,
 			},
 			Response: &proto.ParseComplete{
 				TemplateVariables: []*proto.TemplateVariable{
 					{
-						Name:         "A",
-						DefaultValue: "wow",
+						Name:         "provider_version",
+						Type:         "string",
+						DefaultValue: "2.8.0",
 					},
 				},
 			},

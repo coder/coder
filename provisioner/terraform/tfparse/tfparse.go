@@ -80,15 +80,13 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 	return &p, diags
 }
 
-// loadModule loads the Terraform module in workdir. It only exposes the files
-// Terraform loads for a module, and reports a panic in tfconfig as an error
-// diagnostic. The provisioner runs Parse in a goroutine that does not recover
-// panics, so a loader panic would otherwise exit the process.
+// loadModule returns a tfconfig panic as an error diagnostic, because the
+// provisioner runs Parse in a goroutine that does not recover panics.
 func loadModule(logger slog.Logger, workdir string) (m *tfconfig.Module, diags tfconfig.Diagnostics) {
 	defer func() {
 		if r := recover(); r != nil {
 			// New has no context to pass along.
-			logger.Error(context.Background(), "recovered panic while loading terraform module",
+			logger.Warn(context.Background(), "recovered panic while loading terraform module",
 				slog.F("panic", r),
 				slog.F("stack", string(debug.Stack())),
 			)
@@ -96,17 +94,17 @@ func loadModule(logger slog.Logger, workdir string) (m *tfconfig.Module, diags t
 			diags = tfconfig.Diagnostics{{
 				Severity: tfconfig.DiagError,
 				Summary:  "Failed to load module",
-				Detail:   fmt.Sprintf("Unexpected error while parsing the module: %v", r),
+				Detail: fmt.Sprintf("The module could not be parsed: %v. A likely cause is a Terraform Stacks block, "+
+					"such as \"component\" or a top-level \"required_providers\", which is not valid in a .tf or .tf.json file.", r),
 			}}
 		}
 	}()
 	return tfconfig.LoadModuleFromFilesystem(moduleFS{tfconfig.NewOsFs()}, workdir)
 }
 
-// moduleFS is a tfconfig.FS whose directory listings only contain the files
-// Terraform loads for a module: those ending in .tf or .tf.json, override
-// files included. tfconfig also reads Terraform Stacks files as module files,
-// panics on the Stacks-only blocks they contain, and may learn new suffixes.
+// moduleFS lists only the files Terraform loads for a module. tfconfig also
+// loads Terraform Stacks files and panics on their Stacks-only blocks, and
+// later versions may add more suffixes.
 type moduleFS struct {
 	tfconfig.FS
 }
