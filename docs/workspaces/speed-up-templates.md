@@ -8,6 +8,9 @@ October 31, 2024
 
 If it takes your workspace a long time to start, find out why and make some changes to your Coder templates to help speed things up.
 
+With the changes on this page, a Kubernetes workspace can start in about 2 seconds.
+For a walkthrough that takes a Kubernetes template from 1.5 minutes to 2 seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs).
+
 ## Monitoring
 
 You can monitor [Coder logs](../admin/monitoring/logs.md) through the system-native tools on your deployment platform, or stream logs to tools like Splunk, Datadog, Grafana Loki, and others.

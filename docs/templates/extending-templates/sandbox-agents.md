@@ -9,8 +9,11 @@ Common traits of a sandbox include:
 - **Network isolation**: agents run with no (or limited) network access, which reduces the risk of data loss, a compromised supply chain, or prompt injection.
 - **Secrets isolation**: agents run with isolated or scoped-down secrets and identity, compared to the user, which reduces the blast radius.
 
-Many sandbox runtimes boot in milliseconds, but in Coder the sandbox is a workspace, so it also waits for the workspace build: Terraform, scheduling, the image pull, the agent connection, and startup scripts.
-[Fast startup](#fast-startup) covers how to hide that wait with prebuilt workspaces and warm pools.
+Some sandbox runtimes advertise startup in milliseconds.
+In Coder, the sandbox is a workspace, so it also waits for the workspace build: Terraform, scheduling, the image pull, the agent connection, and startup scripts.
+With prebuilt workspaces and warm pools, a workspace can be ready in about 2 seconds.
+We believe that is fast enough for agents, and that the freedom to run sandboxes on your own infrastructure is worth the tradeoff.
+[Fast startup](#fast-startup) covers how to get there, and [this video](https://www.youtube.com/watch?v=-xcVJQWVCxs) shows a Kubernetes template go from 1.5 minutes to 2 seconds.
 
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the previous definitions.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
@@ -405,6 +408,9 @@ Examples and references:
 Fast startup isn't isolation, but it decides whether people use the sandbox.
 An agent that starts a new workspace for each task creates many more workspaces than a person does.
 If the sandbox takes minutes to start, users run the agent on their own machine instead, outside every control on this page.
+
+A start time of about 2 seconds is a realistic target.
+For a walkthrough that takes a Kubernetes template from 1.5 minutes to 2 seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs).
 
 | Method                                                         | How it works                                                                                       | Tradeoffs                                                                                 |
 |----------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
