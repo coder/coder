@@ -3670,21 +3670,6 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
 }
 
-// GetChatProjectPinTelemetry mocks base method.
-func (m *MockStore) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (database.GetChatProjectPinTelemetryRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectPinTelemetry", ctx, aclEnabled)
-	ret0, _ := ret[0].(database.GetChatProjectPinTelemetryRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProjectPinTelemetry indicates an expected call of GetChatProjectPinTelemetry.
-func (mr *MockStoreMockRecorder) GetChatProjectPinTelemetry(ctx, aclEnabled any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectPinTelemetry", reflect.TypeOf((*MockStore)(nil).GetChatProjectPinTelemetry), ctx, aclEnabled)
-}
-
 // GetChatProjectSummariesByUserID mocks base method.
 func (m *MockStore) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
 	m.ctrl.T.Helper()
