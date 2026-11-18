@@ -3120,21 +3120,12 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
-					chatRecordUpdatedAt: 0,
 					chatID,
-					chatMessages: [],
-					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
 				return {
-					streamError: useChatSelector(store, selectStreamError),
+					shownError: useChatSelector(store, selectShownError),
 					chatStatus: useChatSelector(store, selectChatStatus),
 				};
 			},
@@ -3142,7 +3133,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+			expect(watchMock).toHaveBeenCalledWith(chatID, 1);
 		});
 		const socket = sockets[0];
 		if (socket === undefined) {
@@ -3150,6 +3141,7 @@ describe("useChatStore", () => {
 		}
 		act(() => {
 			socket.emitOpen();
+			socket.emitData(statusEvent(chatID));
 		});
 		// Keepalives one interval apart, for longer than the silence timeout.
 		const keepaliveMs = ChatStreamKeepaliveIntervalSeconds * 1000;
@@ -3160,7 +3152,7 @@ describe("useChatStore", () => {
 			});
 		}
 
-		expect(result.current.streamError).toBeNull();
+		expect(result.current.shownError).toBeNull();
 		expect(result.current.chatStatus).toBe("running");
 		expect(watchMock).toHaveBeenCalledTimes(1);
 	});
@@ -3174,39 +3166,29 @@ describe("useChatStore", () => {
 		const watchMock = vi.mocked(watchChat);
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
-					chatRecordUpdatedAt: 0,
 					chatID,
-					chatMessages: [],
-					chatRecord: buildChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
 				return useChatSelector(store, selectReconnectState);
 			},
-			{ wrapper },
+			{ wrapper: createWrapper(createTestQueryClient()) },
 		);
 
 		await waitFor(() => {
-			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+			expect(watchMock).toHaveBeenCalledWith(chatID, 1);
 		});
 		const socket1 = sockets[0];
 		if (socket1 === undefined) {
 			throw new Error("watchChat did not return a socket");
 		}
+		// A running chat surfaces the reconnect.
 		act(() => {
 			socket1.emitOpen();
+			socket1.emitData(statusEvent(chatID));
 		});
 
 		await act(async () => {
@@ -3220,6 +3202,7 @@ describe("useChatStore", () => {
 			vi.advanceTimersByTime(1_000);
 		});
 		expect(watchMock).toHaveBeenCalledTimes(2);
+		expect(watchMock).toHaveBeenLastCalledWith(chatID, 1);
 	});
 
 	it("clears stale streamError when a reconnected socket opens", async () => {
