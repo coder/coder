@@ -11,7 +11,7 @@ const meta: Meta<typeof ScheduleDialog> = {
 		updateDormantWorkspaces: fn(),
 		updateInactiveWorkspaces: fn(),
 		open: true,
-		title: "Workspace Scheduling",
+		title: "Workspace scheduling",
 		inactiveWorkspacesToGoDormant: 0,
 		inactiveWorkspacesToGoDormantInWeek: 0,
 		dormantWorkspacesToBeDeleted: 0,
