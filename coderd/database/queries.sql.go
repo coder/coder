@@ -8481,8 +8481,7 @@ own_chats AS (
     GROUP BY c.project_id
 )
 SELECT
-    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters,
-    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.archived_at,
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters, chat_projects.archived_at,
     (pins.project_id IS NOT NULL)::boolean AS pinned,
     -- Numbered over the returned pins, so pins the user can no longer see
     -- leave no gaps.
@@ -8790,8 +8789,7 @@ func (q *sqlQuerier) DeleteChatProjectTemplate(ctx context.Context, arg DeleteCh
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters, archived_at
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -8820,8 +8818,7 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 }
 
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters, archived_at
 FROM chat_projects
 WHERE id = $1::uuid
 FOR UPDATE
@@ -8853,7 +8850,7 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 const getChatProjectTemplatesByProjectIDs = `-- name: GetChatProjectTemplatesByProjectIDs :many
 SELECT
     chat_project_templates.project_id, chat_project_templates.template_id, chat_project_templates.created_by, chat_project_templates.created_at,
-    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters, chat_projects.archived_at
 FROM chat_project_templates
 JOIN chat_projects ON chat_projects.id = chat_project_templates.project_id
 JOIN templates ON templates.id = chat_project_templates.template_id
@@ -8905,6 +8902,7 @@ func (q *sqlQuerier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, pr
 			&i.ChatProject.DefaultTemplateID,
 			&i.ChatProject.DefaultTemplateVersionPresetID,
 			&i.ChatProject.DefaultParameters,
+			&i.ChatProject.ArchivedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -8920,8 +8918,7 @@ func (q *sqlQuerier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, pr
 }
 
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.archived_at
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters, chat_projects.archived_at
 FROM chat_projects
 WHERE chat_projects.owner_id = $1::uuid
     OR (
@@ -9005,8 +9002,7 @@ VALUES (
     $9::uuid,
     COALESCE($10::jsonb, '{}'::jsonb)
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters, archived_at
 `
 
 type InsertChatProjectParams struct {
@@ -9179,9 +9175,7 @@ SET
     default_parameters = CASE WHEN $5::boolean THEN COALESCE($8::jsonb, '{}'::jsonb) ELSE default_parameters END,
     updated_at = now()
 WHERE id = $9::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters, archived_at
 `
 
 type UpdateChatProjectByIDParams struct {
