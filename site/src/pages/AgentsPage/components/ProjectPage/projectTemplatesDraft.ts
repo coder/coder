@@ -4,9 +4,10 @@ import type {
 	ChatProjectDefaultTemplate,
 } from "#/api/typesGenerated";
 import { NIL_UUID } from "../../utils/modelOptions";
-import type {
-	ChatProjectTemplatesSettings,
-	ChatProjectTemplatesValues,
+import {
+	type ChatProjectTemplatesSettings,
+	type ChatProjectTemplatesValues,
+	chatProjectTemplatesValues,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 
 /**
@@ -30,6 +31,17 @@ const serializeDefaultTemplate = (
 		Object.entries(template?.parameters ?? {}).sort(([a], [b]) =>
 			a.localeCompare(b),
 		),
+	]);
+
+/**
+ * Serializes template settings so that saved and drafted ones compare by
+ * content: the order of template IDs and of parameter keys is ignored.
+ */
+export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
+	JSON.stringify([
+		templates.limit_templates,
+		templates.template_ids.toSorted(),
+		serializeDefaultTemplate(templates.default_template),
 	]);
 
 /**
@@ -67,3 +79,41 @@ export const serializeValues = (values: ChatProjectTemplatesValues) =>
 			([a], [b]) => a.localeCompare(b),
 		),
 	});
+
+const serializeDefaults = (values: ChatProjectTemplatesValues) =>
+	serializeValues({ ...values, limitTemplates: false, templateIds: [] });
+
+/**
+ * Applies the draft's changes since `base` to `latest`, so saving the result
+ * never undoes a template that someone else attached or detached. Where both
+ * changed the limit or the default template, the draft wins.
+ */
+export const rebaseValues = (
+	draft: ChatProjectTemplatesValues,
+	base: ChatProjectTemplatesValues,
+	latest: ChatProjectTemplatesValues,
+): ChatProjectTemplatesValues => {
+	const templateIds = [
+		...latest.templateIds.filter(
+			(id) => draft.templateIds.includes(id) || !base.templateIds.includes(id),
+		),
+		...draft.templateIds.filter(
+			(id) =>
+				!base.templateIds.includes(id) && !latest.templateIds.includes(id),
+		),
+	];
+	// The default template is saved as a whole, so the draft's wins when the
+	// user changed any part of it.
+	const defaults =
+		serializeDefaults(draft) === serializeDefaults(base) ? latest : draft;
+	return {
+		...(templateIds.includes(defaults.defaultTemplateId)
+			? defaults
+			: chatProjectTemplatesValues(undefined)),
+		limitTemplates:
+			draft.limitTemplates === base.limitTemplates
+				? latest.limitTemplates
+				: draft.limitTemplates,
+		templateIds,
+	};
+};

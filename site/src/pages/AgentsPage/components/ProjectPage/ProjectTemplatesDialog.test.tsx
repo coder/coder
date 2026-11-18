@@ -33,6 +33,9 @@ const mockProjectWithDefault: ChatProject = {
 
 const renderDialog = (props: Partial<DialogProps> = {}) => {
 	vi.spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+	const getProjects = vi
+		.spyOn(API.experimental, "getChatProjects")
+		.mockResolvedValue([props.project ?? MockChatProject]);
 	vi.spyOn(API, "getTemplateVersionDynamicParameters").mockResolvedValue({
 		id: 0,
 		diagnostics: [],
@@ -49,7 +52,7 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 		onResetError: vi.fn(),
 		...props,
 	};
-	render(
+	const { rerender } = render(
 		<QueryClientProvider client={queryClient}>
 			<ProjectTemplatesDialog {...allProps} />
 		</QueryClientProvider>,
@@ -57,6 +60,14 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 	return {
 		user: userEvent.setup(),
 		props: allProps,
+		rerenderWithProject: (project: ChatProject) => {
+			getProjects.mockResolvedValue([project]);
+			rerender(
+				<QueryClientProvider client={queryClient}>
+					<ProjectTemplatesDialog {...allProps} project={project} />
+				</QueryClientProvider>,
+			);
+		},
 	};
 };
 
@@ -170,6 +181,80 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
+	it("pauses saving until the project refresh succeeds", async () => {
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockRejectedValueOnce(mockApiError({ message: "Network error." }));
+		const { user, props } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+		expect(props.onSave).not.toHaveBeenCalled();
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
+	});
+
+	it("pauses saving while the project refresh is in flight", async () => {
+		vi.spyOn(API.experimental, "getChatProjects").mockReturnValueOnce(
+			new Promise(() => {}),
+		);
+		const { user, props } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+
+		expect(props.onSave).not.toHaveBeenCalled();
+	});
+
+	it("keeps a saved empty parameter value when the user keeps their draft", async () => {
+		const { user, props, rerenderWithProject } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					parameters: {
+						[MockPreviewParameter1.name]: "",
+						[MockPreviewParameter2.name]: "old",
+					},
+				},
+			},
+		});
+
+		const second = await findParameterInput(MockPreviewParameter2.display_name);
+		await user.clear(second);
+		await user.type(second, "new");
+		rerenderWithProject({
+			...mockProjectWithDefault,
+			default_template: {
+				template_id: MockTemplate.id,
+				parameters: { [MockPreviewParameter2.name]: "other" },
+			},
+		});
+		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					default_template: {
+						template_id: MockTemplate.id,
+						parameters: {
+							[MockPreviewParameter1.name]: "",
+							[MockPreviewParameter2.name]: "new",
+						},
+					},
+				},
+			}),
+		);
+	});
+
 	it("replaces a saved empty value with the template default", async () => {
 		const { user, props } = renderDialog({
 			project: {
@@ -196,6 +281,51 @@ describe("ProjectTemplatesDialog", () => {
 				attach: [],
 				detach: [],
 				request: { default_template: { template_id: MockTemplate.id } },
+			}),
+		);
+	});
+
+	it("treats an edited and restored parameter as untouched", async () => {
+		const { user, props, rerenderWithProject } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					parameters: {
+						[MockPreviewParameter1.name]: "a",
+						[MockPreviewParameter2.name]: "b",
+					},
+				},
+			},
+		});
+		const first = await findParameterInput(MockPreviewParameter1.display_name);
+		await user.clear(first);
+		await user.type(first, "a");
+
+		// An untouched draft follows the newer save instead of warning.
+		rerenderWithProject({
+			...mockProjectWithDefault,
+			default_template: {
+				template_id: MockTemplate.id,
+				parameters: { [MockPreviewParameter1.name]: "z" },
+			},
+		});
+		await user.type(
+			await findParameterInput(MockPreviewParameter1.display_name),
+			"!",
+		);
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					default_template: {
+						template_id: MockTemplate.id,
+						parameters: { [MockPreviewParameter1.name]: "z!" },
+					},
+				},
 			}),
 		);
 	});

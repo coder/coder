@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { isApiValidationError } from "#/api/errors";
-import type { ChatProjectTemplatesChange } from "#/api/queries/chatProjects";
+import {
+	type ChatProjectTemplatesChange,
+	chatProjects,
+} from "#/api/queries/chatProjects";
 import { agentTemplates } from "#/api/queries/templates";
 import type { ChatProject } from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -20,8 +24,11 @@ import {
 	chatProjectTemplatesValues,
 	templatesValidationDetail,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
+import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
 import {
+	rebaseValues,
 	savedTemplates,
+	serializeTemplates,
 	serializeValues,
 	templatesChange,
 } from "./projectTemplatesDraft";
@@ -66,6 +73,7 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 			>
 				<ProjectTemplatesForm
 					{...formProps}
+					open={open}
 					onCancel={() => handleOpenChange(false)}
 				/>
 			</DialogContent>
@@ -75,15 +83,16 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 
 type ProjectTemplatesFormProps = Omit<
 	ProjectTemplatesDialogProps,
-	"open" | "onOpenChange" | "onCloseAutoFocus"
+	"onOpenChange" | "onCloseAutoFocus"
 > & {
 	readonly onCancel: () => void;
 };
 
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
+	open,
 	project,
 	isSaving,
-	error: shownError,
+	error,
 	onSave,
 	onResetError,
 	onCancel,
@@ -91,29 +100,89 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const latestTemplates = savedTemplates(project);
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
-	const [baseTemplates] = useState(latestTemplates);
+	const [baseTemplates, setBaseTemplates] = useState(latestTemplates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
 	// Save keeps focus while the dialog closes after a successful save, so
 	// a repeated Enter must not send the same save again. Only a failed save
 	// allows another.
 	const [isSaveSent, setIsSaveSent] = useState(false);
-	// After a save that leaves the dialog open, focus moves to Save, but only
+	// Outcomes of a save or refresh that leaves the dialog open: focus moves
+	// to what explains it (Retry or Save), but only
 	// when focus was lost, such as inputs disabled during a save.
-	const pendingFocusRef = useRef<"save" | null>(null);
+	const pendingFocusRef = useRef<"retry" | "save" | null>(null);
+	const retryButtonRef = useRef<HTMLButtonElement>(null);
 	const saveButtonRef = useRef<HTMLButtonElement>(null);
+	// A rejected save no longer applies once the draft follows newer
+	// templates, so its error is hidden.
+	const [dismissedError, setDismissedError] = useState<unknown>();
+	const shownError = error === dismissedError ? undefined : error;
 	if (isSaveSent && shownError) {
 		setIsSaveSent(false);
 	}
+	// Templates are shared by every editor of the project, so refresh them
+	// on open and when the tab regains focus to detect changes made elsewhere.
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		refetchOnWindowFocus: true,
+	});
 	const isDraftUntouched =
 		serializeValues(value) === serializeValues(initialValue);
-	const templatesQuery = useQuery(agentTemplates(project.organization_id));
+	const serializedLatest = serializeTemplates(latestTemplates);
+	const isLatestNew = serializedLatest !== serializeTemplates(baseTemplates);
+	// An untouched draft follows newer templates. So does a draft after its
+	// own save changed the project, even when that save failed partway: it
+	// keeps its edits, and saving again sends what is left of them.
+	const followLatest = () => {
+		setBaseTemplates(latestTemplates);
+		setValue(
+			rebaseValues(
+				value,
+				initialValue,
+				chatProjectTemplatesValues(latestTemplates),
+			),
+		);
+	};
+	if (isLatestNew && (isDraftUntouched || isSaveSent)) {
+		if (isDraftUntouched) {
+			setDismissedError(error);
+		}
+		followLatest();
+	}
+	const templatesQuery = useQuery({
+		...agentTemplates(project.organization_id),
+		refetchOnWindowFocus: true,
+	});
 	const eligibleTemplates = templatesQuery.data;
 	const request =
 		eligibleTemplates && chatProjectTemplatesRequest(value, eligibleTemplates);
-	const isBusy = isSaving || templatesQuery.isFetching;
+	// A change saved elsewhere can touch what the draft changes, so the user
+	// resolves it first. Templates that already match the draft, such as this
+	// dialog's own save arriving before it closes, are not a conflict.
+	const hasConflict =
+		open &&
+		isLatestNew &&
+		(request === undefined || serializedLatest !== serializeTemplates(request));
+	// Without a fresh copy of the project, Save could overwrite a limit or
+	// default template changed elsewhere that the conflict check has not seen.
+	const failedQueries = [projectsQuery, templatesQuery].filter(
+		(query) => query.isError,
+	);
+	const refreshFailed = failedQueries.length > 0;
+	// Retry stays enabled while it runs so it keeps focus.
+	const isRetrying = failedQueries.some((query) => query.isFetching);
+	// A stale list can miss a template's new active version.
+	const isRefreshing = projectsQuery.isFetching || templatesQuery.isFetching;
+	const isBusy =
+		isSaving || projectsQuery.isFetching || templatesQuery.isFetching;
 	const canSave =
-		request !== undefined && !isDraftUntouched && !isSaveSent && !isSaving;
+		request !== undefined &&
+		!isDraftUntouched &&
+		!hasConflict &&
+		!refreshFailed &&
+		!isRefreshing &&
+		!isSaveSent &&
+		!isSaving;
 	useEffect(() => {
 		const pending = pendingFocusRef.current;
 		// Wait for the outcome: a save either closes the dialog or fails.
@@ -128,15 +197,19 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			!focused ||
 			focused === document.body ||
 			focused === saveButtonRef.current ||
+			focused === retryButtonRef.current ||
 			(pending !== null && focused.getAttribute("role") === "dialog");
 		if (!isFocusLost) {
 			return;
 		}
-		if (pending !== null || canSave) {
-			// Save stays focusable while it waits.
+		if (pending === "retry" && refreshFailed) {
+			retryButtonRef.current?.focus();
+		} else if (pending !== null || canSave) {
+			// Save stays focusable while it waits. This also covers Save losing
+			// focus to a background refresh.
 			saveButtonRef.current?.focus();
 		}
-	}, [isBusy, canSave, shownError]);
+	}, [isBusy, refreshFailed, canSave, shownError]);
 
 	return (
 		<form
@@ -188,6 +261,57 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}}
 				disabled={isSaving}
 			/>
+			{refreshFailed && (
+				<Alert
+					severity="error"
+					actions={
+						<Button
+							ref={retryButtonRef}
+							type="button"
+							size="sm"
+							variant="outline"
+							aria-busy={isRetrying}
+							onClick={() => {
+								if (isRetrying) {
+									return;
+								}
+								pendingFocusRef.current = "retry";
+								for (const query of failedQueries) {
+									void query.refetch();
+								}
+							}}
+						>
+							<Spinner loading={isRetrying} />
+							Retry
+						</Button>
+					}
+				>
+					<AlertDescription>
+						Couldn't load the latest templates, so saving is paused.
+					</AlertDescription>
+				</Alert>
+			)}
+			{hasConflict && (
+				<ProjectEditConflictAlert
+					disabled={isSaving}
+					// The warning unmounts once resolved, so focus moves to Save.
+					onKeepDraft={() => {
+						followLatest();
+						saveButtonRef.current?.focus();
+					}}
+					onLoadLatest={() => {
+						setBaseTemplates(latestTemplates);
+						setValue(chatProjectTemplatesValues(latestTemplates));
+						onResetError();
+						// The newer save can include templates this list hasn't seen.
+						void templatesQuery.refetch();
+						saveButtonRef.current?.focus();
+					}}
+				>
+					Someone else changed these templates while you were editing. Load the
+					latest templates, or keep your draft to apply your changes to them.
+				</ProjectEditConflictAlert>
+			)}
 			{Boolean(shownError) && !isApiValidationError(shownError) && (
 				<ErrorAlert error={shownError} showDebugDetail={false} />
 			)}

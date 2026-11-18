@@ -666,6 +666,7 @@ const mockKubernetesTemplate: Template = {
 describe("ProjectDetailsPanel templates", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+		focusManager.setFocused(undefined);
 	});
 
 	const setup = (project: ChatProject = MockChatProject) => {
@@ -684,11 +685,15 @@ describe("ProjectDetailsPanel templates", () => {
 		const updateProject = vi
 			.spyOn(API.experimental, "updateChatProject")
 			.mockResolvedValue(project);
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValue([project]);
 		const panel = renderPanel(project);
 		return {
 			attach,
 			detach,
 			updateProject,
+			getProjects,
 			...panel,
 		};
 	};
@@ -771,6 +776,37 @@ describe("ProjectDetailsPanel templates", () => {
 		);
 	});
 
+	it("saves again after a save failed partway, without asking to resolve a conflict", async () => {
+		const { user, attach, updateProject, rerenderWithProject } = setup();
+		let failUpdate: (error: unknown) => void = () => {};
+		updateProject.mockReturnValueOnce(
+			new Promise((_, reject) => {
+				failUpdate = reject;
+			}),
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(1));
+		// The templates were attached before the update failed.
+		rerenderWithProject(mockProjectWithTemplates);
+		failUpdate(mockApiError({ message: "Failed to update chat project." }));
+
+		const save = await screen.findByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(2));
+		// The retry sends only what the first save left unsaved.
+		expect(attach).toHaveBeenCalledTimes(2);
+	});
+
 	it("sends one save when Save is double clicked", async () => {
 		const { user, attach } = setup();
 		attach.mockReturnValue(new Promise(() => {}));
@@ -820,6 +856,106 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
 		await waitFor(() => expect(editButton).toHaveFocus());
+	});
+
+	it("blocks Save when the templates change while editing, then saves only the draft's own changes", async () => {
+		const { user, attach, detach, updateProject, rerenderWithProject } =
+			setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Limit chats to these templates",
+			}),
+		);
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		rerenderWithProject({
+			...MockChatProject,
+			templates: [mockKubernetesTemplate],
+		});
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(updateProject).not.toHaveBeenCalled();
+
+		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		expect(screen.getByRole("button", { name: /Save/ })).toHaveFocus();
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() =>
+			expect(updateProject.mock.calls).toEqual([
+				[...projectArgs, { limit_templates: true }],
+			]),
+		);
+		expect(attach.mock.calls).toEqual([
+			[...projectArgs, mockDockerTemplate.id],
+		]);
+		// The template attached elsewhere stays attached.
+		expect(detach).not.toHaveBeenCalled();
+	});
+
+	it("replaces the draft with templates saved elsewhere on Load latest", async () => {
+		const { user, attach, detach, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject({
+			...MockChatProject,
+			templates: [mockKubernetesTemplate],
+		});
+		await user.click(screen.getByRole("button", { name: "Load latest" }));
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(detach).toHaveBeenCalledWith(
+				...projectArgs,
+				mockKubernetesTemplate.id,
+			),
+		);
+		expect(attach).not.toHaveBeenCalled();
+	});
+
+	it("refetches the project's templates on open and when the window regains focus", async () => {
+		const { user, getProjects } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(1));
+
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
+	});
+
+	it("starts an untouched draft from templates saved while the editor is open", async () => {
+		const { user, attach, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			templates: [mockKubernetesTemplate],
+		});
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(attach.mock.calls).toEqual([
+				[...projectArgs, mockDockerTemplate.id],
+			]),
+		);
 	});
 
 	it("returns focus to the template count when edit permission is lost while editing", async () => {
