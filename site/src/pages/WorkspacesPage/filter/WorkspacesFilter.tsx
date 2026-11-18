@@ -15,16 +15,18 @@ import {
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import { getOrganizationFilterOptions } from "#/components/Filter/organizationOptions";
+import {
+	getMeUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
-	getOrganizationFilterOptions,
-	getSelfUserFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
-	getUserFilterOptions,
 } from "./categoryOptions";
 
 type WorkspaceFilterProps = Readonly<{
@@ -38,7 +40,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 }) => {
 	const { showOrganizations, entitlements } = useDashboard();
 	const { permissions, user: me } = useAuthenticated();
-	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` is the wrong capability
+	// TODO(CLIENT-421 follow-up): `viewDeploymentConfig` is the wrong capability
 	// for listing users. It is carried over from the legacy page; replace it with
 	// a list-users capability check. Users without it still get an Owner
 	// category scoped to themselves (below) so `user:me` keeps working.
@@ -54,6 +56,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 		const next: FilterCategory[] = [
 			{
 				key: "owner",
+				optionsKey: "workspaces.owner",
 				label: "Owner",
 				icon: <UserIcon />,
 				scopeToggle: {
@@ -68,10 +71,11 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 				},
 				getOptions: canListUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
-					: (query) => getSelfUserFilterOptions(query, me),
+					: (query) => getMeUserFilterOptions(query, me),
 			},
 			{
 				key: "status",
+				optionsKey: "workspaces.status",
 				label: "Status",
 				icon: <CircleDotIcon />,
 				inlineOptions: true,
@@ -80,6 +84,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 			},
 			{
 				key: "attribute",
+				optionsKey: "workspaces.attribute",
 				label: "Attributes",
 				aliases: ["attributes"],
 				icon: <TagIcon />,
@@ -95,6 +100,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 			},
 			{
 				key: "template",
+				optionsKey: "workspaces.template",
 				label: "Template",
 				// Deprecated templates are not offered, so the row can hide while
 				// its one active template would still narrow the results.
@@ -107,12 +113,19 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 		if (showOrganizations) {
 			next.push({
 				key: "organization",
+				optionsKey: "workspaces.organization",
 				label: "Organization",
 				// Only organizations with `audit_log:read` are offered, so the row
 				// can hide while its one option would still narrow the results.
 				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
-				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
+				// TODO(CLIENT-421 follow-up): use workspace-read or organization
+				// membership instead of the inherited audit-log permission gate.
+				getOptions: (query) =>
+					getOrganizationFilterOptions(query, queryClient, {
+						object: { resource_type: "audit_log" },
+						action: "read",
+					}),
 			});
 		}
 
