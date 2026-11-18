@@ -36,7 +36,8 @@ jobs:
     name: Refresh price book
     runs-on: ubuntu-latest
     environment: main
-    permissions: {}
+    permissions:
+      id-token: write # Cloud KMS signs the coder-automations App's JWT
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -110,14 +111,18 @@ jobs:
       - name: Generate coder-automations App token
         if: steps.detect.outputs.changed == 'true'
         id: app_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.CODER_AUTOMATION_APP_ID }}
-          private-key: ${{ secrets.CODER_AUTOMATION_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.CODER_AUTOMATION_APP_ID }}
+          kms-key: ${{ secrets.CODER_AUTOMATION_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: coder
-          permission-contents: write
-          permission-pull-requests: write
+          permissions: |
+            contents: write
+            pull_requests: write
 
       - name: Open or update the refresh pull request
         if: steps.detect.outputs.changed == 'true'

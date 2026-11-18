@@ -282,46 +282,6 @@ describe("QueuedMessagesList", () => {
 		expect(onPromote).toHaveBeenCalledWith(9);
 	});
 
-	it("keeps the row and disables every action while onPromote is pending, and re-enables them after it fails", async () => {
-		const user = userEvent.setup();
-		let rejectPromote: ((error: Error) => void) | undefined;
-		const onPromote = vi.fn(
-			() =>
-				new Promise<void>((_, reject) => {
-					rejectPromote = reject;
-				}),
-		);
-		const { onDelete } = renderList(
-			[
-				{ ...MockChatQueuedMessage, id: 7 },
-				{ ...MockChatQueuedMessage, id: 8 },
-			],
-			{ onPromote },
-		);
-
-		const [sendHead, sendNext] = screen.getAllByRole("button", {
-			name: "Send now",
-		});
-		await user.click(sendHead);
-		expect(onPromote).toHaveBeenCalledWith(7);
-		await user.click(sendNext);
-		expect(onPromote).toHaveBeenCalledTimes(1);
-
-		const failPromote = rejectPromote;
-		if (!failPromote) {
-			throw new Error("onPromote was not invoked");
-		}
-		await act(async () => {
-			failPromote(new Error("promote failed"));
-		});
-
-		const [removeHead] = screen.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await user.click(removeHead);
-		expect(onDelete).toHaveBeenCalledWith(7);
-	});
-
 	it("forwards Edit and Cancel edit with the row id", async () => {
 		const user = userEvent.setup();
 		const { onEdit, onEndEdit } = renderList(

@@ -14,13 +14,14 @@ import {
 } from "#/components/PageHeader/PageHeader";
 
 type StarterTemplatePageViewProps = {
+	canCreateTemplates: boolean;
 	starterTemplate?: TemplateExample;
 	error?: unknown;
 };
 
 export const StarterTemplatePageView: React.FC<
 	StarterTemplatePageViewProps
-> = ({ starterTemplate, error }) => {
+> = ({ starterTemplate, canCreateTemplates, error }) => {
 	if (error) {
 		return (
 			<Margins>
@@ -44,12 +45,14 @@ export const StarterTemplatePageView: React.FC<
 								View source code
 							</a>
 						</Button>
-						<Button asChild size="sm">
-							<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
-								<PlusIcon />
-								Use template
-							</Link>
-						</Button>
+						{canCreateTemplates && (
+							<Button asChild size="sm">
+								<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
+									<PlusIcon />
+									Use template
+								</Link>
+							</Button>
+						)}
 					</>
 				}
 			>

@@ -1,14 +1,14 @@
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
+import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import { templateExamples, templates } from "#/api/queries/templates";
 import type { AuthorizationRequest } from "#/api/typesGenerated";
+import { useFilter } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
-import { useTemplatesFilter } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: React.FC = () => {
@@ -16,12 +16,12 @@ const TemplatesPage: React.FC = () => {
 	const { organizations, showOrganizations } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const filterState = useTemplatesFilter({
+	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 	});
 
-	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
+	const templatesQuery = useQuery(templates({ q: filter.query }));
 	const templateUpdateChecks: AuthorizationRequest["checks"] = {};
 	for (const organization of organizations) {
 		templateUpdateChecks[organization.id] = {
@@ -48,14 +48,13 @@ const TemplatesPage: React.FC = () => {
 		),
 	);
 
-	const deploymentConfigQuery = useQuery({
-		...deploymentConfig(),
+	const builderBasesQuery = useQuery({
+		...templateBuilderBases(),
+		retry: false,
 		enabled: permissions.createTemplates,
 	});
 	const templateBuilderEnabled =
-		deploymentConfigQuery.isSuccess &&
-		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
-		permissions.createTemplates;
+		builderBasesQuery.isSuccess && permissions.createTemplates;
 
 	const error =
 		templatesQuery.error ||
@@ -68,7 +67,7 @@ const TemplatesPage: React.FC = () => {
 			<title>{pageTitle("Templates")}</title>
 			<TemplatesPageView
 				error={error}
-				filterState={filterState}
+				filter={filter}
 				showOrganizations={showOrganizations}
 				canCreateTemplates={permissions.createTemplates}
 				templateBuilderEnabled={templateBuilderEnabled}
