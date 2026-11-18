@@ -7,7 +7,11 @@ import { SkillEditorDialog } from "./SkillEditor";
 const markdown =
 	"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.";
 
-const renderEditor = (mode: "create" | "edit" = "create", readOnly = false) => {
+const renderEditor = (
+	mode: "create" | "edit" = "create",
+	readOnly = false,
+	modelInvocable = true,
+) => {
 	const onSubmit = vi.fn();
 	render(
 		<SkillEditorDialog
@@ -23,7 +27,7 @@ const renderEditor = (mode: "create" | "edit" = "create", readOnly = false) => {
 							name: "existing-skill",
 							description: "Existing guidance.",
 							body: "Existing instructions.",
-							modelInvocable: true,
+							modelInvocable,
 						}
 			}
 			existingNames={[]}
@@ -110,32 +114,38 @@ describe("SkillEditorDialog file import", () => {
 		},
 	);
 
-	it("turns automatic use off when an edit-mode import disables it", async () => {
-		const { user, onSubmit } = renderEditor("edit");
-		await user.upload(
-			screen.getByLabelText("Upload SKILL.md"),
-			new File(
-				[
-					"---\nname: imported-skill\ndisable-model-invocation: true\n---\nManual instructions.",
-				],
-				"SKILL.md",
-				{ type: "text/markdown" },
-			),
-		);
-		await screen.findByText("Imported SKILL.md");
-		await user.click(screen.getByRole("button", { name: "Save skill" }));
-		await waitFor(() =>
-			expect(onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					name: "existing-skill",
-					body: "Manual instructions.",
-					modelInvocable: false,
-				}),
-				expect.any(String),
-				expect.any(Function),
-			),
-		);
-	});
+	it.each([
+		{ disabled: true, modelInvocable: false },
+		{ disabled: false, modelInvocable: true },
+	])(
+		"applies disable-model-invocation: $disabled from an edit-mode import",
+		async ({ disabled, modelInvocable }) => {
+			const { user, onSubmit } = renderEditor("edit", false, !modelInvocable);
+			await user.upload(
+				screen.getByLabelText("Upload SKILL.md"),
+				new File(
+					[
+						`---\nname: imported-skill\ndisable-model-invocation: ${disabled}\n---\nManual instructions.`,
+					],
+					"SKILL.md",
+					{ type: "text/markdown" },
+				),
+			);
+			await screen.findByText("Imported SKILL.md");
+			await user.click(screen.getByRole("button", { name: "Save skill" }));
+			await waitFor(() =>
+				expect(onSubmit).toHaveBeenCalledWith(
+					expect.objectContaining({
+						name: "existing-skill",
+						body: "Manual instructions.",
+						modelInvocable,
+					}),
+					expect.any(String),
+					expect.any(Function),
+				),
+			);
+		},
+	);
 
 	it.each([
 		{

@@ -214,9 +214,11 @@ export const parseSkillMarkdown = (content: string): SkillFormValues => {
 		throw new SkillMarkdownError("Skill body is required.");
 	}
 
-	// Claude Code marks skills that only users may invoke this way.
-	return parsed.attributes["disable-model-invocation"] === true
-		? { name, description, body, modelInvocable: false }
+	// Claude Code marks skills that only users may invoke this way. Like the
+	// server, only a boolean value counts.
+	const disableModelInvocation = parsed.attributes["disable-model-invocation"];
+	return typeof disableModelInvocation === "boolean"
+		? { name, description, body, modelInvocable: !disableModelInvocation }
 		: { name, description, body };
 };
 

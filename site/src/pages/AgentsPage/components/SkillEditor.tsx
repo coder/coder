@@ -246,9 +246,9 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 		?.trim() === "---";
 
 /**
- * Fills the fields from an uploaded or pasted SKILL.md file. A file with
- * `disable-model-invocation: true` turns automatic use off, matching how the
- * server reads uploaded content.
+ * Fills the fields from an uploaded or pasted SKILL.md file. A boolean
+ * `disable-model-invocation` sets automatic use (true turns it off, false
+ * turns it on), matching how the server reads uploaded content.
  */
 export const SkillEditorImport: React.FC = () => {
 	const { form, mode, isBusy, isReadingFile, setIsReadingFile } =
@@ -274,7 +274,7 @@ export const SkillEditorImport: React.FC = () => {
 			return;
 		}
 
-		const disablesModelInvocation = result.values.modelInvocable === false;
+		const setsAutomaticUse = result.values.modelInvocable !== undefined;
 		if (isCreate) {
 			// Turn automatic use back on first, so a file without the setting
 			// does not inherit an earlier import's value.
@@ -292,7 +292,9 @@ export const SkillEditorImport: React.FC = () => {
 				...form.values,
 				description: result.values.description,
 				body: result.values.body,
-				...(disablesModelInvocation && { modelInvocable: false }),
+				...(setsAutomaticUse && {
+					modelInvocable: result.values.modelInvocable,
+				}),
 			});
 			await form.setTouched(
 				{ name: false, description: true, body: true },
@@ -306,7 +308,7 @@ export const SkillEditorImport: React.FC = () => {
 			title: "Imported SKILL.md",
 			detail: isCreate
 				? "Updated name, description, body, and automatic use."
-				: disablesModelInvocation
+				: setsAutomaticUse
 					? "Updated description, body, and automatic use. Kept the existing name."
 					: "Updated description and body fields. Kept the existing name.",
 		});
