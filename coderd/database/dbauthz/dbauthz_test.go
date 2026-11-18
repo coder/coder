@@ -383,8 +383,8 @@ func TestUpdateChatProjectACLByIDDisabled(t *testing.T) {
 	require.ErrorContains(t, err, "chat sharing is disabled")
 }
 
-// TestChatProjectPinsRejectOtherUsers checks that pins and summaries only
-// answer for the actor, even one allowed to read every project.
+// TestChatProjectPinsRejectOtherUsers checks that pins only answer for the
+// actor, even one allowed to read every project.
 func TestChatProjectPinsRejectOtherUsers(t *testing.T) {
 	t.Parallel()
 
@@ -396,8 +396,6 @@ func TestChatProjectPinsRejectOtherUsers(t *testing.T) {
 	other, projectID := uuid.New(), uuid.New()
 
 	err := q.PinChatProject(ctx, database.PinChatProjectParams{UserID: other, ProjectID: projectID})
-	require.True(t, dbauthz.IsNotAuthorizedError(err))
-	_, err = q.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{UserID: other})
 	require.True(t, dbauthz.IsNotAuthorizedError(err))
 }
 
@@ -1413,11 +1411,11 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetChatProjectSummariesByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.GetChatProjectSummariesByUserIDParams{UserID: testActorID}
-		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: testActorID})
+		arg := database.GetChatProjectSummariesByUserIDParams{UserID: uuid.New()}
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: arg.UserID})
 		rows := []database.GetChatProjectSummariesByUserIDRow{{ChatProject: project, Pinned: true, PinOrder: 1}}
 		dbm.EXPECT().GetChatProjectSummariesByUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(project, policy.ActionRead).Returns(rows)
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionReadPersonal, project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("InsertChatProjectPin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
