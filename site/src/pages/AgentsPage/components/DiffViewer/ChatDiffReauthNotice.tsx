@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useQueryClient } from "react-query";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type { ChatDiffReauthRequired } from "#/api/typesGenerated";
@@ -27,36 +27,38 @@ export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 		can_reconnect: canReconnect,
 	} = reauth;
 	const queryClient = useQueryClient();
-	const popupRef = useRef<Window | null>(null);
-	const [isConnecting, setIsConnecting] = useState(false);
+	// The open popup doubles as the connecting state, so the two cannot drift.
+	const [popup, setPopup] = useState<Window | null>(null);
+	const isConnecting = popup !== null;
+
+	const onPopupClosed = useEffectEvent(() => {
+		setPopup(null);
+		void invalidateChatDiffContents(queryClient, chatId);
+	});
 
 	useEffect(() => {
-		if (!isConnecting) {
+		if (!popup) {
 			return;
 		}
 		const timer = window.setInterval(() => {
-			if (!popupRef.current?.closed) {
-				return;
+			if (popup.closed) {
+				onPopupClosed();
 			}
-			popupRef.current = null;
-			setIsConnecting(false);
-			void invalidateChatDiffContents(queryClient, chatId);
 		}, POPUP_POLL_INTERVAL_MS);
 		return () => window.clearInterval(timer);
-	}, [isConnecting, chatId, queryClient]);
+	}, [popup]);
 
 	const reconnect = () => {
-		const popup = window.open(
+		const opened = window.open(
 			`/external-auth/${encodeURIComponent(providerId)}`,
 			"_blank",
 			"width=900,height=600",
 		);
-		if (!popup) {
+		if (!opened) {
 			toast.error("Pop-up blocked. Allow pop-ups to reconnect.");
 			return;
 		}
-		popupRef.current = popup;
-		setIsConnecting(true);
+		setPopup(opened);
 	};
 
 	return (
