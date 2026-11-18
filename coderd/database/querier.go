@@ -579,10 +579,9 @@ type sqlcQuerier interface {
 	// non-archived chats. Entries match regardless of the actions they grant,
 	// so callers must authorize each row; pins on projects the user can no
 	// longer see are never returned.
-	// Users who can use each project: the owner, granted users who are
-	// organization members, and members of granted groups (including the
-	// Everyone group). As in IsChatProjectUsableByUserID, only grants with
-	// read count. Counted only while project sharing is available;
+	// Users who can use each project: the owner and the users its read grants
+	// reach (chat_project_read_grant_members). Counted only while project
+	// sharing is available;
 	// otherwise every project counts its owner alone. Suspended users cannot
 	// sign in, so they are not counted.
 	//
