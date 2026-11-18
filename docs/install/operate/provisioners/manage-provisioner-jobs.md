@@ -18,7 +18,7 @@ Use the dashboard, CLI, or API:
 
 - **Dashboard**:
 
-   Select **Admin settings** > **Organizations** > **Provisioner Jobs**
+   Select **Admin settings** > **Organizations** > **Provisioner jobs**
 
    Provisioners are organization-specific.
    If you have more than one organization, select it first.

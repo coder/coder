@@ -139,7 +139,7 @@ export const TemplateCustomizationsStep: React.FC<
 						field={getFieldHelpers("display_name")}
 						label="Display name"
 						id="template-display-name"
-						placeholder="My Template"
+						placeholder="My template"
 					/>
 
 					{/* Right column */}
@@ -180,6 +180,7 @@ export const TemplateCustomizationsStep: React.FC<
 							)}
 						/>
 						<p className="text-xs text-content-secondary">
+							{/* sentence-case-expect: Agents is the product name. */}
 							Used by both humans and Agents to identify templates.
 						</p>
 

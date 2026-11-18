@@ -48,6 +48,7 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 		(): FilterCategory[] => [
 			{
 				key: "status",
+				optionsKey: "users.status",
 				label: "Status",
 				icon: <CircleDotIcon />,
 				inlineOptions: true,
@@ -56,6 +57,7 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 			},
 			{
 				key: "role",
+				optionsKey: "users.role",
 				label: "Role",
 				icon: <ShieldIcon />,
 				hideWhenSingleOption: true,
@@ -63,6 +65,7 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 			},
 			{
 				key: "type",
+				optionsKey: "users.type",
 				label: "User type",
 				aliases: ["user_type"],
 				icon: <UsersIcon />,

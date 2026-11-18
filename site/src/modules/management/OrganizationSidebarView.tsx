@@ -129,7 +129,7 @@ export const OrganizationSidebarView: React.FC<
 												}, 200);
 											}}
 										>
-											<PlusIcon /> Create Organization
+											<PlusIcon /> Create organization
 										</CommandItem>
 									</CommandGroup>
 								</>
@@ -193,12 +193,12 @@ const OrganizationSettingsNavigation: React.FC<
 						<SettingsSidebarNavItem
 							href={urlForSubpage(organization.name, "provisioner-keys")}
 						>
-							Provisioner Keys
+							Provisioner keys
 						</SettingsSidebarNavItem>
 						<SettingsSidebarNavItem
 							href={urlForSubpage(organization.name, "provisioner-jobs")}
 						>
-							Provisioner Jobs
+							Provisioner jobs
 						</SettingsSidebarNavItem>
 					</>
 				)}
@@ -206,7 +206,7 @@ const OrganizationSettingsNavigation: React.FC<
 				<SettingsSidebarNavItem
 					href={urlForSubpage(organization.name, "idp-sync")}
 				>
-					IdP Sync
+					IdP sync
 				</SettingsSidebarNavItem>
 			)}
 			{orgPermissions.editSettings && (

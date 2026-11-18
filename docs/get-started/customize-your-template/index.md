@@ -65,7 +65,7 @@ Open it for editing now, either in the Coder web editor or in your local editor 
 
 1. Log in to Coder and select **Templates**.
 2. Find the **Coder Quickstart** template you created and open it.
-3. Select the three-dots menu next to **Create Workspace**, then select **Edit files**.
+3. Select the three-dots menu next to **Create workspace**, then select **Edit files**.
 
 The template web editor opens:
 

@@ -6,6 +6,7 @@ import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
@@ -14,7 +15,7 @@ const TemplateSchedulePage: React.FC = () => {
 	const getLink = useLinks();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const { template } = useTemplateSettings();
+	const { template, permissions } = useTemplateSettings();
 	const { entitlements } = useDashboard();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
@@ -42,7 +43,7 @@ const TemplateSchedulePage: React.FC = () => {
 	});
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={permissions.canUpdateTemplate}>
 			<title>{pageTitle(template.name, "Schedule")}</title>
 
 			<TemplateSchedulePageView
@@ -55,7 +56,7 @@ const TemplateSchedulePage: React.FC = () => {
 				}}
 				onSubmit={updateTemplate}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 
