@@ -5123,17 +5123,6 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	code_challenge_methods_supported: ["S256"],
 };
 
-export const MockGithubExternalAuth: TypesGen.ExternalAuth = {
-	authenticated: false,
-	device: false,
-	display_name: "GitHub",
-	supports_revocation: false,
-	user: null,
-	app_installable: false,
-	installations: [],
-	app_install_url: "",
-};
-
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
 	provider_id: "github",
 	created_at: "",

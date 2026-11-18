@@ -1093,7 +1093,7 @@ export const invalidateChatDebugRuns = (
 
 // Every per-ref diff-contents key starts with this prefix, so
 // invalidating it drops every ref's cached diff at once.
-export const chatDiffContentsFamilyKey = (chatId: string) =>
+const chatDiffContentsFamilyKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "diff-contents"] as const;
 
 export const invalidateChatDiffContents = (

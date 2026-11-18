@@ -1,22 +1,11 @@
-import { useEffect, useEffectEvent, useState } from "react";
-import { useQuery, useQueryClient } from "react-query";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "react-query";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
-import { externalAuthProvider } from "#/api/queries/externalAuth";
 import type { ChatDiffReauthRequired } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { toast } from "#/components/Toaster/toast";
 
 export const POPUP_POLL_INTERVAL_MS = 500;
-// Each status poll validates the token with the provider, so poll less often
-// than the popup check, and stop polling after a minute.
-export const POPUP_STATUS_POLL_INTERVAL_MS = 2000;
-export const POPUP_STATUS_POLL_TIMEOUT_MS = 60_000;
-const POPUP_FEATURES = "width=900,height=600";
-
-type Connection = {
-	popup: Window;
-	openedAt: number;
-};
 
 type ChatDiffReauthNoticeProps = {
 	chatId: string;
@@ -25,9 +14,8 @@ type ChatDiffReauthNoticeProps = {
 
 /**
  * Shown in place of the diff for a ChatDiffReauthRequired error. The owner
- * reconnects in a popup. The diff refetches when the popup closes, whether or
- * not the reconnect succeeded, and also once the provider reports the account
- * authenticated.
+ * reconnects in a popup, and the diff refetches when the popup closes, whether
+ * or not the reconnect succeeded.
  */
 export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 	chatId,
@@ -40,61 +28,37 @@ export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 		can_reconnect: canReconnect,
 	} = reauth;
 	const queryClient = useQueryClient();
-	const [connection, setConnection] = useState<Connection | null>(null);
-	const isConnecting = connection !== null;
-	const openedAt = connection?.openedAt ?? 0;
-
-	// Connecting ends when the popup closes, or when the provider reports the
-	// account authenticated after the popup opened.
-	const { data: externalAuth, dataUpdatedAt } = useQuery({
-		...externalAuthProvider(providerId),
-		enabled: isConnecting,
-		refetchInterval: () =>
-			Date.now() - openedAt < POPUP_STATUS_POLL_TIMEOUT_MS
-				? POPUP_STATUS_POLL_INTERVAL_MS
-				: false,
-	});
-
-	const onConnectEnded = useEffectEvent(() => {
-		setConnection(null);
-		void invalidateChatDiffContents(queryClient, chatId);
-	});
-
-	const onConnectPoll = useEffectEvent(() => {
-		if (connection?.popup.closed) {
-			onConnectEnded();
-			return;
-		}
-		// Cached status from before the popup opened can say authenticated for an
-		// account that is no longer connected, so count only fresh status.
-		if (externalAuth?.authenticated && dataUpdatedAt >= openedAt) {
-			onConnectEnded();
-		}
-	});
+	const [popup, setPopup] = useState<Window | null>(null);
+	const isConnecting = popup !== null;
 
 	useEffect(() => {
-		if (!connection) {
+		if (!popup) {
 			return;
 		}
-		const timer = window.setInterval(onConnectPoll, POPUP_POLL_INTERVAL_MS);
+		const timer = window.setInterval(() => {
+			if (popup.closed) {
+				setPopup(null);
+				void invalidateChatDiffContents(queryClient, chatId);
+			}
+		}, POPUP_POLL_INTERVAL_MS);
 		return () => window.clearInterval(timer);
-	}, [connection]);
+	}, [popup, queryClient, chatId]);
 
 	const reconnect = () => {
 		// The button stays focusable while connecting, so clicks can still arrive.
 		if (isConnecting) {
 			return;
 		}
-		const popup = window.open(
+		const opened = window.open(
 			`/external-auth/${encodeURIComponent(providerId)}`,
 			"_blank",
-			POPUP_FEATURES,
+			"width=900,height=600",
 		);
-		if (!popup) {
+		if (!opened) {
 			toast.error("Pop-up blocked. Allow pop-ups to reconnect.");
 			return;
 		}
-		setConnection({ popup, openedAt: Date.now() });
+		setPopup(opened);
 	};
 
 	return (

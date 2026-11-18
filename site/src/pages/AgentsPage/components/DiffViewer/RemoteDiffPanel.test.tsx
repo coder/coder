@@ -2,11 +2,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClientProvider } from "react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { MockChatDiffReauthRequired } from "#/testHelpers/chatEntities";
-import { MockGithubExternalAuth } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes from "#/theme";
 import { ThemeContextProvider } from "#/theme/context";
@@ -51,12 +50,6 @@ const renderPanel = () => {
 };
 
 describe("RemoteDiffPanel reauth handling", () => {
-	beforeEach(() => {
-		vi.spyOn(API, "getExternalAuthProvider").mockResolvedValue(
-			MockGithubExternalAuth,
-		);
-	});
-
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
