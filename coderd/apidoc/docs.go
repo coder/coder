@@ -25115,7 +25115,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
                     "type": "string"
                 },
                 "display_name": {
@@ -31556,6 +31556,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
+                    "description": "Content is the SKILL.md file, with its ` + "`" + `disable-model-invocation` + "`" + `\nfrontmatter key set to agree with ` + "`" + `model_invocable` + "`" + `. A stored file whose\nkey the server cannot set, such as a list, is returned unchanged.",
                     "type": "string"
                 },
                 "created_at": {
@@ -33570,7 +33571,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
                     "type": "string"
                 },
                 "display_name": {
@@ -33581,6 +33582,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "model_invocable": {
+                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets ` + "`" + `disable-model-invocation` + "`" + ` to a boolean: true turns it\noff and false turns it on.",
                     "type": "boolean"
                 }
             }
