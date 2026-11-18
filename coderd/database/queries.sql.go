@@ -8940,7 +8940,7 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 }
 
 const getChatProjectByIDForShare = `-- name: GetChatProjectByIDForShare :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters, archived_at
 FROM chat_projects
 WHERE id = $1::uuid
 FOR SHARE
@@ -8963,6 +8963,10 @@ func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUI
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 		&i.ArchivedAt,
 	)
 	return i, err
@@ -9408,7 +9412,7 @@ SET
     archived_at = $1::timestamptz,
     updated_at = now()
 WHERE id = $2::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, archived_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, limit_templates, default_template_id, default_template_version_preset_id, default_parameters, archived_at
 `
 
 type UpdateChatProjectArchivedAtParams struct {
@@ -9433,6 +9437,10 @@ func (q *sqlQuerier) UpdateChatProjectArchivedAt(ctx context.Context, arg Update
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.LimitTemplates,
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 		&i.ArchivedAt,
 	)
 	return i, err
