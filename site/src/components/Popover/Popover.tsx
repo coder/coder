@@ -23,6 +23,8 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 	align = "center",
 	sideOffset = 4,
 	disablePortal,
+	onWheel,
+	onTouchMove,
 	...props
 }) => {
 	const content = (
@@ -30,6 +32,17 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 			align={align}
 			sideOffset={sideOffset}
 			collisionPadding={16}
+			// An open Dialog's scroll lock cancels wheel and touch scrolling
+			// outside the dialog content, including this portaled popover. Keep
+			// those events from reaching the lock's document listener.
+			onWheel={(event) => {
+				onWheel?.(event);
+				event.stopPropagation();
+			}}
+			onTouchMove={(event) => {
+				onTouchMove?.(event);
+				event.stopPropagation();
+			}}
 			className={cn(
 				"z-50 w-72 rounded-md border bg-surface-primary",
 				"text-content-primary shadow-md outline-hidden ease-out-strong",
