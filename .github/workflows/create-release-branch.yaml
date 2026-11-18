@@ -1,7 +1,8 @@
 # Creates a release/X.Y branch at a commit that is already on main.
 #
 # Only the coder-release-publisher App may create release branches (ruleset "Release branch
-# creation"), and its key is only available in the release-refs environment, which needs a
+# creation"), and only this workflow on main, in the release-refs environment, may sign with its
+# key (held in Cloud KMS). That environment needs a
 # release manager other than the one who dispatched this run to approve it. So a release branch
 # can only start from reviewed code, and only with two release managers.
 name: Create release branch
@@ -30,6 +31,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: release-refs
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the release App's JWT
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -67,14 +71,18 @@ jobs:
 
       - name: Generate release App token
         id: app_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: coder
-          permission-contents: write
-          permission-workflows: write
+          permissions: |
+            contents: write
+            workflows: write
 
       - name: Create release branch
         env:
