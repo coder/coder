@@ -5,19 +5,27 @@ import type { ChatDiffReauthRequired } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { toast } from "#/components/Toaster/toast";
 
+const POPUP_POLL_INTERVAL_MS = 500;
+
 type ChatDiffReauthNoticeProps = {
 	chatId: string;
 	reauth: ChatDiffReauthRequired;
 };
 
 /**
- * Explains that the provider rejected the chat owner's token. The owner can
- * reconnect inline; the diff reloads once the reconnect popup closes.
+ * Replaces the diff when the provider rejected the chat owner's token. The
+ * owner reconnects in a popup, and the diff reloads once the popup closes.
+ * Other viewers see a message asking the owner to reconnect.
  */
 export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 	chatId,
 	reauth,
 }) => {
+	const {
+		provider_id: providerId,
+		provider_display_name: providerName,
+		can_reconnect: canReconnect,
+	} = reauth;
 	const queryClient = useQueryClient();
 	const popupRef = useRef<Window | null>(null);
 	const [isConnecting, setIsConnecting] = useState(false);
@@ -26,20 +34,20 @@ export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 		if (!isConnecting) {
 			return;
 		}
-		const interval = setInterval(() => {
+		const timer = window.setInterval(() => {
 			if (!popupRef.current?.closed) {
 				return;
 			}
 			popupRef.current = null;
 			setIsConnecting(false);
 			void invalidateChatDiffContents(queryClient, chatId);
-		}, 500);
-		return () => clearInterval(interval);
+		}, POPUP_POLL_INTERVAL_MS);
+		return () => window.clearInterval(timer);
 	}, [isConnecting, chatId, queryClient]);
 
 	const reconnect = () => {
 		const popup = window.open(
-			`/external-auth/${encodeURIComponent(reauth.provider_id)}`,
+			`/external-auth/${encodeURIComponent(providerId)}`,
 			"_blank",
 			"width=900,height=600",
 		);
@@ -54,11 +62,11 @@ export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 	return (
 		<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
 			<p className="m-0 text-sm text-content-secondary">
-				{reauth.can_reconnect
-					? `Reconnect ${reauth.provider_display_name} to load this diff.`
-					: `The chat owner must reconnect ${reauth.provider_display_name} to load this diff.`}
+				{canReconnect
+					? `Reconnect ${providerName} to load this diff.`
+					: `The chat owner must reconnect ${providerName} to load this diff.`}
 			</p>
-			{reauth.can_reconnect && (
+			{canReconnect && (
 				<Button
 					size="sm"
 					variant="outline"
@@ -67,7 +75,7 @@ export const ChatDiffReauthNotice: React.FC<ChatDiffReauthNoticeProps> = ({
 				>
 					{isConnecting
 						? "Waiting for reconnect…"
-						: `Reconnect ${reauth.provider_display_name}`}
+						: `Reconnect ${providerName}`}
 				</Button>
 			)}
 		</div>

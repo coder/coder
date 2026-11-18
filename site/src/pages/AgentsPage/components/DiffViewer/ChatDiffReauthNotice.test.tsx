@@ -1,12 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatDiffReauthRequired } from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { ChatDiffReauthNotice } from "./ChatDiffReauthNotice";
-import { getChatDiffReauthRequired } from "./chatDiffReauth";
 
 const reauth: ChatDiffReauthRequired = {
 	message: "Reconnect GitHub to load this diff.",
@@ -15,37 +13,6 @@ const reauth: ChatDiffReauthRequired = {
 	provider_display_name: "GitHub",
 	can_reconnect: true,
 };
-
-const axiosError = (status: number, data: unknown): AxiosError =>
-	new AxiosError("request failed", "ERR_BAD_RESPONSE", undefined, undefined, {
-		status,
-		statusText: "",
-		headers: {},
-		config: { headers: new AxiosHeaders() },
-		data,
-	});
-
-describe("getChatDiffReauthRequired", () => {
-	it("returns the body for a 424 with the reauth code", () => {
-		expect(getChatDiffReauthRequired(axiosError(424, reauth))).toEqual(reauth);
-	});
-
-	it("ignores other statuses, even with the same code", () => {
-		expect(getChatDiffReauthRequired(axiosError(500, reauth))).toBeUndefined();
-	});
-
-	it("ignores a 424 without the reauth code", () => {
-		expect(
-			getChatDiffReauthRequired(axiosError(424, { message: "other" })),
-		).toBeUndefined();
-	});
-
-	it("ignores non-axios errors", () => {
-		expect(
-			getChatDiffReauthRequired(new Error("Failed to get chat diff.")),
-		).toBeUndefined();
-	});
-});
 
 const renderNotice = (props: ChatDiffReauthRequired) => {
 	const queryClient = createTestQueryClient();
