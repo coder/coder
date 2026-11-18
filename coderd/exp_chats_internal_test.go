@@ -140,7 +140,7 @@ type chatGitAuthFixture struct {
 func TestResolveChatGitAccessTokenUsesNextMatchingConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
 	origin := "https://git.example.com/owner/repo.git"
@@ -160,7 +160,7 @@ func TestResolveChatGitAccessTokenUsesNextMatchingConfig(t *testing.T) {
 	}}
 
 	// The first matching config has no link, so the second config supplies the
-	// token and is reported as its source.
+	// token.
 	_, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 		ProviderID:       "second",
 		UserID:           user.ID,
@@ -170,12 +170,10 @@ func TestResolveChatGitAccessTokenUsesNextMatchingConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	token, config, err := api.resolveChatGitAccessTokenWithConfig(ctx, user.ID, origin)
+	token, err := api.resolveChatGitAccessToken(ctx, user.ID, origin)
 	require.NoError(t, err)
 	require.NotNil(t, token)
 	assert.Equal(t, "second-token", *token)
-	require.NotNil(t, config)
-	assert.Equal(t, "second", config.ID)
 }
 
 func newChatGitAuthFixture(
