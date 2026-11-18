@@ -124,23 +124,36 @@ describe("AuditPage", () => {
 		});
 
 		it("resets page to 1 when filter is changed", async () => {
+			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+				audit_logs: [MockAuditLog, MockAuditLog2],
+				count: DEFAULT_RECORDS_PER_PAGE + 1,
+				count_cap: 0,
+			});
 			await renderPage({ page: 2 });
-
-			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs");
-			getAuditLogsSpy.mockClear();
+			expect(getAuditLogsSpy).toHaveBeenLastCalledWith({
+				limit: DEFAULT_RECORDS_PER_PAGE,
+				offset: DEFAULT_RECORDS_PER_PAGE,
+				q: "",
+			});
 
 			const filterField = screen.getByRole("combobox", {
 				name: "Search and filter audit logs…",
 			});
 			const query = "resource_type:workspace action:create";
-			await userEvent.type(filterField, "resource_type:");
-			await userEvent.click(
+			const user = userEvent.setup();
+			await user.type(filterField, "resource_type:");
+			await user.click(
 				await screen.findByRole("option", { name: "Workspace" }),
 			);
-			await userEvent.type(filterField, "action:");
-			await userEvent.click(
-				await screen.findByRole("option", { name: "Create" }),
+			await waitFor(() =>
+				expect(getAuditLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "resource_type:workspace",
+				}),
 			);
+			await user.type(filterField, "action:");
+			await user.click(await screen.findByRole("option", { name: "Create" }));
 
 			await waitFor(() =>
 				expect(getAuditLogsSpy).toHaveBeenCalledWith<[AuditLogsRequest]>({
