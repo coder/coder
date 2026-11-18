@@ -37,7 +37,6 @@ import {
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
-	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	isUploadInProgress,
 	type UploadState,
@@ -83,6 +82,8 @@ import {
 } from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import type { AttachedWorkspaceInfo } from "./ChatToolBadges";
+import { ReadOnlyChatComposer } from "./ReadOnlyChatComposer";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -296,7 +297,6 @@ type ChatPageInputProps = {
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly: boolean;
-	readOnlyNotice?: string;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -355,7 +355,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly,
-	readOnlyNotice,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -729,7 +728,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		modeWorkspaceUploads.remove(id);
 	};
 
-	const inputElement = (
+	const inputElement = isReadOnly ? (
+		<ReadOnlyChatComposer
+			chat={chat}
+			model={modelOptions.find((option) => option.id === selectedModel)}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			isModelCatalogLoading={isModelCatalogLoading}
+			contextUsage={latestContextUsage}
+			onRefreshContext={handleRefreshContext}
+			isRefreshingContext={refreshContextMutation.isPending}
+			queuedMessages={queuedMessages}
+			queuedMessageUnderEditID={queuedMessageUnderEditID}
+			isChatPaused={chatStatus === "paused"}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={selectedMCPServerIds}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			attachedWorkspace={attachedWorkspace}
+			selectedWorkspace={workspaceOptions.find(
+				(workspace) => workspace.id === selectedWorkspaceId,
+			)}
+			folder={folder}
+			canConfigureAgentSetup={canConfigureAgentSetup}
+			providerCount={providerCount}
+			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
+		/>
+	) : (
 		<AgentChatInput
 			onSend={(message, busyBehavior) => {
 				void (async () => {
@@ -858,8 +884,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
-			isReadOnly={isReadOnly}
-			readOnlyNotice={readOnlyNotice}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}

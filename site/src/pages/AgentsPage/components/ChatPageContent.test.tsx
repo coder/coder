@@ -6,7 +6,11 @@ import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatQueuedMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockUserChatCompactionThresholds,
@@ -475,6 +479,26 @@ describe("ChatPageInput", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not interrupt a read-only chat when Escape closes the MCP menu", async () => {
+		const user = userEvent.setup();
+		const onInterrupt = vi.fn();
+		const store = createChatStore();
+		store.applyServerChatStatus("running");
+
+		renderChatPageInput(store, {
+			isReadOnly: true,
+			isInputDisabled: true,
+			mcpServers: [MockMCPServerConfig],
+			selectedMCPServerIds: [MockMCPServerConfig.id],
+			onInterrupt,
+		});
+
+		await user.click(await screen.findByRole("button", { name: "1 MCP" }));
+		await user.keyboard("{Escape}{Escape}");
+
+		expect(onInterrupt).not.toHaveBeenCalled();
 	});
 
 	describe("workspace upload drafts", () => {
