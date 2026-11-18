@@ -229,9 +229,8 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 	m.mu.Lock()
 	m.watcher = watcher
-	roots := m.scanRootsLocked()
 	m.mu.Unlock()
-	watcher.Sync(ctx, roots)
+	m.syncWatcher(ctx, watcher)
 
 	defer watcher.Close()
 
@@ -242,13 +241,21 @@ func (m *Manager) Run(ctx context.Context) error {
 		case <-m.closedCh:
 			return nil
 		case <-m.trigger:
-			m.mu.Lock()
-			roots := m.scanRootsLocked()
-			m.mu.Unlock()
-			watcher.Sync(ctx, roots)
+			m.syncWatcher(ctx, watcher)
 			m.resolveAndBroadcast(ctx)
 		}
 	}
+}
+
+// syncWatcher applies the current scan roots and resolve options to
+// watcher. The watcher reads them under its own lock, so m.mu must not
+// be held.
+func (m *Manager) syncWatcher(ctx context.Context, watcher *Watcher) {
+	watcher.SyncLatest(ctx, func() ([]ScanRoot, ResolveOptions) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return m.scanRootsLocked(), m.resolveOptionsLocked()
+	})
 }
 
 // started returns a channel that is closed once Run has
@@ -527,7 +534,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	m.mu.Unlock()
 
 	if watcher != nil {
-		watcher.Sync(ctx, roots)
+		m.syncWatcher(ctx, watcher)
 	}
 
 	// The broadcast is unconditional: Resync waiters that
@@ -574,17 +581,40 @@ func (m *Manager) SetReady() {
 		return
 	}
 	m.ready = true
-	running := m.running
 	m.mu.Unlock()
 
+	m.requestResolve()
+}
+
+// SetPluginsEnabled turns Agent Plugins discovery on or off for
+// subsequent resolve passes. A change queues a re-resolve; an
+// unchanged value is a no-op. Before SetReady, the first resolve
+// honors the flag.
+//
+//nolint:revive // The setting arrives as a bool from the agent manifest.
+func (m *Manager) SetPluginsEnabled(enabled bool) {
+	m.mu.Lock()
+	if m.pluginsEnabled == enabled || m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.pluginsEnabled = enabled
+	m.mu.Unlock()
+
+	m.requestResolve()
+}
+
+// requestResolve signals the Run loop, which owns the watcher, to
+// re-sync and resolve. When Run is not active it resolves inline,
+// which is a no-op until SetReady.
+func (m *Manager) requestResolve() {
+	m.mu.Lock()
+	running := m.running
+	m.mu.Unlock()
 	if running {
-		// The Run loop owns the watcher; signal it to re-sync and resolve
-		// with ready=true.
 		m.signal()
 		return
 	}
-	// No Run loop yet (embedders or tests driving the Manager directly):
-	// resolve inline.
 	m.resolveAndBroadcast(context.Background())
 }
 
