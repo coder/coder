@@ -25,7 +25,7 @@ const CreateTemplatesGalleryPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.createTemplates}>
-			<title>{pageTitle("Create a Template")}</title>
+			<title>{pageTitle("Create a template")}</title>
 
 			<CreateTemplateGalleryPageView
 				error={templateExamplesQuery.error}
