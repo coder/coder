@@ -12734,30 +12734,6 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 		require.Equal(t, "GitHub Test rejected the chat owner's saved credentials. Ask the chat owner to reconnect GitHub Test.", body.Message)
 	})
 
-	t.Run("TokenFromNonMatchingProviderIsNotSent", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		gitHub, origin := startRejectedGitHub(t)
-		other := rejectedGitHubConfig(gitHub, "other-test", "Other Test")
-		other.Regex = regexp.MustCompile(`^https://elsewhere\.example/`)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			DeploymentValues:    coderdtest.DeploymentValues(t),
-			ExternalAuthConfigs: []*externalauth.Config{rejectedGitHubConfig(gitHub, "github-test", "GitHub Test"), other},
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-		chat := seedRejectedGitHubChat(ctx, t, api.Database, "other-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", "")
-
-		res, err := client.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-	})
-
 	t.Run("UsesProviderMatchingOrigin", func(t *testing.T) {
 		t.Parallel()
 

@@ -4847,29 +4847,27 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	var (
-		auth  originAuth
-		token string
-	)
-	for _, match := range api.externalAuthForOrigin(ctx, reference.RepositoryRef.RemoteOrigin) {
-		if token = api.linkedAccessToken(ctx, match.config, chat.OwnerID); token != "" {
-			auth = match
-			break
-		}
-	}
-	if token == "" {
-		// No token available; return metadata without fetching diff.
+	config, gp := api.externalAuthForOrigin(ctx, reference.RepositoryRef.RemoteOrigin)
+	if gp == nil {
 		return result, nil
 	}
 
+	token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
+	if errors.Is(err, gitsync.ErrNoTokenAvailable) || token == nil {
+		// No token available; return metadata without fetching diff.
+		return result, nil
+	} else if err != nil {
+		return result, xerrors.Errorf("resolve git access token: %w", err)
+	}
+
 	if reference.PullRequestURL != "" {
-		ref, ok := auth.provider.ParsePullRequestURL(reference.PullRequestURL)
+		ref, ok := gp.ParsePullRequestURL(reference.PullRequestURL)
 		if !ok {
 			return result, xerrors.Errorf("invalid pull request URL %q", reference.PullRequestURL)
 		}
-		result.Diff, err = auth.provider.FetchPullRequestDiff(ctx, token, ref)
+		result.Diff, err = gp.FetchPullRequestDiff(ctx, *token, ref)
 	} else {
-		result.Diff, err = auth.provider.FetchBranchDiff(ctx, token, gitprovider.BranchRef{
+		result.Diff, err = gp.FetchBranchDiff(ctx, *token, gitprovider.BranchRef{
 			Owner:  reference.RepositoryRef.Owner,
 			Repo:   reference.RepositoryRef.Repo,
 			Branch: reference.RepositoryRef.Branch,
@@ -4877,8 +4875,8 @@ func (api *API) resolveChatDiffContents(
 	}
 	if errors.Is(err, gitprovider.ErrTokenRejected) {
 		return result, &chatDiffReauthError{
-			ProviderID:  auth.config.ID,
-			DisplayName: auth.config.DisplayName,
+			ProviderID:  config.ID,
+			DisplayName: config.DisplayName,
 			err:         err,
 		}
 	}
@@ -5028,17 +5026,14 @@ func selectChatDiffStatus(
 	return database.ChatDiffStatus{}, false
 }
 
-type originAuth struct {
-	config   *externalauth.Config
-	provider gitprovider.Provider
-}
-
-func (api *API) externalAuthForOrigin(ctx context.Context, origin string) []originAuth {
+// externalAuthForOrigin returns the first external auth config whose regex
+// matches origin and whose git provider can be constructed, with that
+// provider. It returns nil, nil when no config qualifies.
+func (api *API) externalAuthForOrigin(ctx context.Context, origin string) (*externalauth.Config, gitprovider.Provider) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
-		return nil
+		return nil, nil
 	}
-	var matches []originAuth
 	for _, extAuth := range api.ExternalAuthConfigs {
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
@@ -5055,9 +5050,9 @@ func (api *API) externalAuthForOrigin(ctx context.Context, origin string) []orig
 		if p == nil {
 			continue
 		}
-		matches = append(matches, originAuth{config: extAuth, provider: p})
+		return extAuth, p
 	}
-	return matches
+	return nil, nil
 }
 
 // resolveExternalAuth finds the external auth config matching the
@@ -5065,11 +5060,11 @@ func (api *API) externalAuthForOrigin(ctx context.Context, origin string) []orig
 // (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
 // if no matching config is found or no provider could be constructed.
 func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
-	matches := api.externalAuthForOrigin(ctx, origin)
-	if len(matches) == 0 {
+	config, gp := api.externalAuthForOrigin(ctx, origin)
+	if config == nil {
 		return "", nil
 	}
-	return strings.ToLower(strings.TrimSpace(matches[0].config.Type)), matches[0].provider
+	return strings.ToLower(strings.TrimSpace(config.Type)), gp
 }
 
 // resolveGitProvider finds the external auth config matching the
@@ -5081,7 +5076,7 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 }
 
 // resolveChatGitAccessToken returns userID's external-auth access token,
-// preferring the configs matching origin and falling back to any config.
+// preferring the config matching origin and falling back to any config.
 // It skips provider validation for tokens passing OAuthToken().Valid(),
 // because provider validation would not change which token is returned.
 // When RefreshToken returns an error, the resolver returns the access token
@@ -5101,7 +5096,27 @@ func (api *API) resolveChatGitAccessToken(
 			if config.Regex == nil || !config.Regex.MatchString(origin) {
 				continue
 			}
-			if token := api.linkedAccessToken(ctx, config, userID); token != "" {
+			//nolint:gocritic // System access needed to read external auth
+			// links when called from the gitsync worker (chatd context).
+			link, err := api.Database.GetExternalAuthLink(dbauthz.AsSystemRestricted(ctx),
+				database.GetExternalAuthLinkParams{
+					ProviderID: config.ID,
+					UserID:     userID,
+				},
+			)
+			if err != nil {
+				continue
+			}
+			if !link.OAuthToken().Valid() {
+				//nolint:gocritic // System context carried through for token refresh.
+				refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
+				if refreshErr == nil {
+					link = refreshed
+				}
+			}
+
+			token := strings.TrimSpace(link.OAuthAccessToken)
+			if token != "" {
 				return new(token), nil
 			}
 		}
@@ -5110,41 +5125,55 @@ func (api *API) resolveChatGitAccessToken(
 	// Fallback: iterate all external auth configs.
 	// Used when origin is empty (inline refresh from HTTP handler)
 	// or when the origin-specific lookup above failed.
+	configs := make(map[string]*externalauth.Config)
+	providerIDs := []string{}
 	for _, config := range api.ExternalAuthConfigs {
-		if token := api.linkedAccessToken(ctx, config, userID); token != "" {
+		providerIDs = append(providerIDs, config.ID)
+		configs[config.ID] = config
+	}
+
+	seen := map[string]struct{}{}
+	for _, providerID := range providerIDs {
+		if _, ok := seen[providerID]; ok {
+			continue
+		}
+		seen[providerID] = struct{}{}
+
+		//nolint:gocritic // System access needed to read external auth
+		// links when called from the gitsync worker (chatd context).
+		link, err := api.Database.GetExternalAuthLink(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetExternalAuthLinkParams{
+				ProviderID: providerID,
+				UserID:     userID,
+			},
+		)
+		if err != nil {
+			continue
+		}
+
+		cfg, hasConfig := configs[providerID]
+		if hasConfig && !link.OAuthToken().Valid() {
+			//nolint:gocritic // System context carried through for token refresh.
+			refreshed, refreshErr := cfg.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
+			if refreshErr != nil {
+				api.Logger.Debug(ctx, "failed to refresh external auth token for chat diff",
+					slog.F("provider_id", providerID),
+					slog.F("user_id", userID),
+					slog.Error(refreshErr),
+				)
+			} else {
+				link = refreshed
+			}
+		}
+
+		token := strings.TrimSpace(link.OAuthAccessToken)
+		if token != "" {
 			return new(token), nil
 		}
 	}
 
 	return nil, gitsync.ErrNoTokenAvailable
-}
-
-func (api *API) linkedAccessToken(ctx context.Context, config *externalauth.Config, userID uuid.UUID) string {
-	//nolint:gocritic // System access needed to read external auth
-	// links when called from the gitsync worker (chatd context).
-	link, err := api.Database.GetExternalAuthLink(dbauthz.AsSystemRestricted(ctx),
-		database.GetExternalAuthLinkParams{
-			ProviderID: config.ID,
-			UserID:     userID,
-		},
-	)
-	if err != nil {
-		return ""
-	}
-	if !link.OAuthToken().Valid() {
-		//nolint:gocritic // System context carried through for token refresh.
-		refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
-		if refreshErr != nil {
-			api.Logger.Debug(ctx, "failed to refresh external auth token for chat diff",
-				slog.F("provider_id", config.ID),
-				slog.F("user_id", userID),
-				slog.Error(refreshErr),
-			)
-		} else {
-			link = refreshed
-		}
-	}
-	return strings.TrimSpace(link.OAuthAccessToken)
 }
 
 type createChatWorkspaceSelection struct {
