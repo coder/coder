@@ -30,7 +30,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 					Share
 				</TopbarButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-145 p-4">
+			<PopoverContent
+				align="end"
+				className="w-[calc(100vw-2rem)] p-3 sm:w-145 sm:p-4"
+			>
 				<div className="flex items-center gap-2 mb-4">
 					<h3 className="text-lg font-semibold m-0">Workspace sharing</h3>
 				</div>
