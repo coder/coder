@@ -167,25 +167,18 @@ func (r *reporter) setBackend(pid int, xid string) {
 // lockWaitStarted is called right before Lock requests the migration lock.
 // The heartbeat only appears if the wait lasts a full interval.
 func (r *reporter) lockWaitStarted(phase string) {
-	// An abandoned Lock can get here after cancel. Logging is skipped, and
-	// the heartbeat below starts already stopped.
-	if r.runCtx.Err() == nil {
-		// Debug level: the lock is usually free, so this should not add a line
-		// to every server start. A real wait shows up through the heartbeat.
-		r.logger.Debug(r.runCtx, msgAcquiringLock,
-			slog.F("phase", phase))
-	}
-
+	// Debug level: the lock is usually free, so this should not add a line
+	// to every server start. A real wait shows up through the heartbeat.
+	r.logger.Debug(r.runCtx, msgAcquiringLock,
+		slog.F("phase", phase))
+	// An abandoned Lock can get here after cancel; its heartbeat derives from
+	// the canceled runCtx and never ticks.
 	r.startHeartbeat(msgStillWaitingLock, r.backendPID)
 }
 
 // lockAcquired is called after Lock acquired the migration lock.
 func (r *reporter) lockAcquired(phase string) {
 	waited := r.stopHeartbeat()
-	// An abandoned Lock that gets the lock after cancel logs nothing.
-	if r.runCtx.Err() != nil {
-		return
-	}
 	r.logger.Debug(r.runCtx, msgAcquiredLock,
 		slog.F("phase", phase),
 		slog.F("waited_ms", waited.Milliseconds()))
@@ -292,6 +285,8 @@ type heartbeat struct {
 	msg    string
 	fields []slog.Field
 	since  time.Time
+	// ctx is canceled by stop or by the run's cancel.
+	ctx    context.Context
 	cancel context.CancelFunc
 	// observerFailed is shared by every heartbeat of the run, so only the
 	// first failed check is logged.
@@ -313,7 +308,8 @@ func (h *heartbeat) stop() {
 }
 
 // tick logs msg with elapsed_ms and the activity of the backend.
-func (h *heartbeat) tick(ctx context.Context) error {
+func (h *heartbeat) tick() error {
+	ctx := h.ctx
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -347,12 +343,11 @@ func (r *reporter) startHeartbeat(msg string, pid int, fields ...slog.Field) {
 		msg:            msg,
 		fields:         fields,
 		since:          r.clock.Now(),
+		ctx:            ctx,
 		cancel:         cancel,
 		observerFailed: &r.observerFailed,
 	}
-	_ = r.clock.TickerFunc(ctx, r.interval, func() error {
-		return h.tick(ctx)
-	}, "migrations", "heartbeat")
+	_ = r.clock.TickerFunc(ctx, r.interval, h.tick, "migrations", "heartbeat")
 	r.hb = h
 }
 

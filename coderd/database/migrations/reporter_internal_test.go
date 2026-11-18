@@ -131,8 +131,8 @@ func WithObserverDB(db *sql.DB) Option {
 }
 
 // TestReporterClosed covers a Lock call that golang-migrate abandoned on its
-// lock timeout: it keeps waiting after the run returned, and nothing it
-// reports afterwards may be logged.
+// lock timeout: it keeps waiting after the run returned. Its lock lines are
+// still logged, but no heartbeat may tick.
 func TestReporterClosed(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -157,7 +157,9 @@ func TestReporterClosed(t *testing.T) {
 	r.lockWaitStarted(phaseBatch)
 	mClock.Advance(time.Second).MustWait(ctx)
 
-	entries := sink.Entries()
-	require.Len(t, entries, 1)
-	require.Equal(t, msgAcquiringLock, entries[0].Message)
+	var messages []string
+	for _, e := range sink.Entries() {
+		messages = append(messages, e.Message)
+	}
+	require.Equal(t, []string{msgAcquiringLock, msgAcquiredLock, msgAcquiringLock}, messages)
 }
