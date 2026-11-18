@@ -6,6 +6,7 @@ describe("InboxButton", () => {
 	it.each([
 		{ unreadCount: 0, name: "Notifications" },
 		{ unreadCount: 3, name: "Notifications, 3 unread" },
+		{ unreadCount: 150, name: "Notifications, 99+ unread" },
 	])(
 		"is operable by its name with $unreadCount unread",
 		async ({ unreadCount, name }) => {
