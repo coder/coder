@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -47,9 +48,21 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	compactChatProjectPinOrders(rows)
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, func(row database.GetChatProjectSummariesByUserIDRow) codersdk.ChatProjectSummary {
-		return db2sdk.ChatProjectSummary(row, api.convertChatProject(r, row.ChatProject))
+	projects, err := api.convertChatProjects(r, slice.List(rows, func(row database.GetChatProjectSummariesByUserIDRow) database.ChatProject {
+		return row.ChatProject
 	}))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat project summaries.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	summaries := make([]codersdk.ChatProjectSummary, 0, len(rows))
+	for i, row := range rows {
+		summaries = append(summaries, db2sdk.ChatProjectSummary(row, projects[i]))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, summaries)
 }
 
 // compactChatProjectPinOrders renumbers the pinned rows 1..N in their
@@ -229,7 +242,8 @@ func (api *API) chatProjectSharingAvailable() bool {
 func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request, project database.ChatProject) bool {
 	ctx := r.Context()
 	userID := httpmw.APIKey(r).UserID
-	// A pin is a personal preference, so reading the project is enough.
+	// A pin is a personal preference, so the project only needs to be
+	// readable.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) ||
 		(project.OwnerID != userID && api.chatSharingDisabled()) {
 		httpapi.ResourceNotFound(rw)
@@ -245,6 +259,13 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	}
 	if !usable {
 		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	// The pin itself is the caller's personal data, which an API key scoped
+	// without user:update_personal may not change. dbauthz refuses that
+	// write, so answer 403 here instead of failing the transaction.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(userID)) {
+		httpapi.Forbidden(rw)
 		return false
 	}
 	return true

@@ -11,7 +11,6 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -133,11 +132,24 @@ func applyReasoningEffort(
 	return options
 }
 
+// openAILowFloorPrefixes lists the OpenAI models that reject none and minimal
+// with HTTP 400, so they start at low. Each entry is a lowercase model ID
+// prefix, which also matches the model's dated snapshots.
+var openAILowFloorPrefixes = []string{
+	"gpt-6-astra",
+	"gpt-6.1-sol",
+	"gpt-6.2-astra",
+	"gpt-6.2-sol",
+}
+
 // openAIReasoningEffort maps the global reasoning effort scale onto what an
-// OpenAI model accepts. GPT-6 Astra and GPT-6.1 Sol reject none with HTTP 400
-// and do not list minimal, so both start at low, the lowest effort they accept.
+// OpenAI model accepts.
 func openAIReasoningEffort(modelID, effort string) string {
-	if !chatopenai.IsGPT6Astra(modelID) && !chatopenai.IsGPT61Sol(modelID) {
+	id := strings.ToLower(modelID)
+	startsAtLow := slices.ContainsFunc(openAILowFloorPrefixes, func(prefix string) bool {
+		return strings.HasPrefix(id, prefix)
+	})
+	if !startsAtLow {
 		return effort
 	}
 	switch effort {

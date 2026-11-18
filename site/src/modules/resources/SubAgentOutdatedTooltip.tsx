@@ -39,11 +39,11 @@ export const SubAgentOutdatedTooltip: React.FC<
 			<HelpPopoverContent>
 				<div className="flex flex-col gap-2">
 					<div>
-						<HelpPopoverTitle>Dev Container Outdated</HelpPopoverTitle>
+						<HelpPopoverTitle>Dev container outdated</HelpPopoverTitle>
 						<HelpPopoverText>
-							This Dev Container is outdated. This can happen if you modify your
-							devcontainer.json file after the Dev Container has been created.
-							To fix this, you can rebuild the Dev Container.
+							This dev container is outdated. This can happen if you modify your
+							devcontainer.json file after the dev container has been created.
+							To fix this, you can rebuild the dev container.
 						</HelpPopoverText>
 					</div>
 
@@ -51,9 +51,9 @@ export const SubAgentOutdatedTooltip: React.FC<
 						<HelpPopoverAction
 							icon={RotateCcwIcon}
 							onClick={onUpdate}
-							ariaLabel="Rebuild Dev Container"
+							ariaLabel="Rebuild dev container"
 						>
-							Rebuild Dev Container
+							Rebuild dev container
 						</HelpPopoverAction>
 					</HelpPopoverLinksGroup>
 				</div>
