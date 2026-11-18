@@ -382,7 +382,9 @@ export const useFilterCombobox = ({
 	const isBrowsing = mode === "browsing";
 
 	const lastEmittedRef = useRef(value);
-	const prevChipKeysRef = useRef(chipKeys);
+	// Compared by content, so an equivalent chipKeys array with a new identity
+	// does not reconcile and drop pending typed text.
+	const prevChipKeysSignatureRef = useRef(chipKeys.join("\0"));
 	const highlightRef = useRef<FilterComboboxHighlight | null>(null);
 	const getHighlightedValue = () => highlightRef.current?.get() ?? "";
 	const setHighlightedValue = (value: string) => {
@@ -440,8 +442,10 @@ export const useFilterCombobox = ({
 	// the self-emit guard. It runs during the commit, so a key handled before
 	// passive effects flush already reads the caller's value.
 	useLayoutEffect(() => {
-		const chipKeysChanged = prevChipKeysRef.current !== chipKeys;
-		prevChipKeysRef.current = chipKeys;
+		const chipKeysSignature = chipKeys.join("\0");
+		const chipKeysChanged =
+			prevChipKeysSignatureRef.current !== chipKeysSignature;
+		prevChipKeysSignatureRef.current = chipKeysSignature;
 		const isExternal = value !== lastEmittedRef.current;
 		if (!isExternal && !chipKeysChanged) {
 			return;
@@ -462,6 +466,10 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
+	const isOptionSelected = (option: FilterOption, token: string) =>
+		option.query !== undefined
+			? value.trim() === option.query.trim()
+			: chipValues.includes(token);
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
 	const scopeChipsOf = (category: FilterCategory) =>
 		category.scopeToggle
@@ -549,7 +557,7 @@ export const useFilterCombobox = ({
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
-				category.key,
+				category.optionsKey,
 				category.getOptions,
 				"",
 				unfilteredOptionsEnabled ||
@@ -674,7 +682,7 @@ export const useFilterCombobox = ({
 
 	const activeOptionsQuery = useQuery(
 		filterComboboxOptions(
-			activeCategoryKey ?? "",
+			activeCategory?.optionsKey ?? "",
 			activeCategory?.getOptions,
 			debouncedActiveOptionsQuery,
 			activeCategoryKey !== null,
@@ -721,7 +729,7 @@ export const useFilterCombobox = ({
 	const suggestionOptions = useQueries({
 		queries: optionLookupCategories.map((category) =>
 			filterComboboxOptions(
-				category.key,
+				category.optionsKey,
 				category.getOptions,
 				debouncedTypeaheadQuery,
 				debouncedTypeaheadQuery.length > 0 &&
@@ -794,7 +802,7 @@ export const useFilterCombobox = ({
 			const token = optionToken(category.key, option);
 			return {
 				token,
-				selected: chipValues.includes(token),
+				selected: isOptionSelected(option, token),
 				showIcon: category.inlineOptionsIcons ?? false,
 				option,
 			};
@@ -872,7 +880,10 @@ export const useFilterCombobox = ({
 					})),
 					typeaheadOptionsByKey,
 					chipValues,
-				);
+				).map((suggestion) => ({
+					...suggestion,
+					selected: isOptionSelected(suggestion.option, suggestion.token),
+				}));
 
 	// A failed category query for the current input ends loading even while
 	// other category queries are still fetching, so the live region announces
@@ -1019,6 +1030,12 @@ export const useFilterCombobox = ({
 	// switches the key.
 	const withCategoryOption = (token: string) => {
 		const category = categoryForChip(token);
+		if (category?.singleSelect) {
+			return [
+				...chipValues.filter((chip) => categoryForChip(chip) !== category),
+				token,
+			];
+		}
 		const scopeChips = category ? scopeChipsOf(category) : [];
 		const replaced =
 			scopeChips.find((chip) => chipKeyOf(chip) === chipKeyOf(token)) ??
@@ -1028,17 +1045,45 @@ export const useFilterCombobox = ({
 			: chipValues.map((chip) => (chip === replaced ? token : chip));
 	};
 
-	const toggledChips = (
-		token: string,
-		add = () => [...chipValues, token],
-	): string[] =>
+	const withValueSuggestion = (token: string) =>
+		categoryForChip(token)?.singleSelect
+			? withCategoryOption(token)
+			: [...chipValues, token];
+
+	const toggledChips = (token: string, add: () => string[]): string[] =>
 		chipValues.includes(token)
 			? chipValues.filter((chip) => chip !== token)
 			: add();
 
+	const applyQueryOption = (token: string): boolean => {
+		for (const category of categories) {
+			const options = [
+				...(unfilteredOptions.optionsByKey.get(category.key) ?? []),
+				...(suggestionOptions.optionsByKey.get(category.key) ?? []),
+				...(activeCategory?.key === category.key ? (activeOptions ?? []) : []),
+			];
+			const option = options.find(
+				(option) => optionTokenFor(category, option) === token,
+			);
+			if (option?.query !== undefined) {
+				dispatch({ type: "clear" });
+				emitQuery(option.query);
+				closeMenu();
+				return true;
+			}
+		}
+		return false;
+	};
+
 	// The typed text only located the suggestion, so it is dropped either way.
 	const toggleValueSuggestion = (token: string) => {
-		updateFromChips(toggledChips(token), "");
+		if (applyQueryOption(token)) {
+			return;
+		}
+		updateFromChips(
+			toggledChips(token, () => withValueSuggestion(token)),
+			"",
+		);
 		closeMenu();
 	};
 
@@ -1081,10 +1126,16 @@ export const useFilterCombobox = ({
 	};
 
 	const commitCategoryOption = (token: string) => {
+		if (applyQueryOption(token)) {
+			return;
+		}
 		applyCategoryChips(withCategoryOption(token));
 	};
 
 	const toggleCategoryOption = (token: string) => {
+		if (applyQueryOption(token)) {
+			return;
+		}
 		applyCategoryChips(toggledChips(token, () => withCategoryOption(token)));
 	};
 
@@ -1101,6 +1152,9 @@ export const useFilterCombobox = ({
 	};
 
 	const toggleInlineOption = (token: string) => {
+		if (applyQueryOption(token)) {
+			return;
+		}
 		applyInlineChips(toggledChips(token, () => withInlineOption(token)));
 	};
 
@@ -1150,7 +1204,7 @@ export const useFilterCombobox = ({
 			return undefined;
 		}
 		const options = filterComboboxOptions(
-			category.key,
+			category.optionsKey,
 			category.getOptions,
 			"",
 			true,
@@ -1190,7 +1244,12 @@ export const useFilterCombobox = ({
 			const [unfiltered, filtered] = await Promise.all([
 				unfilteredForMenuCheck(category),
 				queryClient.fetchQuery(
-					filterComboboxOptions(category.key, category.getOptions, text, true),
+					filterComboboxOptions(
+						category.optionsKey,
+						category.getOptions,
+						text,
+						true,
+					),
 				),
 			]);
 			// Chips may change while the lookup runs, so read the last sent query.
@@ -1622,6 +1681,7 @@ export const useFilterCombobox = ({
 		valueSuggestions,
 		inlineSections,
 		chipValues,
+		isOptionSelected,
 		highlightRef,
 		scopeState: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);

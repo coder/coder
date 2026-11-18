@@ -19,36 +19,44 @@ func TestExtractAppName(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name string
-		env  []string
+		name       string
+		env        []string
+		rawCommand string
 		// keepEnv, when set, must survive filtering.
 		keepEnv string
 		want    string
 	}{
-		{"NoEnvDefaultsToSSH", []string{"FOO=bar"}, "FOO=bar", "ssh"},
-		{"EmptyValueDefaultsToSSH", envWith(""), "", "ssh"},
-		{"VSCode", envWith("vscode"), "", "vscode"},
-		{"JetBrainsLegacyCasing", envWith("JetBrains"), "", "jetbrains"},
-		{"UnknownTypeNormalized", envWith("Cursor-Nightly"), "", "cursor_nightly"},
-		{"LastInstanceWins", append(envWith("vscode"), AppNameEnvironmentVariable+"=cursor"), "", "cursor"},
+		{"NoEnvDefaultsToSSH", []string{"FOO=bar"}, "", "FOO=bar", "ssh"},
+		{"EmptyValueDefaultsToSSH", envWith(""), "", "", "ssh"},
+		{"VSCode", envWith("vscode"), "", "", "vscode"},
+		{"JetBrainsLegacyCasing", envWith("JetBrains"), "", "", "jetbrains"},
+		{"UnknownTypeNormalized", envWith("Cursor-Nightly"), "", "", "cursor_nightly"},
+		{"LastInstanceWins", append(envWith("vscode"), AppNameEnvironmentVariable+"=cursor"), "", "", "cursor"},
+		// Command shapes Zed sends over SSH (crates/remote/src/transport/ssh.rs).
+		{"ZedProxy", nil, "cd; env RUST_LOG=info .zed_server/zed-remote-server-stable-1.28.1+stable.390.e8bc16ac proxy --identifier workspace-2 --reconnect", "", "zed"},
+		{"ZedProxyQuotedPath", nil, "cd; env '.zed_server/zed-remote-server-preview-0.201.0' proxy --identifier 'abc-1'", "", "zed"},
+		{"ZedVersionProbeIsSSH", nil, "cd; .zed_server/zed-remote-server-stable-0.200.0 version", "", "ssh"},
+		{"ExplicitAppNameWinsOverZed", envWith("vscode"), "cd; env .zed_server/zed-remote-server-stable-0.200.0 proxy --identifier abc", "", "vscode"},
 		// A variable that merely starts with the same characters is a
 		// different variable, not an app name.
 		{
 			"LongerVariableIgnored",
 			[]string{AppNameEnvironmentVariable + "_FOO=bar"},
+			"",
 			AppNameEnvironmentVariable + "_FOO=bar",
 			"ssh",
 		},
 		{
 			"LongerVariableDoesNotShadowAppName",
 			append(envWith("cursor"), AppNameEnvironmentVariable+"_FOO=bar"),
+			"",
 			AppNameEnvironmentVariable + "_FOO=bar",
 			"cursor",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			appName, _, filteredEnv := extractAppName(tc.env)
+			appName, _, filteredEnv := extractAppName(tc.env, tc.rawCommand)
 			require.Equal(t, tc.want, appName)
 			for _, kv := range filteredEnv {
 				require.NotContains(t, kv, AppNameEnvironmentVariable+"=")

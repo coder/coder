@@ -19,18 +19,14 @@ name: audit-docs-paths
 # ----------------------------------------------------
 # The audit needs coder/coder.com, which is a PRIVATE repo. The default
 # GITHUB_TOKEN cannot read another repo, so the coder.com checkout below
-# uses the cdrci machine-user token (secrets.CDRCI_GITHUB_TOKEN), the
-# same org CI credential already used for cross-repo checkouts in
-# release.yaml. The job
-# stays dormant behind a repository variable so it can merge without
-# running until an operator has validated it once.
+# uses a read-only coder-ci-reader App token scoped to coder.com. Issue
+# writes on this repo use the default GITHUB_TOKEN. The job stays dormant
+# behind a repository variable so it can merge without running until an
+# operator has validated it once.
 #
 # To enable
-#   1. secrets.CDRCI_GITHUB_TOKEN (the cdrci CI bot, a coder.com
-#      collaborator) reads coder/coder.com. Issue writes on this repo are
-#      covered by the default GITHUB_TOKEN below, not by this token.
-#   2. Set the repository variable AUDIT_DOCS_PATHS_ENABLED to 'true'.
-#   3. Trigger once from the Actions UI (workflow_dispatch) to confirm an
+#   1. Set the repository variable AUDIT_DOCS_PATHS_ENABLED to 'true'.
+#   2. Trigger once from the Actions UI (workflow_dispatch) to confirm an
 #      end-to-end run before relying on the schedule.
 #
 # What it does with findings
@@ -58,9 +54,11 @@ jobs:
     # Dormant until an operator flips the variable. See the header comment.
     if: vars.AUDIT_DOCS_PATHS_ENABLED == 'true'
     runs-on: ubuntu-latest
+    environment: main
     permissions:
       contents: read # checkout
       issues: write # open/update/close the tracked issue via GITHUB_TOKEN
+      id-token: write # Cloud KMS signs the coder-ci-reader App's JWT
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -74,7 +72,21 @@ jobs:
         with:
           persist-credentials: false
 
-      # coder/coder.com beside it, read with the cdrci org CI token
+      - name: Generate coder-ci-reader App token
+        id: reader_token
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.CODER_CI_READER_APP_ID }}
+          kms-key: ${{ secrets.CODER_CI_READER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder.com
+          permissions: |
+            contents: read
+
+      # coder/coder.com beside it, read with the coder-ci-reader token
       # (the default GITHUB_TOKEN can't read another private repo). The
       # audit's report path detection keys off the ".../coder/site/" and
       # ".../coder.com/src/" path segments, which the absolute --roots
@@ -84,7 +96,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/coder.com
           path: coder.com
-          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          token: ${{ steps.reader_token.outputs.token }}
           persist-credentials: false
 
       - name: Set up mise tools

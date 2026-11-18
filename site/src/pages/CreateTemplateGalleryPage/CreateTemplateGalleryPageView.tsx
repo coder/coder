@@ -33,7 +33,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 								rel="noopener noreferrer"
 								className="flex items-center"
 							>
-								Browse other Templates on the Coder Registry
+								Browse other templates on the Coder Registry
 								<ExternalLinkIcon className="size-icon-sm ml-1" />
 							</a>
 						</Button>
@@ -51,29 +51,26 @@ export const CreateTemplateGalleryPageView: React.FC<
 					</div>
 				}
 			>
-				<PageHeaderTitle>Create a Template</PageHeaderTitle>
+				<PageHeaderTitle>Create a template</PageHeaderTitle>
 			</PageHeader>
 			<div className="flex flex-col gap-16">
-				<div className="flex flex-row gap-8">
-					<div className="w-[202px]">
-						<h2 className="m-0 text-base font-normal text-content-primary">
+				<div className="flex gap-8">
+					<div className="w-50.5">
+						<h2 className="m-0 text-base text-content-primary">
 							Choose a starting point for your new template
 						</h2>
 					</div>
 					<div className="flex h-max flex-wrap gap-8">
 						<RouterLink
 							to="/templates/new"
-							className="flex h-[115px] w-[320px] items-center gap-6 rounded-md border border-solid border-border p-4 text-inherit no-underline hover:bg-surface-secondary"
+							className="flex h-28.75 w-[320px] items-center gap-6 rounded-md border p-4 text-inherit no-underline hover:bg-surface-secondary"
 						>
 							<div className="size-8 shrink-0">
-								<ExternalImage
-									src="/emojis/1f4e1.png"
-									className="h-full w-full"
-								/>
+								<ExternalImage src="/emojis/1f4e1.png" className="size-full" />
 							</div>
 							<div>
 								<h4 className="m-0 mb-1 text-sm font-semibold text-content-secondary">
-									Upload Template
+									Upload template
 								</h4>
 								<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
 									Get started by uploading an existing template

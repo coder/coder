@@ -109,7 +109,7 @@ test.describe("audit logs", () => {
 		// Filter by resource type
 		await resetSearch(page, username);
 		await page.getByText("All resource types").click();
-		const workspaceBuildsOption = page.getByText("Workspace Build");
+		const workspaceBuildsOption = page.getByText("Workspace build");
 		await workspaceBuildsOption.scrollIntoViewIfNeeded({ timeout: 5000 });
 		await workspaceBuildsOption.click();
 		// Our workspace build should be visible

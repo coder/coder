@@ -4,7 +4,7 @@ title: Security
 
 <children></children>
 
-For other security tips, visit our guide to [security best practices](../../tutorials/best-practices/security-best-practices.md).
+For other security tips, visit our guide to [security best practices](security-best-practices.md).
 
 ## Security Advisories
 

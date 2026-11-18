@@ -233,7 +233,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
-The redirect URI for Gitea should be `https://coder.example.com/external-auth/gitea/callback`.
+The redirect URI for Gitea is `https://coder.example.com/external-auth/gitea/callback`.
 
 ### GitHub
 
@@ -263,7 +263,11 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_EXTERNAL_AUTH_0_REGEX=^(https?://)?github\.example\.com(/.*)?$
 ```
+
+The default regex matches only `github.com`, so set `CODER_EXTERNAL_AUTH_0_REGEX` to match your GitHub Enterprise host.
+Anchor the expression with `^` and `$` as in the example, so that it does not also match a look-alike host such as `github.example.com.attacker.example`.
 
 When configuring your GitHub Enterprise OAuth application, set the [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url) as `https://example.com/external-auth/primary-github/callback`, where `primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 
@@ -293,7 +297,7 @@ Visit the [JFrog Artifactory](./integrations/jfrog-artifactory.md) guide for ins
 
 ## Self-managed Git providers
 
-Custom authentication and token URLs should be used for self-managed Git provider deployments.
+Use custom authentication and token URLs for self-managed Git provider deployments.
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
@@ -341,7 +345,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    | Members       | Read-only    | Grants access to organization members and teams.       |
 
 1. Install the App for your organization.
-   You may select a subset of repositories to grant access to.
+   You can grant access to a subset of repositories.
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 

@@ -132,7 +132,7 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 						</SettingsHeaderDescription>
 					</SettingsHeader>
 					<div className="flex flex-col gap-2">
-						<div className="flex flex-row items-end gap-2">
+						<div className="flex items-end gap-2">
 							<div className="flex flex-col gap-2">
 								<Label htmlFor={`${id}-sync-field`}>Role sync field</Label>
 								<Input
@@ -173,7 +173,7 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 							Map IdP roles to Coder roles.
 						</SettingsHeaderDescription>
 					</SettingsHeader>
-					<div className="flex flex-row gap-2 justify-between items-start">
+					<div className="flex gap-2 justify-between items-start">
 						<div className="grid items-center gap-1 w-72">
 							<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
 								IdP role name
@@ -196,7 +196,7 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 											placeholder="Select IdP role"
 										/>
 									</ComboboxTrigger>
-									<ComboboxContent className="w-72">
+									<ComboboxContent className="w-72" label="Search IdP roles">
 										<ComboboxInput
 											value={comboInputValue}
 											onValueChange={setComboInputValue}
@@ -323,7 +323,7 @@ const RoleRow: React.FC<RoleRowProps> = ({
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2 text-content-primary">
+				<div className="flex items-center gap-2 text-content-primary">
 					{idpRole}
 					{!exists && <IdpUnseenClaimWarning />}
 				</div>

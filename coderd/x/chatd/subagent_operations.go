@@ -102,7 +102,6 @@ func (p *Server) sendSubagentMessage(
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	message string,
-	busyBehavior SendMessageBusyBehavior,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -127,7 +126,7 @@ func (p *Server) sendSubagentMessage(
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		BusyBehavior: busyBehavior,
+		BusyBehavior: SendMessageBusyBehaviorSteer,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -154,24 +153,11 @@ func (p *Server) interruptSubagent(
 		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	// Idle and paused chats have no turn to interrupt.
-	if targetChat.Status == database.ChatStatusWaiting || targetChat.Status == database.ChatStatusPaused {
-		return targetChat, false, nil
-	}
-
-	updatedChat, err := p.InterruptChat(ctx, targetChat)
+	updatedChat, interrupted, err := p.InterruptChat(ctx, targetChat)
 	if err != nil {
-		// Idle / archived chats no longer satisfy the
-		// chatstate.Interrupt precondition. Surface the error
-		// so the caller can decide whether the parent expected
-		// the subagent to already be waiting.
 		return database.Chat{}, false, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
-	// chatstate.Interrupt lands active runs in `interrupting`
-	// and requires-action chats in `running`. Workers finalize
-	// the transition; accept either non-active status as long as
-	// the transition committed.
-	return updatedChat, true, nil
+	return updatedChat, interrupted, nil
 }
 
 func (p *Server) listSubagents(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error) {
@@ -401,7 +387,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	titleSource := database.ChatTitleSourceUser
 	if title == "" {
-		title = subagentFallbackChatTitle(prompt)
+		title = chatprompt.FallbackTitle(prompt)
 		titleSource = database.ChatTitleSourceFallback
 	}
 
@@ -701,40 +687,4 @@ func isSubagentDescendant(
 		}
 		currentID = chat.ParentChatID.UUID
 	}
-}
-
-func subagentFallbackChatTitle(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return chatprompt.DefaultChatTitle
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "..."
-	}
-
-	return subagentTruncateRunes(title, maxRunes)
-}
-
-func subagentTruncateRunes(value string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-
-	return string(runes[:maxRunes])
 }

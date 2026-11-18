@@ -22,19 +22,19 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 }) => (
 	<div
 		className={cn(
-			"overflow-hidden rounded-md border border-solid border-border bg-surface-primary",
+			"overflow-hidden rounded-md border bg-surface-primary",
 			className,
 		)}
 	>
 		{command?.trim() && (
-			<div className="flex items-start gap-1.5 border-0 border-b border-solid border-border bg-surface-secondary px-3 py-1.5">
+			<div className="flex items-start gap-1.5 border-b bg-surface-secondary px-3 py-1.5">
 				<span
 					aria-hidden
 					className="select-none shrink-0 font-mono text-xs leading-5 text-content-secondary"
 				>
 					$
 				</span>
-				<pre className="m-0 min-w-0 flex-1 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
+				<pre className="m-0 min-w-0 flex-1 whitespace-pre-wrap break-all bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
 					{command}
 				</pre>
 				{headerTrailing}

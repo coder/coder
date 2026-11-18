@@ -19,7 +19,7 @@ export const MenuOpen: Story = {
 		const canvas = within(canvasElement);
 
 		await user.click(
-			canvas.getByRole("button", { name: "Dev Container actions" }),
+			canvas.getByRole("button", { name: "Dev container actions" }),
 		);
 	},
 };
@@ -30,7 +30,7 @@ export const ConfirmDialogOpen: Story = {
 		const canvas = within(canvasElement);
 
 		await user.click(
-			canvas.getByRole("button", { name: "Dev Container actions" }),
+			canvas.getByRole("button", { name: "Dev container actions" }),
 		);
 
 		const body = canvasElement.ownerDocument.body;
@@ -47,7 +47,7 @@ export const ConfirmDeleteCallsAPI: Story = {
 		const canvas = within(canvasElement);
 
 		await user.click(
-			canvas.getByRole("button", { name: "Dev Container actions" }),
+			canvas.getByRole("button", { name: "Dev container actions" }),
 		);
 
 		const body = canvasElement.ownerDocument.body;

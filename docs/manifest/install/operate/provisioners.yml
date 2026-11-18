@@ -7,4 +7,3 @@ children:
   - title: Manage provisioner jobs
     description: Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.
     path: ./install/operate/provisioners/manage-provisioner-jobs.md
-    state: [premium]

@@ -20,11 +20,18 @@ version)
 	exit 0
 	;;
 init)
-	echo "init"
-	echo >&2 "Error: Failed to install provider"
-	echo >&2 "    Error while installing coder/coder v1.0.4: open"
-	echo >&2 "    /home/coder/.cache/coder/provisioner-0/tf/registry.terraform.io/coder/coder/1.0.3/linux_amd64/terraform-provider-coder_v1.0.4:"
-	echo >&2 "    text file busy"
+	case " $* " in
+	*" -json "*)
+		echo '{"@level":"error","@message":"Error: Failed to install provider","@module":"terraform.ui","diagnostic":{"severity":"error","summary":"Failed to install provider","detail":"Error while installing coder/coder v1.0.4: open /home/coder/.cache/coder/provisioner-0/tf/registry.terraform.io/coder/coder/1.0.4/linux_amd64/terraform-provider-coder_v1.0.4: text file busy"},"type":"diagnostic"}'
+		;;
+	*)
+		echo "init"
+		echo >&2 "Error: Failed to install provider"
+		echo >&2 "    Error while installing coder/coder v1.0.4: open"
+		echo >&2 "    /home/coder/.cache/coder/provisioner-0/tf/registry.terraform.io/coder/coder/1.0.3/linux_amd64/terraform-provider-coder_v1.0.4:"
+		echo >&2 "    text file busy"
+		;;
+	esac
 	exit 1
 	;;
 plan)

@@ -122,7 +122,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	});
 	const maxPortShareHelperId = `${maxPortShareField.id}-helper`;
 	const corsBehaviorField = getFieldHelpers("cors_behavior", {
-		helperText: "Use Passthru to bypass Coder's built-in CORS protection.",
+		helperText: "Use passthru to bypass Coder's built-in CORS protection.",
 	});
 	const corsBehaviorHelperId = `${corsBehaviorField.id}-helper`;
 	const moduleCacheDisabledByDeployment =
@@ -198,7 +198,6 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						{...getFieldHelpers("icon")}
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						fullWidth
 						label="Icon"
 						onPickEmoji={(value) => form.setFieldValue("icon", value)}
 					/>
@@ -280,7 +279,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-										<div className="flex flex-row gap-4 items-center mt-4">
+										<div className="flex gap-4 items-center mt-4">
 											<PremiumBadge />
 											<span>Premium license required to be enabled.</span>
 										</div>
@@ -305,7 +304,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						/>
 						<Label htmlFor="disable_module_cache">
 							<StackLabel>
-								<span className="flex flex-row gap-2 items-center">
+								<span className="flex gap-2 items-center">
 									Disable Terraform module caching
 									{moduleCacheDisabledByDeployment && (
 										<Badge variant="warning" size="sm" svgSize="sm">
@@ -317,7 +316,9 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 								<StackLabelHelperText>
 									<span>
 										When checked, Terraform modules are re-downloaded for each
-										workspace build instead of using cached versions.{" "}
+										workspace build instead of using cached versions, and builds
+										don't reuse the provider lock file saved when the template
+										version was imported.{" "}
 										<strong>
 											Warning: This makes workspace builds less predictable and
 											is not recommended for production templates.
@@ -325,7 +326,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									</span>
 
 									{moduleCacheDisabledByDeployment && (
-										<span className="flex flex-row gap-2 items-start mt-4">
+										<span className="flex gap-2 items-start mt-4">
 											<TriangleAlertIcon className="size-icon-sm shrink-0 mt-0.5 text-content-warning" />
 											<span>
 												<strong>
@@ -366,8 +367,10 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									<Link
 										className="text-xs"
 										href={docs(
-											"/admin/templates/extending-templates/resource-persistence",
+											"/templates/extending-templates/resource-persistence",
 										)}
+										target="_blank"
+										rel="noreferrer"
 									>
 										Learn more
 									</Link>
@@ -388,14 +391,14 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 							helperText:
 								"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
 						})}
-						label="Deprecation Message"
+						label="Deprecation message"
 						disabled={
 							isSubmitting || (!template.deprecated && !accessControlEnabled)
 						}
 						className="w-full"
 					/>
 					{!accessControlEnabled && (
-						<div className="flex flex-row gap-4 items-center">
+						<div className="flex gap-4 items-center">
 							<PremiumBadge />
 							<span className="text-xs text-content-secondary">
 								Premium license required to deprecate templates.
@@ -408,16 +411,16 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 			</FormSection>
 
 			<FormSection
-				title="Port Sharing"
-				description="Shared ports with the Public sharing level can be accessed by anyone,
-          while ports with the Authenticated sharing level can only be accessed
-          by authenticated Coder users. Ports with the Owner sharing level can
+				title="Port sharing"
+				description="Shared ports with the public sharing level can be accessed by anyone,
+          while ports with the authenticated sharing level can only be accessed
+          by authenticated Coder users. Ports with the owner sharing level can
           only be accessed by the workspace owner."
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
 						<Label htmlFor={maxPortShareField.id}>
-							Maximum Port Sharing Level
+							Maximum port sharing level
 						</Label>
 						<Select
 							value={
@@ -467,7 +470,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						)}
 					</div>
 					{!portSharingControlsEnabled && (
-						<div className="flex flex-row gap-4 items-center">
+						<div className="flex gap-4 items-center">
 							<PremiumBadge />
 							<span className="text-xs text-content-secondary">
 								Premium license required to control max port sharing level.
@@ -478,12 +481,12 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 			</FormSection>
 
 			<FormSection
-				title="CORS Behavior"
+				title="CORS behavior"
 				description="Control how Cross-Origin Resource Sharing (CORS) requests are handled for all shared ports."
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
-						<Label htmlFor={corsBehaviorField.id}>CORS Behavior</Label>
+						<Label htmlFor={corsBehaviorField.id}>CORS behavior</Label>
 						<Select
 							value={form.values.cors_behavior}
 							onValueChange={(value) => {

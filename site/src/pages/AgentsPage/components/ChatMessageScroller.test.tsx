@@ -27,21 +27,20 @@ beforeEach(() => {
 	vi.stubGlobal("cancelAnimationFrame", (handle: number) =>
 		window.clearTimeout(handle),
 	);
-	// jsdom has no Element.scrollTo. The scroller only calls its options form.
-	Element.prototype.scrollTo = function (
+	// The scroller only calls scrollTo's options form.
+	vi.spyOn(Element.prototype, "scrollTo").mockImplementation(function (
 		this: Element,
 		options?: ScrollToOptions | number,
 	) {
 		if (typeof options === "object") {
 			this.scrollTop = options.top ?? 0;
 		}
-	};
+	});
 });
 
 afterEach(() => {
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
-	Reflect.deleteProperty(Element.prototype, "scrollTo");
 });
 
 const nextFrames = () =>
@@ -74,7 +73,6 @@ it.each([true, false])(
 				<ChatMessageScroller
 					hasMoreMessages
 					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
 					hasFetchMoreError={false}
 					hasTranscriptRows
 					onFetchMoreMessages={onFetchMoreMessages}
