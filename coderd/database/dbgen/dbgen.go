@@ -110,7 +110,7 @@ func ChatProjectPin(t testing.TB, db database.Store, seed database.ChatProjectPi
 	err := db.InsertChatProjectPin(genCtx, database.InsertChatProjectPinParams{UserID: seed.UserID, ProjectID: seed.ProjectID})
 	require.NoError(t, err, "insert chat project pin")
 	if seed.Source == database.ChatProjectPinSourceUser {
-		err = db.PinChatProject(genCtx, database.PinChatProjectParams{UserID: seed.UserID, ProjectID: seed.ProjectID, ACLEnabled: true, PinOrder: sql.NullInt32{}})
+		err = db.PinChatProject(genCtx, database.PinChatProjectParams{UserID: seed.UserID, ProjectID: seed.ProjectID, PinOrder: sql.NullInt32{}})
 		require.NoError(t, err, "pin chat project")
 	}
 }
