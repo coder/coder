@@ -65,7 +65,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	const moduleCount = selectedModules?.length ?? 0;
 	const status = [
 		selectedTemplate && `Base template: ${selectedTemplate.name}.`,
-		maxReachedStep >= 2 &&
+		reachable(2) &&
 			`${moduleCount} ${moduleCount === 1 ? "module" : "modules"} selected.`,
 	]
 		.filter(Boolean)
