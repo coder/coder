@@ -173,7 +173,6 @@ const StreamingChat: React.FC = () => {
 				<ChatMessageScroller
 					hasMoreMessages={false}
 					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
 					hasFetchMoreError={false}
 					hasTranscriptRows
 					onFetchMoreMessages={async () => {}}

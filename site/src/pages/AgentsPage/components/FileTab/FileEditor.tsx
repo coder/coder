@@ -2,9 +2,9 @@ import Editor, { loader } from "@monaco-editor/react";
 import { cn } from "cn";
 import * as monaco from "monaco-editor";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { useCoderTheme } from "#/components/SyntaxHighlighter/coderTheme";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
+import { getMonacoTheme } from "#/theme/monaco";
 import "#/utils/monacoEnvironment";
 import "./FileEditor.css";
 import {
@@ -19,6 +19,8 @@ loader.config({ monaco });
 const suppressSemanticDiagnostics = createSemanticDiagnosticsSuppressor(
 	monaco.typescript.typescriptDefaults,
 );
+
+const monacoThemeName = "coder";
 
 // Cursor moves and scrolling arrive many times a second.
 const viewStateSaveDelayMs = 250;
@@ -102,7 +104,9 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	onStatusChange,
 }) => {
 	const theme = useTheme();
-	const coderTheme = useCoderTheme();
+	// The Monaco theme is read from the page's CSS color tokens, so it is
+	// defined after mount and again when the color mode changes.
+	const [isThemeDefined, setIsThemeDefined] = useState(false);
 	const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>();
 	const save = useEffectEvent(onSave);
 	const revealed = useEffectEvent(onRevealed);
@@ -117,6 +121,11 @@ const FileEditor: React.FC<FileEditorProps> = ({
 	// The mount applies the first reveal before Monaco paints, so the effect
 	// below must not apply it again.
 	const appliedRevealRef = useRef<FileReveal>(undefined);
+
+	useEffect(() => {
+		monaco.editor.defineTheme(monacoThemeName, getMonacoTheme(theme.mode));
+		setIsThemeDefined(true);
+	}, [theme.mode]);
 
 	useEffect(() => {
 		// Text measured before the monospace font loads misplaces selections.
@@ -188,7 +197,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		revealed();
 	}, [editor, reveal]);
 
-	if (coderTheme.isLoading) {
+	if (!isThemeDefined) {
 		return null;
 	}
 
@@ -196,7 +205,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 		<div
 			data-pixel="ignore"
 			className="agents-file-editor relative min-h-0 flex-1"
-			style={{ backgroundColor: theme.monaco.colors["editor.background"] }}
+			style={{ backgroundColor: "var(--editor-background)" }}
 		>
 			<div
 				// Monaco paints the top of the file before onMount can restore the
@@ -206,7 +215,7 @@ const FileEditor: React.FC<FileEditorProps> = ({
 				<Editor
 					path={monaco.Uri.file(path).toString()}
 					value={value}
-					theme={coderTheme.name}
+					theme={monacoThemeName}
 					loading={null}
 					options={{
 						fontFamily: MONOSPACE_FONT_FAMILY,

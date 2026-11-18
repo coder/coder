@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API, type WorkspaceAgentFileContents } from "#/api/api";
 import type {
 	ChatMessage,
+	ChatMessagePart,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -22,7 +23,6 @@ import {
 	savePersistedMainTabs,
 } from "../../utils/mainTabStorage";
 import { type ChatStore, createChatStore } from "../ChatConversation/chatStore";
-import type { StreamState } from "../ChatConversation/types";
 import type FileEditor from "../FileTab/FileEditor";
 import { MainTabs } from "./MainTabs";
 import { fileCheckIntervalMs } from "./useFileTabRefresh";
@@ -171,12 +171,15 @@ const renderHarness = (
 	paths: readonly string[] = [],
 	{
 		isAgentConnected,
-		streamState = null,
-	}: { isAgentConnected?: boolean; streamState?: StreamState | null } = {},
+		streamParts = [],
+	}: {
+		isAgentConnected?: boolean;
+		streamParts?: readonly ChatMessagePart[];
+	} = {},
 ) => {
 	const queryClient = createTestQueryClient();
 	const store = createChatStore();
-	store.setStreamState(streamState);
+	store.applyMessageParts(streamParts);
 	const repositoriesStore = createRepositoriesStore();
 	const watcherMessages = createWatcherMessages();
 	const router = createMemoryRouter([
@@ -202,8 +205,11 @@ const renderHarness = (
 	return {
 		...result,
 		router,
-		setStreamState: (state: StreamState) =>
-			act(() => store.setStreamState(state)),
+		streamParts: (parts: readonly ChatMessagePart[]) =>
+			act(() => {
+				store.clearStreamState();
+				store.applyMessageParts(parts);
+			}),
 		upsertMessages: (messages: readonly ChatMessage[]) =>
 			act(() => store.upsertDurableMessages(messages)),
 		setRepositories: (repositories: Repositories) =>
@@ -241,16 +247,20 @@ const repoWithDiff = (
 const fileDiff = (path: string, line: string) =>
 	`diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-package main\n+${line}\n`;
 
+/** The stream parts of a completed file tool call. */
 const fileToolStream = (
 	id: string,
 	name: string,
-	args: unknown,
-): StreamState => ({
-	blocks: [],
-	toolCalls: { [id]: { id, name, args } },
-	toolResults: { [id]: { id, name, isError: false } },
-	sources: [],
-});
+	args: Record<string, unknown>,
+): ChatMessagePart[] => [
+	{
+		type: "tool-call",
+		tool_call_id: id,
+		tool_name: name,
+		args_delta: JSON.stringify(args),
+	},
+	{ type: "tool-result", tool_call_id: id, tool_name: name, result: {} },
+];
 
 /** The durable messages of a completed write_file call. */
 const writeFileMessages = (
@@ -815,15 +825,15 @@ describe("MainTabs", () => {
 				activePath: "/repo/a.go",
 			});
 			// Completed before the page loaded, so the first read covers it.
-			const { setStreamState } = renderHarness([], {
-				streamState: fileToolStream("call-1", "write_file", {
+			const { streamParts } = renderHarness([], {
+				streamParts: fileToolStream("call-1", "write_file", {
 					path: "/repo/a.go",
 				}),
 			});
 			await screen.findByLabelText("File contents");
 			expect(reads("/repo/a.go")).toBe(1);
 
-			setStreamState(
+			streamParts(
 				fileToolStream("call-2", "edit_files", {
 					files: [{ path: "a.go", edits: [] }],
 				}),
@@ -853,12 +863,12 @@ describe("MainTabs", () => {
 
 		it("rereads once for a tool result in the stream and then in its message", async () => {
 			const user = userEvent.setup();
-			const { setStreamState, upsertMessages } = renderHarness(["/repo/a.go"]);
+			const { streamParts, upsertMessages } = renderHarness(["/repo/a.go"]);
 			await user.click(screen.getByRole("button", { name: "Open /repo/a.go" }));
 			await screen.findByLabelText("File contents");
 			await upsertMessages(writeFileMessages(1, "call-0", "/repo/b.go"));
 
-			setStreamState(
+			streamParts(
 				fileToolStream("call-1", "write_file", { path: "/repo/a.go" }),
 			);
 			await waitFor(() => {

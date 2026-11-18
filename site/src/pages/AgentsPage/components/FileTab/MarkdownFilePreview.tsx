@@ -131,7 +131,7 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 		}
 	}
 	// GitHub shows these only in the matching color scheme.
-	const hiddenModeSuffix = `#gh-${theme.palette.mode === "dark" ? "light" : "dark"}-mode-only`;
+	const hiddenModeSuffix = `#gh-${theme.mode === "dark" ? "light" : "dark"}-mode-only`;
 
 	const scrollToAnchor = (id: string) => {
 		const targetId = `${previewIdPrefix}${id}`;
@@ -290,7 +290,7 @@ export const MarkdownFilePreview: React.FC<MarkdownFilePreviewProps> = ({
 			{/* Streamdown's block memo ignores new components, so the overrides
 			    that read these values remount the rendered markdown. */}
 			<div
-				key={`${theme.palette.mode}:${remoteImagesAllowed}:${repoRoot}`}
+				key={`${theme.mode}:${remoteImagesAllowed}:${repoRoot}`}
 				className="space-y-4"
 			>
 				{chunks.slice(0, renderedChunks).map((chunk) => (
