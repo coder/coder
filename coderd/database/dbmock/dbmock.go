@@ -6099,6 +6099,21 @@ func (mr *MockStoreMockRecorder) GetScriptOrderTelemetrySummary(ctx any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScriptOrderTelemetrySummary", reflect.TypeOf((*MockStore)(nil).GetScriptOrderTelemetrySummary), ctx)
 }
 
+// GetSensitiveWorkspaceBuildParameters mocks base method.
+func (m *MockStore) GetSensitiveWorkspaceBuildParameters(ctx context.Context, arg database.GetSensitiveWorkspaceBuildParametersParams) ([]database.WorkspaceBuildParameter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSensitiveWorkspaceBuildParameters", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceBuildParameter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSensitiveWorkspaceBuildParameters indicates an expected call of GetSensitiveWorkspaceBuildParameters.
+func (mr *MockStoreMockRecorder) GetSensitiveWorkspaceBuildParameters(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSensitiveWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetSensitiveWorkspaceBuildParameters), ctx, arg)
+}
+
 // GetStaleChats mocks base method.
 func (m *MockStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -12699,6 +12714,20 @@ func (m *MockStore) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Conte
 func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationRetryByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationRetryByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildParameterValue mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildParameterValue(ctx context.Context, arg database.UpdateWorkspaceBuildParameterValueParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildParameterValue", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildParameterValue indicates an expected call of UpdateWorkspaceBuildParameterValue.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildParameterValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildParameterValue", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildParameterValue), ctx, arg)
 }
 
 // UpdateWorkspaceBuildProvisionerStateByID mocks base method.

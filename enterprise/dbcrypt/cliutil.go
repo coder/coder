@@ -276,6 +276,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting sensitive workspace build parameters")
+	if err := rewriteWorkspaceBuildParameters(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -536,6 +541,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting sensitive workspace build parameters")
+	if err := rewriteWorkspaceBuildParameters(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -713,6 +723,47 @@ func rewriteTemplateVersionVariables(ctx context.Context, log slog.Logger, crypt
 	}
 }
 
+// rewriteWorkspaceBuildParameters saves every sensitive workspace build
+// parameter value again through cryptDB, which stores it with wantKeyID.
+// Values already stored with wantKeyID are skipped. The listing includes the
+// values of ephemeral parameters that were written before the sensitive
+// column existed, and rewriting one marks it sensitive. See
+// rewriteWorkspaceBuildStates for the values of wantKeyID.
+func rewriteWorkspaceBuildParameters(ctx context.Context, log slog.Logger, cryptDB database.Store, wantKeyID string) error {
+	afterBuildID := uuid.Nil
+	afterName := ""
+	for {
+		page, err := cryptDB.GetSensitiveWorkspaceBuildParameters(ctx, database.GetSensitiveWorkspaceBuildParametersParams{
+			AfterWorkspaceBuildID: afterBuildID,
+			AfterName:             afterName,
+			LimitCount:            keyIDPageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list sensitive workspace build parameters after build=%s name=%q: %w", afterBuildID, afterName, err)
+		}
+		for _, parameter := range page {
+			if parameter.ValueKeyID.String == wantKeyID {
+				continue
+			}
+			err = cryptDB.UpdateWorkspaceBuildParameterValue(ctx, database.UpdateWorkspaceBuildParameterValueParams{
+				WorkspaceBuildID: parameter.WorkspaceBuildID,
+				Name:             parameter.Name,
+				Value:            parameter.Value,
+				ValueKeyID:       sql.NullString{}, // Set by cryptDB.
+			})
+			if err != nil {
+				return xerrors.Errorf("rewrite parameter %s of workspace build %s: %w", parameter.Name, parameter.WorkspaceBuildID, err)
+			}
+			log.Debug(ctx, "rewrote workspace build parameter", slog.F("workspace_build_id", parameter.WorkspaceBuildID), slog.F("name", parameter.Name), slog.F("key_id", wantKeyID))
+		}
+		if len(page) < keyIDPageSize {
+			return nil
+		}
+		last := page[len(page)-1]
+		afterBuildID, afterName = last.WorkspaceBuildID, last.Name
+	}
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -785,6 +836,12 @@ DELETE FROM template_version_terraform_values
 -- Clear them; affected templates need a new version that provides the values
 -- again.
 UPDATE template_version_variables
+	SET value = '',
+		value_key_id = NULL
+	WHERE value_key_id IS NOT NULL;
+-- Encrypted workspace build parameter values cannot be recovered without the
+-- keys. Clear them.
+UPDATE workspace_build_parameters
 	SET value = '',
 		value_key_id = NULL
 	WHERE value_key_id IS NOT NULL;

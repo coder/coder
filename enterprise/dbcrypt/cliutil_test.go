@@ -666,6 +666,70 @@ func TestRotateTemplateVersionVariables(t *testing.T) {
 	}
 }
 
+// TestRotateWorkspaceBuildParameters covers
+// workspace_build_parameters.value for sensitive parameters. One rotation
+// sweeps a plaintext sensitive row, a cipher-A sensitive row and an ephemeral
+// parameter's row that is not marked sensitive yet, while leaving
+// non-sensitive values in plaintext; a follow-up Decrypt returns the
+// sensitive values to plaintext.
+func TestRotateWorkspaceBuildParameters(t *testing.T) {
+	t.Parallel()
+	f := newRotateFixture(t)
+
+	build := seedWorkspaceBuild(t, f.rawDB).Build
+	buildID := build.ID
+	// The template version declares older_param ephemeral.
+	dbgen.TemplateVersionParameter(t, f.rawDB, database.TemplateVersionParameter{
+		TemplateVersionID: build.TemplateVersionID,
+		Name:              "older_param",
+		Ephemeral:         true,
+	})
+
+	// Written through the raw store: plaintext sensitive value, a value of
+	// an ephemeral parameter stored before the sensitive column existed, and
+	// a non-sensitive value that must stay plaintext throughout.
+	dbgen.WorkspaceBuildParameters(t, f.rawDB, []database.WorkspaceBuildParameter{
+		{WorkspaceBuildID: buildID, Name: "first_param", Value: "value-1", Sensitive: true},
+		{WorkspaceBuildID: buildID, Name: "older_param", Value: "value-3", Sensitive: false},
+		{WorkspaceBuildID: buildID, Name: "region", Value: "us-east-1", Sensitive: false},
+	})
+	// Written through dbcrypt under cipher A.
+	dbgen.WorkspaceBuildParameters(t, f.cryptDBA, []database.WorkspaceBuildParameter{
+		{WorkspaceBuildID: buildID, Name: "second_param", Value: "value-2", Sensitive: true},
+	})
+
+	f.rotate(t)
+
+	byName := func(t *testing.T) map[string]database.WorkspaceBuildParameter {
+		t.Helper()
+		parameters, err := f.rawDB.GetWorkspaceBuildParameters(f.ctx, buildID)
+		require.NoError(t, err)
+		out := make(map[string]database.WorkspaceBuildParameter, len(parameters))
+		for _, p := range parameters {
+			out[p.Name] = p
+		}
+		return out
+	}
+
+	rows := byName(t)
+	for name, want := range map[string]string{"first_param": "value-1", "second_param": "value-2", "older_param": "value-3"} {
+		require.Equal(t, f.cipherB.HexDigest(), rows[name].ValueKeyID.String, "parameter %s", name)
+		require.Equal(t, want, decryptRawString(t, f.cipherB, rows[name].Value), "parameter %s", name)
+		require.True(t, rows[name].Sensitive, "parameter %s", name)
+	}
+	require.False(t, rows["region"].ValueKeyID.Valid, "non-sensitive parameter must stay plaintext")
+	require.False(t, rows["region"].Sensitive)
+	require.Equal(t, "us-east-1", rows["region"].Value)
+
+	// Decrypt returns sensitive values to plaintext and clears the key IDs.
+	require.NoError(t, dbcrypt.Decrypt(f.ctx, testutil.Logger(t), f.sqlDB, []dbcrypt.Cipher{f.cipherB}))
+	rows = byName(t)
+	for name, want := range map[string]string{"first_param": "value-1", "second_param": "value-2", "older_param": "value-3", "region": "us-east-1"} {
+		require.False(t, rows[name].ValueKeyID.Valid, "parameter %s must be plaintext after decrypt", name)
+		require.Equal(t, want, rows[name].Value, "parameter %s", name)
+	}
+}
+
 // TestRotateGitSSHKey covers the gitsshkeys table (per-user Git SSH private
 // keys). Simulates rotating keys on a deployment where a soft-deleted
 // user's SSH key row is still present, since gitsshkeys rows are preserved

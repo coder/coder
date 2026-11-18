@@ -4664,7 +4664,7 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 	)
 
 	// Create template version with ephemeral parameter
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -4743,6 +4743,16 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 		{Name: ephemeralParameterName, Value: ephemeralParameterValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Only the ephemeral parameter is stored as sensitive.
+	//nolint:gocritic // The test reads the stored rows directly.
+	storedParameters, err := db.GetWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), workspaceBuild.ID)
+	require.NoError(t, err)
+	storedSensitive := make(map[string]bool, len(storedParameters))
+	for _, parameter := range storedParameters {
+		storedSensitive[parameter.Name] = parameter.Sensitive
+	}
+	require.Equal(t, map[string]bool{firstParameterName: false, ephemeralParameterName: true}, storedSensitive)
 
 	// Trigger workspace build one more time without the ephemeral parameter
 	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{

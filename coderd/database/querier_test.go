@@ -22295,6 +22295,71 @@ func TestGetTemplateVersionIDsWithSensitiveVariablesPaginates(t *testing.T) {
 	require.Equal(t, 3, pages)
 }
 
+func TestGetSensitiveWorkspaceBuildParametersPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	type parameterKey struct {
+		buildID uuid.UUID
+		name    string
+	}
+	var want []parameterKey
+	for range 3 {
+		build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do().Build
+		dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+			TemplateVersionID: build.TemplateVersionID,
+			Name:              "ephemeral",
+			Ephemeral:         true,
+		})
+		dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+			// Listed although it is not marked sensitive, because the
+			// template version declares the parameter ephemeral.
+			{WorkspaceBuildID: build.ID, Name: "ephemeral", Value: "value"},
+			{WorkspaceBuildID: build.ID, Name: "marked", Value: "value", Sensitive: true},
+			// Not listed: not sensitive, and sensitive without a value.
+			{WorkspaceBuildID: build.ID, Name: "plain", Value: "value"},
+			{WorkspaceBuildID: build.ID, Name: "empty", Sensitive: true},
+		})
+		want = append(want, parameterKey{build.ID, "ephemeral"}, parameterKey{build.ID, "marked"})
+	}
+	slices.SortFunc(want, func(a, b parameterKey) int {
+		if c := bytes.Compare(a.buildID[:], b.buildID[:]); c != 0 {
+			return c
+		}
+		return strings.Compare(a.name, b.name)
+	})
+
+	// A page size of 3 splits the second build's parameters across pages.
+	var got []parameterKey
+	var pages int
+	var after parameterKey
+	for {
+		page, err := db.GetSensitiveWorkspaceBuildParameters(ctx, database.GetSensitiveWorkspaceBuildParametersParams{
+			AfterWorkspaceBuildID: after.buildID,
+			AfterName:             after.name,
+			LimitCount:            3,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, parameter := range page {
+			got = append(got, parameterKey{parameter.WorkspaceBuildID, parameter.Name})
+		}
+		after = got[len(got)-1]
+	}
+	require.Equal(t, want, got, "every sensitive value is listed once, in build id and name order")
+	require.Equal(t, 2, pages)
+}
+
 func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
 	t.Parallel()
 

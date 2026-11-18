@@ -5137,6 +5137,15 @@ func (q *querier) GetScriptOrderTelemetrySummary(ctx context.Context) (database.
 	return q.db.GetScriptOrderTelemetrySummary(ctx)
 }
 
+func (q *querier) GetSensitiveWorkspaceBuildParameters(ctx context.Context, arg database.GetSensitiveWorkspaceBuildParametersParams) ([]database.WorkspaceBuildParameter, error) {
+	// Deployment-wide listing exists only for the dbcrypt key rotation
+	// utility.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetSensitiveWorkspaceBuildParameters(ctx, arg)
+}
+
 func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	// GetStaleChats is a system-level operation used by the chat processor for recovery.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
@@ -9516,6 +9525,13 @@ func (q *querier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context
 		return database.WorkspaceBuildOrchestration{}, err
 	}
 	return q.db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildParameterValue(ctx context.Context, arg database.UpdateWorkspaceBuildParameterValueParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildParameterValue(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

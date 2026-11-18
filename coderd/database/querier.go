@@ -923,6 +923,14 @@ type sqlcQuerier interface {
 	// Count only the active, successfully imported version of each non-deleted
 	// template, so repeated imports do not inflate adoption.
 	GetScriptOrderTelemetrySummary(ctx context.Context) (GetScriptOrderTelemetrySummaryRow, error)
+	// Returns a page of workspace build parameters that hold a sensitive value
+	// across the deployment, ordered by workspace build id and name. Pass the
+	// workspace build id and name of the last returned row to fetch the next
+	// page. A parameter is listed when it is marked sensitive, or when its
+	// template version declares it ephemeral, which covers rows written before
+	// the sensitive column existed. Used only by the dbcrypt key rotation
+	// utility.
+	GetSensitiveWorkspaceBuildParameters(ctx context.Context, arg GetSensitiveWorkspaceBuildParametersParams) ([]WorkspaceBuildParameter, error)
 	// Find chats that appear stuck and need recovery:
 	//   1. Running chats whose heartbeat has expired (worker crash).
 	//   2. requires_action chats past the timeout threshold (client
@@ -968,6 +976,8 @@ type sqlcQuerier interface {
 	// look for the latest workspace build (for every workspace) that has been
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
+	// Sensitive parameter values are excluded. They can be stored encrypted, so
+	// they cannot be grouped by value.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
 	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 	// It also returns the number of desired instances for each preset.
@@ -1852,6 +1862,10 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (WorkspaceBuildOrchestration, error)
 	UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationFailedByIDParams) (WorkspaceBuildOrchestration, error)
 	UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationRetryByIDParams) (WorkspaceBuildOrchestration, error)
+	// Rewrites a sensitive parameter value in place and marks the parameter
+	// sensitive. Used by `coder server dbcrypt` maintenance commands to
+	// re-encrypt or decrypt sensitive values at rest.
+	UpdateWorkspaceBuildParameterValue(ctx context.Context, arg UpdateWorkspaceBuildParameterValueParams) error
 	UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (WorkspaceTable, error)

@@ -3248,6 +3248,14 @@ func (m queryMetricsStore) GetScriptOrderTelemetrySummary(ctx context.Context) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetSensitiveWorkspaceBuildParameters(ctx context.Context, arg database.GetSensitiveWorkspaceBuildParametersParams) ([]database.WorkspaceBuildParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetSensitiveWorkspaceBuildParameters(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetSensitiveWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetSensitiveWorkspaceBuildParameters").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetStaleChats(ctx, staleThreshold)
@@ -6735,6 +6743,14 @@ func (m queryMetricsStore) UpdateWorkspaceBuildOrchestrationRetryByID(ctx contex
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildOrchestrationRetryByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildOrchestrationRetryByID").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildParameterValue(ctx context.Context, arg database.UpdateWorkspaceBuildParameterValueParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildParameterValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildParameterValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildParameterValue").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

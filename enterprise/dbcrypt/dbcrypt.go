@@ -1382,6 +1382,79 @@ func (db *dbCrypt) UpdateTemplateVersionVariableValue(ctx context.Context, param
 	return db.Store.UpdateTemplateVersionVariableValue(ctx, params)
 }
 
+// InsertWorkspaceBuildParameters encrypts the values of parameters marked
+// sensitive. Other values are stored as-is, because parameter insights and
+// workspace search match on them in SQL.
+func (db *dbCrypt) InsertWorkspaceBuildParameters(ctx context.Context, params database.InsertWorkspaceBuildParametersParams) error {
+	if len(params.ValueKeyID) == 0 {
+		params.ValueKeyID = make([]string, len(params.Value))
+	}
+	for i := range params.Value {
+		if i >= len(params.Sensitive) || !params.Sensitive[i] || params.Value[i] == "" {
+			continue
+		}
+		var keyID sql.NullString
+		if err := db.encryptField(&params.Value[i], &keyID); err != nil {
+			return err
+		}
+		params.ValueKeyID[i] = keyID.String
+	}
+	return db.Store.InsertWorkspaceBuildParameters(ctx, params)
+}
+
+func (db *dbCrypt) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	parameters, err := db.Store.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range parameters {
+		if err := db.decryptField(&parameters[idx].Value, parameters[idx].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return parameters, nil
+}
+
+func (db *dbCrypt) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, params database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]database.WorkspaceBuildParameter, error) {
+	parameters, err := db.Store.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range parameters {
+		if err := db.decryptField(&parameters[idx].Value, parameters[idx].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return parameters, nil
+}
+
+// GetSensitiveWorkspaceBuildParameters is a maintenance-only listing used by
+// `coder server dbcrypt` sweeps.
+func (db *dbCrypt) GetSensitiveWorkspaceBuildParameters(ctx context.Context, params database.GetSensitiveWorkspaceBuildParametersParams) ([]database.WorkspaceBuildParameter, error) {
+	parameters, err := db.Store.GetSensitiveWorkspaceBuildParameters(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range parameters {
+		if err := db.decryptField(&parameters[idx].Value, parameters[idx].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return parameters, nil
+}
+
+// UpdateWorkspaceBuildParameterValue is a maintenance-only query used by
+// `coder server dbcrypt` sweeps, which only pass values of sensitive
+// parameters; non-empty values are therefore always encrypted here.
+func (db *dbCrypt) UpdateWorkspaceBuildParameterValue(ctx context.Context, params database.UpdateWorkspaceBuildParameterValueParams) error {
+	if params.Value != "" {
+		if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+			return err
+		}
+	}
+	return db.Store.UpdateWorkspaceBuildParameterValue(ctx, params)
+}
+
 // encryptRawMessage is encryptExtra for non-null jsonb columns held as a bare
 // json.RawMessage.
 func (db *dbCrypt) encryptRawMessage(m *json.RawMessage, digest *sql.NullString) error {

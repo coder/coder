@@ -544,10 +544,16 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
+		sensitive, err := b.getParameterSensitivity(names)
+		if err != nil {
+			return err
+		}
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: workspaceBuildID,
 			Name:             names,
 			Value:            values,
+			Sensitive:        sensitive,
+			ValueKeyID:       make([]string, len(names)), // dbcrypt will set as required
 		})
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
@@ -1109,6 +1115,29 @@ func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, 
 	}
 	b.lastBuildParameters = &values
 	return values, nil
+}
+
+// getParameterSensitivity reports, for each parameter name, whether its value
+// is stored as sensitive. Sensitive values are encrypted when dbcrypt is
+// enabled and are excluded from parameter insights. Ephemeral parameters are
+// currently the only parameters marked sensitive.
+func (b *Builder) getParameterSensitivity(names []string) ([]bool, error) {
+	templateVersionParameters, err := b.getTemplateVersionParameters()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version parameters", err}
+	}
+	ephemeralByName := make(map[string]bool, len(templateVersionParameters))
+	for _, parameter := range templateVersionParameters {
+		ephemeralByName[parameter.Name] = parameter.Ephemeral
+	}
+	sensitive := make([]bool, len(names))
+	for i, name := range names {
+		ephemeral, known := ephemeralByName[name]
+		// Parameters unknown to the template version should not exist after
+		// validation. Mark them sensitive as well.
+		sensitive[i] = ephemeral || !known
+	}
+	return sensitive, nil
 }
 
 func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, error) {
