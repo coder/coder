@@ -20,7 +20,7 @@ describe(SelectionSummary.name, () => {
 			screen.getByRole("button", { name: "Go to Modules" }),
 		).toHaveAttribute("aria-current", "step");
 		expect(
-			screen.getByRole("button", { name: "Go to Base Template" }),
+			screen.getByRole("button", { name: "Go to Base template" }),
 		).not.toHaveAttribute("aria-current");
 		expect(
 			screen.getByRole("button", { name: "Go to Customizations" }),
@@ -31,7 +31,7 @@ describe(SelectionSummary.name, () => {
 		renderSummary(1, 0);
 
 		expect(screen.queryAllByRole("button")).toHaveLength(0);
-		expect(screen.getByText("Base Template").parentElement).toHaveAttribute(
+		expect(screen.getByText("Base template").parentElement).toHaveAttribute(
 			"aria-current",
 			"step",
 		);

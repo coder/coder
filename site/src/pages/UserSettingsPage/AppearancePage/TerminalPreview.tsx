@@ -17,6 +17,7 @@ const Prompt: React.FC = () => {
 };
 
 // Taken from the "Concurrent Prime Sieve" example on https://go.dev/play/
+// sentence-case-expect: Go source code, not UI text.
 const sampleFile = `package main
 
 import "fmt"

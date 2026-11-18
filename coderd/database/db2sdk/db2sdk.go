@@ -29,6 +29,8 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -2008,23 +2010,46 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 }
 
 // ChatProject converts a project with the caller's permissions on it.
-func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
+// templates must be the project's templates as the caller sees them, so the
+// response never identifies a template the caller cannot access.
+func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions, templates chattool.ProjectTemplates) codersdk.ChatProject {
 	var archivedAt *time.Time
 	if project.ArchivedAt.Valid {
 		archivedAt = &project.ArchivedAt.Time
 	}
-	return codersdk.ChatProject{
-		ArchivedAt:     archivedAt,
-		Permissions:    permissions,
-		ID:             project.ID,
-		OrganizationID: project.OrganizationID,
-		OwnerID:        project.OwnerID,
-		Name:           project.Name,
-		Description:    project.Description,
-		Icon:           project.Icon,
-		CreatedAt:      project.CreatedAt,
-		UpdatedAt:      project.UpdatedAt,
+	converted := codersdk.ChatProject{
+		ArchivedAt:          archivedAt,
+		Permissions:         permissions,
+		ID:                  project.ID,
+		OrganizationID:      project.OrganizationID,
+		OwnerID:             project.OwnerID,
+		Name:                project.Name,
+		Description:         project.Description,
+		Icon:                project.Icon,
+		LimitTemplates:      project.LimitTemplates,
+		Templates:           make([]codersdk.ChatProjectTemplate, 0, len(templates.Templates)),
+		HiddenTemplateCount: templates.HiddenCount,
+		CreatedAt:           project.CreatedAt,
+		UpdatedAt:           project.UpdatedAt,
 	}
+	for _, template := range templates.Templates {
+		converted.Templates = append(converted.Templates, codersdk.ChatProjectTemplate{
+			ID:          template.ID,
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Icon:        template.Icon,
+		})
+	}
+	if templates.DefaultTemplateID.Valid {
+		converted.DefaultTemplate = &codersdk.ChatProjectDefaultTemplate{TemplateID: templates.DefaultTemplateID.UUID}
+		if templates.DefaultPresetID.Valid {
+			converted.DefaultTemplate.PresetID = &templates.DefaultPresetID.UUID
+		}
+		if len(templates.DefaultParameters) > 0 {
+			converted.DefaultTemplate.Parameters = templates.DefaultParameters
+		}
+	}
+	return converted
 }
 
 // ChatProjectSummary converts a project summary row; project is the row's
@@ -2606,8 +2631,14 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 	return out
 }
 
-// Skill converts a database Skill to an SDK Skill.
+// Skill converts a database Skill to an SDK Skill. The stored content is
+// the file as uploaded, so the returned content has its
+// disable-model-invocation key set to agree with ModelInvocable. Every client
+// then gets a file that other tools read the same way. Uploads are checked
+// so that the key can always be set. A skill stored before that check can
+// still fail it, and its content is returned as stored.
 func Skill(skill database.Skill) codersdk.Skill {
+	content, _ := skills.WithModelInvocable(skill.Content, skill.ModelInvocable)
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
 			ID:             skill.ID,
@@ -2620,7 +2651,7 @@ func Skill(skill database.Skill) codersdk.Skill {
 			CreatedAt:      skill.CreatedAt,
 			UpdatedAt:      skill.UpdatedAt,
 		},
-		Content: skill.Content,
+		Content: content,
 	}
 }
 

@@ -101,6 +101,62 @@ func TestChatProjectPins(t *testing.T) {
 	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{otherNew.ID: 1, otherOwn.ID: 2})
 }
 
+// TestChatProjectPinsTokenScope checks that a pin, as the caller's personal
+// data, cannot be written by an API key that lacks user:update_personal or
+// cannot read the project.
+func TestChatProjectPinsTokenScope(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+	project := createChatProject(t, client, orgID, "Pin Scope")
+
+	// Chat project scopes are not user-mintable, so seed scoped keys directly.
+	newScopedClient := func(scopes ...database.APIKeyScope) *codersdk.ExperimentalClient {
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: firstUser.UserID,
+			Scopes: append(database.APIKeyScopes{"organization:read"}, scopes...),
+		})
+		scoped := codersdk.New(client.URL)
+		scoped.SetSessionToken(token)
+		return codersdk.NewExperimentalClient(scoped)
+	}
+
+	readOnly := newScopedClient("chat_project:read")
+	requireSDKError(t, readOnly.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}), http.StatusForbidden)
+	requireSDKError(t, readOnly.UnpinChatProject(ctx, orgID, project.ID), http.StatusForbidden)
+
+	// The same key with user:update_personal may change the pin, so that
+	// scope is the one the read-only key lacks.
+	personal := newScopedClient("chat_project:read", "user:update_personal")
+	require.NoError(t, personal.UnpinChatProject(ctx, orgID, project.ID))
+	require.NoError(t, personal.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}))
+
+	// Creating a project pins it for its creator, so a key that may create
+	// projects also needs both of the pin's permissions.
+	createReq := codersdk.CreateChatProjectRequest{Name: "Scoped Create"}
+	_, err := newScopedClient("chat_project:create", "chat_project:read").CreateChatProject(ctx, orgID, createReq)
+	requireSDKError(t, err, http.StatusForbidden)
+	_, err = newScopedClient("chat_project:create", "user:update_personal").CreateChatProject(ctx, orgID, createReq)
+	requireSDKError(t, err, http.StatusForbidden)
+	_, err = newScopedClient("chat_project:create", "chat_project:read", "user:update_personal").CreateChatProject(ctx, orgID, createReq)
+	require.NoError(t, err)
+
+	// Summaries carry the caller's pins, so listing them needs
+	// user:read_personal. So does pinning at a position, which reads the
+	// caller's other pins.
+	_, err = readOnly.ListChatProjectSummaries(ctx)
+	requireSDKError(t, err, http.StatusForbidden)
+	first := codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}
+	requireSDKError(t, personal.PinChatProject(ctx, orgID, project.ID, first), http.StatusForbidden)
+	reader := newScopedClient("chat_project:read", "user:read_personal", "user:update_personal")
+	_, err = reader.ListChatProjectSummaries(ctx)
+	require.NoError(t, err)
+	require.NoError(t, reader.PinChatProject(ctx, orgID, project.ID, first))
+}
+
 func TestChatProjectPinsConcurrentWrites(t *testing.T) {
 	t.Parallel()
 
