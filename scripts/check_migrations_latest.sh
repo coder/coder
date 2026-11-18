@@ -53,16 +53,24 @@ if [[ $write -eq 1 ]]; then
 		# fix_migration_numbers.sh keep it up to date, and
 		# scripts/check_migrations_latest.sh checks it.
 		#
-		# If this file conflicts, another migration merged first. Merge or rebase
-		# onto main, then run this while the conflict is still open:
+		# If this file conflicts, another migration merged first. Merge main into
+		# your branch, then run this while the conflict is still open:
 		#
 		#   ./coderd/database/migrations/fix_migration_numbers.sh
 		#
 		# It renumbers your migrations if their numbers are taken, rewrites this
-		# file, and stages the result. For a cherry-pick, backport, or revert,
-		# run this instead:
+		# file, and stages the result.
+		#
+		# Do not run it at a rebase stop. On a branch with more than one migration
+		# commit it can leave duplicate numbers or swap the migration order. At
+		# each rebase stop, and for a cherry-pick, backport, or revert, run these
+		# instead:
 		#
 		#   ./scripts/check_migrations_latest.sh --write
+		#   git add coderd/database/migrations/LATEST
+		#
+		# After a rebase finishes, run fix_migration_numbers.sh once and commit
+		# the result.
 		${newest}
 	LATEST
 	log "Wrote ${newest} to ${latest_file}"

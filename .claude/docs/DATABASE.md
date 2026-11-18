@@ -132,7 +132,7 @@ roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user
 
 ### Migration Issues
 
-1. **Migration conflicts**: A conflict in `migrations/LATEST` means another migration merged first, or a lower PR in a stack squash-merged. Merge or rebase onto `main`, then run `fix_migration_numbers.sh` while the conflict is open. It renumbers only taken numbers, rewrites and stages `LATEST`. For a cherry-pick, backport, or revert, run `./scripts/check_migrations_latest.sh --write` instead
+1. **Migration conflicts**: A conflict in `migrations/LATEST` means another migration merged first, or a lower PR in a stack squash-merged. Merge `main`, then run `fix_migration_numbers.sh` while the conflict is open. It renumbers only taken numbers, rewrites and stages `LATEST`. Never run it at a rebase stop, where it can duplicate or reorder migration numbers: at each stop run `./scripts/check_migrations_latest.sh --write` and `git add coderd/database/migrations/LATEST`, then run `fix_migration_numbers.sh` once after the rebase finishes and commit. For a cherry-pick, backport, or revert, run `./scripts/check_migrations_latest.sh --write` instead
 2. **Missing down migration**: Always create both up and down files
 3. **Schema inconsistencies**: Verify against existing schema
 

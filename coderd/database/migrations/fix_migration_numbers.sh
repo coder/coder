@@ -12,6 +12,11 @@ list_migrations() {
 # the middle of a merge or rebase. Mid-rebase, HEAD does not yet contain the
 # branch's migrations, but the index does. uniq drops the extra entries that
 # conflicted paths have, one per merge stage.
+#
+# Mid-rebase, the result is only correct when a single commit adds
+# migrations. Later stops cannot tell migrations that earlier stops already
+# renumbered from incoming ones, so they can end up sharing a number or
+# swapping order. The documented flow runs this script after the rebase.
 list_index_migrations() {
 	git ls-files -- . | grep -E '[0-9]{6}.*' | sort -n | uniq
 }
