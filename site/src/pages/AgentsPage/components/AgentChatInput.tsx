@@ -944,7 +944,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingMessage ? "Save Edit" : "Send";
+	const sendButtonLabel = isEditingMessage ? "Save edit" : "Send";
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
 	// recording also takes precedence over history editing. A queued edit
