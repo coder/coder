@@ -8,9 +8,10 @@ WHERE user_id = @user_id::uuid;
 -- name: PinChatProject :exec
 -- Pins a project, or moves an already pinned project, to pin_order. Without
 -- pin_order a new pin goes to the end and an existing pin keeps its place.
--- Positions count only pins the user can still see, as the summaries do, and
--- are clamped to [1, count]. Pins on projects the user can no longer see move
--- after the visible ones. Callers must hold the per-user pin lock so
+-- Positions count the pins GetChatProjectSummariesByUserID matches and are
+-- clamped to [1, count], so callers must translate a position the user sees
+-- past matched pins that authorization hides. Pins the summaries no longer
+-- match move after the others. Callers must hold the per-user pin lock so
 -- concurrent writes cannot interleave.
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
@@ -19,8 +20,7 @@ WITH current_pins AS (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = @user_id::uuid
             OR (
-                @acl_enabled::boolean
-                AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                     SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                     UNION ALL
                     SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -66,8 +66,8 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 -- name: UnpinChatProject :exec
 -- Deletes a pin and compacts the remaining pins to 1..N.
 -- Unpinning a project that is not pinned changes nothing. Like
--- PinChatProject, pins the user can still see come first, and callers must
--- hold the per-user pin lock.
+-- PinChatProject, pins the summaries still match come first, and callers
+-- must hold the per-user pin lock.
 WITH deleted AS (
     DELETE FROM chat_project_pins
     WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid
@@ -78,8 +78,7 @@ updates AS (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = @user_id::uuid
         OR (
-            @acl_enabled::boolean
-            AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+            (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -112,10 +111,10 @@ WITH accessible AS (
     FROM chat_projects
     WHERE owner_id = @user_id::uuid
         OR (
-            -- Grants count only while RBAC honors them, as in
-            -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
-            @acl_enabled::boolean
-            AND (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
+            -- Grant keys select candidates even while chat sharing is
+            -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
+            -- role can still let the caller read the project.
+            (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid

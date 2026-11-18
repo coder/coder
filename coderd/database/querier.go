@@ -1565,9 +1565,10 @@ type sqlcQuerier interface {
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	// Pins a project, or moves an already pinned project, to pin_order. Without
 	// pin_order a new pin goes to the end and an existing pin keeps its place.
-	// Positions count only pins the user can still see, as the summaries do, and
-	// are clamped to [1, count]. Pins on projects the user can no longer see move
-	// after the visible ones. Callers must hold the per-user pin lock so
+	// Positions count the pins GetChatProjectSummariesByUserID matches and are
+	// clamped to [1, count], so callers must translate a position the user sees
+	// past matched pins that authorization hides. Pins the summaries no longer
+	// match move after the others. Callers must hold the per-user pin lock so
 	// concurrent writes cannot interleave.
 	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
@@ -1641,8 +1642,8 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	// Deletes a pin and compacts the remaining pins to 1..N.
 	// Unpinning a project that is not pinned changes nothing. Like
-	// PinChatProject, pins the user can still see come first, and callers must
-	// hold the per-user pin lock.
+	// PinChatProject, pins the summaries still match come first, and callers
+	// must hold the per-user pin lock.
 	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)

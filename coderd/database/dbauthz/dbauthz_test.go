@@ -1413,7 +1413,7 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetChatProjectSummariesByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.GetChatProjectSummariesByUserIDParams{UserID: testActorID, ACLEnabled: true}
+		arg := database.GetChatProjectSummariesByUserIDParams{UserID: testActorID}
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: testActorID})
 		rows := []database.GetChatProjectSummariesByUserIDRow{{ChatProject: project, Pinned: true, PinOrder: 1}}
 		dbm.EXPECT().GetChatProjectSummariesByUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
