@@ -3424,6 +3424,14 @@ func (m queryMetricsStore) GetTemplateVersionTerraformValues(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx context.Context, arg database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams) ([]database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionTerraformValuesCachedPlanKeyIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionTerraformValuesCachedPlanKeyIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateVersionVariables(ctx, templateVersionID)
@@ -6270,6 +6278,14 @@ func (m queryMetricsStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx cont
 	r0 := m.s.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionScriptOrderUsageByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionScriptOrderUsageByJobID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg database.UpdateTemplateVersionTerraformValuesCachedPlanParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionTerraformValuesCachedPlan").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionTerraformValuesCachedPlan").Inc()
 	return r0
 }
 

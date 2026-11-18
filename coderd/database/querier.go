@@ -981,6 +981,11 @@ type sqlcQuerier interface {
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
 	GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
+	// Returns a page of template versions that hold a cached plan across the
+	// deployment, ordered by template version id, along with the key each plan
+	// is stored with. Pass the last returned id as after_id to fetch the next
+	// page. Used only by the dbcrypt key rotation utility.
+	GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx context.Context, arg GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams) ([]GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow, error)
 	GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error)
 	GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionWorkspaceTag, error)
 	GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error)
@@ -1771,6 +1776,9 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
 	UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg UpdateTemplateVersionFlagsByJobIDParams) error
 	UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg UpdateTemplateVersionScriptOrderUsageByJobIDParams) error
+	// Rewrites a cached plan in place. Used by `coder server dbcrypt`
+	// maintenance commands to re-encrypt or decrypt the plan at rest.
+	UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg UpdateTemplateVersionTerraformValuesCachedPlanParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAIProviderKey, error)

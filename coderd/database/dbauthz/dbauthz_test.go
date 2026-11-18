@@ -3194,6 +3194,16 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().InsertTemplateVersionTerraformValuesByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("UpdateTemplateVersionTerraformValuesCachedPlan", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateTemplateVersionTerraformValuesCachedPlanParams{TemplateVersionID: uuid.New(), CachedPlan: []byte("{}")}
+		dbm.EXPECT().UpdateTemplateVersionTerraformValuesCachedPlan(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetTemplateVersionTerraformValuesCachedPlanKeyIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams{AfterID: uuid.New(), LimitCount: 100}
+		dbm.EXPECT().GetTemplateVersionTerraformValuesCachedPlanKeyIDs(gomock.Any(), arg).Return([]database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("SoftDeleteTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
