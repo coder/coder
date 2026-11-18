@@ -11,7 +11,7 @@
 #  - $CODER_GPG_RELEASE_KEY_BASE64: The base64 encoded private key to use.
 #
 # Optionally, the file is also signed with a release key held in Google Cloud
-# KMS (see scripts/gpgkms). That signature goes in a separate .v2.asc file, so
+# KMS (see scripts/gpgkms.sh). That signature goes in a separate .v2.asc file, so
 # the .asc file and every client that verifies it stay unchanged. Set both of
 # these to enable it:
 #  - $CODER_GPG_KMS_KEY: The Cloud KMS CryptoKeyVersion resource name.
@@ -67,10 +67,8 @@ verification_result=$?
 rm -f "${FILE_TO_SIGN}.v2.asc"
 if [[ "${CODER_GPG_KMS_KEY:-}" != "" ]]; then
 	requiredenvs CODER_GPG_KMS_CREDENTIALS_FILE
-	gpgkms_bin="$gnupg_home_temp/gpgkms"
-	(cd "$PROJECT_ROOT" && go build -o "$gpgkms_bin" ./scripts/gpgkms)
 	gpgkms() {
-		GOOGLE_APPLICATION_CREDENTIALS="$CODER_GPG_KMS_CREDENTIALS_FILE" "$gpgkms_bin" "$@"
+		GOOGLE_APPLICATION_CREDENTIALS="$CODER_GPG_KMS_CREDENTIALS_FILE" "$PROJECT_ROOT/scripts/gpgkms.sh" "$@"
 	}
 
 	kms_signature="$gnupg_home_temp/kms.asc"

@@ -95,7 +95,7 @@ resource "coder_agent" "dev" {
 
 Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (for example, <https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
 
-### 4. Optional: pre-fill parameter values in the "Create Workspace" page
+### 4. Optional: pre-fill parameter values in the "Create workspace" page
 
 This can be used to pre-fill the git repo URL, disk size, image, and so on.
 
@@ -122,9 +122,9 @@ The dialog shows:
 
 - A warning that a workspace is about to be created automatically from a link
 - All prefilled `param.*` values from the URL
-- **Confirm and Create** and **Cancel** buttons
+- **Confirm and create** and **Cancel** buttons
 
-The workspace is only created if the user explicitly selects **Confirm and Create**.
+The workspace is only created if the user explicitly selects **Confirm and create**.
 Selecting **Cancel** falls back to the standard creation form where all parameters can be reviewed manually.
 
 ![Consent dialog for automatic workspace creation](../images/templates/auto-create-consent-dialog.png)
