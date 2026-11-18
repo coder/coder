@@ -143,6 +143,18 @@ func TestChatProjectPinsTokenScope(t *testing.T) {
 	requireSDKError(t, err, http.StatusForbidden)
 	_, err = newScopedClient("chat_project:create", "chat_project:read", "user:update_personal").CreateChatProject(ctx, orgID, createReq)
 	require.NoError(t, err)
+
+	// Summaries carry the caller's pins, so listing them needs
+	// user:read_personal. So does pinning at a position, which reads the
+	// caller's other pins.
+	_, err = readOnly.ListChatProjectSummaries(ctx)
+	requireSDKError(t, err, http.StatusForbidden)
+	first := codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}
+	requireSDKError(t, personal.PinChatProject(ctx, orgID, project.ID, first), http.StatusForbidden)
+	reader := newScopedClient("chat_project:read", "user:read_personal", "user:update_personal")
+	_, err = reader.ListChatProjectSummaries(ctx)
+	require.NoError(t, err)
+	require.NoError(t, reader.PinChatProject(ctx, orgID, project.ID, first))
 }
 
 func TestChatProjectPinsConcurrentWrites(t *testing.T) {

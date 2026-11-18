@@ -35,6 +35,13 @@ import (
 func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	// Summaries carry the caller's pins, which are personal data. dbauthz
+	// refuses the read for an API key scoped without user:read_personal,
+	// so answer 403 here instead of failing the query.
+	if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
 		UserID:             apiKey.UserID,
@@ -118,6 +125,11 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	if req.PinOrder != nil {
 		if *req.PinOrder < 1 {
 			writeChatProjectFieldError(ctx, rw, "pin_order", "Pin order must be at least 1.")
+			return
+		}
+		// Placing a pin reads the caller's other pins from the summaries.
+		if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+			httpapi.Forbidden(rw)
 			return
 		}
 		pinOrder = sql.NullInt32{Int32: *req.PinOrder, Valid: true}
