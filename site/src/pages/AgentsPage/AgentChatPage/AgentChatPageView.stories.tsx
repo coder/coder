@@ -1005,11 +1005,21 @@ export const OverviewToggleTooltip: Story = {
 };
 
 /**
- * Below 84rem the card would cover the transcript, so the chat shows
+ * Below 72rem the card would cover the transcript, so the chat shows
  * neither the card nor its toggle, though the user left the card open.
  */
 export const OverviewCardHiddenWhenNarrow: Story = {
 	decorators: [overviewCardFrame(1280 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+/**
+ * From 72rem to 84rem the card is open and the transcript leaves 18rem
+ * clear on the right, instead of staying centered underneath it.
+ */
+export const OverviewCardReservesTranscript: Story = {
+	decorators: [overviewCardFrame(72 * 16)],
 	beforeEach: resetOverviewCardStorage,
 	render: renderOverviewCardStory,
 };

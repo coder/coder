@@ -141,10 +141,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						))}
 					</div>
 				) : (
-					<p className="m-0 px-1.5 py-2 text-xs text-content-secondary">
-						Nothing to show yet. Cost, repositories, pull requests, subagents,
-						and attachments show up here as the agent works.
-					</p>
+					<EmptyChangesSection />
 				))}
 
 			{cost && (
@@ -296,6 +293,24 @@ const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 
 const hasChanges = ({ additions, deletions }: DiffStats) =>
 	additions > 0 || deletions > 0;
+
+const EmptyChangesSection: React.FC = () => {
+	const headingId = useId();
+	return (
+		<section
+			aria-labelledby={headingId}
+			className="flex items-center justify-between gap-2 px-1.5 py-2"
+		>
+			<h3
+				id={headingId}
+				className="m-0 text-xs font-normal text-content-secondary"
+			>
+				Changes
+			</h3>
+			<RepoDiffStat additions={0} deletions={0} />
+		</section>
+	);
+};
 
 /** A clean repository shows +0 −0, where the shared badge shows nothing. */
 const RepoDiffStat: React.FC<DiffStats> = (changes) =>

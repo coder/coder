@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -28,7 +28,10 @@ import {
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
-import { ChatOverviewCard } from "../components/ChatOverviewCard";
+import {
+	ChatOverviewCard,
+	type ChatOverviewToggleProps,
+} from "../components/ChatOverviewCard";
 import type { OverviewTarget } from "../components/ChatOverviewCardView";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
@@ -38,6 +41,7 @@ import {
 	SidebarTabView,
 } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
+import { useEmbedContext } from "../components/EmbedContext";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { AppPanel } from "../components/RightPanel/AppPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
@@ -49,7 +53,10 @@ import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { useChatOverview } from "../hooks/useChatOverview";
+import {
+	getPersistedOverviewCardOpen,
+	savePersistedOverviewCardOpen,
+} from "../utils/overviewCardStorage";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -70,6 +77,21 @@ import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
 } from "../utils/sidebarTabStorage";
+
+/**
+ * The narrowest chat that shows the overview card and its toggle. A 16-inch
+ * MacBook Pro at the default 1728px scaling, 100% zoom, and the 240px
+ * minimum sidebar leaves a 1488px column: just over 72rem at a 20px root
+ * font.
+ */
+const OVERVIEW_MIN_CHAT_WIDTH_REM = 72;
+
+/**
+ * The narrowest chat that fits the 16rem card, its 1rem inset, and a 1rem
+ * gap on both sides of a centered 48rem transcript. Below it, the transcript
+ * and composer leave that 18rem free on the right while the card is open.
+ */
+const OVERVIEW_CENTERED_MIN_CHAT_WIDTH_REM = 84;
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -230,9 +252,56 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const { observeChat, ...overview } = useChatOverview({
-		isRightPanelOpen: showSidebarPanel,
+	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	const overviewCardId = useId();
+	const [isOverviewOpen, setIsOverviewOpen] = useState(
+		getPersistedOverviewCardOpen,
+	);
+	// A row opens the right panel and unmounts the focused row, so the panel
+	// focuses its active tab once per id, and clears it so a remount does not
+	// move focus again.
+	const [panelFocusRequestId, setPanelFocusRequestId] = useState<number>();
+	const [chatElement, setChatElement] = useState<HTMLElement | null>(null);
+	const [chatFit, setChatFit] = useState({
+		showsOverview: false,
+		fitsCentered: false,
 	});
+	useEffect(() => {
+		if (!chatElement) {
+			return;
+		}
+		const observer = new ResizeObserver(([entry]) => {
+			const remPx = Number.parseFloat(
+				getComputedStyle(document.documentElement).fontSize,
+			);
+			const width = entry.contentRect.width;
+			const showsOverview = width >= OVERVIEW_MIN_CHAT_WIDTH_REM * remPx;
+			const fitsCentered =
+				width >= OVERVIEW_CENTERED_MIN_CHAT_WIDTH_REM * remPx;
+			setChatFit((current) =>
+				current.showsOverview === showsOverview &&
+				current.fitsCentered === fitsCentered
+					? current
+					: { showsOverview, fitsCentered },
+			);
+		});
+		observer.observe(chatElement);
+		return () => observer.disconnect();
+	}, [chatElement]);
+	const canShowOverview =
+		chatFit.showsOverview && !showSidebarPanel && !chatFullWidth && !isEmbedded;
+	const isOverviewCardShown = canShowOverview && isOverviewOpen;
+	const overviewToggle: ChatOverviewToggleProps | undefined = canShowOverview
+		? {
+				isOpen: isOverviewOpen,
+				cardId: overviewCardId,
+				onToggle: () => {
+					savePersistedOverviewCardOpen(!isOverviewOpen);
+					setIsOverviewOpen(!isOverviewOpen);
+				},
+			}
+		: undefined;
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -380,7 +449,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	};
 
 	const openOverviewTarget = (target: OverviewTarget) => {
-		overview.recordTarget(target);
+		setPanelFocusRequestId((id) => (id ?? 0) + 1);
 		activateRightPanelTab(target.tabId);
 	};
 
@@ -566,7 +635,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		<TerminalClientSessionContext value={clientSessionId}>
 			<DesktopPanelContext value={desktopPanelCtx}>
 				<div
-					ref={observeChat}
+					ref={setChatElement}
 					className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]"
 				>
 					<div
@@ -574,6 +643,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 							visualExpanded && "hidden",
 							showSidebarPanel && "max-lg:hidden",
+							// 18rem: 16rem card, 1rem inset, 1rem gap. The transcript
+							// and composer read it while the centered layout cannot
+							// keep them clear of the card.
+							isOverviewCardShown &&
+								!chatFit.fitsCentered &&
+								"[--chat-overview-reserve:18rem]",
 						)}
 					>
 						<div className="relative z-10 shrink-0 overflow-visible">
@@ -585,7 +660,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onToggleSidebar: () =>
 										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
-								overviewToggle={overview.toggle}
+								overviewToggle={overviewToggle}
 							/>
 							{modelCatalogError != null && (
 								<ErrorAlert error={modelCatalogError} />
@@ -617,9 +692,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 								}}
 							/>
-							{overview.isCardShown && (
+							{isOverviewCardShown && (
 								<ChatOverviewCard
-									id={overview.cardId}
+									id={overviewCardId}
 									chat={chat}
 									store={store}
 									repositories={gitWatcher.repositories}
@@ -670,7 +745,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							/>
 						</ChatWorkspaceContext>
 						{!isArchived && (
-							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+							<div className="shrink-0 overflow-y-auto pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
 									chat={chat}
 									store={store}
@@ -741,8 +816,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
 							chatTitle={chat.title}
-							focusRequestId={overview.focusRequestId}
-							onFocusRequestApplied={overview.onFocusRequestApplied}
+							focusRequestId={panelFocusRequestId}
+							onFocusRequestApplied={(id) =>
+								setPanelFocusRequestId((current) =>
+									current === id ? undefined : current,
+								)
+							}
 							addTabControl={(closeTab) => (
 								<RightPanelAddTabControl
 									workspace={workspace}

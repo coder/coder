@@ -380,7 +380,7 @@ describe("AgentChatPage", () => {
 		const setChatWidth = stubChatWidth();
 		renderChatPage(MockChat);
 
-		await setChatWidth(84 * 16 - 1);
+		await setChatWidth(72 * 16 - 1);
 
 		expect(getChatAttachments).not.toHaveBeenCalled();
 	});

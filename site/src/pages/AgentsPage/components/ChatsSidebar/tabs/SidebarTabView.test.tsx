@@ -1,16 +1,16 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { renderComponent } from "#/testHelpers/renderHelpers";
-import { useChatOverview } from "../../../hooks/useChatOverview";
 import { SidebarTab, SidebarTabView } from "./SidebarTabView";
 
 const OverviewHarness: React.FC<{ isMounted: boolean }> = ({ isMounted }) => {
-	const overview = useChatOverview({ isRightPanelOpen: true });
+	const [focusRequestId, setFocusRequestId] = useState<number>();
 	return (
 		<>
 			<button
 				type="button"
-				onClick={() => overview.recordTarget({ tabId: "summary" })}
+				onClick={() => setFocusRequestId((id) => (id ?? 0) + 1)}
 			>
 				Open Summary
 			</button>
@@ -21,8 +21,12 @@ const OverviewHarness: React.FC<{ isMounted: boolean }> = ({ isMounted }) => {
 					isPanelOpen
 					isExpanded={false}
 					onToggleExpanded={vi.fn()}
-					focusRequestId={overview.focusRequestId}
-					onFocusRequestApplied={overview.onFocusRequestApplied}
+					focusRequestId={focusRequestId}
+					onFocusRequestApplied={(id) =>
+						setFocusRequestId((current) =>
+							current === id ? undefined : current,
+						)
+					}
 				>
 					<SidebarTab id="summary" label="Summary">
 						{null}
