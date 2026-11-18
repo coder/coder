@@ -29,7 +29,7 @@ Refer to ["invalid_request" for `client_secret` in the query string](./troublesh
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential.
 Note the redirect Uniform Resource Identifier (URI) restrictions below before choosing one.
 
-Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
+Opening a public client on the **OAuth2 applications** page shows no client secrets section, since a public client has no secret to display or generate.
 
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`.
 To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.

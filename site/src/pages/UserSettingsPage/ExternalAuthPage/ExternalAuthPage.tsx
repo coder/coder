@@ -29,9 +29,9 @@ const ExternalAuthPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("External Authentication", "Settings")}</title>
+			<title>{pageTitle("External authentication", "Settings")}</title>
 			<SettingsHeader>
-				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+				<SettingsHeaderTitle>External authentication</SettingsHeaderTitle>
 			</SettingsHeader>
 			<ExternalAuthPageView
 				isLoading={externalAuthsQuery.isLoading}
@@ -64,7 +64,7 @@ const ExternalAuthPage: React.FC = () => {
 			/>
 			<DeleteDialog
 				key={appToUnlink?.id}
-				title="Unlink Application"
+				title="Unlink application"
 				verb="Unlinking"
 				info={
 					appToUnlink?.supports_revocation

@@ -5038,9 +5038,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
+  "hidden_template_count": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "limit_templates": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5049,23 +5059,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "share": true,
     "update": true
   },
+  "templates": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
-|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string                                                             | false    |              |                                                                                               |
-| `description`     | string                                                             | false    |              |                                                                                               |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string                                                             | false    |              |                                                                                               |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string                                                             | false    |              |                                                                                               |
-| `owner_id`        | string                                                             | false    |              |                                                                                               |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
-| `updated_at`      | string                                                             | false    |              |                                                                                               |
+| Name                    | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                      |
+|-------------------------|----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `default_template`      | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template is omitted when the project has none or the caller cannot access it.                                                                                            |
+| `description`           | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `hidden_template_count` | integer                                                                    | false    |              | Hidden template count is the number of attached templates the caller cannot access. Nothing else about them is returned.                                                         |
+| `icon`                  | string                                                                     | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                    |
+| `id`                    | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `limit_templates`       | boolean                                                                    | false    |              | Limit templates restricts the project's chats to its attached templates, and to none when nothing is attached. When false, the chats can use every template their owner can use. |
+| `name`                  | string                                                                     | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                            |
+| `organization_id`       | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `owner_id`              | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `permissions`           | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions)         | false    |              |                                                                                                                                                                                  |
+| `templates`             | array of [codersdk.ChatProjectTemplate](#codersdkchatprojecttemplate)      | false    |              | Templates are the attached templates the caller can access. Deprecated templates and templates that do not allow agents are left out.                                            |
+| `updated_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
 
 ## codersdk.ChatProjectACL
 
@@ -5127,6 +5149,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
 | `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
 | `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
+
+## codersdk.ChatProjectDefaultTemplate
+
+```json
+{
+  "parameters": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `parameters`       | object | false    |              | Parameters are parameter values, keyed by name, applied when a chat creates a workspace from the template. Values the chat passes take precedence.                                     |
+| » `[any property]` | string | false    |              |                                                                                                                                                                                        |
+| `preset_id`        | string | false    |              | Preset ID is a preset of the template's active version, applied when a chat creates a workspace from the template without choosing a preset. It is mutually exclusive with Parameters. |
+| `template_id`      | string | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.ChatProjectGroup
 
@@ -5271,6 +5315,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.ChatProjectTemplate
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.ChatProjectUser
 
@@ -7064,19 +7128,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
-  "name": "string"
+  "limit_templates": true,
+  "name": "string",
+  "template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | true     |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                   |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template must name one of TemplateIDs.                |
+| `description`      | string                                                                     | false    |              |                                                               |
+| `icon`             | string                                                                     | false    |              |                                                               |
+| `limit_templates`  | boolean                                                                    | false    |              | Limit templates restricts the project's chats to TemplateIDs. |
+| `name`             | string                                                                     | true     |              |                                                               |
+| `template_ids`     | array of string                                                            | false    |              | Template ids are attached to the new project.                 |
 
 ## codersdk.CreateChatRequest
 
@@ -7409,12 +7488,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.    |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                                                                                                                                          |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.                                                                                                                         |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                                                                                                                                               |
 
 ## codersdk.CreateTemplateRequest
 
@@ -10602,8 +10681,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
 | `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
-| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
-| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                                     |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                                   |
 | `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
 | `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
@@ -10661,11 +10740,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.GroupMembersResponse
 
@@ -12641,8 +12720,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------|-------------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `count`        | integer                                                                                               | false    |              | Count is the number of users with spend in the period.                                                                                                                                                                                 |
 | `intervals`    | array of [codersdk.OrganizationAISpendOverviewInterval](#codersdkorganizationaispendoverviewinterval) | false    |              | Intervals holds the daily spend, one interval per UTC day in the period (omitting days after the current day). Days without spend are zero. When the period includes the current day, its interval only has the spend recorded so far. |
-| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                  |
-| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                |
+| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                         |
+| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                       |
 | `totals`       | [codersdk.OrganizationAISpendOverviewTotals](#codersdkorganizationaispendoverviewtotals)              | false    |              |                                                                                                                                                                                                                                        |
 | `users`        | array of [codersdk.OrganizationAISpendOverviewUser](#codersdkorganizationaispendoverviewuser)         | false    |              | Users is the requested page, most spend first.                                                                                                                                                                                         |
 
@@ -12770,8 +12849,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
 |-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
-| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
-| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                          |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                        |
 | `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
 | `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
 | `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
@@ -13091,11 +13170,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                            | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                            | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.OrganizationMember
 
@@ -15247,18 +15326,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
-| `content`         | string  | false    |              |                                                                                                                                                           |
-| `created_at`      | string  | false    |              |                                                                                                                                                           |
-| `description`     | string  | false    |              |                                                                                                                                                           |
-| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
-| `enabled`         | boolean | false    |              |                                                                                                                                                           |
-| `id`              | string  | false    |              |                                                                                                                                                           |
-| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
-| `name`            | string  | false    |              |                                                                                                                                                           |
-| `updated_at`      | string  | false    |              |                                                                                                                                                           |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills.                                                    |
+| `content`         | string  | false    |              | Content is the SKILL.md file, with its `disable-model-invocation` frontmatter key set to agree with `model_invocable`. A stored file whose key the server cannot set, such as a list, is returned unchanged. |
+| `created_at`      | string  | false    |              |                                                                                                                                                                                                              |
+| `description`     | string  | false    |              |                                                                                                                                                                                                              |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.                                                          |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                              |
+| `id`              | string  | false    |              |                                                                                                                                                                                                              |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.                                                             |
+| `name`            | string  | false    |              |                                                                                                                                                                                                              |
+| `updated_at`      | string  | false    |              |                                                                                                                                                                                                              |
 
 ## codersdk.SkillMetadata
 
@@ -16928,6 +17007,59 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UnpricedAIModel
+
+```json
+{
+  "model": "string",
+  "provider_display_name": "string",
+  "provider_icon": "string",
+  "provider_name": "string",
+  "provider_type": "openai",
+  "token_count": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                               | Required | Restrictions | Description                                                             |
+|-------------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `model`                 | string                                             | false    |              | Model is the model the client requested.                                |
+| `provider_display_name` | string                                             | false    |              | Provider display name falls back to the provider name when unset.       |
+| `provider_icon`         | string                                             | false    |              | Provider icon is empty when the provider has no configured icon.        |
+| `provider_name`         | string                                             | false    |              | Provider name is the name of the configured provider.                   |
+| `provider_type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Provider type is the type of the configured provider.                   |
+| `token_count`           | integer                                            | false    |              | Token count is the number of tokens used without a price in the period. |
+
+## codersdk.UnpricedAIModels
+
+```json
+{
+  "count": 0,
+  "models": [
+    {
+      "model": "string",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "provider_name": "string",
+      "provider_type": "openai",
+      "token_count": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                          | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `count`        | integer                                                       | false    |              | Count is the number of models listed.                            |
+| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are ordered by unpriced token count, highest first.       |
+| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the applied period. |
+
 ## codersdk.UpdateAIProviderRequest
 
 ```json
@@ -17377,19 +17509,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
+  "limit_templates": true,
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | false    |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                                                                                          |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template replaces the project's default template, preset, and parameters as a whole when set. A zero TemplateID clears them. |
+| `description`      | string                                                                     | false    |              |                                                                                                                                      |
+| `icon`             | string                                                                     | false    |              |                                                                                                                                      |
+| `limit_templates`  | boolean                                                                    | false    |              |                                                                                                                                      |
+| `name`             | string                                                                     | false    |              |                                                                                                                                      |
 
 ## codersdk.UpdateChatRequest
 
@@ -17717,13 +17860,13 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                           |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
-| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                                                                                                |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                                                                                                                                                |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                                                                                            |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter sets `disable-model-invocation` to a boolean: true turns it off and false turns it on.                                                                                                                    |
 
 ## codersdk.UpdateTemplateACL
 
@@ -18430,8 +18573,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
 | `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
 | `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
-| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
-| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                         |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                       |
 | `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.UserActivity
