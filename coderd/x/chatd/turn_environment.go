@@ -731,10 +731,6 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 
-	acpSubagentsAvailable := !isExploreSubagent && slices.ContainsFunc(tools, func(tool fantasy.AgentTool) bool {
-		_, ok := tool.(acpSpawnTool)
-		return ok
-	})
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -744,11 +740,11 @@ func (p *Server) buildTurnEnvironment(
 		projectInstructions,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
-			planMode:              currentPlanMode,
-			chatMode:              chat.Mode,
-			planModeInstructions:  planModeInstructions,
-			isRootChat:            isRootChat,
-			acpSubagentsAvailable: acpSubagentsAvailable,
+			planMode:             currentPlanMode,
+			chatMode:             chat.Mode,
+			planModeInstructions: planModeInstructions,
+			isRootChat:           isRootChat,
+			builtinTools:         callableToolNames(tools, currentPlanMode, chat.Mode, chat.ParentChatID),
 		},
 	)
 	if advisorRuntime != nil {
@@ -2058,6 +2054,55 @@ func toolAllowedForTurn(
 	return approved
 }
 
+// callableToolNames returns the names of the tools in tools that the model can
+// call this turn under the Plan Mode and Explore policies that
+// buildTurnEnvironment applies to the final tool list.
+func callableToolNames(
+	tools []fantasy.AgentTool,
+	planMode database.NullChatPlanMode,
+	chatMode database.NullChatMode,
+	parentChatID uuid.NullUUID,
+) map[string]bool {
+	explore := isExploreSubagentMode(chatMode)
+	names := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		if !toolAllowedForTurn(tool, planMode, parentChatID, nil) || (explore && !exploreToolAllowed(tool)) {
+			continue
+		}
+		names[tool.Info().Name] = true
+	}
+	return names
+}
+
+// removeSystemText deletes the first occurrence of text from each system
+// message text part and drops system messages that become empty.
+func removeSystemText(prompt []fantasy.Message, text string) []fantasy.Message {
+	out := make([]fantasy.Message, 0, len(prompt))
+	for _, msg := range prompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			out = append(out, msg)
+			continue
+		}
+		content := make([]fantasy.MessagePart, 0, len(msg.Content))
+		for _, part := range msg.Content {
+			if textPart, ok := part.(fantasy.TextPart); ok {
+				textPart.Text = strings.Replace(textPart.Text, text, "", 1)
+				if strings.TrimSpace(textPart.Text) == "" {
+					continue
+				}
+				part = textPart
+			}
+			content = append(content, part)
+		}
+		if len(content) == 0 {
+			continue
+		}
+		msg.Content = content
+		out = append(out, msg)
+	}
+	return out
+}
+
 func filterToolsForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -2142,11 +2187,13 @@ func stopAfterBehaviorTools(
 }
 
 type systemPromptBehaviorContext struct {
-	acpSubagentsAvailable bool
-	planMode              database.NullChatPlanMode
-	chatMode              database.NullChatMode
-	planModeInstructions  string
-	isRootChat            bool
+	// builtinTools holds the names of the built-in tools the model can call
+	// this turn.
+	builtinTools         map[string]bool
+	planMode             database.NullChatPlanMode
+	chatMode             database.NullChatMode
+	planModeInstructions string
+	isRootChat           bool
 }
 
 // workspaceSkillsForResolution returns the workspace skills the model may
@@ -2185,11 +2232,12 @@ func mergeTurnSkills(
 	)
 }
 
-// buildSystemPrompt applies system-level prompt injections in a fixed
+// buildSystemPrompt removes subagentOrchestrationPromptBlock from stored
+// system messages, then applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// ACP guidance, project instructions, user prompt, then mode overlays. Project
-// instructions precede the user prompt so personal instructions keep the
-// last word.
+// delegation guidance, ACP guidance, project instructions, user prompt, then
+// mode overlays. Project instructions precede the user prompt so personal
+// instructions keep the last word.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
@@ -2200,6 +2248,7 @@ func buildSystemPrompt(
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
+	prompt = removeSystemText(prompt, subagentOrchestrationPromptBlock)
 	if subagentInstruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
 	}
@@ -2212,7 +2261,10 @@ func buildSystemPrompt(
 	if memoryIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
 	}
-	if behaviorContext.acpSubagentsAvailable {
+	if block := subagentPromptBlock(behaviorContext.builtinTools); block != "" {
+		prompt = chatprompt.InsertSystem(prompt, block)
+	}
+	if behaviorContext.builtinTools[acpSpawnAgentToolName] {
 		prompt = chatprompt.InsertSystem(prompt, acpSubagentPromptBlock)
 	}
 	if projectInstructions != "" {
