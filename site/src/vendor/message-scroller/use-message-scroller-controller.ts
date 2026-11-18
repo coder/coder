@@ -520,7 +520,15 @@ function useMessageScrollerController({
         }
       }
 
-      if (items.length === previousItemCount) {
+      // LOCAL CHANGE: a row that replaces the held one, as a stored message
+      // replaces its pending row while the reply starts, takes over the hold.
+      const heldElement = streamingTurnRef.current
+      const heldElementReplaced =
+        modeRef.current === "anchored-to-message" &&
+        heldElement !== null &&
+        !heldElement.isConnected
+
+      if (items.length === previousItemCount || heldElementReplaced) {
         const anchor = getUnanchoredScrollAnchor(
           items,
           handledScrollAnchorsRef.current
