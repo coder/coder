@@ -4450,7 +4450,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 // @Param origin query string false "Remote origin selecting the ref to diff"
 // @Param branch query string false "Git branch selecting the ref to diff"
 // @Success 200 {object} codersdk.ChatDiffContents
-// @Failure 424 {object} codersdk.ChatDiffReauthRequired
+// @Failure 424 {object} codersdk.ChatDiffReauthRequired "The provider rejected the chat owner's saved credentials, so the owner must reconnect the provider"
 // @Router /api/v2/chats/{chat}/diff [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -4847,17 +4847,29 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
-	if gp == nil {
+	matches := api.externalAuthForOrigin(ctx, reference.RepositoryRef.RemoteOrigin)
+	if len(matches) == 0 {
 		return result, nil
 	}
 
-	token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
+	token, tokenConfig, err := api.resolveChatGitAccessTokenWithConfig(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
 	if errors.Is(err, gitsync.ErrNoTokenAvailable) || token == nil {
 		// No token available; return metadata without fetching diff.
 		return result, nil
 	} else if err != nil {
 		return result, xerrors.Errorf("resolve git access token: %w", err)
+	}
+
+	// Fetch only with a token from a config that matches the origin, so the
+	// token is never sent to another provider's API host.
+	var gp gitprovider.Provider
+	for _, match := range matches {
+		if match.config == tokenConfig {
+			gp = match.provider
+		}
+	}
+	if gp == nil {
+		return result, nil
 	}
 
 	if reference.PullRequestURL != "" {
@@ -4867,7 +4879,7 @@ func (api *API) resolveChatDiffContents(
 		}
 		diff, err := gp.FetchPullRequestDiff(ctx, *token, ref)
 		if err != nil {
-			return result, api.chatDiffFetchError(ctx, reference.RepositoryRef.RemoteOrigin, err)
+			return result, chatDiffFetchError(tokenConfig, err)
 		}
 		result.Diff = diff
 		return result, nil
@@ -4878,7 +4890,7 @@ func (api *API) resolveChatDiffContents(
 		Branch: reference.RepositoryRef.Branch,
 	})
 	if err != nil {
-		return result, api.chatDiffFetchError(ctx, reference.RepositoryRef.RemoteOrigin, err)
+		return result, chatDiffFetchError(tokenConfig, err)
 	}
 	result.Diff = diff
 	return result, nil
@@ -4896,14 +4908,9 @@ func (e *chatDiffReauthError) Error() string { return e.err.Error() }
 func (e *chatDiffReauthError) Unwrap() error { return e.err }
 
 // chatDiffFetchError wraps gitprovider.ErrTokenRejected in a chatDiffReauthError
-// for the config matching origin. A rejection with no matching config is
-// returned unchanged.
-func (api *API) chatDiffFetchError(ctx context.Context, origin string, err error) error {
+// that names config, the provider whose token was rejected.
+func chatDiffFetchError(config *externalauth.Config, err error) error {
 	if !xerrors.Is(err, gitprovider.ErrTokenRejected) {
-		return err
-	}
-	config, _ := api.externalAuthConfigForOrigin(ctx, origin)
-	if config == nil {
 		return err
 	}
 	return &chatDiffReauthError{
@@ -5046,14 +5053,21 @@ func selectChatDiffStatus(
 	return database.ChatDiffStatus{}, false
 }
 
-// externalAuthConfigForOrigin returns the external auth config whose regex
-// matches origin and whose git provider can be constructed, with that provider.
-// It returns nil when no config matches.
-func (api *API) externalAuthConfigForOrigin(ctx context.Context, origin string) (*externalauth.Config, gitprovider.Provider) {
+// originAuth is an external auth config whose regex matches a remote origin,
+// with the git provider it constructs.
+type originAuth struct {
+	config   *externalauth.Config
+	provider gitprovider.Provider
+}
+
+// externalAuthForOrigin returns, in configuration order, every external auth
+// config whose regex matches origin and whose git provider can be constructed.
+func (api *API) externalAuthForOrigin(ctx context.Context, origin string) []originAuth {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
-		return nil, nil
+		return nil
 	}
+	var matches []originAuth
 	for _, extAuth := range api.ExternalAuthConfigs {
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
@@ -5070,9 +5084,9 @@ func (api *API) externalAuthConfigForOrigin(ctx context.Context, origin string) 
 		if p == nil {
 			continue
 		}
-		return extAuth, p
+		matches = append(matches, originAuth{config: extAuth, provider: p})
 	}
-	return nil, nil
+	return matches
 }
 
 // resolveExternalAuth finds the external auth config matching the
@@ -5080,11 +5094,11 @@ func (api *API) externalAuthConfigForOrigin(ctx context.Context, origin string) 
 // (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
 // if no matching config is found or no provider could be constructed.
 func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
-	config, gp := api.externalAuthConfigForOrigin(ctx, origin)
-	if config == nil {
+	matches := api.externalAuthForOrigin(ctx, origin)
+	if len(matches) == 0 {
 		return "", nil
 	}
-	return strings.ToLower(strings.TrimSpace(config.Type)), gp
+	return strings.ToLower(strings.TrimSpace(matches[0].config.Type)), matches[0].provider
 }
 
 // resolveGitProvider finds the external auth config matching the
@@ -5095,100 +5109,84 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 	return gp
 }
 
-// resolveChatGitAccessToken returns userID's external-auth access token,
-// preferring the config matching origin and falling back to any config.
-// It skips provider validation for tokens passing OAuthToken().Valid(),
-// because provider validation would not change which token is returned.
-// When RefreshToken returns an error, the resolver returns the access token
-// read before that call.
+// resolveChatGitAccessToken returns userID's external-auth access token.
+// See resolveChatGitAccessTokenWithConfig.
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
 	origin string,
 ) (*string, error) {
-	origin = strings.TrimSpace(origin)
+	token, _, err := api.resolveChatGitAccessTokenWithConfig(ctx, userID, origin)
+	return token, err
+}
 
-	// If we have an origin, use the config matching it so multi-provider
-	// setups (github.com + GHE) get the correct token.
-	if origin != "" {
-		if config, _ := api.externalAuthConfigForOrigin(ctx, origin); config != nil {
-			//nolint:gocritic // System access needed to read external auth
-			// links when called from the gitsync worker (chatd context).
-			link, err := api.Database.GetExternalAuthLink(dbauthz.AsSystemRestricted(ctx),
-				database.GetExternalAuthLinkParams{
-					ProviderID: config.ID,
-					UserID:     userID,
-				},
-			)
-			if err == nil {
-				if !link.OAuthToken().Valid() {
-					//nolint:gocritic // System context carried through for token refresh.
-					refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
-					if refreshErr == nil {
-						link = refreshed
-					}
-				}
-
-				token := strings.TrimSpace(link.OAuthAccessToken)
-				if token != "" {
-					return new(token), nil
-				}
-			}
+// resolveChatGitAccessTokenWithConfig returns userID's external-auth access
+// token and the config it came from. It tries the configs matching origin in
+// configuration order, so multi-provider setups (github.com + GHE) get the
+// correct token. It then falls back to any config. Tokens that are not valid
+// are refreshed first. When RefreshToken fails, the access token read before
+// that call is used.
+func (api *API) resolveChatGitAccessTokenWithConfig(
+	ctx context.Context,
+	userID uuid.UUID,
+	origin string,
+) (*string, *externalauth.Config, error) {
+	for _, match := range api.externalAuthForOrigin(ctx, origin) {
+		if token, ok := api.linkedAccessToken(ctx, match.config, userID); ok {
+			return token, match.config, nil
 		}
 	}
 
-	// Fallback: iterate all external auth configs.
-	// Used when origin is empty (inline refresh from HTTP handler)
-	// or when the origin-specific lookup above failed.
-	configs := make(map[string]*externalauth.Config)
-	providerIDs := []string{}
-	for _, config := range api.ExternalAuthConfigs {
-		providerIDs = append(providerIDs, config.ID)
-		configs[config.ID] = config
-	}
-
+	// Fallback: iterate all external auth configs. This is used when origin
+	// is empty (inline refresh from HTTP handler) or when no config matching
+	// origin has a usable link.
 	seen := map[string]struct{}{}
-	for _, providerID := range providerIDs {
-		if _, ok := seen[providerID]; ok {
+	for _, config := range api.ExternalAuthConfigs {
+		if _, ok := seen[config.ID]; ok {
 			continue
 		}
-		seen[providerID] = struct{}{}
-
-		//nolint:gocritic // System access needed to read external auth
-		// links when called from the gitsync worker (chatd context).
-		link, err := api.Database.GetExternalAuthLink(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetExternalAuthLinkParams{
-				ProviderID: providerID,
-				UserID:     userID,
-			},
-		)
-		if err != nil {
-			continue
-		}
-
-		cfg, hasConfig := configs[providerID]
-		if hasConfig && !link.OAuthToken().Valid() {
-			//nolint:gocritic // System context carried through for token refresh.
-			refreshed, refreshErr := cfg.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
-			if refreshErr != nil {
-				api.Logger.Debug(ctx, "failed to refresh external auth token for chat diff",
-					slog.F("provider_id", providerID),
-					slog.F("user_id", userID),
-					slog.Error(refreshErr),
-				)
-			} else {
-				link = refreshed
-			}
-		}
-
-		token := strings.TrimSpace(link.OAuthAccessToken)
-		if token != "" {
-			return new(token), nil
+		seen[config.ID] = struct{}{}
+		if token, ok := api.linkedAccessToken(ctx, config, userID); ok {
+			return token, config, nil
 		}
 	}
 
-	return nil, gitsync.ErrNoTokenAvailable
+	return nil, nil, gitsync.ErrNoTokenAvailable
+}
+
+// linkedAccessToken returns userID's access token for config, refreshing it
+// first when it is not valid. It reports false when the user has no usable
+// link for config.
+func (api *API) linkedAccessToken(ctx context.Context, config *externalauth.Config, userID uuid.UUID) (*string, bool) {
+	//nolint:gocritic // System access needed to read external auth
+	// links when called from the gitsync worker (chatd context).
+	link, err := api.Database.GetExternalAuthLink(dbauthz.AsSystemRestricted(ctx),
+		database.GetExternalAuthLinkParams{
+			ProviderID: config.ID,
+			UserID:     userID,
+		},
+	)
+	if err != nil {
+		return nil, false
+	}
+	if !link.OAuthToken().Valid() {
+		//nolint:gocritic // System context carried through for token refresh.
+		refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
+		if refreshErr != nil {
+			api.Logger.Debug(ctx, "failed to refresh external auth token for chat diff",
+				slog.F("provider_id", config.ID),
+				slog.F("user_id", userID),
+				slog.Error(refreshErr),
+			)
+		} else {
+			link = refreshed
+		}
+	}
+	token := strings.TrimSpace(link.OAuthAccessToken)
+	if token == "" {
+		return nil, false
+	}
+	return new(token), true
 }
 
 type createChatWorkspaceSelection struct {

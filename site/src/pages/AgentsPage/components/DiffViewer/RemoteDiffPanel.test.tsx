@@ -23,7 +23,7 @@ const axiosError = (status: number, data: unknown): AxiosError =>
 		data,
 	});
 
-// Only `closed` is read from the popup. Window.closed is readonly, so the stub is mutable.
+// The tests set `closed`, which is readonly on Window.
 const popupStub = (): { closed: boolean } => ({ closed: false });
 
 const renderPanel = () => {
@@ -84,14 +84,20 @@ describe("RemoteDiffPanel reauth handling", () => {
 		await waitFor(() => expect(diffSpy).toHaveBeenCalledTimes(2));
 	});
 
-	it("does not open a popup for other failures", async () => {
+	it("keeps the error for a failure that is not a reauth response", async () => {
+		// The body would show a reconnect button if the guard accepted it.
 		vi.spyOn(API.experimental, "getChatDiffContents").mockRejectedValue(
-			axiosError(500, { message: "Failed to get chat diff." }),
+			axiosError(500, {
+				...MockChatDiffReauthRequired,
+				kind: "generic",
+				message: "Failed to get chat diff.",
+			}),
 		);
-		const openSpy = vi.spyOn(window, "open");
 		renderPanel();
 
 		await screen.findByText("Failed to get chat diff.");
-		expect(openSpy).not.toHaveBeenCalled();
+		expect(
+			screen.queryByRole("button", { name: "Reconnect GitHub" }),
+		).toBeNull();
 	});
 });

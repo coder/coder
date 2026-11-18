@@ -257,7 +257,7 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 			return "", rlErr
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
-			return "", xerrors.Errorf("%w: gitlab request failed with status %d", ErrTokenRejected, resp.StatusCode)
+			return "", xerrors.Errorf("%w: gitlab get merge request raw diffs: status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -349,7 +349,7 @@ func (g *gitlabProvider) FetchBranchDiff(
 			return "", rlErr
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
-			return "", xerrors.Errorf("%w: gitlab request failed with status %d", ErrTokenRejected, resp.StatusCode)
+			return "", xerrors.Errorf("%w: gitlab compare branches: status %d", ErrTokenRejected, resp.StatusCode)
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {

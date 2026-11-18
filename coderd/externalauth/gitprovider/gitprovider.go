@@ -142,11 +142,14 @@ var ErrTokenRejected = xerrors.New("provider rejected the access token")
 type Provider interface {
 	// FetchPullRequestStatus retrieves the complete status of a
 	// pull request in the minimum number of API calls for this
-	// provider.
+	// provider. Returns ErrTokenRejected if the provider rejects
+	// the token with HTTP 401.
 	FetchPullRequestStatus(ctx context.Context, token string, ref PRRef) (*PRStatus, error)
 
 	// ResolveBranchPullRequest finds the open PR (if any) for
 	// the given branch. Returns nil, nil if no open PR exists.
+	// Returns ErrTokenRejected if the provider rejects the token
+	// with HTTP 401.
 	ResolveBranchPullRequest(ctx context.Context, token string, ref BranchRef) (*PRRef, error)
 
 	// FetchPullRequestDiff returns the raw unified diff for a
@@ -155,13 +158,17 @@ type Provider interface {
 	// targeting "staging" instead of "main"), so it matches what
 	// the provider shows on the PR's "Files changed" tab.
 	// Returns ErrDiffTooLarge if the diff exceeds MaxDiffSize.
+	// Returns ErrTokenRejected if the provider rejects the token
+	// with HTTP 401.
 	FetchPullRequestDiff(ctx context.Context, token string, ref PRRef) (string, error)
 
 	// FetchBranchDiff returns the diff of a branch compared
 	// against the repository's default branch. This is the
 	// fallback when no pull request exists yet (e.g. the agent
 	// pushed a branch but hasn't opened a PR). Returns
-	// ErrDiffTooLarge if the diff exceeds MaxDiffSize.
+	// ErrDiffTooLarge if the diff exceeds MaxDiffSize. Returns
+	// ErrTokenRejected if the provider rejects the token with
+	// HTTP 401.
 	FetchBranchDiff(ctx context.Context, token string, ref BranchRef) (string, error)
 
 	// ParseRepositoryOrigin parses a remote origin URL (HTTPS

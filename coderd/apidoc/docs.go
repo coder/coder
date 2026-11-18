@@ -4730,7 +4730,7 @@ const docTemplate = `{
                         }
                     },
                     "424": {
-                        "description": "Failed Dependency",
+                        "description": "The provider rejected the chat owner's saved credentials, so the owner must reconnect the provider",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatDiffReauthRequired"
                         }
@@ -22414,7 +22414,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "kind": {
-                    "description": "Kind is ChatErrorKindExternalAuthReauthRequired.",
+                    "description": "Kind is external_auth_reauth_required.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatErrorKind"

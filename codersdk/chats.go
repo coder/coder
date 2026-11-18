@@ -2075,7 +2075,7 @@ type ChatDiffContents struct {
 // the provider rejects the chat owner's access token.
 type ChatDiffReauthRequired struct {
 	Response
-	// Kind is ChatErrorKindExternalAuthReauthRequired.
+	// Kind is external_auth_reauth_required.
 	Kind ChatErrorKind `json:"kind"`
 	// ProviderID is the external auth config ID used in
 	// /external-auth/{provider}.
@@ -2206,6 +2206,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindContentFilter,
 	ChatErrorKindHookDispatchFailed,
 	ChatErrorKindHookDenied,
+	ChatErrorKindExternalAuthReauthRequired,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the

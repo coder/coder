@@ -137,6 +137,47 @@ type chatGitAuthFixture struct {
 	providerValidationRequests atomic.Int64
 }
 
+func TestResolveChatGitAccessTokenUsesNextMatchingConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	origin := "https://git.example.com/owner/repo.git"
+
+	matching := func(id string) *externalauth.Config {
+		return &externalauth.Config{
+			ID:           id,
+			Type:         "github",
+			Regex:        regexp.MustCompile(`^https://git\.example\.com/`),
+			RefreshGroup: new(singleflight.Group),
+		}
+	}
+	api := &API{Options: &Options{
+		Database:            db,
+		ExternalAuthConfigs: []*externalauth.Config{matching("first"), matching("second")},
+		Logger:              testutil.Logger(t),
+	}}
+
+	// The first matching config has no link, so the second config supplies the
+	// token and is reported as its source.
+	_, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
+		ProviderID:       "second",
+		UserID:           user.ID,
+		CreatedAt:        dbtime.Now(),
+		UpdatedAt:        dbtime.Now(),
+		OAuthAccessToken: "second-token",
+	})
+	require.NoError(t, err)
+
+	token, config, err := api.resolveChatGitAccessTokenWithConfig(ctx, user.ID, origin)
+	require.NoError(t, err)
+	require.NotNil(t, token)
+	assert.Equal(t, "second-token", *token)
+	require.NotNil(t, config)
+	assert.Equal(t, "second", config.ID)
+}
+
 func newChatGitAuthFixture(
 	ctx context.Context,
 	t *testing.T,

@@ -12608,10 +12608,10 @@ func startRejectedGitHub(t *testing.T) (*httptest.Server, string) {
 		_, _ = w.Write([]byte(`{"message": "Bad credentials"}`))
 	}))
 	t.Cleanup(srv.Close)
-	return srv, "https://" + strings.TrimPrefix(srv.URL, "https://") + "/acme/project.git"
+	return srv, srv.URL + "/acme/project.git"
 }
 
-// rejectedGitHubConfig returns a GitHub external auth config for srv.
+// rejectedGitHubConfig sets the API base to srv, which rejects the token.
 func rejectedGitHubConfig(srv *httptest.Server, id, displayName string) *externalauth.Config {
 	host := strings.TrimPrefix(srv.URL, "https://")
 	return &externalauth.Config{
@@ -12625,9 +12625,9 @@ func rejectedGitHubConfig(srv *httptest.Server, id, displayName string) *externa
 	}
 }
 
-// seedRejectedGitHubChat stores a GitHub link for ownerID and a chat whose
-// diff reference points at origin and branch. A non-empty prURL is stored as
-// the reference's pull request.
+// seedRejectedGitHubChat stores a link for providerID and a chat whose diff
+// reference is origin and branch. A non-empty prURL is stored as the
+// reference's pull request.
 func seedRejectedGitHubChat(
 	ctx context.Context,
 	t *testing.T,
@@ -12669,7 +12669,6 @@ func seedRejectedGitHubChat(
 	return chat
 }
 
-// diffRequestPath returns the diff endpoint path for the chat's ref.
 func diffRequestPath(chatID uuid.UUID, origin, branch string) string {
 	return fmt.Sprintf("/api/v2/chats/%s/diff?origin=%s&branch=%s", chatID, url.QueryEscape(origin), url.QueryEscape(branch))
 }
@@ -12741,6 +12740,32 @@ func TestGetChatDiffContentsReauthRequired(t *testing.T) {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
 		require.False(t, body.CanReconnect)
 		require.Equal(t, "GitHub Test rejected the chat owner's saved credentials. Ask the chat owner to reconnect GitHub Test.", body.Message)
+	})
+
+	t.Run("TokenFromNonMatchingProviderIsNotSent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		gitHub, origin := startRejectedGitHub(t)
+		other := rejectedGitHubConfig(gitHub, "other-test", "Other Test")
+		other.Regex = regexp.MustCompile(`^https://elsewhere\.example/`)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues:    coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{rejectedGitHubConfig(gitHub, "github-test", "GitHub Test"), other},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedRejectedGitHubChat(ctx, t, api.Database, "other-test", user.UserID, user.OrganizationID, modelConfig.ID, origin, "feature/rejected", "")
+
+		// The only link belongs to a provider that does not match the origin, so
+		// no diff is fetched and the GitHub stub never sees that token.
+		res, err := client.Request(ctx, http.MethodGet, diffRequestPath(chat.ID, origin, "feature/rejected"), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("UsesProviderMatchingOrigin", func(t *testing.T) {

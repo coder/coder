@@ -2697,7 +2697,7 @@ export interface ChatDiffContents {
  */
 export interface ChatDiffReauthRequired extends Response {
 	/**
-	 * Kind is ChatErrorKindExternalAuthReauthRequired.
+	 * Kind is external_auth_reauth_required.
 	 */
 	readonly kind: ChatErrorKind;
 	/**
