@@ -3,8 +3,12 @@ package agentcontext
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
+
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // MCPServerStatus is a non-blocking, point-in-time view of a single MCP
@@ -13,7 +17,8 @@ import (
 // runner owns the connection lifecycle; this type carries only the
 // resolved result.
 type MCPServerStatus struct {
-	// Name is the server name declared in .mcp.json.
+	// Name is the server name declared in a legacy .mcp.json or a
+	// plugin's mcp.json.
 	Name string
 	// Connected reports whether the runner reached the server and
 	// listed its tools during the most recent reload.
@@ -24,6 +29,9 @@ type MCPServerStatus struct {
 	// as the server reported them (no server prefix), when
 	// Connected; empty otherwise.
 	Tools []MCPTool
+	// PluginName is the Agent Plugin whose mcp.json declared the
+	// server; empty for a legacy .mcp.json server.
+	PluginName string
 }
 
 // buildMCPServerResources turns a per-server MCP snapshot into one
@@ -40,6 +48,13 @@ type MCPServerStatus struct {
 // it). A server's .mcp.json entry still appears separately as a
 // KindMCPConfig resource from the filesystem pass.
 //
+// A plugin server's source is "<plugin>/<server>", and sources must be
+// unique within a push. A plugin server whose source equals a legacy
+// server's name is dropped and named in that server's warning. One
+// whose source exceeds workspacesdk.MaxContextSourceBytes is dropped
+// and counted on the "<plugin>/mcp.json" resource, which is the
+// plugin's server named mcp.json when there is one.
+//
 // Tool names are emitted exactly as the server reported them; flattening
 // them into a single namespace (e.g. "server__tool") is the control
 // plane's concern, since the resource already carries the server name.
@@ -49,27 +64,67 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 	}
 	sorted := slices.Clone(servers)
 	slices.SortFunc(sorted, func(a, b MCPServerStatus) int {
-		return strings.Compare(a.Name, b.Name)
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+		return strings.Compare(a.PluginName, b.PluginName)
 	})
+
+	legacyServers := make(map[string]struct{}, len(sorted))
+	for _, s := range sorted {
+		if s.PluginName == "" && s.Name != "" {
+			legacyServers[s.Name] = struct{}{}
+		}
+	}
+	hiddenServers := make(map[string][]string)
+	longSources := make(map[string]int)
+	for _, s := range sorted {
+		if s.PluginName == "" || s.Name == "" {
+			continue
+		}
+		source := mcpServerSource(s)
+		if _, ok := legacyServers[source]; ok {
+			hiddenServers[source] = append(hiddenServers[source], fmt.Sprintf(
+				"plugin %q server %q is not started because its ID %q equals this server's name; rename this server in .mcp.json to run both",
+				s.PluginName, s.Name, source))
+		}
+		if len(source) > workspacesdk.MaxContextSourceBytes {
+			longSources[s.PluginName]++
+		}
+	}
 
 	resources := make([]Resource, 0, len(sorted))
 	for _, s := range sorted {
 		if s.Name == "" {
 			continue
 		}
+		source := mcpServerSource(s)
+		if s.PluginName != "" {
+			if _, ok := legacyServers[source]; ok {
+				continue
+			}
+			if len(source) > workspacesdk.MaxContextSourceBytes {
+				continue
+			}
+		}
+		warning := strings.Join(hiddenServers[source], "; ")
 		if !s.Connected {
 			errMsg := s.Err
 			if errMsg == "" {
 				errMsg = "failed to connect"
 			}
+			if warning != "" {
+				errMsg += "; " + warning
+			}
 			resources = append(resources, Resource{
-				ID:          resourceID(KindMCPServer, s.Name),
+				ID:          resourceID(KindMCPServer, source),
 				Kind:        KindMCPServer,
-				Source:      s.Name,
+				Source:      source,
 				Name:        s.Name,
 				Status:      StatusUnreadable,
 				Error:       errMsg,
 				ContentHash: hashMCPServerError(s.Name, errMsg),
+				PluginName:  s.PluginName,
 			})
 			continue
 		}
@@ -81,13 +136,42 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 			return strings.Compare(a.Name, b.Name)
 		})
 		resources = append(resources, Resource{
-			ID:          resourceID(KindMCPServer, s.Name),
+			ID:          resourceID(KindMCPServer, source),
 			Kind:        KindMCPServer,
-			Source:      s.Name,
+			Source:      source,
 			Name:        s.Name,
 			Status:      StatusOK,
-			ContentHash: hashMCPServer(s.Name, serverTools),
+			Error:       warning,
+			ContentHash: hashMCPServer(s.Name, serverTools, warning),
 			Tools:       serverTools,
+			PluginName:  s.PluginName,
+		})
+	}
+	for _, plugin := range slices.Sorted(maps.Keys(longSources)) {
+		source := plugin + "/" + pluginMCPFileName
+		errMsg := fmt.Sprintf("MCP servers not listed because \"<plugin>/<server>\" is longer than %d bytes: %d; shorten their names in mcp.json", workspacesdk.MaxContextSourceBytes, longSources[plugin])
+		if i := slices.IndexFunc(resources, func(r Resource) bool { return r.Source == source }); i >= 0 {
+			r := &resources[i]
+			if r.Error != "" {
+				r.Error += "; "
+			}
+			r.Error += errMsg
+			if r.Status == StatusOK {
+				r.ContentHash = hashMCPServer(r.Name, r.Tools, r.Error)
+			} else {
+				r.ContentHash = hashMCPServerError(r.Name, r.Error)
+			}
+			continue
+		}
+		resources = append(resources, Resource{
+			ID:          resourceID(KindMCPServer, source),
+			Kind:        KindMCPServer,
+			Source:      source,
+			Name:        pluginMCPFileName,
+			Status:      StatusUnreadable,
+			Error:       errMsg,
+			ContentHash: hashMCPServerError(pluginMCPFileName, errMsg),
+			PluginName:  plugin,
 		})
 	}
 	if len(resources) == 0 {
@@ -96,12 +180,21 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 	return resources
 }
 
+// pluginMCPFileName also names the resource that reports problems with
+// a plugin's servers as a whole.
+const pluginMCPFileName = "mcp.json"
+
 // hashMCPServer produces a deterministic content hash over a server's
-// identity and full tool set (name, description, and input schema) so
-// any tool-set change flips the resource's content hash. The schema is
-// encoded with encoding/json, which sorts map keys.
-func hashMCPServer(server string, tools []MCPTool) [32]byte {
+// name and full tool set (name, description, and input schema) so any
+// tool-set change flips the resource's content hash. The schema is
+// encoded with encoding/json, which sorts map keys. A non-empty warning
+// is hashed too.
+func hashMCPServer(server string, tools []MCPTool, warning string) [32]byte {
 	h := sha256.New()
+	if warning != "" {
+		writeLengthPrefixed(h, "warning")
+		writeLengthPrefixed(h, warning)
+	}
 	writeLengthPrefixed(h, server)
 	for _, t := range tools {
 		writeLengthPrefixed(h, t.Name)
@@ -130,4 +223,13 @@ func hashMCPServerError(server, errMsg string) [32]byte {
 	var sum [32]byte
 	copy(sum[:], h.Sum(nil))
 	return sum
+}
+
+// mcpServerSource prefixes plugin servers so a name shared with another
+// server still gets its own resource.
+func mcpServerSource(s MCPServerStatus) string {
+	if s.PluginName == "" {
+		return s.Name
+	}
+	return s.PluginName + "/" + s.Name
 }
