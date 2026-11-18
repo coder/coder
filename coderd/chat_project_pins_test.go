@@ -268,6 +268,10 @@ func TestChatProjectSummaries(t *testing.T) {
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: alice.ID, ProjectID: stopping.ID})
 	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, everyone.ID, codersdk.PinChatProjectRequest{}))
 	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{busy.ID: 1, everyone.ID: 2})
+	// Requested positions count only the pins she sees, so the hidden pin
+	// stored between busy and everyone does not absorb the move.
+	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(2))}))
+	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{everyone.ID: 1, busy.ID: 2})
 }
 
 //nolint:paralleltest // Disabling chat sharing flips a process-wide RBAC switch.
