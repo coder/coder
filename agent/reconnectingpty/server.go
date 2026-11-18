@@ -285,8 +285,8 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		go func() {
 			err := rpty.Wait()
 			if _, ok := errors.AsType[*ExitError](err); ok {
-				// Keep the finished session around so reconnecting to it does not
-				// start the command again.
+				// Keep the finished session around temporarily so reconnecting to it
+				// does not start the command again.
 				connLogger.Debug(ctx, "reconnecting pty process exited", slog.Error(err))
 				time.AfterFunc(s.timeout, func() {
 					s.reconnectingPTYs.Delete(msg.ID)
