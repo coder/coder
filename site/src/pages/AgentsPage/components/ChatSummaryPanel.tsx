@@ -17,13 +17,12 @@ import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 type ChatSummaryPanelProps = {
 	chatId: string;
 	store: ChatStore;
-} & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
+} & Pick<EarlierMessagesProps, "hasMoreMessages">;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	store,
 	hasMoreMessages,
-	isHydratingMessages,
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	// Gate reads on tab visibility so the chat, cost, and attachments
@@ -49,7 +48,6 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		chatId,
 		store,
 		hasMoreMessages,
-		isHydratingMessages,
 		enabled: isVisible,
 	});
 	const evictedFileIds = deriveEvictedFileIds(

@@ -110,6 +110,7 @@ jobs:
     # token only needs to read the repository for checkout.
     permissions:
       contents: read
+      id-token: write # Cloud KMS signs the backporter App's JWT
     if: needs.detect.outputs.branches != '[]'
     runs-on: ubuntu-latest
     environment: main
@@ -137,15 +138,21 @@ jobs:
       # also lets the opened backport PRs trigger CI.
       - name: Generate backport App token
         id: app-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.BACKPORT_APP_ID }}
-          private-key: ${{ secrets.BACKPORT_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-          permission-workflows: write
-          # Required to create the release-specific backport label if missing.
-          permission-issues: write
+          client-id: ${{ secrets.BACKPORT_APP_ID }}
+          kms-key: ${{ secrets.BACKPORT_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder
+          # issues: write creates the release-specific backport label if it's missing.
+          permissions: |
+            contents: write
+            pull_requests: write
+            workflows: write
+            issues: write
 
       - name: Cherry-pick and open PR
         env:
