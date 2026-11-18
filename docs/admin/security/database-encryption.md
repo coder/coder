@@ -35,6 +35,14 @@ The following database fields are currently encrypted:
 - `mcp_server_configs.signing_secret`
 - `mcp_server_user_tokens.access_token`
 - `mcp_server_user_tokens.refresh_token`
+- `external_auth_links.oauth_extra`
+- `workspace_builds.provisioner_state`
+- `template_version_terraform_values.cached_plan`
+- `template_version_variables.value`, for variables marked sensitive
+- `workspace_build_parameters.value`, for ephemeral parameters
+- `workspace_resource_metadata.value`, for metadata marked sensitive
+- `workspace_agents.environment_variables`, for the values but not the variable names
+- `site_configs.value`, for the `derp_mesh_key` and `webpush_vapid_private_key` rows
 
 Additional database fields might be encrypted in the future.
 
@@ -57,6 +65,9 @@ This column is used to determine which encryption key was used to encrypt the da
 This allows Coder to rotate encryption keys without invalidating existing tokens, and provides referential integrity for encrypted data.
 
 The `$C_key_id` column stores the first 7 hexadecimal characters of the SHA-256 digest of the cipher name and the encryption key.
+
+The `site_configs` table has no key ID column.
+For an encrypted value in that table, Coder stores the key ID in a second row that has the same name with a `_key_id` suffix.
 
 Encryption keys in use are stored in `dbcrypt_keys`.
 This table stores a record of all encryption keys that have been used to encrypt data.
@@ -183,6 +194,20 @@ To disable encryption, perform the following actions:
 
 > [!CAUTION]
 > This is a destructive operation.
+
+The command deletes every value that is encrypted and keeps values that aren't.
+Besides user tokens, deleting encrypted data has the following effects:
+
+- The command clears the Terraform state of workspace builds.
+  You must rebuild the affected workspaces, and resources that earlier builds created might be left behind in your infrastructure.
+- The command clears the values of sensitive template variables.
+  Push a new template version that provides the values again.
+- The command removes cached Terraform plans.
+  Coder creates them again on the next template import.
+- The command clears the values of ephemeral parameters, sensitive resource metadata, and agent environment variables.
+  Coder writes the metadata and environment variables again on the next workspace build.
+- The command removes the `derp_mesh_key` row and the web push key rows from `site_configs`.
+  The control plane generates a new mesh key when it starts, and existing web push subscriptions stop working.
 
 To delete all encrypted data from your database, perform the following actions:
 
