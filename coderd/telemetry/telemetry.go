@@ -2545,7 +2545,10 @@ type ChatDiffStatusSummary struct {
 // pin source. Owners get a pin on every project they create, so
 // UnpinnedOwned counts owned projects whose owner removed that pin. Share
 // histograms bucket users by the percentage of their projects they pinned,
-// for all users and for users who acted on pins themselves.
+// for all users and for users whose current pins show an action of their
+// own: a user pin (from pinning or reordering) or an unpinned owned
+// project. Unpinning a shared project leaves no record, so it does not
+// count as an action.
 type ChatProjectPinSummary struct {
 	UsersWithProjects      int64 `json:"users_with_projects"`
 	UsersWithUnpinnedOwned int64 `json:"users_with_unpinned_owned"`

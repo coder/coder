@@ -199,8 +199,14 @@ func TestChatProjectSummaries(t *testing.T) {
 	require.NoError(t, client.UpdateChat(ctx, archived.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
 	newChat(quiet, carol.ID, database.ChatStatusRunning, true, none)
 	require.NoError(t, client.DeleteOrganizationMember(ctx, orgID, carol.Username))
-	// A chat that is being stopped still counts as running.
+	// A chat that is being stopped still counts as running. A grant without
+	// read does not make alice a member.
 	stopping := share("Summary Stopping", nil, nil)
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       stopping.ID,
+		UserACL:  database.ChatACL{alice.ID.String(): {Permissions: []policy.Action{policy.ActionShare}}},
+		GroupACL: database.ChatACL{},
+	}))
 	interrupting := newChat(stopping, me, database.ChatStatusInterrupting, false, none)
 	// The Everyone group's ID is the organization ID.
 	everyone := share("Summary Everyone", nil, []uuid.UUID{orgID})
@@ -256,6 +262,12 @@ func TestChatProjectSummaries(t *testing.T) {
 	require.Contains(t, aliceSummaries, busy.ID)
 	require.EqualValues(t, 1, aliceSummaries[busy.ID].PinOrder)
 	require.EqualValues(t, 1, aliceSummaries[busy.ID].MemberCount)
+
+	// Alice keeps a pin on stopping, whose grant lacks read, so it is not
+	// returned and leaves no gap in the pin orders she sees.
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: alice.ID, ProjectID: stopping.ID})
+	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, everyone.ID, codersdk.PinChatProjectRequest{}))
+	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{busy.ID: 1, everyone.ID: 2})
 }
 
 //nolint:paralleltest // Disabling chat sharing flips a process-wide RBAC switch.

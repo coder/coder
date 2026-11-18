@@ -129,7 +129,8 @@ WITH accessible AS (
 ),
 -- Users who can use each project: the owner, granted users who are
 -- organization members, and members of granted groups (including the
--- Everyone group). Counted only while project sharing is available;
+-- Everyone group). As in IsChatProjectUsableByUserID, only grants with
+-- read count. Counted only while project sharing is available;
 -- otherwise every project counts its owner alone. Suspended users cannot
 -- sign in, so they are not counted.
 project_members AS (
@@ -137,24 +138,26 @@ project_members AS (
     UNION
     SELECT granted.project_id, organization_members.user_id
     FROM (
-        SELECT id AS project_id, organization_id, jsonb_object_keys(user_acl)::uuid AS user_id
+        SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal
         FROM accessible WHERE @count_shared_members::boolean
     ) granted
     JOIN organization_members
-        ON organization_members.user_id = granted.user_id
+        ON organization_members.user_id = granted.principal::uuid
         AND organization_members.organization_id = granted.organization_id
+    WHERE granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
     UNION
     SELECT granted.project_id, group_members_expanded.user_id
     FROM (
-        SELECT id AS project_id, organization_id, jsonb_object_keys(group_acl)::uuid AS group_id
+        SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal
         FROM accessible WHERE @count_shared_members::boolean
     ) granted
-    JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
     -- A granted group from another organization only reaches its members
     -- who also belong to the project's organization.
     JOIN organization_members
         ON organization_members.user_id = group_members_expanded.user_id
         AND organization_members.organization_id = granted.organization_id
+    WHERE granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
 ),
 member_counts AS (
     SELECT project_members.project_id, COUNT(*) AS member_count
@@ -204,29 +207,31 @@ ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: GetChatProjectPinTelemetry :one
 -- Aggregates pin usage over each active, non-system user's accessible
--- projects. Grants count only when @acl_enabled, matching the summaries.
--- No identifiers leave this query.
+-- projects. Grants count only when @acl_enabled and they include read,
+-- matching the summaries. No identifiers leave this query.
 WITH project_users AS (
     SELECT id AS project_id, owner_id AS user_id FROM chat_projects
     UNION
     SELECT granted.project_id, organization_members.user_id
     FROM (
-        SELECT id AS project_id, organization_id, jsonb_object_keys(user_acl)::uuid AS user_id FROM chat_projects
+        SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal FROM chat_projects
     ) granted
     JOIN organization_members
-        ON organization_members.user_id = granted.user_id
+        ON organization_members.user_id = granted.principal::uuid
         AND organization_members.organization_id = granted.organization_id
     WHERE @acl_enabled::boolean
+        AND granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
     UNION
     SELECT granted.project_id, group_members_expanded.user_id
     FROM (
-        SELECT id AS project_id, organization_id, jsonb_object_keys(group_acl)::uuid AS group_id FROM chat_projects
+        SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal FROM chat_projects
     ) granted
-    JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
     JOIN organization_members
         ON organization_members.user_id = group_members_expanded.user_id
         AND organization_members.organization_id = granted.organization_id
     WHERE @acl_enabled::boolean
+        AND granted.acl -> granted.principal -> 'permissions' ?| ARRAY['read', '*']
 ),
 per_user AS (
     SELECT
@@ -246,7 +251,10 @@ per_user AS (
         ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
     GROUP BY project_users.user_id
 ),
--- Users act on pins by pinning, reordering, or unpinning a project.
+-- A user has acted when their current pins show it: a user pin (left by
+-- pinning or reordering) or an unpinned owned project. Unpinning deletes
+-- the pin, so a user whose only action was unpinning projects shared with
+-- them does not count.
 bucketed AS (
     SELECT
         *,
