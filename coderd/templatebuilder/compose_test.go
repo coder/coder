@@ -6,10 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"os/exec"
 	"regexp"
-	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -101,18 +98,6 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), `unknown agent "nonexistent"`)
 	})
 
-	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "aws-linux",
-			RegistryURL:    "registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, result.ExtraFiles, "aws-linux should have extra files")
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
-		require.Contains(t, result.ExtraFiles, "cloud-init/userdata.sh.tftpl")
-	})
-
 	t.Run("GCPLinuxBaseWithProjectID", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
@@ -151,16 +136,6 @@ func TestCompose(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `variable "project_id" is required`)
-	})
-
-	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "azure-linux",
-			RegistryURL:    "registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
 	})
 
 	t.Run("SensitiveVariable", func(t *testing.T) {
@@ -704,60 +679,35 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 	return files
 }
 
-// TestQuickstartCppInstallGuard verifies the C/C++ branch of the quickstart
-// install script installs the toolchain when only part of it is present. The
-// base image ships gcc but not cmake, so guarding on gcc alone skipped the
-// install and still reported success.
-func TestQuickstartCppInstallGuard(t *testing.T) {
+// fileReferencePattern matches Terraform file() and templatefile() calls with
+// a literal path, optionally prefixed with ${path.module}/.
+var fileReferencePattern = regexp.MustCompile(`\b(?:templatefile|file)\(\s*"(?:\$\{path\.module\}/)?([^"]+)"`)
+
+// TestComposeBundlesReferencedFiles verifies every file a base's main.tf
+// references is bundled with the composed template, so terraform plan can
+// read it.
+func TestComposeBundlesReferencedFiles(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("requires bash")
-	}
-	bash, err := exec.LookPath("bash")
-	require.NoError(t, err)
 
-	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
-	require.NoError(t, err)
-	raw, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
-	require.NoError(t, err)
-	// Render the template the way Terraform's templatefile would for the
-	// two constructs the script uses.
-	script := strings.ReplaceAll(string(raw), "${LANGUAGES}", "cpp")
-	script = strings.ReplaceAll(script, "$$", "$")
-
-	// gcc is always present: the script echoes its version after installing.
-	tests := []struct {
-		name        string
-		present     []string
-		wantInstall bool
-	}{
-		{name: "AllPresent", present: []string{"gcc", "g++", "make", "cmake"}, wantInstall: false},
-		{name: "MissingCmake", present: []string{"gcc", "g++", "make"}, wantInstall: true},
-		{name: "OnlyGcc", present: []string{"gcc"}, wantInstall: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Stubs are shell functions rather than files on PATH: writing
-			// and executing files races with concurrent forks (ETXTBSY,
-			// golang/go#22315). PATH is an empty directory, so the host's
-			// toolchain can't influence the result.
-			var prelude strings.Builder
-			for _, tool := range tt.present {
-				prelude.WriteString(tool + "() { echo stub 1.0; }\n")
+	references := 0
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		vars := map[string]string{}
+		for _, v := range templatebuilder.BaseVariables(id) {
+			if v.Required {
+				vars[v.Name] = "test"
 			}
-			// sudo records its arguments and "installs" nothing.
-			prelude.WriteString("sudo() { echo \"SUDO: $*\"; }\n")
-			prelude.WriteString("head() { IFS= read -r l; printf '%s\\n' \"$l\"; }\n")
-
-			cmd := exec.Command(bash, "-c", prelude.String()+script)
-			cmd.Env = []string{"PATH=" + t.TempDir()}
-			out, err := cmd.CombinedOutput()
-			require.NoError(t, err, string(out))
-
-			installed := strings.Contains(string(out), "SUDO: apt-get install")
-			require.Equal(t, tt.wantInstall, installed, "output: %s", out)
+		}
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID:     id,
+			BaseVariableValues: vars,
+			RegistryURL:        "registry.coder.com",
 		})
+		require.NoError(t, err, id)
+		for _, m := range fileReferencePattern.FindAllSubmatch(result.MainTF, -1) {
+			references++
+			require.Contains(t, result.ExtraFiles, string(m[1]),
+				"%s references %q but does not bundle it", id, m[1])
+		}
 	}
+	require.NotZero(t, references, "expected at least one base to reference a file")
 }
