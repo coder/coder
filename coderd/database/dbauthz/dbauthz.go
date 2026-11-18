@@ -1832,26 +1832,14 @@ func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
-// authorizeChatProjectPin authorizes the actor to change their own pin on a
-// project. A pin is a personal preference, so reading the project is
-// enough.
+// authorizeChatProjectPin authorizes a change to a user's pin on a project.
+// A pin is that user's personal preference, so the write is authorized on
+// the user, and the project only needs to be readable.
 func (q *querier) authorizeChatProjectPin(ctx context.Context, userID, projectID uuid.UUID) error {
-	if err := requireActorIsUser(ctx, userID); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(userID)); err != nil {
 		return err
 	}
 	return q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID)
-}
-
-// requireActorIsUser rejects queries about another user's personal data.
-func requireActorIsUser(ctx context.Context, userID uuid.UUID) error {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return ErrNoActor
-	}
-	if act.ID != userID.String() {
-		return NotAuthorizedError{Err: xerrors.New("actor does not match the user")}
-	}
-	return nil
 }
 
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
@@ -3910,10 +3898,11 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
-// GetChatProjectSummariesByUserID returns the caller's own pins and chat
-// counts, so it only answers for the actor.
+// GetChatProjectSummariesByUserID returns a user's pins and chat counts,
+// which are that user's personal data, so the read is authorized on the
+// user as well as on each project.
 func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
-	if err := requireActorIsUser(ctx, arg.UserID); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return nil, err
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectSummariesByUserID)(ctx, arg)
