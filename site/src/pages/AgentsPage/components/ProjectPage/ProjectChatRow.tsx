@@ -166,8 +166,8 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 				/>
 				<span className="min-w-0 max-w-104 flex-1 truncate">{chat.title}</span>
 				<span className="ml-auto flex shrink-0 items-center gap-3">
-					{showCost && <ProjectChatCost chat={chat} />}
 					<ChatPRStateIcon chat={chat} />
+					{showCost && <ProjectChatCost chat={chat} />}
 				</span>
 			</Link>
 			<div className="grid size-7 shrink-0 place-items-center *:[grid-area:1/1]">
