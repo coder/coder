@@ -78,19 +78,7 @@ import {
 	savePersistedSidebarTabId,
 } from "../utils/sidebarTabStorage";
 
-/**
- * The narrowest chat that shows the overview card and its toggle. A 16-inch
- * MacBook Pro at the default 1728px scaling, 100% zoom, and the 240px
- * minimum sidebar leaves a 1488px column: just over 72rem at a 20px root
- * font.
- */
 const OVERVIEW_MIN_CHAT_WIDTH_REM = 72;
-
-/**
- * The narrowest chat that fits the 16rem card, its 1rem inset, and a 1rem
- * gap on both sides of a centered 48rem transcript. Below it, the transcript
- * and composer leave that 18rem free on the right while the card is open.
- */
 const OVERVIEW_CENTERED_MIN_CHAT_WIDTH_REM = 84;
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
