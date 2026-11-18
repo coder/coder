@@ -1291,11 +1291,10 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 		var toolSpan *StageSpan
 		startRun := func(ctx context.Context) context.Context {
 			var toolCtx context.Context
-			toolCtx, toolSpan = b.opts.Stages.Start(ctx, StageToolCall,
+			toolCtx, toolSpan = b.opts.Stages.StartTool(ctx, b.opts.StageModel, tc,
+				genAIToolType(b.opts.BuiltinToolNames, tc.ToolName),
 				attribute.String(AttrToolName, tc.ToolName),
 			)
-			toolSpan.SetModel(b.opts.StageModel)
-			toolSpan.SetTool(tc, genAIToolType(b.opts.BuiltinToolNames, tc.ToolName))
 			return toolCtx
 		}
 		var execErr error

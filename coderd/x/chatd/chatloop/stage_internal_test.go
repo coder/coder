@@ -876,6 +876,32 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Equal(t, uint64(1), count)
 	})
 
+	t.Run("SamplerSeesToolAtCreation", func(t *testing.T) {
+		t.Parallel()
+		sampler := &recordingSampler{}
+		provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sampler))
+		t.Cleanup(func() {
+			require.NoError(t, provider.Shutdown(context.Background()))
+		})
+		fixture := newStageMetricsFixture(t)
+		fixture.tracer = NewStageTracer(provider, fixture.metrics, WithClock(fixture.clock))
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("ok"), nil
+			})
+
+		executeWithBuiltins(t, fixture, tool, map[string]bool{"read_file": true})
+
+		params, ok := sampler.find("execute_tool read_file")
+		require.True(t, ok, "no tool span was sampled under its final name")
+		require.Subset(t, params.Attributes, []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "execute_tool"),
+			attribute.String("gen_ai.tool.name", "read_file"),
+			attribute.String("gen_ai.tool.call.id", "call-1"),
+			attribute.String("gen_ai.tool.type", "function"),
+		})
+	})
+
 	t.Run("ContentCaptureRecordsPayloads", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t, WithContentCapture(true))

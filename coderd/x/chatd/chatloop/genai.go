@@ -98,7 +98,7 @@ func genAIOperation(stage Stage) (attribute.KeyValue, bool) {
 // stageSpanStart returns the span name and start options for a stage.
 // Sampling-relevant GenAI attributes and the span kind must be set at
 // creation, since head samplers do not see later changes.
-func stageSpanStart(ctx context.Context, stage Stage, model StageModel) (string, []trace.SpanStartOption) {
+func stageSpanStart(ctx context.Context, stage Stage, model StageModel, toolName string) (string, []trace.SpanStartOption) {
 	attrs := []attribute.KeyValue{attribute.String(AttrStage, string(stage))}
 	operation, ok := genAIOperation(stage)
 	if !ok {
@@ -122,6 +122,10 @@ func stageSpanStart(ctx context.Context, stage Stage, model StageModel) (string,
 		}
 		attrs = append(attrs, semconv.GenAIRequestStream(true))
 		attrs = append(attrs, genAIModelAttributes(model)...)
+	case StageToolCall:
+		if toolName != "" {
+			name += " " + toolName
+		}
 	}
 	return name, append(opts, trace.WithAttributes(attrs...))
 }
@@ -179,12 +183,7 @@ func genAIToolType(builtinToolNames map[string]bool, name string) string {
 	return "extension"
 }
 
-// SetTool names an execute_tool span after the tool it runs.
-func (s *StageSpan) SetTool(call fantasy.ToolCallContent, toolType string) {
-	if s == nil || s.ended {
-		return
-	}
-	s.span.SetName(semconv.GenAIOperationNameExecuteTool.Value.AsString() + " " + call.ToolName)
+func genAIToolAttributes(call fantasy.ToolCallContent, toolType string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{semconv.GenAIToolName(call.ToolName)}
 	if call.ToolCallID != "" {
 		attrs = append(attrs, semconv.GenAIToolCallID(call.ToolCallID))
@@ -192,9 +191,12 @@ func (s *StageSpan) SetTool(call fantasy.ToolCallContent, toolType string) {
 	if toolType != "" {
 		attrs = append(attrs, semconv.GenAIToolType(toolType))
 	}
-	s.span.SetAttributes(attrs...)
-	if s.capturesContent() && call.Input != "" {
-		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), jsonAttributeValue(call.Input)))
+	return attrs
+}
+
+func (s *StageSpan) setToolArguments(input string) {
+	if s.capturesContent() && input != "" {
+		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), jsonAttributeValue(input)))
 	}
 }
 

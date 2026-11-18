@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"charm.land/fantasy"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
@@ -225,7 +226,7 @@ func (t *StageTracer) Start(
 	stage Stage,
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
-	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, StageModel{},
+	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, StageModel{}, "",
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
 }
 
@@ -237,8 +238,24 @@ func (t *StageTracer) StartWithModel(
 	model StageModel,
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
-	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, model,
+	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, model, "",
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
+}
+
+// StartTool begins an execute_tool span for call. The tool metadata is
+// set at creation, so samplers see it.
+func (t *StageTracer) StartTool(
+	ctx context.Context,
+	model StageModel,
+	call fantasy.ToolCallContent,
+	toolType string,
+	attrs ...attribute.KeyValue,
+) (context.Context, *StageSpan) {
+	attrs = append(attrs, genAIToolAttributes(call, toolType)...)
+	ctx, span := t.startSpan(ctx, StageToolCall, scopeFromContext(ctx), time.Time{}, model, call.ToolName,
+		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
+	span.setToolArguments(call.Input)
+	return ctx, span
 }
 
 // StartRootAt begins a turn-scoped span in a new trace, backdated to
@@ -250,7 +267,7 @@ func (t *StageTracer) StartRootAt(
 	start time.Time,
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
-	return t.startSpan(ctx, stage, ScopeTurn, start, StageModel{}, []trace.SpanStartOption{
+	return t.startSpan(ctx, stage, ScopeTurn, start, StageModel{}, "", []trace.SpanStartOption{
 		trace.WithNewRoot(),
 		trace.WithAttributes(attrs...),
 	})
@@ -262,6 +279,7 @@ func (t *StageTracer) startSpan(
 	scope Scope,
 	start time.Time,
 	model StageModel,
+	toolName string,
 	opts []trace.SpanStartOption,
 ) (context.Context, *StageSpan) {
 	if t == nil {
@@ -278,7 +296,7 @@ func (t *StageTracer) startSpan(
 	}
 	opts = append(opts, trace.WithTimestamp(start))
 	chatKind := chatKindFromContext(ctx)
-	name, genAIOpts := stageSpanStart(ctx, stage, model)
+	name, genAIOpts := stageSpanStart(ctx, stage, model, toolName)
 	opts = append(opts,
 		trace.WithAttributes(model.attributes()...),
 		trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...),
@@ -399,7 +417,7 @@ func (t *StageTracer) Record(
 	}
 	scope := scopeFromContext(ctx)
 	chatKind := chatKindFromContext(ctx)
-	name, genAIOpts := stageSpanStart(ctx, stage, model)
+	name, genAIOpts := stageSpanStart(ctx, stage, model, "")
 	_, span := t.otelTracer().Start(ctx, name, append([]trace.SpanStartOption{
 		trace.WithTimestamp(start),
 		trace.WithAttributes(attrs...),
