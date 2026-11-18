@@ -331,19 +331,15 @@ func createSkill(
 	if !ok {
 		return database.Skill{}, false
 	}
-	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
+	parsed, err := parseUploadedSkill(req.Content)
 	if err != nil {
 		writeInvalidSkillContent(ctx, rw, err)
 		return database.Skill{}, false
 	}
-	modelInvocable := nullBool(req.ModelInvocable)
-	if !modelInvocable.Valid && workspacesdk.SkillDisablesModelInvocation(req.Content) {
-		modelInvocable = sql.NullBool{Bool: false, Valid: true}
-	}
 	skill, err := insert(parsed, skillCreate{
 		Content:        req.Content,
 		Action:         nullBool(req.Action),
-		ModelInvocable: modelInvocable,
+		ModelInvocable: uploadedModelInvocable(req.Content, req.ModelInvocable),
 		DisplayName:    displayName,
 	})
 	if err != nil {
@@ -426,7 +422,7 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 	if req.Content == nil {
 		return update, true
 	}
-	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(*req.Content))
+	parsed, err := parseUploadedSkill(*req.Content)
 	if err != nil {
 		writeInvalidSkillContent(ctx, rw, err)
 		return skillUpdate{}, false
@@ -440,7 +436,40 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 	}
 	update.Description = sql.NullString{String: parsed.Description, Valid: true}
 	update.Content = sql.NullString{String: *req.Content, Valid: true}
+	update.ModelInvocable = uploadedModelInvocable(*req.Content, req.ModelInvocable)
 	return update, true
+}
+
+// parseUploadedSkill validates skill content from a create or update
+// request. Stored skills that predate a check are still read with
+// skills.ParsePersonalSkillMarkdown alone, so new checks belong here.
+func parseUploadedSkill(content string) (skills.ParsedSkill, error) {
+	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+	if err != nil {
+		return skills.ParsedSkill{}, err
+	}
+	if err := skills.ValidateModelInvocationKey(content); err != nil {
+		return skills.ParsedSkill{}, err
+	}
+	return parsed, nil
+}
+
+// uploadedModelInvocable returns the model_invocable value that uploaded
+// skill content asks for. An explicit request field always wins. Without
+// one, a boolean disable-model-invocation key sets it, read the same way as
+// for workspace skills: true turns automatic use off and false turns it on.
+// Content without a boolean key leaves the setting unchanged. The content
+// itself is stored as uploaded; db2sdk.Skill makes the file it returns agree
+// with the setting.
+func uploadedModelInvocable(content string, requested *bool) sql.NullBool {
+	if requested != nil {
+		return nullBool(requested)
+	}
+	disabled, ok := workspacesdk.SkillDisableModelInvocationValue(content)
+	if !ok {
+		return sql.NullBool{}
+	}
+	return sql.NullBool{Bool: !disabled, Valid: true}
 }
 
 func nullBool(value *bool) sql.NullBool {
@@ -533,6 +562,8 @@ func writeInvalidSkillContent(ctx context.Context, rw http.ResponseWriter, err e
 		message = "Skill content is too large."
 	case errors.Is(err, skills.ErrSkillDescriptionTooLarge):
 		message = "Skill description is too large."
+	case errors.Is(err, skills.ErrSkillInvocationKeyInvalid):
+		message = "Invalid disable-model-invocation key."
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: message,
