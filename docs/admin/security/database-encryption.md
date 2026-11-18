@@ -35,6 +35,8 @@ The following database fields are currently encrypted:
 - `mcp_server_configs.signing_secret`
 - `mcp_server_user_tokens.access_token`
 - `mcp_server_user_tokens.refresh_token`
+- `external_auth_links.oauth_extra`
+- `workspace_builds.provisioner_state`
 
 Additional database fields might be encrypted in the future.
 
@@ -184,6 +186,12 @@ To disable encryption, perform the following actions:
 > [!CAUTION]
 > This is a destructive operation.
 
+Except for the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip), the command deletes each encrypted value and keeps values that aren't encrypted.
+Deleting encrypted data also has the following effects:
+
+- The command clears the Terraform state of workspace builds.
+  You must rebuild the affected workspaces, and resources that earlier builds created might be left behind in your infrastructure.
+
 To delete all encrypted data from your database, perform the following actions:
 
 - Make sure you have a valid backup of your database.
@@ -193,7 +201,7 @@ To delete all encrypted data from your database, perform the following actions:
   This will prevent new encrypted data from being written.
 
 - Run [`coder server dbcrypt delete`](../../reference/cli/server/dbcrypt/delete.md).
-  This command will delete all encrypted user tokens and revoke all active encryption keys.
+  This command deletes the encrypted data and revokes all active encryption keys.
 
   > [!NOTE]
   > This command does not delete the [fields that the `dbcrypt` commands skip](#fields-that-the-dbcrypt-commands-skip).

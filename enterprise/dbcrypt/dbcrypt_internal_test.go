@@ -1,6 +1,8 @@
 package dbcrypt
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -968,7 +970,7 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), raw.ProvisionerStateKeyID.String)
 		decrypted, err := ciphers[0].Decrypt(raw.ProvisionerState)
 		require.NoError(t, err)
-		require.Equal(t, state, decrypted)
+		require.Equal(t, state, gunzip(t, decrypted))
 	})
 
 	t.Run("UpdateAndGet", func(t *testing.T) {
@@ -976,7 +978,7 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		buildID := seedBuild(t, db).Build.ID
 
-		state := []byte("terraform-state")
+		state := bytes.Repeat([]byte("terraform-state "), 256)
 		require.NoError(t, crypt.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 			ID:                    buildID,
 			UpdatedAt:             dbtime.Now(),
@@ -984,14 +986,14 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 			ProvisionerStateKeyID: sql.NullString{},
 		}))
 
-		// The raw row holds ciphertext, not the state.
+		// The raw row holds compressed ciphertext, not the state.
 		raw, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
 		require.NoError(t, err)
 		require.True(t, raw.ProvisionerStateKeyID.Valid, "state must have an encryption key ID")
-		require.NotEqual(t, state, raw.ProvisionerState, "state must not be stored in plaintext")
+		require.Less(t, len(raw.ProvisionerState), len(state), "state must be compressed")
 		decrypted, err := ciphers[0].Decrypt(raw.ProvisionerState)
 		require.NoError(t, err)
-		require.Equal(t, state, decrypted)
+		require.Equal(t, state, gunzip(t, decrypted))
 
 		// The wrapper decrypts on read.
 		row, err := crypt.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
@@ -1058,7 +1060,26 @@ func TestWorkspaceBuildProvisionerState(t *testing.T) {
 
 			requireProvisionerStateDecryptErr(t, db, crypt, seedBuild(t, db).Build.ID, []byte("not-ciphertext"), ciphers[0].HexDigest())
 		})
+
+		t.Run("NotCompressed", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+			stored, err := ciphers[0].Encrypt([]byte("terraform-state"))
+			require.NoError(t, err)
+
+			requireProvisionerStateDecryptErr(t, db, crypt, seedBuild(t, db).Build.ID, stored, ciphers[0].HexDigest())
+		})
 	})
+}
+
+// gunzip returns b decompressed with gzip.
+func gunzip(t *testing.T, b []byte) []byte {
+	t.Helper()
+	zr, err := gzip.NewReader(bytes.NewReader(b))
+	require.NoError(t, err)
+	out, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	return out
 }
 
 // requireProvisionerStateDecryptErr stores the given bytes as a build's state

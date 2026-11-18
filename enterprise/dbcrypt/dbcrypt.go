@@ -1,10 +1,13 @@
 package dbcrypt
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"strings"
 
 	"github.com/google/uuid"
@@ -1197,10 +1200,8 @@ func (db *dbCrypt) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, id
 	return row, nil
 }
 
-// encryptBytes encrypts a bytea field in place. Unlike encryptField, the
-// ciphertext is stored raw rather than base64-encoded, since bytea columns
-// hold arbitrary bytes and provisioner state can be multiple megabytes.
-// Empty values are stored as-is.
+// encryptBytes compresses a bytea field with gzip and encrypts it in place.
+// The ciphertext is stored as raw bytes. Empty values are stored as-is.
 func (db *dbCrypt) encryptBytes(field *[]byte, digest *sql.NullString) error {
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
 		return nil
@@ -1211,7 +1212,11 @@ func (db *dbCrypt) encryptBytes(field *[]byte, digest *sql.NullString) error {
 	if len(*field) == 0 {
 		return nil
 	}
-	encrypted, err := db.ciphers[db.primaryCipherDigest].Encrypt(*field)
+	compressed, err := compressBytes(*field)
+	if err != nil {
+		return xerrors.Errorf("compress: %w", err)
+	}
+	encrypted, err := db.ciphers[db.primaryCipherDigest].Encrypt(compressed)
 	if err != nil {
 		return err
 	}
@@ -1221,8 +1226,8 @@ func (db *dbCrypt) encryptBytes(field *[]byte, digest *sql.NullString) error {
 }
 
 // decryptBytes reverses encryptBytes. A NULL digest means the value was
-// stored in plaintext and is returned as-is. If the value fails to decrypt,
-// a DecryptFailedError is returned.
+// stored in plaintext and is returned as-is. If the value fails to decrypt
+// or decompress, a DecryptFailedError is returned.
 func (db *dbCrypt) decryptBytes(field *[]byte, digest sql.NullString) error {
 	if field == nil {
 		return xerrors.Errorf("developer error: decryptBytes called with nil field")
@@ -1237,12 +1242,39 @@ func (db *dbCrypt) decryptBytes(field *[]byte, digest sql.NullString) error {
 			Inner: xerrors.Errorf("no cipher with digest %q", digest.String),
 		}
 	}
-	decrypted, err := key.Decrypt(*field)
+	compressed, err := key.Decrypt(*field)
 	if err != nil {
 		return &DecryptFailedError{Inner: err}
 	}
-	*field = decrypted
+	decompressed, err := decompressBytes(compressed)
+	if err != nil {
+		return &DecryptFailedError{Inner: xerrors.Errorf("decompress: %w", err)}
+	}
+	*field = decompressed
 	return nil
+}
+
+// compressBytes returns b compressed with gzip.
+func compressBytes(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(b); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// decompressBytes reverses compressBytes.
+func decompressBytes(b []byte) ([]byte, error) {
+	zr, err := gzip.NewReader(bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	return io.ReadAll(zr)
 }
 
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {

@@ -1,10 +1,13 @@
 package dbcrypt_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -534,7 +537,11 @@ func TestRotateWorkspaceBuildProvisionerState(t *testing.T) {
 		require.Equal(t, f.cipherB.HexDigest(), row.ProvisionerStateKeyID.String, "build %s", id)
 		decrypted, err := f.cipherB.Decrypt(row.ProvisionerState)
 		require.NoError(t, err, "build %s", id)
-		require.Equal(t, stateFor(id), decrypted, "build %s", id)
+		zr, err := gzip.NewReader(bytes.NewReader(decrypted))
+		require.NoError(t, err, "build %s", id)
+		decompressed, err := io.ReadAll(zr)
+		require.NoError(t, err, "build %s", id)
+		require.Equal(t, stateFor(id), decompressed, "build %s", id)
 		build, err := f.rawDB.GetWorkspaceBuildByID(f.ctx, id)
 		require.NoError(t, err, "build %s", id)
 		require.True(t, updatedAt[id].Equal(build.UpdatedAt), "build %s: rotate changed updated_at", id)
