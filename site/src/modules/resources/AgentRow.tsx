@@ -144,7 +144,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	onUpdateAgent,
 	initialMetadata,
 }) => {
-	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const features = useFeatureVisibility();
+	const { workspace_external_agent } = features;
+	const browser_only = features.browser_only || template.browser_only;
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);

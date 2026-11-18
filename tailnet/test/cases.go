@@ -110,7 +110,7 @@ func TunnelPolicyRefusalTest(ctx context.Context, t *testing.T, coordinator tail
 	defer client.Close(ctx)
 
 	client.AddTunnel(refused.ID)
-	client.AssertEventuallyGetsError("refused by policy")
+	client.AssertEventuallyGetsError(tailnet.TunnelRefusedError + ": refused by policy")
 	client.AddTunnel(allowed.ID)
 	client.AssertEventuallyHasDERP(allowed.ID, 2)
 }

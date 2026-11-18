@@ -41,6 +41,11 @@ func (e TunnelPolicyError) Error() string {
 	return e.Message
 }
 
+// CoordinateError is the text sent to the client in a CoordinateResponse.
+func (e TunnelPolicyError) CoordinateError() string {
+	return fmt.Sprintf("%s: %s", TunnelRefusedError, e.Message)
+}
+
 type CoordinateeAuth interface {
 	Authorize(ctx context.Context, req *proto.CoordinateRequest) error
 }
