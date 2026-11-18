@@ -98,7 +98,12 @@ export const ComboboxButton = ({
 					<span className="shrink-0 text-content-secondary">{label}:</span>{" "}
 				</>
 			)}
-			{selectedOption?.startIcon}
+			{selectedOption?.startIcon && (
+				// The value text already names the selection.
+				<span aria-hidden="true" className="contents">
+					{selectedOption.startIcon}
+				</span>
+			)}
 			<span className="text-left block overflow-hidden text-ellipsis grow">
 				{value}
 			</span>

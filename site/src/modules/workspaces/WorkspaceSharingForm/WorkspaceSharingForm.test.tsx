@@ -218,6 +218,11 @@ describe("AddWorkspaceUserOrGroup", () => {
 				name: new RegExp(MockOrganizationMember.username),
 			}),
 		);
+		expect(
+			screen.getByRole("button", {
+				name: `User or group ${MockOrganizationMember.email}`,
+			}),
+		).toHaveAttribute("aria-expanded", "false");
 		await user.click(screen.getByRole("combobox", { name: /^Role/ }));
 		await user.click(await screen.findByRole("option", { name: "Admin" }));
 		await user.click(screen.getByRole("button", { name: "Add member" }));

@@ -62,9 +62,7 @@ export const AddWorkspaceUserOrGroup: React.FC<
 			}}
 		>
 			<div className="flex flex-col gap-2">
-				<Label id={`${userOrGroupId}-label`} htmlFor={userOrGroupId}>
-					User or group
-				</Label>
+				<Label id={`${userOrGroupId}-label`}>User or group</Label>
 				<UserOrGroupAutocomplete
 					id={userOrGroupId}
 					// The name is the label, then the selection the trigger shows.
