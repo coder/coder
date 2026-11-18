@@ -21,23 +21,27 @@ func sameCompactionProviderIdentity(chatConfig, overrideConfig database.ChatMode
 }
 
 // sanitizeCompactionPrompt adapts a prompt built for the chat model to a
-// differing compaction model. The input messages are never mutated; the
+// differing compaction model. reasoningModel is the model whose OpenAI
+// reasoning the prompt may carry. The input messages are never mutated; the
 // assistant generation keeps using the original prompt.
 func sanitizeCompactionPrompt(
 	ctx context.Context,
 	logger slog.Logger,
 	prompt []fantasy.Message,
 	compactionModel chatprovider.Model,
-	configuredProvider string,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
+	reasoningModel string,
 ) []fantasy.Message {
 	messages := prompt
-	if !sameCompactionProviderIdentity(chatConfig, overrideConfig) {
+	sameProvider := sameCompactionProviderIdentity(chatConfig, overrideConfig)
+	if !sameProvider {
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
 	}
-	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
-	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, configuredProvider)
+	if !sameProvider || compactionModel.ModelID() != reasoningModel {
+		messages = dropOpenAIReasoningParts(ctx, logger, messages)
+	}
+	messages = replaceUnsupportedMedia(ctx, logger, messages, compactionModel)
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,
@@ -121,6 +125,40 @@ func flattenProviderExecutedToolParts(
 	return out
 }
 
+// dropOpenAIReasoningParts removes OpenAI reasoning parts from a copy of
+// messages, since another provider cannot resolve their item IDs and another
+// model or organization can reject their encrypted content. Messages emptied
+// by the drop are removed.
+func dropOpenAIReasoningParts(
+	ctx context.Context,
+	logger slog.Logger,
+	messages []fantasy.Message,
+) []fantasy.Message {
+	dropped := 0
+	out := make([]fantasy.Message, 0, len(messages))
+	for _, msg := range messages {
+		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+		for _, part := range msg.Content {
+			if reasoning, ok := part.(fantasy.ReasoningPart); ok && chatsanitize.HasOpenAIReasoningState(reasoning.ProviderOptions) {
+				dropped++
+				continue
+			}
+			parts = append(parts, part)
+		}
+		if len(parts) == 0 && len(msg.Content) > 0 {
+			continue
+		}
+		msg.Content = parts
+		out = append(out, msg)
+	}
+	if dropped > 0 {
+		logger.Debug(ctx, "dropped OpenAI reasoning from prompt",
+			slog.F("dropped_parts", dropped),
+		)
+	}
+	return out
+}
+
 // stringifyToolResultOutput renders a tool result as prompt text. Media
 // payloads are summarized so base64 data does not enter the prompt.
 func stringifyToolResultOutput(output fantasy.ToolResultOutputContent) string {
@@ -140,44 +178,4 @@ func stringifyToolResultOutput(output fantasy.ToolResultOutputContent) string {
 	default:
 		return "[unserializable tool output]"
 	}
-}
-
-// replaceUnsupportedFileParts swaps file parts the compaction model does
-// not accept for text placeholders in a copy of messages, so the summary
-// notes the attachment existed instead of silently losing it.
-func replaceUnsupportedFileParts(
-	ctx context.Context,
-	logger slog.Logger,
-	messages []fantasy.Message,
-	acceptsFilePart func(mediaType string) bool,
-) []fantasy.Message {
-	replaced := 0
-	out := make([]fantasy.Message, 0, len(messages))
-	for _, msg := range messages {
-		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
-		for _, part := range msg.Content {
-			filePart, ok := part.(fantasy.FilePart)
-			if !ok || acceptsFilePart(filePart.MediaType) {
-				parts = append(parts, part)
-				continue
-			}
-			replaced++
-			parts = append(parts, fantasy.TextPart{
-				Text: fmt.Sprintf(
-					"[Attachment %q (%s) omitted: not supported by the compaction model]",
-					filePart.Filename,
-					filePart.MediaType,
-				),
-				ProviderOptions: filePart.ProviderOptions,
-			})
-		}
-		msg.Content = parts
-		out = append(out, msg)
-	}
-	if replaced > 0 {
-		logger.Debug(ctx, "replaced unsupported file parts in compaction prompt",
-			slog.F("replaced_parts", replaced),
-		)
-	}
-	return out
 }

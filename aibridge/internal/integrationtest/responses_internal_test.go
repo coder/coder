@@ -45,8 +45,11 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 		expectPromptRecorded string
 		expectToolRecorded   *recorder.ToolUsageRecord
 		expectTokenUsage     *recorder.TokenUsageRecord
-		userAgent            string
-		expectedClient       aibclient.Type
+		// expectCorrelatingToolCallID is the call_id of the tool result that
+		// links this interception to the one that issued the tool call.
+		expectCorrelatingToolCallID *string
+		userAgent                   string
+		expectedClient              aibclient.Type
 	}{
 		{
 			name:                 "blocking_simple",
@@ -134,6 +137,26 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 128,
 					"total_tokens":     212,
+				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+			},
+			expectedClient: aibclient.Unknown,
+		},
+		{
+			// Follow-up turn carrying a custom_tool_call_output must be
+			// correlated to the custom_tool_call recorded in the prior turn.
+			name:                        "blocking_custom_tool_result",
+			fixture:                     fixtures.OaiResponsesBlockingCustomToolResult,
+			expectModel:                 "gpt-5",
+			expectCorrelatingToolCallID: new("call_haf8njtwrVZ1754Gm6fjAtuA"),
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:         "resp_09c614364030cdf00069694260a1b281a0b3c2d1e0f9a8b7c6",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         112,
+				Output:        14,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     126,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
@@ -320,6 +343,27 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectedClient: aibclient.Unknown,
 		},
 		{
+			// Follow-up turn carrying a custom_tool_call_output must be
+			// correlated to the custom_tool_call recorded in the prior turn.
+			name:                        "streaming_custom_tool_result",
+			fixture:                     fixtures.OaiResponsesStreamingCustomToolResult,
+			streaming:                   true,
+			expectModel:                 "gpt-5",
+			expectCorrelatingToolCallID: new("call_2gSnF58IEhXLwlbnqbm5XKMd"),
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:         "resp_0c26996bc41c2a0500696942f1a2b3819fc4d5e6f7a8b9c0d1",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         112,
+				Output:        14,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     126,
+				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+			},
+			expectedClient: aibclient.Unknown,
+		},
+		{
 			// web_search_call is a hosted tool executed server-side by the
 			// provider. It carries an item id but no call_id, so the recorded
 			// ToolCallID must be empty and the ItemID must be the output item's
@@ -454,6 +498,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			require.Equal(t, intc.Model, tc.expectModel)
 			require.Equal(t, tc.userAgent, intc.UserAgent)
 			require.Equal(t, string(tc.expectedClient), intc.Client)
+			require.Equal(t, tc.expectCorrelatingToolCallID, intc.CorrelatingToolCallID)
 
 			recordedPrompts := bridgeServer.Recorder.RecordedPromptUsages()
 			if tc.expectPromptRecorded != "" {

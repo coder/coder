@@ -1,16 +1,16 @@
-import { useLayoutEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import type { Line } from "#/components/Logs/LogLine";
 import { Logs, LogsHeader } from "#/components/Logs/Logs";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentLogOutput } from "#/modules/resources/AgentLogs/AgentLogLine";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { getWorkspaceAgent } from "../../ChatConversation/chatHelpers";
 import { LogNotice } from "./LogNotice";
-import { followLogEnd, type ToolStatus } from "./utils";
+import { ToolCall } from "./ToolCall";
+import type { ToolStatus } from "./utils";
 
 type WorkspaceAgentLogSectionProps = {
 	status: ToolStatus;
@@ -71,19 +71,6 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
-	const viewportRef = useRef<HTMLDivElement>(null);
-	const scrollHeightRef = useRef(0);
-	useLayoutEffect(() => {
-		scrollHeightRef.current = followLogEnd(
-			viewportRef.current,
-			scrollHeightRef.current,
-		);
-	}, [logs]);
-
-	if (logs.length === 0) {
-		return isCallRunning ? <WaitingForAgentStartup /> : null;
-	}
-
 	const lines = logs.map<Line>((log) => ({
 		id: log.id,
 		time: log.created_at,
@@ -93,19 +80,33 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 	}));
 
 	return (
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
-			viewportClassName="max-h-64"
-			viewportRef={viewportRef}
-			viewportTabIndex={0}
-			viewportAriaLabel="Workspace agent startup log"
-			scrollBarClassName="w-1.5"
-		>
-			<div className="font-mono">
-				<LogsHeader title="Agent startup" detail={agent.name} />
-				<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
-			</div>
-		</ScrollArea>
+		<>
+			{agent.logs_overflowed && (
+				<Alert severity="warning" className="mt-1.5">
+					Startup logs exceeded the max size of 1MB, and will not continue to be
+					written to the database. Logs will continue to be written to the{" "}
+					<code>/tmp/coder-startup-script.log</code> file in the workspace.
+				</Alert>
+			)}
+			{lines.length === 0 && isCallRunning && <WaitingForAgentStartup />}
+			{lines.length > 0 && (
+				<ToolCall.Scrollable
+					className="mt-1.5 rounded-md border text-2xs"
+					viewportClassName="max-h-64"
+					ariaLabel="Workspace agent startup log"
+					followEnd
+				>
+					<div className="font-mono">
+						<LogsHeader title="Agent startup" detail={agent.name} />
+						<Logs
+							lines={lines}
+							LineOutput={AgentLogOutput}
+							className="min-h-0"
+						/>
+					</div>
+				</ToolCall.Scrollable>
+			)}
+		</>
 	);
 };
 

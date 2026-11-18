@@ -50,6 +50,11 @@ linters:
               desc:
                 aibridge code must not import coder packages outside aibridge;
                 buildinfo is the only exception
+        no_stdlib_slog:
+          list-mode: lax
+          deny:
+            - pkg: log/slog
+              desc: use cdr.dev/slog/v3 instead
     dupl:
       threshold: 412
     exhaustruct:
@@ -67,6 +72,7 @@ linters:
         - badRegexp
         - boolExprSimplify
         - builtinShadowDecl
+        - commentedOutCode
         - commentedOutImport
         - deferUnlambda
         - dupImport
@@ -160,6 +166,8 @@ linters:
       checks:
         - all
         - -SA1019
+    testpackage:
+      skip-regexp: _internal_test\.go$
     usetesting:
       context-background: false
       context-todo: false
@@ -183,14 +191,18 @@ linters:
         path: _test\.go
       - linters:
           - exhaustruct
-        path: scripts/*
+        path: ^scripts/
+      # Legacy export_test.go shims. Do not add to this list.
+      - linters:
+          - testpackage
+        path: ^coderd/(|aibridged/|x/chatd/|x/chatd/chatstate/|x/chatd/mcpclient/)export_test\.go$
       - linters:
           - ALL
         path: scripts/rules.go
     paths:
       - scripts/rules.go
       - node_modules
-      - .git
+      - '(^|/)\.git/'
       - third_party$
       - builtin$
       - examples$
@@ -214,7 +226,7 @@ formatters:
     paths:
       - scripts/rules.go
       - node_modules
-      - .git
+      - '(^|/)\.git/'
       - third_party$
       - builtin$
       - examples$

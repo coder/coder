@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -10,9 +9,13 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildLiveStatus,
 	buildStreamRenderState,
+	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
+	MockPendingToolMessage,
 	MockQuestionCallMessage,
+	MockTextBeforeSecondStepMessage,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -38,7 +41,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		(Story) => (
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<MessageScroller.Root>
-					<MessageScroller.Viewport className="max-h-[600px] overflow-auto">
+					<MessageScroller.Viewport className="max-h-150 overflow-auto">
 						<MessageScroller.Content>
 							<Story />
 						</MessageScroller.Content>
@@ -92,6 +95,15 @@ export const RunningBetweenSteps: Story = {
 	play: expandBlock("Working for 12s"),
 };
 
+// The block keeps working while only an attached file follows its last step.
+export const AttachmentFoldsIntoLiveBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
+		liveStatus: buildLiveStatus(),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
 // After a tool result the stream reopens empty before the next call streams.
 // That moment is the same block still working, so nothing appears under its
 // summary.
@@ -131,6 +143,74 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 };
 
+// Once the final step starts its answer, its reasoning stays in the live
+// block and the text streams after it.
+export const AnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Summarizing the inspection",
+				created_at: workingFixtureTime(13),
+			},
+			{ type: "text", text: "The workspace looks healthy." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
+// Text before a web search renders above the live block.
+export const SearchAnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 1),
+		),
+		...buildStreamRenderState([
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+			},
+			{ type: "text", text: "The latest Coder release" },
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{ type: "text", text: " is v2.30." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
+export const TextBetweenStepsOpensNextBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 3),
+		),
+		...buildStreamRenderState([
+			{
+				type: "text",
+				text: "The first check passed. Running the trials next.",
+			},
+			...(MockWorkingMessages[3].content ?? []),
+		]),
+	},
+	play: expandBlock("Working for 8s"),
+};
+
 export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",
@@ -142,27 +222,34 @@ export const RequiresActionCompletesBlock: Story = {
 	},
 };
 
-const MockPendingToolMessage: ChatMessage = {
-	...MockChatMessage,
-	id: 4,
-	role: "assistant",
-	created_at: workingFixtureTime(5),
-	content: [
-		{
-			type: "tool-call",
-			tool_call_id: "editor",
-			tool_name: "open_editor",
-			args: { path: "README.md" },
-			created_at: workingFixtureTime(5),
-		},
-	],
-};
-
 export const RequiresActionKeepsPendingToolVisible: Story = {
 	args: {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
 			[...MockWorkingMessages.slice(0, 3), MockPendingToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
+		),
+	},
+};
+
+const MockLaterPendingToolMessage: ChatMessage = {
+	...MockPendingToolMessage,
+	id: 6,
+	created_at: workingFixtureTime(14),
+};
+
+// A parked turn has not ended, so it does not fold.
+export const RequiresActionKeepsTextBetweenSteps: Story = {
+	args: {
+		chatStatus: "requires_action",
+		liveStatus: buildLiveStatus(),
+		parsedMessages: parseMessagesWithMergedTools(
+			[
+				...MockWorkingMessages.slice(0, 3),
+				MockTextBeforeSecondStepMessage,
+				MockWorkingMessages[4],
+				MockLaterPendingToolMessage,
+			],
 			{ pendingToolCallIDs: new Set(["editor"]) },
 		),
 	},

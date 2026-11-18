@@ -1,7 +1,6 @@
 import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { templateVersion } from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
@@ -17,6 +16,7 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
@@ -117,7 +117,7 @@ const WorkspaceOutdatedTooltipContent: React.FC<TooltipContentProps> = ({
 									target="_blank"
 									rel="noreferrer"
 									size="sm"
-									className="p-0"
+									className="pl-0"
 									showExternalIcon={false}
 								>
 									{activeVersion.name}

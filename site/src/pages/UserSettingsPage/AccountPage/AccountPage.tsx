@@ -8,6 +8,7 @@ import {
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { pageTitle } from "#/utils/page";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
@@ -25,6 +26,7 @@ const AccountPage: React.FC = () => {
 
 	return (
 		<div className="flex flex-col gap-12">
+			<title>{pageTitle("Account", "Settings")}</title>
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Account</SettingsHeaderTitle>

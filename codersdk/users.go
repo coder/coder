@@ -83,7 +83,7 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
-	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	Status           UserStatus `json:"status" table:"status"`
 	LoginType        LoginType  `json:"login_type"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	// Deprecated: this value should be retrieved from
@@ -171,7 +171,8 @@ type CreateUserRequest struct {
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
-	// UserStatus defaults to UserStatusDormant.
+	// UserStatus defaults to UserStatusDormant. Service accounts default to
+	// UserStatusActive and can't be dormant.
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
@@ -255,6 +256,9 @@ type UserAppearanceSettings struct {
 	// Ignored when ThemeMode is "single"
 	ThemeDark    string           `json:"theme_dark"`
 	TerminalFont TerminalFontName `json:"terminal_font"`
+	// TerminalFontSize is the web terminal font size in pixels. Zero means
+	// the user has not chosen a size, and the web terminal will use the default.
+	TerminalFontSize int32 `json:"terminal_font_size"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
@@ -276,6 +280,9 @@ type UpdateUserAppearanceSettingsRequest struct {
 	// one slot keep the other intact.
 	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
 	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
+	// TerminalFontSize is optional for backward compatibility. When zero,
+	// the server leaves the persisted terminal font size unchanged.
+	TerminalFontSize int32 `json:"terminal_font_size,omitempty" validate:"omitempty,min=8,max=32"`
 }
 
 type UserPreferenceSettings struct {

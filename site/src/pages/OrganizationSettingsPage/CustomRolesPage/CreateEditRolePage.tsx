@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createOrganizationRole,
@@ -12,6 +11,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -102,7 +102,7 @@ const CreateEditRolePage: React.FC = () => {
 		>
 			<title>
 				{pageTitle(
-					isEditing ? "Edit Custom Role" : "New Custom Role",
+					isEditing ? "Edit custom role" : "New custom role",
 					isEditing ? role.display_name || role.name : undefined,
 				)}
 			</title>

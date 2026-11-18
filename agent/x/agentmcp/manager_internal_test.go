@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -229,6 +231,36 @@ func TestConvertResult(t *testing.T) {
 	}
 }
 
+// TestRawResult verifies that the raw path keeps the content types that the
+// legacy Content path drops, and does not send media twice.
+func TestRawResult(t *testing.T) {
+	t.Parallel()
+
+	got, err := rawResult(&mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "report"},
+			&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+				URI:      "file:///report.pdf",
+				MIMEType: "application/pdf",
+				Blob:     []byte("pdf-data"),
+			}},
+		},
+		StructuredContent: map[string]any{"pages": 2},
+		IsError:           true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, got.Content)
+	assert.True(t, got.IsError)
+	require.JSONEq(t, `{
+		"content": [
+			{"type": "text", "text": "report"},
+			{"type": "resource", "resource": {"uri": "file:///report.pdf", "mimeType": "application/pdf", "blob": "cGRmLWRhdGE="}}
+		],
+		"structuredContent": {"pages": 2},
+		"isError": true
+	}`, string(got.Result))
+}
+
 // TestConnectServer_StdioProcessSurvivesConnect verifies that a stdio MCP
 // server subprocess remains alive after connectServer returns. This is a
 // regression test for a bug where the subprocess was tied to a short-lived
@@ -268,6 +300,65 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	defer listCancel()
 	result, err := client.ListTools(listCtx, nil)
 	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
+	require.Len(t, result.Tools, 1)
+	assert.Equal(t, "echo", result.Tools[0].Name)
+}
+
+// TestConnectServer_HTTPConnectsWhenStandaloneSSEHangs guards against the
+// SDK's standalone GET, which connectTimeout does not bound, hanging
+// Connect. See DisableStandaloneSSE in createTransport. The GET is only
+// sent when the negotiated protocol is below 2026-07-28, so this test
+// stops exercising it if an SDK upgrade negotiates that version or later.
+func TestConnectServer_HTTPConnectsWhenStandaloneSSEHangs(t *testing.T) {
+	t.Parallel()
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "fake", Version: "1.0.0"}, nil)
+	server.AddTool(&mcp.Tool{
+		Name:        "echo",
+		InputSchema: map[string]any{"type": "object"},
+	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	type connectResult struct {
+		client *mcp.ClientSession
+		err    error
+	}
+	done := make(chan connectResult, 1)
+	go func() {
+		client, err := m.connectServer(ctx, ServerConfig{
+			Name:      "fake",
+			Transport: "http",
+			URL:       srv.URL,
+		})
+		done <- connectResult{client: client, err: err}
+	}()
+
+	res := testutil.RequireReceive(ctx, t, done)
+	require.NoError(t, res.err)
+	t.Cleanup(func() { _ = res.client.Close() })
+
+	result, err := res.client.ListTools(ctx, nil)
+	require.NoError(t, err)
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
 }

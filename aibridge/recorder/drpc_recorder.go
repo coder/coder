@@ -65,6 +65,10 @@ func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *Interception
 	if attr, ok := agplaibridge.AttributionFromContext(ctx); ok {
 		in.WorkspaceId = attr.WorkspaceID.String()
 	}
+	if org, ok := agplaibridge.RequestOrganizationFromContext(ctx); ok {
+		in.OrganizationId = org.ID.String()
+		in.OrganizationSource = org.Source
+	}
 	_, err = client.RecordInterception(ctx, in)
 	return err
 }

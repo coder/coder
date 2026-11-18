@@ -9,15 +9,16 @@ import {
 } from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-type EarlierMessagesProps = {
+/**
+ * Paging state for a chat's older messages. A page that any consumer loads
+ * reaches every consumer.
+ */
+export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	// True while fetched pages have not reached the store yet. Blocks paging
-	// without showing the loader: hydration is not a history request.
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 };
 
 /**
@@ -28,7 +29,6 @@ type EarlierMessagesProps = {
 const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	hasTranscriptRows,
 	onFetchMoreMessages,
@@ -42,7 +42,6 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 		isAtHistoryStart &&
 		hasMoreMessages &&
 		!isFetchingMoreMessages &&
-		!isHydratingMessages &&
 		!hasFetchMoreError;
 
 	// The scroller only tells us where the scroll position is through React
@@ -63,7 +62,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 			return;
 		}
 		const frame = requestAnimationFrame(() => {
-			void onFetchMoreMessages();
+			onFetchMoreMessages();
 		});
 		return () => cancelAnimationFrame(frame);
 	}, [shouldLoadEarlierMessages, onFetchMoreMessages]);
@@ -75,7 +74,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 				aria-label="Loading earlier messages"
 				className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center"
 			>
-				<div className="flex items-center gap-2 rounded-full border border-border bg-surface-primary px-3 py-1.5 text-xs text-content-secondary shadow-xs">
+				<div className="flex items-center gap-2 rounded-full border bg-surface-primary px-3 py-1.5 text-xs text-content-secondary shadow-xs">
 					<Spinner className="size-4" loading aria-hidden />
 					Loading earlier messages
 				</div>
@@ -93,7 +92,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 				variant="outline"
 				size="sm"
 				className="bg-surface-primary shadow-xs"
-				onClick={() => void onFetchMoreMessages()}
+				onClick={() => onFetchMoreMessages()}
 			>
 				<RotateCcwIcon />
 				Retry loading earlier messages
@@ -115,12 +114,12 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin">
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-[var(--chat-overview-reserve,0px)] scrollbar-gutter-stable scrollbar-thin">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
 					className={cn(
-						"mx-auto flex w-full flex-col gap-2 px-4 py-6",
+						"mx-auto flex w-full flex-col gap-3 px-4 py-6",
 						chatWidthClass(chatFullWidth),
 					)}
 				>

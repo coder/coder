@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatModels, createChatModel } from "#/api/queries/chats";
+import { toast } from "#/components/Toaster/toast";
 import {
 	canManageProviderModels,
 	deriveProviderStates,
@@ -40,7 +40,7 @@ const AddModelPage: React.FC = () => {
 	if (requestedOrganizationDenied) {
 		return (
 			<>
-				<title>{pageTitle("Add model", "AI Settings")}</title>
+				<title>{pageTitle("Add model", "AI settings")}</title>
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -56,7 +56,7 @@ const AddModelPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Add model", "AI Settings")}</title>
+			<title>{pageTitle("Add model", "AI settings")}</title>
 
 			<RequirePermission
 				isFeatureVisible={permissions?.createChatModelConfigs ?? false}

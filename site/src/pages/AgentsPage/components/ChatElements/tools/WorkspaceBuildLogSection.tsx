@@ -1,15 +1,19 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
+import {
+	workspaceBuildById,
+	workspaceBuildLogs,
+} from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Alert } from "#/components/Alert/Alert";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { LogNotice } from "./LogNotice";
-import { followLogEnd, type ToolStatus } from "./utils";
+import { ToolCall } from "./ToolCall";
+import type { ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
 	status: ToolStatus;
@@ -37,33 +41,32 @@ export const WorkspaceBuildLogSection: React.FC<
 
 	// Primary source: build ID from the chat binding, pushed via
 	// pubsub when create_workspace or start_workspace persists it.
-	// This avoids the 2s polling latency.
 	const { workspaceId, buildId: chatBuildId } = useChatWorkspace();
 
-	// Fallback: poll the workspace to infer the build ID from
-	// latest_build. Only used when the binding hasn't arrived yet.
-	const needsPoll = isRunning && !chatBuildId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
-		enabled: needsPoll && Boolean(workspaceId),
-		refetchInterval: needsPoll ? 2000 : false,
+		enabled: Boolean(workspaceId),
 	});
-	const liveBuildId = workspaceQuery.data?.latest_build?.id;
-
-	// Only use the polled build if it's actually in progress.
-	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
-	const polledActiveBuildId =
-		latestBuildStatus !== undefined &&
-		ACTIVE_BUILD_STATUSES.includes(latestBuildStatus)
-			? liveBuildId
+	const latestBuild = workspaceQuery.data?.latest_build;
+	const activeBuildId =
+		latestBuild && ACTIVE_BUILD_STATUSES.includes(latestBuild.status)
+			? latestBuild.id
 			: undefined;
 
-	// While running: prefer chat binding (instant via pubsub),
-	// fall back to polled workspace (2s latency). When completed:
-	// use the build ID from the tool result.
-	const effectiveBuildId = isRunning
-		? (chatBuildId ?? polledActiveBuildId)
-		: buildId;
+	const effectiveBuildId = isRunning ? (chatBuildId ?? activeBuildId) : buildId;
+
+	const watchedBuild =
+		latestBuild?.id === effectiveBuildId ? latestBuild : undefined;
+	const buildByIdQuery = useQuery({
+		...workspaceBuildById(effectiveBuildId ?? ""),
+		enabled:
+			Boolean(effectiveBuildId) &&
+			!isRunning &&
+			(!workspaceId ||
+				((workspaceQuery.isSuccess || workspaceQuery.isError) &&
+					!watchedBuild)),
+	});
+	const build = watchedBuild ?? buildByIdQuery.data;
 
 	// --- Running builds: stream via WebSocket ---
 	const streamingLogs = useWorkspaceBuildLogs(
@@ -99,16 +102,6 @@ export const WorkspaceBuildLogSection: React.FC<
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
-	// WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript.
-	const viewportRef = useRef<HTMLDivElement>(null);
-	const scrollHeightRef = useRef(0);
-	useLayoutEffect(() => {
-		scrollHeightRef.current = followLogEnd(
-			viewportRef.current,
-			scrollHeightRef.current,
-		);
-	}, [logs]);
-
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
 	if (!effectiveBuildId) {
@@ -118,46 +111,53 @@ export const WorkspaceBuildLogSection: React.FC<
 		return null;
 	}
 
+	let content: React.ReactNode;
 	if (fetchFailed) {
-		return <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
-	}
-
-	if (timedOut && !hasLogs) {
-		return (
+		content = <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
+	} else if (timedOut && !hasLogs) {
+		content = (
 			<LogNotice icon="warning">
 				Build logs are taking longer than expected.
 			</LogNotice>
 		);
-	}
-
-	// Query succeeded but the build produced no log output.
-	if (
-		!isRunning &&
-		completedLogsQuery.isSuccess &&
-		(!logs || logs.length === 0)
-	) {
-		return <LogNotice>No build logs available.</LogNotice>;
-	}
-
-	if (!logs || logs.length === 0) {
-		return <LogNotice icon="loading">Loading build logs…</LogNotice>;
+	} else if (!isRunning && completedLogsQuery.isSuccess && !hasLogs) {
+		content = <LogNotice>No build logs available.</LogNotice>;
+	} else if (!logs || logs.length === 0) {
+		content = <LogNotice icon="loading">Loading build logs…</LogNotice>;
+	} else {
+		content = (
+			<ToolCall.Scrollable
+				className="mt-1.5 rounded-md border text-2xs"
+				viewportClassName="max-h-64"
+				ariaLabel="Workspace build log"
+				followEnd
+			>
+				{/* WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript. */}
+				<WorkspaceBuildLogs
+					logs={logs}
+					sticky
+					disableAutoscroll
+					className="border-0 rounded-none"
+				/>
+			</ToolCall.Scrollable>
+		);
 	}
 
 	return (
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
-			viewportClassName="max-h-64"
-			viewportRef={viewportRef}
-			viewportTabIndex={0}
-			viewportAriaLabel="Workspace build log"
-			scrollBarClassName="w-1.5"
-		>
-			<WorkspaceBuildLogs
-				logs={logs}
-				sticky
-				disableAutoscroll
-				className="border-0 rounded-none"
-			/>
-		</ScrollArea>
+		<>
+			{!build &&
+				(isRunning ? workspaceQuery.isError : buildByIdQuery.isError) && (
+					<LogNotice icon="warning">
+						Unable to check whether build logs were truncated.
+					</LogNotice>
+				)}
+			{build?.job.logs_overflowed && (
+				<Alert severity="warning" className="mt-1.5">
+					Provisioner logs exceeded the 1MB size limit. Later logs for this
+					build were not saved.
+				</Alert>
+			)}
+			{content}
+		</>
 	);
 };

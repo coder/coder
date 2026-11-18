@@ -374,7 +374,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if existingTag != "" {
 		tagExists = true
 		warnf(w, "Tag '%s' already exists!", newVersion)
-		if err := confirmWithDefault(inv, "This will skip tagging. Continue?", cliui.ConfirmNo); err != nil {
+		if err := confirmWithDefault(inv, "The release workflow will reuse it if it is at this commit. Continue?", cliui.ConfirmNo); err != nil {
 			return err
 		}
 		fmt.Fprintln(w)
@@ -461,7 +461,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 				return xerrors.Errorf("reading commit log: %w", err)
 			}
 
-			prMeta := loadPRMetadata(w, ghAvailable, commits)
+			prMeta := emptyPRMetadata()
+			if ghAvailable {
+				prMeta = loadPRMetadata(w, commits)
+			}
 			breakingCommits := findBreakingCommits(commits, prMeta)
 
 			if len(breakingCommits) > 0 {
@@ -559,7 +562,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("reading commit log: %w", err)
 	}
 
-	prMeta := loadPRMetadata(w, ghAvailable, commits)
+	prMeta := emptyPRMetadata()
+	if ghAvailable {
+		prMeta = loadPRMetadata(w, commits)
+	}
 
 	type section struct {
 		Key   string
@@ -667,7 +673,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// Container image.
-	imageTag := fmt.Sprintf("ghcr.io/coder/coder:%s", strings.TrimPrefix(newVersion.String(), "v"))
+	// The release workflow tags the image via scripts/image_tag.sh, which
+	// always prefixes the version with "v" (ghcr.io/coder/coder:v2.37.5).
+	imageTag := fmt.Sprintf("ghcr.io/coder/coder:%s", newVersion.String())
 	fmt.Fprintf(&notes, "\n## Container image\n\n- `docker pull %s`\n", imageTag)
 
 	// Install/upgrade links.
@@ -721,44 +729,29 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintln(w)
 	}
 
-	// --- Tag ---
+	// --- Commit to release ---
+	// Only the release GitHub App may create tags. The release
+	// workflow creates the tag at this commit after its release
+	// environment is approved by a second release manager, and it
+	// refuses a commit that isn't already on the branch it runs on.
 	ref, err := gitOutput("rev-parse", "HEAD")
 	if err != nil {
 		return xerrors.Errorf("resolving HEAD: %w", err)
 	}
-	shortRef := ref[:12]
-
-	if !tagExists {
-		fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "Next step: create an annotated tag."))
-		fmt.Fprintf(w, "  Tag:    %s\n", newVersion)
-		fmt.Fprintf(w, "  Commit: %s\n", shortRef)
-		fmt.Fprintf(w, "  Branch: %s\n", currentBranch)
-		fmt.Fprintln(w)
-		if err := confirm(inv, "Create tag?"); err != nil {
-			return xerrors.New("cannot proceed without a tag")
+	if err := gitRun("merge-base", "--is-ancestor", ref, "origin/"+currentBranch); err != nil {
+		return xerrors.Errorf("commit %s is not on origin/%s; push it (through a PR) before releasing", ref[:12], currentBranch)
+	}
+	if tagExists {
+		tagged, err := gitOutput("rev-list", "-n", "1", newVersion.String())
+		if err != nil {
+			return xerrors.Errorf("resolving tag %s: %w", newVersion, err)
 		}
-		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String()); err != nil {
-			return xerrors.Errorf("creating tag: %w", err)
+		if tagged != ref {
+			return xerrors.Errorf("tag %s already exists at %s, not at HEAD (%s)", newVersion, tagged[:12], ref[:12])
 		}
-		successf(w, "Tag %s created.", newVersion)
-		fmt.Fprintln(w)
-	} else {
-		infof(w, "Tag %s already exists, skipping creation.", newVersion)
+		infof(w, "Tag %s already exists at this commit; the workflow will reuse it.", newVersion)
 		fmt.Fprintln(w)
 	}
-
-	// --- Push tag ---
-	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), fmt.Sprintf("Next step: push tag '%s' to origin.", newVersion)))
-	fmt.Fprintf(w, "  This will run: git push origin %s\n", newVersion)
-	fmt.Fprintln(w)
-	if err := confirm(inv, "Push tag?"); err != nil {
-		return xerrors.New("cannot trigger release without pushing the tag")
-	}
-	if err := executor.PushTag(ctx, newVersion.String()); err != nil {
-		return xerrors.Errorf("pushing tag: %w", err)
-	}
-	successf(w, "Tag pushed.")
-	fmt.Fprintln(w)
 
 	// --- Trigger release workflow ---
 	// Re-read release notes from disk in case the user edited the
@@ -772,9 +765,11 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "Next step: trigger the 'release.yaml' GitHub Actions workflow."))
 	fmt.Fprintf(w, "  Workflow: release.yaml\n")
 	fmt.Fprintf(w, "  Repo:    %s/%s\n", owner, repo)
-	fmt.Fprintf(w, "  Ref:     %s\n", newVersion)
+	fmt.Fprintf(w, "  Ref:     %s\n", currentBranch)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload fields:"))
+	fmt.Fprintf(w, "    version:         %s\n", newVersion)
+	fmt.Fprintf(w, "    commit:          %s\n", ref)
 	fmt.Fprintf(w, "    release_channel: %s\n", channel)
 	fmt.Fprintf(w, "    dry_run:         false\n")
 	fmt.Fprintln(w)
@@ -789,10 +784,23 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		successf(w, "Done! 🎉")
 		return nil
 	}
-	if err := executor.TriggerWorkflow(ctx, newVersion.String(), channel, releaseNotes); err != nil {
+	dispatchedAt := time.Now()
+	if err := executor.TriggerWorkflow(ctx, currentBranch, newVersion.String(), ref, channel, releaseNotes); err != nil {
 		return xerrors.Errorf("triggering workflow: %w", err)
 	}
 	successf(w, "Release workflow triggered!")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "Next step: another release manager approves the release."))
+	fmt.Fprintf(w, "  The run waits for its %q environment to be approved by a release manager\n", "release")
+	fmt.Fprintln(w, "  other than you (GitHub notifies them). After approval it creates tag "+newVersion.String()+",")
+	fmt.Fprintln(w, "  then builds and publishes; release-publish needs one more approval later.")
+	if !dryRun {
+		if url := ghFindDispatchedRun(currentBranch, dispatchedAt); url != "" {
+			fmt.Fprintf(w, "  Run: %s\n", url)
+		} else {
+			fmt.Fprintf(w, "  Run: https://github.com/%s/%s/actions/workflows/release.yaml?query=branch%%3A%s\n", owner, repo, currentBranch)
+		}
+	}
 
 	// --- Update release docs ---
 	// RC releases skip docs updates (calendar, helm versions, etc.)

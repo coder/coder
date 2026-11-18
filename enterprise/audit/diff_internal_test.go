@@ -173,65 +173,6 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
-
-	// We currently don't support nested structs.
-	// t.Run("NestedStruct", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	type bar struct {
-	// 		Baz string `json:"baz"`
-	// 	}
-
-	// 	type foo struct {
-	// 		Bar *bar `json:"bar"`
-	// 	}
-
-	// 	table := auditMap(map[any]map[string]Action{
-	// 		&foo{}: {
-	// 			"bar": ActionTrack,
-	// 		},
-	// 		&bar{}: {
-	// 			"baz": ActionTrack,
-	// 		},
-	// 	})
-
-	// 	runDiffValuesTests(t, table, []diffTest{
-	// 		{
-	// 			name: "LeftEmpty",
-	// 			left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "", New: "baz"},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightEmpty",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "LeftNil",
-	// 			left: foo{Bar: nil}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightNil",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 	})
-	// })
 }
 
 type diffTest struct {
@@ -392,6 +333,23 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// A project's default parameter values can hold credentials, so
+			// they must be masked in audit diffs via ActionSecret.
+			name: "DefaultParametersMasked",
+			left: audit.Empty[database.ChatProject](),
+			right: database.ChatProject{
+				ID:                uuid.UUID{1},
+				DefaultParameters: json.RawMessage(`{"api_key":"a very secret key"}`),
+			},
+			exp: audit.Map{
+				"id":                 audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"default_parameters": audit.OldNew{Old: json.RawMessage(nil), New: json.RawMessage(nil), Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "ConditionTracked",
 			left: database.ExperimentRule{
 				ID:         uuid.UUID{1},
@@ -419,17 +377,17 @@ func Test_diff(t *testing.T) {
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",
-			left: audit.Empty[database.UserSkill](),
-			right: database.UserSkill{
+			left: audit.Empty[database.Skill](),
+			right: database.Skill{
 				ID:          uuid.UUID{1},
-				UserID:      uuid.UUID{2},
+				UserID:      uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
 				Name:        "review-guidance",
 				Description: "How to review private projects",
 				Content:     "review markdown",
 			},
 			exp: audit.Map{
 				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"user_id":     audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
 				"name":        audit.OldNew{Old: "", New: "review-guidance"},
 				"description": audit.OldNew{Old: "", New: "How to review private projects"},
 				"content":     audit.OldNew{Old: "", New: "review markdown"},

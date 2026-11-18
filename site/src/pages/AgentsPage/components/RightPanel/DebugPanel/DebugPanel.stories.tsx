@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { toast } from "sonner";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type { Mock } from "vitest";
 import { API } from "#/api/api";
 import { chatDebugRunKey, chatDebugRunsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
+import { TabPanelStateContext } from "../../ChatsSidebar/tabs/SidebarTabView";
 import { DebugPanel } from "./DebugPanel";
 import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 
@@ -498,7 +499,6 @@ const meta: Meta<typeof DebugPanel> = {
 	component: DebugPanel,
 	args: {
 		chatId: CHAT_ID,
-		isVisible: true,
 	},
 	beforeEach: (ctx) => {
 		const real = Date.now;
@@ -565,9 +565,15 @@ export const Empty: Story = {
 };
 
 export const Disabled: Story = {
-	args: {
-		isVisible: false,
-	},
+	decorators: [
+		(Story) => (
+			<TabPanelStateContext
+				value={{ isActive: false, isPanelOpen: true, isExpanded: false }}
+			>
+				<Story />
+			</TabPanelStateContext>
+		),
+	],
 };
 
 export const ErrorState: Story = {
@@ -805,7 +811,7 @@ export const SingleStepSuccessfulRun: Story = {
 		// Expand the run and open the first step before inspecting nested
 		// content.
 		const runTrigger = await canvas.findByRole("button", {
-			name: /Chat Turn/i,
+			name: /Chat turn/i,
 		});
 		await user.click(runTrigger);
 		await expandStep(canvas, user);
@@ -1053,7 +1059,7 @@ export const ExportSingleRun: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await user.click(
 			await canvas.findByRole("button", { name: "Export this run" }),
 		);
@@ -1085,7 +1091,7 @@ export const ExportSingleRunDownloadError: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		const errorSpy = spyOn(toast, "error");
 		await user.click(
 			await canvas.findByRole("button", { name: "Export this run" }),
@@ -1128,7 +1134,7 @@ export const MultiStepRunWithRetries: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await expandStep(canvas, user);
 
 		await user.click(await canvas.findByRole("button", { name: /Attempt 1/i }));
@@ -1173,7 +1179,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await expandStep(canvas, user);
 
 		// Expand the request body to reveal the redacted headers.
@@ -1276,7 +1282,7 @@ export const LongRawPayloads: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await expandStep(canvas, user);
 
 		await user.click(await canvas.findByText("Request body"));

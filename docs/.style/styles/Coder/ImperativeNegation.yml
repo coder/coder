@@ -1,0 +1,28 @@
+# Coder.ImperativeNegation - write "do not" instead of "don't" when the
+# sentence instructs the reader.
+#
+# The rule flags "don't" (straight or curly apostrophe) only where it opens an
+# imperative: at the start of a paragraph or sentence, after a colon or
+# semicolon, after ", and", or after a comma that closes an opening clause that
+# starts with If, When, Before, After, Unless, Once, While, or Until. Declaratives
+# such as "You don't need", "Tools that don't", and "Headings are sentence case,
+# don't lead" stay untouched because "don't" follows a subject, not a boundary.
+# Vale renders Markdown before matching, so a bold lead-in such as "**Note:**"
+# counts as separate tokens, and code spans never reach the rule.
+#
+# Known gaps: an imperative after a bare comma ("Link to the docs, don't copy
+# them") goes unreported, because the same shape in a declarative ("events
+# published on one node, such as updates, don't reach clients") is common and
+# the two can't be told apart by pattern. "\A" anchors the paragraph start so a
+# hard-wrapped line that begins with "don't" doesn't match.
+#
+# Level: warning. The boundary heuristic can still misread a declarative that
+# follows a sentence boundary, such as a fragment.
+extends: existence
+message: "Write 'do not' instead of '%s' when the sentence tells the reader not to do something. Refer to voice-and-tone.md#spell-out-negative-instructions."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/voice-and-tone.md#spell-out-negative-instructions
+level: warning
+ignorecase: false
+nonword: true
+tokens:
+  - '(?:(?<=\A)|(?<=[.!?]\s)|(?<=:\s)|(?<=;\s)|(?<=,\sand\s)|(?<=(?i:\b(?:if|when|before|after|unless|once|while|until)\b)[^.!?;:,]*,\s))[Dd]on[’'']t\b'

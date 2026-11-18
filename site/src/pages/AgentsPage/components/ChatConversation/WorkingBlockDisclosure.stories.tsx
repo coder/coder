@@ -54,6 +54,21 @@ export const UnknownDuration: Story = {
 	},
 };
 
+export const WithoutSteps: Story = {
+	args: { block: { ...MockWorkingBlock, stepCount: 0 } },
+};
+
+export const WithoutStepsUnknownDuration: Story = {
+	args: {
+		block: {
+			...MockWorkingBlock,
+			stepCount: 0,
+			startedAt: undefined,
+			endedAt: undefined,
+		},
+	},
+};
+
 export const Live: Story = {
 	args: {
 		block: {

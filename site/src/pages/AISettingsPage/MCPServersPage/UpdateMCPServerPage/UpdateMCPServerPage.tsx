@@ -5,7 +5,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import {
 	deleteMCPServerConfig,
@@ -15,6 +14,7 @@ import {
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -126,12 +126,12 @@ const UpdateMCPServerPage: React.FC = () => {
 						<Navigate to={listPath} replace />
 					) : serverQuery.isLoading ? (
 						<>
-							<title>{pageTitle("Loading...", "AI Settings")}</title>
+							<title>{pageTitle("Loading...", "AI settings")}</title>
 							<Loader fullscreen />
 						</>
 					) : serverQuery.isLoadingError && !notFound ? (
 						<>
-							<title>{pageTitle("MCP servers", "AI Settings")}</title>
+							<title>{pageTitle("MCP servers", "AI settings")}</title>
 							<div className="mb-4">
 								<ErrorAlert error={serverQuery.error} />
 							</div>

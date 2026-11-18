@@ -2,12 +2,12 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createAIProviderMutation } from "#/api/queries/aiProviders";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { AddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
@@ -47,7 +47,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 				<p className="text-sm text-content-secondary m-0">
 					Configure connection details and credentials.
 				</p>
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<ProviderForm
 						editing={false}
 						initialValues={{ type: provider.value, icon: defaultIcon }}

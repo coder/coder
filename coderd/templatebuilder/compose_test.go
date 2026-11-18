@@ -6,10 +6,19 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os/exec"
+	"path"
 	"regexp"
+	"runtime"
+	"slices"
+	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 )
@@ -98,18 +107,6 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), `unknown agent "nonexistent"`)
 	})
 
-	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "aws-linux",
-			RegistryURL:    "registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, result.ExtraFiles, "aws-linux should have extra files")
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
-		require.Contains(t, result.ExtraFiles, "cloud-init/userdata.sh.tftpl")
-	})
-
 	t.Run("GCPLinuxBaseWithProjectID", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
@@ -148,16 +145,6 @@ func TestCompose(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `variable "project_id" is required`)
-	})
-
-	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "azure-linux",
-			RegistryURL:    "registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
 	})
 
 	t.Run("SensitiveVariable", func(t *testing.T) {
@@ -699,4 +686,127 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 		files[hdr.Name] = string(body)
 	}
 	return files
+}
+
+// TestQuickstartCppInstallGuard verifies the C/C++ branch of the quickstart
+// install script installs the toolchain when only part of it is present. The
+// base image ships gcc but not cmake, so guarding on gcc alone skipped the
+// install and still reported success.
+func TestQuickstartCppInstallGuard(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("requires bash")
+	}
+	bash, err := exec.LookPath("bash")
+	require.NoError(t, err)
+
+	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
+	require.NoError(t, err)
+	raw, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
+	require.NoError(t, err)
+	// Render the template the way Terraform's templatefile would for the
+	// two constructs the script uses.
+	script := strings.ReplaceAll(string(raw), "${LANGUAGES}", "cpp")
+	script = strings.ReplaceAll(script, "$$", "$")
+
+	// gcc is always present: the script echoes its version after installing.
+	tests := []struct {
+		name        string
+		present     []string
+		wantInstall bool
+	}{
+		{name: "AllPresent", present: []string{"gcc", "g++", "make", "cmake"}, wantInstall: false},
+		{name: "MissingCmake", present: []string{"gcc", "g++", "make"}, wantInstall: true},
+		{name: "OnlyGcc", present: []string{"gcc"}, wantInstall: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Stubs are shell functions rather than files on PATH: writing
+			// and executing files races with concurrent forks (ETXTBSY,
+			// golang/go#22315). PATH is an empty directory, so the host's
+			// toolchain can't influence the result.
+			var prelude strings.Builder
+			for _, tool := range tt.present {
+				prelude.WriteString(tool + "() { echo stub 1.0; }\n")
+			}
+			// sudo records its arguments and "installs" nothing.
+			prelude.WriteString("sudo() { echo \"SUDO: $*\"; }\n")
+			prelude.WriteString("head() { IFS= read -r l; printf '%s\\n' \"$l\"; }\n")
+
+			cmd := exec.Command(bash, "-c", prelude.String()+script)
+			cmd.Env = []string{"PATH=" + t.TempDir()}
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, string(out))
+
+			installed := strings.Contains(string(out), "SUDO: apt-get install")
+			require.Equal(t, tt.wantInstall, installed, "output: %s", out)
+		})
+	}
+}
+
+// TestBaseBundlesReferencedFiles verifies every file a base's main.tf passes
+// to file() or templatefile() is bundled with the base, so terraform plan can
+// read it.
+func TestBaseBundlesReferencedFiles(t *testing.T) {
+	t.Parallel()
+
+	ids := templatebuilder.BaseTemplateIDs()
+	slices.Sort(ids)
+	for _, id := range ids {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", testRenderContext(id))
+			require.NoError(t, err)
+			extraFiles := templatebuilder.BaseExtraFiles(id)
+			refs := fileReferences(t, rendered)
+			if len(extraFiles) > 0 {
+				require.NotEmpty(t, refs, "bundles files but no file() or templatefile() call was found")
+			}
+			for _, ref := range refs {
+				_, ok := extraFiles[ref]
+				assert.True(t, ok, "%q is referenced but not bundled", ref)
+			}
+		})
+	}
+}
+
+// fileReferences returns the paths that mainTF passes to file() and
+// templatefile(), relative to the template root.
+func fileReferences(t *testing.T, mainTF []byte) []string {
+	t.Helper()
+
+	file, diags := hclsyntax.ParseConfig(mainTF, "main.tf", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "%s", diags)
+	body, ok := file.Body.(*hclsyntax.Body)
+	require.True(t, ok)
+
+	// path.module is the template root, where ExtraFiles are written.
+	pathObj := cty.ObjectVal(map[string]cty.Value{
+		"module": cty.StringVal("."),
+	})
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{"path": pathObj},
+	}
+
+	var refs []string
+	diags = hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if !ok || len(call.Args) == 0 {
+			return nil
+		}
+		if call.Name != "file" && call.Name != "templatefile" {
+			return nil
+		}
+		val, diags := call.Args[0].Value(evalCtx)
+		if diags.HasErrors() {
+			return diags
+		}
+		refs = append(refs, path.Clean(val.AsString()))
+		return nil
+	})
+	require.False(t, diags.HasErrors(), "file path must be a literal: %s", diags)
+	return refs
 }

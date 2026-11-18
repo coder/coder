@@ -89,7 +89,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = ({
 			<PopoverTrigger asChild>
 				<Button disabled={!listeningPorts} size="sm" variant="subtle">
 					<Spinner loading={!listeningPorts}>
-						<span className="text-xs font-medium h-5 min-w-5 px-1 rounded-full flex items-center justify-center bg-surface-tertiary">
+						<span className="text-xs h-5 min-w-5 px-1 rounded-full flex items-center justify-center bg-surface-tertiary">
 							{listeningPorts?.length}
 						</span>
 					</Spinner>
@@ -99,7 +99,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="p-0 w-[404px] mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
+				className="p-0 w-101 mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
 			>
 				<PortForwardPopoverView
 					host={host}
@@ -218,6 +218,10 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
 	const [portQuery, setPortQuery] = useState("");
+	const listeningPortsTitleId = useId();
+	const sharedPortsTitleId = useId();
+	const listeningPortProtocolFieldId = useId();
+	const portQueryFieldId = useId();
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -300,8 +304,10 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 		<>
 			<div className="max-h-80 overflow-y-auto">
 				<div className="flex flex-col p-5">
-					<div className="flex flex-row justify-between items-start">
-						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
+					<div className="flex justify-between items-start">
+						<HelpPopoverTitle id={listeningPortsTitleId}>
+							Listening ports
+						</HelpPopoverTitle>
 						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
@@ -313,30 +319,37 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
 						</HelpPopoverText>
-						<div className="mt-2 flex items-center gap-2 pb-2">
-							<Select
-								value={listeningPortProtocol}
-								onValueChange={(value) => {
-									if (!isListeningPortProtocol(value)) {
-										return;
-									}
-									setListeningPortProtocol(value);
-									saveWorkspaceListeningPortsProtocol(workspace.id, value);
-								}}
-							>
-								<SelectTrigger
-									aria-label="Listening port protocol"
-									className="h-9 min-w-[100px] w-auto"
+						<div
+							role="group"
+							aria-labelledby={listeningPortsTitleId}
+							className="mt-2 flex items-end gap-2 pb-2"
+						>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={listeningPortProtocolFieldId}>Protocol</Label>
+								<Select
+									value={listeningPortProtocol}
+									onValueChange={(value) => {
+										if (!isListeningPortProtocol(value)) {
+											return;
+										}
+										setListeningPortProtocol(value);
+										saveWorkspaceListeningPortsProtocol(workspace.id, value);
+									}}
 								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="http">HTTP</SelectItem>
-									<SelectItem value="https">HTTPS</SelectItem>
-								</SelectContent>
-							</Select>
+									<SelectTrigger
+										id={listeningPortProtocolFieldId}
+										className="h-9 min-w-25 w-auto"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="http">HTTP</SelectItem>
+										<SelectItem value="https">HTTPS</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
 							<form
-								className="flex flex-1 items-center gap-2"
+								className="flex flex-1 items-end gap-2"
 								onSubmit={(event) => {
 									event.preventDefault();
 									if (typedPort === undefined) {
@@ -355,13 +368,16 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									);
 								}}
 							>
-								<SearchField
-									className="h-9 flex-1 [&_input]:h-9"
-									value={portQuery}
-									onChange={(query) => setPortQuery(query.trim())}
-									placeholder="Filter ports..."
-									aria-label="Filter ports"
-								/>
+								<div className="flex flex-1 flex-col gap-2">
+									<Label htmlFor={portQueryFieldId}>Port</Label>
+									<SearchField
+										id={portQueryFieldId}
+										className="h-9 [&_input]:h-9"
+										value={portQuery}
+										onChange={(query) => setPortQuery(query.trim())}
+										placeholder="Filter ports..."
+									/>
+								</div>
 								<Button
 									type="submit"
 									size="sm"
@@ -393,11 +409,11 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 						return (
 							<div
 								key={port.port}
-								className="flex flex-row items-center justify-between"
+								className="flex items-center justify-between"
 							>
-								<div className="flex flex-row gap-3">
+								<div className="flex gap-3">
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -406,7 +422,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 										{port.port}
 									</a>
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -414,7 +430,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 										{label}
 									</a>
 								</div>
-								<div className="flex flex-row gap-2 justify-end items-center">
+								<div className="flex gap-2 justify-end items-center">
 									{canSharePorts && (
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -445,8 +461,10 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 					})}
 				</div>
 			</div>
-			<div className="p-5 border-0 border-t border-solid border-border">
-				<HelpPopoverTitle>Shared Ports</HelpPopoverTitle>
+			<div className="p-5 border-t">
+				<HelpPopoverTitle id={sharedPortsTitleId}>
+					Shared ports
+				</HelpPopoverTitle>
 				<HelpPopoverText>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
@@ -467,10 +485,10 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							return (
 								<div
 									key={share.port}
-									className="flex flex-row justify-between items-center"
+									className="flex justify-between items-center"
 								>
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -510,7 +528,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 										</SelectContent>
 									</Select>
 
-									<div className="flex flex-row justify-end">
+									<div className="flex justify-end">
 										<Select
 											value={share.share_level}
 											onValueChange={(value) => {
@@ -556,7 +574,11 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							);
 						})}
 						<form onSubmit={form.handleSubmit}>
-							<div className="mt-4 flex flex-col gap-4 justify-end">
+							<div
+								role="group"
+								aria-labelledby={sharedPortsTitleId}
+								className="mt-4 flex flex-col gap-4 justify-end"
+							>
 								<FormField
 									field={getFieldHelpers("port")}
 									label="Port"
@@ -595,7 +617,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									</Select>
 								</div>
 								<div className="flex flex-col gap-2">
-									<Label htmlFor={shareLevelFieldId}>Sharing Level</Label>
+									<Label htmlFor={shareLevelFieldId}>Sharing level</Label>
 									<Select
 										value={form.values.share_level}
 										onValueChange={(value) => {
@@ -608,7 +630,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									>
 										<SelectTrigger
 											id={shareLevelFieldId}
-											aria-label="Sharing Level"
+											aria-label="Sharing level"
 											aria-invalid={shareLevelField.error}
 											className={
 												shareLevelField.error
@@ -628,7 +650,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 								</div>
 								<Button type="submit" disabled={!form.isValid || isSubmitting}>
 									<Spinner loading={isSubmitting} />
-									Share Port
+									Share port
 								</Button>
 							</div>
 						</form>

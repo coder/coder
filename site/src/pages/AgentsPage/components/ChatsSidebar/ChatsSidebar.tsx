@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	chatProjects,
@@ -12,6 +11,7 @@ import {
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { toast } from "#/components/Toaster/toast";
 import {
 	getDefaultOrganizationId,
 	useDashboard,
@@ -104,13 +104,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	// The sidebar lists the user's projects across organizations.
-	const chatProjectsEnabled =
-		experiments.includes("chat-projects") &&
-		initialOrganizationId !== undefined;
+	const chatProjectsEnabled = initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -256,13 +254,14 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	};
 
 	return (
-		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				projects={projectsQuery.data ?? []}
 				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
+				isProjectsLoadError={projectsQuery.isLoadingError}
 				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
@@ -345,7 +344,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's chats list."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

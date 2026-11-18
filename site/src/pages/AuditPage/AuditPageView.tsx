@@ -51,12 +51,7 @@ export const AuditPageView: React.FC<AuditPageViewProps> = ({
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
-				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
-						<span>Audit</span>
-						<AuditHelpPopover />
-					</div>
-				</PageHeaderTitle>
+				<PageHeaderTitle tooltip={<AuditHelpPopover />}>Audit</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					View events in your audit log.{" "}
 					<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
@@ -69,7 +64,7 @@ export const AuditPageView: React.FC<AuditPageViewProps> = ({
 
 					<PaginationContainer
 						query={paginationResult}
-						paginationUnitLabel="logs"
+						paginationUnitLabel={{ singular: "log", plural: "logs" }}
 					>
 						<Table>
 							<TableBody>

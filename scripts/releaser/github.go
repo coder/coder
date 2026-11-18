@@ -102,18 +102,20 @@ func (m *prMetadataMaps) lookupCommit(fullSHA string, prNumber int) prMetadata {
 }
 
 // loadPRMetadata fetches PR metadata for the given commits via the gh
-// CLI. It never fails: when gh is unavailable or the query errors, a
-// warning is written and empty maps are returned so callers degrade to
-// title-only categorization.
-func loadPRMetadata(w io.Writer, ghAvailable bool, commits []commitEntry) *prMetadataMaps {
-	if ghAvailable {
-		prMeta, err := ghBuildPRMetadataMap(commits)
-		if err != nil {
-			warnf(w, "Failed to fetch PR metadata: %v", err)
-		} else if prMeta != nil {
-			return prMeta
-		}
+// CLI. It never fails: when the query errors, a warning is written and
+// empty maps are returned so callers degrade to title-only
+// categorization.
+func loadPRMetadata(w io.Writer, commits []commitEntry) *prMetadataMaps {
+	prMeta, err := ghBuildPRMetadataMap(commits)
+	if err != nil {
+		warnf(w, "Failed to fetch PR metadata: %v", err)
+	} else if prMeta != nil {
+		return prMeta
 	}
+	return emptyPRMetadata()
+}
+
+func emptyPRMetadata() *prMetadataMaps {
 	return &prMetadataMaps{
 		bySHA:    make(map[string]prMetadata),
 		byNumber: make(map[int]prMetadata),
@@ -183,4 +185,33 @@ func ghBuildPRMetadataMap(commits []commitEntry) (*prMetadataMaps, error) {
 		}
 	}
 	return result, nil
+}
+
+// ghFindDispatchedRun returns the URL of the release.yaml run that
+// the current gh user dispatched on branch at or after since. A
+// workflow dispatch doesn't return the run it creates, so this polls
+// for a short while; it returns "" if the run doesn't show up.
+func ghFindDispatchedRun(branch string, since time.Time) string {
+	user, err := ghOutput("api", "user", "--jq", ".login")
+	if err != nil || user == "" {
+		return ""
+	}
+	query := `[.[] | select(.createdAt >= "` + since.UTC().Add(-time.Minute).Format(time.RFC3339) + `")] | first | .url // ""`
+	for range 10 {
+		url, err := ghOutput("run", "list",
+			"--repo", owner+"/"+repo,
+			"--workflow", "release.yaml",
+			"--branch", branch,
+			"--event", "workflow_dispatch",
+			"--user", user,
+			"--limit", "5",
+			"--json", "url,createdAt",
+			"--jq", query,
+		)
+		if err == nil && url != "" {
+			return url
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return ""
 }

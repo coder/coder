@@ -235,27 +235,19 @@ END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
 -- GetChatAdvisorConfig returns the deployment-wide runtime configuration
--- for the experimental chat advisor as a JSON blob. Callers unmarshal the
--- result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
--- values apply by default.
+-- for the chat advisor as a JSON blob. Callers unmarshal the result into
+-- codersdk.AdvisorConfig. Returns '{}' when unset so zero values apply by
+-- default.
 -- name: GetChatAdvisorConfig :one
 SELECT
     COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config;
 
 -- UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
--- for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
--- to JSON before invoking this query.
+-- for the chat advisor. Callers marshal codersdk.AdvisorConfig to JSON
+-- before invoking this query.
 -- name: UpsertChatAdvisorConfig :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config';
-
--- name: GetChatComputerUseProvider :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider;
-
--- name: UpsertChatComputerUseProvider :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', sqlc.arg(provider))
-ON CONFLICT (key) DO UPDATE SET value = sqlc.arg(provider) WHERE site_configs.key = 'agents_computer_use_provider';
 
 -- GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 -- allows users to opt into chat debug logging when the deployment does
@@ -411,7 +403,6 @@ WHERE site_configs.key = sqlc.arg(config_key)
         'agents_chat_debug_retention_days',
         'agents_chat_auto_archive_days',
         'agents_workspace_ttl',
-        'agents_computer_use_provider',
         'agents_chat_debug_logging_allow_users',
         'agents_chat_personal_model_overrides_enabled'
     );

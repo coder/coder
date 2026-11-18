@@ -17,15 +17,13 @@
 # (Apple's `container` CLI on macOS).
 set -euo pipefail
 
-# Keep MISE_VERSION + MISE_SHA256 in lockstep with the same vars in
-# .github/workflows/dogfood.yaml and dogfood/coder/ubuntu-*/Dockerfile.base.
-# A `min_version` check in mise.toml catches downgrades.
-MISE_VERSION="v2026.5.12"
-MISE_SHA256="a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48"
+# scripts/check_mise_versions.sh checks these against the other mise pins.
+MISE_VERSION="v2026.10.25"
+MISE_SHA256="5d362ecc578dc7c146679b841dda949d6472cbf86ff5635db7afdca1b6b3fd87"
 # Bump the -rN suffix when the Dockerfile heredoc below changes
 # (mise version, apt packages, trust config, etc.) so cached wrapper
 # images get rebuilt automatically.
-WRAPPER_REVISION="r2"
+WRAPPER_REVISION="r3"
 RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WRAPPER_IMAGE="coderdev/mise-oci-wrapper:$MISE_VERSION-$WRAPPER_REVISION"
 
@@ -48,9 +46,6 @@ if ! "$RUNTIME" image inspect "$WRAPPER_IMAGE" >/dev/null 2>&1; then
 	trap 'rm -rf "$build_dir"' EXIT
 	cat >"$build_dir/Dockerfile" <<DOCKERFILE
 FROM debian:bookworm-slim
-# crane (the registry client mise oci shells out to) is installed via
-# mise.toml at run time, not here. Keeps the image lean and avoids
-# version drift between this base layer and what mise oci uses.
 RUN apt-get update -qq && \\
     apt-get install -y -qq --no-install-recommends \\
       ca-certificates curl && \\
@@ -71,7 +66,7 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 	token_arg=(-e "GITHUB_TOKEN=$GITHUB_TOKEN")
 fi
 
-# Mount ~/.docker when present so crane can find registry creds.
+# Mount ~/.docker when present so mise oci can find registry creds.
 # Apple `container` CLI users without Docker Desktop won't have it;
 # local builds don't push, so the skip is fine.
 docker_config_arg=()
@@ -79,25 +74,17 @@ if [ -d "$HOME/.docker" ]; then
 	docker_config_arg=(-v "$HOME/.docker:/root/.docker:ro")
 fi
 
-# `oci build` needs all mise tools installed so it can package them
-# into layers. `oci push` needs crane on PATH (mise oci shells out to
-# it). Both end up running `mise install` first; build installs every
-# tool, push only crane. The `export PATH=...` exposes mise's shims
-# dir so `which crane` succeeds when mise oci spawns it as a child.
-# Single quotes are intentional: $HOME and $@ expand inside the
-# container's `sh -c`, not in this script.
+# `oci build` packages installed tools into layers, so it runs
+# `mise install` first. `oci push --image-dir` uploads an existing
+# layout and needs no tools.
+# Single quotes are intentional: $@ expands inside the container's
+# `sh -c`, not in this script.
 # shellcheck disable=SC2016
 inner_cmd='mise oci "$@"'
-case "${1:-}" in
-build)
+if [ "${1:-}" = build ]; then
 	# shellcheck disable=SC2016
-	inner_cmd='mise install --yes && export PATH="$HOME/.local/share/mise/shims:$PATH" && mise oci "$@"'
-	;;
-push)
-	# shellcheck disable=SC2016
-	inner_cmd='mise install --yes crane && export PATH="$HOME/.local/share/mise/shims:$PATH" && mise oci "$@"'
-	;;
-esac
+	inner_cmd='mise install --yes && mise oci "$@"'
+fi
 
 exec "$RUNTIME" run --rm ${platform_arg[@]+"${platform_arg[@]}"} \
 	-v "$REPO_ROOT":/src -w /src \

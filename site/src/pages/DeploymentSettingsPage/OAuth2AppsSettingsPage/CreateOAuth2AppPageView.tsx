@@ -2,12 +2,12 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { postApp } from "#/api/queries/oauth2";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { OAuth2AppForm } from "./OAuth2AppForm";
@@ -49,7 +49,7 @@ export const CreateOAuth2AppPageView: React.FC = () => {
 					Configure an application to use Coder as an OAuth2 provider.
 				</p>
 
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<OAuth2AppForm
 						// Apps created here are confidential. Public clients only come
 						// from dynamic client registration.

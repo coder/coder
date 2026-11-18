@@ -222,7 +222,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			if len(templateVersion) > 0 {
-				versionID, err := resolveTemplateVersionID(inv.Context(), client, template.ID, templateVersion)
+				versionID, err := resolveTemplateVersionID(inv.Context(), client, template.ID, template.Name, templateVersion)
 				if err != nil {
 					return err
 				}
@@ -424,7 +424,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		serpent.Option{
 			Flag:        "template-version",
 			Env:         "CODER_TEMPLATE_VERSION",
-			Description: "Specify a template version name.",
+			Description: "Specify a template version name or ID.",
 			Value:       serpent.StringOf(&templateVersion),
 		},
 		serpent.Option{
@@ -721,8 +721,14 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 			return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
 		}
 
+		// Keep the owner in suggested commands when creating a workspace for
+		// someone else, so they resolve to the new workspace.
+		previewName := args.NewWorkspaceName
+		if args.Action == WorkspaceCreate && args.Owner != "" && args.Owner != codersdk.Me {
+			previewName = args.Owner + "/" + args.NewWorkspaceName
+		}
 		err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
-			WorkspaceName: args.NewWorkspaceName,
+			WorkspaceName: previewName,
 			// Since agents haven't connected yet, hiding this makes more sense.
 			HideAgentState: true,
 			Title:          "Workspace Preview",

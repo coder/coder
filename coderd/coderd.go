@@ -104,7 +104,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -170,7 +169,8 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           pubsub.Pubsub
+	// Note that a _reporting_ pubsub here is just one that can generate a health check of itself.
+	Pubsub pubsub.ReportingPubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
@@ -274,9 +274,9 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
-	// Test harnesses use this to route chat models to local providers.
-	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatInternalMCPServers supplies in-process MCP servers for chats.
+	// Servers must be ready when New starts the chat worker.
+	ChatInternalMCPServers []chatd.InternalMCPServer
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker.
 	ChatWorkerDisabled bool
@@ -752,6 +752,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -835,6 +836,9 @@ func New(options *Options) *API {
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
 				},
+				Pubsub: healthcheck.PubsubReportOptions{
+					Pubsub: options.Pubsub,
+				},
 				Progress: progress,
 			})
 		}
@@ -901,10 +905,6 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		providerAPIKeys := chatprovider.ProviderAPIKeys{}
-		if options.ChatProviderAPIKeys != nil {
-			providerAPIKeys = *options.ChatProviderAPIKeys
-		}
 
 		// AI Gateway is mandatory for chat. When the bridge is disabled
 		// the chat daemon stays nil and chat HTTP handlers return a
@@ -943,7 +943,6 @@ func New(options *Options) *API {
 				ReplicaID:                      api.ID,
 				StreamPartsDialer:              options.ChatStreamPartsDialer,
 				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-				ProviderAPIKeys:                providerAPIKeys,
 				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 				AllowBYOKSet:                   true,
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
@@ -951,7 +950,6 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
-				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -966,6 +964,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				InternalMCPServers:             options.ChatInternalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 				Limits:                         api.chatLimits,
@@ -1371,6 +1370,31 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		r.Route("/organizations/{organization}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Get("/", api.getOrganizationSkill)
+				// PATCH returns the skill's content, so it requires read like GET.
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
+			})
+		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
@@ -1378,6 +1402,16 @@ func New(options *Options) *API {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			api.registerExperimentalOrganizationChatRoutes(r)
+			// These stay outside /skills, where {skillName} would capture them.
+			r.Route("/skill-settings", func(r chi.Router) {
+				r.Get("/", api.getOrganizationSkillSettings)
+				r.Put("/", api.putOrganizationSkillSettings)
+			})
+			r.Route("/members/{user}/skill-preferences", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
+				r.Get("/", api.getOrganizationSkillPreferences)
+				r.Patch("/", api.patchOrganizationSkillPreferences)
+			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {
@@ -1450,7 +1484,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
@@ -1915,6 +1948,7 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
+			r.Get("/secrets", api.workspaceBuildSecrets)
 			r.Get("/state", api.workspaceBuildState)
 			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)

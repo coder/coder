@@ -11,7 +11,7 @@ export const Topbar: React.FC<React.ComponentProps<"header">> = ({
 		<header
 			{...props}
 			className={cn(
-				"min-h-12 border-0 border-b border-border border-solid flex items-center text-sm font-normal leading-tight",
+				"min-h-12 border-b flex items-center text-sm font-normal leading-tight",
 				className,
 			)}
 		/>
@@ -54,7 +54,7 @@ export const TopbarDivider: React.FC<
 	Omit<React.ComponentProps<"span">, "children">
 > = ({ className, ...props }) => {
 	return (
-		<span {...props} className={cn("text-border", className)}>
+		<span {...props} className={cn("text-content-secondary", className)}>
 			/
 		</span>
 	);

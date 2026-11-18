@@ -1,21 +1,26 @@
 import { RefreshCwIcon } from "lucide-react";
 import { useMutation } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import type { InvalidatePresetsResponse } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { toast } from "#/components/Toaster/toast";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "#/utils/page";
 
 const TemplatePrebuildsPage: React.FC = () => {
-	const { template } = useTemplateLayoutContext();
+	const { template, permissions } = useTemplateLayoutContext();
+	const { workspace_prebuilds: prebuildsEnabled } = useFeatureVisibility();
 
 	return (
-		<>
+		<RequirePermission
+			isFeatureVisible={permissions.canUpdateTemplate && prebuildsEnabled}
+		>
 			<title>{pageTitle(`${template.name} - Prebuilds`)}</title>
 			<TemplatePrebuildsPageView templateId={template.id} />
-		</>
+		</RequirePermission>
 	);
 };
 

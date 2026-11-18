@@ -95,6 +95,8 @@ type ConnectionLogWebInfo struct {
 
 type ConnectionLogSSHInfo struct {
 	ConnectionID uuid.UUID `json:"connection_id" format:"uuid"`
+	// ClientSessionID is set by the client and isn't guaranteed to be unique.
+	ClientSessionID string `json:"client_session_id,omitempty"`
 	// DisconnectTime is omitted if a disconnect event with the same connection ID
 	// has not yet been seen.
 	DisconnectTime *time.Time `json:"disconnect_time,omitempty" format:"date-time"`

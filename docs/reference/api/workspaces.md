@@ -37,6 +37,15 @@ of the template will be used.
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -254,11 +263,18 @@ of the template will be used.
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -630,11 +646,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -752,6 +775,15 @@ of the template will be used.
   "name": "string",
   "rich_parameter_values": [
     {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
       "name": "string",
       "value": "string"
     }
@@ -972,11 +1004,18 @@ of the template will be used.
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -1264,11 +1303,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "scripts": [
                   {
                     "cron": "string",
+                    "dependencies": [],
                     "display_name": "string",
                     "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "resource_address": "string",
                     "run_on_start": true,
                     "run_on_stop": true,
                     "script": "string",
@@ -1583,11 +1624,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -1892,7 +1940,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connect
     "transition": "start"
   },
   "error": {
-    "code": 0,
+    "code": 1,
     "details": "string",
     "message": "string",
     "retryable": true
@@ -2211,11 +2259,18 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -2489,7 +2544,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }
@@ -2633,6 +2688,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 `GET /api/v2/workspaces/{workspace}/watch-ws`
 
+Upgrades to a WebSocket and sends one event per message, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data. The server closes the connection if you send a message.
+
 ### Parameters
 
 | Name        | In   | Type         | Required | Description  |
@@ -2641,7 +2698,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 ### Example responses
 
-> 200 Response
+> 101 Response
 
 ```json
 {
@@ -2652,8 +2709,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
+| Status | Meaning                                                                  | Description         | Schema                                                         |
+|--------|--------------------------------------------------------------------------|---------------------|----------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

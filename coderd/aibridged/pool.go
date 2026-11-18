@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -27,6 +28,11 @@ import (
 
 const (
 	cacheCost = 1 // We can't know the actual size in bytes of the value (it'll change over time).
+
+	// Cache retirement must allow slow model calls and streams to finish.
+	bridgeDrainTimeout = 10 * time.Minute
+	// Process shutdown retains a shorter grace period, including retired bridges.
+	poolShutdownTimeout = 5 * time.Second
 )
 
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
@@ -105,6 +111,9 @@ type CachedBridgePool struct {
 
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
+	// drainCancel bounds all bridge drains when the pool shuts down, even
+	// those for bridges already evicted from the cache.
+	drainCancel context.CancelFunc
 
 	// cacheMu + cacheWG order cache use against Shutdown. Without it,
 	// (*ristretto.Cache).Close may race against cache usage.
@@ -118,6 +127,7 @@ func (p *CachedBridgePool) Options() PoolOptions {
 }
 
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
+	drainCtx, drainCancel := context.WithCancel(context.Background())
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:            options.MaxItems * cacheCost, // Up to n instances.
@@ -135,13 +145,20 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 			// avoid blocking ristretto's eviction loop.
 			bridge := item.Value
 			go func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				shutdownCtx, cancel := context.WithTimeout(drainCtx, bridgeDrainTimeout)
 				defer cancel()
-				_ = bridge.Shutdown(shutdownCtx)
+				// Pool shutdown cancels drainCtx instead, so a deadline error
+				// means retirement alone cut in-flight requests short.
+				if err := bridge.Shutdown(shutdownCtx); errors.Is(err, context.DeadlineExceeded) {
+					logger.Warn(context.Background(), "retired request bridge did not drain in time, canceled in-flight requests",
+						slog.F("drain_timeout", bridgeDrainTimeout),
+					)
+				}
 			}()
 		},
 	})
 	if err != nil {
+		drainCancel()
 		return nil, xerrors.Errorf("create cache: %w", err)
 	}
 
@@ -161,6 +178,7 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
 		shuttingDownCh: make(chan struct{}),
+		drainCancel:    drainCancel,
 	}
 	initial := slices.Clone(providers)
 	pool.providers.Store(&initial)
@@ -316,15 +334,22 @@ func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 }
 
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
-func (p *CachedBridgePool) Shutdown(_ context.Context) error {
+// Bridge drains are canceled when ctx ends or after poolShutdownTimeout,
+// whichever comes first.
+func (p *CachedBridgePool) Shutdown(ctx context.Context) error {
 	p.shutDownOnce.Do(func() {
 		// Block new cache use, drain in-flight ops, then close (see cacheMu).
 		p.cacheMu.Lock()
 		close(p.shuttingDownCh)
 		p.cacheMu.Unlock()
 
+		// Arm cancellation before waiting for acquisitions, which may be
+		// blocked initializing MCP connections. Retired bridges must not
+		// keep draining for the longer eviction grace period during shutdown.
+		time.AfterFunc(poolShutdownTimeout, p.drainCancel)
+		// Drains outlive Shutdown, so the registration is never stopped.
+		_ = context.AfterFunc(ctx, p.drainCancel)
 		p.cacheWG.Wait()
-
 		p.cache.Close()
 	})
 

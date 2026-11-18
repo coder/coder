@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -8,8 +7,10 @@ import {
 	templateByNameKey,
 } from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -18,7 +19,7 @@ const TemplateSettingsPage: React.FC = () => {
 	const { template: templateName } = useParams() as { template: string };
 	const navigate = useNavigate();
 	const getLink = useLinks();
-	const { template } = useTemplateSettings();
+	const { template, permissions } = useTemplateSettings();
 	const queryClient = useQueryClient();
 	const { entitlements } = useDashboard();
 	const accessControlEnabled = entitlements.features.access_control.enabled;
@@ -64,8 +65,8 @@ const TemplateSettingsPage: React.FC = () => {
 	});
 
 	return (
-		<>
-			<title>{pageTitle(template.name, "General Settings")}</title>
+		<RequirePermission isFeatureVisible={permissions.canUpdateTemplate}>
+			<title>{pageTitle(template.name, "General settings")}</title>
 
 			<TemplateSettingsPageView
 				isSubmitting={isSubmitting}
@@ -86,7 +87,7 @@ const TemplateSettingsPage: React.FC = () => {
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				sharedPortControlsEnabled={sharedPortControlsEnabled}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 

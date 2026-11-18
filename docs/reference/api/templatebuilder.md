@@ -41,9 +41,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
       "prerequisites": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -191,6 +189,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -285,9 +284,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
       "id": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,

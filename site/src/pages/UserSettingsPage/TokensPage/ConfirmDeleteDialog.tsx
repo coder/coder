@@ -1,7 +1,7 @@
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useDeleteToken } from "./hooks";
 
 type ConfirmDeleteDialogProps = {
@@ -36,7 +36,7 @@ export const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
 	return (
 		<ConfirmDialog
 			type="delete"
-			title="Delete Token"
+			title="Delete token"
 			description={
 				<>
 					Are you sure you want to permanently delete token{" "}

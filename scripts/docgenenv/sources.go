@@ -203,6 +203,16 @@ func checkSourceRoute(where string, r Route, errs *[]error) {
 	if r.Path == "" {
 		*errs = append(*errs, xerrors.Errorf("%s: route is missing a path", where))
 	}
+	checkDescription(where, "description", r.Description, errs)
+}
+
+// checkDescription requires a non-empty page description to end with a
+// period. The docs site shows it under the page title and in search and
+// social previews, where it reads as a sentence.
+func checkDescription(where, field, desc string, errs *[]error) {
+	if desc != "" && !strings.HasSuffix(desc, ".") {
+		*errs = append(*errs, xerrors.Errorf("%s: %s must end with a period: %q", where, field, desc))
+	}
 }
 
 // checkOverlays checks a children_from route before its fragment is resolved.
@@ -220,6 +230,7 @@ func checkOverlays(where string, r Route, errs *[]error) {
 		case o.Path != "" || len(o.Children) > 0 || o.ChildrenFrom != "" || o.Include != "":
 			*errs = append(*errs, xerrors.Errorf("%s: overlays under children_from may set only title, description, icon_path, and state", ow))
 		}
+		checkDescription(ow, "description", o.Description, errs)
 	}
 }
 
@@ -259,6 +270,7 @@ func validateFragment(file string, routes []Route, crumb []string, errs *[]error
 		case r.ChildrenFrom != "" || r.Include != "":
 			*errs = append(*errs, xerrors.Errorf("%s: %s: fragments can't set children_from or include", file, breadcrumb(c)))
 		}
+		checkDescription(file+": "+breadcrumb(c), "description", r.Description, errs)
 		validateFragment(file, r.Children, c, errs)
 	}
 }
@@ -316,12 +328,44 @@ func applyOverlays(file string, generated, overlays []Route, where string, errs 
 func checkPaths(docsDir string, routes []Route, crumb []string, errs *[]error) {
 	for _, r := range routes {
 		c := append(slices.Clip(crumb), r.Title)
-		info, err := os.Stat(filepath.Join(docsDir, filepath.FromSlash(r.Path)))
+		page := filepath.Join(docsDir, filepath.FromSlash(r.Path))
+		info, err := os.Stat(page)
 		if err != nil || !info.Mode().IsRegular() {
 			*errs = append(*errs, xerrors.Errorf("%s: path %q does not exist under %s", breadcrumb(c), r.Path, docsDir))
+		} else {
+			checkFrontMatterDescription(page, strings.TrimPrefix(r.Path, "./")+": "+breadcrumb(c), errs)
 		}
 		checkPaths(docsDir, r.Children, c, errs)
 	}
+}
+
+// checkFrontMatterDescription checks the description in a Markdown page's
+// front matter, which the docs site shows in place of the manifest's.
+func checkFrontMatterDescription(page, where string, errs *[]error) {
+	if !strings.HasSuffix(page, ".md") {
+		return
+	}
+	b, err := os.ReadFile(page)
+	if err != nil {
+		*errs = append(*errs, xerrors.Errorf("%s: %w", where, err))
+		return
+	}
+	body, ok := bytes.CutPrefix(b, []byte("---\n"))
+	if !ok {
+		return
+	}
+	end := bytes.Index(body, []byte("\n---\n"))
+	if end < 0 {
+		return
+	}
+	var fm struct {
+		Description string `yaml:"description"`
+	}
+	if err := yaml.Unmarshal(body[:end+1], &fm); err != nil {
+		*errs = append(*errs, xerrors.Errorf("%s: front matter: %w", where, err))
+		return
+	}
+	checkDescription(where, "front matter description", fm.Description, errs)
 }
 
 func unreferencedFiles(dir string, used map[string]bool) []error {

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { API } from "#/api/api";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -38,6 +38,12 @@ const renderTemplateVariablesPage = async () => {
 };
 
 describe("TemplateVariablesPage", () => {
+	beforeEach(() => {
+		vi.spyOn(API, "getInboxNotifications").mockResolvedValue({
+			notifications: [],
+			unread_count: 0,
+		});
+	});
 	it("renders with variables", async () => {
 		vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
 		vi.spyOn(API, "getTemplateVersion").mockResolvedValueOnce(

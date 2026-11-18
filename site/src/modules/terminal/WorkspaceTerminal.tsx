@@ -15,7 +15,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import {
 	ExponentialBackoff,
 	type Websocket,
@@ -28,7 +27,9 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
+import { DEFAULT_TERMINAL_FONT_SIZE } from "#/theme/constants";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
@@ -59,6 +60,7 @@ type WorkspaceTerminalProps = {
 	sessionId: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
+	terminalFontSize?: number;
 	renderer?: string;
 	backgroundColor?: string;
 	onOpenLink?: (uri: string) => void;
@@ -74,7 +76,7 @@ const encodeTerminalPayload = (payload: Record<string, number | string>) => {
 	return new TextEncoder().encode(JSON.stringify(payload));
 };
 
-export const WorkspaceTerminal = ({
+export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	ref,
 	agentId,
 	operatingSystem,
@@ -91,13 +93,14 @@ export const WorkspaceTerminal = ({
 	sessionId,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
+	terminalFontSize = DEFAULT_TERMINAL_FONT_SIZE,
 	renderer,
 	backgroundColor,
 	onOpenLink,
 	loading = false,
 	errorMessage,
 	testId,
-}: WorkspaceTerminalProps) => {
+}) => {
 	const scopeId = useId();
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
@@ -227,7 +230,7 @@ export const WorkspaceTerminal = ({
 			customGlyphs: false,
 			disableStdin: false,
 			fontFamily: terminalFontFamily,
-			fontSize: 16,
+			fontSize: terminalFontSize,
 			...(backgroundColor ? { theme: { background: backgroundColor } } : {}),
 		});
 
@@ -326,6 +329,13 @@ export const WorkspaceTerminal = ({
 		nextTerminal.open(mountNode);
 		refit();
 
+		// The canvas and WebGL renderers keep reusing the fallback glyph drawn
+		// before a lazily loaded font arrives, so rebuild their glyph cache.
+		const redrawWithLoadedFonts = () => {
+			nextTerminal.clearTextureAtlas();
+		};
+		document.fonts.addEventListener("loadingdone", redrawWithLoadedFonts);
+
 		window.addEventListener("resize", refit);
 
 		const resizeObserver = new ResizeObserver(() => {
@@ -336,6 +346,7 @@ export const WorkspaceTerminal = ({
 		setTerminal(nextTerminal);
 
 		return () => {
+			document.fonts.removeEventListener("loadingdone", redrawWithLoadedFonts);
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;
@@ -349,6 +360,7 @@ export const WorkspaceTerminal = ({
 		refit,
 		renderer,
 		terminalFontFamily,
+		terminalFontSize,
 		backgroundColor,
 	]);
 
@@ -623,14 +635,14 @@ export const WorkspaceTerminal = ({
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: hsl(var(--surface-invert-secondary));
+					background-color: hsl(var(--surface-scrollbar));
 				}
 			`}</style>
 			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
 				<ContextMenuTrigger asChild disabled={isMac()}>
 					<div
 						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+							"workspace-terminal size-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
 							className,
 						)}
 						ref={terminalWrapperRef}

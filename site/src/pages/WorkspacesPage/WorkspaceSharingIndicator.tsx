@@ -25,17 +25,21 @@ export const WorkspaceSharingIndicator: React.FC<
 	});
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span className="flex items-center text-content-secondary hover:text-content-primary">
-					<UsersIcon className="size-icon-xs" />
-				</span>
+		<Tooltip interactive>
+			<TooltipTrigger
+				aria-label="Workspace permissions"
+				// The 24px target (WCAG 2.5.8) extends only downward so it does not
+				// cover the workspace name link above, and the negative margins keep
+				// the row layout unchanged.
+				className="size-6 -mx-1.25 -mb-2 pb-2 justify-center text-content-secondary hover:text-content-primary"
+			>
+				<UsersIcon className="size-icon-xs" />
 			</TooltipTrigger>
 			<TooltipContent className="w-56 p-0">
 				<div className="px-3 py-2">
-					<p className="m-0 text-sm font-semibold text-content-primary">
+					<h2 className="m-0 text-sm font-semibold text-content-primary">
 						Workspace permissions
-					</p>
+					</h2>
 				</div>
 				<ul className="flex flex-col gap-1 m-0 p-0 list-none max-h-48 overflow-y-auto">
 					{sortedActors.map((actor) => {
@@ -43,7 +47,7 @@ export const WorkspaceSharingIndicator: React.FC<
 						return (
 							<li
 								key={actor.id}
-								className="flex px-3 gap-2 text-sm text-content-secondary"
+								className="flex items-center px-3 gap-2 text-sm text-content-secondary"
 							>
 								<span className="text-sm truncate">{actor.name}</span>
 								{isAdmin && (

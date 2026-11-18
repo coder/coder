@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { watchAgentMetadata } from "#/api/api";
 import type {
 	ServerSentEvent,
@@ -9,6 +8,7 @@ import type {
 	WorkspaceAgentMetadata,
 } from "#/api/typesGenerated";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -82,7 +82,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
 					toast.error(
-						"Unexpected disconnect while watching Metadata changes.",
+						"Unexpected disconnect while watching metadata changes.",
 						{
 							description: "Please try refreshing the page.",
 						},
@@ -90,7 +90,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 					return;
 				}
 
-				toast.error("Unexpected disconnect while watching Metadata changes.", {
+				toast.error("Unexpected disconnect while watching metadata changes.", {
 					description: "Creating new connection...",
 				});
 				timeoutId = window.setTimeout(() => {
@@ -133,7 +133,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 
 const AgentMetadataSkeleton: React.FC = () => {
 	return (
-		<div className="flex flex-row items-baseline gap-12">
+		<div className="flex items-baseline gap-12">
 			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 				<Skeleton width={40} height={6} variant="text" />
 				<Skeleton width={65} height={8} variant="text" />
@@ -182,11 +182,11 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 	// could be buggy. But, how common is that anyways?
 	const value =
 		status === "loading" ? (
-			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
+			<Skeleton width={65} height={12} variant="text" className="mt-1.5" />
 		) : status === "stale" ? (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
+					<StaticWidth className="truncate max-w-64 text-sm text-content-disabled cursor-pointer">
 						{item.result.value}
 					</StaticWidth>
 				</TooltipTrigger>
@@ -197,7 +197,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 		) : (
 			<StaticWidth
 				className={cn(
-					"text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-success",
+					"truncate max-w-64 text-sm text-content-success",
 					item.result.error.length > 0 && "text-content-destructive",
 				)}
 			>
@@ -207,7 +207,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 
 	return (
 		<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
-			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-[13px]">
+			<div className="text-content-secondary truncate text-[13px]">
 				{item.description.display_name}
 			</div>
 			<div>{value}</div>
@@ -227,11 +227,9 @@ const StaticWidth: React.FC<Omit<React.ComponentProps<"div">, "ref">> = ({
 			return;
 		}
 
-		const currentWidth = ref.current.getBoundingClientRect().width;
-		ref.current.style.width = "auto";
-		const autoWidth = ref.current.getBoundingClientRect().width;
-		ref.current.style.width =
-			autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`;
+		// A min width keeps values from jittering as they change while still
+		// letting user text spacing overrides widen the text.
+		ref.current.style.minWidth = `${ref.current.getBoundingClientRect().width}px`;
 	}, [children]);
 
 	return (

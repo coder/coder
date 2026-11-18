@@ -44,6 +44,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Keep business-specific components in feature modules. Create shared components only when reuse is established.
 - Changes to core components are cross-cutting. Coordinate visual or API expansion with design when needed.
 - Keep component files near 500 lines or less. Extract coherent sections when a file becomes difficult to navigate.
+- Compose multiline class lists with `cn(...)` and one quoted string per logical group. Use the same pattern for `cva` base classes and variants; avoid multiline template literals and multiline JSX class strings. Keep short, static class lists as plain strings.
 - Use semantic theme colors and existing Tailwind tokens. Do not use the `dark:` prefix.
 
 ## TypeScript and data flow
@@ -90,3 +91,4 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Visually inspect affected component stories before handoff.
 - Before handoff, run `pnpm check`, `pnpm lint`, and `pnpm format`, plus affected tests.
 - For changes under `site/src/`, run the repository `frontend-review` skill at `.claude/skills/frontend-review/SKILL.md` and fix each applicable FE1 through FE10 failure.
+- For changes under `site/`, also run the `frontend-deep-review` skill at `.claude/skills/frontend-deep-review/SKILL.md` and fix every `blocking` and `should-fix` finding before handoff.

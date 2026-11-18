@@ -41,17 +41,17 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/userauth">
-						User Authentication
+						User authentication
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/external-auth">
-						External Authentication
+						External authentication
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && buildInfo.oauth2_provider && (
 					<SidebarNavItem href="/deployment/oauth2-provider/apps">
-						OAuth2 Applications
+						OAuth2 applications
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && (
@@ -59,7 +59,7 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.readWorkspaceProxies && (
 					<SidebarNavItem href="/deployment/workspace-proxies">
-						Workspace Proxies
+						Workspace proxies
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && (
@@ -76,26 +76,35 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-						<div className="flex flex-row items-center gap-1">
-							Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
+						<div className="flex items-center gap-1">
+							Groups
+							{showOrganizations && (
+								<>
+									<ArrowUpRightIcon size={16} />
+									<span className="sr-only">
+										{" "}
+										(opens organization settings)
+									</span>
+								</>
+							)}
 						</div>
 					</SidebarNavItem>
 				)}
 				{permissions.viewOrganizationIDPSyncSettings && (
 					<SidebarNavItem href="/deployment/idp-org-sync">
-						IdP Organization Sync
+						IdP organization sync
 					</SidebarNavItem>
 				)}
 				{permissions.viewNotificationTemplate && (
 					<SidebarNavItem href="/deployment/notifications">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Notifications</span>
 						</div>
 					</SidebarNavItem>
 				)}
 				{!hidePremiumTab && (
 					<SidebarNavItem href={PREMIUM_PAGE_PATH}>
-						Trial Upgrade
+						Trial upgrade
 					</SidebarNavItem>
 				)}
 			</div>

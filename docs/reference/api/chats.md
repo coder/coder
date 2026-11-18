@@ -52,14 +52,14 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 ### Parameters
 
-| Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-|--------------|-------|---------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
-| `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `project_id` | query | string(uuid)  | false    | Only chats in this project. Requires the chat-projects experiment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------|-------|---------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting\|paused>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
+| `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `project_id` | query | string(uuid)  | false    | Only chats in this project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Example responses
 
@@ -87,6 +87,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -242,13 +243,14 @@ Status Code **200**
 | `»» dirty`                 | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
 | `»» dirty_since`           | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
 | `»» error`                 | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
-| `»» resources`             | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                 |
+| `»» resources`             | array                                                                              | false    |              | Resources is the chat's pinned workspace-context inventory, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                                                     |
 | `»»» error`                | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
 | `»»» kind`                 | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
 | `»»» size_bytes`           | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
 | `»»» skill_description`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»»» skill_name`           | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `»»» source`               | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `»»» source`               | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, the server name for an MCP server, or an ACP harness slug.                                                              |
+| `»»» source_path`          | string                                                                             | false    |              | Source path is the configuration directory for an ACP harness.                                                                                                                                                                                                             |
 | `»»» status`               | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
 | `»»» tools`                | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 | `»»»» description`         | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
@@ -354,13 +356,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                          |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                       |
-| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
-| `plan_mode`    | `plan`                                                                                                                                                                                                                                                            |
-| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                   |
+| Property       | Value(s)                                                                                                                                                                                                                                                                         |
+|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                      |
+| `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                                           |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                  |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -389,6 +391,8 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -435,9 +439,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": [
-        0
-      ],
+      "input_schema": {},
       "name": "string"
     }
   ],
@@ -479,6 +481,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -623,6 +626,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -800,6 +804,82 @@ curl -X GET http://coder-server:8080/api/v2/chats/by-workspace \
 | Status | Meaning                                                 | Description | Schema                                                                       |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.chatsByWorkspaceResponse](schemas.md#coderdchatsbyworkspaceresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat advisor config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/config/advisor \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/config/advisor`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AdvisorConfig](schemas.md#codersdkadvisorconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat advisor config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/chats/config/advisor \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/chats/config/advisor`
+
+> Body parameter
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                 | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateAdvisorConfigRequest](schemas.md#codersdkupdateadvisorconfigrequest) | true     | Request body |
+
+### Example responses
+
+> 400 Response
+
+### Responses
+
+| Status | Meaning                                                          | Description | Schema                                           |
+|--------|------------------------------------------------------------------|-------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)  | No Content  |                                                  |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse) |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)   | Forbidden   | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1432,11 +1512,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                  |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the filename as a quoted string. |
+| `body`                | body   | string       | true     | Raw file binary data                                             |
 
 ### Example responses
 
@@ -1496,9 +1576,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
 
 `GET /api/v2/chats/watch`
 
+Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.
+
 ### Example responses
 
-> 200 Response
+> 101 Response
 
 ```json
 {
@@ -1551,6 +1633,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -1694,9 +1777,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                       |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatWatchEvent](schemas.md#codersdkchatwatchevent) |
+| Status | Meaning                                                                  | Description         | Schema                                                       |
+|--------|--------------------------------------------------------------------------|---------------------|--------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | [codersdk.ChatWatchEvent](schemas.md#codersdkchatwatchevent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1747,6 +1830,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -1891,6 +1975,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2056,6 +2141,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
@@ -2079,6 +2165,59 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 |--------|------------------------------------------------------------------|-------------|--------------------------------------------------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)  | No Content  |                                                  |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List chat attachments
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/{chat}/attachments \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/{chat}/attachments`
+
+Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
+
+### Parameters
+
+| Name        | In    | Type         | Required | Description                                          |
+|-------------|-------|--------------|----------|------------------------------------------------------|
+| `chat`      | path  | string(uuid) | true     | Chat ID                                              |
+| `before_id` | query | integer      | false    | Return attachments from messages with id < before_id |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "attachments": [
+    {
+      "file": {
+        "data": "string",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "media_type": "string",
+        "name": "string",
+        "type": "file"
+      },
+      "message_id": 0,
+      "part_index": 0,
+      "role": "user"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatAttachmentsResponse](schemas.md#codersdkchatattachmentsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2129,6 +2268,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2273,6 +2413,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2520,6 +2661,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 
 `POST /api/v2/chats/{chat}/interrupt`
 
+Interrupts the active turn of a chat.
+If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -2554,6 +2698,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2698,6 +2843,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2872,9 +3018,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -2886,9 +3030,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -2898,24 +3040,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -2950,12 +3089,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -2967,9 +3105,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -2979,24 +3115,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3013,10 +3146,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
@@ -3047,13 +3183,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 ```json
 {
-  "busy_behavior": "queue",
+  "busy_behavior": "steer",
   "content": [
     {
       "content": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -3108,9 +3246,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3122,9 +3258,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3134,24 +3268,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3188,9 +3319,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3202,9 +3331,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3214,24 +3341,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3266,12 +3390,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3283,9 +3406,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3295,24 +3416,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3329,8 +3447,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
+    "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "reasoning_effort": "string"
   },
   "warnings": [
     "string"
@@ -3370,6 +3490,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -3409,9 +3531,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3423,9 +3543,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3435,24 +3553,21 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3489,9 +3604,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3503,9 +3616,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3515,24 +3626,21 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3655,6 +3763,63 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Edit chat queued message
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage} \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
+
+> Body parameter
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
+      "start_line": 0,
+      "text": "string",
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "editing": true,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Parameters
+
+| Name            | In   | Type                                                                                     | Required | Description                      |
+|-----------------|------|------------------------------------------------------------------------------------------|----------|----------------------------------|
+| `chat`          | path | string(uuid)                                                                             | true     | Chat ID                          |
+| `queuedMessage` | path | integer                                                                                  | true     | Queued message ID                |
+| `body`          | body | [codersdk.EditChatQueuedMessageRequest](schemas.md#codersdkeditchatqueuedmessagerequest) | true     | Edit chat queued message request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Promote chat queued message
 
 ### Code samples
@@ -3747,6 +3912,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -3891,6 +4057,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -4044,16 +4211,63 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
+Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
+
+Each WebSocket message is a JSON array of events.
+
+The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
+A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
+Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+The server reads `snapshot_version` before the messages and the queue, so the page can include changes with a higher `snapshot_version`.
+The stream can send changes that are already in the page.
+
+The server reads the chat when the stream opens and each time the chat changes.
+Each read sends the changes since the previous read.
+When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
+
+- A `message` event for each message that isn't deleted.
+- A `history_reset` event for each edit.
+- A `queue_update` event, if the queue changed.
+
+The server ignores `after_id` when you set `snapshot_version`.
+The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+
+On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
+Each read sends these events in order of `snapshot_version`.
+Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
+The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+The server sends `message_part` events between reads.
+
+A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
+The edit deleted that message and every message after it.
+When managing history state, delete every message with that ID or higher.
+After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
+
+A messages page that you request with `before_id` includes no `snapshot_version`.
+If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+
+On each new connection, the server sends the chat's current status again.
+When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
+The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
+
+When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
+After a `history_reset` event, the server sends every message in the chat as `message` events.
+On a new connection, when `after_id` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.
+When `after_id` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a `history_reset` event if the chat has a deleted message.
+
+When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
+
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
-| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
+| Name               | In    | Type         | Required | Description                                                                                   |
+|--------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                       |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set |
+| `snapshot_version` | query | integer      | false    | Send what changed at this snapshot version or later                                           |
 
 ### Example responses
 
-> 200 Response
+> 101 Response
 
 ```json
 [
@@ -4076,13 +4290,14 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "retryable": true,
       "status_code": 0
     },
+    "history_reset": {
+      "from_message_id": 0
+    },
     "message": {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -4094,9 +4309,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -4106,24 +4319,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -4159,9 +4369,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "generation_attempt": 0,
       "history_version": 0,
       "part": {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -4173,9 +4381,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -4185,24 +4391,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -4222,12 +4425,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
     },
     "queued_messages": [
       {
+        "busy_behavior": "steer",
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "content": [
           {
-            "args": [
-              0
-            ],
+            "args": {},
             "args_delta": "string",
             "completed_at": "2019-08-24T14:15:22Z",
             "content": "string",
@@ -4239,9 +4441,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "context_file_skill_meta_file": "string",
             "context_file_truncated": true,
             "created_at": "2019-08-24T14:15:22Z",
-            "data": [
-              0
-            ],
+            "data": "string",
             "end_line": 0,
             "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
             "file_name": "string",
@@ -4251,24 +4451,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
             "media_type": "string",
             "name": "string",
+            "narration": true,
             "parsed_commands": [
               [
                 "string"
               ]
             ],
             "provider_executed": true,
-            "provider_metadata": [
-              0
-            ],
             "reasoning_delta": "string",
-            "result": [
-              0
-            ],
+            "result": {},
             "result_delta": "string",
             "result_reset": true,
             "skill_description": "string",
             "skill_dir": "string",
             "skill_name": "string",
+            "skill_source": "personal",
             "source_id": "string",
             "start_line": 0,
             "text": "string",
@@ -4285,8 +4482,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           }
         ],
         "created_at": "2019-08-24T14:15:22Z",
+        "editing_since": "2019-08-24T14:15:22Z",
         "id": 0,
-        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "reasoning_effort": "string"
       }
     ],
     "retry": {
@@ -4298,6 +4497,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "retrying_at": "2019-08-24T14:15:22Z",
       "status_code": 0
     },
+    "snapshot_version": 0,
     "status": {
       "status": "waiting"
     },
@@ -4308,13 +4508,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                  |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatStreamEvent](schemas.md#codersdkchatstreamevent) |
+| Status | Meaning                                                                  | Description         | Schema                                                                  |
+|--------|--------------------------------------------------------------------------|---------------------|-------------------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | array of [codersdk.ChatStreamEvent](schemas.md#codersdkchatstreamevent) |
 
 <h3 id="stream-chat-events-via-websockets-responseschema">Response Schema</h3>
 
-Status Code **200**
+Status Code **101**
 
 | Name                               | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
 |------------------------------------|----------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -4332,10 +4532,12 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                                                                                                                    |
+| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept.                                                                                                                              |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» args`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args`                         | object                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» args_delta`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» completed_at`                 | string(date-time)                                                                | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `»»» content`                      | string                                                                           | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -4347,7 +4549,7 @@ Status Code **200**
 | `»»» context_file_skill_meta_file` | string                                                                           | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `»»» context_file_truncated`       | boolean                                                                          | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `»»» data`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» data`                         | string(byte)                                                                     | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
 | `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4357,16 +4559,17 @@ Status Code **200**
 | `»»» mcp_server_config_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» narration`                    | boolean                                                                          | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result`                       | object                                                                           | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
-| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files, and shown to the model for an invoked workspace skill so it can run the skill's scripts.                                                                                                                                             |
+| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» skill_source`                 | [codersdk.ChatSkillSource](schemas.md#codersdkchatskillsource)                   | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
 | `»»» source_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» start_line`                   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» text`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4400,12 +4603,15 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» queued_messages`                | array                                                                            | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                    |
+| `»» busy_behavior`                 | [codersdk.ChatBusyBehavior](schemas.md#codersdkchatbusybehavior)                 | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                                                                                                                                                                   |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» editing_since`                 | string(date-time)                                                                | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends. A steer message under edit also holds the steer messages ahead of it. A turn that ends at a message under edit pauses the chat.                                                                                                                                         |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» reasoning_effort`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» retry`                          | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» attempt`                       | integer                                                                          | false    |              | Attempt is the 1-indexed retry attempt number.                                                                                                                                                                                                                                                                                                                                                             |
 | `»» delay_ms`                      | integer                                                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.                                                                                                                                                                                                                                                                                                                                            |
@@ -4414,18 +4620,21 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» snapshot_version`               | integer                                                                          | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events.                                                                                             |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                                            |
-|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
+| `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
+| `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
+| `busy_behavior` | `queue`, `steer`                                                                                                                                                                                                                                                                                                        |
+| `status`        | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                              |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4442,6 +4651,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/git \
 
 `GET /api/v2/chats/{chat}/stream/git`
 
+Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes after the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -4450,7 +4661,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/git \
 
 ### Example responses
 
-> 200 Response
+> 101 Response
 
 ```json
 {
@@ -4471,9 +4682,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/git \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                       |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentGitServerMessage](schemas.md#codersdkworkspaceagentgitservermessage) |
+| Status | Meaning                                                                  | Description         | Schema                                                                                       |
+|--------|--------------------------------------------------------------------------|---------------------|----------------------------------------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | [codersdk.WorkspaceAgentGitServerMessage](schemas.md#codersdkworkspaceagentgitservermessage) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4534,9 +4745,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
   "results": [
     {
       "is_error": true,
-      "output": [
-        0
-      ],
+      "output": {},
       "tool_call_id": "string"
     }
   ]
@@ -4718,6 +4927,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -5117,6 +5327,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",

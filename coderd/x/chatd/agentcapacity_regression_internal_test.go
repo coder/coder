@@ -91,13 +91,14 @@ func releaseCapacitySlot(t *testing.T, f *workerTestFixture, chatID uuid.UUID) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
 			return err
 		}
 		_, err := tx.Abandon(chatstate.AbandonInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 }
 
 // Stopping a chat that waits for capacity must not wait for a slot: the
@@ -125,10 +126,11 @@ func TestAdmission_StopWaitingChatNeedsNoCapacity(t *testing.T) {
 
 	// The user presses stop.
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, waiting.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Interrupt(chatstate.InterruptInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	stopped, err := f.db.GetChatByID(ctx, waiting.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, stopped.Status, "stop must not wait for a capacity slot")
@@ -168,7 +170,7 @@ func TestAdmission_InterruptWithMessageOnWaitingChatStaysWithinCapacity(t *testi
 		return limiter.refusals(waiting.ID) > 0
 	}, testutil.WaitLong, testutil.IntervalFast, "the waiting chat must first be refused for capacity")
 
-	// The user sends a message with busy_behavior=interrupt.
+	// The user interrupts the chat and sends a steer message.
 	interrupted := interruptChat(t, f, waiting.ID)
 	require.Equal(t, database.ChatStatusRunning, interrupted.Status, "the message is promoted without a runner")
 	require.False(t, interrupted.WorkerID.Valid)
@@ -228,7 +230,7 @@ func TestAdmission_RequiresActionTakeoverStaysWithinCapacity(t *testing.T) {
 	worker.Wake()
 	call := starter.waitCall(t, taskKindRequiresActionTimeout, pending.ID)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, pending.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		chat, err := store.GetChatByID(ctx, pending.ID)
 		if err != nil {
 			return err
@@ -236,7 +238,8 @@ func TestAdmission_RequiresActionTakeoverStaysWithinCapacity(t *testing.T) {
 		require.True(t, ownedByTask(chat, call.input), "the worker owns the chat")
 		_, err = tx.Interrupt(chatstate.InterruptInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	starter.waitCall(t, taskKindGeneration, pending.ID)
 	require.Equal(t, 1, runningFreshLeases(ctx, t, f.db, occupant.ID, pending.ID))
 }
@@ -271,14 +274,15 @@ func TestRunnerManager_HeartbeatDoesNotReviveStaleLease(t *testing.T) {
 	// A user queues a message on A, which moves A behind B in the
 	// acquisition order (updated_at).
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatA.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID, f.apiKey.ID),
+			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	// Replica one loses the database for longer than the stale threshold.
 	limiterOne.partitioned.Store(true)

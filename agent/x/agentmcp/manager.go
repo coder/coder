@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -196,6 +197,20 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 		return nil
 	}
 	return m.waitReload(ctx, ch, 0)
+}
+
+// Reconnect re-runs the last reload even when the config is unchanged,
+// so servers that failed to connect are retried.
+func (m *Manager) Reconnect(ctx context.Context) error {
+	m.mu.Lock()
+	paths := slices.Clone(m.lastPaths)
+	// An empty snapshot makes Reload treat the config as changed.
+	m.snapshot = make(map[string]fileSnapshot)
+	m.mu.Unlock()
+	if len(paths) == 0 {
+		return nil
+	}
+	return m.Reload(ctx, paths)
 }
 
 // SetOnReload registers a callback fired (outside the cache lock) after
@@ -726,6 +741,13 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("call tool %q on %q: %w", originalName, serverName, err)
 	}
 
+	if req.IncludeResult {
+		resp, err := rawResult(result)
+		if err != nil {
+			return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("encode result of tool %q on %q: %w", originalName, serverName, err)
+		}
+		return resp, nil
+	}
 	return convertResult(result), nil
 }
 
@@ -915,6 +937,12 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		return &mcp.StreamableClientTransport{
 			Endpoint:   cfg.URL,
 			HTTPClient: httpClientWithHeaders(cfg.Headers),
+			// The SDK opens the standalone GET inside Connect on a context
+			// connectTimeout does not cancel, so a server that never answers
+			// it hangs Connect, and every later reload, indefinitely. This
+			// also means server-initiated handlers on the client never fire
+			// over HTTP.
+			DisableStandaloneSSE: true,
 		}, nil
 	case "sse":
 		return &mcp.SSEClientTransport{
@@ -991,6 +1019,23 @@ func splitToolName(prefixed string) (serverName, toolName string, err error) {
 		return "", "", xerrors.Errorf("%w: expected format \"server%stool\", got %q", ErrInvalidToolName, ToolNameSep, prefixed)
 	}
 	return server, tool, nil
+}
+
+// rawResult returns the whole MCP CallToolResult in MCP wire format, so
+// coderd converts every content type itself. Content stays empty so media
+// is not sent twice.
+func rawResult(result *mcp.CallToolResult) (workspacesdk.CallMCPToolResponse, error) {
+	if result == nil {
+		return workspacesdk.CallMCPToolResponse{}, nil
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("marshal result: %w", err)
+	}
+	return workspacesdk.CallMCPToolResponse{
+		Result:  raw,
+		IsError: result.IsError,
+	}, nil
 }
 
 // convertResult translates an MCP CallToolResult into a

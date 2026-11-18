@@ -1,8 +1,8 @@
 import { useMutation } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
+import { toast } from "#/components/Toaster/toast";
 import { pageTitle } from "#/utils/page";
 import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
@@ -43,7 +43,7 @@ const AddNewLicensePage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("License Settings")}</title>
+			<title>{pageTitle("License settings")}</title>
 
 			<AddNewLicensePageView
 				isSavingLicense={isCreating}

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { deploymentIdpSyncFieldValues } from "#/api/queries/deployment";
 import {
@@ -14,6 +13,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -48,7 +48,7 @@ const IdpOrgSyncPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Organization IdP Sync")}</title>
+			<title>{pageTitle("Organization IdP sync")}</title>
 
 			<div>
 				<SettingsHeader
@@ -59,7 +59,7 @@ const IdpOrgSyncPage: React.FC = () => {
 						/>
 					}
 				>
-					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
+					<SettingsHeaderTitle>Organization IdP sync</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Automatically assign users to an organization based on their IdP
 						claims.{" "}
@@ -71,7 +71,7 @@ const IdpOrgSyncPage: React.FC = () => {
 				{!isIdpSyncEnabled ? (
 					<PremiumPaywall
 						source="idp_org_sync"
-						message="IdP Organization Sync"
+						message="IdP organization sync"
 						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder."
 						features={[
 							"Sync groups & roles automatically",

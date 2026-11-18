@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteOrganization,
@@ -10,6 +9,7 @@ import {
 } from "#/api/queries/organizations";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { toast } from "#/components/Toaster/toast";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";

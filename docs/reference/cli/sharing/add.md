@@ -28,16 +28,16 @@ This command fails if workspace sharing is disabled for the deployment, or if th
 
 ### --user
 
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
 
 A comma separated list of users to share the workspace with.
 
 ### --group
 
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
 
 A comma separated list of groups to share the workspace with.

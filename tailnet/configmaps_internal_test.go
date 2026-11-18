@@ -1072,6 +1072,7 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 		peerID:        p1ID,
 		node:          p1tcn,
 		lastHandshake: hst,
+		lost:          true,
 	}
 	uut.L.Unlock()
 
@@ -1085,7 +1086,55 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	// Then:
 	require.Equal(t, map[int]string{1: "AUH", 1001: "DXB"}, d.DERPRegionNames)
 	require.Equal(t, p1tcn, d.ReceivedNode)
+	require.True(t, d.Lost)
 	require.Equal(t, hst, d.LastWireguardHandshake)
+	require.EqualValues(t, 1234, d.TxBytes)
+	require.EqualValues(t, 5678, d.RxBytes)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.TryReceive(ctx, t, done)
+}
+
+func TestConfigMaps_fillPeerDiagnostics_NoHandshake(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
+	defer uut.close()
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	p1tcn, err := uut.protoNodeToTailcfg(p1n)
+	require.NoError(t, err)
+
+	uut.L.Lock()
+	uut.peers[p1ID] = &peerLifecycle{
+		peerID: p1ID,
+		node:   p1tcn,
+	}
+	uut.L.Unlock()
+
+	// WireGuard reports a peer that never completed a handshake as the epoch.
+	s0 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, time.Unix(0, 0))
+
+	d := PeerDiagnostics{DERPRegionNames: make(map[int]string)}
+	uut.fillPeerDiagnostics(&d, p1ID)
+	testutil.TryReceive(ctx, t, s0)
+
+	require.Equal(t, p1tcn, d.ReceivedNode)
+	require.False(t, d.Lost)
+	require.True(t, d.LastWireguardHandshake.IsZero())
+	require.EqualValues(t, 1234, d.TxBytes)
 
 	done := make(chan struct{})
 	go func() {
@@ -1109,6 +1158,8 @@ func expectStatusWithHandshake(
 			b.AddPeer(k, &ipnstate.PeerStatus{
 				PublicKey:     k,
 				LastHandshake: lastHandshake,
+				TxBytes:       1234,
+				RxBytes:       5678,
 				Active:        true,
 			})
 			select {

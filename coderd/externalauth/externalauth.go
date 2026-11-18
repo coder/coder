@@ -212,7 +212,7 @@ func (c *Config) Git() (gitprovider.Provider, error) {
 	if c.gitProvider != nil {
 		return c.gitProvider, nil
 	}
-	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient)
+	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient, gitprovider.WithLogger(c.Logger.Named("gitprovider")))
 	if err != nil {
 		return nil, err
 	}
@@ -437,6 +437,7 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 				OAuthAccessTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:           externalAuthLink.OAuthExpiry,
 				OAuthExtra:            externalAuthLink.OAuthExtra,
+				OAuthExtraKeyID:       sql.NullString{}, // dbcrypt will update as required
 				// The row will only update if we hold the current lease.  This is
 				// somewhat redundant since if we lost the lease our context would be
 				// expired anyway, so it is not actually possible to get the
@@ -492,6 +493,7 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 		OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 		OAuthExpiry:            token.Expiry,
 		OAuthExtra:             extra,
+		OAuthExtraKeyID:        sql.NullString{}, // dbcrypt will update as required
 		// If there was any failure before, we can clear it now.
 		OauthRefreshFailureReason: "",
 		// The row will only update if we hold the current lease.  This is somewhat

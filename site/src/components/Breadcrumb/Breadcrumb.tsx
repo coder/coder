@@ -62,13 +62,16 @@ export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	);
 };
 
+/**
+ * Non-link crumb label. Pass `aria-current="page"` only when it names the
+ * current page.
+ */
 export const BreadcrumbPage: React.FC<React.ComponentProps<"span">> = ({
 	className,
 	...props
 }) => {
 	return (
 		<span
-			aria-current="page"
 			className={cn(
 				"flex items-center gap-2 text-content-secondary",
 				className,
@@ -85,10 +88,7 @@ export const BreadcrumbSeparator: React.FC<
 		<li
 			role="presentation"
 			aria-hidden="true"
-			className={cn(
-				"text-content-disabled [&>svg]:w-3.5 [&>svg]:h-3.5",
-				className,
-			)}
+			className={cn("text-content-secondary [&>svg]:size-3.5", className)}
 			{...props}
 		>
 			/

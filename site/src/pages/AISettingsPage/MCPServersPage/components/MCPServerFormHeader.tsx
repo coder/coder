@@ -117,7 +117,6 @@ export const MCPServerFormHeader: React.FC<MCPServerFormHeaderProps> = ({
 										aria-describedby={
 											lacksUpdatePermission ? disabledReasonId : undefined
 										}
-										className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
 									/>
 								</span>
 							</TooltipTrigger>

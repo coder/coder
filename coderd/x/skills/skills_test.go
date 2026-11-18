@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func TestParsePersonalSkillMarkdown(t *testing.T) {
@@ -169,208 +170,273 @@ func personalSkillMarkdownForTest(name string, description string, body string) 
 func TestMergeSkills(t *testing.T) {
 	t.Parallel()
 
-	t.Run("PersonalOnlyUsesBareAlias", func(t *testing.T) {
-		t.Parallel()
+	resolved := func(alias string, source skills.Source, name, description string) skills.ResolvedSkill {
+		return skills.ResolvedSkill{
+			Skill: skills.Skill{Name: name, Description: description, Source: source},
+			Alias: alias,
+		}
+	}
+	shared := []skills.Skill{{Name: "shared", Description: "Shared"}}
 
-		resolved := skills.MergeSkills(
-			[]skills.Skill{{Name: "my-skill", Description: "Mine"}},
-			nil,
-		)
-
-		require.Equal(t, []skills.ResolvedSkill{{
-			Skill: skills.Skill{
-				Name:        "my-skill",
-				Description: "Mine",
-				Source:      skills.SourcePersonal,
+	for _, tc := range []struct {
+		name                                       string
+		personal, organization, project, workspace []skills.Skill
+		want                                       []skills.ResolvedSkill
+	}{
+		{
+			name:         "NonCollidingSkillsUseBareAliasesSortedByName",
+			personal:     []skills.Skill{{Name: "personal-skill"}},
+			organization: []skills.Skill{{Name: "org-skill"}},
+			project:      []skills.Skill{{Name: "project-skill"}},
+			workspace:    []skills.Skill{{Name: "workspace-skill"}},
+			want: []skills.ResolvedSkill{
+				resolved("org-skill", skills.SourceOrganization, "org-skill", ""),
+				resolved("personal-skill", skills.SourcePersonal, "personal-skill", ""),
+				resolved("project-skill", skills.SourceProject, "project-skill", ""),
+				resolved("workspace-skill", skills.SourceWorkspace, "workspace-skill", ""),
 			},
-			Alias: "my-skill",
-		}}, resolved)
-	})
-
-	t.Run("WorkspaceOnlyUsesBareAlias", func(t *testing.T) {
-		t.Parallel()
-
-		resolved := skills.MergeSkills(
-			nil,
-			[]skills.Skill{{Name: "my-skill", Description: "Workspace"}},
-		)
-
-		require.Equal(t, []skills.ResolvedSkill{{
-			Skill: skills.Skill{
-				Name:        "my-skill",
-				Description: "Workspace",
-				Source:      skills.SourceWorkspace,
+		},
+		{
+			name:      "PersonalAndWorkspaceCollide",
+			personal:  shared,
+			workspace: shared,
+			want: []skills.ResolvedSkill{
+				resolved("personal/shared", skills.SourcePersonal, "shared", "Shared"),
+				resolved("workspace/shared", skills.SourceWorkspace, "shared", "Shared"),
 			},
-			Alias: "my-skill",
-		}}, resolved)
-	})
-
-	t.Run("NonCollidingSkillsUseBareAliases", func(t *testing.T) {
-		t.Parallel()
-
-		resolved := skills.MergeSkills(
-			[]skills.Skill{{Name: "personal-skill"}},
-			[]skills.Skill{{Name: "workspace-skill"}},
-		)
-
-		require.Equal(t, []skills.ResolvedSkill{
-			{
-				Skill: skills.Skill{
-					Name:   "personal-skill",
-					Source: skills.SourcePersonal,
-				},
-				Alias: "personal-skill",
+		},
+		{
+			name:         "PersonalAndOrganizationCollide",
+			personal:     shared,
+			organization: shared,
+			want: []skills.ResolvedSkill{
+				resolved("personal/shared", skills.SourcePersonal, "shared", "Shared"),
+				resolved("org/shared", skills.SourceOrganization, "shared", "Shared"),
 			},
-			{
-				Skill: skills.Skill{
-					Name:   "workspace-skill",
-					Source: skills.SourceWorkspace,
-				},
-				Alias: "workspace-skill",
+		},
+		{
+			name:         "OrganizationAndWorkspaceCollide",
+			organization: shared,
+			workspace:    shared,
+			want: []skills.ResolvedSkill{
+				resolved("org/shared", skills.SourceOrganization, "shared", "Shared"),
+				resolved("workspace/shared", skills.SourceWorkspace, "shared", "Shared"),
 			},
-		}, resolved)
-	})
-
-	t.Run("CollidingSkillsUseQualifiedAliases", func(t *testing.T) {
-		t.Parallel()
-
-		resolved := skills.MergeSkills(
-			[]skills.Skill{{Name: "shared-skill", Description: "Mine"}},
-			[]skills.Skill{{Name: "shared-skill", Description: "Workspace"}},
-		)
-
-		require.Equal(t, []skills.ResolvedSkill{
-			{
-				Skill: skills.Skill{
-					Name:        "shared-skill",
-					Description: "Mine",
-					Source:      skills.SourcePersonal,
-				},
-				Alias: "personal/shared-skill",
+		},
+		{
+			name:         "AllSourcesCollide",
+			personal:     shared,
+			organization: shared,
+			project:      shared,
+			workspace:    shared,
+			want: []skills.ResolvedSkill{
+				resolved("personal/shared", skills.SourcePersonal, "shared", "Shared"),
+				resolved("org/shared", skills.SourceOrganization, "shared", "Shared"),
+				resolved("project/shared", skills.SourceProject, "shared", "Shared"),
+				resolved("workspace/shared", skills.SourceWorkspace, "shared", "Shared"),
 			},
-			{
-				Skill: skills.Skill{
-					Name:        "shared-skill",
-					Description: "Workspace",
-					Source:      skills.SourceWorkspace,
-				},
-				Alias: "workspace/shared-skill",
-			},
-		}, resolved)
-
-		personal, err := skills.Lookup(resolved, "personal/shared-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourcePersonal, personal.Source)
-		require.Equal(t, "shared-skill", personal.Name)
-
-		workspace, err := skills.Lookup(resolved, "workspace/shared-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourceWorkspace, workspace.Source)
-		require.Equal(t, "shared-skill", workspace.Name)
-
-		_, err = skills.Lookup(resolved, "shared-skill")
-		require.ErrorIs(t, err, skills.ErrSkillAmbiguous)
-		require.ErrorContains(t, err, "personal/shared-skill")
-		require.ErrorContains(t, err, "workspace/shared-skill")
-	})
-
-	t.Run("DuplicatesWithinSourceKeepFirst", func(t *testing.T) {
-		t.Parallel()
-
-		resolved := skills.MergeSkills(
-			[]skills.Skill{
+		},
+		{
+			name: "DuplicatesWithinSourceKeepFirst",
+			personal: []skills.Skill{
 				{Name: "duplicate-skill", Description: "First"},
 				{Name: "duplicate-skill", Description: "Second"},
 			},
-			[]skills.Skill{
-				{Name: "workspace-skill", Description: "Workspace"},
-				{Name: "workspace-skill", Description: "Workspace duplicate"},
+			want: []skills.ResolvedSkill{
+				resolved("duplicate-skill", skills.SourcePersonal, "duplicate-skill", "First"),
 			},
-		)
-
-		require.Equal(t, []skills.ResolvedSkill{
-			{
-				Skill: skills.Skill{
-					Name:        "duplicate-skill",
-					Description: "First",
-					Source:      skills.SourcePersonal,
-				},
-				Alias: "duplicate-skill",
-			},
-			{
-				Skill: skills.Skill{
-					Name:        "workspace-skill",
-					Description: "Workspace",
-					Source:      skills.SourceWorkspace,
-				},
-				Alias: "workspace-skill",
-			},
-		}, resolved)
-	})
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, skills.MergeSkills(
+				skills.SourceSkills{Source: skills.SourcePersonal, Skills: tc.personal},
+				skills.SourceSkills{Source: skills.SourceOrganization, Skills: tc.organization},
+				skills.SourceSkills{Source: skills.SourceProject, Skills: tc.project},
+				skills.SourceSkills{Source: skills.SourceWorkspace, Skills: tc.workspace},
+			))
+		})
+	}
 }
 
 func TestLookup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("BareNameOnNonCollidingSkill", func(t *testing.T) {
-		t.Parallel()
+	shared := []skills.Skill{{Name: "shared"}}
+	merged := skills.MergeSkills(
+		skills.SourceSkills{Source: skills.SourcePersonal, Skills: append([]skills.Skill{{Name: "personal-skill"}}, shared...)},
+		skills.SourceSkills{Source: skills.SourceOrganization, Skills: append([]skills.Skill{{Name: "org-skill"}}, shared...)},
+		skills.SourceSkills{Source: skills.SourceWorkspace, Skills: []skills.Skill{{Name: "workspace-skill"}}},
+	)
 
-		resolved := skills.MergeSkills(
-			[]skills.Skill{{Name: "personal-skill"}},
-			[]skills.Skill{{Name: "workspace-skill"}},
-		)
+	for _, tc := range []struct {
+		name            string
+		resolved        []skills.ResolvedSkill
+		lookup          string
+		wantSource      skills.Source
+		wantName        string
+		wantErr         error
+		wantErrContains []string
+	}{
+		{name: "BareNameWithoutCollision", resolved: merged, lookup: "workspace-skill", wantSource: skills.SourceWorkspace, wantName: "workspace-skill"},
+		{name: "QualifiedPersonalWithoutCollision", resolved: merged, lookup: "personal/personal-skill", wantSource: skills.SourcePersonal, wantName: "personal-skill"},
+		{name: "QualifiedOrganizationWithoutCollision", resolved: merged, lookup: "org/org-skill", wantSource: skills.SourceOrganization, wantName: "org-skill"},
+		{name: "QualifiedWorkspaceWithoutCollision", resolved: merged, lookup: "workspace/workspace-skill", wantSource: skills.SourceWorkspace, wantName: "workspace-skill"},
+		{name: "QualifiedOrganizationOnCollision", resolved: merged, lookup: "org/shared", wantSource: skills.SourceOrganization, wantName: "shared"},
+		{
+			name:            "BareNameOnCollisionIsAmbiguous",
+			resolved:        merged,
+			lookup:          "shared",
+			wantErr:         skills.ErrSkillAmbiguous,
+			wantErrContains: []string{"personal/shared", "org/shared"},
+		},
+		{
+			name: "BareNameFallsBackToSingleQualifiedAliasMatch",
+			resolved: []skills.ResolvedSkill{{
+				Skill: skills.Skill{Name: "personal-skill", Source: skills.SourcePersonal},
+				Alias: "personal/personal-skill",
+			}},
+			lookup:     "personal-skill",
+			wantSource: skills.SourcePersonal,
+			wantName:   "personal-skill",
+		},
+		{name: "UnknownLookupReturnsNotFound", lookup: "missing-skill", wantErr: skills.ErrSkillNotFound, wantErrContains: []string{"missing-skill"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		personal, err := skills.Lookup(resolved, "personal-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourcePersonal, personal.Source)
-		require.Equal(t, "personal-skill", personal.Name)
+			got, err := skills.Lookup(tc.resolved, tc.lookup)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				require.Equal(t, 1, strings.Count(err.Error(), tc.wantErr.Error()))
+				for _, want := range tc.wantErrContains {
+					require.ErrorContains(t, err, want)
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantSource, got.Source)
+			require.Equal(t, tc.wantName, got.Name)
+		})
+	}
+}
 
-		workspace, err := skills.Lookup(resolved, "workspace-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourceWorkspace, workspace.Source)
-		require.Equal(t, "workspace-skill", workspace.Name)
-	})
+func TestWithModelInvocable(t *testing.T) {
+	t.Parallel()
 
-	t.Run("QualifiedAliasWorksWithoutCollision", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name           string
+		raw            string
+		modelInvocable bool
+		// want is the returned content. Empty means the frontmatter cannot
+		// be edited, so raw comes back with ok false.
+		want string
+	}{
+		{
+			name:           "AgreeingContentIsUnchanged",
+			raw:            "---\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "AddsKey",
+			raw:  "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			want: "---\ndisable-model-invocation: true\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name: "AddsKeyWithCRLFAndBOM",
+			raw:  "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
+			want: "\xef\xbb\xbf---\r\ndisable-model-invocation: true\r\nname: my-skill\r\n---\r\nBody.\r\n",
+		},
+		{
+			name: "AddsKeyWithFirstKeyIndentation",
+			raw:  "---\n# Skill.\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+			want: "---\n# Skill.\n  disable-model-invocation: true\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+		},
+		{
+			name:           "ReplacesTrue",
+			raw:            "---\nname: my-skill\ndisable-model-invocation: true # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndisable-model-invocation: false # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name: "ReplacesFalse",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+		},
+		{
+			// A second key would make the frontmatter unparsable.
+			name:           "ReplacesValueOfQuotedKey",
+			raw:            "---\nname: my-skill\n\"disable-model-invocation\" : true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n\"disable-model-invocation\" : false\n---\nBody.\n",
+		},
+		{
+			// Only YAML booleans count, so the quoted string reads as unset.
+			name: "ReplacesQuotedString",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+		},
+		{
+			// YAML counts columns in characters, not bytes, so the accented
+			// letter before the key matters.
+			name:           "ReplacesInFlowStyle",
+			raw:            "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: true, license: MIT}\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: false, license: MIT}\n---\nBody.\n",
+		},
+		{
+			name: "AddsKeyInFlowStyle",
+			raw:  "---\n{name: my-skill, description: Does a thing}\n---\nBody.\n",
+			want: "---\n{disable-model-invocation: true, name: my-skill, description: Does a thing}\n---\nBody.\n",
+		},
+		{
+			// A quoted value can wrap onto a line that looks like the key.
+			name:           "WrappedValueIsKept",
+			raw:            "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// YAML ends a line at U+2028, so the key is on its fourth line.
+			name:           "UnicodeLineBreakBeforeKey",
+			raw:            "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// The value comes from a merge, so there is no key to replace.
+			// A key in the mapping itself overrides the merged one.
+			name:           "MergedKeyIsOverridden",
+			raw:            "---\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndisable-model-invocation: false\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "ListValueCannotBeEdited",
+			raw:  "---\nname: my-skill\ndisable-model-invocation:\n  - nested\n---\nBody.\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		resolved := skills.MergeSkills(
-			[]skills.Skill{{Name: "personal-skill"}},
-			[]skills.Skill{{Name: "workspace-skill"}},
-		)
+			content, ok := skills.WithModelInvocable(tt.raw, tt.modelInvocable)
+			if tt.want == "" {
+				require.False(t, ok)
+				require.Equal(t, tt.raw, content)
+				return
+			}
+			require.True(t, ok)
+			require.Equal(t, tt.want, content)
 
-		personal, err := skills.Lookup(resolved, "personal/personal-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourcePersonal, personal.Source)
-		require.Equal(t, "personal-skill", personal.Name)
-
-		workspace, err := skills.Lookup(resolved, "workspace/workspace-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourceWorkspace, workspace.Source)
-		require.Equal(t, "workspace-skill", workspace.Name)
-	})
-
-	t.Run("BareNameFallsBackToSingleQualifiedAliasMatch", func(t *testing.T) {
-		t.Parallel()
-
-		resolved := []skills.ResolvedSkill{{
-			Skill: skills.Skill{Name: "personal-skill", Source: skills.SourcePersonal},
-			Alias: "personal/personal-skill",
-		}}
-
-		personal, err := skills.Lookup(resolved, "personal-skill")
-
-		require.NoError(t, err)
-		require.Equal(t, skills.SourcePersonal, personal.Source)
-		require.Equal(t, "personal-skill", personal.Name)
-	})
-
-	t.Run("UnknownLookupReturnsNotFound", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := skills.Lookup(nil, "missing-skill")
-
-		require.ErrorIs(t, err, skills.ErrSkillNotFound)
-		require.ErrorContains(t, err, "missing-skill")
-	})
+			// The edit changes nothing but the setting.
+			require.Equal(t, !tt.modelInvocable, workspacesdk.SkillDisablesModelInvocation(content))
+			before, err := skills.ParsePersonalSkillMarkdown([]byte(tt.raw))
+			require.NoError(t, err)
+			after, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+		})
+	}
 }

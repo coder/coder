@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByOrganization } from "#/api/queries/groups";
 import {
@@ -19,6 +18,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
@@ -87,7 +87,7 @@ const IdpSyncPage: React.FC = () => {
 
 	const title = (
 		<title>
-			{pageTitle("IdP Sync", organization.display_name || organization.name)}
+			{pageTitle("IdP sync", organization.display_name || organization.name)}
 		</title>
 	);
 
@@ -119,7 +119,7 @@ const IdpSyncPage: React.FC = () => {
 			{title}
 
 			<SettingsHeader>
-				<SettingsHeaderTitle>IdP Sync</SettingsHeaderTitle>
+				<SettingsHeaderTitle>IdP sync</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Automatically assign groups or roles to a user based on their IdP
 					claims.{" "}
@@ -129,7 +129,7 @@ const IdpSyncPage: React.FC = () => {
 			{!isIdpSyncEnabled ? (
 				<PremiumPaywall
 					source="idp_sync"
-					message="IdP Sync"
+					message="IdP sync"
 					description="Auto-sync groups & roles from your IdP."
 					features={[
 						"Sync groups & roles automatically",

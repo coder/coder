@@ -1,8 +1,7 @@
 # docshtmlcheck
 
-`docshtmlcheck` fails CI when Markdown under `docs/` contains invalid inline
-HTML that the documentation site's renderer silently drops or mangles. It runs
-as `make lint/docs-html` (part of `make lint`).
+`docshtmlcheck` fails CI when Markdown under `docs/` contains invalid inline HTML that the documentation site's renderer silently drops or mangles, a table header cell with no text, or an element or attribute that docs pages don't use.
+It runs as `make lint/docs-html` (part of `make lint`).
 
 ## What it catches
 
@@ -22,6 +21,18 @@ as `make lint/docs-html` (part of `make lint`).
   same way.
 - **Unclosed container tags**, for example a `<div class="tabs">` that is never
   closed and leaks its wrapper over the rest of the page.
+- **Empty table header cells** (`empty-table-header`).
+  Screen readers announce a header cell with no text as an unnamed column or row.
+  The check covers the header row of Markdown pipe tables and every `<th>` in raw HTML tables, after decoding entities and trimming whitespace, so `<th>&nbsp;</th>`, `| &nbsp; |`, and `<th><br></th>` are reported.
+  An entity inside a code span is literal text, so `` `&nbsp;` `` counts.
+  Markdown between the HTML blocks of a `<th>` counts as its text, and so do an image's alt text, an autolink, and a code block.
+  Each finding names the table by its first non-empty header.
+  For the top-left corner of a matrix, name what the row headers hold, such as `Permission`.
+- **Elements and attributes docs pages don't use** (`disallowed-element`, `disallowed-attribute`).
+  The check rejects `aria-*`, `role`, `tabindex`, and `lang` attributes, and `<iframe>`, `<object>`, `<area>`, `<form>`, `<input>`, `<select>`, `<textarea>`, `<button>`, and `<meta>` elements.
+  Each one brings accessibility requirements of its own, such as an accessible name, a valid role, a sensible focus order, or a valid language tag, that no docs check verifies.
+  No docs page uses any of them, so keeping them out keeps those requirements out too.
+  Write the content in Markdown, link to embedded content instead of framing it, and use bold text for a UI label instead of a `<button>`.
 
 ## How it works
 
@@ -39,6 +50,9 @@ changes. A finding on a generated page under `docs/reference/**` also prints a
 note pointing at the generator source, since edits to the generated file do not
 persist.
 
+The table check parses the same file a second time with goldmark's table extension.
+It reads the header row of each pipe table from the parsed cells, and follows `<table>` and `<th>` through the raw-HTML nodes, so a table split across several HTML blocks is checked as one and Markdown between its blocks counts toward the open cell.
+
 ## Limitations
 
 A few gaps are accepted because no docs page hits them today:
@@ -49,6 +63,7 @@ A few gaps are accepted because no docs page hits them today:
 - The interior of a raw-text element (`<script>`, `<style>`) is a single opaque
   token to the HTML tokenizer, so a tag nested inside one is not scanned. An
   unclosed `<script>`/`<style>` is still caught.
+- A table nested inside a `<th>` doesn't count toward that cell's text, so the outer header cell is reported as empty even when the nested table has text.
 
 ## Usage
 

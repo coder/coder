@@ -26,17 +26,17 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Total Agent Hours")).toHaveTextContent(
 			"16,264.3 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 		await expect(
-			canvas.getByRole("link", { name: "View docs" }),
+			canvas.getByRole("link", { name: /View docs/ }),
 		).toHaveAttribute(
 			"href",
-			expect.stringContaining("/ai-coder/agents/licensing-usage"),
+			expect.stringContaining("/coder-agents/licensing-usage"),
 		);
 	},
 };
@@ -44,10 +44,10 @@ export const Default: Story = {
 export const TooltipInteractions: Story = {
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
-		await step("open the Total Agent hours tooltip from keyboard", async () => {
+		await step("open the Total Agent Hours tooltip from keyboard", async () => {
 			await userEvent.tab();
 			await expect(
-				canvas.getByRole("button", { name: "Total Agent hours information" }),
+				canvas.getByRole("button", { name: "Total Agent Hours information" }),
 			).toHaveFocus();
 			await waitFor(async () => {
 				await expect(screen.getByRole("tooltip")).toHaveTextContent(
@@ -78,7 +78,7 @@ export const UnlimitedAllocation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Total Agent Hours")).toHaveTextContent(
 			"Unlimited",
 		);
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
@@ -93,7 +93,7 @@ export const NotProvidingUsage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Total Agent Hours")).toHaveTextContent(
 			"\u2014 / 20,000",
 		);
 	},
@@ -106,7 +106,7 @@ export const SoftLimitReached: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Total Agent Hours")).toHaveTextContent(
 			"16,264.3 / 20,000",
 		);
 		await expect(canvas.getByRole("status")).toHaveTextContent(
@@ -125,7 +125,7 @@ export const Exceeded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Total Agent Hours")).toHaveTextContent(
 			"21,000.0 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
@@ -142,7 +142,7 @@ export const HardLimitExceeded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Total Agent Hours")).toHaveTextContent(
 			"25,000.0 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
@@ -171,7 +171,7 @@ export const NoAllocation: Story = {
 			getMetricValue(canvas, "Max concurrent agents"),
 		).toHaveTextContent("5");
 		await expect(
-			canvas.queryByText(/Agent hours used/),
+			canvas.queryByText(/Agent Hours used/),
 		).not.toBeInTheDocument();
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
 		await expect(upgrade).toHaveAttribute("href", CONTACT_SALES_LINK);
@@ -185,7 +185,7 @@ export const NoAllocationWithUsage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Agent Hours used")).toHaveTextContent(
 			"1,234.5",
 		);
 		await expect(

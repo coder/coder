@@ -30,6 +30,8 @@ const (
 	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
+
+	ActionReadSecret Action = "read_secret"
 )
 
 type PermissionDefinition struct {
@@ -83,6 +85,7 @@ var chatProjectActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat projects",
 	ActionUpdate: "update a chat project",
 	ActionDelete: "delete a chat project",
+	ActionShare:  "share a chat project with other users or groups",
 }
 
 var chatProjectMemoryActions = map[Action]ActionDefinition{
@@ -105,6 +108,14 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionUpdate: "update a chat model config",
 	ActionDelete: "delete a chat model config",
 	ActionShare:  "share a chat model config with other users or groups",
+}
+
+var organizationSkillActions = map[Action]ActionDefinition{
+	ActionCreate: "create an organization skill",
+	ActionRead:   "read organization skill metadata and content",
+	ActionUpdate: "update an organization skill",
+	ActionDelete: "delete an organization skill",
+	ActionShare:  "share an organization skill with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -273,6 +284,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete member",
 		},
 	},
+	"organization_skill": {
+		Actions: organizationSkillActions,
+	},
 	"debug_info": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: "access to debug routes",
@@ -414,6 +428,16 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update user secret metadata and value",
 			ActionDelete: "delete a user secret",
 		},
+	},
+	"workspace_secret": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate:     "set a workspace secret on a workspace build",
+			ActionRead:       "read workspace secret metadata, never the value",
+			ActionUpdate:     "clear or re-encrypt workspace secret values",
+			ActionReadSecret: "read decrypted workspace secret values, granted only to the workspace secret manager actor",
+		},
+		Comment: `
+	// Workspace secrets are write-only for users. No built-in user role is granted read_secret.`,
 	},
 	"user_skill": {
 		Actions: map[Action]ActionDefinition{

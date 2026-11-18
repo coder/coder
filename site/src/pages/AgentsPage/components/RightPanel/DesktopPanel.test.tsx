@@ -83,7 +83,6 @@ describe("DesktopPanel", () => {
 				chatId="chat-1"
 				workspace={MockStoppedWorkspace}
 				workspaceAgent={undefined}
-				isVisible
 			/>,
 		);
 
@@ -111,7 +110,6 @@ describe("DesktopPanel", () => {
 				chatId="chat-1"
 				workspace={MockOutdatedStoppedWorkspaceRequireActiveVersion}
 				workspaceAgent={undefined}
-				isVisible
 			/>,
 		);
 
@@ -137,7 +135,6 @@ describe("DesktopPanel", () => {
 				chatId="chat-1"
 				workspace={MockFailedWorkspace}
 				workspaceAgent={undefined}
-				isVisible
 			/>,
 		);
 
@@ -159,7 +156,6 @@ describe("DesktopPanel", () => {
 				chatId="chat-1"
 				workspace={MockWorkspace}
 				workspaceAgent={MockWorkspaceAgentConnecting}
-				isVisible
 			/>,
 		);
 		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
@@ -169,7 +165,6 @@ describe("DesktopPanel", () => {
 				chatId="chat-1"
 				workspace={MockWorkspace}
 				workspaceAgent={MockWorkspaceAgent}
-				isVisible
 			/>,
 		);
 		await waitFor(() => {
@@ -181,7 +176,6 @@ describe("DesktopPanel", () => {
 				chatId="chat-1"
 				workspace={MockStoppedWorkspace}
 				workspaceAgent={undefined}
-				isVisible
 			/>,
 		);
 		await waitFor(() => {

@@ -19,7 +19,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import {
@@ -39,6 +38,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { prNumber } from "../utils/pullRequest";
@@ -47,9 +47,13 @@ import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import {
+	ChatOverviewToggle,
+	type ChatOverviewToggleProps,
+} from "./ChatOverviewCard";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -69,6 +73,8 @@ type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
+	/** Leave it out to hide the overview toggle. */
+	overviewToggle?: ChatOverviewToggleProps;
 };
 
 const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
@@ -112,6 +118,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
+	overviewToggle,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -199,13 +206,10 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
-	// The per-chat stream updates this before the global chat record catches up.
-	const isArchiveBlocked = chat
-		? !chatFamilyAllowsArchive(
-				liveChatStatus ?? chat.status,
-				activeChatChildren,
-			)
-		: false;
+	// The per-chat stream reports status before the chat record query refetches.
+	const archiveBlockedReason = chat
+		? getArchiveBlockedReason(liveChatStatus ?? chat.status, activeChatChildren)
+		: undefined;
 	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
 		!isEmbedded && chat !== undefined && Boolean(chatTitle);
@@ -275,9 +279,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						<span className="truncate text-sm text-content-primary">
+						<h2 className="m-0 truncate text-sm text-content-primary">
 							{chatTitle}
-						</span>
+						</h2>
 						{isSharedChat && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"
@@ -291,13 +295,13 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					<ChatActionsMenu
 						key={chat.id}
 						align="start"
-						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-[13px]"
 						onArchived={navigateAfterArchive}
 						chat={chat}
 						canManage={canManage}
 						hasWorkspace={hasWorkspace}
 						isArchiving={isArchivingThisChat}
-						isArchiveBlocked={isArchiveBlocked}
+						archiveBlockedReason={archiveBlockedReason}
 						onPinAgent={() => pinMutation.mutate(chat.id)}
 						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => {
@@ -337,7 +341,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						<button
 							type="button"
 							className={cn(
-								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 								panel.showSidebarPanel && "lg:hidden",
 							)}
 						>
@@ -366,6 +370,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						organizationId={chat.organization_id}
 					/>
 				)}
+				{overviewToggle && <ChatOverviewToggle {...overviewToggle} />}
 				{!isEmbedded && (
 					<Button
 						variant="subtle"
@@ -373,6 +378,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						onClick={panel.onToggleSidebar}
 						className="size-7 text-content-secondary hover:text-content-primary"
 						aria-label="Toggle panel"
+						aria-expanded={panel.showSidebarPanel}
 					>
 						{panel.showSidebarPanel ? (
 							<PanelRightCloseIcon className="size-4" />
@@ -400,7 +406,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 			target="_blank"
 			rel="noreferrer"
 			className={cn(
-				"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+				"inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 				className,
 			)}
 		>
@@ -409,7 +415,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 				draft={status.pull_request_draft}
 				className="size-3.5! shrink-0"
 			/>
-			<span className="truncate max-w-[120px] hidden sm:inline">
+			<span className="truncate max-w-30 hidden sm:inline">
 				{status.pull_request_title || (number ? `#${number}` : "PR")}
 			</span>
 			<span className="sm:hidden">{number ?? "PR"}</span>

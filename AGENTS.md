@@ -35,7 +35,7 @@ Load only the guidance relevant to the task:
 | New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
 | Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
 
-For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing. Automated tooling checks a small subset of the style guide and Vale runs advisory, so read the guide and apply it; a clean `make lint/prose` is not conformance. [What the tooling checks, and what it doesn't](docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt) has the current numbers.
+For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). When you modify frontend code under `site/`, run the [frontend-deep-review skill](.claude/skills/frontend-deep-review/SKILL.md) and fix every `blocking` and `should-fix` finding before handoff. For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing. Automated tooling checks a small subset of the style guide and Vale runs advisory, so read the guide and apply it; a clean `make lint/prose` is not conformance. [What the tooling checks, and what it doesn't](docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt) has the current numbers.
 
 ## Workflow
 
@@ -44,8 +44,10 @@ For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRO
 - Answer informational questions directly. Requests to implement, fix, or investigate authorize that work even when phrased as a question.
 - Install and use the repository Git hooks. Never bypass them with `--no-verify`. Wait for slow first runs while caches warm.
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
+- Before you open or update a PR that touches `docs/` or user-facing behavior, run the [doc-check skill](.claude/skills/doc-check/SKILL.md) on your branch in author self-check mode and fix every blocking finding.
+- When you add or change a test, apply the authoring gate of the [test-audit skill](.agents/skills/test-audit/SKILL.md). Before you open or update a PR that adds or changes tests, run the skill in audit mode on the branch's test diff and remove the low-value and duplicate tests it finds.
 - Do not force-push unless explicitly requested.
-- Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file. Use a broader scope or no scope for cross-cutting changes.
+- Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file, except files under `docs/`. Use a broader scope or no scope for cross-cutting changes.
 - Name branches so they do not collide with issue-tracker IDs. When a branch references a GitHub issue number, write it as `issue-<number>` (for example, `issue-1234-fix-flake`), not as a bare `<word>-<number>` such as `docs-1234` or a leading number. Connected trackers like Linear auto-link any branch containing a `<key>-<number>` token to the same-numbered issue on the team that owns `<key>`, silently attaching the PR to an unrelated ticket and moving it through that ticket's workflow.
 
 ## Essential commands
@@ -76,6 +78,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
+- **Go test packages:** default to `package foo_test` and test through the exported API. Only as a last resort, put a test that needs unexported symbols in a `*_internal_test.go` file with `package foo`. Never add an `export_test.go` shim or a `//nolint:testpackage` directive.
 - **Frontend:** reuse shared UI primitives. Prefer Vitest and `userEvent` tests that assert the non-visual outcome of the interaction (callback, request, state); extend existing coverage instead of adding a new test when equivalent coverage already exists. Use Storybook stories only for visual components that should be covered by the visual regression tool, which Pixel screenshots in CI.
 - **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
 

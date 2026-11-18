@@ -137,30 +137,32 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID               `json:"id" format:"uuid"`
-	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
-	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	StartedAt            *time.Time              `json:"started_at,omitempty" format:"date-time"`
-	ReadyAt              *time.Time              `json:"ready_at,omitempty" format:"date-time"`
-	Status               WorkspaceAgentStatus    `json:"status"`
-	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name                 string                  `json:"name"`
-	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID           string                  `json:"instance_id,omitempty"`
-	Architecture         string                  `json:"architecture"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	OperatingSystem      string                  `json:"operating_system"`
-	LogsLength           int32                   `json:"logs_length"`
-	LogsOverflowed       bool                    `json:"logs_overflowed"`
-	Directory            string                  `json:"directory,omitempty"`
-	ExpandedDirectory    string                  `json:"expanded_directory,omitempty"`
-	Version              string                  `json:"version"`
-	APIVersion           string                  `json:"api_version"`
-	Apps                 []WorkspaceApp          `json:"apps"`
+	ID               uuid.UUID               `json:"id" format:"uuid"`
+	ParentID         uuid.NullUUID           `json:"parent_id" format:"uuid"`
+	CreatedAt        time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time               `json:"updated_at" format:"date-time"`
+	FirstConnectedAt *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt  *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt   *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
+	StartedAt        *time.Time              `json:"started_at,omitempty" format:"date-time"`
+	ReadyAt          *time.Time              `json:"ready_at,omitempty" format:"date-time"`
+	Status           WorkspaceAgentStatus    `json:"status"`
+	LifecycleState   WorkspaceAgentLifecycle `json:"lifecycle_state"`
+	Name             string                  `json:"name"`
+	ResourceID       uuid.UUID               `json:"resource_id" format:"uuid"`
+	InstanceID       string                  `json:"instance_id,omitempty"`
+	Architecture     string                  `json:"architecture"`
+	// EnvironmentVariables lists the variables set on the agent. Non-empty
+	// values are redacted as "***REDACTED***" because they often hold credentials.
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	OperatingSystem      string            `json:"operating_system"`
+	LogsLength           int32             `json:"logs_length"`
+	LogsOverflowed       bool              `json:"logs_overflowed"`
+	Directory            string            `json:"directory,omitempty"`
+	ExpandedDirectory    string            `json:"expanded_directory,omitempty"`
+	Version              string            `json:"version"`
+	APIVersion           string            `json:"api_version"`
+	Apps                 []WorkspaceApp    `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds"`
@@ -198,21 +200,57 @@ const (
 	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
 	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
 	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+	WorkspaceAgentScriptStatusSkipped       WorkspaceAgentScriptStatus = "skipped"
+	WorkspaceAgentScriptStatusCanceled      WorkspaceAgentScriptStatus = "canceled"
 )
 
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID                   `json:"id" format:"uuid"`
-	LogSourceID      uuid.UUID                   `json:"log_source_id" format:"uuid"`
-	LogPath          string                      `json:"log_path"`
-	Script           string                      `json:"script"`
-	Cron             string                      `json:"cron"`
-	RunOnStart       bool                        `json:"run_on_start"`
-	RunOnStop        bool                        `json:"run_on_stop"`
-	StartBlocksLogin bool                        `json:"start_blocks_login"`
-	Timeout          time.Duration               `json:"timeout"`
-	DisplayName      string                      `json:"display_name"`
-	ExitCode         *int32                      `json:"exit_code,omitempty"`
-	Status           *WorkspaceAgentScriptStatus `json:"status,omitempty"`
+	ID               uuid.UUID     `json:"id" format:"uuid"`
+	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
+	LogPath          string        `json:"log_path"`
+	Script           string        `json:"script"`
+	Cron             string        `json:"cron"`
+	RunOnStart       bool          `json:"run_on_start"`
+	RunOnStop        bool          `json:"run_on_stop"`
+	StartBlocksLogin bool          `json:"start_blocks_login"`
+	Timeout          time.Duration `json:"timeout"`
+	DisplayName      string        `json:"display_name"`
+	// ResourceAddress is the full Terraform address of the coder_script
+	// resource, for example "module.git_clone.coder_script.clone". It is
+	// empty for scripts that are not coder_script resources.
+	ResourceAddress string `json:"resource_address"`
+	// Dependencies lists the scripts this one waits for, as the
+	// provisioner resolved them. It is omitted when empty.
+	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty"`
+	ExitCode     *int32                           `json:"exit_code,omitempty"`
+	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty"`
+}
+
+// WorkspaceAgentScriptDependencyRequirement is the outcome a prerequisite
+// must reach before the dependent script may run.
+type WorkspaceAgentScriptDependencyRequirement string
+
+const (
+	WorkspaceAgentScriptDependencyRequirementSuccess    WorkspaceAgentScriptDependencyRequirement = "success"
+	WorkspaceAgentScriptDependencyRequirementCompletion WorkspaceAgentScriptDependencyRequirement = "completion"
+)
+
+// Valid reports whether the requirement is one of the two supported values.
+func (r WorkspaceAgentScriptDependencyRequirement) Valid() bool {
+	switch r {
+	case WorkspaceAgentScriptDependencyRequirementSuccess,
+		WorkspaceAgentScriptDependencyRequirementCompletion:
+		return true
+	default:
+		return false
+	}
+}
+
+// WorkspaceAgentScriptDependency names a prerequisite script and the
+// outcome it must reach.
+type WorkspaceAgentScriptDependency struct {
+	PrerequisiteResourceAddress string                                    `json:"prerequisite_resource_address"`
+	Requirement                 WorkspaceAgentScriptDependencyRequirement `json:"requirement"`
 }
 
 type WorkspaceAgentHealth struct {

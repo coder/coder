@@ -500,6 +500,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
         "name": "string"
       },
       "ssh_info": {
+        "client_session_id": "string",
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
@@ -759,11 +760,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2128,11 +2129,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2794,9 +2795,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                        |
-|----------|-------------------------------------------------------------------------------------------------|
-| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded` |
+| Property | Value(s)                                                                                                   |
+|----------|------------------------------------------------------------------------------------------------------------|
+| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded`, `unknown` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3595,12 +3596,6 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 
 `GET /api/v2/settings/idpsync/available-fields`
 
-### Parameters
-
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-
 ### Example responses
 
 > 200 Response
@@ -3636,10 +3631,9 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimF
 
 ### Parameters
 
-| Name           | In    | Type           | Required | Description     |
-|----------------|-------|----------------|----------|-----------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID |
-| `claimField`   | query | string(string) | true     | Claim Field     |
+| Name         | In    | Type           | Required | Description |
+|--------------|-------|----------------|----------|-------------|
+| `claimField` | query | string(string) | true     | Claim Field |
 
 ### Example responses
 
@@ -4160,11 +4154,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

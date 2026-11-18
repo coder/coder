@@ -1,17 +1,30 @@
 package coderd_test
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -143,8 +156,8 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
 	require.Equal(t, memberProject.ID, projects[0].ID)
-	// Like chats, the list holds only the caller's own projects, even for a
-	// site owner who can read others' projects by ID.
+	// The list holds projects the caller owns or holds a grant on, not every
+	// project a site owner can read by ID.
 	projects, err = client.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
@@ -182,10 +195,6 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	_, err = admin.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Name: &adminName})
 	require.NoError(t, err)
 
-	// The owner may create chats for other users, but binding one to the
-	// owner's project would expose its memory to someone who cannot read
-	// the project, so the chat owner must own the project. The response
-	// matches an unknown project so the check does not reveal existence.
 	_, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -266,7 +275,7 @@ func TestChatProjectListFilter(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _ := newChatProjectClient(t)
+	client, api := newChatProjectClientWithAPI(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 	projectA := createChatProject(t, client, firstUser.OrganizationID, "Project A")
@@ -282,50 +291,423 @@ func TestChatProjectListFilter(t *testing.T) {
 	require.Equal(t, chat.ID, chats[0].ID)
 	require.NotEqual(t, otherChat.ID, chats[0].ID)
 
-	// Membership is fixed at creation; the update endpoint ignores project_id.
-	require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Title: new("renamed")}))
-	updated, err := client.GetChat(ctx, chat.ID)
+	driveChatToWaiting(ctx, t, api, chat.ID)
+	require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectB.ID}))
+	chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &projectB.ID})
 	require.NoError(t, err)
-	require.Equal(t, &projectA.ID, updated.ProjectID)
+	require.ElementsMatch(t, []uuid.UUID{chat.ID, otherChat.ID}, chatIDs(chats))
 }
 
-func TestChatProjectsExperimentDisabled(t *testing.T) {
+func TestPatchChatProject(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-	// The project routes bypass the experiment in development builds, so
-	// seed the row directly and exercise chat creation, which does not.
-	project := dbgen.ChatProject(t, db, database.ChatProject{
-		OrganizationID: firstUser.OrganizationID,
-		OwnerID:        firstUser.UserID,
-		Name:           "Off",
+	t.Run("MovesIntoBetweenAndOut", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		projectA := createChatProject(t, client, firstUser.OrganizationID, "Project A")
+		projectB := createChatProject(t, client, firstUser.OrganizationID, "Project B")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+		child := createSubagentChat(t, api, chat, database.ChatStatusWaiting)
+
+		requireProjectChats := func(project codersdk.ChatProject, want ...uuid.UUID) {
+			t.Helper()
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &project.ID})
+			require.NoError(t, err)
+			require.ElementsMatch(t, want, chatIDs(chats), "chats of %s", project.Name)
+		}
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectA.ID}))
+		requireChatProjectID(ctx, t, client, chat.ID, &projectA.ID)
+		requireProjectChats(projectA, chat.ID)
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectB.ID}))
+		requireChatProjectID(ctx, t, client, chat.ID, &projectB.ID)
+		requireProjectChats(projectA)
+		requireProjectChats(projectB, chat.ID)
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: new(uuid.Nil)}))
+		requireChatProjectID(ctx, t, client, chat.ID, nil)
+		requireProjectChats(projectB)
+
+		// Subagent chats have no project and use the root's.
+		requireChatProjectID(ctx, t, client, child.ID, nil)
 	})
 
-	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		ProjectID:      &project.ID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "experiment off"}},
-	})
-	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+	t.Run("MoveBackWaitsForAPendingMove", func(t *testing.T) {
+		t.Parallel()
 
-	_, err = client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &project.ID})
-	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+		// A move back to the current project compares with the locked row,
+		// so it cannot succeed while an earlier move commits after it.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client, api := newChatProjectClientWithAPI(t, func(options *coderdtest.Options) {
+			options.Database = db
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		projectA := createChatProject(t, client, firstUser.OrganizationID, "Project A")
+		projectB := createChatProject(t, client, firstUser.OrganizationID, "Project B")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectA.ID}))
+
+		pendingMove, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := pendingMove.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Errorf("roll back the pending move: %v", err)
+			}
+		})
+		_, err = pendingMove.ExecContext(ctx, `UPDATE chats SET project_id = $1 WHERE id = $2`, projectB.ID, chat.ID)
+		require.NoError(t, err)
+
+		moveBack := make(chan error, 1)
+		go func() {
+			moveBack <- client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectA.ID})
+		}()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			if len(moveBack) > 0 {
+				return true
+			}
+			var waiting int
+			err := sqlDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: GetChatByIDForUpdate%'
+`).Scan(&waiting)
+			return err == nil && waiting == 1
+		}, testutil.IntervalFast, "the move back must answer or wait for the chat row")
+		require.NoError(t, pendingMove.Commit())
+
+		require.NoError(t, testutil.RequireReceive(ctx, t, moveBack))
+		requireChatProjectID(ctx, t, client, chat.ID, &projectA.ID)
+	})
+
+	t.Run("AnotherOwnersProject", func(t *testing.T) {
+		t.Parallel()
+
+		// The site owner can read every project and update every chat, so
+		// only the access check keeps a member's chat out of the site
+		// owner's project and its memory until the project is shared with
+		// the member.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "Owner Project")
+		member, memberUser := newChatProjectMember(t, client, firstUser.OrganizationID)
+		chat := createIdleChat(ctx, t, member, api, firstUser.OrganizationID)
+
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+		requireChatProjectNotFound(t, err)
+		requireChatProjectID(ctx, t, member, chat.ID, nil)
+
+		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleUse},
+		})
+		require.NoError(t, err)
+		require.NoError(t, member.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID}))
+		requireChatProjectID(ctx, t, member, chat.ID, &project.ID)
+	})
+
+	t.Run("AnotherOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		otherOrganization := dbgen.Organization(t, api.Database, database.Organization{})
+		otherProject := dbgen.ChatProject(t, api.Database, database.ChatProject{
+			OrganizationID: otherOrganization.ID,
+			OwnerID:        firstUser.UserID,
+		})
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &otherProject.ID})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat project does not belong to this chat's organization.", sdkErr.Message)
+		requireChatProjectID(ctx, t, client, chat.ID, nil)
+	})
+
+	t.Run("ChildChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "Project")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+		child := createSubagentChat(t, api, chat, database.ChatStatusWaiting)
+
+		err := client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Cannot move a child chat.", sdkErr.Message)
+		requireChatProjectID(ctx, t, client, child.ID, nil)
+	})
+
+	t.Run("ArchivedChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "Project")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+
+		// Archiving in the same request is refused before any write.
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true), ProjectID: &project.ID})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Cannot move an archived chat.", sdkErr.Message)
+		got, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.False(t, got.Archived)
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)}))
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Cannot move an archived chat.", sdkErr.Message)
+		requireChatProjectID(ctx, t, client, chat.ID, nil)
+
+		// The unarchive runs before the move, so both apply.
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(false), ProjectID: &project.ID}))
+		requireChatProjectID(ctx, t, client, chat.ID, &project.ID)
+	})
+
+	t.Run("ActiveFamilyReturnsConflict", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			// active is the status of the family member that blocks the move.
+			active database.ChatStatus
+			// activate returns the root chat after it puts the family in a
+			// state that is not idle.
+			activate func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, api *coderd.API, organizationID uuid.UUID) codersdk.Chat
+		}{
+			{
+				name:   "RunningRoot",
+				active: database.ChatStatusRunning,
+				activate: func(_ context.Context, t *testing.T, client *codersdk.ExperimentalClient, _ *coderd.API, organizationID uuid.UUID) codersdk.Chat {
+					return createChatInProject(t, client, organizationID, nil)
+				},
+			},
+			{
+				name:   "InterruptingRoot",
+				active: database.ChatStatusInterrupting,
+				activate: func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, api *coderd.API, organizationID uuid.UUID) codersdk.Chat {
+					chat := createChatInProject(t, client, organizationID, nil)
+					chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors a worker that owns the chat.
+					machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
+					_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
+						_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+						return err
+					})
+					require.NoError(t, err)
+					_, err = client.InterruptChat(ctx, chat.ID)
+					require.NoError(t, err)
+					return chat
+				},
+			},
+			{
+				name:   "RequiresActionRoot",
+				active: database.ChatStatusRequiresAction,
+				activate: func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, api *coderd.API, organizationID uuid.UUID) codersdk.Chat {
+					chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+						OrganizationID: organizationID,
+						Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+						UnsafeDynamicTools: []codersdk.DynamicTool{{
+							Name:        "echo",
+							Description: "test echo tool",
+							InputSchema: json.RawMessage(`{"type":"object"}`),
+						}},
+					})
+					require.NoError(t, err)
+					_ = driveChatToRequiresAction(ctx, t, api, chat, "echo")
+					return chat
+				},
+			},
+			{
+				name:   "RunningSubagent",
+				active: database.ChatStatusRunning,
+				activate: func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, api *coderd.API, organizationID uuid.UUID) codersdk.Chat {
+					chat := createIdleChat(ctx, t, client, api, organizationID)
+					_ = createSubagentChat(t, api, chat, database.ChatStatusRunning)
+					return chat
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, api := newChatProjectClientWithAPI(t)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				_ = createChatModel(t, client)
+				project := createChatProject(t, client, firstUser.OrganizationID, "Project")
+				chat := tc.activate(ctx, t, client, api, firstUser.OrganizationID)
+				before := chatRowsOfFamily(ctx, t, api, chat.ID)
+				require.True(t, slices.ContainsFunc(before, func(member database.Chat) bool {
+					return member.Status == tc.active
+				}), "the family must hold a %s member", tc.active)
+
+				err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+				sdkErr := requireSDKError(t, err, http.StatusConflict)
+				require.Equal(t, "Cannot move an active chat. Interrupt or wait for the chat to finish first.", sdkErr.Message)
+				require.Equal(t, before, chatRowsOfFamily(ctx, t, api, chat.ID), "a refused move changes no row")
+
+				// The chat has no project, so removing it from its project
+				// moves nothing and is not refused.
+				require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: new(uuid.Nil)}))
+				require.Equal(t, before, chatRowsOfFamily(ctx, t, api, chat.ID), "a move to the current project changes no row")
+			})
+		}
+	})
+
+	t.Run("PublishesProjectChange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "Project")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+		child := createSubagentChat(t, api, chat, database.ChatStatusWaiting)
+
+		events, closer, err := client.WatchChats(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, closer.Close()) })
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID}))
+
+		// Each family member gets one event, so every tab can update the
+		// rows it shows.
+		pending := map[uuid.UUID]*uuid.UUID{chat.ID: &project.ID, child.ID: nil}
+		for len(pending) > 0 {
+			event := testutil.RequireReceive(ctx, t, events)
+			if event.Kind != codersdk.ChatWatchEventKindProjectChange {
+				continue
+			}
+			want, ok := pending[event.Chat.ID]
+			require.True(t, ok, "unexpected project_change event for chat %s", event.Chat.ID)
+			require.Equal(t, want, event.Chat.ProjectID)
+			delete(pending, event.Chat.ID)
+		}
+	})
+
+	t.Run("AuditsTheMove", func(t *testing.T) {
+		t.Parallel()
+
+		mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+			oldChat, oldIsChat := old.(database.Chat)
+			newChat, newIsChat := newVal.(database.Chat)
+			if !oldIsChat || !newIsChat {
+				return audit.Map{}
+			}
+			return audit.Map{"project_id": {Old: oldChat.ProjectID.UUID, New: newChat.ProjectID.UUID}}
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatProjectClientWithAPI(t, func(options *coderdtest.Options) {
+			options.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		projectA := createChatProject(t, client, firstUser.OrganizationID, "Project A")
+		projectB := createChatProject(t, client, firstUser.OrganizationID, "Project B")
+		chat := createChatInProject(t, client, firstUser.OrganizationID, &projectA.ID)
+		driveChatToWaiting(ctx, t, api, chat.ID)
+		mAudit.ResetLogs()
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectB.ID}))
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.ResourceTypeChat, logs[0].ResourceType)
+		require.Equal(t, chat.ID, logs[0].ResourceID)
+		var diff map[string]codersdk.AuditDiffField
+		require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+		require.Equal(t, map[string]codersdk.AuditDiffField{
+			"project_id": {Old: projectA.ID.String(), New: projectB.ID.String()},
+		}, diff)
+	})
 }
 
-func newChatProjectClient(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {
+// createIdleChat creates a chat outside any project and moves it to
+// waiting, where a move is allowed.
+func createIdleChat(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, api *coderd.API, organizationID uuid.UUID) codersdk.Chat {
 	t.Helper()
-	client, db := newChatClientWithDatabase(t,
+	chat := createChatInProject(t, client, organizationID, nil)
+	driveChatToWaiting(ctx, t, api, chat.ID)
+	return chat
+}
+
+func createSubagentChat(t *testing.T, api *coderd.API, root codersdk.Chat, status database.ChatStatus) database.Chat {
+	t.Helper()
+	return dbgen.Chat(t, api.Database, database.Chat{
+		OrganizationID:    root.OrganizationID,
+		OwnerID:           root.OwnerID,
+		LastModelConfigID: root.LastModelConfigID,
+		Title:             "subagent",
+		Status:            status,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+}
+
+func requireChatProjectID(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID, want *uuid.UUID) {
+	t.Helper()
+	chat, err := client.GetChat(ctx, chatID)
+	require.NoError(t, err)
+	require.Equal(t, want, chat.ProjectID)
+}
+
+func chatRowsOfFamily(ctx context.Context, t *testing.T, api *coderd.API, rootID uuid.UUID) []database.Chat {
+	t.Helper()
+	sysCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // Test reads rows the chat owner cannot see as one family.
+	ids, err := api.Database.GetChatFamilyIDsByRootID(sysCtx, rootID)
+	require.NoError(t, err)
+	chats := make([]database.Chat, 0, len(ids))
+	for _, id := range ids {
+		chat, err := api.Database.GetChatByID(sysCtx, id)
+		require.NoError(t, err)
+		chats = append(chats, chat)
+	}
+	return chats
+}
+
+func chatIDs(chats []codersdk.Chat) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(chats))
+	for _, chat := range chats {
+		ids = append(ids, chat.ID)
+	}
+	return ids
+}
+
+func newChatProjectClient(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
+	t.Helper()
+	client, api := newChatProjectClientWithAPI(t, overrides...)
+	return client, api.Database
+}
+
+func newChatProjectClientWithAPI(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, *coderd.API) {
+	t.Helper()
+	return newChatClientWithAPI(t, append([]func(*coderdtest.Options){
 		func(options *coderdtest.Options) {
 			options.DeploymentValues.Experiments = serpent.StringArray{
-				string(codersdk.ExperimentChatProjects),
+				string(codersdk.ExperimentChatProjectSharing),
 			}
 		},
 		withChatWorkerDisabled,
-	)
-	return client, db
+	}, overrides...)...)
 }
 
 func createChatProject(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID, name string) codersdk.ChatProject {
@@ -368,4 +750,232 @@ func createChatInProject(t testing.TB, client *codersdk.ExperimentalClient, orga
 	})
 	require.NoError(t, err)
 	return chat
+}
+
+func TestChatProjectTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+
+	first, firstPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	second, secondPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, true)
+	notAllowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, false, false)
+	otherOrganization := dbgen.Organization(t, db, database.Organization{})
+	otherOrgTemplate, _ := createAgentTemplate(t, db, otherOrganization.ID, firstUser.UserID, true, false)
+
+	// A new project does not limit templates and has none attached.
+	project := createChatProject(t, client, orgID, "No Templates")
+	require.False(t, project.LimitTemplates)
+	require.Empty(t, project.Templates)
+	require.Zero(t, project.HiddenTemplateCount)
+	require.Nil(t, project.DefaultTemplate)
+
+	withPreset := &codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, PresetID: &firstPreset.ID}
+	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:            "Templates",
+		LimitTemplates:  true,
+		TemplateIDs:     []uuid.UUID{first.ID, second.ID, first.ID},
+		DefaultTemplate: withPreset,
+	})
+	require.NoError(t, err)
+	require.True(t, project.LimitTemplates)
+	require.ElementsMatch(t, []codersdk.ChatProjectTemplate{
+		{ID: first.ID, Name: first.Name, DisplayName: first.DisplayName, Icon: first.Icon},
+		{ID: second.ID, Name: second.Name, DisplayName: second.DisplayName, Icon: second.Icon},
+	}, project.Templates)
+	require.Equal(t, withPreset, project.DefaultTemplate)
+	getProject := func() codersdk.ChatProject {
+		fetched, err := client.GetChatProject(ctx, orgID, project.ID)
+		require.NoError(t, err)
+		return fetched
+	}
+	require.Equal(t, project, getProject())
+
+	// Updating other fields keeps the template settings.
+	name := "Renamed"
+	updated, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Name: &name})
+	require.NoError(t, err)
+	require.True(t, updated.LimitTemplates)
+	require.Equal(t, withPreset, updated.DefaultTemplate)
+
+	// The default template is replaced as a whole.
+	withParameters := &codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID, Parameters: map[string]string{"region": "eu"}}
+	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{DefaultTemplate: withParameters})
+	require.NoError(t, err)
+	require.Equal(t, withParameters, updated.DefaultTemplate)
+
+	// Detaching the default template clears the default for good, so
+	// attaching the template again does not bring it back.
+	require.NoError(t, client.DetachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	require.Equal(t, []uuid.UUID{first.ID}, chatProjectTemplateIDs(getProject()))
+	err = client.DetachChatProjectTemplate(ctx, orgID, project.ID, second.ID)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+	// Attaching an attached template succeeds.
+	require.NoError(t, client.AttachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	require.NoError(t, client.AttachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	fetched := getProject()
+	require.ElementsMatch(t, []uuid.UUID{first.ID, second.ID}, chatProjectTemplateIDs(fetched))
+	require.Nil(t, fetched.DefaultTemplate)
+
+	// A zero template ID clears the default.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{DefaultTemplate: withPreset})
+	require.NoError(t, err)
+	unlimited := false
+	updated, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		LimitTemplates:  &unlimited,
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.LimitTemplates)
+	require.Nil(t, updated.DefaultTemplate)
+
+	// Templates agents cannot use here are rejected with one message, so
+	// the response does not say whether the template exists.
+	for _, id := range []uuid.UUID{notAllowed.ID, otherOrgTemplate.ID, uuid.New()} {
+		err := client.AttachChatProjectTemplate(ctx, orgID, project.ID, id)
+		requireChatProjectFieldError(t, err, "template_ids", "Template "+id.String()+" is not available to agents in this organization.")
+	}
+
+	require.NoError(t, client.DetachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	for _, tc := range []struct {
+		name            string
+		defaultTemplate codersdk.ChatProjectDefaultTemplate
+		field           string
+		detail          string
+	}{
+		{"NotAttached", codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID}, "template_id", "The default template must be one of the project's templates."},
+		{"PresetWithoutTemplate", codersdk.ChatProjectDefaultTemplate{PresetID: &firstPreset.ID}, "template_id", "A default preset or default parameters require a default template."},
+		{"PresetAndParameters", codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, PresetID: &firstPreset.ID, Parameters: map[string]string{"region": "eu"}}, "preset_id", "Choose a default preset or default parameters, not both."},
+		{"PresetOfOtherTemplate", codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, PresetID: &secondPreset.ID}, "preset_id", "The default preset must belong to the default template's active version."},
+	} {
+		_, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{DefaultTemplate: &tc.defaultTemplate})
+		requireChatProjectFieldError(t, err, "default_template."+tc.field, tc.detail)
+	}
+
+	// Classic parameter names and values are checked against the template.
+	require.NoError(t, client.AttachChatProjectTemplate(ctx, orgID, project.ID, second.ID))
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID, Parameters: map[string]string{"size": "xl"}},
+	})
+	requireChatProjectFieldError(t, err, "default_template.parameters", `Parameter "size" does not exist on the default template's active version.`)
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: second.ID, Parameters: map[string]string{"cpu": "99"}},
+	})
+	sdkErr := coderdtest.SDKError(t, err)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "default_template.parameters", sdkErr.Validations[0].Field)
+	require.True(t, strings.HasPrefix(sdkErr.Message, `Parameter "cpu" has an invalid value: `), sdkErr.Message)
+
+	// Dynamic parameter names and values are left for the build to validate,
+	// since a parameter can exist only for some values of the others.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: first.ID, Parameters: map[string]string{"cpu": "99", "gpu_type": "a100"}},
+	})
+	require.NoError(t, err)
+}
+
+// Attaching a template never grants access to it, so a project admin who
+// cannot read an attached template only learns that one is hidden, and
+// cannot detach it or build on it.
+func TestChatProjectTemplateVisibility(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+
+	visible, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	// Without the Everyone group, members cannot read the template.
+	restricted, restrictedPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false, database.TemplateACL{})
+
+	defaultTemplate := &codersdk.ChatProjectDefaultTemplate{TemplateID: restricted.ID, PresetID: &restrictedPreset.ID}
+	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
+		Name:            "Shared",
+		LimitTemplates:  true,
+		TemplateIDs:     []uuid.UUID{visible.ID, restricted.ID},
+		DefaultTemplate: defaultTemplate,
+	})
+	require.NoError(t, err)
+	member, memberUser := newChatProjectMember(t, client, orgID)
+	require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleAdmin},
+	}))
+
+	asMember, err := member.GetChatProject(ctx, orgID, project.ID)
+	require.NoError(t, err)
+	listed, err := member.ListChatProjects(ctx)
+	require.NoError(t, err)
+	for _, got := range append(listed, asMember) {
+		require.Equal(t, []uuid.UUID{visible.ID}, chatProjectTemplateIDs(got))
+		require.Equal(t, 1, got.HiddenTemplateCount)
+		require.Nil(t, got.DefaultTemplate)
+	}
+
+	err = member.DetachChatProjectTemplate(ctx, orgID, project.ID, restricted.ID)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+	err = member.AttachChatProjectTemplate(ctx, orgID, project.ID, restricted.ID)
+	requireChatProjectFieldError(t, err, "template_ids", "Template "+restricted.ID.String()+" is not available to agents in this organization.")
+	_, err = member.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{
+		DefaultTemplate: &codersdk.ChatProjectDefaultTemplate{TemplateID: restricted.ID},
+	})
+	requireChatProjectFieldError(t, err, "default_template.template_id", "The default template must be one of the project's templates.")
+
+	// Editing what the member can see leaves the hidden attachment alone.
+	require.NoError(t, member.DetachChatProjectTemplate(ctx, orgID, project.ID, visible.ID))
+	asOwner, err := client.GetChatProject(ctx, orgID, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{restricted.ID}, chatProjectTemplateIDs(asOwner))
+	require.Zero(t, asOwner.HiddenTemplateCount)
+	require.Equal(t, defaultTemplate, asOwner.DefaultTemplate)
+}
+
+func chatProjectTemplateIDs(project codersdk.ChatProject) []uuid.UUID {
+	return slice.List(project.Templates, func(template codersdk.ChatProjectTemplate) uuid.UUID { return template.ID })
+}
+
+// createAgentTemplate creates a template whose active version has a "region"
+// parameter and one preset. Everyone in the organization can use it unless
+// groupACL is given.
+func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUID, agentsAllowed, classicParameters bool, groupACL ...database.TemplateACL) (database.Template, database.TemplateVersionPreset) {
+	t.Helper()
+
+	versionID := uuid.New()
+	seed := database.Template{
+		OrganizationID:  orgID,
+		CreatedBy:       userID,
+		ActiveVersionID: versionID,
+		AgentsAllowed:   agentsAllowed,
+
+		UseClassicParameterFlow: classicParameters,
+	}
+	if len(groupACL) > 0 {
+		seed.GroupACL = groupACL[0]
+	}
+	template := dbgen.Template(t, db, seed)
+	preset := database.TemplateVersionPreset{ID: uuid.New(), Name: "default"}
+	dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			ID:             versionID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: orgID,
+			CreatedBy:      userID,
+		}).
+		Params(
+			database.TemplateVersionParameter{Name: "region"},
+			database.TemplateVersionParameter{
+				Name:          "cpu",
+				Type:          "number",
+				DefaultValue:  "2",
+				ValidationMin: sql.NullInt32{Int32: 1, Valid: true},
+				ValidationMax: sql.NullInt32{Int32: 8, Valid: true},
+			},
+		).
+		Preset(preset).
+		Do()
+	return template, preset
 }

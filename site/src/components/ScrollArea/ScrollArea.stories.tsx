@@ -10,7 +10,7 @@ export default meta;
 type Story = StoryObj<typeof ScrollArea>;
 
 const OverflowingContent = () => (
-	<div className="w-[1200px] p-3 font-mono text-xs leading-5">
+	<div className="w-300 p-3 font-mono text-xs leading-5">
 		{Array.from({ length: 60 }, (_, row) => (
 			<div key={row} className="whitespace-nowrap">
 				{`row ${row.toString().padStart(2, "0")} `}
@@ -41,7 +41,7 @@ export const Accessibility: Story = {
 	render: () => (
 		<div
 			data-testid="surface"
-			className="w-96 rounded-md border border-solid border-border bg-surface-primary"
+			className="w-96 rounded-md border bg-surface-primary"
 		>
 			<ScrollArea
 				className="h-48"
@@ -112,7 +112,7 @@ export const ThumbHitAreaOverride: Story = {
 		<div className="flex gap-4">
 			<div
 				data-testid="default-area"
-				className="w-48 rounded-md border border-solid border-border bg-surface-primary"
+				className="w-48 rounded-md border bg-surface-primary"
 			>
 				<ScrollArea className="h-48" type="always" scrollBarClassName="w-1.5">
 					<OverflowingContent />
@@ -120,7 +120,7 @@ export const ThumbHitAreaOverride: Story = {
 			</div>
 			<div
 				data-testid="override-area"
-				className="w-48 rounded-md border border-solid border-border bg-surface-primary"
+				className="w-48 rounded-md border bg-surface-primary"
 			>
 				<ScrollArea
 					className="h-48"

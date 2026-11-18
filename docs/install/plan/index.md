@@ -7,12 +7,16 @@ Work through this phase before you pick a platform in [Install the control plane
 
 ## What you decide here
 
-- **Topology**: where the control plane, the database, and workspaces run, and whether workspaces run in the same region as their users.
+- **Topology**:
+  where the control plane, the database, and workspaces run, and whether workspaces run in the same region as their users.
   Refer to [Architecture](./architecture.md).
-- **Size**: how much CPU, memory, and database capacity the deployment needs for the number of users you expect.
+- **Size**:
+  how much CPU, memory, and database capacity the deployment needs for the number of users you expect.
   Refer to [Coder Validated Architecture](./sizing/index.md).
-- **Provisioning model**: whether workspace builds run on the control plane or on [external provisioners](../operate/provisioners/index.md), which matters when builds need credentials the control plane shouldn't hold.
-- **Network position**: whether the deployment is reachable from the public internet, from a private network only, or is [air-gapped](../prepare/airgap.md).
+- **Provisioning model**:
+  whether workspace builds run on the control plane or on [external provisioners](../operate/provisioners/index.md), which matters when builds need credentials the control plane shouldn't hold.
+- **Network position**:
+  whether the deployment is reachable from the public internet, from a private network only, or is [air-gapped](../prepare/airgap.md).
 
 ## Who to involve
 

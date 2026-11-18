@@ -340,10 +340,22 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			// the template parameter is not required (meaning
 			// a default was set in Terraform, even if it is
 			// an empty string).
+			//
+			// A previous value that is no longer a valid option is
+			// never replaced with the default automatically, since
+			// switching a value like a region can destroy resources.
 			hasDefault := cliDefaultProvided || !tvp.Required
-			if pr.useParameterDefaults && hasDefault {
+			staleOption := action == WorkspaceUpdate && promptParameterOption
+			if pr.useParameterDefaults && hasDefault && !staleOption {
 				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
 			} else {
+				if staleOption && pr.useParameterDefaults && !isTTYIn(inv) {
+					var previous string
+					if last := findWorkspaceBuildParameter(tvp.Name, pr.lastBuildParameters); last != nil {
+						previous = last.Value
+					}
+					return nil, xerrors.Errorf("parameter %q: previous value %q is no longer a valid option; run \"coder update <workspace>\" in a terminal to choose a new value", name, previous)
+				}
 				var err error
 				parameterValue, err = cliui.RichParameter(inv, tvp, name, parameterValue)
 				if err != nil {

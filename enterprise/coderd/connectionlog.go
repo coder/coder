@@ -141,6 +141,7 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		}
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
+			ClientSessionID:  dblog.ConnectionLog.ClientSessionID.String,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
 		}
 		if dblog.ConnectionLog.DisconnectTime.Valid {
