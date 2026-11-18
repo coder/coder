@@ -6,7 +6,7 @@ import {
 import { filterOptionsByText } from "#/components/Filter/FilterCombobox/filterQuery";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
-import type { OptionsQueryClient } from "#/pages/WorkspacesPage/filter/categoryOptions";
+import type { OptionsQueryClient } from "#/utils/filters";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 

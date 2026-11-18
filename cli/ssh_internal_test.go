@@ -743,3 +743,54 @@ func TestWatchAndCloseShutdownReason(t *testing.T) {
 		})
 	}
 }
+
+func Test_agentSSHSuggestion(t *testing.T) {
+	t.Parallel()
+
+	ws := codersdk.Workspace{Name: "dogfood", OwnerName: "alice"}
+	agent := codersdk.WorkspaceAgent{Name: "dev"}
+
+	for _, tc := range []struct {
+		name         string
+		config       codersdk.SSHConfigResponse
+		includeOwner bool
+		want         string
+	}{
+		{
+			// Invoked directly, so no OpenSSH host entry exists for the
+			// agent and the suggestion must use coder ssh.
+			name: "NoPrefixOrSuffix",
+			want: "$ coder ssh dogfood.dev",
+		},
+		{
+			name:         "NoPrefixOrSuffix_IncludeOwner",
+			includeOwner: true,
+			want:         "$ coder ssh alice/dogfood.dev",
+		},
+		{
+			name:   "HostnameSuffix",
+			config: codersdk.SSHConfigResponse{HostnameSuffix: "coder"},
+			want:   "$ ssh dev.dogfood.alice.coder",
+		},
+		{
+			name:   "HostnamePrefix",
+			config: codersdk.SSHConfigResponse{HostnamePrefix: "coder."},
+			want:   "$ ssh coder.dev.dogfood.alice",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, agentSSHSuggestion(tc.config, ws, agent, tc.includeOwner))
+		})
+	}
+}
+
+func Test_suggestWithOwner(t *testing.T) {
+	t.Parallel()
+
+	ws := codersdk.Workspace{ID: uuid.New(), Name: "dogfood", OwnerName: "alice"}
+	assert.False(t, suggestWithOwner("dogfood", ws))
+	assert.True(t, suggestWithOwner("alice/dogfood", ws))
+	// A workspace ID can refer to anyone's workspace.
+	assert.True(t, suggestWithOwner(ws.ID.String(), ws))
+}

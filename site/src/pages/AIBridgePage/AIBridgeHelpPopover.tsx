@@ -13,7 +13,7 @@ export const AIBridgeHelpPopover: React.FC = () => {
 				<br />
 				<Link
 					size="sm"
-					href={docs("/ai-coder/ai-gateway")}
+					href={docs("/ai-governance/ai-gateway")}
 					target="_blank"
 					rel="noreferrer"
 				>

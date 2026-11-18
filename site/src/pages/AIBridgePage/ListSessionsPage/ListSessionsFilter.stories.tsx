@@ -92,7 +92,7 @@ const meta: Meta<typeof ListSessionsFilterHarness> = {
 				data: ["claude-sonnet-4-5", "us.anthropic.claude-3-5-sonnet-v2:0"],
 			},
 			{
-				key: usersKey({ q: "", limit: 25 }),
+				key: usersKey({ q: " include_system:true", limit: 25 }),
 				data: { users: [MockUserOwner, MockUserMember], count: 2 },
 			},
 		],
@@ -105,6 +105,11 @@ type Story = StoryObj<typeof ListSessionsFilterHarness>;
 
 export const Default: Story = {
 	args: { initialQuery: rangeQuery },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: "Time range" }),
+		);
+	},
 };
 
 export const WithFilters: Story = {

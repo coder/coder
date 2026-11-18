@@ -16,12 +16,10 @@ import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTi
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import { getOrganizationFilterOptions } from "#/components/Filter/organizationOptions";
+import { getUserFilterOptions } from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import {
-	getOrganizationFilterOptions,
-	getUserFilterOptions,
-} from "#/pages/WorkspacesPage/filter/categoryOptions";
 import {
 	getClientFilterOptions,
 	getModelFilterOptions,
@@ -49,24 +47,28 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	const categories: FilterCategory[] = [
 		{
 			key: "initiator",
+			optionsKey: "aiBridgeSessions.initiator",
 			label: "User",
 			icon: <UserIcon />,
 			getOptions: (query) => getUserFilterOptions(query, me, queryClient),
 		},
 		{
 			key: "provider_name",
+			optionsKey: "aiBridgeSessions.provider_name",
 			label: "Provider",
 			icon: <CloudCogIcon />,
 			getOptions: (query) => getProviderFilterOptions(query, queryClient),
 		},
 		{
 			key: "client",
+			optionsKey: "aiBridgeSessions.client",
 			label: "Client",
 			icon: <SquareTerminalIcon />,
 			getOptions: (query) => getClientFilterOptions(query, queryClient),
 		},
 		{
 			key: "model",
+			optionsKey: "aiBridgeSessions.model",
 			label: "Model",
 			icon: <BoxIcon />,
 			getOptions: (query) => getModelFilterOptions(query, queryClient),
@@ -75,10 +77,14 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 			? [
 					{
 						key: "organization",
+						optionsKey: "aiBridgeSessions.organization",
 						label: "Organization",
 						icon: <Building2Icon />,
 						getOptions: (query: string) =>
-							getOrganizationFilterOptions(query, queryClient),
+							getOrganizationFilterOptions(query, queryClient, {
+								object: { resource_type: "audit_log" },
+								action: "read",
+							}),
 					},
 				]
 			: []),

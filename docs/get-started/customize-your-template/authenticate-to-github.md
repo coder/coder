@@ -598,8 +598,8 @@ You finished the Customize your template series, and your workspaces can now clo
 This is the last guide in the series.
 To keep going, explore more of what Coder offers:
 
-- [Manage workspaces for your team](../../user-guides/workspace-management.md).
-- [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
+- [Manage workspaces for your team](../../workspaces/workspace-management.md).
+- [Try Coder Agents](../../coder-agents/getting-started.md), the chat interface and API for delegating work to coding agents.
 
 Or revisit the [Customize your template overview](./index.md) for the full list of guides.
 

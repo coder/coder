@@ -36,14 +36,14 @@ export const ChatNodePRIcon: React.FC<ChatNodePRIconProps> = ({
 		<span
 			role="img"
 			aria-label={`${prStatuses.length} pull requests`}
-			className="inline-flex shrink-0 items-center gap-0.5"
+			className="inline-flex shrink-0 items-center gap-0.5 text-content-secondary"
 		>
 			<span aria-hidden="true" className="text-[13px] leading-4 tabular-nums">
 				{prStatuses.length}
 			</span>
 			<GitPullRequestArrowIcon
 				aria-hidden="true"
-				className="size-3.5 shrink-0 text-content-secondary"
+				className="size-3.5 shrink-0"
 			/>
 		</span>
 	);

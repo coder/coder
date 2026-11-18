@@ -24,14 +24,14 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 
 	return (
 		<div
-			className={`min-w-[320px] flex-1 rounded-sm border border-solid py-3 ${
-				isExceeded ? "border-border-destructive" : "border-border"
+			className={`min-w-[320px] flex-1 rounded-sm border py-3 ${
+				isExceeded && "border-border-destructive"
 			}`}
 		>
 			<div className="flex items-center gap-1 px-6 py-1.5">
 				<div className="flex flex-1 items-center gap-1">
 					<div className="flex items-center gap-1">
-						<span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-content-primary">
+						<span className="truncate text-sm text-content-primary">
 							{title}
 						</span>
 						<Tooltip>
@@ -39,7 +39,7 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 								<button
 									type="button"
 									aria-label="AI Governance seat information"
-									className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+									className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 								>
 									<InfoIcon className="size-3" />
 								</button>
@@ -50,7 +50,7 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 						</Tooltip>
 					</div>
 
-					<div className="min-w-[100px] flex-1 pl-8 pr-3">
+					<div className="min-w-25 flex-1 pl-8 pr-3">
 						<div className="text-xs">
 							<div className="font-medium text-content-secondary">{unit}</div>
 							<div className="font-normal text-content-primary">

@@ -50,7 +50,7 @@ const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} className="min-w-56">
-				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+				<div className="px-2 py-1.5 text-xs text-content-secondary">
 					Select a provider
 				</div>
 				{addableProviders.map((entry) => (
@@ -89,7 +89,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					other capabilities such as APIs, CLI or IDEs that use LLMs. By
 					default, users can supply their own keys for any provider.{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/ai-gateway/setup#configure-providers")}
+						href={docs("/ai-governance/ai-gateway/setup#configure-providers")}
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

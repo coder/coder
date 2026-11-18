@@ -1,13 +1,19 @@
 package cli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_resolveAgentAbsPath(t *testing.T) {
@@ -164,4 +170,103 @@ func Test_buildAppLinkURL(t *testing.T) {
 			assert.Equal(t, tt.expectedLink, actual)
 		})
 	}
+}
+
+func Test_sessionTokenDestinationTrusted(t *testing.T) {
+	t.Parallel()
+
+	// The dashboard's apps.test.ts runs the same cases against
+	// isSessionTokenDestinationTrusted, so both clients trust the same links.
+	raw, err := os.ReadFile(filepath.Join("..", "site", "src", "modules", "apps", "sessionTokenDestinationCases.json"))
+	require.NoError(t, err)
+	var fixture struct {
+		Origin string `json:"origin"`
+		Cases  []struct {
+			Name    string `json:"name"`
+			URL     string `json:"url"`
+			Trusted bool   `json:"trusted"`
+			Origin  string `json:"origin"`
+		} `json:"cases"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &fixture))
+	require.NotEmpty(t, fixture.Cases)
+
+	for _, tc := range fixture.Cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			origin := fixture.Origin
+			if tc.Origin != "" {
+				origin = tc.Origin
+			}
+			assert.Equal(t, tc.Trusted, sessionTokenDestinationTrusted(tc.URL, []string{origin}))
+		})
+	}
+}
+
+func Test_urlOrigin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"https://Coder.Example.com", "https://coder.example.com"},
+		{"https://coder.example.com:443/path", "https://coder.example.com"},
+		{"http://coder.example.com:80", "http://coder.example.com"},
+		{"http://coder.example.com:3000", "http://coder.example.com:3000"},
+		{"https://coder.example.com:80", "https://coder.example.com:80"},
+		{"http://[::1]:3000", "http://[::1]:3000"},
+		{"http://[::1]", "http://[::1]"},
+		{"https://COD\u0130NG.com", "https://cod\u0130ng.com"},
+		{"https://coder.example.com:0443", "https://coder.example.com"},
+		{"http://coder.example.com:0080", "http://coder.example.com"},
+		{"http://coder.example.com:0001", "http://coder.example.com:1"},
+		{"https://coder.example.com:65536", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := url.Parse(tc.in)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, urlOrigin(u))
+		})
+	}
+}
+
+func Test_sessionTokenOrigins(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncludesDashboardURL", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(codersdk.BuildInfoResponse{
+				DashboardURL: "https://Access.example.com:443/",
+			})
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		origins := sessionTokenOrigins(testutil.Context(t, testutil.WaitShort), codersdk.New(u))
+		assert.Equal(t, []string{urlOrigin(u), "https://access.example.com"}, origins)
+	})
+
+	// Without build info, only the URL the CLI is logged in to is trusted.
+	t.Run("BuildInfoError", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		origins := sessionTokenOrigins(testutil.Context(t, testutil.WaitShort), codersdk.New(u))
+		assert.Equal(t, []string{urlOrigin(u)}, origins)
+	})
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -211,6 +212,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	m, err := readOne()
 	require.NoError(t, err)
 	require.Equal(t, "0", m)
+	require.Equal(t, health.SeverityOK, ps.HealthReport(ctx).Severity)
 
 	closePg()
 	// write some more messages until we hit an error
@@ -229,6 +231,13 @@ func TestPubsub_Disconnect(t *testing.T) {
 		}
 		time.Sleep(testutil.IntervalFast)
 	}
+	// The listener's disconnect event can lag the failed publish.
+	require.Eventually(t, func() bool {
+		report := ps.HealthReport(ctx)
+		return report.Severity == health.SeverityWarning &&
+			len(report.Warnings) == 1 &&
+			report.Warnings[0].Code == health.CodePubsubNotConnected
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// restart postgres on the same port --- since we only use LISTEN/NOTIFY it doesn't
 	// matter that the new postgres doesn't have any persisted state from before.
@@ -291,6 +300,9 @@ func TestPubsub_Disconnect(t *testing.T) {
 		}
 	}
 	require.True(t, gotDroppedErr)
+	require.Eventually(t, func() bool {
+		return ps.HealthReport(ctx).Severity == health.SeverityOK
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestMeasureLatency(t *testing.T) {

@@ -817,14 +817,14 @@ export const SubagentMessageLinkCard: Story = {
 	},
 };
 
-export const SubagentNoErrorWhenCompleted: Story = {
+export const SubagentFailedWithCompletedChild: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
 			status: "completed",
-			error: "provider metadata noise",
+			error: "Unable to spawn agent",
 		},
 		status: "error",
 		isError: true,
@@ -1004,6 +1004,49 @@ export const InterruptAgentExploreCompleted: Story = {
 			status: "completed",
 			interrupted: true,
 		},
+	},
+};
+
+export const WaitAgentFailedWhileChildRunning: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "review-child" },
+		result: { error: "Unable to wait for agent" },
+		subagentTitles: new Map([["review-child", "Repo review"]]),
+		subagentStatusOverrides: new Map([["review-child", "running"]]),
+	},
+};
+
+export const WaitAgentErrorOverridesCompletedStatus: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		status: "completed",
+	},
+};
+
+export const MessageAgentFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		name: "message_agent",
+		args: { chat_id: "review-child", message: "Check error handling" },
+		result: { error: "Unable to message agent" },
+	},
+};
+
+export const InterruptAgentFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		name: "interrupt_agent",
+		result: { error: "Unable to interrupt agent" },
+	},
+};
+
+export const WaitAgentFailedWhileChildCompleted: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		subagentStatusOverrides: new Map([["review-child", "completed"]]),
 	},
 };
 
@@ -1703,6 +1746,47 @@ export const EditFilesSingleSuccess: Story = {
 	},
 };
 
+export const EditFilesSingleSuccessLight: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "light" },
+};
+
+export const EditFilesSingleSuccessProtanDeuter: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "dark-protan-deuter" },
+};
+
+export const EditFilesSingleSuccessTritan: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "dark-tritan" },
+};
+
+export const EditFilesLongPath: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-80 max-w-full">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...EditFilesSingleSuccess.args,
+		args: {
+			files: [
+				{
+					path: "site/src/pages/AgentsPage/components/ChatElements/charts/ConversationChart.tsx",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
 export const EditFilesAlwaysCollapsed: Story = {
 	args: {
 		name: "edit_files",
@@ -2316,6 +2400,13 @@ export const WaitAgentComputerUseRunning: Story = {
 			</DesktopPanelContext.Provider>
 		),
 	],
+};
+
+export const WaitAgentComputerUseFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		subagentVariants: new Map([["review-child", "computer_use"]]),
+	},
 };
 
 export const WaitAgentComputerUseCompletedNoRecording: Story = {
