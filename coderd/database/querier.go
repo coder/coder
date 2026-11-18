@@ -585,6 +585,11 @@ type sqlcQuerier interface {
 	// read count. Counted only while project sharing is available;
 	// otherwise every project counts its owner alone. Suspended users cannot
 	// sign in, so they are not counted.
+	//
+	// A read grant to the Everyone group of the project's organization reaches
+	// every member, and the other grants reach only members, so such a project
+	// counts its organization's members once per organization instead of
+	// expanding the group into a row per member for every project.
 	// Read through idx_chats_owner.
 	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Lists the templates attached to the given projects, oldest attachment

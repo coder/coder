@@ -210,6 +210,15 @@ func TestChatProjectSummaries(t *testing.T) {
 	interrupting := newChat(stopping, me, database.ChatStatusInterrupting, false, none)
 	// The Everyone group's ID is the organization ID.
 	everyone := share("Summary Everyone", nil, []uuid.UUID{orgID})
+	// Its members are counted per organization, so an owner outside the
+	// organization must be added once.
+	outsider := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: orgID, OwnerID: dave.ID})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       outsider.ID,
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+	}))
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: me, ProjectID: outsider.ID})
 	// Suspended users cannot use any project.
 	_, err = client.UpdateUserStatus(ctx, bob.Username, codersdk.UserStatusSuspended)
 	require.NoError(t, err)
@@ -239,6 +248,7 @@ func TestChatProjectSummaries(t *testing.T) {
 		stopping.ID: {1, 0, 1, true, false, latestUpdate(interrupting)},
 		// Organization members, without system users, carol or bob.
 		everyone.ID: {0, 0, 2, false, false, time.Time{}},
+		outsider.ID: {0, 0, 3, false, false, time.Time{}},
 	} {
 		got := summaries[project]
 		require.True(t, got.Pinned)

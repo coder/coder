@@ -8430,13 +8430,27 @@ WITH accessible AS (
             )
         )
 ),
+everyone_projects AS (
+    SELECT id AS project_id, organization_id FROM accessible
+    WHERE $1::boolean
+        AND group_acl -> organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+),
+org_member_counts AS (
+    SELECT organization_members.organization_id, COUNT(*) AS member_count
+    FROM organization_members
+    JOIN users ON users.id = organization_members.user_id
+    WHERE organization_members.organization_id IN (SELECT organization_id FROM everyone_projects)
+        AND users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
+    GROUP BY organization_members.organization_id
+),
 project_members AS (
     SELECT id AS project_id, owner_id AS user_id FROM accessible
     UNION
     SELECT granted.project_id, organization_members.user_id
     FROM (
         SELECT id AS project_id, organization_id, user_acl AS acl, jsonb_object_keys(user_acl) AS principal
-        FROM accessible WHERE $1::boolean
+        FROM accessible
+        WHERE $1::boolean AND id NOT IN (SELECT project_id FROM everyone_projects)
     ) granted
     JOIN organization_members
         ON organization_members.user_id = granted.principal::uuid
@@ -8446,7 +8460,8 @@ project_members AS (
     SELECT granted.project_id, group_members_expanded.user_id
     FROM (
         SELECT id AS project_id, organization_id, group_acl AS acl, jsonb_object_keys(group_acl) AS principal
-        FROM accessible WHERE $1::boolean
+        FROM accessible
+        WHERE $1::boolean AND id NOT IN (SELECT project_id FROM everyone_projects)
     ) granted
     JOIN group_members_expanded ON group_members_expanded.group_id = granted.principal::uuid
     -- A granted group from another organization only reaches its members
@@ -8461,6 +8476,14 @@ member_counts AS (
     FROM project_members
     JOIN users ON users.id = project_members.user_id
     WHERE users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
+        -- Only an owner outside the organization is left to add to
+        -- org_member_counts.
+        AND NOT EXISTS (
+            SELECT 1 FROM everyone_projects
+            JOIN organization_members ON organization_members.organization_id = everyone_projects.organization_id
+            WHERE everyone_projects.project_id = project_members.project_id
+                AND organization_members.user_id = project_members.user_id
+        )
     GROUP BY project_members.project_id
 ),
 own_chats AS (
@@ -8492,10 +8515,12 @@ SELECT
     COALESCE(own_chats.running, false)::boolean AS own_running,
     COALESCE(own_chats.needs_attention, false)::boolean AS own_needs_attention,
     own_chats.last_activity_at,
-    (CASE WHEN $1::boolean THEN COALESCE(member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+    (CASE WHEN $1::boolean THEN COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
 FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
+LEFT JOIN everyone_projects ON everyone_projects.project_id = chat_projects.id
+LEFT JOIN org_member_counts ON org_member_counts.organization_id = everyone_projects.organization_id
 LEFT JOIN chat_project_pins pins
     ON pins.user_id = $2::uuid AND pins.project_id = chat_projects.id
 LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
@@ -8531,6 +8556,11 @@ type GetChatProjectSummariesByUserIDRow struct {
 // read count. Counted only while project sharing is available;
 // otherwise every project counts its owner alone. Suspended users cannot
 // sign in, so they are not counted.
+//
+// A read grant to the Everyone group of the project's organization reaches
+// every member, and the other grants reach only members, so such a project
+// counts its organization's members once per organization instead of
+// expanding the group into a row per member for every project.
 // Read through idx_chats_owner.
 func (q *sqlQuerier) GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.CountSharedMembers, arg.UserID, arg.ACLEnabled)
