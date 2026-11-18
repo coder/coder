@@ -52,6 +52,17 @@ if [[ $write -eq 1 ]]; then
 		# duplicate migration number. create_migration.sh and
 		# fix_migration_numbers.sh keep it up to date, and
 		# scripts/check_migrations_latest.sh checks it.
+		#
+		# If this file conflicts, another migration merged first. Merge or rebase
+		# onto main, then run this while the conflict is still open:
+		#
+		#   ./coderd/database/migrations/fix_migration_numbers.sh
+		#
+		# It renumbers your migrations if their numbers are taken, rewrites this
+		# file, and stages the result. For a cherry-pick, backport, or revert,
+		# run this instead:
+		#
+		#   ./scripts/check_migrations_latest.sh --write
 		${newest}
 	LATEST
 	log "Wrote ${newest} to ${latest_file}"
