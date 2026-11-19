@@ -19,14 +19,12 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-// previewWriteTimeout replaces the agent API's 20s write timeout for preview
-// responses, so large assets can finish sending.
 const previewWriteTimeout = 5 * time.Minute
 
 // windowsUnsafeNameChars are characters that let a requested name reach
 // another file on Windows: a backslash is a path separator, a colon names an
 // alternate data stream, and a tilde appears in short names such as HIDDEN~1
-// for .hidden. Other systems allow them in file names, as in vendors~main.js.
+// for .hidden.
 const windowsUnsafeNameChars = `\:~`
 
 var (
@@ -34,18 +32,11 @@ var (
 	errNameNotServed = xerrors.New("previews do not serve path elements that are empty, start with a dot, or on Windows contain any of " + windowsUnsafeNameChars)
 )
 
-// preview is a published path. Each request opens dir again, so a directory
-// that is deleted and rebuilt is served without publishing it again.
 type preview struct {
-	dir string
-	// file is the published file's name in dir for file previews, and empty
-	// for directory previews.
+	dir  string
 	file string
 }
 
-// publish publishes an .html file or a directory with index.html, and returns
-// its preview ID and the cleaned path it serves. Publishing a path again keeps
-// its ID.
 func (api *API) publish(name string) (id, cleaned string, err error) {
 	if !filepath.IsAbs(name) {
 		return "", "", xerrors.New("preview path must be absolute")
@@ -80,8 +71,6 @@ func (api *API) publish(name string) (id, cleaned string, err error) {
 
 	id, ok := api.idsByPath[cleaned]
 	if !ok {
-		// A random ID makes a link from before an agent restart 404 instead of
-		// serving another path. Preview hostnames require eight hex digits.
 		for {
 			id, err = cryptorand.HexString(8)
 			if err != nil {
@@ -109,8 +98,6 @@ func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
 
 	f, name, err := api.open(id, name)
 	if err != nil {
-		// Files a preview refuses to serve get the same 404 as missing files,
-		// so pages can't tell them apart. The request log says why.
 		if requestLogger := loggermw.RequestLoggerFromContext(r.Context()); requestLogger != nil {
 			requestLogger.WithFields(slog.Error(err))
 		}
@@ -125,8 +112,6 @@ func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
 	http.ServeContent(rw, r, name, time.Time{}, f)
 }
 
-// open opens the file that a request for name in preview id serves, and
-// returns the name it opened.
 func (api *API) open(id, name string) (*os.File, string, error) {
 	api.mu.RLock()
 	p, ok := api.previews[id]
@@ -143,8 +128,6 @@ func (api *API) open(id, name string) (*os.File, string, error) {
 	return f, name, err
 }
 
-// servedName returns the slash-separated name in p.dir that a request for
-// name serves: the published file, or index.html for a directory path.
 func (p preview) servedName(name string) (string, error) {
 	if p.file != "" {
 		if name != "" {
@@ -159,7 +142,6 @@ func (p preview) servedName(name string) (string, error) {
 	if !fs.ValidPath(name) {
 		return "", errNameNotServed
 	}
-	// Names that start with a dot, such as .git and .env, are not served.
 	for component := range strings.SplitSeq(name, "/") {
 		if strings.HasPrefix(component, ".") ||
 			runtime.GOOS == "windows" && strings.ContainsAny(component, windowsUnsafeNameChars) {
@@ -169,10 +151,8 @@ func (p preview) servedName(name string) (string, error) {
 	return name, nil
 }
 
-// openServed opens the slash-separated name in dir. os.Root keeps the open
-// inside dir but follows symlinks within it, which could alias a hidden or
-// unpublished file, so no path element may be a symlink. The file must be a
-// regular file.
+// os.Root follows symlinks that stay inside dir, which could alias a hidden
+// or unpublished file.
 func openServed(dir, name string) (*os.File, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
