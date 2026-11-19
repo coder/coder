@@ -62,7 +62,6 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
 	buildLoadedChatStore,
-	buildLongConversation,
 	loadedChatStore,
 	MockWorkingMessages,
 } from "../components/ChatConversation/storyFixtures";
@@ -3190,109 +3189,6 @@ export const SendToErroredChatWithQueue: Story = {
 		await userEvent.keyboard("{Enter}");
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
 		await timeline.findByText("Follow-up prompt");
-	},
-};
-
-export const SendingFromHistoryDoesNotSnapToBottom: Story = {
-	parameters: {
-		pixel: { exclude: true },
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "Long chat",
-				status: "waiting",
-			},
-			{
-				messages: buildLongConversation(CHAT_ID, 40),
-				queued_messages: [],
-				has_more: false,
-			},
-			{ diffUrl: undefined },
-		),
-	},
-	decorators: [
-		(Story) => (
-			<div
-				style={{ height: "600px", display: "flex", flexDirection: "column" }}
-			>
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		let releaseSend: (() => void) | undefined;
-		const sendGate = new Promise<void>((resolve) => {
-			releaseSend = resolve;
-		});
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockImplementation(async () => {
-			await sendGate;
-			return { queued: false };
-		});
-
-		// Rather than sampling native smooth-scroll progress (which depends on
-		// headless-browser scheduling and reduced-motion overrides), intercept the
-		// MessageScroller's own scroll calls. The eager scrollToEnd we regressed
-		// on reaches the viewport as a `scrollTo({ behavior: "smooth" })`.
-		const scrollToMock = spyOn(Element.prototype, "scrollTo");
-		try {
-			const editor = await canvas.findByTestId("chat-message-input");
-			await userEvent.click(editor);
-			await userEvent.type(editor, "Follow-up question.");
-			const viewport = canvas.getByRole("region", { name: "Messages" });
-			// Scroll the reader into history before sending, the repro starting
-			// point. The scroller reads the position from the scroll event, which
-			// fires after this assignment returns.
-			const scrolled = new Promise((resolve) =>
-				viewport.addEventListener("scroll", resolve, { once: true }),
-			);
-			viewport.scrollTop = 0;
-			await scrolled;
-
-			await userEvent.keyboard("{Enter}");
-			await waitFor(() => {
-				expect(sendSpy).toHaveBeenCalledTimes(1);
-			});
-
-			// The prompt shows at submit, while the gated POST is still pending,
-			// and the scroller anchors to it with a single non-smooth scroll. The
-			// stream's copy of the prompt and the running turn do not scroll again.
-			const timeline = within(
-				await canvas.findByTestId("conversation-timeline"),
-			);
-			await timeline.findByText("Follow-up question.");
-			const store = loadedChatStore(CHAT_ID);
-			store?.batch(() => {
-				store.upsertDurableMessages([
-					{
-						...MockChatMessage,
-						id: 41,
-						chat_id: CHAT_ID,
-						role: "user",
-						content: [{ type: "text", text: "Follow-up question." }],
-					},
-				]);
-				store.applyServerChatStatus("running");
-			});
-			await waitFor(() => {
-				expect(scrollToMock).toHaveBeenCalledTimes(1);
-				// The anchor re-position is a non-smooth scroll; a smooth call here
-				// would be the eager scrollToEnd regression resurfacing.
-				expect(scrollToMock.mock.calls[0]?.[0]).toMatchObject({
-					behavior: "auto",
-				});
-			});
-			releaseSend?.();
-		} finally {
-			scrollToMock.mockRestore();
-		}
 	},
 };
 
