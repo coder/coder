@@ -51,6 +51,8 @@ type WorkspaceTerminalProps = {
 	onStatusChange?: (status: ConnectionStatus) => void;
 	onError?: (error: Error) => void;
 	onContentReady?: () => void;
+	/** Called when the shell sets the window title with an OSC 0 or OSC 2 sequence. */
+	onTitleChange?: (title: string) => void;
 	reconnectionToken: string;
 	/**
 	 * The session ID correlates all logs, requests, and telemetry for this
@@ -89,6 +91,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	onStatusChange,
 	onError,
 	onContentReady,
+	onTitleChange,
 	reconnectionToken,
 	sessionId,
 	baseUrl,
@@ -117,6 +120,9 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	});
 	const handleContentReady = useEffectEvent(() => {
 		onContentReady?.();
+	});
+	const handleTitleChange = useEffectEvent((title: string) => {
+		onTitleChange?.(title);
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard, readFromClipboard } = useClipboard();
@@ -409,6 +415,18 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		return () => {
 			writeParsed.dispose();
 			rendered.dispose();
+		};
+	}, [terminal]);
+
+	useEffect(() => {
+		if (!terminal) {
+			return;
+		}
+		const titleChange = terminal.onTitleChange((title) => {
+			handleTitleChange(title);
+		});
+		return () => {
+			titleChange.dispose();
 		};
 	}, [terminal]);
 
