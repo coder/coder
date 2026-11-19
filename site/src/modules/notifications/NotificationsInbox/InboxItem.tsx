@@ -79,19 +79,20 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 			<div className="w-12 flex flex-col items-end shrink-0">
 				{notification.read_at === null && (
 					<>
-						<div className="group-focus-within:hidden group-hover:hidden size-2.5 rounded-full bg-highlight-sky">
-							<span className="sr-only">Unread</span>
-						</div>
+						{/* Outside the dot so it is still announced while the dot is hidden. */}
+						<span className="sr-only">Unread</span>
+						<div className="group-focus-within:hidden group-hover:hidden size-2.5 rounded-full bg-highlight-sky" />
 
 						{/* Visually hidden instead of display: none so it stays in the tab order. */}
 						<Button
 							onClick={() => onMarkNotificationAsRead(notification.id)}
+							aria-describedby={contentId}
 							className="not-group-hover:not-group-focus-within:sr-only bg-surface-primary"
 							variant="outline"
 							size="sm"
 						>
 							<SquareCheckBigIcon />
-							mark as read
+							Mark as read
 						</Button>
 					</>
 				)}

@@ -41,7 +41,7 @@
 		"#/*": "./src/*"
 	},
 	"dependencies": {
-		"@coder/frimousse": "0.4.1",
+		"@coder/frimousse": "0.4.2",
 		"@dnd-kit/abstract": "0.5.1",
 		"@dnd-kit/collision": "0.5.1",
 		"@dnd-kit/dom": "0.5.1",
