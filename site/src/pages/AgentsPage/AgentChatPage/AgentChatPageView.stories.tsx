@@ -1416,9 +1416,9 @@ const thinkingShiftStore = buildStoreWithMessages(
 
 /**
  * The Thinking indicator must hand off to streaming text without collapsing
- * the live row for a frame. The prompt above it must not move.
+ * the live row for a frame, so the view that follows the end does not jump.
  */
-export const ThinkingHandoffKeepsPromptPosition: Story = {
+export const ThinkingHandoffKeepsLiveRowHeight: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
@@ -1460,9 +1460,10 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		expect(thinkingHeight).toBeGreaterThan(0);
 
 		// The first stream chunk replaces the Thinking indicator with text. The
-		// live row must never shrink below its Thinking-indicator height, so the
-		// prompt and everything above it must stay put. Position uses a
-		// tolerance because rect tops are fractional; a 24px drop is 6x it.
+		// live row must never shrink below its Thinking-indicator height. At the
+		// end, a shrink lets the browser clamp scrollTop and drops the prompt, so
+		// the prompt must stay put too. Position uses a tolerance because rect
+		// tops are fractional; a 24px drop is 6x it.
 		thinkingShiftStore.applyMessageParts([
 			{ type: "text", text: "Here is the start of the answer." },
 		]);
