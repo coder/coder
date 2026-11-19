@@ -2,10 +2,12 @@ package agent
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
@@ -40,7 +42,7 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Mount("/api/v0", a.filesAPI.Routes())
 	r.Mount("/api/v0/git", a.gitAPI.Routes())
 	r.Mount("/api/v0/processes", a.processAPI.Routes())
-	r.Mount("/api/v0/previews", a.previewAPI.Routes())
+	r.With(a.extendWriteDeadline).Mount("/api/v0/previews", a.previewAPI.Routes())
 	r.Mount("/api/v0/tool-calls", a.toolCalls.Routes())
 	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
 	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
@@ -73,13 +75,26 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Get("/api/v0/listening-ports", a.listeningPortsHandler.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Get("/api/v0/tcp/{port}", upgradeListener.handler)
-	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
+	r.With(a.extendWriteDeadline).Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
 	return r
+}
+
+// longResponseWriteTimeout gives slow links well over the server's 20s
+// WriteTimeout to stream a large response.
+const longResponseWriteTimeout = 5 * time.Minute
+
+func (a *agent) extendWriteDeadline(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if err := http.NewResponseController(rw).SetWriteDeadline(time.Now().Add(longResponseWriteTimeout)); err != nil {
+			a.logger.Warn(r.Context(), "extend response write deadline", slog.Error(err))
+		}
+		next.ServeHTTP(rw, r)
+	})
 }
 
 type ListeningPortsGetter interface {

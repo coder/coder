@@ -459,7 +459,7 @@ func (a *agent) init() {
 		return ""
 	}
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
-	a.previewAPI = agentpreview.NewAPI(a.logger.Named("previews"))
+	a.previewAPI = agentpreview.NewAPI()
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
