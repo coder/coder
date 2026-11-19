@@ -340,7 +340,10 @@ describe("AgentChatPage", () => {
 			screen.queryByRole("complementary", { name: "Overview" }),
 		).toBeNull();
 
-		await user.click(screen.getByRole("button", { name: "Toggle panel" }));
+		await user.click(
+			screen.getByRole("button", { name: "Toggle panel", expanded: true }),
+		);
+		screen.getByRole("button", { name: "Toggle panel", expanded: false });
 		await screen.findByRole("button", {
 			name: "Toggle overview",
 			expanded: true,

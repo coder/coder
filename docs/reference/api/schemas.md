@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -376,6 +383,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `organization`    | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of this interception. Nil when none was stored.                                    |
 | `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
@@ -452,6 +460,42 @@ title: Schemas
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
+## codersdk.AIBridgeInterceptionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "source": "workspace"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                             | false    |              |             |
+| `icon`         | string                                                                                             | false    |              |             |
+| `id`           | string                                                                                             | true     |              |             |
+| `name`         | string                                                                                             | false    |              |             |
+| `source`       | [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
+
+## codersdk.AIBridgeInterceptionOrganizationSource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                |
+|-----------------------------------------|
+| `chatd`, `effective_group`, `workspace` |
+
 ## codersdk.AIBridgeListSessionsResponse
 
 ```json
@@ -481,6 +525,17 @@ title: Schemas
         "blocked": 0,
         "total": 0
       },
+      "organizations": [
+        {
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "sources": [
+            "workspace"
+          ]
+        }
+      ],
       "providers": [
         "string"
       ],
@@ -626,6 +681,17 @@ title: Schemas
     "blocked": 0,
     "total": 0
   },
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "providers": [
     "string"
   ],
@@ -654,6 +720,7 @@ title: Schemas
 | » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                          |
 | `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network requests made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `organizations`       | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                     |
 | `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
 | `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
@@ -690,6 +757,30 @@ title: Schemas
 |----------|---------|----------|--------------|-------------|
 | `count`  | integer | false    |              |             |
 | `domain` | string  | false    |              |             |
+
+## codersdk.AIBridgeSessionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "sources": [
+    "workspace"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                        | Required | Restrictions | Description |
+|----------------|-------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                                      | false    |              |             |
+| `icon`         | string                                                                                                      | false    |              |             |
+| `id`           | string                                                                                                      | true     |              |             |
+| `name`         | string                                                                                                      | false    |              |             |
+| `sources`      | array of [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -736,6 +827,17 @@ title: Schemas
       "domain": "string"
     }
   ],
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
@@ -754,6 +856,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "organization": {
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "source": "workspace"
+          },
           "priced_model": {
             "cache_read_price": 0,
             "cache_write_price": 0,
@@ -807,6 +916,13 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -861,6 +977,7 @@ title: Schemas
 | `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
 | `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `organizations`        | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                                                                                                                                  |
 | `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
@@ -932,6 +1049,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -985,6 +1109,13 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -1025,6 +1156,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `organization`                   | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of the root interception. Nil when none was stored.                                                                                                                                                      |
 | `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -7520,6 +7652,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
@@ -7550,6 +7683,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name, so this defaults to false.                                                                                                            |
 | `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is a Premium feature.                                                                                                                                                                 |
 | `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is a Premium feature.                                                                                                                                                                    |
+| `browser_only`                        | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. Defaults to false. Enabling it requires the browser-only entitlement.                                                                                       |
 | `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
 | `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
@@ -12683,6 +12817,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendClient
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                     |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend from the client over the period.                                                |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage from the client was recorded without a price.                |
+| `name`               | string  | false    |              | Name is the client recorded on the intercepted request. Usage without a recorded client is reported as Unknown. |
+
+## codersdk.OrganizationAISpendModel
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                   |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend on the model over the period.                                 |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage of the model was recorded without a price. |
+| `name`               | string  | false    |              | Name is the model the client requested.                                                       |
+
 ## codersdk.OrganizationAISpendOverview
 
 ```json
@@ -12817,6 +12987,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_id`      | string                                                                                          | false    |              |                                                                                   |
 | `username`     | string                                                                                          | false    |              |                                                                                   |
 
+## codersdk.OrganizationAISpendProvider
+
+```json
+{
+  "cost_micros": 0,
+  "display_name": "string",
+  "has_unpriced_usage": true,
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name                 | Type                                               | Required | Restrictions | Description                                                                                           |
+|----------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer                                            | false    |              | Cost micros is the priced spend through the provider over the period.                                 |
+| `display_name`       | string                                             | false    |              | Display name falls back to the provider name when unset.                                              |
+| `has_unpriced_usage` | boolean                                            | false    |              | Has unpriced usage reports whether any token usage through the provider was recorded without a price. |
+| `icon`               | string                                             | false    |              | Icon is empty when the provider has no configured icon.                                               |
+| `name`               | string                                             | false    |              | Name is the name of the configured provider.                                                          |
+| `type`               | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Type is omitted when the provider name was never configured.                                          |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -12827,23 +13021,37 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "retention_start": "2019-08-24T14:15:22Z",
   "totals": {
     "cost_micros": 0,
-    "unpriced_usage_count": 0
+    "has_unpriced_usage": true
   },
   "users": [
     {
       "avatar_url": "string",
-      "clients": [
-        "string"
+      "client_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "cost_micros": 0,
-      "models": [
-        "string"
+      "model_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "name": "string",
-      "providers": [
-        "string"
+      "provider_spend": [
+        {
+          "cost_micros": 0,
+          "display_name": "string",
+          "has_unpriced_usage": true,
+          "icon": "string",
+          "name": "string",
+          "type": "openai"
+        }
       ],
-      "unpriced_usage_count": 0,
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
       "username": "string"
     }
@@ -12867,34 +13075,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "cost_micros": 0,
-  "unpriced_usage_count": 0
+  "has_unpriced_usage": true
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                          |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
-| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
-| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+| Name                 | Type    | Required | Restrictions | Description                                                                               |
+|----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend of every matching user.                                   |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any matching token usage was recorded without a price. |
 
 ## codersdk.OrganizationAISpendUser
 
 ```json
 {
   "avatar_url": "string",
-  "clients": [
-    "string"
+  "client_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "cost_micros": 0,
-  "models": [
-    "string"
+  "model_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "name": "string",
-  "providers": [
-    "string"
+  "provider_spend": [
+    {
+      "cost_micros": 0,
+      "display_name": "string",
+      "has_unpriced_usage": true,
+      "icon": "string",
+      "name": "string",
+      "type": "openai"
+    }
   ],
-  "unpriced_usage_count": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
   "username": "string"
 }
@@ -12902,17 +13124,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
-|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
-| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
-| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
-| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
-| `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
-| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
-| `user_id`              | string          | false    |              |                                                                                                                                                   |
-| `username`             | string          | false    |              |                                                                                                                                                   |
+| Name             | Type                                                                                  | Required | Restrictions | Description                                                                                                                  |
+|------------------|---------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`     | string                                                                                | false    |              |                                                                                                                              |
+| `client_spend`   | array of [codersdk.OrganizationAISpendClient](#codersdkorganizationaispendclient)     | false    |              | Client spend is the user's spend per client, most expensive first. Usage without a recorded client is reported as Unknown.   |
+| `cost_micros`    | integer                                                                               | false    |              | Cost micros is the user's priced spend over the period. It is a lower bound when any entry in ModelSpend has unpriced usage. |
+| `model_spend`    | array of [codersdk.OrganizationAISpendModel](#codersdkorganizationaispendmodel)       | false    |              | Model spend is the user's spend per model, most expensive first.                                                             |
+| `name`           | string                                                                                | false    |              |                                                                                                                              |
+| `provider_spend` | array of [codersdk.OrganizationAISpendProvider](#codersdkorganizationaispendprovider) | false    |              | Provider spend is the user's spend per configured provider, most expensive first.                                            |
+| `user_id`        | string                                                                                | false    |              |                                                                                                                              |
+| `username`       | string                                                                                | false    |              |                                                                                                                              |
 
 ## codersdk.OrganizationChatModelsResponse
 
@@ -15565,6 +15786,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -15608,47 +15830,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                |
-|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                               |
-| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                   |
-| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                              |
-| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                            |
-| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                |
-| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                            |
-| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                            |
-| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                    |
-| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.                           |
-| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                            |
-| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache. |
-| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                |
-| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                |
-| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                  |
+|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                                 |
+| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                     |
+| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                                |
+| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                              |
+| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                  |
+| `browser_only`                        | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one. |
+| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                              |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                              |
+| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                      |
+| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.                             |
+| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                              |
+| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache.   |
+| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                  |
+| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                  |
+| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
 
 #### Enumerated Values
 
@@ -16058,6 +16281,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -17920,6 +18144,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "deprecation_message": "string",
@@ -17953,6 +18178,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `allow_workspace_renames`          | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                                                                                                                                                                                      |
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement can only be set if your license includes the advanced template scheduling feature. If you attempt to set this value while unlicensed, it will be ignored.                                                                                                                                                                            |
+| `browser_only`                     | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. Enabling it requires the browser-only entitlement; disabling it does not.                                                                                                                                                  |
 | `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
