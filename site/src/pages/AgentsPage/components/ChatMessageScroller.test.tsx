@@ -151,7 +151,7 @@ describe("ChatMessageScroller after a send", () => {
 
 	let scrollToEnd: ReturnType<typeof useMessageScroller>["scrollToEnd"];
 	// AgentChatPage takes scrollToEnd for submitChatTurn from the same hook.
-	const ScrollToEnd: React.FC = () => {
+	const CaptureScrollToEnd: React.FC = () => {
 		({ scrollToEnd } = useMessageScroller());
 		return null;
 	};
@@ -163,7 +163,7 @@ describe("ChatMessageScroller after a send", () => {
 		store.applyServerChatStatus("waiting");
 		renderWithAuth(
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<ScrollToEnd />
+				<CaptureScrollToEnd />
 				<ChatPageTimeline
 					organizationId="organization-id"
 					store={store}
