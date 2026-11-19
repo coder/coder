@@ -33,20 +33,21 @@ Fields whose related data is not selected don't hold meaningful values, so don't
 Most are returned with zero values, such as ` + "`null`" + `, an empty string, ` + "`0`" + `, ` + "`false`" + `, or a zero ID.
 Fields computed from related data, such as ` + "`health`" + `, ` + "`outdated`" + `, and ` + "`latest_build.status`" + `, can hold values computed from the missing data.
 
-The following table lists the response fields that each path returns.
+The following table lists each response field and the ` + "`include_related`" + ` paths that return it.
 A field that holds an object or array returns everything in it.
-A row that names more than one path lists fields that need all of those paths.
+A field that lists more than one path needs all of them.
+These endpoints never return the fields marked **Not returned**.
 
 `
 
 // relatedDataSection renders the Markdown section that documents which
-// include_related paths return which codersdk.Workspace fields.
+// include_related paths return each codersdk.Workspace field.
 func relatedDataSection() ([]byte, error) {
 	fields := wsrelated.Fields(reflect.TypeFor[codersdk.Workspace]())
 
-	pathIndex := map[string]int{}
-	for i, p := range wsrelated.Paths() {
-		pathIndex[p] = i
+	validPaths := map[string]bool{}
+	for _, p := range wsrelated.Paths() {
+		validPaths[p] = true
 	}
 
 	// Fields of an untagged struct are covered by the field that holds the
@@ -59,12 +60,10 @@ func relatedDataSection() ([]byte, error) {
 	}
 
 	type row struct {
-		order  []int
-		label  string
-		fields []string
+		path  string
+		label string
 	}
-	rows := map[string]*row{}
-	var notReturned []string
+	var rows []row
 	seen := map[string]bool{}
 	for _, f := range tagged {
 		// A field whose struct has tagged fields is described by those fields.
@@ -72,24 +71,18 @@ func relatedDataSection() ([]byte, error) {
 			return strings.HasPrefix(g.JSONPath, f.JSONPath+".") || strings.HasPrefix(g.JSONPath, f.JSONPath+"[].")
 		})
 		if !isContainer {
-			r, ok := rows[f.Tag]
-			if !ok {
-				r = &row{label: "Always returned"}
+			label := "Always returned"
+			if f.Tag != "" {
 				var labels []string
-				if f.Tag != "" {
-					for _, p := range strings.Split(f.Tag, ",") {
-						i, ok := pathIndex[p]
-						if !ok {
-							return nil, xerrors.Errorf("field %s has unknown %s tag path %q", f.JSONPath, wsrelated.TagKey, p)
-						}
-						r.order = append(r.order, i)
-						labels = append(labels, "`"+p+"`")
+				for _, p := range strings.Split(f.Tag, ",") {
+					if !validPaths[p] {
+						return nil, xerrors.Errorf("field %s has unknown %s tag path %q", f.JSONPath, wsrelated.TagKey, p)
 					}
-					r.label = strings.Join(labels, " and ")
+					labels = append(labels, "`"+p+"`")
 				}
-				rows[f.Tag] = r
+				label = strings.Join(labels, " and ")
 			}
-			r.fields = append(r.fields, "`"+f.JSONPath+"`")
+			rows = append(rows, row{path: f.JSONPath, label: label})
 		}
 
 		// Untagged fields beside f in the same struct are not returned.
@@ -111,33 +104,38 @@ func relatedDataSection() ([]byte, error) {
 			}
 			if p := prefix + name; !seen[p] {
 				seen[p] = true
-				notReturned = append(notReturned, "`"+p+"`")
+				rows = append(rows, row{path: p, label: "Not returned"})
 			}
 		}
 	}
 
-	sorted := make([]*row, 0, len(rows))
-	for _, r := range rows {
-		sorted = append(sorted, r)
-	}
-	slices.SortFunc(sorted, func(a, b *row) int {
-		return cmp.Or(slices.Compare(a.order, b.order), cmp.Compare(a.label, b.label))
+	// Group fields by the object that holds them, in hierarchy order, then
+	// sort each object's fields by name.
+	slices.SortFunc(rows, func(a, b row) int {
+		aParent, aName := splitJSONPath(a.path)
+		bParent, bName := splitJSONPath(b.path)
+		return cmp.Or(cmp.Compare(aParent, bParent), cmp.Compare(aName, bName))
 	})
 
 	var buf bytes.Buffer
 	_, _ = buf.WriteString(relatedDataIntro)
-	_, _ = buf.WriteString("| `include_related` | Response fields |\n")
+	_, _ = buf.WriteString("| Response field | `include_related` |\n")
 	_, _ = buf.WriteString("|---|---|\n")
-	for _, r := range sorted {
-		_, _ = fmt.Fprintf(&buf, "| %s | %s |\n", r.label, strings.Join(r.fields, ", "))
-	}
-	if len(notReturned) > 0 {
-		_, _ = buf.WriteString("\nThe following fields are not returned by these endpoints, whatever the value of `include_related`: ")
-		_, _ = buf.WriteString(strings.Join(notReturned, ", "))
-		_, _ = buf.WriteString(".\n")
+	for _, r := range rows {
+		_, _ = fmt.Fprintf(&buf, "| `%s` | %s |\n", r.path, r.label)
 	}
 	_, _ = buf.WriteString("\n")
 	return buf.Bytes(), nil
+}
+
+// splitJSONPath splits a dotted JSON path into the path of the object that
+// holds the field and the field's name.
+func splitJSONPath(path string) (parent, name string) {
+	i := strings.LastIndex(path, ".")
+	if i < 0 {
+		return "", path
+	}
+	return path[:i], path[i+1:]
 }
 
 // insertAfterHeading inserts content after the first line of section, its
