@@ -13,6 +13,7 @@ type SettingsNavItemProps = {
 	active: boolean;
 	adminOnly?: boolean;
 	ariaLabel?: string;
+	ariaKeyShortcuts?: string;
 	className?: string;
 	disabled?: boolean;
 	trailing?: React.ReactNode;
@@ -82,6 +83,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 	active,
 	adminOnly,
 	ariaLabel,
+	ariaKeyShortcuts,
 	className,
 	disabled,
 	trailing,
@@ -98,6 +100,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 				className={navItemClassName(active, disabled, className)}
 				aria-current={active ? "page" : undefined}
 				aria-label={ariaLabel}
+				aria-keyshortcuts={ariaKeyShortcuts}
 				tabIndex={disabled ? -1 : undefined}
 			>
 				<NavItemContent
@@ -119,6 +122,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 			className={navItemClassName(active, disabled, className)}
 			aria-current={active ? "page" : undefined}
 			aria-label={ariaLabel}
+			aria-keyshortcuts={ariaKeyShortcuts}
 		>
 			<NavItemContent
 				icon={icon}

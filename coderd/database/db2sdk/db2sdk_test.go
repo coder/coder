@@ -1268,3 +1268,19 @@ func TestConnectionLogType(t *testing.T) {
 		})
 	}
 }
+
+func TestAIBridgeInterceptionOrganizationSource(t *testing.T) {
+	t.Parallel()
+
+	known := []codersdk.AIBridgeInterceptionOrganizationSource{
+		codersdk.AIBridgeInterceptionOrganizationSourceWorkspace,
+		codersdk.AIBridgeInterceptionOrganizationSourceChatd,
+		codersdk.AIBridgeInterceptionOrganizationSourceEffectiveGroup,
+	}
+	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
+		t.Run(string(source), func(t *testing.T) {
+			t.Parallel()
+			require.Contains(t, known, db2sdk.AIBridgeInterceptionOrganizationSource(source))
+		})
+	}
+}

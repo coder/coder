@@ -26,6 +26,11 @@ export interface AIBridgeAgenticAction {
 	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
+	 * Organization is the organization of this interception. Nil when none
+	 * was stored.
+	 */
+	readonly organization?: AIBridgeInterceptionOrganization;
+	/**
 	 * PricedModel is the model and prices used for this interception. Nil
 	 * when it was not priced.
 	 */
@@ -95,6 +100,24 @@ export interface AIBridgeConfig {
 	 */
 	readonly disable_content_recording: boolean;
 }
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeInterceptionOrganization is the organization a single
+ * interception was attributed to and how it was chosen.
+ */
+export interface AIBridgeInterceptionOrganization extends MinimalOrganization {
+	readonly source: AIBridgeInterceptionOrganizationSource;
+}
+
+// From codersdk/aibridge.go
+export type AIBridgeInterceptionOrganizationSource =
+	| "chatd"
+	| "effective_group"
+	| "workspace";
+
+export const AIBridgeInterceptionOrganizationSources: AIBridgeInterceptionOrganizationSource[] =
+	["chatd", "effective_group", "workspace"];
 
 // From codersdk/aibridge.go
 export interface AIBridgeListSessionsResponse {
@@ -173,6 +196,11 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	/**
+	 * Organizations are the organizations this session's interceptions were
+	 * attributed to.
+	 */
+	readonly organizations: readonly AIBridgeSessionOrganization[];
+	/**
 	 * NetworkCalls summarizes the Agent Firewall network requests made during the
 	 * session. A nil value means the session did not pass through Agent
 	 * Firewall, so network call monitoring was not active, which the UI
@@ -206,6 +234,15 @@ export interface AIBridgeSessionNetworkDomain {
 
 // From codersdk/aibridge.go
 /**
+ * AIBridgeSessionOrganization is an organization a session's interceptions
+ * were attributed to, with every source used for it.
+ */
+export interface AIBridgeSessionOrganization extends MinimalOrganization {
+	readonly sources: readonly AIBridgeInterceptionOrganizationSource[];
+}
+
+// From codersdk/aibridge.go
+/**
  * AIBridgeSessionThreadsResponse is the response for GET
  * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
@@ -223,6 +260,11 @@ export interface AIBridgeSessionThreadsResponse {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Organizations are the organizations this session's interceptions were
+	 * attributed to.
+	 */
+	readonly organizations: readonly AIBridgeSessionOrganization[];
 	/**
 	 * NetworkCalls summarizes the Agent Firewall network calls made during the
 	 * session. A nil value means the session did not pass through Agent
@@ -295,6 +337,11 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Organization is the organization of the root interception. Nil when
+	 * none was stored.
+	 */
+	readonly organization?: AIBridgeInterceptionOrganization;
 	/**
 	 * PricedModel is the model and prices used for the root interception
 	 * (the prompt). Other requests in the thread may use different models
@@ -3591,6 +3638,27 @@ export interface ChatProject {
 	 * default folder glyph.
 	 */
 	readonly icon: string;
+	/**
+	 * LimitTemplates restricts the project's chats to its attached
+	 * templates, and to none when nothing is attached. When false, the chats
+	 * can use every template their owner can use.
+	 */
+	readonly limit_templates: boolean;
+	/**
+	 * Templates are the attached templates the caller can access. Deprecated
+	 * templates and templates that do not allow agents are left out.
+	 */
+	readonly templates: readonly ChatProjectTemplate[];
+	/**
+	 * HiddenTemplateCount is the number of attached templates the caller
+	 * cannot access. Nothing else about them is returned.
+	 */
+	readonly hidden_template_count: number;
+	/**
+	 * DefaultTemplate is omitted when the project has none or the caller
+	 * cannot access it.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly permissions: ChatProjectPermissions;
@@ -3608,6 +3676,28 @@ export interface ChatProjectACL {
 	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectDefaultTemplate is the attached template a project recommends
+ * to its chats, with the preset or parameter values to create workspaces
+ * from it.
+ */
+export interface ChatProjectDefaultTemplate {
+	readonly template_id: string;
+	/**
+	 * PresetID is a preset of the template's active version, applied when a
+	 * chat creates a workspace from the template without choosing a preset.
+	 * It is mutually exclusive with Parameters.
+	 */
+	readonly preset_id?: string;
+	/**
+	 * Parameters are parameter values, keyed by name, applied when a chat
+	 * creates a workspace from the template. Values the chat passes take
+	 * precedence.
+	 */
+	readonly parameters?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -3663,6 +3753,18 @@ export interface ChatProjectPermissions {
 export type ChatProjectRole = "admin" | "" | "use";
 
 export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTemplate is a workspace template attached to a chat project.
+ * Attaching a template does not grant access to it.
+ */
+export interface ChatProjectTemplate {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly icon: string;
+}
 
 // From codersdk/chats.go
 export interface ChatProjectUser extends MinimalUser {
@@ -4522,6 +4624,18 @@ export interface CreateChatProjectRequest {
 	readonly name: string;
 	readonly description: string;
 	readonly icon?: string;
+	/**
+	 * LimitTemplates restricts the project's chats to TemplateIDs.
+	 */
+	readonly limit_templates?: boolean;
+	/**
+	 * TemplateIDs are attached to the new project.
+	 */
+	readonly template_ids?: readonly string[];
+	/**
+	 * DefaultTemplate must name one of TemplateIDs.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 }
 
 // From codersdk/chats.go
@@ -4709,7 +4823,9 @@ export interface CreateSkillRequest {
 	/**
 	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * followed by a non-empty body. A `disable-model-invocation` key must
+	 * hold a value the server can replace with true or false, so a list is
+	 * rejected.
 	 */
 	readonly content: string;
 	/**
@@ -4861,6 +4977,13 @@ export interface CreateTemplateRequest {
 	 * references the workspace name, so this defaults to false.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. Defaults to false. Enabling it requires the browser-only
+	 * entitlement.
+	 */
+	readonly browser_only?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -10170,6 +10293,11 @@ export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
  * content.
  */
 export interface Skill extends SkillMetadata {
+	/**
+	 * Content is the SKILL.md file, with its `disable-model-invocation`
+	 * frontmatter key set to agree with `model_invocable`. A stored file whose
+	 * key the server cannot set, such as a list, is returned unchanged.
+	 */
 	readonly content: string;
 }
 
@@ -10543,6 +10671,13 @@ export interface Template {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. The deployment-wide browser-only setting applies on top of
+	 * this one.
+	 */
+	readonly browser_only: boolean;
 }
 
 // From codersdk/templates.go
@@ -11307,12 +11442,21 @@ export interface UpdateChatProjectInstructionsRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatProjectRequest updates a chat project.
+ * UpdateChatProjectRequest updates a chat project. Templates are attached
+ * and detached one at a time with AttachChatProjectTemplate and
+ * DetachChatProjectTemplate, so a caller never replaces attachments they
+ * cannot see.
  */
 export interface UpdateChatProjectRequest {
 	readonly name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	readonly limit_templates?: boolean;
+	/**
+	 * DefaultTemplate replaces the project's default template, preset, and
+	 * parameters as a whole when set. A zero TemplateID clears them.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 }
 
 // From codersdk/chats.go
@@ -11583,7 +11727,9 @@ export interface UpdateSkillRequest {
 	/**
 	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * followed by a non-empty body. A `disable-model-invocation` key must
+	 * hold a value the server can replace with true or false, so a list is
+	 * rejected.
 	 */
 	readonly content?: string;
 	readonly enabled?: boolean;
@@ -11591,6 +11737,11 @@ export interface UpdateSkillRequest {
 	 * Action is only accepted for project skills.
 	 */
 	readonly action?: boolean;
+	/**
+	 * ModelInvocable is left unchanged when unset, unless the new content
+	 * frontmatter sets `disable-model-invocation` to a boolean: true turns it
+	 * off and false turns it on.
+	 */
 	readonly model_invocable?: boolean;
 	/**
 	 * DisplayName is only accepted for project skills. An empty value
@@ -11714,6 +11865,13 @@ export interface UpdateTemplateMeta {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. Enabling it requires the browser-only entitlement; disabling it
+	 * does not.
+	 */
+	readonly browser_only?: boolean;
 }
 
 // From codersdk/users.go

@@ -799,7 +799,7 @@ const WorkspaceApps: React.FC<WorkspaceAppsProps> = ({ workspace }) => {
 					e.preventDefault();
 					openAppInNewWindow(href);
 				}}
-				label="Open Terminal"
+				label="Open terminal"
 			>
 				<SquareTerminalIcon className="size-7!" />
 			</BaseIconLink>,
@@ -877,7 +877,7 @@ const IconAppLink: React.FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 				) : (
 					<CircleAlertIcon
 						aria-hidden="true"
-						className="size-icon-sm text-content-warning"
+						className="size-icon-sm text-border-warning"
 					/>
 				)}
 			</BaseIconLink>

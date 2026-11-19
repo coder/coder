@@ -39,7 +39,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDashboardHomePath } from "#/modules/dashboard/useDashboardHomePath";
-import { getOSKey } from "#/utils/platform";
+import { getOSKey, isMac } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -560,6 +560,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						label="Search"
 						active={false}
 						ariaLabel="Search chats"
+						ariaKeyShortcuts={isMac() ? "Meta+K" : "Control+K"}
 						onClick={onOpenSearchDialog}
 						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
 						trailing={
