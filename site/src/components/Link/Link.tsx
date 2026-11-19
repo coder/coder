@@ -53,8 +53,8 @@ export const Link: React.FC<LinkProps> = ({
 	...props
 }) => {
 	const Comp = asChild ? Slot.Root : "a";
-	// Slot merges Link's props into the child, and the child's win. A child
-	// without href, such as a router link using `to`, counts as internal.
+	// Slot merges Link's props into the child, and the child's props win. A
+	// child without href, such as a router link using `to`, counts as internal.
 	const childTarget = asChild ? getChildLinkTarget(children) : {};
 	const href = childTarget.href ?? props.href;
 	const target = childTarget.target ?? props.target;
