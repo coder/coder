@@ -33,8 +33,9 @@ export const AddWorkspaceUserOrGroup: React.FC<
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 	const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("use");
-	const userOrGroupId = useId();
+	const autocompleteId = useId();
 	const roleId = useId();
+	const autocompleteLabelId = `${autocompleteId}-label`;
 	const excludeFromAutocomplete = workspaceACL
 		? [...workspaceACL.group, ...workspaceACL.users]
 		: [];
@@ -62,11 +63,10 @@ export const AddWorkspaceUserOrGroup: React.FC<
 			}}
 		>
 			<div className="flex flex-col gap-2">
-				<Label id={`${userOrGroupId}-label`}>User or group</Label>
+				<Label id={autocompleteLabelId}>User or group</Label>
 				<UserOrGroupAutocomplete
-					id={userOrGroupId}
-					// The name is the label, then the selection the trigger shows.
-					triggerAriaLabelledBy={`${userOrGroupId}-label ${userOrGroupId}`}
+					id={autocompleteId}
+					triggerAriaLabelledBy={`${autocompleteLabelId} ${autocompleteId}`}
 					organizationId={organizationID}
 					value={selectedOption}
 					exclude={excludeFromAutocomplete}
