@@ -2008,7 +2008,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spen
 
 `GET /api/v2/organizations/{organization}/ai/spend/export`
 
-Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+Returns per-user, per-group, per-model, per-provider, per-client aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage. Usage without a recorded client is reported as Unknown. New columns are only added at the end.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
 Unknown query parameters are rejected.
@@ -2016,15 +2016,16 @@ Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name            | In    | Type              | Required | Description                     |
-|-----------------|-------|-------------------|----------|---------------------------------|
-| `organization`  | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
-| `user_id`       | query | string(uuid)      | false    | User ID                         |
-| `group_id`      | query | string(uuid)      | false    | Effective group ID              |
-| `provider_name` | query | string            | false    | Configured provider name        |
-| `model`         | query | string            | false    | Model name                      |
+| Name            | In    | Type              | Required | Description                                                 |
+|-----------------|-------|-------------------|----------|-------------------------------------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                                             |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                             |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                             |
+| `user_id`       | query | string(uuid)      | false    | User ID                                                     |
+| `group_id`      | query | string(uuid)      | false    | Effective group ID                                          |
+| `provider_name` | query | string            | false    | Configured provider name                                    |
+| `model`         | query | string            | false    | Model name                                                  |
+| `client`        | query | string            | false    | Client name, or Unknown for usage without a recorded client |
 
 ### Responses
 

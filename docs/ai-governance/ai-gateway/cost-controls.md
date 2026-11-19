@@ -331,7 +331,11 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - To select a range, pass `period_start` and `period_end` together as Request for Comments (RFC) 3339 timestamps.
   A range can span at most 31&nbsp;days.
 - Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
-- Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
+- Each CSV row breaks spend down by user, group, model, provider, and client, with the underlying token counts.
+  Usage without a recorded client is reported as `Unknown`.
+- To narrow the export, pass `user_id`, `group_id`, `provider_name`, `model`, or `client`.
+  Use `client=Unknown` for usage without a recorded client.
+- New columns are only added at the end, so existing columns keep their position.
 
 <!-- TODO(AIGOV-685): Restore once the per-user spend endpoint moves out of /api/experimental.
 For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).
