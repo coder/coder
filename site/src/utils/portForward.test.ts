@@ -89,6 +89,22 @@ describe("port forward URL", () => {
 			"http://8080s--0oq73xnihgtc6v280bd0muhq4--1t30hzc.proxy-host.tld/",
 		);
 	});
+	it("adds the agent hash to ports below 1000 in the short form", () => {
+		const longName = "abcdefghijklmnopqrstuvwxyzabcdef";
+		const forwarded = portForwardURL(
+			proxyHostWildcard,
+			80,
+			"main",
+			`${longName}-${longName}`,
+			sampleUsername,
+			sampleWorkspaceId,
+			"http",
+		);
+		// Same value as the Go test in coderd/workspaceapps/appurl.
+		expect(forwarded).toEqual(
+			"http://80--0oq73xnihgtc6v280bd0muhq4--1t30hzc.proxy-host.tld/",
+		);
+	});
 	it("counts the fixed part of the wildcard label", () => {
 		const forwarded = portForwardURL(
 			"*--a-very-long-fixed-suffix.proxy-host.tld",

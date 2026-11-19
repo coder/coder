@@ -122,12 +122,13 @@ func WorkspaceAppCors(regex *regexp.Regexp, app appurl.ApplicationURL) func(next
 			if err != nil {
 				return false
 			}
-			// Short form URLs have no username, so they only allow origins
-			// in the same workspace.
-			if originApp.WorkspaceID != uuid.Nil || app.WorkspaceID != uuid.Nil {
+			// A short form origin has no username, so it is only allowed
+			// in the same workspace. The caller sets both the username and
+			// the workspace ID of app when it knows them.
+			if originApp.WorkspaceID != uuid.Nil {
 				return originApp.WorkspaceID == app.WorkspaceID
 			}
-			return originApp.Username == app.Username
+			return app.Username != "" && strings.EqualFold(originApp.Username, app.Username)
 		},
 		AllowedMethods: []string{
 			http.MethodHead,

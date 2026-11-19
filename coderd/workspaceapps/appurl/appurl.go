@@ -42,6 +42,11 @@ var (
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
+	// anyPortRegex matches every port, also ports below 1000. The short form
+	// and New use it, so they agree with the frontend. PortRegex keeps the
+	// long form parser behavior.
+	anyPortRegex = regexp.MustCompile(`^\d{1,5}s?$`)
+
 	// shortAppURL matches the short form, which identifies the workspace by
 	// ID instead of by owner and name. It never matches a long form URL: a
 	// long app URL has at least three segments, and a long port URL has four.
@@ -100,7 +105,7 @@ type ApplicationURL struct {
 // possible port, so all ports of an agent get the same form. appHost is the
 // wildcard app hostname, for example "*.apps.coder.com".
 func New(appSlugOrPort, agentName, workspaceName, username string, workspaceID uuid.UUID, appHost string) ApplicationURL {
-	isPort := appSlugOrPort == portPlaceholder || PortRegex.MatchString(appSlugOrPort)
+	isPort := appSlugOrPort == portPlaceholder || anyPortRegex.MatchString(appSlugOrPort)
 	if !isPort {
 		// App slugs are unique in a workspace, so the agent is not needed.
 		agentName = ""
@@ -335,7 +340,7 @@ func parseShortSubdomain(subdomain string) (ApplicationURL, bool, error) {
 	agentNameHash := strings.ToLower(matches[shortAppURL.SubexpIndex("AgentNameHash")])
 	// Only port URLs have an agent hash in the short form. An app slug with
 	// three segments is a long form URL.
-	if PortRegex.MatchString(appSlugOrPort) != (agentNameHash != "") {
+	if anyPortRegex.MatchString(appSlugOrPort) != (agentNameHash != "") {
 		return ApplicationURL{}, false, nil
 	}
 	workspaceID, err := decodeWorkspaceID(matches[shortAppURL.SubexpIndex("WorkspaceID")])

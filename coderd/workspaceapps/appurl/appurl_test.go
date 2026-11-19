@@ -296,6 +296,15 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			},
 		},
 		{
+			Name:      "Short_LowPort",
+			Subdomain: "80--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "80",
+				WorkspaceID:   uuid.MustParse("0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c"),
+				AgentNameHash: "1t30hzc",
+			},
+		},
+		{
 			Name:          "Invalid_Short_PortWithoutAgentHash",
 			Subdomain:     "8080--0oq73xnihgtc6v280bd0muhq4",
 			ExpectedError: "invalid application url format",
@@ -736,6 +745,16 @@ func TestNewApplicationURL(t *testing.T) {
 			WorkspaceName: long32 + "abcdefghijklm",
 			AppHost:       "*.apps.coder.com",
 			Expected:      "8080--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+		},
+		{
+			// Ports below 1000 get the agent hash too. The frontend makes
+			// the same URL.
+			Name:          "LowPort_ShortForm",
+			AppSlugOrPort: "80",
+			AgentName:     "main",
+			WorkspaceName: long32 + "-" + long32,
+			AppHost:       "*.apps.coder.com",
+			Expected:      "80--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
 		},
 		{
 			Name:          "App_WildcardSuffixCounts",

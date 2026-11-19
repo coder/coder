@@ -213,6 +213,8 @@ type databaseRequest struct {
 	Request
 	// UserID is the ID of the user that owns the app.
 	UserID uuid.UUID
+	// OwnerUsername is the username of the user that owns the app.
+	OwnerUsername string
 	// Workspace is the workspace that the app is in.
 	Workspace database.WorkspaceTable
 	// Agent is the agent that the app is running on.
@@ -250,19 +252,19 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 
 	// Get user.
 	var (
-		user    database.User
-		userErr error
+		user      database.User
+		userErr   error
+		workspace database.Workspace
 	)
 	if r.UsernameOrID == "" {
 		// Short form: the workspace ID decides the owner.
 		var workspaceID uuid.UUID
 		workspaceID, userErr = uuid.Parse(r.WorkspaceNameOrID)
 		if userErr == nil {
-			var ws database.Workspace
-			ws, userErr = db.GetWorkspaceByID(ctx, workspaceID)
-			if userErr == nil {
-				user, userErr = db.GetUserByID(ctx, ws.OwnerID)
-			}
+			workspace, userErr = db.GetWorkspaceByID(ctx, workspaceID)
+		}
+		if userErr == nil {
+			user, userErr = db.GetUserByID(ctx, workspace.OwnerID)
 		}
 	} else if userID, uuidErr := uuid.Parse(r.UsernameOrID); uuidErr == nil {
 		user, userErr = db.GetUserByID(ctx, userID)
@@ -276,16 +278,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	}
 
 	// Get workspace.
-	var (
-		workspace    database.Workspace
-		workspaceErr error
-	)
-	if workspaceID, uuidErr := uuid.Parse(r.WorkspaceNameOrID); uuidErr == nil {
+	var workspaceErr error
+	workspaceID, uuidErr := uuid.Parse(r.WorkspaceNameOrID)
+	switch {
+	case r.UsernameOrID == "":
+		// The short form got the workspace before the owner.
+	case uuidErr == nil:
 		workspace, workspaceErr = db.GetWorkspaceByID(ctx, workspaceID)
 		if workspaceErr == nil && workspace.OwnerID != user.ID {
 			workspaceErr = sql.ErrNoRows
 		}
-	} else {
+	default:
 		workspace, workspaceErr = db.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 			OwnerID: user.ID,
 			Name:    r.WorkspaceNameOrID,
@@ -471,6 +474,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	return &databaseRequest{
 		Request:         r,
 		UserID:          user.ID,
+		OwnerUsername:   user.Username,
 		Workspace:       workspace.WorkspaceTable(),
 		Agent:           agent,
 		App:             app,
@@ -501,6 +505,7 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 	return &databaseRequest{
 		Request:         r,
 		UserID:          aw.WorkspaceTable.OwnerID,
+		OwnerUsername:   aw.OwnerUsername,
 		Workspace:       aw.WorkspaceTable,
 		Agent:           aw.WorkspaceAgent,
 		AppURL:          nil,

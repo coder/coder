@@ -61,9 +61,13 @@ A DNS label has a limit of 63 characters.
 When the parts of an application hostname do not fit in one label, Coder identifies the workspace by its ID instead, for example `8080--0oq73xnihgtc6v280bd0muhq4--1t30hzc.apps.example.com`.
 For ports, Coder makes this decision for the longest possible port (`65535s`), so all ports of an agent use the same form.
 
-The short form takes up to 42 characters.
+The short form of a port hostname takes up to 42 characters.
 Keep the fixed part of the first wildcard label, such as `-apps` in `*-apps.example.com`, to 21 characters or fewer.
 Coder logs a warning at startup when the fixed part is longer.
+The short form of an application hostname takes the length of the application slug plus 27 characters, so a long slug can still pass the limit.
+
+A short form hostname does not contain the username of the workspace owner.
+Thus, the default CORS behavior allows requests from a short form origin only to applications and ports in the same workspace.
 
 Coder selects the form with the wildcard access URL of the control plane.
 If a workspace proxy uses a longer fixed part, a hostname that fits on the control plane can be too long on that proxy.

@@ -410,6 +410,15 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 // determineCORSBehavior examines the given token and conditionally applies
 // CORS middleware if the token specifies that behavior.
 func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
+	if token != nil {
+		// The URL has the owner username or the workspace ID, but not both.
+		// The token has both, so CORS can compare origins of either form.
+		// Tokens from earlier versions have no owner username.
+		if token.OwnerUsername != "" {
+			app.Username = token.OwnerUsername
+		}
+		app.WorkspaceID = token.WorkspaceID
+	}
 	return func(next http.Handler) http.Handler {
 		// Create the CORS middleware handler upfront.
 		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
