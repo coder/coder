@@ -7,7 +7,7 @@ import {
 	getRoleFilterOptions,
 	getStatusFilterOptions,
 	getUserTypeFilterOptions,
-} from "./categoryOptions";
+} from "./userFilterOptions";
 
 const labelsAndValues = (options: readonly FilterOption[]) =>
 	options.map(({ label, value }) => ({ label, value }));

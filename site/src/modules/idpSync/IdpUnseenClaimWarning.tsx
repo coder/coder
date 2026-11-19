@@ -21,7 +21,7 @@ export const IdpUnseenClaimWarning: React.FC = () => {
 				align="start"
 				alignOffset={-8}
 				sideOffset={8}
-				className="p-2 text-xs text-content-secondary max-w-sm"
+				className="p-2 text-xs text-content-secondary max-w-[min(24rem,var(--radix-popper-available-width))]"
 			>
 				This value has not be seen in the specified claim field before. You
 				might want to check your IdP configuration and ensure that this value is

@@ -4930,6 +4930,13 @@ export interface CreateTemplateRequest {
 	 * references the workspace name, so this defaults to false.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. Defaults to false. Enabling it requires the browser-only
+	 * entitlement.
+	 */
+	readonly browser_only?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -10609,6 +10616,13 @@ export interface Template {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. The deployment-wide browser-only setting applies on top of
+	 * this one.
+	 */
+	readonly browser_only: boolean;
 }
 
 // From codersdk/templates.go
@@ -11796,6 +11810,13 @@ export interface UpdateTemplateMeta {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. Enabling it requires the browser-only entitlement; disabling it
+	 * does not.
+	 */
+	readonly browser_only?: boolean;
 }
 
 // From codersdk/users.go

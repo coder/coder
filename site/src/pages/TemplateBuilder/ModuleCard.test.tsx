@@ -25,6 +25,24 @@ describe(ModuleCard.name, () => {
 		expect(onSelect).toHaveBeenCalledTimes(1);
 	});
 
+	it("toggles once when the card name is clicked", async () => {
+		const onSelect = renderCard();
+		await userEvent.click(screen.getByText("Docker Containers"));
+		expect(onSelect).toHaveBeenCalledTimes(1);
+	});
+
+	it("describes the checkbox with the card description", () => {
+		renderCard();
+		expect(
+			screen.getByRole("checkbox", {
+				// jsdom drops the leading space of the sr-only text.
+				name: /^Docker Containers\s*\(official\)$/,
+			}),
+		).toHaveAccessibleDescription(
+			"Provision Docker containers as Coder workspaces.",
+		);
+	});
+
 	it("includes the module name in the details link name", () => {
 		renderCard();
 		expect(screen.getByRole("link")).toHaveAccessibleName(

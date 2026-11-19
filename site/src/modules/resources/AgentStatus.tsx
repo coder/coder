@@ -62,7 +62,7 @@ const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 					)}
 				/>
 			</TooltipTrigger>
-			<TooltipContent className="max-w-xs">
+			<TooltipContent className="max-w-[min(20rem,var(--radix-popper-available-width))]">
 				<TooltipTitle>{title}</TooltipTitle>
 				<TooltipMessage>
 					{detail}
