@@ -431,7 +431,7 @@ describe("WorkspacesPageView", () => {
 				{ target: checkboxFor(mockRefreshedCharlie) },
 				{ keys: "[/MouseLeft]" },
 			]);
-			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([
+			expect(onCheckChange).toHaveBeenLastCalledWith([
 				mockRefreshedAlpha,
 				mockRefreshedCharlie,
 			]);

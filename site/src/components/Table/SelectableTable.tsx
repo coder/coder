@@ -45,7 +45,7 @@ type DragState = {
 type SelectionContextValue = {
 	rows: ReadonlyMap<string, SelectableRow>;
 	selectedIds: ReadonlySet<string>;
-	onSelectionChange: (selectedIds: Set<string>) => void;
+	replaceSelection: (selectedIds: Set<string>) => void;
 	setRowChecked: (id: string, checked: boolean) => void;
 	extendSelection: (id: string) => boolean;
 	startDrag: (id: string, event: React.PointerEvent<HTMLButtonElement>) => void;
@@ -103,6 +103,7 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 	const suppressClickRef = useRef(false);
 	const clickTimeoutRef = useRef<number | undefined>(undefined);
 
+	// Keep window listeners mounted so selection renders do not cancel an active drag.
 	const cancelDrag = useCallback(() => {
 		dragRef.current = null;
 		suppressClickRef.current = false;
@@ -234,7 +235,12 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 
 	const extendDrag: SelectionContextValue["extendDrag"] = (id, event) => {
 		const drag = dragRef.current;
-		if (!drag || event.pointerId !== drag.pointerId || drag.canceled) {
+		if (
+			!drag ||
+			event.pointerId !== drag.pointerId ||
+			drag.canceled ||
+			!rowsById.has(id)
+		) {
 			return;
 		}
 		if ((event.buttons & 1) === 0) {
@@ -280,7 +286,7 @@ export const SelectableTable: React.FC<SelectableTableProps> = ({
 			value={{
 				rows: rowsById,
 				selectedIds,
-				onSelectionChange: (ids) => {
+				replaceSelection: (ids) => {
 					anchorRef.current = null;
 					cancelDrag();
 					onSelectionChange(ids);
@@ -315,26 +321,21 @@ type SelectableTableRowProps = React.ComponentProps<typeof TableRow> & {
 	rowId: string;
 };
 
-/** A row whose selection and drag behavior are owned by its SelectableTable. */
+/**
+ * Rows missing from the table's data have disabled checkboxes and cannot extend a drag.
+ */
 export const SelectableTableRow: React.FC<SelectableTableRowProps> = ({
 	rowId,
 	onPointerEnter,
 	...props
 }) => {
 	const selection = useTableSelection();
-	if (!selection.rows.has(rowId)) {
-		throw new Error(
-			"SelectableTableRow must reference a row in SelectableTable",
-		);
-	}
-	const selected = selection.selectedIds.has(rowId);
 
 	return (
 		<SelectionRowContext.Provider value={rowId}>
 			<TableRow
 				{...props}
-				aria-selected={selected}
-				data-state={selected ? "selected" : undefined}
+				data-state={selection.selectedIds.has(rowId) ? "selected" : undefined}
 				onPointerEnter={(event) => {
 					onPointerEnter?.(event);
 					if (!event.defaultPrevented) {
@@ -351,7 +352,10 @@ type SelectionCheckboxProps = Omit<
 	"checked" | "defaultChecked" | "onCheckedChange" | "disabled"
 >;
 
-/** A row checkbox that inherits identity and eligibility from its table. */
+/**
+ * A row checkbox that inherits identity and eligibility from its table.
+ * Clicks do not bubble to ancestor handlers, so selection does not activate rows.
+ */
 export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 	onClick,
 	onKeyDown,
@@ -360,12 +364,13 @@ export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 }) => {
 	const selection = useTableSelection();
 	const rowId = useTableRowId();
+	const row = selection.rows.get(rowId);
 
 	return (
 		<Checkbox
 			{...props}
 			checked={selection.selectedIds.has(rowId)}
-			disabled={selection.rows.get(rowId)?.disabled}
+			disabled={!row || row.disabled}
 			onClick={(event) => {
 				event.stopPropagation();
 				onClick?.(event);
@@ -405,6 +410,7 @@ export const SelectableTableCheckbox: React.FC<SelectionCheckboxProps> = ({
 /**
  * Selects eligible rows, or clears all selection, including disabled or absent IDs.
  * An empty eligible set still permits clearing an existing selection.
+ * Clicks do not bubble to ancestor handlers.
  */
 export const SelectableTableSelectAll: React.FC<SelectionCheckboxProps> = ({
 	onClick,
@@ -428,7 +434,7 @@ export const SelectableTableSelectAll: React.FC<SelectionCheckboxProps> = ({
 				onClick?.(event);
 			}}
 			onCheckedChange={(checked) => {
-				selection.onSelectionChange(
+				selection.replaceSelection(
 					new Set(checked ? eligibleRows.map((row) => row.id) : []),
 				);
 			}}
