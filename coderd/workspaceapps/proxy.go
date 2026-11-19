@@ -663,9 +663,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 
 	if isFilePreview {
-		r.Header.Del(workspacesdk.CoderChatIDHeader)
-		r.Header.Del(workspacesdk.CoderToolCallIDHeader)
-		r.Header.Del(workspacesdk.CoderAncestorChatIDsHeader)
+		removeCoderdAgentHeaders(r.Header)
 	}
 
 	// Ensure path and query parameter correctness.
@@ -767,6 +765,12 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}()
 
 	proxy.ServeHTTP(rw, r)
+}
+
+func removeCoderdAgentHeaders(h http.Header) {
+	h.Del(workspacesdk.CoderChatIDHeader)
+	h.Del(workspacesdk.CoderToolCallIDHeader)
+	h.Del(workspacesdk.CoderAncestorChatIDsHeader)
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
