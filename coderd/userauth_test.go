@@ -2249,8 +2249,8 @@ func TestUserOIDC(t *testing.T) {
 
 		// The user's status must remain suspended; nothing in the OAuth
 		// transaction should have been committed.
-		//nolint:gocritic // System read for verification.
 		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // System read for verification.
 		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.UserStatusSuspended, dbUser.Status)

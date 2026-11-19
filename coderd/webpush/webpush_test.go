@@ -651,7 +651,8 @@ func assertWebpushPayload(t testing.TB, r *http.Request) {
 
 // setupPushTest creates a common test setup for webpush notification tests.
 // The test HTTP client bypasses SSRF protection so that httptest.Server
-// (bound to 127.0.0.1) can be reached.
+// (bound to 127.0.0.1) can be reached. It returns the context so that the
+// deadline starts after the database exists.
 func setupPushTest(t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (context.Context, webpush.Dispatcher, database.Store, string) {
 	t.Helper()
 	db, _ := dbtestutil.NewDB(t)

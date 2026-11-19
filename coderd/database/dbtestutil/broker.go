@@ -20,11 +20,6 @@ import (
 
 const CoderTestingDBName = "coder_testing"
 
-// slowCreateThreshold is how long creating a test database can take before
-// it is logged. The time counts against any deadline the test started
-// before asking for a database, and nothing else in the test output shows it.
-const slowCreateThreshold = 2 * time.Second
-
 //go:embed coder_testing.sql
 var coderTestingSQLInit string
 
@@ -76,12 +71,8 @@ func (b *Broker) Create(t TBSubset, opts ...OpenOption) (ConnectionParams, error
 	if openOptions.DBFrom != nil {
 		templateDBName = *openOptions.DBFrom
 	}
-	createStart := time.Now()
 	if err = createDatabaseFromTemplate(t, defaultConnectionParams, b.coderTestingDB, dbName, templateDBName); err != nil {
 		return ConnectionParams{}, xerrors.Errorf("create database: %w", err)
-	}
-	if elapsed := time.Since(createStart); elapsed > slowCreateThreshold {
-		t.Logf("%s creating test database %q took %s", time.Now().Format(time.StampMilli), dbName, elapsed.Round(time.Millisecond))
 	}
 
 	testDBParams := ConnectionParams{

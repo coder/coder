@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCopyStrategyForVersion(t *testing.T) {
+func TestCopyStrategyClauseForVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -22,7 +22,7 @@ func TestCopyStrategyForVersion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, copyStrategyForVersion(tc.versionNum))
+			require.Equal(t, tc.want, copyStrategyClauseForVersion(tc.versionNum))
 		})
 	}
 }

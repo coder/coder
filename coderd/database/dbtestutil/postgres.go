@@ -184,8 +184,7 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	if emptyTemplateDBName {
 		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
 	}
-	createFromTemplate := "CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName + templateCopyStrategy(db)
-	_, err := db.Exec(createFromTemplate)
+	err := copyDatabaseFromTemplate(t, db, newDBName, templateDBName)
 	if err == nil {
 		// Template database already exists and we successfully created the new database.
 		return nil
@@ -213,37 +212,73 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	}
 
 	// Try to create the database again now that a template exists.
-	if _, err = db.Exec(createFromTemplate); err != nil {
+	if err = copyDatabaseFromTemplate(t, db, newDBName, templateDBName); err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
 	}
 	return nil
 }
 
-var (
-	templateCopyStrategyOnce   sync.Once
-	templateCopyStrategyClause string
-)
+// slowCopyThreshold is how long copying the template into a test database
+// can take before it is logged. The time counts against any deadline the test
+// started before asking for a database, and nothing else in the test output
+// shows it.
+const slowCopyThreshold = 2 * time.Second
 
-// templateCopyStrategy returns the STRATEGY clause to append to CREATE
-// DATABASE ... WITH TEMPLATE for the server db is connected to.
-func templateCopyStrategy(db *sql.DB) string {
-	templateCopyStrategyOnce.Do(func() {
-		var versionNum int
-		if err := db.QueryRow("SELECT current_setting('server_version_num')::int").Scan(&versionNum); err != nil {
-			return
+// copyDatabaseFromTemplate creates newDBName as a copy of templateDBName. It
+// times only the copy, so that building a missing template is not reported as
+// a slow copy.
+func copyDatabaseFromTemplate(t TBSubset, db *sql.DB, newDBName string, templateDBName string) error {
+	t.Helper()
+
+	clause := copyStrategyClause(t, db)
+	start := time.Now()
+	if _, err := db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName + clause); err != nil {
+		return err
+	}
+	if elapsed := time.Since(start); elapsed > slowCopyThreshold {
+		strategy := "server default"
+		if clause != "" {
+			strategy = strings.TrimSpace(clause)
 		}
-		templateCopyStrategyClause = copyStrategyForVersion(versionNum)
-	})
-	return templateCopyStrategyClause
+		t.Logf("%s copying template into test database %q took %s (%s)",
+			time.Now().Format(time.StampMilli), newDBName, elapsed.Round(time.Millisecond), strategy)
+	}
+	return nil
 }
 
-// copyStrategyForVersion returns the STRATEGY clause for a server_version_num,
-// or an empty string if that version has no STRATEGY option.
-func copyStrategyForVersion(versionNum int) string {
+var (
+	copyStrategyClauseOnce  sync.Once
+	copyStrategyClauseValue string
+)
+
+// copyStrategyClause returns the STRATEGY clause to append to CREATE
+// DATABASE ... WITH TEMPLATE. The server version is read through db on the
+// first call and the result is kept for the rest of the process. If that
+// read fails, the clause stays empty and the server default strategy is used.
+func copyStrategyClause(t TBSubset, db *sql.DB) string {
+	t.Helper()
+
+	copyStrategyClauseOnce.Do(func() {
+		var versionNum int
+		if err := db.QueryRow("SELECT current_setting('server_version_num')::int").Scan(&versionNum); err != nil {
+			t.Logf("%s failed to read the server version, test databases will use the server default copy strategy: %s",
+				time.Now().Format(time.StampMilli), err.Error())
+			return
+		}
+		copyStrategyClauseValue = copyStrategyClauseForVersion(versionNum)
+	})
+	return copyStrategyClauseValue
+}
+
+// copyStrategyClauseForVersion returns the STRATEGY clause for a
+// server_version_num, or an empty string if that version has no STRATEGY
+// option.
+func copyStrategyClauseForVersion(versionNum int) string {
 	// PostgreSQL 15 added the STRATEGY option and made WAL_LOG the default.
 	// WAL_LOG writes the whole template to the write-ahead log, so many tests
 	// creating databases at once wait on each other. FILE_COPY is what older
-	// versions always did.
+	// versions always did. It forces a checkpoint before and after each copy,
+	// which is the cost to weigh if this is revisited.
 	if versionNum >= 150000 {
 		return " STRATEGY FILE_COPY"
 	}
