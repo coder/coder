@@ -797,7 +797,6 @@ describe("AgentChatPage", () => {
 							createMockWebSocket(url, protocol)[0],
 					}),
 			);
-			// The built-in terminal would start a PTY session.
 			savePersistedDefaultTerminalHidden(mockPreviewChat.id, true);
 			renderChatPage(mockPreviewChat);
 
@@ -996,7 +995,6 @@ describe("AgentChatPage", () => {
 					}),
 				);
 
-				// The row renders after the page has handled the result.
 				await screen.findByText("Admin site");
 				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([]);
 			},

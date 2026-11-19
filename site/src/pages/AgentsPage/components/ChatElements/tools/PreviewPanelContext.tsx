@@ -18,19 +18,16 @@ import type {
 } from "../../ChatConversation/chatStore";
 import { asRecord } from "./utils";
 
-/** What an `open_preview` result shows: exactly one of its target fields. */
 type OpenPreviewTarget =
 	| { kind: "port"; port: number }
 	| { kind: "file"; previewId: string }
 	| { kind: "app"; slug: string };
 
-/** An `open_preview` tool result that `parseOpenPreviewResult` validated. */
 type OpenPreviewResult = {
 	title: string;
 	workspaceId: string;
 	agentName: string;
 	target: OpenPreviewTarget;
-	/** Path and query to open at. Undefined opens the root. */
 	urlPath?: string;
 };
 
@@ -85,7 +82,6 @@ export const parseOpenPreviewResult = (
 		workspaceId: rec.workspace_id,
 		agentName: rec.agent_name,
 		target,
-		// "/" opens the root, so it shares the tab of a result without a path.
 		urlPath:
 			rec.url_path === undefined || rec.url_path === "/"
 				? undefined
@@ -94,11 +90,6 @@ export const parseOpenPreviewResult = (
 };
 
 type PreviewPanelContextValue = {
-	/**
-	 * Returns an action that opens the preview's right panel tab, or
-	 * undefined when the chat cannot show it, such as outside a chat or
-	 * without the open-preview experiment.
-	 */
 	getOpenAction: (preview: OpenPreviewResult) => (() => void) | undefined;
 };
 
@@ -162,7 +153,6 @@ export const useChatPreviewPanel = ({
 	const getOpenWithoutFocus = (
 		preview: OpenPreviewResult,
 	): (() => void) | undefined => {
-		// Agent IDs change when the workspace rebuilds; the name does not.
 		if (
 			!workspace ||
 			!workspaceAgent ||
@@ -188,19 +178,13 @@ export const useChatPreviewPanel = ({
 			: undefined;
 	};
 
-	// Every preview needs the wildcard host, which is empty until the proxies
-	// load. A result that arrives before then opens once it can.
 	const canAutoOpen =
 		enabled &&
 		workspace !== undefined &&
 		workspaceAgent !== undefined &&
 		wildcardHostname.trim() !== "";
-	// Results in the store at mount never open on their own. The store's own
-	// IDs leave out pending sends, whose IDs sort above every message ID.
 	const seenIDRef = useRef(store.getSnapshot().orderedMessageIDs.at(-1) ?? -1);
 	const autoOpen = useEffectEvent((preview: OpenPreviewResult) => {
-		// Below lg the panel would replace the chat, so the user opens the
-		// preview from its row instead.
 		if (!window.matchMedia(belowLgViewportMediaQuery).matches) {
 			getOpenWithoutFocus(preview)?.();
 		}
@@ -239,8 +223,6 @@ export const useChatPreviewPanel = ({
 	return {
 		getOpenAction: (preview) => {
 			const open = getOpenWithoutFocus(preview);
-			// Below lg the panel hides the chat and the row's button with it,
-			// so the panel takes focus.
 			return (
 				open &&
 				(() => {
@@ -258,7 +240,6 @@ const getFrameTab = (
 ): NewFrameTab | undefined => {
 	switch (target.kind) {
 		case "port":
-			// The tool only accepts plain HTTP servers.
 			return {
 				kind: "port",
 				label: title,
@@ -277,9 +258,6 @@ const getFrameTab = (
 			};
 		case "app": {
 			const app = agent.apps.find((app) => app.slug === target.slug);
-			// A path-based app shares the dashboard's origin, so the tool only
-			// opens subdomain apps. The app can change after the tool ran, such
-			// as on a rebuild.
 			return app?.subdomain
 				? {
 						kind: "workspace_app",

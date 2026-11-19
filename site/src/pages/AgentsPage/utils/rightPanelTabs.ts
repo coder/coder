@@ -57,7 +57,6 @@ export type UserRightPanelTab =
 			label: string;
 			appId: string;
 			agentId: string;
-			/** Path and query the app opens at, such as "/?folder=/home". */
 			urlPath?: string;
 	  }
 	| {
@@ -216,8 +215,7 @@ export function isUserRightPanelTabAvailable(
 
 /**
  * Reports whether tab shows the same frame as target, so opening target
- * focuses tab instead of adding another. A different URL path is another
- * frame.
+ * focuses tab instead of adding another.
  */
 export function showsSameFrame(
 	tab: UserRightPanelTab,

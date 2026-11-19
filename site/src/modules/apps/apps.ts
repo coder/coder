@@ -127,7 +127,6 @@ type GetAppHrefParams = {
 	agent: WorkspaceAgent;
 	token?: string;
 	accessUrl?: string;
-	/** Path and query a subdomain app opens at, such as "/?folder=/home". */
 	urlPath?: string;
 };
 
