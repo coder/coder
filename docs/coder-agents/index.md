@@ -342,10 +342,13 @@ The agent can also pass `url_path`, a path and query to open instead of `/`, suc
 
 A file preview reads the files on each request, so it shows their current contents, even after a build deletes and recreates the directory.
 File previews last until the workspace agent restarts.
-After a restart, ask the agent to call `open_preview` again.
+After a restart, ask the agent to call `open_preview` again for the same path.
+The preview keeps its hostname, so its tab and the button on the earlier tool result open it again.
 
 `open_preview` returns an error when the first label of the preview's hostname would be longer than 63 characters, the DNS limit.
 The label contains the workspace agent, workspace, and owner names, so a shorter workspace name fixes the error.
+Coder checks the label only against the wildcard access URL of the control plane.
+A [workspace proxy](../admin/networking/workspace-proxies.md) with a longer wildcard hostname can still produce a label that is too long.
 
 ### Preview security
 
