@@ -2,8 +2,8 @@ package chattool
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -24,22 +23,30 @@ import (
 const (
 	maxPreviewTitleLength   = 80
 	maxPreviewURLPathLength = 2048
-	// maxHostnameLabelLength is the DNS limit on one hostname label.
-	maxHostnameLabelLength = 63
+)
+
+// OpenPreviewKind names the kind of target an open_preview result opens.
+type OpenPreviewKind string
+
+const (
+	OpenPreviewKindPort OpenPreviewKind = "port"
+	OpenPreviewKindFile OpenPreviewKind = "file"
+	OpenPreviewKindApp  OpenPreviewKind = "app"
 )
 
 // OpenPreviewResult is the open_preview tool result. Chat messages store it,
 // so its JSON keys must stay stable.
 type OpenPreviewResult struct {
-	Title       string    `json:"title"`
-	WorkspaceID uuid.UUID `json:"workspace_id"`
-	AgentName   string    `json:"agent_name"`
-	// Exactly one of Port, PreviewID, or AppSlug identifies the target on the
-	// agent.
-	Port      int    `json:"port,omitempty"`
-	PreviewID string `json:"preview_id,omitempty"`
-	AppSlug   string `json:"app_slug,omitempty"`
-	Path      string `json:"path,omitempty"`
+	// Kind says which of Port, PreviewSlug, or AppSlug identifies the target
+	// on the agent.
+	Kind        OpenPreviewKind `json:"kind"`
+	Title       string          `json:"title"`
+	WorkspaceID uuid.UUID       `json:"workspace_id"`
+	AgentName   string          `json:"agent_name"`
+	Port        int             `json:"port,omitempty"`
+	PreviewSlug string          `json:"preview_slug,omitempty"`
+	AppSlug     string          `json:"app_slug,omitempty"`
+	Path        string          `json:"path,omitempty"`
 	// URLPath is the path and query the preview opens at, such as
 	// "/?folder=/home/coder". It is empty for the root.
 	URLPath string `json:"url_path,omitempty"`
@@ -71,14 +78,54 @@ type OpenPreviewArgs struct {
 	URLPath string `json:"url_path,omitempty" description:"Path and query to open the preview at, such as /?folder=/home/coder/project or /docs/index.html. Defaults to /."`
 }
 
-// IsPreviewURLPath reports whether s is a path and optional query that cannot
-// change the origin when appended to a preview URL.
-func IsPreviewURLPath(s string) bool {
-	return len(s) <= maxPreviewURLPathLength &&
-		strings.HasPrefix(s, "/") &&
-		!strings.HasPrefix(s, "//") &&
-		!strings.ContainsAny(s, `\#`) &&
-		!strings.ContainsFunc(s, unicode.IsControl)
+type previewRequest struct {
+	title   string
+	kind    OpenPreviewKind
+	port    int
+	path    string
+	app     string
+	urlPath string
+}
+
+func parseOpenPreviewArgs(args OpenPreviewArgs) (previewRequest, error) {
+	req := previewRequest{
+		title:   strings.TrimSpace(args.Title),
+		path:    strings.TrimSpace(args.Path),
+		app:     strings.TrimSpace(args.App),
+		urlPath: strings.TrimSpace(args.URLPath),
+	}
+	if req.title == "" {
+		return previewRequest{}, xerrors.New("title is required")
+	}
+	if utf8.RuneCountInString(req.title) > maxPreviewTitleLength {
+		return previewRequest{}, xerrors.Errorf("title must be at most %d characters", maxPreviewTitleLength)
+	}
+
+	switch {
+	case args.Port != nil && req.path == "" && req.app == "":
+		req.kind, req.port = OpenPreviewKindPort, *args.Port
+	case args.Port == nil && req.path != "" && req.app == "":
+		req.kind = OpenPreviewKindFile
+	case args.Port == nil && req.path == "" && req.app != "":
+		req.kind = OpenPreviewKindApp
+	default:
+		return previewRequest{}, xerrors.New("provide exactly one of port, path or app")
+	}
+	if req.kind == OpenPreviewKindPort && (req.port < workspacesdk.AgentMinimumListeningPort || req.port > 65535) {
+		return previewRequest{}, xerrors.Errorf("port must be between %d and 65535", workspacesdk.AgentMinimumListeningPort)
+	}
+
+	if req.urlPath == "/" {
+		req.urlPath = ""
+	}
+	if req.urlPath != "" && (len(req.urlPath) > maxPreviewURLPathLength ||
+		!strings.HasPrefix(req.urlPath, "/") ||
+		strings.HasPrefix(req.urlPath, "//") ||
+		strings.ContainsAny(req.urlPath, `\#`) ||
+		strings.ContainsFunc(req.urlPath, unicode.IsControl)) {
+		return previewRequest{}, xerrors.Errorf("url_path must start with a single /, contain only a path and query, have no backslashes, fragments or control characters, and be at most %d characters", maxPreviewURLPathLength)
+	}
+	return req, nil
 }
 
 // OpenPreview returns a tool that opens a workspace preview in the user's
@@ -89,41 +136,15 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 		"Open a preview for the user in the chat's right panel. Pass a short title and exactly one of port, path or app. "+
 			"Use port for an HTTP server already running in the workspace; this does not start the server or wait for it to be ready. "+
 			"Use path for an .html file or a directory containing index.html; the workspace agent serves the files through Coder. "+
-			"A file preview serves only that file. To include CSS, JavaScript, images, or other pages, open their directory instead. "+
+			"A file preview serves only that file, so its url_path can add only a query. To include CSS, JavaScript, images, or other pages, open their directory instead. "+
 			"Everything in the directory is served, so use a dedicated output directory without secrets. Directory listing is disabled. "+
 			"Use app to open a subdomain coder_app defined on the workspace agent, such as an IDE. "+
 			"Add url_path to open at a path and query other than /, for example /?folder=/home/coder/project. "+
-			"File previews serve the files' current contents and last until the workspace agent restarts; call this again to restore one.",
+			"File previews serve the files' current contents and last until the workspace agent restarts; call this again with the same path to restore one.",
 		func(ctx context.Context, args OpenPreviewArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			title := strings.TrimSpace(args.Title)
-			if title == "" {
-				return fantasy.NewTextErrorResponse("title is required"), nil
-			}
-			if utf8.RuneCountInString(title) > maxPreviewTitleLength {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("title must be at most %d characters", maxPreviewTitleLength)), nil
-			}
-
-			path, app := strings.TrimSpace(args.Path), strings.TrimSpace(args.App)
-			hasPort, hasPath, hasApp := args.Port != nil, path != "", app != ""
-			targets := 0
-			for _, set := range []bool{hasPort, hasPath, hasApp} {
-				if set {
-					targets++
-				}
-			}
-			if targets != 1 {
-				return fantasy.NewTextErrorResponse("provide exactly one of port, path or app"), nil
-			}
-			if hasPort && (*args.Port < workspacesdk.AgentMinimumListeningPort || *args.Port > 65535) {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("port must be between %d and 65535", workspacesdk.AgentMinimumListeningPort)), nil
-			}
-
-			urlPath := strings.TrimSpace(args.URLPath)
-			if urlPath == "/" {
-				urlPath = ""
-			}
-			if urlPath != "" && !IsPreviewURLPath(urlPath) {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("url_path must start with a single /, contain only a path and query, have no backslashes, fragments or control characters, and be at most %d characters", maxPreviewURLPathLength)), nil
+			req, err := parseOpenPreviewArgs(args)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			workspace, err := options.GetPreviewWorkspace(ctx)
@@ -132,40 +153,50 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			}
 
 			result := OpenPreviewResult{
-				Title:       title,
+				Kind:        req.kind,
+				Title:       req.title,
 				WorkspaceID: workspace.WorkspaceID,
 				AgentName:   workspace.Agent.Name,
-				URLPath:     urlPath,
+				URLPath:     req.urlPath,
 			}
 			var slug string
-			switch {
-			case hasPort:
+			switch req.kind {
+			case OpenPreviewKindPort:
 				if !slices.Contains(workspace.Agent.DisplayApps, database.DisplayAppPortForwardingHelper) {
 					return fantasy.NewTextErrorResponse("the workspace agent does not allow port forwarding, so ports cannot be previewed"), nil
 				}
-				result.Port = *args.Port
-				slug = strconv.Itoa(*args.Port)
-			case hasApp:
-				if err := checkOpenableApp(ctx, options, workspace.Agent.ID, app); err != nil {
+				result.Port = req.port
+				slug = strconv.Itoa(req.port)
+			case OpenPreviewKindApp:
+				if err := checkOpenableApp(ctx, options, workspace.Agent.ID, req.app); err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				result.AppSlug = app
-				slug = app
-			default:
-				preview, err := workspace.Conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: path})
+				result.AppSlug = req.app
+				slug = req.app
+			case OpenPreviewKindFile:
+				preview, err := workspace.Conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: req.path})
+				if errors.Is(err, workspacesdk.ErrPreviewsUnsupported) {
+					return fantasy.NewTextErrorResponse("the workspace agent is outdated; restart the workspace to preview files"), nil
+				}
 				if err != nil {
-					if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() == http.StatusNotFound {
-						return fantasy.NewTextErrorResponse("the workspace agent is outdated; restart the workspace to preview files"), nil
-					}
 					return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err)), nil
 				}
-				result.PreviewID = string(preview.ID)
+				if pathname, _, _ := strings.Cut(req.urlPath, "?"); preview.File && pathname != "" && pathname != "/" {
+					return fantasy.NewTextErrorResponse("a file preview serves only its file, so url_path can add only a query, such as /?page=2; to open other pages, preview their directory instead"), nil
+				}
+				result.PreviewSlug = preview.ID.Slug()
 				result.Path = preview.Path
-				slug = preview.ID.Slug()
+				slug = result.PreviewSlug
 			}
 
-			if err := checkHostnameLength(options.AppHostname, workspace, slug); err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+			_, err = appurl.ApplicationURL{
+				AppSlugOrPort: slug,
+				AgentName:     workspace.Agent.Name,
+				WorkspaceName: workspace.WorkspaceName,
+				Username:      workspace.OwnerName,
+			}.HostnameLabel(options.AppHostname)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("%s, so the browser cannot load it. Tell the user the agent, workspace, and owner names are too long; a shorter workspace name fixes it", err)), nil
 			}
 			return marshalToolResponse(result), nil
 		},
@@ -198,23 +229,4 @@ func checkOpenableApp(ctx context.Context, options OpenPreviewOptions, agentID u
 		return xerrors.Errorf("app %q cannot be opened: %s, and the workspace agent has none", slug, openableRule)
 	}
 	return xerrors.Errorf("app %q cannot be opened: %s; apps it can open: %s", slug, openableRule, strings.Join(available, ", "))
-}
-
-func checkHostnameLength(appHostname string, workspace PreviewWorkspace, slug string) error {
-	pattern, _, _ := strings.Cut(appHostname, ".")
-	label := strings.Replace(pattern, "*", appurl.ApplicationURL{
-		AppSlugOrPort: slug,
-		AgentName:     workspace.Agent.Name,
-		WorkspaceName: workspace.WorkspaceName,
-		Username:      workspace.OwnerName,
-	}.String(), 1)
-	if len(label) <= maxHostnameLabelLength {
-		return nil
-	}
-
-	return xerrors.Errorf(
-		"the hostname label %q is %d characters, over the DNS limit of %d, so the browser cannot load it. "+
-			"Tell the user the agent, workspace, and owner names are too long; a shorter workspace name fixes it",
-		label, len(label), maxHostnameLabelLength,
-	)
 }
