@@ -751,6 +751,8 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	AgentConnectConcurrency                 serpent.Int64                        `json:"agent_connect_concurrency,omitempty" typescript:",notnull"`
 	AgentConnectQueueSize                   serpent.Int64                        `json:"agent_connect_queue_size,omitempty" typescript:",notnull"`
+	ClientConnectConcurrency                serpent.Int64                        `json:"client_connect_concurrency,omitempty" typescript:",notnull"`
+	ClientConnectQueueSize                  serpent.Int64                        `json:"client_connect_queue_size,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
 	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
@@ -3794,6 +3796,26 @@ communicating directly.`,
 			Value:       &c.AgentConnectQueueSize,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "agentConnectQueueSize",
+		},
+		{
+			Name:        "Client Connect Concurrency",
+			Description: "Maximum number of client connections to workspaces, such as those from the CLI and Coder Desktop, that a replica sets up at the same time. Connections over the limit wait in a queue. The replica rejects a connection with HTTP 503 and a Retry-After header when the queue is full or the connection waits too long. Set to 0 to turn off the limit.",
+			Flag:        "client-connect-concurrency",
+			Env:         "CODER_CLIENT_CONNECT_CONCURRENCY",
+			Default:     "64",
+			Value:       &c.ClientConnectConcurrency,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "clientConnectConcurrency",
+		},
+		{
+			Name:        "Client Connect Queue Size",
+			Description: "Maximum number of client connections to workspaces that wait for their setup to begin. Has no effect when --client-connect-concurrency is 0.",
+			Flag:        "client-connect-queue-size",
+			Env:         "CODER_CLIENT_CONNECT_QUEUE_SIZE",
+			Default:     "2048",
+			Value:       &c.ClientConnectQueueSize,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "clientConnectQueueSize",
 		},
 		{
 			Name:        "Browser Only",

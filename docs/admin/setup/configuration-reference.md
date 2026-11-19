@@ -1379,6 +1379,30 @@ Has no effect when --agent-connect-concurrency is 0.
 - YAML key: `networking.http.agentConnectQueueSize`
 - Default value: `2048`
 
+#### Client connect concurrency
+
+Maximum number of client connections to workspaces, such as those from the CLI and Coder Desktop, that a replica sets up at the same time.
+Connections over the limit wait in a queue.
+The replica rejects a connection with HTTP 503 and a Retry-After header when the queue is full or the connection waits too long.
+Set to 0 to turn off the limit.
+
+- Type: `int`
+- Environment variable: `CODER_CLIENT_CONNECT_CONCURRENCY`
+- CLI flag: [`--client-connect-concurrency`](../../reference/cli/server/index.md#--client-connect-concurrency)
+- YAML key: `networking.http.clientConnectConcurrency`
+- Default value: `64`
+
+#### Client connect queue size
+
+Maximum number of client connections to workspaces that wait for their setup to begin.
+Has no effect when --client-connect-concurrency is 0.
+
+- Type: `int`
+- Environment variable: `CODER_CLIENT_CONNECT_QUEUE_SIZE`
+- CLI flag: [`--client-connect-queue-size`](../../reference/cli/server/index.md#--client-connect-queue-size)
+- YAML key: `networking.http.clientConnectQueueSize`
+- Default value: `2048`
+
 #### Disable password authentication
 
 Disable password authentication.
