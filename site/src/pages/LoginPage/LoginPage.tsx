@@ -65,7 +65,6 @@ const LoginPage: React.FC = () => {
 
 	return (
 		<>
-			{/* React only sets <title> text from a single string child. */}
 			<title>{`Sign in to ${applicationName}`}</title>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
