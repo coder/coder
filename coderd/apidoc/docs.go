@@ -26263,6 +26263,12 @@ const docTemplate = `{
                 "cli_upgrade_message": {
                     "type": "string"
                 },
+                "client_connect_concurrency": {
+                    "type": "integer"
+                },
+                "client_connect_queue_size": {
+                    "type": "integer"
+                },
                 "cluster": {
                     "$ref": "#/definitions/codersdk.ClusterConfig"
                 },

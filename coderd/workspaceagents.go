@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/admission"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -1442,6 +1443,9 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+	// Setting up the connection is over, so it stops counting against the
+	// limit.
+	admission.Release(ctx)
 
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
@@ -2630,6 +2634,9 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Setting up the connection is over, so it stops counting against the
+	// limit.
+	admission.Release(ctx)
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 	defer conn.Close(websocket.StatusNormalClosure, "")

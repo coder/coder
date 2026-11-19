@@ -46,6 +46,17 @@ networking:
     # begin. Has no effect when --agent-connect-concurrency is 0.
     # (default: 2048, type: int)
     agentConnectQueueSize: 2048
+    # Maximum number of client connections to workspaces, such as those from the CLI
+    # and Coder Desktop, that a replica sets up at the same time. Connections over the
+    # limit wait in a queue. The replica rejects a connection with HTTP 503 and a
+    # Retry-After header when the queue is full or the connection waits too long. Set
+    # to 0 to turn off the limit.
+    # (default: 64, type: int)
+    clientConnectConcurrency: 64
+    # Maximum number of client connections to workspaces that wait for their setup to
+    # begin. Has no effect when --client-connect-concurrency is 0.
+    # (default: 2048, type: int)
+    clientConnectQueueSize: 2048
     # The token expiry duration for browser sessions. Sessions may last longer if they
     # are actively making requests, but this functionality can be disabled via
     # --disable-session-expiry-refresh.

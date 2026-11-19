@@ -1077,6 +1077,121 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	require.Equal(t, "version", sdkErr.Validations[0].Field)
 }
 
+// pingGateStore holds up the first Ping after it is armed until it is
+// released, which holds up the request that made it.
+type pingGateStore struct {
+	database.Store
+
+	armed   atomic.Bool
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (s *pingGateStore) Ping(ctx context.Context) (time.Duration, error) {
+	if s.armed.CompareAndSwap(true, false) {
+		close(s.entered)
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		}
+	}
+	return s.Store.Ping(ctx)
+}
+
+// TestWorkspaceAgentClientCoordinate_Admission verifies that clients beyond
+// the admission limit are turned away while another client is being set up,
+// and that a connected client no longer counts against the limit.
+func TestWorkspaceAgentClientCoordinate_Admission(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	store := &pingGateStore{
+		Store:   db,
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	dv := coderdtest.DeploymentValues(t)
+	flags := dv.Options()
+	require.NoError(t, flags.FlagSet().Parse([]string{
+		"--client-connect-concurrency=1",
+		"--client-connect-queue-size=0",
+	}))
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         store,
+		Pubsub:           ps,
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	const tailnetPath = "/api/v2/tailnet"
+	coordinatePath := fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", r.Agents[0].ID)
+
+	dial := func(path string) (*websocket.Conn, error) {
+		//nolint:bodyclose // The websocket library closes the body.
+		conn, _, err := websocket.Dial(ctx, client.URL.String()+path+"?version=2.0", &websocket.DialOptions{
+			HTTPHeader: http.Header{codersdk.SessionTokenHeader: []string{client.SessionToken()}},
+		})
+		return conn, err
+	}
+
+	// The first client is held up while it is being set up, so it keeps the
+	// only slot.
+	type dialed struct {
+		conn *websocket.Conn
+		err  error
+	}
+	firstDialed := make(chan dialed, 1)
+	store.armed.Store(true)
+	go func() {
+		conn, err := dial(coordinatePath)
+		firstDialed <- dialed{conn: conn, err: err}
+	}()
+	testutil.TryReceive(ctx, t, store.entered)
+
+	// A client over the limit is turned away on both client endpoints. The
+	// agent in the path is not looked up first.
+	for _, path := range []string{
+		fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", uuid.New()),
+		tailnetPath,
+	} {
+		res, err := client.Request(ctx, http.MethodGet, path, nil)
+		require.NoError(t, err, path)
+		_ = res.Body.Close()
+		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode, path)
+		require.NotEmpty(t, res.Header.Get("Retry-After"), path)
+	}
+
+	// A request without credentials is answered as usual.
+	anonymous := codersdk.New(client.URL)
+	for _, path := range []string{coordinatePath, tailnetPath} {
+		res, err := anonymous.Request(ctx, http.MethodGet, path, nil)
+		require.NoError(t, err, path)
+		_ = res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode, path)
+	}
+
+	close(store.release)
+	first := testutil.RequireReceive(ctx, t, firstDialed)
+	require.NoError(t, first.err)
+	defer first.conn.Close(websocket.StatusNormalClosure, "")
+
+	// A connected client no longer counts, so others can connect while it
+	// stays. The last dial only succeeds if the one before it also stopped
+	// counting once it was connected.
+	for _, path := range []string{coordinatePath, tailnetPath, coordinatePath} {
+		conn, err := dial(path)
+		require.NoError(t, err, path)
+		t.Cleanup(func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		})
+	}
+}
+
 type resumeTokenRecordingProvider struct {
 	tailnet.ResumeTokenProvider
 	t             testing.TB
