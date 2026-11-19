@@ -143,6 +143,14 @@ export const MissingNameError: Story = {
 	},
 };
 
+// The Organization field stays disabled until the permitted organizations load.
+export const OrganizationsLoading: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockReturnValue(new Promise(() => {}));
+	},
+};
+
 // A failed organizations request replaces the field with a retryable error.
 export const OrganizationsLoadError: Story = {
 	parameters: { queries: [] },
@@ -157,27 +165,68 @@ export const OrganizationsLoadError: Story = {
 	},
 };
 
+const mockSubmittedValues = {
+	organization_id: MockDefaultOrganization.id,
+	name: "docker",
+	display_name: "Docker Containers",
+	description: "Run workspaces as Docker containers",
+	icon: "/icon/docker.svg",
+};
+
+const mockDuplicateIdError = mockApiError({
+	message: "A template with this name already exists in the organization.",
+	status: 409,
+});
+
+const mockOrganizationNotFoundError = mockApiError({
+	message: "Organization not found.",
+	status: 404,
+});
+
+const mockCreateError = mockApiError({
+	message: "Internal error inserting template.",
+	status: 500,
+});
+
 // A create rejected for a duplicate ID restores the submitted values and shows
 // the error on the ID field.
 export const DuplicateIdError: Story = {
 	args: {
-		initialValues: {
-			organization_id: MockDefaultOrganization.id,
-			name: "docker",
-			display_name: "Docker Containers",
-			description: "Run workspaces as Docker containers",
-			icon: "/icon/docker.svg",
-		},
-		createError: {
-			isAxiosError: true,
-			response: {
-				status: 409,
-				data: {
-					message:
-						"A template with this name already exists in the organization.",
-				},
+		initialValues: mockSubmittedValues,
+		createError: mockDuplicateIdError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
 			},
-		},
+		],
+	},
+};
+
+export const OrganizationNotFoundError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockOrganizationNotFoundError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
+	},
+};
+
+// Errors that no field owns stay in an alert above the form.
+export const CreateError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockCreateError,
 	},
 	parameters: {
 		queries: [

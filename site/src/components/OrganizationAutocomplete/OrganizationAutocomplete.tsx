@@ -22,7 +22,7 @@ import {
 
 type OrganizationAutocompleteProps = Pick<
 	React.ComponentProps<"button">,
-	"aria-invalid" | "aria-describedby"
+	"aria-invalid" | "aria-describedby" | "autoFocus"
 > & {
 	value: Organization | null;
 	onChange: (organization: Organization | null) => void;

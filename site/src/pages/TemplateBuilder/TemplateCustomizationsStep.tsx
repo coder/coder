@@ -12,13 +12,12 @@ import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { RetryButton } from "#/pages/AgentsPage/components/RetryButton";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
@@ -69,7 +68,7 @@ type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
 	onCreate: (values: CustomizationsFormValues) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
-	/** Values to restore, such as the ones submitted by a failed create. */
+	/** Replaces the defaults derived from `state`. Read only on mount. */
 	initialValues?: CustomizationsFormValues;
 	createError?: unknown;
 };
@@ -90,6 +89,7 @@ export const TemplateCustomizationsStep: React.FC<
 		}),
 	);
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
+	const showOrgsError = permittedOrgsQuery.isError && !permittedOrgsQuery.data;
 
 	const form = useFormik<CustomizationsFormValues>({
 		initialValues: initialValues ?? {
@@ -102,9 +102,14 @@ export const TemplateCustomizationsStep: React.FC<
 		validationSchema,
 		onSubmit: (values) => onCreate(values),
 	});
-	const createErrorField = isApiError(createError)
+	const mappedCreateErrorField = isApiError(createError)
 		? createErrorFields[createError.response.status]
 		: undefined;
+	// The organization error has no field to sit on while organizations fail.
+	const createErrorField =
+		mappedCreateErrorField === "organization_id" && showOrgsError
+			? undefined
+			: mappedCreateErrorField;
 	const getFormFieldHelpers = getFormHelpers(form);
 	const getFieldHelpers: typeof getFormFieldHelpers = (field, options) => {
 		const helpers = getFormFieldHelpers(field, options);
@@ -116,14 +121,21 @@ export const TemplateCustomizationsStep: React.FC<
 			return {
 				...helpers,
 				error: true,
-				helperText: getErrorMessage(createError, ""),
+				helperText: getErrorMessage(
+					createError,
+					"Unable to create the template.",
+				),
 			};
 		}
 		return helpers;
 	};
 	const descriptionField = getFieldHelpers("description");
 	const iconField = getFieldHelpers("icon");
-	const organizationField = getFieldHelpers("organization_id");
+	const organizationField = getFieldHelpers("organization_id", {
+		helperText: permittedOrgsQuery.isPending
+			? "Loading organizations…"
+			: undefined,
+	});
 
 	const organizationId = form.values.organization_id;
 	const selectedOrg = orgOptions.find((o) => o.id === organizationId) ?? null;
@@ -160,7 +172,7 @@ export const TemplateCustomizationsStep: React.FC<
 			className="min-w-163.5"
 		>
 			{createError != null && !createErrorField && (
-				<ErrorAlert error={createError} />
+				<ErrorAlert error={createError} className="mb-6" />
 			)}
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
@@ -184,21 +196,17 @@ export const TemplateCustomizationsStep: React.FC<
 					/>
 
 					{/* Right column */}
-					{permittedOrgsQuery.isError ? (
+					{showOrgsError ? (
 						<ErrorAlert
 							error={permittedOrgsQuery.error}
 							showDebugDetail={false}
 							actions={
-								<Button
-									variant="outline"
+								<RetryButton
 									size="sm"
-									type="button"
-									disabled={permittedOrgsQuery.isFetching}
-									onClick={() => void permittedOrgsQuery.refetch()}
-								>
-									<Spinner loading={permittedOrgsQuery.isFetching} />
-									Retry
-								</Button>
+									variant="outline"
+									isRetrying={permittedOrgsQuery.isFetching}
+									onRetry={() => void permittedOrgsQuery.refetch()}
+								/>
 							}
 						/>
 					) : (
@@ -211,6 +219,7 @@ export const TemplateCustomizationsStep: React.FC<
 								<OrganizationAutocomplete
 									{...props}
 									required
+									autoFocus={createErrorField === "organization_id"}
 									disabled={permittedOrgsQuery.isPending}
 									value={selectedOrg}
 									onChange={handleOrgChange}
