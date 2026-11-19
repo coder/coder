@@ -59,7 +59,7 @@ const severityIcons = {
 	},
 	warning: {
 		icon: TriangleAlertIcon,
-		className: "text-content-warning",
+		className: "text-border-warning",
 		label: "Warning",
 	},
 	error: {

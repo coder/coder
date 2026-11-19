@@ -139,7 +139,10 @@ const ProxySettingsSub: React.FC<ProxySettingsSubProps> = ({
 						</span>
 						<RadioIcon
 							aria-hidden="true"
-							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
+							className={cn(
+								"size-4",
+								getLatencyColor(latency?.latencyMS, "icon"),
+							)}
 						/>
 						<Latency
 							className={

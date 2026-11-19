@@ -26,7 +26,7 @@ const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
 
 const typeIconColor: Record<InfoTooltipType, string> = {
 	info: "text-content-secondary hover:text-content-primary",
-	warning: "text-content-warning",
+	warning: "text-border-warning",
 };
 
 const sizeClasses: Record<InfoTooltipSize, string> = {

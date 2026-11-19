@@ -240,6 +240,33 @@ describe("WorkspacesPageView", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("opens a workspace from its name link, not the row, with the keyboard", async () => {
+		const user = userEvent.setup();
+		const { router } = renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				workspaces={[MockWorkspace]}
+				count={1}
+			/>,
+		);
+
+		const checkbox = await screen.findByRole("checkbox", {
+			name: `Select workspace ${MockWorkspace.name}`,
+		});
+		screen.getByRole("checkbox", { name: "Select all workspaces" }).focus();
+		await user.tab();
+		expect(checkbox).toHaveFocus();
+		await user.tab();
+		expect(
+			screen.getByRole("link", { name: MockWorkspace.name }),
+		).toHaveFocus();
+
+		await user.keyboard("{Enter}");
+		expect(router.state.location.pathname).toBe(
+			`/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+		);
+	});
+
 	it("restarts a running workspace from the overflow menu", async () => {
 		const user = userEvent.setup();
 		const restartSpy = vi

@@ -1115,6 +1115,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.OrganizationID,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -1149,6 +1150,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.NetworkCallsTotal,
 			&i.NetworkCallsBlocked,
 			&i.FirewallActive,
+			&i.Organizations,
 		); err != nil {
 			return nil, err
 		}
@@ -1185,6 +1187,7 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg Co
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.OrganizationID,
 	)
 	if err != nil {
 		return 0, err
@@ -1256,6 +1259,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.WorkspaceID,
 			&i.AIBridgeInterception.OrganizationID,
 			&i.AIBridgeInterception.OrganizationSource,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
 		); err != nil {
 			return nil, err
 		}
