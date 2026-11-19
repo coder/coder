@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -310,7 +309,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 
 		go func() {
 			err := rpty.Wait()
-			if _, ok := errors.AsType[*ExitError](err); ok {
+			if isExitError(err) {
 				// Keep the finished session around temporarily so reconnecting to it
 				// does not start the command again.
 				connLogger.Debug(ctx, "reconnecting pty process exited", slog.Error(err))
