@@ -1533,6 +1533,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 								)}
 								key={workspace.id}
 								value={workspace.name}
+								aria-selected={isSelected}
 								disabled={isUnavailable}
 								onSelect={() => {
 									if (!isUnavailable) {
