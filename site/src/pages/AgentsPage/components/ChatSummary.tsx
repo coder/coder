@@ -35,8 +35,6 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 	const trimmedSummary = summary?.trim();
 	const hasCost =
 		showCost && !isCostLoading && !costError && costMicros != null;
-	const hasUnpricedRequests =
-		hasCost && unpricedRequestCount != null && unpricedRequestCount > 0;
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -79,13 +77,6 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 				<p className="m-0 text-xs italic text-content-secondary">
 					Cost covers this agent's whole chat, including the chat that started
 					it and any other subagents.
-				</p>
-			)}
-
-			{hasUnpricedRequests && (
-				<p className="m-0 text-xs italic text-content-secondary">
-					Excludes unpriced usage from {unpricedRequestCount} request
-					{unpricedRequestCount === 1 ? "" : "s"}.
 				</p>
 			)}
 		</div>

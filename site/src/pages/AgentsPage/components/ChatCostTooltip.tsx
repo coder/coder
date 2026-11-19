@@ -16,9 +16,11 @@ export const ChatCostTooltip: React.FC<ChatCostTooltipProps> = ({
 			ariaLabel="Cost incomplete"
 		>
 			{/* Widths split each message into two even lines. */}
-			<span className="block max-w-56">
-				Pricing isn't fully configured for this model, so cost may be
-				underreported.
+			<span className="block max-w-68">
+				{unpricedRequestCount === 1
+					? "1 request"
+					: `${unpricedRequestCount} requests`}{" "}
+				used a model without configured pricing, so cost may be underreported.
 			</span>
 		</InfoTooltip>
 	) : (
