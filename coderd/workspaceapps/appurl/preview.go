@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -40,12 +41,60 @@ func (id PreviewID) Slug() string {
 	return previewSlugPrefix + string(id)
 }
 
-// ParsePreviewSlug returns the ID of the file preview that slug serves, such
-// as "0123abcd" for "preview--0123abcd".
-func ParsePreviewSlug(slug string) (PreviewID, bool) {
-	id, ok := strings.CutPrefix(slug, previewSlugPrefix)
-	if !ok || !previewIDFormat.MatchString(id) {
-		return "", false
+// PreviewTarget is what a preview slug serves: files a workspace agent
+// published under ID, or an HTTP server on Port. Exactly one is set.
+type PreviewTarget struct {
+	ID   PreviewID
+	Port uint16
+}
+
+// Slug returns the app slug that serves t, such as "preview--0123abcd" or
+// "preview--8080".
+func (t PreviewTarget) Slug() string {
+	if t.Port != 0 {
+		return previewSlugPrefix + strconv.FormatUint(uint64(t.Port), 10)
 	}
-	return PreviewID(id), true
+	return t.ID.Slug()
+}
+
+// ParsePreviewSlug returns what slug serves, such as file preview "0123abcd"
+// for "preview--0123abcd" or port 8080 for "preview--8080". A port has no
+// leading zeros, so each port has one hostname.
+func ParsePreviewSlug(slug string) (PreviewTarget, bool) {
+	target, ok := strings.CutPrefix(slug, previewSlugPrefix)
+	if !ok {
+		return PreviewTarget{}, false
+	}
+	if previewIDFormat.MatchString(target) {
+		return PreviewTarget{ID: PreviewID(target)}, true
+	}
+	port, err := strconv.ParseUint(target, 10, 16)
+	if err != nil || port == 0 || strconv.FormatUint(port, 10) != target {
+		return PreviewTarget{}, false
+	}
+	return PreviewTarget{Port: uint16(port)}, true
+}
+
+// HasPreviewSlugPrefix reports whether s starts like a preview slug, whether
+// or not the rest parses.
+func HasPreviewSlugPrefix(s string) bool {
+	return strings.HasPrefix(s, previewSlugPrefix)
+}
+
+// IsPreviewHostname reports whether hostname is a preview host under any
+// wildcard app hostname, including those of workspace proxies, whose patterns
+// can add a suffix to the first label.
+func IsPreviewHostname(hostname string) bool {
+	label, _, _ := strings.Cut(strings.ToLower(hostname), ".")
+	// Drop any "prefix---" so a prefixed preview host still counts.
+	if i := strings.LastIndex(label, "---"+previewSlugPrefix); i >= 0 {
+		label = label[i+len("---"):]
+	}
+
+	parts := strings.Split(label, "--")
+	if len(parts) < 5 {
+		return false
+	}
+	_, ok := ParsePreviewSlug(parts[0] + "--" + parts[1])
+	return ok
 }

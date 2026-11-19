@@ -23,12 +23,15 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
 type fakeSignedTokenProvider struct {
-	token            *workspaceapps.SignedToken
+	token *workspaceapps.SignedToken
+	// issue writes the error page Issue answers with.
+	issue            func(rw http.ResponseWriter)
 	fromRequestCalls int
 	issueCalls       int
 }
@@ -38,8 +41,11 @@ func (s *fakeSignedTokenProvider) FromRequest(_ *http.Request) (*workspaceapps.S
 	return s.token, s.token != nil
 }
 
-func (s *fakeSignedTokenProvider) Issue(_ context.Context, _ http.ResponseWriter, _ *http.Request, _ workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
+func (s *fakeSignedTokenProvider) Issue(_ context.Context, rw http.ResponseWriter, _ *http.Request, _ workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
 	s.issueCalls++
+	if s.issue != nil {
+		s.issue(rw)
+	}
 	return nil, "", false
 }
 
@@ -261,6 +267,13 @@ func TestHandleSubdomain(t *testing.T) {
 				path:       "/",
 				wantStatus: http.StatusBadRequest,
 			},
+			{
+				name:       "PortPreviewOnAgentAPI",
+				subdomain:  fmt.Sprintf("preview--%d--agent--workspace--user", workspacesdk.AgentHTTPAPIServerPort),
+				appURL:     fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort),
+				path:       "/api/v0/previews/0123abcd/",
+				wantStatus: http.StatusBadRequest,
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -295,12 +308,15 @@ func TestHandleSubdomain(t *testing.T) {
 				require.NoError(t, err)
 				app, err := appurl.ParseSubdomainAppURL(tc.subdomain)
 				require.NoError(t, err)
+				hosting, err := previewhost.Strict(hostnamePattern, dashboardURL, dashboardURL)
+				require.NoError(t, err)
 				srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
 					Logger:        testutil.Logger(t),
 					DashboardURL:  dashboardURL,
 					AccessURL:     dashboardURL,
 					Hostname:      hostnamePattern,
 					HostnameRegex: hostnameRegex,
+					Previews:      hosting,
 					RealIPConfig:  &httpmw.RealIPConfig{},
 					SignedTokenProvider: &fakeSignedTokenProvider{token: &workspaceapps.SignedToken{
 						Request: workspaceapps.Request{
@@ -319,6 +335,7 @@ func TestHandleSubdomain(t *testing.T) {
 				host := tc.subdomain + "--apps.test.coder.com"
 				req := httptest.NewRequest(http.MethodGet, "https://"+host+tc.path, nil)
 				req.Host = host
+				req.Header.Set("Sec-Fetch-Dest", "iframe")
 				for key, values := range tc.header {
 					req.Header[key] = values
 				}

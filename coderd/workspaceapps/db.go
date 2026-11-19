@@ -154,9 +154,16 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	aReq.apiKey = apiKey // Update audit request.
 
-	if _, ok := appurl.ParsePreviewSlug(appReq.AppSlugOrPort); ok &&
-		(!p.Experiments.Enabled(codersdk.ExperimentOpenPreview) || appReq.AccessMethod != AccessMethodSubdomain) {
-		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "file previews require the open-preview experiment and a subdomain app URL")
+	_, isPreview := appurl.ParsePreviewSlug(appReq.AppSlugOrPort)
+	if isPreview && (!p.Experiments.Enabled(codersdk.ExperimentOpenPreview) || appReq.AccessMethod != AccessMethodSubdomain) {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "previews require the open-preview experiment and a subdomain app URL")
+		return nil, "", false
+	}
+	// A preview signs in only from the dashboard. The auth redirect below
+	// would set the cookie for the whole app wildcard, and the wrapper's
+	// frame-src blocks its cross-origin hop anyway.
+	if isPreview && apiKey == nil {
+		writePreviewSignedOut(rw, r)
 		return nil, "", false
 	}
 
@@ -175,6 +182,14 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	aReq.dbReq = dbReq // Update audit request.
+
+	// The owner sharing level still lets site owners and users the
+	// workspace is shared with connect, but a preview runs agent-written
+	// code as whoever opens it, so only the workspace owner may.
+	if isPreview && apiKey.UserID != dbReq.Workspace.OwnerID {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "previews open only for the workspace owner")
+		return nil, "", false
+	}
 
 	token.UserID = dbReq.UserID
 	token.WorkspaceID = dbReq.Workspace.ID

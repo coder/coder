@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -52,12 +55,12 @@ func TestOpenPreview(t *testing.T) {
 		{
 			name:  "Port",
 			input: `{"title":"  Signup form  ","port":3000,"url_path":" /?folder=/home/coder "}`,
-			want:  chattool.OpenPreviewResult{Kind: chattool.OpenPreviewKindPort, Title: "Signup form", Port: 3000, URLPath: "/?folder=/home/coder"},
+			want:  chattool.OpenPreviewResult{Kind: chattool.OpenPreviewKindPort, Title: "Signup form", Port: 3000, PreviewSlug: "preview--3000", URLPath: "/?folder=/home/coder"},
 		},
 		{
 			name:  "RootURLPath",
 			input: `{"title":"Editor","port":9,"url_path":"/"}`,
-			want:  chattool.OpenPreviewResult{Kind: chattool.OpenPreviewKindPort, Title: "Editor", Port: 9},
+			want:  chattool.OpenPreviewResult{Kind: chattool.OpenPreviewKindPort, Title: "Editor", Port: 9, PreviewSlug: "preview--9"},
 		},
 		{
 			name:      "Path",
@@ -124,6 +127,18 @@ func TestOpenPreview(t *testing.T) {
 			wantError: "at most 80 characters",
 		},
 		{
+			// Invisible and direction-changing characters could disguise
+			// the title where the user decides to open the preview.
+			name:      "DisguisedTitle",
+			input:     `{"title":"Docs\u202esite","port":3000}`,
+			wantError: "must not contain control, format",
+		},
+		{
+			name:      "ZeroWidthTitle",
+			input:     `{"title":"Docs\u200bsite","port":3000}`,
+			wantError: "must not contain control, format",
+		},
+		{
 			name:      "TwoTargets",
 			input:     `{"title":"App","port":3000,"path":"/home/coder/output"}`,
 			wantError: "exactly one",
@@ -158,7 +173,7 @@ func TestOpenPreview(t *testing.T) {
 				workspaceAgent = *tt.agent
 			}
 			tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-				AppHostname: "*.apps.example.com",
+				Hosting: testPreviewHosting(t, "*.apps.example.com"),
 				GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 					return chattool.PreviewWorkspace{
 						Conn:          conn,
@@ -193,7 +208,7 @@ func TestOpenPreviewURLPath(t *testing.T) {
 	t.Parallel()
 
 	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-		AppHostname: "*.apps.example.com",
+		Hosting: testPreviewHosting(t, "*.apps.example.com"),
 		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 			return chattool.PreviewWorkspace{
 				WorkspaceID:   uuid.New(),
@@ -242,7 +257,7 @@ func TestOpenPreviewApp(t *testing.T) {
 		&sdkproto.App{Slug: "shell", Command: "bash"},
 	)
 	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-		AppHostname: "*.apps.example.com",
+		Hosting: testPreviewHosting(t, "*.apps.example.com"),
 		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 			return chattool.PreviewWorkspace{
 				WorkspaceID:   build.Workspace.ID,
@@ -287,7 +302,7 @@ func TestOpenPreviewHostnameTooLong(t *testing.T) {
 	conn.EXPECT().OpenPreview(gomock.Any(), gomock.Any()).
 		Return(workspacesdk.OpenPreviewResponse{ID: "0123abcd", Path: "/home/coder/output"}, nil)
 	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-		AppHostname: "*--apps.example.com",
+		Hosting: testPreviewHosting(t, "*--apps.example.com"),
 		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 			return chattool.PreviewWorkspace{
 				Conn:          conn,
@@ -314,6 +329,29 @@ func TestOpenPreviewHostnameTooLong(t *testing.T) {
 		require.True(t, response.IsError, input)
 		require.Contains(t, response.Content, "over the DNS limit of 63", input)
 	}
+}
+
+func TestOpenPreviewWithoutWildcard(t *testing.T) {
+	t.Parallel()
+
+	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
+		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
+			return chattool.PreviewWorkspace{}, xerrors.New("must not look up the workspace")
+		},
+	})
+	response := runOpenPreview(t, tool, `{"title":"App","port":3000}`)
+	require.True(t, response.IsError)
+	require.Contains(t, response.Content, "previews need a wildcard app hostname")
+}
+
+func testPreviewHosting(t *testing.T, wildcard string) *previewhost.Hosting {
+	t.Helper()
+
+	accessURL, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+	hosting, err := previewhost.Strict(wildcard, accessURL, accessURL)
+	require.NoError(t, err)
+	return hosting
 }
 
 func runOpenPreview(t *testing.T, tool fantasy.AgentTool, input string) fantasy.ToolResponse {
