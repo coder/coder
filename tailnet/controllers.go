@@ -1529,6 +1529,8 @@ func (c *Controller) Run(ctx context.Context) {
 		defer close(c.closedCh)
 		// Sadly retry doesn't support quartz.Clock yet so this is not
 		// influenced by the configured clock.
+		// TODO: use the agent's jittered reconnect backoff here, waiting on
+		// c.clock, and pass the dialer's Retry-After through to it.
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(c.ctx); {
 			// Check the context again before dialing, since `retrier.Wait()` could return true
 			// if the delay is 0, even if the context was canceled. This ensures we don't redial
