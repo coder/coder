@@ -120,11 +120,13 @@ describe("ConnectionLogPage", () => {
 				});
 			await renderPage();
 
-			const user = userEvent.setup({ skipHover: true });
+			const user = userEvent.setup();
 			await user.click(screen.getByRole("button", { name: "Filters" }));
 			await user.hover(await screen.findByRole("option", { name: "Method" }));
-			await user.click(
+			// user-event omits relatedTarget when entering the flyout, closing it.
+			await userEvent.click(
 				await screen.findByRole("button", { name: "Web Terminal" }),
+				{ skipHover: true },
 			);
 
 			await waitFor(() =>
@@ -148,10 +150,13 @@ describe("ConnectionLogPage", () => {
 				filter: "status:ongoing type:ssh app:code-server workspace_owner:alice",
 			});
 
-			const user = userEvent.setup({ skipHover: true });
+			const user = userEvent.setup();
 			await user.click(screen.getByRole("button", { name: "Filters" }));
 			await user.hover(await screen.findByRole("option", { name: "Method" }));
-			await user.click(await screen.findByRole("button", { name: "SSH" }));
+			await userEvent.click(
+				await screen.findByRole("button", { name: "SSH" }),
+				{ skipHover: true },
+			);
 
 			await waitFor(() =>
 				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({

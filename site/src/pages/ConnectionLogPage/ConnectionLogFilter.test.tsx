@@ -17,7 +17,7 @@ const Harness = ({ onChange }: { onChange: (query: string) => void }) => {
 
 describe("ConnectionLogFilter", () => {
 	it("replaces the query with the active SSH preset", async () => {
-		const user = userEvent.setup({ skipHover: true });
+		const user = userEvent.setup();
 		const onChange = vi.fn();
 		renderWithAuth(<Harness onChange={onChange} />, {
 			route: "/?filter=status:completed%20workspace_owner:alice",
@@ -32,14 +32,18 @@ describe("ConnectionLogFilter", () => {
 	});
 
 	it("replaces status without losing the legacy type or advanced fields", async () => {
-		const user = userEvent.setup({ skipHover: true });
+		const user = userEvent.setup();
 		const onChange = vi.fn();
 		renderWithAuth(<Harness onChange={onChange} />, {
 			route: "/?filter=status:completed%20type:ssh%20app:code-server",
 		});
 		await user.click(await screen.findByRole("button", { name: "Filters" }));
 		await user.hover(await screen.findByRole("option", { name: "Status" }));
-		await user.click(await screen.findByRole("button", { name: "Ongoing" }));
+		// user-event omits relatedTarget when entering the flyout, closing it.
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Ongoing" }),
+			{ skipHover: true },
+		);
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith(
 				"status:ongoing type:ssh app:code-server",
