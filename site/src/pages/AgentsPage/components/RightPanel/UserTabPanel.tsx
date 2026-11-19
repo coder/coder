@@ -1,10 +1,14 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import { findWorkspaceAgent } from "#/utils/workspace";
+import {
+	findWorkspaceAgent,
+	findWorkspaceAgentByName,
+} from "#/utils/workspace";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { TerminalPanel } from "../TerminalPanel";
 import { AppPanel } from "./AppPanel";
-import { WorkspacePreviewPanel } from "./WorkspacePreviewPanel";
+import { PortPreviewPanel } from "./PortPreviewPanel";
+import { PreviewPanel } from "./PreviewPanel";
 
 type UserTabPanelProps = {
 	tab: UserRightPanelTab;
@@ -17,8 +21,8 @@ type UserTabPanelProps = {
 };
 
 /**
- * Renders a terminal, workspace app, port, or file preview tab, or nothing
- * until its workspace and agent are available.
+ * Renders a terminal, workspace app, port, or preview tab, or nothing until
+ * its workspace and agent are available.
  */
 export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	tab,
@@ -55,8 +59,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 
 			return <AppPanel workspace={workspace} app={app} urlPath={tab.urlPath} />;
 		}
-		case "port":
-		case "file_preview": {
+		case "port": {
 			const agent = workspace && findWorkspaceAgent(workspace, tab.agentId);
 
 			if (!workspace || !agent) {
@@ -64,13 +67,23 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 			}
 
 			return (
-				<WorkspacePreviewPanel
+				<PortPreviewPanel
 					workspace={workspace}
 					agent={agent}
 					host={wildcardHostname}
 					tab={tab}
 				/>
 			);
+		}
+		case "preview": {
+			const agent =
+				workspace && findWorkspaceAgentByName(workspace, tab.agentName);
+
+			if (!workspace || !agent) {
+				return null;
+			}
+
+			return <PreviewPanel workspace={workspace} agent={agent} tab={tab} />;
 		}
 		default: {
 			const _exhaustive: never = tab;

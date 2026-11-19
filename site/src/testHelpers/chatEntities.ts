@@ -10,6 +10,7 @@ import type {
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
+	PreviewSignInResponse,
 } from "#/api/typesGenerated";
 import { MockUserOwner, MockWorkspace, MockWorkspaceAgent } from "./entities";
 
@@ -243,6 +244,16 @@ export const MockOpenPreviewResult = {
 	workspace_id: MockWorkspace.id,
 	agent_name: MockWorkspaceAgent.name,
 	port: 3000,
+	preview_slug: "preview--3000",
+};
+
+/** A sign-in response for MockOpenPreviewResult's preview. */
+export const MockPreviewSignInResponse: PreviewSignInResponse = {
+	url: "https://preview--3000--a-workspace-agent--test-workspace--admin.apps.example.com/?coder_preview_sign_in=token",
+	origin:
+		"https://preview--3000--a-workspace-agent--test-workspace--admin.apps.example.com",
+	sandbox: "allow-scripts allow-same-origin allow-forms",
+	mode: "strict",
 };
 
 export const MockChatFileMetadata: ChatFileMetadata = {

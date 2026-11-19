@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
+import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
@@ -13,6 +14,7 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool } from "./Tool";
 
 afterEach(() => {
@@ -66,6 +68,33 @@ describe("Tool web search rows", () => {
 		expect(
 			screen.getAllByRole("link").map((link) => link.getAttribute("href")),
 		).toEqual(["https://coder.com/docs/ai", "http://coder.com/"]);
+	});
+});
+
+describe("Tool open_preview rows", () => {
+	it("offers no open action for an MCP tool named open_preview", () => {
+		const getOpenAction = vi.fn(() => vi.fn());
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<PreviewPanelContext value={{ getOpenAction }}>
+					<Tool
+						name="open_preview"
+						mcpServerConfigId="mcp-server-1"
+						status="completed"
+						result={MockOpenPreviewResult}
+						organizationId="organization-id"
+						mcpServers={[]}
+						isError={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						shellToolDisplayMode="auto"
+						codeDiffDisplayMode="auto"
+					/>
+				</PreviewPanelContext>
+			</QueryClientProvider>,
+		);
+
+		expect(getOpenAction).not.toHaveBeenCalled();
 	});
 });
 

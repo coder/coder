@@ -30,8 +30,8 @@ import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedF
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import {
+	getPreviewPanelContextValue,
 	PreviewPanelContext,
-	useChatPreviewPanel,
 } from "../components/ChatElements/tools/PreviewPanelContext";
 import {
 	ChatOverviewCard,
@@ -559,9 +559,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		openFrameTab({ kind: "port", agentId: workspaceAgent.id, ...selection });
 	};
 
-	const previewPanelCtx = useChatPreviewPanel({
+	const previewPanelCtx = getPreviewPanelContextValue({
 		enabled: openPreviewEnabled,
-		store,
 		workspace,
 		workspaceAgent,
 		wildcardHostname,

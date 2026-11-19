@@ -9,8 +9,10 @@ import {
 } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
-import { isHostnameLabel, isValidPort } from "#/utils/portForward";
-import { findWorkspaceAgent } from "#/utils/workspace";
+import {
+	findWorkspaceAgent,
+	findWorkspaceAgentByName,
+} from "#/utils/workspace";
 
 /**
  * Built-in panels that the user shows or hides from the add-tab dropdown.
@@ -66,25 +68,22 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
-			urlPath?: string;
 	  }
 	| {
 			id: string;
-			kind: "file_preview";
+			kind: "preview";
 			label: string;
-			agentId: string;
+			workspaceId: string;
+			agentName: string;
 			slug: string;
 			urlPath?: string;
 	  };
 
 type WithoutID<T> = T extends unknown ? Omit<T, "id"> : never;
 
-/** An app, port, or file preview tab before it has an ID. */
+/** An app, port, or preview tab before it has an ID. */
 export type NewFrameTab = WithoutID<
-	Extract<
-		UserRightPanelTab,
-		{ kind: "workspace_app" | "port" | "file_preview" }
-	>
+	Extract<UserRightPanelTab, { kind: "workspace_app" | "port" | "preview" }>
 >;
 
 type ValidateUserRightPanelTabsOptions = {
@@ -132,17 +131,20 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.label === "string" &&
 			typeof record.agentId === "string" &&
-			isValidPort(record.port) &&
-			(record.protocol === "http" || record.protocol === "https") &&
-			hasValidURLPath
+			typeof record.port === "number" &&
+			Number.isInteger(record.port) &&
+			record.port >= 1 &&
+			record.port <= 65535 &&
+			(record.protocol === "http" || record.protocol === "https")
 		);
 	}
 
-	if (record.kind === "file_preview") {
+	if (record.kind === "preview") {
 		return (
 			typeof record.label === "string" &&
-			typeof record.agentId === "string" &&
-			isHostnameLabel(record.slug) &&
+			typeof record.workspaceId === "string" &&
+			typeof record.agentName === "string" &&
+			typeof record.slug === "string" &&
 			hasValidURLPath
 		);
 	}
@@ -196,11 +198,11 @@ export function isUserRightPanelTabAvailable(
 				agent !== undefined && canShowPortForwarding(agent, wildcardHostname)
 			);
 		}
-		case "file_preview":
+		case "preview":
 			return (
 				openPreviewEnabled &&
-				findWorkspaceAgent(workspace, tab.agentId) !== undefined &&
-				wildcardHostname.trim() !== ""
+				tab.workspaceId === workspace.id &&
+				findWorkspaceAgentByName(workspace, tab.agentName) !== undefined
 			);
 		default: {
 			const _exhaustive: never = tab;
@@ -230,13 +232,13 @@ export function showsSameFrame(
 				tab.kind === "port" &&
 				tab.agentId === target.agentId &&
 				tab.port === target.port &&
-				tab.protocol === target.protocol &&
-				tab.urlPath === target.urlPath
+				tab.protocol === target.protocol
 			);
-		case "file_preview":
+		case "preview":
 			return (
-				tab.kind === "file_preview" &&
-				tab.agentId === target.agentId &&
+				tab.kind === "preview" &&
+				tab.workspaceId === target.workspaceId &&
+				tab.agentName === target.agentName &&
 				tab.slug === target.slug &&
 				tab.urlPath === target.urlPath
 			);
