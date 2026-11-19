@@ -5,8 +5,13 @@ title: Upgrade best practices
 This guide provides best practices for upgrading Coder, along with troubleshooting steps for common issues encountered during upgrades, particularly with database migrations in high availability (HA) deployments.
 
 > [!WARNING]
-> Coder does not officially support zero-downtime upgrades.
-> Plan every upgrade knowing that there will be downtime.
+> Coder does not support zero-downtime upgrades between minor versions.
+> An upgrade that crosses a minor version, such as v2.38.x to v2.39.x, runs database migrations.
+> Stop every coderd replica running the old version before you start the new version, and plan for downtime while the migrations run.
+>
+> Patch releases of the same minor version don't include database migrations, so you can apply them with a rolling update.
+> Expect clients to reconnect briefly as replicas are replaced.
+> See [Patch releases](../../../reference/releases.md#patch-releases).
 
 ## Before you upgrade
 
@@ -32,35 +37,25 @@ This guide provides best practices for upgrading Coder, along with troubleshooti
 Standard Kubernetes rolling updates might fail when exclusive database locks are required because old replicas keep connections open.
 For production deployments running multiple replicas (HA), active connections from existing pods can prevent the new pod from acquiring necessary locks.
 
-### Recommended strategy for major upgrades
+<a id="recommended-strategy-for-major-upgrades"></a>
+
+### Upgrade to a new minor version
 
 1. **Scale down before upgrading:**
    Before running `helm upgrade`, scale your Coder deployment down to eliminate database connection contention from existing pods.
 
-   - **Scale to zero** for a clean cutover with no active database connections when the upgrade starts.
-     Scaling to zero causes full downtime: Coder is unavailable until the upgrade completes.
-     With no old pods connected to the database, migrations can acquire locks immediately:
+   Scale to zero for a clean cutover with no active database connections when the upgrade starts.
+   Scaling to zero causes full downtime: Coder is unavailable until the upgrade completes.
+   With no old pods connected to the database, migrations can acquire locks immediately:
 
-     ```sh
-     kubectl scale deployment coder --replicas=0
-     ```
-
-   - **Scale to one** to keep one pod running during the upgrade.
-     Scaling to one eliminates contention from multiple replicas.
-
-     > [!WARNING]
-     > Coder does not officially support zero-downtime upgrades, so scaling to one is not a supported upgrade strategy.
-     > You can choose to scale to one at your own risk.
-     > The pod that keeps running can still prevent the new pod from acquiring necessary locks, and the upgrade might fail.
-
-     ```sh
-     kubectl scale deployment coder --replicas=1
-     ```
+   ```sh
+   kubectl scale deployment coder --replicas=0
+   ```
 
 1. **Perform upgrade:**
    Run your standard Helm upgrade command.
 
-   When scaling to zero, this will bring up a fresh pod that can run migrations without competing for database locks.
+   This will bring up a fresh pod that can run migrations without competing for database locks.
 
 1. **Scale back:**
    Once the upgrade is healthy, scale back to your desired replica count.
@@ -173,7 +168,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
    Match your tag in the [migrations directory](../../../../coderd/database/migrations) to the value in the `schema_migrations` output.
 
 1. **Resume the upgrade:**
-   Follow the [pre-upgrade strategy](#recommended-strategy-for-major-upgrades) to scale back up and continue the upgrade process.
+   Follow the [pre-upgrade strategy](#upgrade-to-a-new-minor-version) to scale back up and continue the upgrade process.
 
 ## When to contact support
 
