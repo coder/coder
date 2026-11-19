@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import {
@@ -5,9 +6,11 @@ import {
 	organizationAISpendOverview,
 	organizationAISpendUsers,
 	organizationUnpricedAIModels,
+	paginatedOrganizationAISpendReport,
 } from "#/api/queries/aiBridge";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
@@ -17,12 +20,25 @@ import {
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
 import { AISpendPageView, type AISpendTab } from "./AISpendPageView";
-import { defaultSpendDays, parseSpendDays, toSpendPeriod } from "./spendDays";
+import { toReportFilter } from "./DetailedReportFilter";
+import {
+	defaultSpendDays,
+	parseSpendDays,
+	type SpendDays,
+	toSpendPeriod,
+} from "./spendDays";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
 const tabSearchParam = "tab";
+const DETAILED_REPORT_PAGE_SIZE = 10;
+
+type ReportRun = {
+	organizationId: string;
+	days: SpendDays;
+	filter: string;
+};
 
 type AISpendPageProps = {
 	now?: Date;
@@ -77,6 +93,44 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		searchParams,
 		onSearchParamsChange: (next) => setSearchParams(next, { replace: true }),
 	});
+	// Viewers who can't use the filter ignore one from a shared link.
+	const appliedReportFilter = permissions.viewAnyAIBridgeInterception
+		? reportFilter.query
+		: "";
+	const [reportRun, setReportRun] = useState<ReportRun>();
+	const lastReportRun =
+		reportRun?.organizationId === organization?.id ? reportRun : undefined;
+	const isReportOutdated =
+		lastReportRun !== undefined &&
+		(lastReportRun.days.startDate !== days.startDate ||
+			lastReportRun.days.endDate !== days.endDate ||
+			lastReportRun.filter !== appliedReportFilter);
+	const reportQuery = usePaginatedQuery({
+		...paginatedOrganizationAISpendReport(
+			lastReportRun?.organizationId ?? "",
+			toSpendPeriod(lastReportRun?.days ?? days),
+			toReportFilter(lastReportRun?.filter ?? ""),
+		),
+		recordsPerPage: DETAILED_REPORT_PAGE_SIZE,
+		preventScrollReset: true,
+		enabled: lastReportRun !== undefined,
+	});
+	const runReport = () => {
+		if (organization === undefined) {
+			return;
+		}
+		if (lastReportRun !== undefined && !isReportOutdated) {
+			void reportQuery.refetch();
+			return;
+		}
+		setReportRun({
+			organizationId: organization.id,
+			days,
+			filter: appliedReportFilter,
+		});
+		updateSearchParams((params) => params.delete("page"));
+	};
+
 	const tab: AISpendTab =
 		searchParams.get(tabSearchParam) === "detailed-report"
 			? "detailed-report"
@@ -136,6 +190,10 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				}
 				reportFilter={reportFilter.query}
 				onReportFilterChange={reportFilter.update}
+				reportQuery={reportQuery}
+				hasRunReport={lastReportRun !== undefined}
+				isReportOutdated={isReportOutdated}
+				onRunReport={runReport}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}
 				unpricedModels={unpricedModelsQuery.data?.models}

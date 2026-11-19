@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
 import {
 	MockEntitlements,
+	MockGroup,
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
@@ -12,15 +13,20 @@ import {
 	MockOrganizationAISpendReport,
 	MockUnpricedAIModels,
 	MockUserMember,
+	MockUserOwner,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import AISpendPage from "./AISpendPage";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 
+const mockAuth = vi.hoisted(() => ({ canViewSessions: false }));
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
-		permissions: MockNoPermissions,
+		permissions: {
+			...MockNoPermissions,
+			viewAnyAIBridgeInterception: mockAuth.canViewSessions,
+		},
 	}),
 }));
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -36,6 +42,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	mockAuth.canViewSessions = false;
 });
 
 const now = new Date("2026-03-12T15:30:00Z");
@@ -183,4 +190,34 @@ it("shares the picked days between the tabs", async () => {
 			await screen.findByRole("tabpanel", { name: "Detailed report" }),
 		).getByRole("button", { name: /Mar 1, 2026/ }),
 	).toBeInTheDocument();
+});
+
+it("runs the report for the picked days and filter, resolving the user and group to IDs", async () => {
+	mockAuth.canViewSessions = true;
+	const user = userEvent.setup();
+	const getUserSpy = vi.spyOn(API, "getUser").mockResolvedValue(MockUserOwner);
+	const getGroupSpy = vi.spyOn(API, "getGroup").mockResolvedValue(MockGroup);
+	const filter =
+		'user:admin group:Front-End provider:openai model:gpt-5.4 client:"Claude Code"';
+	const { usersSpy } = renderAISpendPage(
+		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent(filter)}`,
+	);
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await waitFor(() =>
+		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
+			period_start: "2026-03-01T00:00:00.000Z",
+			period_end: "2026-03-04T00:00:00.000Z",
+			provider_name: "openai",
+			model: "gpt-5.4",
+			client: "Claude Code",
+			user_ids: [MockUserOwner.id],
+			group_id: MockGroup.id,
+			limit: 10,
+			offset: 0,
+		}),
+	);
+	expect(getUserSpy).toHaveBeenCalledWith("admin");
+	expect(getGroupSpy).toHaveBeenCalledWith(MockOrganization.id, "Front-End", {
+		exclude_members: true,
+	});
 });

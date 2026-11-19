@@ -1,9 +1,8 @@
-import { EllipsisVerticalIcon, TriangleAlertIcon } from "lucide-react";
+import { EllipsisVerticalIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import type {
 	AISpendPeriodWindow,
-	OrganizationAISpendModel,
 	OrganizationAISpendOverview,
 	OrganizationAISpendOverviewUser,
 	OrganizationAISpendUser,
@@ -17,21 +16,13 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
-import { Link as DocsLink } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipMessage,
-	TooltipTitle,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { formatCostMicros } from "#/utils/currency";
-import { docs } from "#/utils/docs";
 import { CostDetailsDialog } from "./CostDetailsDialog";
 import { OverviewCard } from "./OverviewCard";
 import { summarizeTopSpenders, TOP_SPENDERS_COUNT } from "./topSpenders";
+import { UnpricedModelsTooltip } from "./UnpricedModelsTooltip";
 
 type TopSpendersCardProps = {
 	/** Undefined while the spend loads. */
@@ -203,46 +194,5 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 				organizationName={organizationName}
 			/>
 		</li>
-	);
-};
-
-type UnpricedModelsTooltipProps = {
-	displayName: string;
-	models: readonly OrganizationAISpendModel[];
-};
-
-const UnpricedModelsTooltip: React.FC<UnpricedModelsTooltipProps> = ({
-	displayName,
-	models,
-}) => {
-	const isSingle = models.length === 1;
-	return (
-		<Tooltip interactive>
-			<TooltipTrigger
-				aria-label={`${models.length} ${isSingle ? "model" : "models"} without pricing`}
-				className="gap-1 text-sm tabular-nums text-content-warning"
-			>
-				<TriangleAlertIcon aria-hidden className="size-icon-sm" />
-				{models.length}
-			</TooltipTrigger>
-			<TooltipContent className="max-w-[min(20rem,var(--radix-popper-available-width))]">
-				<TooltipTitle>Model pricing missing</TooltipTitle>
-				<TooltipMessage>
-					{isSingle
-						? `${models[0].name} used by ${displayName} has no pricing configured. Its usage isn't included, so total spend may be higher.`
-						: `${models.length} models used by ${displayName} have no pricing configured. Their usage isn't included, so total spend may be higher.`}
-				</TooltipMessage>
-				<DocsLink
-					size="sm"
-					href={docs(
-						"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
-					)}
-					target="_blank"
-					rel="noreferrer"
-				>
-					View docs
-				</DocsLink>
-			</TooltipContent>
-		</Tooltip>
 	);
 };

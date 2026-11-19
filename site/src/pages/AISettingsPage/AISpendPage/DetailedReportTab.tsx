@@ -1,7 +1,12 @@
 import { DownloadIcon, PlayIcon } from "lucide-react";
+import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { DetailedReportFilter } from "./DetailedReportFilter";
+import {
+	type DetailedReportQuery,
+	DetailedReportTable,
+} from "./DetailedReportTable";
 import { SpendDaysPicker } from "./SpendDaysPicker";
 import type { SpendDays } from "./spendDays";
 
@@ -14,6 +19,11 @@ type DetailedReportTabProps = {
 	onFilterChange: (filter: string) => void;
 	/** The filter options come from AI Gateway endpoints that need read access to every session. */
 	canFilter: boolean;
+	reportQuery: DetailedReportQuery;
+	hasRunReport: boolean;
+	/** The days or filter changed since the report last ran. */
+	isReportOutdated: boolean;
+	onRunReport: () => void;
 };
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
@@ -24,6 +34,10 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	filter,
 	onFilterChange,
 	canFilter,
+	reportQuery,
+	hasRunReport,
+	isReportOutdated,
+	onRunReport,
 }) => {
 	return (
 		<div className="flex flex-col gap-6">
@@ -45,8 +59,10 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 					/>
 				)}
 				<SpendDaysPicker now={now} days={days} onDaysChange={onDaysChange} />
-				{/* TODO(AIGOV-731): run the report for the picked days. */}
-				<Button disabled>
+				<Button
+					variant={!hasRunReport || isReportOutdated ? "default" : "outline"}
+					onClick={onRunReport}
+				>
 					<PlayIcon aria-hidden />
 					Run report
 				</Button>
@@ -56,11 +72,23 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 					Export CSV
 				</Button>
 			</div>
-			<EmptyState
-				className="rounded-lg border border-border"
-				message="Create a detailed report"
-				description="See spend for every user, broken down by provider, model, and client. Large reports may take a few minutes."
-			/>
+			{hasRunReport ? (
+				<>
+					{isReportOutdated && (
+						<Alert severity="info">
+							The filters or dates changed since the last run. Run the report to
+							update the results.
+						</Alert>
+					)}
+					<DetailedReportTable reportQuery={reportQuery} />
+				</>
+			) : (
+				<EmptyState
+					className="rounded-lg border border-border"
+					message="Create a detailed report"
+					description="See spend for every user, broken down by provider, model, and client. Large reports may take a few minutes."
+				/>
+			)}
 		</div>
 	);
 };
