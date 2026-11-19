@@ -153,9 +153,15 @@ describe("dashboard logo navigation", () => {
 		{ preference: "workspaces", createChat: true, destination: "/workspaces" },
 		{ preference: "agents", createChat: false, destination: "/workspaces" },
 	] as const)(
-		"links directly to $destination for $preference with createChat=$createChat",
+		"loads $preference and links directly to $destination with createChat=$createChat",
 		async ({ preference, createChat, destination }) => {
-			const getPreferences = vi.spyOn(API, "getUserPreferenceSettings");
+			const saved = {
+				...MockUserPreferenceSettings,
+				default_landing_page: preference,
+			};
+			const getPreferences = vi
+				.spyOn(API, "getUserPreferenceSettings")
+				.mockResolvedValue(saved);
 			const { router, queryClient } = await renderDashboardLayout({
 				route: "/templates",
 				permissions: { ...MockPermissions, createChat },
@@ -166,15 +172,13 @@ describe("dashboard logo navigation", () => {
 					{ path: "agents", element: <div>Agents</div> },
 				],
 			});
-			queryClient.setQueryDefaults(preferenceSettingsKey, {
-				gcTime: Number.POSITIVE_INFINITY,
-			});
-			await act(async () => {
-				queryClient.setQueryData(preferenceSettingsKey, {
-					...MockUserPreferenceSettings,
-					default_landing_page: preference,
+			if (createChat) {
+				await waitFor(() => {
+					expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
+						saved,
+					);
 				});
-			});
+			}
 			const visited: string[] = [];
 			const unsubscribe = router.subscribe(({ location }) => {
 				visited.push(location.pathname);
@@ -187,7 +191,7 @@ describe("dashboard logo navigation", () => {
 					expect(router.state.location.pathname).toBe(destination),
 				);
 				expect(visited).not.toContain("/");
-				expect(getPreferences).not.toHaveBeenCalled();
+				expect(getPreferences).toHaveBeenCalledTimes(createChat ? 1 : 0);
 			} finally {
 				unsubscribe();
 			}

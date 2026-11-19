@@ -416,7 +416,6 @@ export const updateAppearanceSettings = (
 export const preferenceSettingsKey = ["me", "preferences"] as const;
 
 export const preferenceSettings = () => {
-	// Share the bootstrap policy across every preferences consumer.
 	return cachedQuery({
 		metadata: defaultMetadataManager.getMetadata().userPreferences,
 		queryKey: preferenceSettingsKey,

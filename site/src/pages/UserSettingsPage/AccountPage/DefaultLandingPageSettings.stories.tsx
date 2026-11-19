@@ -31,6 +31,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const mockAgentsPreferences: UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	default_landing_page: "agents",
+};
+
 export const Workspaces: Story = {
 	parameters: {
 		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
@@ -42,7 +47,7 @@ export const Agents: Story = {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: { ...MockUserPreferenceSettings, default_landing_page: "agents" },
+				data: mockAgentsPreferences,
 			},
 		],
 	},
@@ -54,7 +59,7 @@ export const AgentsUnavailable: Story = {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: { ...MockUserPreferenceSettings, default_landing_page: "agents" },
+				data: mockAgentsPreferences,
 			},
 		],
 	},
@@ -137,18 +142,14 @@ export const Saved: Story = {
 		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
 	},
 	beforeEach: () => {
-		const saved: UserPreferenceSettings = {
-			...MockUserPreferenceSettings,
-			default_landing_page: "agents",
-		};
 		const getPreference = spyOn(
 			API,
 			"getUserPreferenceSettings",
-		).mockResolvedValue(saved);
+		).mockResolvedValue(mockAgentsPreferences);
 		const updatePreference = spyOn(
 			API,
 			"updateUserPreferenceSettings",
-		).mockResolvedValue(saved);
+		).mockResolvedValue(mockAgentsPreferences);
 		return () => {
 			getPreference.mockRestore();
 			updatePreference.mockRestore();

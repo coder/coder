@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import {
 	createMemoryRouter,
 	matchRoutes,
@@ -81,9 +81,9 @@ describe("dashboard landing page", () => {
 			destination: "/workspaces",
 		},
 		{
-			name: "missing embedded preference",
+			name: "missing preference without Agents permission",
 			preference: undefined,
-			agentsEnabled: true,
+			agentsEnabled: false,
 			destination: "/workspaces",
 		},
 	])(
@@ -130,6 +130,7 @@ describe("dashboard landing page", () => {
 	it.each([
 		{ cached: "agents", embedded: "workspaces", destination: "/agents" },
 		{ cached: "workspaces", embedded: "agents", destination: "/workspaces" },
+		{ cached: "agents", embedded: undefined, destination: "/agents" },
 	] as const)(
 		"uses cached $cached over embedded $embedded",
 		async ({ cached, embedded, destination }) => {
@@ -137,11 +138,14 @@ describe("dashboard landing page", () => {
 			vi.spyOn(defaultMetadataManager, "getMetadata").mockReturnValue({
 				...metadata,
 				userPreferences: {
-					available: true,
-					value: {
-						...MockUserPreferenceSettings,
-						default_landing_page: embedded,
-					},
+					available: embedded !== undefined,
+					value:
+						embedded === undefined
+							? undefined
+							: {
+									...MockUserPreferenceSettings,
+									default_landing_page: embedded,
+								},
 				},
 			});
 			const getPreference = vi.spyOn(API, "getUserPreferenceSettings");
@@ -163,49 +167,94 @@ describe("dashboard landing page", () => {
 		},
 	);
 
-	it.each([
-		{ name: "cold cache", cached: undefined },
-		{ name: "cached Workspaces", cached: "workspaces" },
-	] as const)(
-		"does not wait for a shared pending refresh with $name",
-		async ({ cached }) => {
+	it.each([false, true])(
+		"waits for missing preferences before navigating, existing request=%s",
+		async (existingRequest) => {
 			const preference = createDeferred<UserPreferenceSettings>();
 			const getPreference = vi
 				.spyOn(API, "getUserPreferenceSettings")
 				.mockReturnValue(preference.promise);
 			const { router, queryClient } = renderDashboardRoot("/workspaces");
-			queryClient.setQueryDefaults(preferenceSettingsKey, {
-				gcTime: Number.POSITIVE_INFINITY,
-			});
-			if (cached !== undefined) {
-				queryClient.setQueryData(preferenceSettingsKey, {
-					...MockUserPreferenceSettings,
-					default_landing_page: cached,
-				});
-			}
-			const pending = queryClient.fetchQuery(preferenceSettings());
-			await waitFor(() => expect(getPreference).toHaveBeenCalledTimes(1));
+			await screen.findByText("Workspaces");
+			const pending = existingRequest
+				? queryClient.fetchQuery(preferenceSettings())
+				: undefined;
 			await act(() => router.navigate("/"));
+			await waitFor(() => expect(getPreference).toHaveBeenCalledTimes(1));
+			expect(router.state.location.pathname).toBe("/");
 
-			await waitFor(() => {
-				expect(router.state.location.pathname).toBe("/workspaces");
-			});
-			expect(router.state.historyAction).toBe("REPLACE");
-			expect(getPreference).toHaveBeenCalledTimes(1);
-			if (cached === undefined) {
-				expect(queryClient.getQueryData(preferenceSettingsKey)).toBeUndefined();
-			}
-
-			const updated: UserPreferenceSettings = {
+			const saved: UserPreferenceSettings = {
 				...MockUserPreferenceSettings,
 				default_landing_page: "agents",
 			};
-			preference.resolve(updated);
 			await act(async () => {
+				preference.resolve(saved);
 				await pending;
 			});
-			expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(updated);
-			expect(router.state.location.pathname).toBe("/workspaces");
+
+			await waitFor(() => {
+				expect(router.state.location.pathname).toBe("/agents");
+			});
+			expect(router.state.historyAction).toBe("REPLACE");
+			expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(saved);
+			expect(getPreference).toHaveBeenCalledTimes(1);
 		},
 	);
+
+	it("does not wait for a shared refresh when preferences are cached", async () => {
+		const preference = createDeferred<UserPreferenceSettings>();
+		const getPreference = vi
+			.spyOn(API, "getUserPreferenceSettings")
+			.mockReturnValue(preference.promise);
+		const { router, queryClient } = renderDashboardRoot("/workspaces");
+		queryClient.setQueryDefaults(preferenceSettingsKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(preferenceSettingsKey, {
+			...MockUserPreferenceSettings,
+			default_landing_page: "workspaces",
+		});
+		const pending = queryClient.fetchQuery(preferenceSettings());
+		await waitFor(() => expect(getPreference).toHaveBeenCalledTimes(1));
+		await act(() => router.navigate("/"));
+
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/workspaces");
+		});
+		expect(router.state.historyAction).toBe("REPLACE");
+
+		const updated: UserPreferenceSettings = {
+			...MockUserPreferenceSettings,
+			default_landing_page: "agents",
+		};
+		await act(async () => {
+			preference.resolve(updated);
+			await pending;
+		});
+		expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(updated);
+		expect(router.state.location.pathname).toBe("/workspaces");
+		expect(getPreference).toHaveBeenCalledTimes(1);
+	});
+
+	it("falls back after a failed read without saving or retrying on navigation", async () => {
+		const getPreference = vi
+			.spyOn(API, "getUserPreferenceSettings")
+			.mockRejectedValue(new Error("Preferences unavailable"));
+		const updatePreference = vi.spyOn(API, "updateUserPreferenceSettings");
+		const { router, queryClient } = renderDashboardRoot();
+
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/workspaces");
+		});
+		expect(getPreference).toHaveBeenCalledTimes(1);
+		expect(queryClient.getQueryData(preferenceSettingsKey)).toBeUndefined();
+
+		await act(() => router.navigate("/"));
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/workspaces");
+		});
+		expect(router.state.historyAction).toBe("REPLACE");
+		expect(getPreference).toHaveBeenCalledTimes(1);
+		expect(updatePreference).not.toHaveBeenCalled();
+	});
 });

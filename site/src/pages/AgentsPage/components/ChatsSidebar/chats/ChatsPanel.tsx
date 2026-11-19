@@ -189,7 +189,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	location,
 	currentUserId,
 }) => {
-	const homePath = useDashboardHomePath();
+	const { homePath } = useDashboardHomePath();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<

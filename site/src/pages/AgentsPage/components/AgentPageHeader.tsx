@@ -58,7 +58,7 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
-	const homePath = useDashboardHomePath();
+	const { homePath } = useDashboardHomePath();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
 		useState(getChimeEnabled);
