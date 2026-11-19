@@ -841,15 +841,16 @@ describe("AgentChatPage", () => {
 				button: "Open preview",
 				result: {
 					...MockOpenPreviewResult,
+					kind: "file",
 					port: undefined,
-					preview_id: "0123abcd",
+					preview_slug: "preview--0123abcd",
 					url_path: "/docs/a.html",
 				},
 				tab: {
 					kind: "file_preview",
 					label: MockOpenPreviewResult.title,
 					agentId: mockPreviewAgent.id,
-					previewId: "0123abcd",
+					slug: "preview--0123abcd",
 					urlPath: "/docs/a.html",
 				},
 			},
@@ -858,6 +859,7 @@ describe("AgentChatPage", () => {
 				button: "Open app",
 				result: {
 					...MockOpenPreviewResult,
+					kind: "app",
 					port: undefined,
 					app_slug: mockCodeServerApp.slug,
 					url_path: "/?folder=/home/coder",
@@ -949,6 +951,7 @@ describe("AgentChatPage", () => {
 			await page.publish(
 				previewExchange(20, {
 					...MockOpenPreviewResult,
+					kind: "app",
 					port: undefined,
 					app_slug: AGENT_BROWSER_APP_SLUG,
 				}),
@@ -971,7 +974,11 @@ describe("AgentChatPage", () => {
 			{ name: "from another agent", result: { agent_name: "other-agent" } },
 			{
 				name: "for a path-based app",
-				result: { port: undefined, app_slug: MockWorkspaceApp.slug },
+				result: {
+					kind: "app",
+					port: undefined,
+					app_slug: MockWorkspaceApp.slug,
+				},
 			},
 		])(
 			"does not open a new result's tab $name",

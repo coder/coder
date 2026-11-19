@@ -7,19 +7,20 @@ describe("parseOpenPreviewResult", () => {
 		{ name: "an error", value: { error: "port must be set" } },
 		{ name: "no target", value: { ...MockOpenPreviewResult, port: undefined } },
 		{
-			name: "two targets",
-			value: { ...MockOpenPreviewResult, app_slug: "code-server" },
+			name: "an unknown kind",
+			value: { ...MockOpenPreviewResult, kind: "tunnel" },
 		},
 		{
 			name: "an out-of-range port",
 			value: { ...MockOpenPreviewResult, port: 70000 },
 		},
 		{
-			name: "a preview ID that could change the hostname",
+			name: "a preview slug that could change the hostname",
 			value: {
 				...MockOpenPreviewResult,
+				kind: "file",
 				port: undefined,
-				preview_id: "evil.example.com/",
+				preview_slug: "evil.example.com/",
 			},
 		},
 	])("rejects $name", ({ value }) => {

@@ -86,7 +86,7 @@ function getPreviewURL({
 		case "file_preview":
 			return filePreviewURL(
 				host,
-				tab.previewId,
+				tab.slug,
 				agent.name,
 				workspace.name,
 				workspace.owner_name,

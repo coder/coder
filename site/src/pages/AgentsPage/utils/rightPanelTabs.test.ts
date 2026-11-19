@@ -60,7 +60,7 @@ describe("right-panel tab validation", () => {
 			kind: "file_preview",
 			label: "Docs",
 			agentId: MockWorkspaceAgent.id,
-			previewId: "0123abcd",
+			slug: "preview--0123abcd",
 		},
 	];
 
@@ -288,7 +288,7 @@ describe("right-panel tab storage", () => {
 				kind: "file_preview",
 				label: "Docs",
 				agentId: MockWorkspaceAgent.id,
-				previewId: "0123abcd",
+				slug: "preview--0123abcd",
 				urlPath: "/a.html",
 			},
 		];
@@ -307,7 +307,7 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
 	});
 
-	it("ignores file preview tabs whose ID could change the hostname", () => {
+	it("ignores file preview tabs whose slug could change the hostname", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
 			JSON.stringify([
@@ -316,7 +316,7 @@ describe("right-panel tab storage", () => {
 					kind: "file_preview",
 					label: "Docs",
 					agentId: MockWorkspaceAgent.id,
-					previewId: "evil.example.com/",
+					slug: "evil.example.com/",
 				},
 			]),
 		);

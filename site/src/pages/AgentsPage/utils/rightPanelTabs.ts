@@ -9,7 +9,7 @@ import {
 } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
-import { isFilePreviewID, isValidPort } from "#/utils/portForward";
+import { isHostnameLabel, isValidPort } from "#/utils/portForward";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
 /**
@@ -73,7 +73,7 @@ export type UserRightPanelTab =
 			kind: "file_preview";
 			label: string;
 			agentId: string;
-			previewId: string;
+			slug: string;
 			urlPath?: string;
 	  };
 
@@ -141,7 +141,7 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.label === "string" &&
 			typeof record.agentId === "string" &&
-			isFilePreviewID(record.previewId) &&
+			isHostnameLabel(record.slug) &&
 			hasValidURLPath
 		);
 	}
@@ -241,7 +241,7 @@ export function showsSameFrame(
 			return (
 				tab.kind === "file_preview" &&
 				tab.agentId === target.agentId &&
-				tab.previewId === target.previewId &&
+				tab.slug === target.slug &&
 				tab.urlPath === target.urlPath
 			);
 		default: {

@@ -7,7 +7,7 @@ import type {
 } from "#/api/typesGenerated";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import { isFilePreviewID, isValidPort } from "#/utils/portForward";
+import { isHostnameLabel, isValidPort } from "#/utils/portForward";
 import {
 	isUserRightPanelTabAvailable,
 	type NewFrameTab,
@@ -20,7 +20,7 @@ import { asRecord } from "./utils";
 
 type OpenPreviewTarget =
 	| { kind: "port"; port: number }
-	| { kind: "file"; previewId: string }
+	| { kind: "file"; slug: string }
 	| { kind: "app"; slug: string };
 
 type OpenPreviewResult = {
@@ -34,31 +34,27 @@ type OpenPreviewResult = {
 const parseTarget = (
 	rec: Record<string, unknown>,
 ): OpenPreviewTarget | undefined => {
-	const targets: OpenPreviewTarget[] = [];
-	if (rec.port !== undefined) {
-		if (!isValidPort(rec.port)) {
+	switch (rec.kind) {
+		case "port":
+			return isValidPort(rec.port)
+				? { kind: "port", port: rec.port }
+				: undefined;
+		case "file":
+			return isHostnameLabel(rec.preview_slug)
+				? { kind: "file", slug: rec.preview_slug }
+				: undefined;
+		case "app":
+			return typeof rec.app_slug === "string" && rec.app_slug !== ""
+				? { kind: "app", slug: rec.app_slug }
+				: undefined;
+		default:
 			return undefined;
-		}
-		targets.push({ kind: "port", port: rec.port });
 	}
-	if (rec.preview_id !== undefined) {
-		if (!isFilePreviewID(rec.preview_id)) {
-			return undefined;
-		}
-		targets.push({ kind: "file", previewId: rec.preview_id });
-	}
-	if (rec.app_slug !== undefined) {
-		if (typeof rec.app_slug !== "string" || rec.app_slug === "") {
-			return undefined;
-		}
-		targets.push({ kind: "app", slug: rec.app_slug });
-	}
-	return targets.length === 1 ? targets[0] : undefined;
 };
 
 /**
  * Parses a stored `open_preview` tool result. Returns undefined for an error
- * result or one that does not name exactly one target.
+ * result or one whose target is missing or of an unknown kind.
  */
 export const parseOpenPreviewResult = (
 	result: unknown,
@@ -250,7 +246,7 @@ const getFrameTab = (
 				kind: "file_preview",
 				label: title,
 				agentId: agent.id,
-				previewId: target.previewId,
+				slug: target.slug,
 				urlPath,
 			};
 		case "app": {

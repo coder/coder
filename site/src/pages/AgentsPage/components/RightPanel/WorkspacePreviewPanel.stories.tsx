@@ -19,7 +19,7 @@ const mockFilePreviewTab: Extract<UserRightPanelTab, { kind: "file_preview" }> =
 		kind: "file_preview",
 		label: "Docs site",
 		agentId: MockWorkspaceAgent.id,
-		previewId: "0123abcd",
+		slug: "preview--0123abcd",
 	};
 
 const meta = {
