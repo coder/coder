@@ -47,6 +47,9 @@ type AISpendPageViewProps = {
 	isReportOutdated: boolean;
 	onRunReport: () => void;
 	onCancelReport: () => void;
+	canExportReport: boolean;
+	onExportReport: () => void;
+	onOpenDetailedReport: (username?: string) => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
 	unpricedModels: readonly TypesGen.UnpricedAIModel[] | undefined;
@@ -76,6 +79,9 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	isReportOutdated,
 	onRunReport,
 	onCancelReport,
+	canExportReport,
+	onExportReport,
+	onOpenDetailedReport,
 	overview,
 	overviewError,
 	unpricedModels,
@@ -168,6 +174,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 								organizations,
 							)}
 							canViewSessions={canViewSessions}
+							onOpenDetailedReport={onOpenDetailedReport}
 						/>
 					</TabsContent>
 					<TabsContent value="detailed-report">
@@ -188,6 +195,8 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							isReportOutdated={isReportOutdated}
 							onRunReport={onRunReport}
 							onCancelReport={onCancelReport}
+							canExportReport={canExportReport}
+							onExportReport={onExportReport}
 						/>
 					</TabsContent>
 				</Tabs>

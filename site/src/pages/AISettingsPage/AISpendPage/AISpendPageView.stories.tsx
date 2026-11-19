@@ -76,6 +76,9 @@ const meta = {
 		isReportOutdated: false,
 		onRunReport: fn(),
 		onCancelReport: fn(),
+		canExportReport: false,
+		onExportReport: fn(),
+		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
 		unpricedModels: MockUnpricedAIModels.models,
@@ -104,6 +107,7 @@ export const DetailedReportResults: Story = {
 		tab: "detailed-report",
 		hasRunReport: true,
 		reportQuery: mockReportQuery,
+		canExportReport: true,
 	},
 };
 

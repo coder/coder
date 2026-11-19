@@ -24,6 +24,8 @@ type UserSpendMenuProps = {
 	organizationName: string;
 	/** The sessions page needs read access to every user's sessions. */
 	canViewSessions: boolean;
+	/** Shows a button that opens the Detailed report tab from the cost details. */
+	onOpenDetailedReport?: () => void;
 };
 
 export const UserSpendMenu: React.FC<UserSpendMenuProps> = ({
@@ -33,6 +35,7 @@ export const UserSpendMenu: React.FC<UserSpendMenuProps> = ({
 	period,
 	organizationName,
 	canViewSessions,
+	onOpenDetailedReport,
 }) => {
 	const [isCostDetailsOpen, setIsCostDetailsOpen] = useState(false);
 	const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -85,6 +88,7 @@ export const UserSpendMenu: React.FC<UserSpendMenuProps> = ({
 				detailsError={detailsError}
 				period={period}
 				organizationName={organizationName}
+				onOpenDetailedReport={onOpenDetailedReport}
 			/>
 		</>
 	);

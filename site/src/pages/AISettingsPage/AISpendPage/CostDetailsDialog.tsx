@@ -43,6 +43,7 @@ type CostDetailsDialogProps = {
 	detailsError: Error | null;
 	period: AISpendPeriodWindow;
 	organizationName: string;
+	onOpenDetailedReport?: () => void;
 };
 
 export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
@@ -54,6 +55,7 @@ export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
 	detailsError,
 	period,
 	organizationName,
+	onOpenDetailedReport,
 }) => {
 	const displayName = user.name || user.username;
 	const startDate = dayjs
@@ -128,8 +130,9 @@ export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
 						Close
 					</Button>
-					{/* TODO(AIGOV-731): open the Detailed report tab once it is built. */}
-					<Button disabled>Run detailed report</Button>
+					{onOpenDetailedReport && (
+						<Button onClick={onOpenDetailedReport}>Run detailed report</Button>
+					)}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

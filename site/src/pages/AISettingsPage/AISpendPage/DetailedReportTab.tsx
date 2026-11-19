@@ -26,6 +26,9 @@ type DetailedReportTabProps = {
 	isReportOutdated: boolean;
 	onRunReport: () => void;
 	onCancelReport: () => void;
+	/** The last run returned rows to export. */
+	canExportReport: boolean;
+	onExportReport: () => void;
 };
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
@@ -42,6 +45,8 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	isReportOutdated,
 	onRunReport,
 	onCancelReport,
+	canExportReport,
+	onExportReport,
 }) => {
 	const isReportRunning = hasRunReport && reportQuery.isFetching;
 	const runReportVariant =
@@ -78,8 +83,12 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 						Run report
 					</Button>
 				)}
-				{/* TODO(AIGOV-731): export the report once it has run. */}
-				<Button variant="outline" disabled className="sm:ml-auto">
+				<Button
+					variant="outline"
+					disabled={!canExportReport}
+					onClick={onExportReport}
+					className="sm:ml-auto"
+				>
 					<DownloadIcon aria-hidden />
 					Export CSV
 				</Button>

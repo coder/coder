@@ -25,6 +25,7 @@ type OverviewTabProps = {
 	topSpenderDetailsError: Error | null;
 	organizationName: string;
 	canViewSessions: boolean;
+	onOpenDetailedReport: (username?: string) => void;
 };
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -39,6 +40,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	topSpenderDetailsError,
 	organizationName,
 	canViewSessions,
+	onOpenDetailedReport,
 }) => {
 	return (
 		<div className="flex flex-col gap-6">
@@ -78,6 +80,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 						topSpenderDetailsError={topSpenderDetailsError}
 						organizationName={organizationName}
 						canViewSessions={canViewSessions}
+						onOpenDetailedReport={onOpenDetailedReport}
 					/>
 				</div>
 			)}

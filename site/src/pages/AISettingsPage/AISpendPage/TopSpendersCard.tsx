@@ -24,6 +24,8 @@ type TopSpendersCardProps = {
 	organizationName: string;
 	/** The sessions page needs read access to every user's sessions. */
 	canViewSessions: boolean;
+	/** Opens the Detailed report tab, filtered by the user when one is given. */
+	onOpenDetailedReport: (username?: string) => void;
 };
 
 export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
@@ -32,6 +34,7 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 	topSpenderDetailsError,
 	organizationName,
 	canViewSessions,
+	onOpenDetailedReport,
 }) => {
 	const titleId = useId();
 	const summary = overview && summarizeTopSpenders(overview);
@@ -60,8 +63,11 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 				{summary && (
 					<p className="m-0 text-sm text-content-secondary">{summary}</p>
 				)}
-				{/* TODO(AIGOV-731): open the Detailed report tab once it is built. */}
-				<Button variant="outline" size="sm" disabled>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => onOpenDetailedReport()}
+				>
 					Detailed report
 				</Button>
 			</div>
@@ -89,6 +95,7 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 							period={overview}
 							organizationName={organizationName}
 							canViewSessions={canViewSessions}
+							onOpenDetailedReport={onOpenDetailedReport}
 						/>
 					))}
 				</ul>
@@ -105,6 +112,7 @@ type TopSpenderRowProps = {
 	period: AISpendPeriodWindow;
 	organizationName: string;
 	canViewSessions: boolean;
+	onOpenDetailedReport: (username?: string) => void;
 };
 
 const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
@@ -114,6 +122,7 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 	period,
 	organizationName,
 	canViewSessions,
+	onOpenDetailedReport,
 }) => {
 	const displayName = user.name || user.username;
 	const unpricedModels =
@@ -142,6 +151,7 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 				period={period}
 				organizationName={organizationName}
 				canViewSessions={canViewSessions}
+				onOpenDetailedReport={() => onOpenDetailedReport(user.username)}
 			/>
 		</li>
 	);

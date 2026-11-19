@@ -19,6 +19,7 @@ const meta = {
 		detailsError: null,
 		period: MockOrganizationAISpendOverview,
 		organizationName: "Coder",
+		onOpenDetailedReport: fn(),
 	},
 } satisfies Meta<typeof CostDetailsDialog>;
 

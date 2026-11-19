@@ -260,3 +260,57 @@ it("returns to the previous page when a page change is canceled", async () => {
 	await user.click(await screen.findByRole("button", { name: "Cancel" }));
 	await waitFor(() => expect(searchParam("page")).toBe("1"));
 });
+
+it("exports the last run report", async () => {
+	mockAuth.canViewSessions = true;
+	const user = userEvent.setup();
+	vi.spyOn(API, "getUser").mockResolvedValue(MockUserOwner);
+	let exportURL: URL | undefined;
+	vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+		this: HTMLAnchorElement,
+	) {
+		exportURL = new URL(this.href);
+	});
+	renderAISpendPage(
+		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin model:gpt-5.4")}`,
+	);
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	const exportButton = screen.getByRole("button", { name: "Export CSV" });
+	await waitFor(() => expect(exportButton).toBeEnabled());
+	await user.click(exportButton);
+	await waitFor(() =>
+		expect(exportURL?.pathname).toBe(
+			`/api/v2/organizations/${MockOrganization.id}/ai/spend/export`,
+		),
+	);
+	expect(Object.fromEntries(exportURL?.searchParams ?? [])).toEqual({
+		period_start: "2026-03-01T00:00:00.000Z",
+		period_end: "2026-03-04T00:00:00.000Z",
+		user_id: MockUserOwner.id,
+		model: "gpt-5.4",
+	});
+});
+
+it("opens the Detailed report for a top spender without running it", async () => {
+	const user = userEvent.setup();
+	const { usersSpy, searchParam } = renderAISpendPage();
+	const [spender] = MockOrganizationAISpendOverview.users;
+	await user.click(
+		await screen.findByRole("button", {
+			name: `Open menu for ${spender.name || spender.username}`,
+		}),
+	);
+	await user.click(
+		await screen.findByRole("menuitem", { name: "Cost details" }),
+	);
+	await user.click(
+		await screen.findByRole("button", { name: "Run detailed report" }),
+	);
+	expect(searchParam("tab")).toBe("detailed-report");
+	expect(searchParam("filter")).toBe(`user:${spender.username}`);
+	expect(usersSpy).not.toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining({ offset: 0 }),
+		expect.anything(),
+	);
+});
