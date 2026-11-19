@@ -62,6 +62,7 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
 	buildLoadedChatStore,
+	buildLongConversation,
 	loadedChatStore,
 	MockWorkingMessages,
 } from "../components/ChatConversation/storyFixtures";
@@ -3189,6 +3190,102 @@ export const SendToErroredChatWithQueue: Story = {
 		await userEvent.keyboard("{Enter}");
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
 		await timeline.findByText("Follow-up prompt");
+	},
+};
+
+export const SendingFromHistoryMovesToTheEnd: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long chat",
+				status: "waiting",
+			},
+			{
+				messages: buildLongConversation(CHAT_ID, 40),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return { queued: false };
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Follow-up question.");
+		const viewport = canvas.getByRole("region", { name: "Messages" });
+		// Scroll the reader into history before sending. The scroller reads the
+		// position from the scroll event, which fires after this assignment.
+		const scrolled = new Promise((resolve) =>
+			viewport.addEventListener("scroll", resolve, { once: true }),
+		);
+		viewport.scrollTop = 0;
+		await scrolled;
+
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		await timeline.findByText("Follow-up question.");
+		// The view rests at the end with the prompt in its lower half, not held
+		// at the top above a tail spacer. The stored message replaces the
+		// pending row, so each check finds the prompt again.
+		const restsAtTheEnd = () => {
+			const view = viewport.getBoundingClientRect();
+			const prompt = timeline.getByText("Follow-up question.");
+			expect(
+				viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop,
+			).toBeLessThanOrEqual(1);
+			expect(prompt.getBoundingClientRect().top).toBeGreaterThan(
+				view.top + view.height / 2,
+			);
+		};
+		// While the POST is still pending.
+		await waitFor(restsAtTheEnd);
+
+		releaseSend?.();
+		const store = loadedChatStore(CHAT_ID);
+		store?.batch(() => {
+			store.upsertDurableMessages([
+				{
+					...MockChatMessage,
+					id: 41,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Follow-up question." }],
+				},
+			]);
+			store.applyServerChatStatus("running");
+		});
+		await waitFor(restsAtTheEnd);
 	},
 };
 
