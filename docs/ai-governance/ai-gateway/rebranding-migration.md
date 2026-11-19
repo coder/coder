@@ -135,7 +135,6 @@ Only the new prefixes are emitted:
 | `coder_aibridged_*`      | `coder_ai_gateway_*`       |
 | `coder_aibridgeproxyd_*` | `coder_ai_gateway_proxy_*` |
 
-Update Grafana dashboards, Prometheus alerting rules, and recording rules that reference the removed prefixes to use `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*`.
-Verify the new series are present in your monitoring stack after upgrading.
-
-Refer to [Metric name migration](monitoring.md#metric-name-migration) for details.
+Coder v2.35 through v2.39 emit both the removed and current prefixes.
+Before you upgrade to v2.40, update Grafana dashboards, Prometheus alerting rules, and recording rules that reference the removed prefixes to use `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*`, and confirm the new series are present in your monitoring stack.
+If you upgrade from v2.34 or earlier, the new prefixes are not available before the upgrade, so update your dashboards and alerts as part of the upgrade or use the temporary bridge in [Metric name migration](monitoring.md#metric-name-migration).
