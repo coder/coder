@@ -99,12 +99,15 @@ export type AISpendReportFilter = Pick<
 	group_name?: string;
 };
 
+export const organizationAISpendReportsKey = (organizationId: string) =>
+	["organizations", organizationId, "aiSpendReport"] as const;
+
 const organizationAISpendReportKey = (
 	organizationId: string,
 	period: AISpendPeriodWindow,
 	filter: AISpendReportFilter,
 ) =>
-	["organizations", organizationId, "aiSpendReport", period, filter] as const;
+	[...organizationAISpendReportsKey(organizationId), period, filter] as const;
 
 export const paginatedOrganizationAISpendReport = (
 	organizationId: string,
@@ -125,21 +128,31 @@ export const paginatedOrganizationAISpendReport = (
 			payload: { username, group_name, ...dimensions },
 			limit,
 			offset,
+			signal,
 		}) => {
 			const [user, group] = await Promise.all([
 				username ? API.getUser(username) : undefined,
 				group_name
-					? API.getGroup(organizationId, group_name, { exclude_members: true })
+					? API.getGroup(
+							organizationId,
+							group_name,
+							{ exclude_members: true },
+							signal,
+						)
 					: undefined,
 			]);
-			return API.experimental.getOrganizationAISpendUsers(organizationId, {
-				...period,
-				...dimensions,
-				user_ids: user && [user.id],
-				group_id: group?.id,
-				limit,
-				offset,
-			});
+			return API.experimental.getOrganizationAISpendUsers(
+				organizationId,
+				{
+					...period,
+					...dimensions,
+					user_ids: user && [user.id],
+					group_id: group?.id,
+					limit,
+					offset,
+				},
+				signal,
+			);
 		},
 		// Every page aggregates the whole organization window.
 		prefetch: false,

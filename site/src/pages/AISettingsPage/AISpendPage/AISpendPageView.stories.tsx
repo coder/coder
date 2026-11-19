@@ -75,6 +75,7 @@ const meta = {
 		hasRunReport: false,
 		isReportOutdated: false,
 		onRunReport: fn(),
+		onCancelReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
 		unpricedModels: MockUnpricedAIModels.models,

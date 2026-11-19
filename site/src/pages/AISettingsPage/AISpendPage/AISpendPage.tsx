@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import {
 	aiSpendOrganizations,
 	organizationAISpendOverview,
+	organizationAISpendReportsKey,
 	organizationAISpendUsers,
 	organizationUnpricedAIModels,
 	paginatedOrganizationAISpendReport,
@@ -46,6 +47,7 @@ type AISpendPageProps = {
 
 const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
+	const queryClient = useQueryClient();
 	const { entitlements } = useDashboard();
 	const { isEntitled, isEnabled } = getAIBridgePermissions(
 		entitlements,
@@ -115,6 +117,15 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		preventScrollReset: true,
 		enabled: lastReportRun !== undefined,
 	});
+	// The page whose rows are shown, so a canceled page change can return to it.
+	const [shownReportPage, setShownReportPage] = useState(1);
+	if (
+		reportQuery.data !== undefined &&
+		!reportQuery.isPlaceholderData &&
+		reportQuery.currentPage !== shownReportPage
+	) {
+		setShownReportPage(reportQuery.currentPage);
+	}
 	const runReport = () => {
 		if (organization === undefined) {
 			return;
@@ -129,6 +140,21 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 			filter: appliedReportFilter,
 		});
 		updateSearchParams((params) => params.delete("page"));
+	};
+
+	const cancelReport = () => {
+		if (lastReportRun === undefined) {
+			return;
+		}
+		void queryClient.cancelQueries({
+			queryKey: organizationAISpendReportsKey(lastReportRun.organizationId),
+		});
+		// A canceled first page has no rows to fall back to.
+		if (reportQuery.data === undefined) {
+			setReportRun(undefined);
+		} else if (reportQuery.isPlaceholderData) {
+			setSearchParamValues({ page: String(shownReportPage) });
+		}
 	};
 
 	const tab: AISpendTab =
@@ -194,6 +220,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				hasRunReport={lastReportRun !== undefined}
 				isReportOutdated={isReportOutdated}
 				onRunReport={runReport}
+				onCancelReport={cancelReport}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}
 				unpricedModels={unpricedModelsQuery.data?.models}

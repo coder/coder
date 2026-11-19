@@ -204,20 +204,59 @@ it("runs the report for the picked days and filter, resolving the user and group
 	);
 	await user.click(await screen.findByRole("button", { name: "Run report" }));
 	await waitFor(() =>
-		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
-			period_start: "2026-03-01T00:00:00.000Z",
-			period_end: "2026-03-04T00:00:00.000Z",
-			provider_name: "openai",
-			model: "gpt-5.4",
-			client: "Claude Code",
-			user_ids: [MockUserOwner.id],
-			group_id: MockGroup.id,
-			limit: 10,
-			offset: 0,
-		}),
+		expect(usersSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-01T00:00:00.000Z",
+				period_end: "2026-03-04T00:00:00.000Z",
+				provider_name: "openai",
+				model: "gpt-5.4",
+				client: "Claude Code",
+				user_ids: [MockUserOwner.id],
+				group_id: MockGroup.id,
+				limit: 10,
+				offset: 0,
+			},
+			expect.any(AbortSignal),
+		),
 	);
 	expect(getUserSpy).toHaveBeenCalledWith("admin");
-	expect(getGroupSpy).toHaveBeenCalledWith(MockOrganization.id, "Front-End", {
-		exclude_members: true,
+	expect(getGroupSpy).toHaveBeenCalledWith(
+		MockOrganization.id,
+		"Front-End",
+		{ exclude_members: true },
+		expect.any(AbortSignal),
+	);
+});
+
+it("cancels a running report and shows the empty state again", async () => {
+	const user = userEvent.setup();
+	const { usersSpy } = renderAISpendPage("tab=detailed-report");
+	let reportSignal: AbortSignal | undefined;
+	usersSpy.mockImplementation((_organizationId, _params, signal) => {
+		reportSignal = signal;
+		return new Promise(() => {});
 	});
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await user.click(await screen.findByRole("button", { name: "Cancel" }));
+	expect(reportSignal?.aborted).toBe(true);
+	expect(
+		await screen.findByText("Create a detailed report"),
+	).toBeInTheDocument();
+});
+
+it("returns to the previous page when a page change is canceled", async () => {
+	const user = userEvent.setup();
+	const { usersSpy, searchParam } = renderAISpendPage("tab=detailed-report");
+	usersSpy.mockImplementation(async (_organizationId, params) => {
+		if ((params.offset ?? 0) > 0) {
+			return new Promise(() => {});
+		}
+		return { ...MockOrganizationAISpendReport, count: 20 };
+	});
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await user.click(await screen.findByRole("button", { name: "Next page" }));
+	await waitFor(() => expect(searchParam("page")).toBe("2"));
+	await user.click(await screen.findByRole("button", { name: "Cancel" }));
+	await waitFor(() => expect(searchParam("page")).toBe("1"));
 });
