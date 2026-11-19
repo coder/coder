@@ -30,9 +30,9 @@ import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
 import {
+	getDisplayBuildReason,
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
-	WorkspaceBuildReasonTooltip,
 } from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { formatDate } from "#/utils/time";
@@ -41,8 +41,8 @@ import { WorkspaceDeletedBanner } from "../WorkspacePage/WorkspaceDeletedBanner"
 import {
 	Sidebar,
 	SidebarCaption,
+	SidebarItem,
 	SidebarItemSkeleton,
-	SidebarLink,
 } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
@@ -162,14 +162,14 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 						))}
 
 					{builds?.map((build) => (
-						<WorkspaceBuildReasonTooltip key={build.id} build={build}>
-							<SidebarLink
-								to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
-								active={build.build_number === activeBuildNumber}
-							>
-								<WorkspaceBuildData build={build} />
-							</SidebarLink>
-						</WorkspaceBuildReasonTooltip>
+						<SidebarItem
+							key={build.id}
+							to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+							active={build.build_number === activeBuildNumber}
+							tooltip={getDisplayBuildReason(build)}
+						>
+							<WorkspaceBuildData build={build} />
+						</SidebarItem>
 					))}
 				</Sidebar>
 

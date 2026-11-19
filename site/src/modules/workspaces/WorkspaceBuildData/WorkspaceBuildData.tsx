@@ -15,12 +15,16 @@ import {
 	systemBuildReasons,
 } from "#/utils/workspace";
 
-const getDisplayBuildReason = (build: WorkspaceBuild) =>
+/**
+ * Returns the label for a user-initiated start build's reason, or undefined
+ * when the reason is not shown.
+ */
+export const getDisplayBuildReason = (build: WorkspaceBuild) =>
 	!systemBuildReasons.includes(build.reason) && build.transition === "start"
 		? getBuildReasonLabel(build.reason)
 		: undefined;
 
-type WorkspaceBuildReasonTooltipProps = {
+type WithBuildReasonTooltipProps = {
 	build: WorkspaceBuild;
 	children: React.ReactElement;
 };
@@ -29,9 +33,10 @@ type WorkspaceBuildReasonTooltipProps = {
  * Shows the build reason when its trigger, the build's link, is hovered or
  * focused. Renders the trigger alone for builds without a displayed reason.
  */
-export const WorkspaceBuildReasonTooltip: React.FC<
-	WorkspaceBuildReasonTooltipProps
-> = ({ build, children }) => {
+export const WithBuildReasonTooltip: React.FC<WithBuildReasonTooltipProps> = ({
+	build,
+	children,
+}) => {
 	const buildReason = getDisplayBuildReason(build);
 	if (!buildReason) {
 		return children;

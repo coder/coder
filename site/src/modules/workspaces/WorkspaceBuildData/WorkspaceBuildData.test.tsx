@@ -4,8 +4,8 @@ import type { WorkspaceBuild } from "#/api/typesGenerated";
 import { MockWorkspaceBuild } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import {
+	WithBuildReasonTooltip,
 	WorkspaceBuildData,
-	WorkspaceBuildReasonTooltip,
 } from "./WorkspaceBuildData";
 
 const mockBuildWithReason: WorkspaceBuild = {
@@ -31,11 +31,11 @@ describe("WorkspaceBuildData", () => {
 	it("describes the focused build link with the build reason", async () => {
 		const user = userEvent.setup();
 		renderComponent(
-			<WorkspaceBuildReasonTooltip build={mockBuildWithReason}>
+			<WithBuildReasonTooltip build={mockBuildWithReason}>
 				<a href="/builds/1">
 					<WorkspaceBuildData build={mockBuildWithReason} />
 				</a>
-			</WorkspaceBuildReasonTooltip>,
+			</WithBuildReasonTooltip>,
 		);
 
 		await user.tab();
