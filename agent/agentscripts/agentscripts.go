@@ -561,14 +561,20 @@ func (r *Runner) Close() error {
 	r.executeWait.Wait()
 
 	r.closeMutex.Lock()
-	defer r.closeMutex.Unlock()
 	if r.isClosed() {
+		r.closeMutex.Unlock()
 		return nil
 	}
 	close(r.closed)
 	// Must cancel the cron ctx BEFORE stopping the cron.
 	r.cronCtxCancel()
-	<-r.cron.Stop().Done()
+	stopped := r.cron.Stop()
+	r.closeMutex.Unlock()
+
+	// A cron run cancelled above still reports its timing through
+	// trackCommandGoroutine, so these waits also run with the mutex
+	// released.
+	<-stopped.Done()
 	r.cmdCloseWait.Wait()
 	return nil
 }
