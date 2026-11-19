@@ -33,15 +33,13 @@ const (
 type OpenPreviewResult struct {
 	Title       string    `json:"title"`
 	WorkspaceID uuid.UUID `json:"workspace_id"`
-	AgentID     uuid.UUID `json:"agent_id"`
 	AgentName   string    `json:"agent_name"`
 	// Exactly one of Port, PreviewID, or AppSlug identifies the target on the
 	// agent.
-	Port      int32  `json:"port,omitempty"`
+	Port      int    `json:"port,omitempty"`
 	PreviewID string `json:"preview_id,omitempty"`
 	AppSlug   string `json:"app_slug,omitempty"`
-	// Path is the file or directory a file preview serves.
-	Path string `json:"path,omitempty"`
+	Path      string `json:"path,omitempty"`
 	// URLPath is the path and query the preview opens at, such as
 	// "/?folder=/home/coder". It is empty for the root.
 	URLPath string `json:"url_path,omitempty"`
@@ -58,13 +56,10 @@ type PreviewWorkspace struct {
 
 // OpenPreviewOptions configures the open_preview tool.
 type OpenPreviewOptions struct {
-	// AppHostname is the wildcard app hostname previews are served on, such
-	// as "*.apps.example.com".
 	AppHostname         string
 	GetPreviewWorkspace func(context.Context) (PreviewWorkspace, error)
-	// DB and OwnerID look up the agent's apps as the chat owner.
-	DB      database.Store
-	OwnerID uuid.UUID
+	DB                  database.Store
+	OwnerID             uuid.UUID
 }
 
 // OpenPreviewArgs are the open_preview tool arguments.
@@ -125,7 +120,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 
 			urlPath := strings.TrimSpace(args.URLPath)
 			if urlPath == "/" {
-				// Store "/" as empty so it opens the same tab as no URL path.
 				urlPath = ""
 			}
 			if urlPath != "" && !IsPreviewURLPath(urlPath) {
@@ -140,19 +134,16 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			result := OpenPreviewResult{
 				Title:       title,
 				WorkspaceID: workspace.WorkspaceID,
-				AgentID:     workspace.Agent.ID,
 				AgentName:   workspace.Agent.Name,
 				URLPath:     urlPath,
 			}
 			var slug string
 			switch {
 			case hasPort:
-				// The right panel offers port tabs only on agents that show
-				// the port forwarding helper.
 				if !slices.Contains(workspace.Agent.DisplayApps, database.DisplayAppPortForwardingHelper) {
 					return fantasy.NewTextErrorResponse("the workspace agent does not allow port forwarding, so ports cannot be previewed"), nil
 				}
-				result.Port = int32(*args.Port) //nolint:gosec // Checked against 65535 above.
+				result.Port = *args.Port
 				slug = strconv.Itoa(*args.Port)
 			case hasApp:
 				if err := checkOpenableApp(ctx, options, workspace.Agent.ID, app); err != nil {
@@ -163,8 +154,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			default:
 				preview, err := workspace.Conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: path})
 				if err != nil {
-					// The publish handler never returns 404, so a 404 means the
-					// agent predates the previews route.
 					if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() == http.StatusNotFound {
 						return fantasy.NewTextErrorResponse("the workspace agent is outdated; restart the workspace to preview files"), nil
 					}
@@ -183,10 +172,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 	)
 }
 
-// checkOpenableApp returns an error unless the agent has a subdomain app
-// with the given slug that is not hidden, external, or a command app. The
-// right panel does not show those in tabs. Path-based apps are excluded
-// because they run on the dashboard's origin.
 func checkOpenableApp(ctx context.Context, options OpenPreviewOptions, agentID uuid.UUID, slug string) error {
 	ctx, err := asOwner(ctx, options.DB, options.OwnerID)
 	if err != nil {
@@ -215,9 +200,6 @@ func checkOpenableApp(ctx context.Context, options OpenPreviewOptions, agentID u
 	return xerrors.Errorf("app %q cannot be opened: %s; apps it can open: %s", slug, openableRule, strings.Join(available, ", "))
 }
 
-// checkHostnameLength returns an error when the hostname for slug on the
-// workspace agent has a first label longer than DNS allows, because browsers
-// cannot load it.
 func checkHostnameLength(appHostname string, workspace PreviewWorkspace, slug string) error {
 	pattern, _, _ := strings.Cut(appHostname, ".")
 	label := strings.Replace(pattern, "*", appurl.ApplicationURL{

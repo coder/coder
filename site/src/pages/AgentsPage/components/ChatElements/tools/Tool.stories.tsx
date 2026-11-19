@@ -3049,10 +3049,6 @@ export const StopWorkspaceBuildFailed: Story = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// open_preview stories
-// ---------------------------------------------------------------------------
-
 const withPreviewOpenAction: Decorator = (Story) => (
 	<PreviewPanelContext value={{ getOpenAction: () => fn() }}>
 		<Story />

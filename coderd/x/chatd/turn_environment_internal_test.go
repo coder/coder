@@ -863,8 +863,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		return server
 	}
 	server := newServer("*.apps.example.com", codersdk.ExperimentOpenPreview)
-	// open_preview needs a wildcard app hostname and the open-preview
-	// experiment.
 	noAppHostnameServer := newServer("", codersdk.ExperimentOpenPreview)
 	noExperimentServer := newServer("*.apps.example.com")
 
@@ -892,8 +890,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		// replaceMCP sends a follow-up message that asks to replace the
 		// MCP selection before the next turn is prepared.
 		replaceMCP bool
-		// server builds the turn instead of the default server.
-		server *Server
+		server     *Server
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string

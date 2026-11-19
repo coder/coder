@@ -240,7 +240,6 @@ export const MockChatMessage: ChatMessage = {
 export const MockOpenPreviewResult = {
 	title: "Docs site",
 	workspace_id: MockWorkspace.id,
-	agent_id: MockWorkspaceAgent.id,
 	agent_name: MockWorkspaceAgent.name,
 	port: 3000,
 };

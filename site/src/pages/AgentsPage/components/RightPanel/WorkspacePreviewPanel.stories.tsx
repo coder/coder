@@ -106,7 +106,6 @@ export const InvalidWildcardHost: Story = {
 	},
 };
 
-// These file preview states render no iframe, so Pixel can capture them.
 export const FilePreviewAgentDisconnected: Story = {
 	args: {
 		tab: mockFilePreviewTab,

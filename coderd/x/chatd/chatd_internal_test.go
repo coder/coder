@@ -1437,7 +1437,6 @@ func TestTurnWorkspaceContextGetPreviewWorkspaceAgentClearedDuringDial(t *testin
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			// A parallel tool call whose dial timed out clears the cache.
 			workspaceCtx.clearCachedWorkspaceState()
 			return conn, func() {}, nil
 		},
