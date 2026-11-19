@@ -107,7 +107,8 @@ A template admin can make a workspace stay running while a coding agent works, w
 The examples in this section do this for Claude Code and Herdr with the [Claude Code](https://registry.coder.com/modules/coder/claude-code) and [Herdr](https://registry.coder.com/modules/gojnimer6553/herdr) registry modules.
 
 Both examples use a startup script that creates a [scoped token](../admin/users/sessions-tokens.md#api-key-scopes) for the workspace.
-The script uses the owner's session token from the workspace build once, to create a token that can only read and extend this workspace.
+The script uses the owner's session token from the workspace build once, to create a token that can read and update only this workspace.
+The token can't stop or delete the workspace.
 It also installs a `coder-keepalive` helper that moves the deadline to one hour from now when the deadline is closer than 50&nbsp;minutes.
 The helper never shortens the deadline, and it never moves the deadline past the template's maximum workspace runtime.
 
@@ -140,7 +141,8 @@ resource "coder_script" "keepalive" {
     cat > "$HOME/.local/bin/coder-keepalive" << 'HELPER'
     #!/usr/bin/env bash
     # Moves the workspace deadline to KEEPALIVE_WINDOW minutes from now when it
-    # is closer than that. Never shortens the deadline. Runs at most once a minute.
+    # is less than KEEPALIVE_WINDOW - 10 minutes away. Never shortens the deadline.
+    # Runs at most once a minute.
     set -u
     dir="$HOME/.config/coder-keepalive"
     token=$(cat "$dir/token" 2> /dev/null) || exit 0
@@ -171,9 +173,18 @@ resource "coder_script" "keepalive" {
 ```
 
 The helper needs `curl`, `jq`, and GNU `date` in the workspace image.
-The owner's session token is part of the script, so the workspace agent can read it.
+The startup script needs the `coder` CLI on the `PATH`, and the Herdr example also needs `flock`.
+If a tool is missing, the helper exits without an error and the workspace still stops at its deadline.
+
+The owner's session token is part of the script.
+Coder stores it in the Terraform state of the workspace build and sends it to the workspace agent with the script, so the agent can read it.
 Only the scoped token is saved in the workspace, and the script replaces it each time the workspace starts.
 Deleting the workspace doesn't delete the token, but the token can't reach any other workspace and expires after 7&nbsp;days.
+
+If the workspace runs for longer than 7&nbsp;days, the token expires and the helper stops extending the deadline.
+Restart the workspace to create a new token.
+If your deployment sets a [maximum token lifetime](../admin/users/sessions-tokens.md#set-max-token-length) shorter than 7&nbsp;days, the startup script fails.
+Set `--lifetime` to a value that your deployment allows.
 
 To extend the deadline while Claude Code works, add hooks that run the helper with the module's `managed_settings`:
 
@@ -211,7 +222,7 @@ module "herdr" {
     # While any agent in Herdr is working, keep the workspace running.
     nohup flock -n "$HOME/.config/coder-keepalive.lock" bash -c '
       while true; do
-        if herdr agent list 2> /dev/null | grep -q "\"agent_status\":\"working\""; then
+        if herdr agent list 2> /dev/null | jq -e "any(..; .agent_status? == \"working\")" > /dev/null; then
           "$HOME/.local/bin/coder-keepalive"
         fi
         sleep 60
@@ -221,6 +232,7 @@ module "herdr" {
 ```
 
 When the agents stop working, the helper stops extending the deadline, and the workspace stops at its deadline.
+The loop reads the `agent_status` field from the JSON output of `herdr agent list` in Herdr 0.9.5.
 
 ## Autostop requirement
 
