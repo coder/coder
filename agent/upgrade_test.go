@@ -152,7 +152,6 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			name:     "AgentShutdown",
 			id:       "0123456789abcdef0123456789abcdef",
 			reason:   codersdk.DisconnectReasonServerShutdown,
-			write:    "echo test\r",
 			shutdown: true,
 			rxBytes:  10,
 			// The agent closes the shell's stdin before it signals the shell, so the
