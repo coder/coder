@@ -188,7 +188,7 @@ runs:
 
     - name: Install rcodesign
       if: inputs.sign == 'true'
-      uses: coder/setup-apple-signing-action/rcodesign@ee5b178f59b7ad9c80089dc91a36c45868cddb69 # main 2026-11-19
+      uses: coder/setup-apple-signing-action/rcodesign@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
 
     # Necessary for signing Windows binaries.
     - name: Setup Java
@@ -204,7 +204,7 @@ runs:
     - name: Set up Apple signing
       id: apple_signing
       if: inputs.sign == 'true'
-      uses: coder/setup-apple-signing-action@ee5b178f59b7ad9c80089dc91a36c45868cddb69 # main 2026-11-19
+      uses: coder/setup-apple-signing-action@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
       with:
         certificate-pem: ${{ inputs.ac-certificate-pem }}
         key-ring: ${{ inputs.ac-kms-key-ring }}
