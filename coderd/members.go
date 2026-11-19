@@ -23,12 +23,15 @@ import (
 )
 
 // @Summary Add organization member
+// @Description Adds an existing user to an organization with no roles beyond the organization's defaults.
+// @Description Returns `400` for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.
+// @Description Requires permission to read the user and to create organization members.
 // @ID add-organization-member
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
-// @Param organization path string true "Organization ID"
-// @Param user path string true "User ID, name, or me"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /api/v2/organizations/{organization}/members/{user} [post]
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
@@ -91,11 +94,14 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Remove organization member
+// @Description Removes a user from an organization.
+// @Description You can't remove yourself.
+// @Description Requires permission to delete organization members.
 // @ID remove-organization-member
 // @Security CoderSessionToken
 // @Tags Members
-// @Param organization path string true "Organization ID"
-// @Param user path string true "User ID, name, or me"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 204
 // @Router /api/v2/organizations/{organization}/members/{user} [delete]
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
@@ -147,11 +153,13 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Get organization member
+// @Description Returns one organization member with their user data, such as username, email, status, and roles.
+// @Description Returns only a member you can read.
 // @ID get-organization-member
 // @Security CoderSessionToken
 // @Tags Members
-// @Param organization path string true "Organization ID"
-// @Param user path string true "User ID, name, or me"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.OrganizationMemberWithUserData
 // @Produce json
 // @Router /api/v2/organizations/{organization}/members/{user} [get]
@@ -206,11 +214,15 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 
 // @Deprecated use /organizations/{organization}/paginated-members [get]
 // @Summary List organization members
+// @Description Returns the members of an organization with their user data, without paging.
+// @Description Returns only the members you can read.
+// @Description Deprecated. Use `GET /api/v2/organizations/{organization}/paginated-members` instead.
 // @ID list-organization-members
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
-// @Param organization path string true "Organization ID"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `user_id`, `github_user_id`, and `include_system`. Other keys return `400`."
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /api/v2/organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
@@ -262,15 +274,18 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Paginated organization members
+// @Description Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.
+// @Description Use `q` to filter the members and `limit` with `offset` or `after_id` to page through them.
+// @Description Requires permission to read all of the organization's members.
 // @ID paginated-organization-members
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
-// @Param organization path string true "Organization ID"
-// @Param q query string false "Member search query"
-// @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit, if 0 returns all members"
-// @Param offset query int false "Page offset"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
 // @Router /api/v2/organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
@@ -396,14 +411,17 @@ func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uui
 }
 
 // @Summary Assign role to organization member
+// @Description Replaces an organization member's roles with the roles in the request body.
+// @Description You can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.
+// @Description Requires permission to assign organization roles.
 // @ID assign-role-to-organization-member
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Members
-// @Param organization path string true "Organization ID"
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateRoles true "Update roles request"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateRoles true "Names of the roles to assign to the member. These replace the member's current roles."
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /api/v2/organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {

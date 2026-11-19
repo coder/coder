@@ -21,11 +21,13 @@ import (
 )
 
 // @Summary Get workspace sharing settings for organization
+// @Description Returns whether workspaces in an organization can be shared, and whose workspaces can be shared: `none`, `everyone`, or `service_accounts`.
+// @Description When the deployment disables workspace sharing with `--disable-workspace-sharing`, `sharing_globally_disabled` is `true` and `shareable_workspace_owners` is `none` whatever the organization setting is.
 // @ID get-workspace-sharing-settings-for-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.WorkspaceSharingSettings
 // @Router /api/v2/organizations/{organization}/settings/workspace-sharing [get]
 func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request) {
@@ -51,13 +53,17 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Update workspace sharing settings for organization
+// @Description Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.
+// @Description Choosing `none` removes every workspace share in the organization.
+// @Description Choosing `service_accounts` removes the shares on workspaces that service accounts don't own.
+// @Description Requires permission to update the organization.
 // @ID update-workspace-sharing-settings-for-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceSharingSettingsRequest true "Workspace sharing settings"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param request body codersdk.UpdateWorkspaceSharingSettingsRequest true "Workspace sharing settings to apply. Set `shareable_workspace_owners`. The deprecated `sharing_disabled` applies only when `shareable_workspace_owners` is empty."
 // @Success 200 {object} codersdk.WorkspaceSharingSettings
 // @Router /api/v2/organizations/{organization}/settings/workspace-sharing [patch]
 func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Request) {

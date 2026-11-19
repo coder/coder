@@ -37,11 +37,14 @@ func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 }
 
 // @Summary Get user quiet hours schedule
+// @Description Returns the daily quiet hours schedule that applies to a user, which is the deployment default until the user sets their own.
+// @Description Check `user_set` to see whether the user set the schedule, and `user_can_set` to see whether the deployment lets users set their own.
+// @Description Requires a Premium license.
 // @ID get-user-quiet-hours-schedule
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID" format(uuid)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
 // @Router /api/v2/users/{user}/quiet-hours [get]
 func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {
@@ -71,13 +74,17 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update user quiet hours schedule
+// @Description Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
+// @Description Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
+// @Description You can update your own schedule, and updating another user's schedule requires permission to update personal user data.
+// @Description Requires a Premium license.
 // @ID update-user-quiet-hours-schedule
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID" format(uuid)
-// @Param request body codersdk.UpdateUserQuietHoursScheduleRequest true "Update schedule request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateUserQuietHoursScheduleRequest true "Quiet hours schedule to set."
 // @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
 // @Router /api/v2/users/{user}/quiet-hours [put]
 func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {

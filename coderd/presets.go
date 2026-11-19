@@ -10,6 +10,8 @@ import (
 )
 
 // @Summary Get template version presets
+// @Description Returns the presets that a template version defines, with the parameter values of each preset.
+// @Description Presets that configure prebuilds also include the desired number of prebuilt instances.
 // @ID get-template-version-presets
 // @Security CoderSessionToken
 // @Produce json

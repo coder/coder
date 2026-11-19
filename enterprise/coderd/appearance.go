@@ -21,6 +21,9 @@ import (
 )
 
 // @Summary Get appearance
+// @Description Returns the deployment's appearance settings, which are the application name, logo URL, announcement banners, support links, and docs URL.
+// @Description Accepts either a session token or a workspace agent token.
+// @Description The application name, logo URL, and announcement banners are empty unless the license includes the appearance feature.
 // @ID get-appearance
 // @Security CoderSessionToken
 // @Produce json
@@ -143,12 +146,15 @@ func validateHexColor(color string) error {
 }
 
 // @Summary Update appearance
+// @Description Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.
+// @Description Requires permission to update deployment configuration.
+// @Description The application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.
 // @ID update-appearance
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.UpdateAppearanceConfig true "Update appearance request"
+// @Param request body codersdk.UpdateAppearanceConfig true "Appearance settings to save. Each `background_color` in `announcement_banners` must be a hex color such as `#004852`. `service_banner` is deprecated, so use `announcement_banners` instead."
 // @Success 200 {object} codersdk.UpdateAppearanceConfig
 // @Router /api/v2/appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {

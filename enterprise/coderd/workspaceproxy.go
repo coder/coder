@@ -86,13 +86,18 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 }
 
 // @Summary Update workspace proxy
+// @Description Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.
+// @Description Set `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.
+// @Description For the primary proxy, you can change only `display_name` and `icon`.
+// @Description Requires permission to update workspace proxies.
+// @Description Requires a Premium license.
 // @ID update-workspace-proxy
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
-// @Param request body codersdk.PatchWorkspaceProxy true "Update workspace proxy request"
+// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy."
+// @Param request body codersdk.PatchWorkspaceProxy true "Workspace proxy fields to update. Set `regenerate_token` to `true` to issue a new token."
 // @Success 200 {object} codersdk.WorkspaceProxy
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [patch]
 func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
@@ -237,11 +242,15 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 }
 
 // @Summary Delete workspace proxy
+// @Description Deletes a workspace proxy, so Coder stops offering it as a region.
+// @Description You can't delete the primary proxy.
+// @Description Requires permission to delete workspace proxies.
+// @Description Requires a Premium license.
 // @ID delete-workspace-proxy
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [delete]
 func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
@@ -289,11 +298,13 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace proxy
+// @Description Returns a workspace proxy, including its health status.
+// @Description Requires a Premium license.
 // @ID get-workspace-proxy
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy."
 // @Success 200 {object} codersdk.WorkspaceProxy
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [get]
 func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
@@ -306,12 +317,17 @@ func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Create workspace proxy
+// @Description Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
+// @Description Set `name` (not `primary`), and optionally `display_name` and `icon`.
+// @Description Save the token from the response, because Coder doesn't show it again unless you regenerate it.
+// @Description Requires permission to create workspace proxies.
+// @Description Requires a Premium license.
 // @ID create-workspace-proxy
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
+// @Param request body codersdk.CreateWorkspaceProxyRequest true "Workspace proxy to create."
 // @Success 201 {object} codersdk.WorkspaceProxy
 // @Router /api/v2/workspaceproxies [post]
 func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
@@ -412,6 +428,9 @@ func validateProxyURL(u string) error {
 }
 
 // @Summary Get workspace proxies
+// @Description Returns the primary region and every workspace proxy, each with its health status, under `regions`.
+// @Description Every member can read workspace proxies.
+// @Description Requires a Premium license.
 // @ID get-workspace-proxies
 // @Security CoderSessionToken
 // @Produce json

@@ -13,11 +13,14 @@ import (
 )
 
 // @Summary Report a premium paywall click
+// @Description Records through telemetry that a user selected the call to action on a Premium paywall.
+// @Description The dashboard calls this when a user selects a paywall button, so you don't need to call it.
+// @Description Requires permission to read licenses, and returns `404` without it.
 // @ID report-a-premium-paywall-click
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Enterprise
-// @Param request body codersdk.PremiumFunnelEventRequest true "Premium funnel event"
+// @Param request body codersdk.PremiumFunnelEventRequest true "Paywall event to record. `id` identifies the event, and a later trial request can pass it as `attribution_id`. `source` is the feature that the paywall is for, and `variant` is the paywall presentation, which is `premium`, `small`, or `ai_governance`."
 // @Success 204
 // @Router /api/v2/deployment/premium-funnel-events [post]
 func (api *API) postPremiumFunnelEvent(rw http.ResponseWriter, r *http.Request) {

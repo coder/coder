@@ -37,6 +37,10 @@ const aiGatewayKeyHeartbeatInterval = 60 * time.Second
 // is enforced by middleware on the route.
 //
 // @Summary AI Gateway serve
+// @Description Upgrades the connection to a WebSocket that carries the AI Gateway DRPC services from `coderd` to a standalone AI Gateway replica.
+// @Description The replica calls this, not you, and authenticates with an AI Gateway key in the `X-Coder-AI-Governance-Gateway-Key` header instead of a session token.
+// @Description Coder closes the connection when the key is deleted or the license no longer includes AI Governance.
+// @Description Requires a Premium license.
 // @ID ai-gateway-serve
 // @Security AIGatewayKey
 // @Tags Enterprise

@@ -13,13 +13,17 @@ import (
 )
 
 // @Summary Upsert workspace agent port share
+// @Description Shares a port on one of a workspace's agents at the given `share_level`, or updates the share if the port is already shared.
+// @Description The `port` must be from 9 to 65535, the `share_level` is `authenticated`, `organization`, or `public`, and the `protocol` is `http` or `https`.
+// @Description Requires permission to update the workspace.
+// @Description With a Premium license, the template's `max_port_share_level` limits the levels you can set.
 // @ID upsert-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags PortSharing
-// @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpsertWorkspaceAgentPortShareRequest true "Upsert port sharing level request"
+// @Param workspace path string true "Workspace ID." format(uuid)
+// @Param request body codersdk.UpsertWorkspaceAgentPortShareRequest true "Port share to create or update. `agent_name` must name an agent in the workspace's latest build, and `port`, `share_level`, and `protocol` are as described above."
 // @Success 200 {object} codersdk.WorkspaceAgentPortShare
 // @Router /api/v2/workspaces/{workspace}/port-share [post]
 func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
@@ -113,11 +117,13 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Get workspace agent port shares
+// @Description Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.
+// @Description Requires permission to read the workspace.
 // @ID get-workspace-agent-port-shares
 // @Security CoderSessionToken
 // @Produce json
 // @Tags PortSharing
-// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param workspace path string true "Workspace ID." format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentPortShares
 // @Router /api/v2/workspaces/{workspace}/port-share [get]
 func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request) {
@@ -136,12 +142,15 @@ func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Delete workspace agent port share
+// @Description Stops sharing a port on one of a workspace's agents.
+// @Description Returns `404` if the port isn't shared.
+// @Description Requires permission to update the workspace.
 // @ID delete-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json
 // @Tags PortSharing
-// @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.DeleteWorkspaceAgentPortShareRequest true "Delete port sharing level request"
+// @Param workspace path string true "Workspace ID." format(uuid)
+// @Param request body codersdk.DeleteWorkspaceAgentPortShareRequest true "Port share to delete, identified by `agent_name` and `port`."
 // @Success 200
 // @Router /api/v2/workspaces/{workspace}/port-share [delete]
 func (api *API) deleteWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {

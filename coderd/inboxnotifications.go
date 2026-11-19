@@ -111,14 +111,17 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // watchInboxNotifications watches for new inbox notifications and sends them to the client.
 // The client can specify a list of target IDs to filter the notifications.
 // @Summary Watch for new inbox notifications
+// @Description Streams your new inbox notifications over a WebSocket as they arrive.
+// @Description Each message is a JSON object with the `notification` and your current `unread_count`.
+// @Description Use the query parameters to filter which notifications you receive.
 // @ID watch-for-new-inbox-notifications
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Param targets query string false "Comma-separated list of target IDs to filter notifications"
-// @Param templates query string false "Comma-separated list of template IDs to filter notifications"
-// @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
-// @Param format query string false "Define the output format for notifications title and body." enums(plaintext,markdown)
+// @Param targets query string false "Comma-separated list of target IDs. Sends only notifications that have all of these targets."
+// @Param templates query string false "Comma-separated list of notification template IDs. Sends only notifications from these templates."
+// @Param read_status query string false "Filter by read status: `all`, `read`, or `unread`. The default is `all`."
+// @Param format query string false "Format of the notification `title` and `content`: `markdown` or `plaintext`. The default is `markdown`." enums(plaintext,markdown)
 // @Success 200 {object} codersdk.GetInboxNotificationResponse
 // @Router /api/v2/notifications/inbox/watch [get]
 func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
@@ -288,14 +291,16 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 
 // listInboxNotifications lists the notifications for the user.
 // @Summary List inbox notifications
+// @Description Returns up to 25 of your inbox notifications, newest first, with your `unread_count`.
+// @Description Use `starting_before` to page through older notifications.
 // @ID list-inbox-notifications
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Param targets query string false "Comma-separated list of target IDs to filter notifications"
-// @Param templates query string false "Comma-separated list of template IDs to filter notifications"
-// @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
-// @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one" format(uuid)
+// @Param targets query string false "Comma-separated list of target IDs. Returns only notifications that have all of these targets."
+// @Param templates query string false "Comma-separated list of notification template IDs. Returns only notifications from these templates."
+// @Param read_status query string false "Filter by read status: `all`, `read`, or `unread`. The default is `all`."
+// @Param starting_before query string false "ID of the last notification on the previous page. Returns the notifications created before it. If no notification has this ID, returns the first page." format(uuid)
 // @Success 200 {object} codersdk.ListInboxNotificationsResponse
 // @Router /api/v2/notifications/inbox [get]
 func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
@@ -381,11 +386,13 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 
 // updateInboxNotificationReadStatus changes the read status of a notification.
 // @Summary Update read status of a notification
+// @Description Marks one of your inbox notifications as read or unread by setting `is_read` in the request body.
+// @Description Returns the updated notification and your `unread_count`.
 // @ID update-read-status-of-a-notification
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Param id path string true "id of the notification"
+// @Param id path string true "Notification ID."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
@@ -457,6 +464,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 
 // markAllInboxNotificationsAsRead marks as read all unread notifications for authenticated user.
 // @Summary Mark all unread notifications as read
+// @Description Marks all of your unread inbox notifications as read.
 // @ID mark-all-unread-notifications-as-read
 // @Security CoderSessionToken
 // @Tags Notifications

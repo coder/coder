@@ -28,11 +28,14 @@ import (
 const insightsTimeLayout = time.RFC3339
 
 // @Summary Get deployment DAUs
+// @Description Returns the number of daily active users across the deployment for the last 60 days, one entry per day.
+// @Description Requires permission to read deployment configuration.
+// @Description Returns `404` when usage stats collection is turned off.
 // @ID get-deployment-daus
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param tz_offset query int true "Time-zone offset (e.g. -2)"
+// @Param tz_offset query int false "Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC."
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /api/v2/insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
@@ -99,13 +102,16 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 }
 
 // @Summary Get insights about user activity
+// @Description Returns how many seconds each user was active in workspaces between `start_time` and `end_time`, along with the templates that contributed.
+// @Description Requires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.
+// @Description Returns `404` when usage stats collection is turned off.
 // @ID get-insights-about-user-activity
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param start_time query string true "Start time" format(date-time)
-// @Param end_time query string true "End time" format(date-time)
-// @Param template_ids query []string false "Template IDs" collectionFormat(csv)
+// @Param start_time query string true "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as `2026-10-01T00:00:00Z`. It can't be later than the end of the current hour." format(date-time)
+// @Param end_time query string true "End of the report, as an RFC 3339 timestamp that isn't before `start_time`. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour." format(date-time)
+// @Param template_ids query []string false "Comma-separated list of template IDs to include. By default, the report covers all templates." collectionFormat(csv)
 // @Success 200 {object} codersdk.UserActivityInsightsResponse
 // @Router /api/v2/insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
@@ -202,13 +208,16 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get insights about user latency
+// @Description Returns each user's workspace connection latency between `start_time` and `end_time`, as 50th and 95th percentile values in milliseconds.
+// @Description Requires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.
+// @Description Returns `404` when usage stats collection is turned off.
 // @ID get-insights-about-user-latency
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param start_time query string true "Start time" format(date-time)
-// @Param end_time query string true "End time" format(date-time)
-// @Param template_ids query []string false "Template IDs" collectionFormat(csv)
+// @Param start_time query string true "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as `2026-10-01T00:00:00Z`. It can't be later than the end of the current hour." format(date-time)
+// @Param end_time query string true "End of the report, as an RFC 3339 timestamp that isn't before `start_time`. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour." format(date-time)
+// @Param template_ids query []string false "Comma-separated list of template IDs to include. By default, the report covers all templates." collectionFormat(csv)
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
 // @Router /api/v2/insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
@@ -295,12 +304,14 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get insights about user status counts
+// @Description Returns the number of users in each status on each of the last 60 days.
+// @Description Requires permission to read users.
 // @ID get-insights-about-user-status-counts
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param timezone query string false "IANA timezone name (e.g. America/St_Johns)"
-// @Param tz_offset query int false "Deprecated: Time-zone offset (e.g. -2). Use timezone instead."
+// @Param timezone query string false "IANA time zone name, such as `America/St_Johns`, that sets where each day starts. The default is `UTC`. Do not combine it with `tz_offset`."
+// @Param tz_offset query int false "Deprecated: Offset from UTC in whole hours, such as `-2`. Use `timezone` instead. Do not combine it with `timezone`."
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
 // @Router /api/v2/insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
@@ -388,14 +399,17 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Get insights about templates
+// @Description Returns usage insights for templates between `start_time` and `end_time`: active users, total usage time, app usage, and template parameter usage, plus active users for each `interval` when you set one.
+// @Description Requires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.
+// @Description Returns `404` when usage stats collection is turned off.
 // @ID get-insights-about-templates
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param start_time query string true "Start time" format(date-time)
-// @Param end_time query string true "End time" format(date-time)
-// @Param interval query string true "Interval" enums(week,day)
-// @Param template_ids query []string false "Template IDs" collectionFormat(csv)
+// @Param start_time query string true "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as `2026-10-01T00:00:00Z`. It can't be later than the end of the current hour." format(date-time)
+// @Param end_time query string true "End of the report, as an RFC 3339 timestamp that isn't before `start_time`. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour." format(date-time)
+// @Param interval query string false "Length of each period in `interval_reports`: `day` or `week`. With `week`, the last period must span at least 6 days. If you omit it, the response has no `interval_reports`." enums(week,day)
+// @Param template_ids query []string false "Comma-separated list of template IDs to include. By default, the report covers all templates." collectionFormat(csv)
 // @Success 200 {object} codersdk.TemplateInsightsResponse
 // @Router /api/v2/insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {

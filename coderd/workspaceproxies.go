@@ -69,6 +69,10 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 }
 
 // @Summary Get site-wide regions for workspace connections
+// @Description Returns the regions that workspace connections and apps can use, each with its `healthy` status and the URLs for path and subdomain apps.
+// @Description The list always includes the primary region, and on deployments with workspace proxies it adds each proxy that isn't deleted or DERP-only.
+// @Description The dashboard's region picker uses this list, and so does `coder open app` to build an app URL for a region.
+// @Description Any authenticated user can call it.
 // @ID get-site-wide-regions-for-workspace-connections
 // @Security CoderSessionToken
 // @Produce json

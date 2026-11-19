@@ -8,6 +8,8 @@ import (
 )
 
 // @Summary API root handler
+// @Description Returns a short greeting from the API root, which you can use to check that the API is reachable.
+// @Description Doesn't require a session token.
 // @ID api-root-handler
 // @Produce json
 // @Tags General

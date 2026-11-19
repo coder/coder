@@ -21,6 +21,8 @@ import (
 )
 
 // @Summary Get enabled experiments
+// @Description Returns the experiments that are enabled for you.
+// @Description Rules can turn user-scoped experiments on or off for individual users, so the list can differ between users.
 // @ID get-enabled-experiments
 // @Security CoderSessionToken
 // @Produce json
@@ -36,6 +38,7 @@ func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get safe experiments
+// @Description Returns the experiments that are safe to turn on, in the `safe` field.
 // @ID get-safe-experiments
 // @Security CoderSessionToken
 // @Produce json
