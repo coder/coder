@@ -686,7 +686,9 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	return workspaceAgent, nil
 }
 
-func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerName string) string {
+// AppSubdomain returns the subdomain of a subdomain app. appHost is the
+// wildcard app hostname, which decides if the long form URL fits.
+func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName string, workspaceID uuid.UUID, ownerName, appHost string) string {
 	if !dbApp.Subdomain || agentName == "" || ownerName == "" || workspaceName == "" {
 		return ""
 	}
@@ -696,25 +698,13 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 		appSlug = dbApp.DisplayName
 	}
 
-	// Agent name is optional when app slug is present
-	normalizedAgentName := agentName
-	if !appurl.PortRegex.MatchString(appSlug) {
-		normalizedAgentName = ""
-	}
-
-	return appurl.ApplicationURL{
-		// We never generate URLs with a prefix. We only allow prefixes when
-		// parsing URLs from the hostname. Users that want this feature can
-		// write out their own URLs.
-		Prefix:        "",
-		AppSlugOrPort: appSlug,
-		AgentName:     normalizedAgentName,
-		WorkspaceName: workspaceName,
-		Username:      ownerName,
-	}.String()
+	// We never generate URLs with a prefix. We only allow prefixes when
+	// parsing URLs from the hostname. Users that want this feature can write
+	// out their own URLs.
+	return appurl.New(appSlug, agentName, workspaceName, ownerName, workspaceID, appHost).String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable, appHost string) []codersdk.WorkspaceApp {
 	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
 		return cmp.Or(
 			cmp.Compare(a.DisplayOrder, b.DisplayOrder),
@@ -740,7 +730,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 			Command:       dbApp.Command.String,
 			Icon:          dbApp.Icon,
 			Subdomain:     dbApp.Subdomain,
-			SubdomainName: AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
+			SubdomainName: AppSubdomain(dbApp, agent.Name, workspace.Name, workspace.ID, ownerName, appHost),
 			SharingLevel:  codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
 			Healthcheck: codersdk.Healthcheck{
 				URL:       dbApp.HealthcheckUrl,

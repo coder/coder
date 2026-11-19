@@ -1857,12 +1857,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 		if res.Host == "" {
 			return WorkspacePortForwardResponse{}, xerrors.New("no app host for forwarding has been configured")
 		}
-		url := appurl.ApplicationURL{
-			AppSlugOrPort: strconv.Itoa(args.Port),
-			AgentName:     workspaceAgent.Name,
-			WorkspaceName: workspace.Name,
-			Username:      workspace.OwnerName,
-		}
+		url := appurl.New(strconv.Itoa(args.Port), workspaceAgent.Name, workspace.Name, workspace.OwnerName, workspace.ID, res.Host)
 		return WorkspacePortForwardResponse{
 			URL: deps.coderClient.URL.Scheme + "://" + strings.Replace(res.Host, "*", url.String(), 1),
 		}, nil

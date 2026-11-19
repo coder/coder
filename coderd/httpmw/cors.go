@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/cors"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
@@ -121,7 +122,12 @@ func WorkspaceAppCors(regex *regexp.Regexp, app appurl.ApplicationURL) func(next
 			if err != nil {
 				return false
 			}
-			return ok && originApp.Username == app.Username
+			// Short form URLs have no username, so they only allow origins
+			// in the same workspace.
+			if originApp.WorkspaceID != uuid.Nil || app.WorkspaceID != uuid.Nil {
+				return originApp.WorkspaceID == app.WorkspaceID
+			}
+			return originApp.Username == app.Username
 		},
 		AllowedMethods: []string{
 			http.MethodHead,

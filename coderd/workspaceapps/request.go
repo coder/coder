@@ -72,6 +72,19 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 			WorkspaceName: r.AppRequest.WorkspaceNameOrID,
 			Username:      r.AppRequest.UsernameOrID,
 		}
+		if r.AppRequest.UsernameOrID == "" {
+			// Short form requests only have the workspace ID.
+			workspaceID, err := uuid.Parse(r.AppRequest.WorkspaceNameOrID)
+			if err != nil {
+				return nil, xerrors.Errorf("parse workspace ID: %w", err)
+			}
+			appHost = appurl.ApplicationURL{
+				Prefix:        r.AppRequest.Prefix,
+				AppSlugOrPort: r.AppRequest.AppSlugOrPort,
+				WorkspaceID:   workspaceID,
+				AgentNameHash: r.AppRequest.AgentNameHash,
+			}
+		}
 		u.Host = strings.Replace(r.AppHostname, "*", appHost.String(), 1)
 		u.Path = r.AppRequest.BasePath
 		return u, nil
@@ -99,6 +112,10 @@ type Request struct {
 	WorkspaceNameOrID string `json:"workspace_name_or_id"`
 	// AgentNameOrID is not required if the workspace has only one agent.
 	AgentNameOrID string `json:"agent_name_or_id"`
+	// AgentNameHash identifies the agent for short form subdomain port URLs.
+	// See appurl.AgentNameHash. UsernameOrID is empty for these requests and
+	// WorkspaceNameOrID is the workspace ID.
+	AgentNameHash string `json:"agent_name_hash,omitempty"`
 	AppSlugOrPort string `json:"app_slug_or_port"`
 }
 
@@ -155,7 +172,13 @@ func (r Request) Check() error {
 	}
 
 	if r.UsernameOrID == "" {
-		return xerrors.New("username or ID is required")
+		// Short form subdomain URLs identify the workspace by ID only.
+		if _, err := uuid.Parse(r.WorkspaceNameOrID); err != nil || r.AccessMethod != AccessMethodSubdomain {
+			return xerrors.New("username or ID is required")
+		}
+	}
+	if r.AgentNameHash != "" && r.AgentNameOrID != "" {
+		return xerrors.New("agent name hash and agent name or ID are mutually exclusive")
 	}
 	if r.UsernameOrID == codersdk.Me {
 		// We block "me" for workspace app auth to avoid any security issues
@@ -230,7 +253,18 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		user    database.User
 		userErr error
 	)
-	if userID, uuidErr := uuid.Parse(r.UsernameOrID); uuidErr == nil {
+	if r.UsernameOrID == "" {
+		// Short form: the workspace ID decides the owner.
+		var workspaceID uuid.UUID
+		workspaceID, userErr = uuid.Parse(r.WorkspaceNameOrID)
+		if userErr == nil {
+			var ws database.Workspace
+			ws, userErr = db.GetWorkspaceByID(ctx, workspaceID)
+			if userErr == nil {
+				user, userErr = db.GetUserByID(ctx, ws.OwnerID)
+			}
+		}
+	} else if userID, uuidErr := uuid.Parse(r.UsernameOrID); uuidErr == nil {
 		user, userErr = db.GetUserByID(ctx, userID)
 	} else {
 		user, userErr = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
@@ -319,6 +353,19 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		if r.AccessMethod != AccessMethodSubdomain {
 			// TODO(@deansheather): this should return a 400 instead of a 500.
 			return nil, xerrors.New("port-based URLs are only supported for subdomain-based applications")
+		}
+
+		if r.AgentNameHash != "" {
+			matched := 0
+			for _, a := range agents {
+				if appurl.AgentNameHash(a.Name) == r.AgentNameHash {
+					agentNameOrID = a.ID.String()
+					matched++
+				}
+			}
+			if matched != 1 {
+				return nil, xerrors.Errorf("%d agents match agent name hash %q: %w", matched, r.AgentNameHash, sql.ErrNoRows)
+			}
 		}
 
 		// If the user specified a port, then they must specify the agent if

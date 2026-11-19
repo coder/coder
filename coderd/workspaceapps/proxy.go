@@ -527,8 +527,9 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 					BasePath:          "/",
 					Prefix:            app.Prefix,
 					UsernameOrID:      app.Username,
-					WorkspaceNameOrID: app.WorkspaceName,
+					WorkspaceNameOrID: appWorkspaceNameOrID(app),
 					AgentNameOrID:     app.AgentName,
+					AgentNameHash:     app.AgentNameHash,
 					AppSlugOrPort:     app.AppSlugOrPort,
 				},
 				AppPath:  r.URL.Path,
@@ -545,6 +546,15 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// appWorkspaceNameOrID returns the workspace ID for short form URLs and the
+// workspace name for long form URLs.
+func appWorkspaceNameOrID(app appurl.ApplicationURL) string {
+	if app.WorkspaceID != uuid.Nil {
+		return app.WorkspaceID.String()
+	}
+	return app.WorkspaceName
 }
 
 // parseHostname will return if a given request is attempting to access a

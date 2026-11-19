@@ -2,13 +2,29 @@ package appurl
 
 import (
 	"fmt"
+	"hash/fnv"
+	"math/big"
 	"net"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+)
+
+const (
+	// maxLabelLength is the DNS limit for one hostname label (RFC 1035).
+	maxLabelLength = 63
+	// longestPort is the longest value a port takes in a hostname.
+	longestPort = "65535s"
+	// workspaceIDLength is the length of a base36 workspace UUID.
+	workspaceIDLength = 25
+	// agentNameHashLength is the length of a base36 32-bit agent name hash.
+	agentNameHashLength = 7
+	// portPlaceholder is a port template that callers replace with a port.
+	portPlaceholder = "{{port}}"
 )
 
 var (
@@ -25,6 +41,14 @@ var (
 	PortRegex = regexp.MustCompile(`^\d{4,5}s?$`)
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+
+	// shortAppURL matches the short form, which identifies the workspace by
+	// ID instead of by owner and name. It never matches a long form URL: a
+	// long app URL has at least three segments, and a long port URL has four.
+	// Format: {APP_SLUG}--{WORKSPACE_ID} or {PORT}--{WORKSPACE_ID}--{AGENT_HASH}
+	shortAppURL = regexp.MustCompile(fmt.Sprintf(
+		`^(?P<AppSlugOrPort>%[1]s)--(?P<WorkspaceID>[0-9a-zA-Z]{%[2]d})(?:--(?P<AgentNameHash>[0-9a-zA-Z]{%[3]d}))?$`,
+		nameRegex, workspaceIDLength, agentNameHashLength))
 )
 
 // SubdomainAppHost returns the URL of the apphost for subdomain based apps.
@@ -57,13 +81,89 @@ func SubdomainAppHost(apphost string, accessURL *url.URL) string {
 	return apphost
 }
 
-// ApplicationURL is a parsed application URL hostname.
+// ApplicationURL is a parsed application URL hostname. A long form URL sets
+// AgentName, WorkspaceName and Username. A short form URL sets WorkspaceID,
+// and AgentNameHash for ports.
 type ApplicationURL struct {
 	Prefix        string
 	AppSlugOrPort string
 	AgentName     string
 	WorkspaceName string
 	Username      string
+	WorkspaceID   uuid.UUID
+	AgentNameHash string
+}
+
+// New returns the application URL for an app slug or port. It returns the
+// long form when it fits in one DNS label next to the fixed part of appHost,
+// and the short form otherwise. For ports, the decision uses the longest
+// possible port, so all ports of an agent get the same form. appHost is the
+// wildcard app hostname, for example "*.apps.coder.com".
+func New(appSlugOrPort, agentName, workspaceName, username string, workspaceID uuid.UUID, appHost string) ApplicationURL {
+	isPort := appSlugOrPort == portPlaceholder || PortRegex.MatchString(appSlugOrPort)
+	if !isPort {
+		// App slugs are unique in a workspace, so the agent is not needed.
+		agentName = ""
+	}
+
+	long := ApplicationURL{
+		AppSlugOrPort: appSlugOrPort,
+		AgentName:     agentName,
+		WorkspaceName: workspaceName,
+		Username:      username,
+	}
+	longest := long
+	if isPort {
+		longest.AppSlugOrPort = longestPort
+	}
+	if len(longest.String()) <= MaxSubdomainLength(appHost) {
+		return long
+	}
+
+	short := ApplicationURL{
+		AppSlugOrPort: appSlugOrPort,
+		WorkspaceID:   workspaceID,
+	}
+	if isPort {
+		short.AgentNameHash = AgentNameHash(agentName)
+	}
+	return short
+}
+
+// MaxSubdomainLength returns how many characters the wildcard in appHost can
+// take before the first label passes the DNS label limit.
+func MaxSubdomainLength(appHost string) int {
+	label, _, _ := strings.Cut(appHost, ".")
+	return maxLabelLength - len(strings.TrimPrefix(label, "*"))
+}
+
+// MaxShortSubdomainLength is the length of the longest short form port URL.
+// If MaxSubdomainLength of the app host is lower, some URLs do not fit.
+const MaxShortSubdomainLength = len(longestPort) + 2 + workspaceIDLength + 2 + agentNameHashLength
+
+// AgentNameHash returns the short form identifier of an agent name: the
+// 32-bit FNV-1a hash in base36. The frontend uses the same algorithm, so the
+// two must stay the same.
+func AgentNameHash(agentName string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(agentName))
+	return fmt.Sprintf("%0*s", agentNameHashLength, strconv.FormatUint(uint64(h.Sum32()), 36))
+}
+
+// encodeWorkspaceID returns the UUID in base36, padded to a fixed length.
+func encodeWorkspaceID(id uuid.UUID) string {
+	return fmt.Sprintf("%0*s", workspaceIDLength, new(big.Int).SetBytes(id[:]).Text(36))
+}
+
+// decodeWorkspaceID reverses encodeWorkspaceID.
+func decodeWorkspaceID(s string) (uuid.UUID, error) {
+	n, ok := new(big.Int).SetString(strings.ToLower(s), 36)
+	if !ok || n.BitLen() > 128 {
+		return uuid.Nil, xerrors.Errorf("invalid workspace ID %q", s)
+	}
+	var id uuid.UUID
+	n.FillBytes(id[:])
+	return id, nil
 }
 
 // String returns the application URL hostname without scheme. You will likely
@@ -72,6 +172,15 @@ func (a ApplicationURL) String() string {
 	var appURL strings.Builder
 	_, _ = appURL.WriteString(a.Prefix)
 	_, _ = appURL.WriteString(a.AppSlugOrPort)
+	if a.WorkspaceID != uuid.Nil {
+		_, _ = appURL.WriteString("--")
+		_, _ = appURL.WriteString(encodeWorkspaceID(a.WorkspaceID))
+		if a.AgentNameHash != "" {
+			_, _ = appURL.WriteString("--")
+			_, _ = appURL.WriteString(a.AgentNameHash)
+		}
+		return appURL.String()
+	}
 	if a.AgentName != "" {
 		_, _ = appURL.WriteString("--")
 		_, _ = appURL.WriteString(a.AgentName)
@@ -163,6 +272,11 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 //   - https://prefix---8080--main--dev--dean.hi.c8s.io (port with prefix)
 //   - https://prefix---app--dev--dean.hi.c8s.io (app slug with prefix)
 //
+// The short form identifies the workspace by its base36 ID. Ports also carry
+// a hash of the agent name:
+//   - https://8080s--0h4x2b5mvd6uwd2y6wqmdnwk1--1q2w3e4.hi.c8s.io (port)
+//   - https://app--0h4x2b5mvd6uwd2y6wqmdnwk1.hi.c8s.io (app slug)
+//
 // The optional prefix is permitted to allow customers to put additional URL at
 // the beginning of their application URL (i.e. if they want to simulate
 // different subdomains on the same app/port).
@@ -177,6 +291,11 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	if len(prefixSegments) > 1 {
 		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
 		subdomain = prefixSegments[len(prefixSegments)-1]
+	}
+
+	if app, ok, err := parseShortSubdomain(subdomain); ok {
+		app.Prefix = prefix
+		return app, err
 	}
 
 	matches := appURL.FindStringSubmatch(subdomain)
@@ -203,6 +322,31 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 		WorkspaceName: matches[appURL.SubexpIndex("WorkspaceName")],
 		Username:      matches[appURL.SubexpIndex("Username")],
 	}, nil
+}
+
+// parseShortSubdomain parses a short form subdomain without a prefix. It
+// returns false if the subdomain does not have the short form shape.
+func parseShortSubdomain(subdomain string) (ApplicationURL, bool, error) {
+	matches := shortAppURL.FindStringSubmatch(subdomain)
+	if len(matches) == 0 {
+		return ApplicationURL{}, false, nil
+	}
+	appSlugOrPort := matches[shortAppURL.SubexpIndex("AppSlugOrPort")]
+	agentNameHash := strings.ToLower(matches[shortAppURL.SubexpIndex("AgentNameHash")])
+	// Only port URLs have an agent hash in the short form. An app slug with
+	// three segments is a long form URL.
+	if PortRegex.MatchString(appSlugOrPort) != (agentNameHash != "") {
+		return ApplicationURL{}, false, nil
+	}
+	workspaceID, err := decodeWorkspaceID(matches[shortAppURL.SubexpIndex("WorkspaceID")])
+	if err != nil {
+		return ApplicationURL{}, true, err
+	}
+	return ApplicationURL{
+		AppSlugOrPort: appSlugOrPort,
+		WorkspaceID:   workspaceID,
+		AgentNameHash: agentNameHash,
+	}, true, nil
 }
 
 // HostnamesMatch returns true if the hostnames are equal, disregarding

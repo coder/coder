@@ -47,6 +47,7 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&
+		t.AgentNameHash == req.AgentNameHash &&
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 

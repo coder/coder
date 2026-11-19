@@ -17,6 +17,7 @@ export const PortPreviewPanel: React.FC<{
 		agent.name,
 		workspace.name,
 		workspace.owner_name,
+		workspace.id,
 		tab.protocol,
 	);
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
