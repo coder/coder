@@ -604,6 +604,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 					TxBytes: int64(written),
 				},
 			)
+			requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonGraceful)
+			requireDebugFlushed(t, sink, codersdk.DisconnectReasonGraceful)
 		})
 	}
 }
