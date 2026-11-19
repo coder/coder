@@ -24,6 +24,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/routing"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
@@ -337,9 +338,8 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 					SpendLimitMicros: new(int64(1_000)),
 				}, nil)
 			},
-			// The error is in the OpenAI format for this path and carries the
-			// stable code.
-			expectedErr:    xerrors.New(`"code":"budget_exceeded"`),
+			// The error carries the stable code, not only the message.
+			expectedErr:    xerrors.New(routing.ErrorCodeBudgetExceeded),
 			expectedStatus: http.StatusForbidden,
 		},
 		{

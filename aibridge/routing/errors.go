@@ -1,9 +1,10 @@
 package routing
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 // ErrorCodeBudgetExceeded is the code written in the response body when the
@@ -45,10 +46,6 @@ func WriteForbiddenError(w http.ResponseWriter, r *http.Request, code, message s
 		body = anthropicErrorBody{Type: "error", Error: obj}
 	}
 
-	// Marshaling these fixed string structs cannot fail.
-	b, _ := json.Marshal(body)
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusForbidden)
-	_, _ = w.Write(b)
+	httpapi.Write(r.Context(), w, http.StatusForbidden, body)
 }
