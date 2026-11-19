@@ -567,6 +567,10 @@ type OrganizationAISpendFilter struct {
 	// must be supplied together.
 	PeriodStart time.Time `json:"period_start,omitempty" format:"date-time"`
 	PeriodEnd   time.Time `json:"period_end,omitempty" format:"date-time"`
+	// UserIDs restricts the report to these users.
+	UserIDs []uuid.UUID `json:"user_ids,omitempty" format:"uuid"`
+	// GroupID matches the effective group recorded on the token usage.
+	GroupID uuid.UUID `json:"group_id,omitempty" format:"uuid"`
 	// ProviderName matches the configured provider name recorded on the
 	// intercepted request.
 	ProviderName string `json:"provider_name,omitempty"`
@@ -585,6 +589,16 @@ func (f OrganizationAISpendFilter) asRequestOption() RequestOption {
 		}
 		if !f.PeriodEnd.IsZero() {
 			q.Set("period_end", f.PeriodEnd.UTC().Format(time.RFC3339Nano))
+		}
+		if len(f.UserIDs) > 0 {
+			ids := make([]string, 0, len(f.UserIDs))
+			for _, id := range f.UserIDs {
+				ids = append(ids, id.String())
+			}
+			q.Set("user_ids", strings.Join(ids, ","))
+		}
+		if f.GroupID != uuid.Nil {
+			q.Set("group_id", f.GroupID.String())
 		}
 		if f.ProviderName != "" {
 			q.Set("provider_name", f.ProviderName)
@@ -606,19 +620,61 @@ type OrganizationAISpendUser struct {
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
 	AvatarURL string    `json:"avatar_url"`
-	// CostMicros is the user's priced spend over the period.
+	// CostMicros is the user's priced spend over the period. It is a lower
+	// bound when any entry in ModelSpend has unpriced usage.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedUsageCount is the number of the user's token usage records that
-	// carry no cost because their model had no price when they were recorded.
-	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
-	// Providers are the configured provider names the user spent through,
-	// sorted.
-	Providers []string `json:"providers"`
-	// Clients are the clients the user spent through, sorted. Usage without a
+	// ProviderSpend is the user's spend per configured provider, most
+	// expensive first.
+	ProviderSpend []OrganizationAISpendProvider `json:"provider_spend"`
+	// ModelSpend is the user's spend per model, most expensive first.
+	ModelSpend []OrganizationAISpendModel `json:"model_spend"`
+	// ClientSpend is the user's spend per client, most expensive first. Usage
+	// without a recorded client is reported as Unknown.
+	ClientSpend []OrganizationAISpendClient `json:"client_spend"`
+}
+
+// OrganizationAISpendProvider is a user's AI spend through one configured
+// provider, summed over every (provider, model, client) tuple with that
+// provider.
+type OrganizationAISpendProvider struct {
+	// Name is the name of the configured provider.
+	Name string `json:"name"`
+	// DisplayName falls back to the provider name when unset.
+	DisplayName string `json:"display_name"`
+	// Icon is empty when the provider has no configured icon.
+	Icon string `json:"icon"`
+	// Type is omitted when the provider name was never configured.
+	Type AIProviderType `json:"type,omitempty"`
+	// CostMicros is the priced spend through the provider over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports whether any token usage through the provider
+	// was recorded without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
+}
+
+// OrganizationAISpendModel is a user's AI spend on one model, summed over
+// every (provider, model, client) tuple with that model.
+type OrganizationAISpendModel struct {
+	// Name is the model the client requested.
+	Name string `json:"name"`
+	// CostMicros is the priced spend on the model over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports whether any token usage of the model was
+	// recorded without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
+}
+
+// OrganizationAISpendClient is a user's AI spend from one client, summed
+// over every (provider, model, client) tuple with that client.
+type OrganizationAISpendClient struct {
+	// Name is the client recorded on the intercepted request. Usage without a
 	// recorded client is reported as Unknown.
-	Clients []string `json:"clients"`
-	// Models are the models the user spent through, sorted.
-	Models []string `json:"models"`
+	Name string `json:"name"`
+	// CostMicros is the priced spend from the client over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports whether any token usage from the client was
+	// recorded without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
 }
 
 // OrganizationAISpendTotals aggregates every user matching the report's
@@ -626,9 +682,9 @@ type OrganizationAISpendUser struct {
 type OrganizationAISpendTotals struct {
 	// CostMicros is the priced spend of every matching user.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedUsageCount is the number of token usage records without a cost
-	// across every matching user.
-	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
+	// HasUnpricedUsage reports whether any matching token usage was recorded
+	// without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
 }
 
 // OrganizationAISpendReport is one page of per-user AI spend for an

@@ -8197,6 +8197,28 @@ export interface Organization extends MinimalOrganization {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendClient is a user's AI spend from one client, summed
+ * over every (provider, model, client) tuple with that client.
+ */
+export interface OrganizationAISpendClient {
+	/**
+	 * Name is the client recorded on the intercepted request. Usage without a
+	 * recorded client is reported as Unknown.
+	 */
+	readonly name: string;
+	/**
+	 * CostMicros is the priced spend from the client over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage from the client was
+	 * recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
  */
 export interface OrganizationAISpendDetailsFilter {
@@ -8222,6 +8244,14 @@ export interface OrganizationAISpendFilter {
 	readonly period_start?: string;
 	readonly period_end?: string;
 	/**
+	 * UserIDs restricts the report to these users.
+	 */
+	readonly user_ids?: readonly string[];
+	/**
+	 * GroupID matches the effective group recorded on the token usage.
+	 */
+	readonly group_id?: string;
+	/**
 	 * ProviderName matches the configured provider name recorded on the
 	 * intercepted request.
 	 */
@@ -8232,6 +8262,27 @@ export interface OrganizationAISpendFilter {
 	 * matches usage without a recorded client.
 	 */
 	readonly client?: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendModel is a user's AI spend on one model, summed over
+ * every (provider, model, client) tuple with that model.
+ */
+export interface OrganizationAISpendModel {
+	/**
+	 * Name is the model the client requested.
+	 */
+	readonly name: string;
+	/**
+	 * CostMicros is the priced spend on the model over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage of the model was
+	 * recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -8336,6 +8387,40 @@ export interface OrganizationAISpendPage {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendProvider is a user's AI spend through one configured
+ * provider, summed over every (provider, model, client) tuple with that
+ * provider.
+ */
+export interface OrganizationAISpendProvider {
+	/**
+	 * Name is the name of the configured provider.
+	 */
+	readonly name: string;
+	/**
+	 * DisplayName falls back to the provider name when unset.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is empty when the provider has no configured icon.
+	 */
+	readonly icon: string;
+	/**
+	 * Type is omitted when the provider name was never configured.
+	 */
+	readonly type?: AIProviderType;
+	/**
+	 * CostMicros is the priced spend through the provider over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage through the provider
+	 * was recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendReport is one page of per-user AI spend for an
  * organization over the applied period. Count and Totals cover every
  * matching user, not only the returned page.
@@ -8369,10 +8454,10 @@ export interface OrganizationAISpendTotals {
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of token usage records without a cost
-	 * across every matching user.
+	 * HasUnpricedUsage reports whether any matching token usage was recorded
+	 * without a price.
 	 */
-	readonly unpriced_usage_count: number;
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -8386,28 +8471,24 @@ export interface OrganizationAISpendUser {
 	readonly name: string;
 	readonly avatar_url: string;
 	/**
-	 * CostMicros is the user's priced spend over the period.
+	 * CostMicros is the user's priced spend over the period. It is a lower
+	 * bound when any entry in ModelSpend has unpriced usage.
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of the user's token usage records that
-	 * carry no cost because their model had no price when they were recorded.
+	 * ProviderSpend is the user's spend per configured provider, most
+	 * expensive first.
 	 */
-	readonly unpriced_usage_count: number;
+	readonly provider_spend: readonly OrganizationAISpendProvider[];
 	/**
-	 * Providers are the configured provider names the user spent through,
-	 * sorted.
+	 * ModelSpend is the user's spend per model, most expensive first.
 	 */
-	readonly providers: readonly string[];
+	readonly model_spend: readonly OrganizationAISpendModel[];
 	/**
-	 * Clients are the clients the user spent through, sorted. Usage without a
-	 * recorded client is reported as Unknown.
+	 * ClientSpend is the user's spend per client, most expensive first. Usage
+	 * without a recorded client is reported as Unknown.
 	 */
-	readonly clients: readonly string[];
-	/**
-	 * Models are the models the user spent through, sorted.
-	 */
-	readonly models: readonly string[];
+	readonly client_spend: readonly OrganizationAISpendClient[];
 }
 
 // From codersdk/chats.go
