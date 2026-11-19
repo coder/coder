@@ -137,41 +137,41 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID               uuid.UUID               `json:"id" format:"uuid"`
-	ParentID         uuid.NullUUID           `json:"parent_id" format:"uuid"`
-	CreatedAt        time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt  *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt   *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	StartedAt        *time.Time              `json:"started_at,omitempty" format:"date-time"`
-	ReadyAt          *time.Time              `json:"ready_at,omitempty" format:"date-time"`
-	Status           WorkspaceAgentStatus    `json:"status"`
-	LifecycleState   WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name             string                  `json:"name"`
-	ResourceID       uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID       string                  `json:"instance_id,omitempty"`
-	Architecture     string                  `json:"architecture"`
+	ID               uuid.UUID               `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents"`
+	ParentID         uuid.NullUUID           `json:"parent_id" format:"uuid" wsrelated:"latest_build.resources.agents"`
+	CreatedAt        time.Time               `json:"created_at" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	UpdatedAt        time.Time               `json:"updated_at" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	FirstConnectedAt *time.Time              `json:"first_connected_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	LastConnectedAt  *time.Time              `json:"last_connected_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	DisconnectedAt   *time.Time              `json:"disconnected_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	StartedAt        *time.Time              `json:"started_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	ReadyAt          *time.Time              `json:"ready_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	Status           WorkspaceAgentStatus    `json:"status" wsrelated:"latest_build.resources.agents"`
+	LifecycleState   WorkspaceAgentLifecycle `json:"lifecycle_state" wsrelated:"latest_build.resources.agents"`
+	Name             string                  `json:"name" wsrelated:"latest_build.resources.agents"`
+	ResourceID       uuid.UUID               `json:"resource_id" format:"uuid" wsrelated:"latest_build.resources.agents"`
+	InstanceID       string                  `json:"instance_id,omitempty" wsrelated:"latest_build.resources.agents"`
+	Architecture     string                  `json:"architecture" wsrelated:"latest_build.resources.agents"`
 	// EnvironmentVariables lists the variables set on the agent. Non-empty
 	// values are redacted as "***REDACTED***" because they often hold credentials.
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	OperatingSystem      string            `json:"operating_system"`
-	LogsLength           int32             `json:"logs_length"`
-	LogsOverflowed       bool              `json:"logs_overflowed"`
-	Directory            string            `json:"directory,omitempty"`
-	ExpandedDirectory    string            `json:"expanded_directory,omitempty"`
-	Version              string            `json:"version"`
-	APIVersion           string            `json:"api_version"`
-	Apps                 []WorkspaceApp    `json:"apps"`
+	EnvironmentVariables map[string]string `json:"environment_variables" wsrelated:"latest_build.resources.agents"`
+	OperatingSystem      string            `json:"operating_system" wsrelated:"latest_build.resources.agents"`
+	LogsLength           int32             `json:"logs_length" wsrelated:"latest_build.resources.agents"`
+	LogsOverflowed       bool              `json:"logs_overflowed" wsrelated:"latest_build.resources.agents"`
+	Directory            string            `json:"directory,omitempty" wsrelated:"latest_build.resources.agents"`
+	ExpandedDirectory    string            `json:"expanded_directory,omitempty" wsrelated:"latest_build.resources.agents"`
+	Version              string            `json:"version" wsrelated:"latest_build.resources.agents"`
+	APIVersion           string            `json:"api_version" wsrelated:"latest_build.resources.agents"`
+	Apps                 []WorkspaceApp    `json:"apps" wsrelated:"latest_build.resources.agents.apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
-	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds"`
-	TroubleshootingURL       string                    `json:"troubleshooting_url"`
-	Subsystems               []AgentSubsystem          `json:"subsystems"`
-	Health                   WorkspaceAgentHealth      `json:"health"` // Health reports the health of the agent.
-	DisplayApps              []DisplayApp              `json:"display_apps"`
-	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
-	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
+	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty" wsrelated:"latest_build.resources.agents"`
+	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds" wsrelated:"latest_build.resources.agents"`
+	TroubleshootingURL       string                    `json:"troubleshooting_url" wsrelated:"latest_build.resources.agents"`
+	Subsystems               []AgentSubsystem          `json:"subsystems" wsrelated:"latest_build.resources.agents"`
+	Health                   WorkspaceAgentHealth      `json:"health" wsrelated:"latest_build.resources.agents"` // Health reports the health of the agent.
+	DisplayApps              []DisplayApp              `json:"display_apps" wsrelated:"latest_build.resources.agents"`
+	LogSources               []WorkspaceAgentLogSource `json:"log_sources" wsrelated:"latest_build.resources.agents.log_sources"`
+	Scripts                  []WorkspaceAgentScript    `json:"scripts" wsrelated:"latest_build.resources.agents.scripts"`
 	// Metadata is only populated on the workspaces list endpoint when the
 	// request opts in with the include_agent_metadata search key, and it
 	// only carries the requested keys. The description's script is always
@@ -181,15 +181,15 @@ type WorkspaceAgent struct {
 	// StartupScriptBehavior is a legacy field that is deprecated in favor
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!
-	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior" wsrelated:"latest_build.resources.agents.scripts"`
 }
 
 type WorkspaceAgentLogSource struct {
-	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid"`
-	ID               uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	DisplayName      string    `json:"display_name"`
-	Icon             string    `json:"icon"`
+	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid" wsrelated:"latest_build.resources.agents.log_sources"`
+	ID               uuid.UUID `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents.log_sources"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time" wsrelated:"latest_build.resources.agents.log_sources"`
+	DisplayName      string    `json:"display_name" wsrelated:"latest_build.resources.agents.log_sources"`
+	Icon             string    `json:"icon" wsrelated:"latest_build.resources.agents.log_sources"`
 }
 
 type WorkspaceAgentScriptStatus string
@@ -205,25 +205,25 @@ const (
 )
 
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID     `json:"id" format:"uuid"`
-	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
-	LogPath          string        `json:"log_path"`
-	Script           string        `json:"script"`
-	Cron             string        `json:"cron"`
-	RunOnStart       bool          `json:"run_on_start"`
-	RunOnStop        bool          `json:"run_on_stop"`
-	StartBlocksLogin bool          `json:"start_blocks_login"`
-	Timeout          time.Duration `json:"timeout"`
-	DisplayName      string        `json:"display_name"`
+	ID               uuid.UUID     `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents.scripts"`
+	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid" wsrelated:"latest_build.resources.agents.scripts"`
+	LogPath          string        `json:"log_path" wsrelated:"latest_build.resources.agents.scripts"`
+	Script           string        `json:"script" wsrelated:"latest_build.resources.agents.scripts"`
+	Cron             string        `json:"cron" wsrelated:"latest_build.resources.agents.scripts"`
+	RunOnStart       bool          `json:"run_on_start" wsrelated:"latest_build.resources.agents.scripts"`
+	RunOnStop        bool          `json:"run_on_stop" wsrelated:"latest_build.resources.agents.scripts"`
+	StartBlocksLogin bool          `json:"start_blocks_login" wsrelated:"latest_build.resources.agents.scripts"`
+	Timeout          time.Duration `json:"timeout" wsrelated:"latest_build.resources.agents.scripts"`
+	DisplayName      string        `json:"display_name" wsrelated:"latest_build.resources.agents.scripts"`
 	// ResourceAddress is the full Terraform address of the coder_script
 	// resource, for example "module.git_clone.coder_script.clone". It is
 	// empty for scripts that are not coder_script resources.
-	ResourceAddress string `json:"resource_address"`
+	ResourceAddress string `json:"resource_address" wsrelated:"latest_build.resources.agents.scripts"`
 	// Dependencies lists the scripts this one waits for, as the
 	// provisioner resolved them. It is omitted when empty.
-	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty"`
-	ExitCode     *int32                           `json:"exit_code,omitempty"`
-	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty"`
+	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty" wsrelated:"latest_build.resources.agents.scripts"`
+	ExitCode     *int32                           `json:"exit_code,omitempty" wsrelated:"latest_build.resources.agents.scripts"`
+	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty" wsrelated:"latest_build.resources.agents.scripts"`
 }
 
 // WorkspaceAgentScriptDependencyRequirement is the outcome a prerequisite
@@ -249,18 +249,18 @@ func (r WorkspaceAgentScriptDependencyRequirement) Valid() bool {
 // WorkspaceAgentScriptDependency names a prerequisite script and the
 // outcome it must reach.
 type WorkspaceAgentScriptDependency struct {
-	PrerequisiteResourceAddress string                                    `json:"prerequisite_resource_address"`
-	Requirement                 WorkspaceAgentScriptDependencyRequirement `json:"requirement"`
+	PrerequisiteResourceAddress string                                    `json:"prerequisite_resource_address" wsrelated:"latest_build.resources.agents.scripts"`
+	Requirement                 WorkspaceAgentScriptDependencyRequirement `json:"requirement" wsrelated:"latest_build.resources.agents.scripts"`
 }
 
 type WorkspaceAgentHealth struct {
-	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
-	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
+	Healthy bool   `json:"healthy" example:"false" wsrelated:"latest_build.resources.agents"`                              // Healthy is true if the agent is healthy.
+	Reason  string `json:"reason,omitempty" example:"agent has lost connection" wsrelated:"latest_build.resources.agents"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
 type DERPRegion struct {
-	Preferred           bool    `json:"preferred"`
-	LatencyMilliseconds float64 `json:"latency_ms"`
+	Preferred           bool    `json:"preferred" wsrelated:"latest_build.resources.agents"`
+	LatencyMilliseconds float64 `json:"latency_ms" wsrelated:"latest_build.resources.agents"`
 }
 
 type WorkspaceAgentLog struct {
