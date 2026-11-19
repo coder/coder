@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, TriangleAlertIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import type {
 	AISpendPeriodWindow,
@@ -29,6 +29,7 @@ import {
 import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { formatCostMicros } from "#/utils/currency";
 import { docs } from "#/utils/docs";
+import { CostDetailsDialog } from "./CostDetailsDialog";
 import { OverviewCard } from "./OverviewCard";
 import { summarizeTopSpenders, TOP_SPENDERS_COUNT } from "./topSpenders";
 
@@ -37,6 +38,8 @@ type TopSpendersCardProps = {
 	overview: OrganizationAISpendOverview | undefined;
 	/** The listed users' spend details, undefined while they load. */
 	topSpenderDetails: readonly OrganizationAISpendUser[] | undefined;
+	topSpenderDetailsError: Error | null;
+	organizationName: string;
 	/** The sessions page needs read access to every user's sessions. */
 	canViewSessions: boolean;
 };
@@ -44,6 +47,8 @@ type TopSpendersCardProps = {
 export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 	overview,
 	topSpenderDetails,
+	topSpenderDetailsError,
+	organizationName,
 	canViewSessions,
 }) => {
 	const titleId = useId();
@@ -87,10 +92,16 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 						<TopSpenderRow
 							key={user.user_id}
 							user={user}
-							details={topSpenderDetails?.find(
-								(spender) => spender.user_id === user.user_id,
-							)}
+							details={
+								topSpenderDetails &&
+								(topSpenderDetails.find(
+									(spender) => spender.user_id === user.user_id,
+								) ??
+									null)
+							}
+							detailsError={topSpenderDetailsError}
 							period={overview}
+							organizationName={organizationName}
 							canViewSessions={canViewSessions}
 						/>
 					))}
@@ -102,17 +113,24 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 
 type TopSpenderRowProps = {
 	user: OrganizationAISpendOverviewUser;
-	details: OrganizationAISpendUser | undefined;
+	/** Undefined while the details load, null when the user has none. */
+	details: OrganizationAISpendUser | null | undefined;
+	detailsError: Error | null;
 	period: AISpendPeriodWindow;
+	organizationName: string;
 	canViewSessions: boolean;
 };
 
 const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 	user,
 	details,
+	detailsError,
 	period,
+	organizationName,
 	canViewSessions,
 }) => {
+	const [isCostDetailsOpen, setIsCostDetailsOpen] = useState(false);
+	const menuTriggerRef = useRef<HTMLButtonElement>(null);
 	const displayName = user.name || user.username;
 	const unpricedModels =
 		details?.model_spend.filter((model) => model.has_unpriced_usage) ?? [];
@@ -140,19 +158,22 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 					/>
 				)}
 			</div>
-			{/* TODO(AIGOV-734): add Cost details once the per-user report endpoint lands. */}
-			{canViewSessions && (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							size="icon"
-							variant="subtle"
-							aria-label={`Open menu for ${displayName}`}
-						>
-							<EllipsisVerticalIcon aria-hidden />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						ref={menuTriggerRef}
+						size="icon"
+						variant="subtle"
+						aria-label={`Open menu for ${displayName}`}
+					>
+						<EllipsisVerticalIcon aria-hidden />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem onClick={() => setIsCostDetailsOpen(true)}>
+						Cost details
+					</DropdownMenuItem>
+					{canViewSessions && (
 						<DropdownMenuItem asChild>
 							<Link
 								to={`/ai-gateway/sessions?filter=${encodeURIComponent(sessionsFilter)}`}
@@ -160,9 +181,23 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 								User AI session logs
 							</Link>
 						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			)}
+					)}
+				</DropdownMenuContent>
+			</DropdownMenu>
+			<CostDetailsDialog
+				open={isCostDetailsOpen}
+				onOpenChange={setIsCostDetailsOpen}
+				onCloseAutoFocus={(event) => {
+					// The dialog opens from a menu item, which is gone once it closes.
+					event.preventDefault();
+					menuTriggerRef.current?.focus();
+				}}
+				user={user}
+				details={details}
+				detailsError={detailsError}
+				period={period}
+				organizationName={organizationName}
+			/>
 		</li>
 	);
 };

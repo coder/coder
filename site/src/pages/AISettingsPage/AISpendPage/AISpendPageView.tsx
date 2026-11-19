@@ -39,6 +39,7 @@ type AISpendPageViewProps = {
 	unpricedModels: readonly TypesGen.UnpricedAIModel[] | undefined;
 	isUnpricedModelsLoading: boolean;
 	topSpenderDetails: readonly TypesGen.OrganizationAISpendUser[] | undefined;
+	topSpenderDetailsError: Error | null;
 	canViewSessions: boolean;
 };
 
@@ -58,6 +59,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	unpricedModels,
 	isUnpricedModelsLoading,
 	topSpenderDetails,
+	topSpenderDetailsError,
 	canViewSessions,
 }) => {
 	if (!isEntitled) {
@@ -137,6 +139,11 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							unpricedModels={unpricedModels}
 							isUnpricedModelsLoading={isUnpricedModelsLoading}
 							topSpenderDetails={topSpenderDetails}
+							topSpenderDetailsError={topSpenderDetailsError}
+							organizationName={getOrganizationLabel(
+								organization,
+								organizations,
+							)}
 							canViewSessions={canViewSessions}
 						/>
 					</TabsContent>
