@@ -180,7 +180,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 	);
 };
 
-const tableLabel = "Shared workspace members and groups";
+const TABLE_LABEL = "Shared workspace members and groups";
 
 type WorkspaceSharingFormProps = {
 	organizationId: string;
@@ -219,7 +219,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 	if (sharingSettingsQuery.isLoading) {
 		return (
-			<Table aria-label={tableLabel}>
+			<Table aria-label={TABLE_LABEL}>
 				<TableBody>
 					<TableLoader />
 				</TableBody>
@@ -229,7 +229,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 	if (!sharingSettingsQuery.data) {
 		return (
-			<Table aria-label={tableLabel}>
+			<Table aria-label={TABLE_LABEL}>
 				<TableBody>
 					<TableRow>
 						<TableCell colSpan={999}>
@@ -243,7 +243,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 	if (sharingSettingsQuery.data.sharing_disabled) {
 		return (
-			<Table aria-label={tableLabel}>
+			<Table aria-label={TABLE_LABEL}>
 				<TableBody>
 					<TableEmpty
 						message="This workspace cannot be shared"
@@ -404,7 +404,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			)}
 			{/* Screen readers associate headers with cells only within one table. */}
 			<Table
-				aria-label={tableLabel}
+				aria-label={TABLE_LABEL}
 				wrapperClassName={cn(isCompact && "max-h-60")}
 				// Without row controls, keyboard users need the scroll area itself to be focusable.
 				wrapperProps={
@@ -412,7 +412,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 						? {
 								tabIndex: 0,
 								role: "region",
-								"aria-label": tableLabel,
+								"aria-label": TABLE_LABEL,
 							}
 						: undefined
 				}
