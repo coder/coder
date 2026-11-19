@@ -37,7 +37,7 @@ type OpenPreviewResult struct {
 	AgentName   string    `json:"agent_name"`
 	// Exactly one of Port, PreviewID, or AppSlug identifies the target on the
 	// agent.
-	Port      int32  `json:"port,omitempty"`
+	Port      int    `json:"port,omitempty"`
 	PreviewID string `json:"preview_id,omitempty"`
 	AppSlug   string `json:"app_slug,omitempty"`
 	Path      string `json:"path,omitempty"`
@@ -145,7 +145,7 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				if !slices.Contains(workspace.Agent.DisplayApps, database.DisplayAppPortForwardingHelper) {
 					return fantasy.NewTextErrorResponse("the workspace agent does not allow port forwarding, so ports cannot be previewed"), nil
 				}
-				result.Port = int32(*args.Port) //nolint:gosec // Checked against 65535 above.
+				result.Port = *args.Port
 				slug = strconv.Itoa(*args.Port)
 			case hasApp:
 				if err := checkOpenableApp(ctx, options, workspace.Agent.ID, app); err != nil {
