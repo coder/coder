@@ -1467,11 +1467,12 @@ export const useFilterCombobox = ({
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
 	// untouched.
 	const handleRemoveChip = (token: string) => {
+		const current = lastEmittedRef.current;
 		emitQueryKeepingLookup(
 			composeFilterQuery(
-				chipValues.filter((entry) => entry !== token),
+				queryToChips(current, chipKeys).filter((entry) => entry !== token),
 				chipKeys,
-				extractFreeText(lastEmittedRef.current, chipKeys),
+				extractFreeText(current, chipKeys),
 			),
 		);
 	};
