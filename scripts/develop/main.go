@@ -1114,12 +1114,12 @@ func (c *devConfig) checkPasswordFiles() error {
 	if c.skipSetup {
 		return nil
 	}
-	if c.password == "" {
-		if _, _, err := readPassword(c.passwordPath(adminPasswordFile)); err != nil {
-			return err
-		}
+	if c.password != "" {
+		return nil
 	}
-	_, _, err := readPassword(c.passwordPath(memberPasswordFile))
+	// The member file is not checked, because member setup is
+	// best-effort and warns about an unusable file itself.
+	_, _, err := readPassword(c.passwordPath(adminPasswordFile))
 	return err
 }
 

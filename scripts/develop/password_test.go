@@ -50,7 +50,7 @@ func TestLoadOrCreatePassword(t *testing.T) {
 	t.Run("EmptyFileIsNotReplaced", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), adminPasswordFile)
-		require.NoError(t, os.WriteFile(path, []byte(" \n"), 0o600))
+		require.NoError(t, os.WriteFile(path, []byte("\n"), 0o600))
 
 		_, err := loadOrCreatePassword(path)
 		require.ErrorContains(t, err, "is empty")
@@ -58,7 +58,18 @@ func TestLoadOrCreatePassword(t *testing.T) {
 
 		raw, err := os.ReadFile(path)
 		require.NoError(t, err)
-		assert.Equal(t, " \n", string(raw))
+		assert.Equal(t, "\n", string(raw))
+	})
+
+	t.Run("SpacesAroundAStoredPasswordAreKept", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), adminPasswordFile)
+		const password = "  a password with spaces around it \t"
+		require.NoError(t, storePassword(path, password))
+
+		got, err := loadOrCreatePassword(path)
+		require.NoError(t, err)
+		assert.Equal(t, password, got)
 	})
 }
 
@@ -75,6 +86,13 @@ func TestCheckPasswordFiles(t *testing.T) {
 		t.Parallel()
 		cfg := newConfig(t)
 		require.ErrorContains(t, cfg.checkPasswordFiles(), adminPasswordFile)
+	})
+
+	t.Run("EmptyMemberFileDoesNotStopTheRun", func(t *testing.T) {
+		t.Parallel()
+		cfg := &devConfig{configDir: t.TempDir()}
+		require.NoError(t, os.WriteFile(cfg.passwordPath(memberPasswordFile), nil, 0o600))
+		require.NoError(t, cfg.checkPasswordFiles())
 	})
 
 	t.Run("AdminFileIgnoredWithOverride", func(t *testing.T) {
