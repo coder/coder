@@ -78,7 +78,7 @@ export const OSS: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getByText("Audit Logging")).toBeVisible();
+		await expect(canvas.getByText("Audit logging")).toBeVisible();
 		await expect(
 			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");

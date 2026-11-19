@@ -25,7 +25,7 @@ const Layout: React.FC = () => {
 					<BreadcrumbList>
 						<BreadcrumbItem>
 							<BreadcrumbPage className="text-content-primary">
-								User Settings
+								User settings
 							</BreadcrumbPage>
 						</BreadcrumbItem>
 						<BreadcrumbSeparator />

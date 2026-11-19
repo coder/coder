@@ -45,4 +45,21 @@ describe("InboxItem", () => {
 			/^the build\s*\(opens in new tab\)$/,
 		);
 	});
+
+	it("describes action links with the notification content", async () => {
+		render(
+			<InboxItem
+				notification={{
+					...MockNotification,
+					content: "Your workspace Testing1 was deleted.",
+					actions: [{ label: "View workspace", url: "/workspaces" }],
+				}}
+				onMarkNotificationAsRead={vi.fn()}
+			/>,
+		);
+
+		expect(
+			await screen.findByRole("link", { name: "View workspace" }),
+		).toHaveAccessibleDescription("Your workspace Testing1 was deleted.");
+	});
 });

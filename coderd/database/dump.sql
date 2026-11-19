@@ -800,7 +800,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token_key_id text,
     oauth_extra jsonb,
     oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
-    refresh_lease_expires_at timestamp with time zone
+    refresh_lease_expires_at timestamp with time zone,
+    oauth_extra_key_id text
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -810,6 +811,8 @@ COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of t
 COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
 
 COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+COMMENT ON COLUMN external_auth_links.oauth_extra_key_id IS 'The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.';
 
 CREATE FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF external_auth_links
     LANGUAGE plpgsql
@@ -2356,6 +2359,15 @@ CREATE TABLE chat_project_memories (
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
 
+CREATE TABLE chat_project_templates (
+    project_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_templates IS 'Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.';
+
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2367,6 +2379,11 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    limit_templates boolean DEFAULT false NOT NULL,
+    default_template_id uuid,
+    default_template_version_preset_id uuid,
+    default_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_default_preset_or_parameters CHECK (((default_template_version_preset_id IS NULL) OR (default_parameters = '{}'::jsonb))),
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
@@ -2382,6 +2399,14 @@ COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the pro
 COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+COMMENT ON COLUMN chat_projects.limit_templates IS 'When true, the project''s chats can only use the templates in chat_project_templates, and none when it has no rows. When false, they can use every template their owner can use.';
+
+COMMENT ON COLUMN chat_projects.default_template_id IS 'Attached template recommended to the project''s chats. Ignored while the template is not attached.';
+
+COMMENT ON COLUMN chat_projects.default_template_version_preset_id IS 'Preset applied when a chat creates a workspace from the default template without choosing one.';
+
+COMMENT ON COLUMN chat_projects.default_parameters IS 'Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -3676,7 +3701,8 @@ CREATE TABLE templates (
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
     agents_allowed boolean DEFAULT true NOT NULL,
-    allow_workspace_renames boolean DEFAULT false NOT NULL
+    allow_workspace_renames boolean DEFAULT false NOT NULL,
+    browser_only boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3704,6 +3730,8 @@ COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the wor
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
+
+COMMENT ON COLUMN templates.browser_only IS 'Whether coderd refuses non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser_only setting applies on top of this.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3740,6 +3768,7 @@ CREATE VIEW template_with_names AS
     templates.time_til_autostop_notify,
     templates.agents_allowed,
     templates.allow_workspace_renames,
+    templates.browser_only,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -4720,6 +4749,9 @@ ALTER TABLE ONLY chat_project_instructions
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_pkey PRIMARY KEY (project_id, template_id);
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
@@ -5675,6 +5707,21 @@ ALTER TABLE ONLY chat_project_memories
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_id_fkey FOREIGN KEY (default_template_id) REFERENCES templates(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_version_preset_id_fkey FOREIGN KEY (default_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
@@ -5731,6 +5778,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY external_auth_links
+    ADD CONSTRAINT external_auth_links_oauth_extra_key_id_fkey FOREIGN KEY (oauth_extra_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;

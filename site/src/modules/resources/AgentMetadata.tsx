@@ -82,7 +82,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
 					toast.error(
-						"Unexpected disconnect while watching Metadata changes.",
+						"Unexpected disconnect while watching metadata changes.",
 						{
 							description: "Please try refreshing the page.",
 						},
@@ -90,7 +90,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 					return;
 				}
 
-				toast.error("Unexpected disconnect while watching Metadata changes.", {
+				toast.error("Unexpected disconnect while watching metadata changes.", {
 					description: "Creating new connection...",
 				});
 				timeoutId = window.setTimeout(() => {

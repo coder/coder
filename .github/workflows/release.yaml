@@ -138,14 +138,18 @@ jobs:
       - name: Generate release App token for tagging
         id: tag_app_token
         if: ${{ !inputs.dry_run }}
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: coder
-          permission-contents: write
-          permission-workflows: write
+          permissions: |
+            contents: write
+            workflows: write
 
       - name: Create release tag
         if: ${{ !inputs.dry_run }}
@@ -582,6 +586,12 @@ jobs:
       - name: ls build
         run: ls -lh build
 
+      - name: Authenticate to Google Cloud (release artifacts)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_RELEASE_ARTIFACTS_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_RELEASE_ARTIFACTS_SERVICE_ACCOUNT }}
+
       - name: Publish Coder CLI binaries and detached signatures to GCS
         if: ${{ !inputs.dry_run }}
         run: |
@@ -617,14 +627,18 @@ jobs:
       - name: Generate release App token
         id: release_app_token
         if: ${{ !inputs.dry_run }}
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: coder
-          permission-contents: write
-          permission-workflows: write
+          permissions: |
+            contents: write
+            workflows: write
 
       - name: Publish release
         run: |
@@ -779,6 +793,9 @@ jobs:
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
     environment: release-publish
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the coder-package-publisher App's JWT
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -787,14 +804,18 @@ jobs:
 
       - name: Generate coder-package-publisher App token
         id: publisher_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          kms-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: packages
           # repository_dispatch needs contents: write on the target repository.
-          permission-contents: write
+          permissions: |
+            contents: write
 
       - name: Send repository-dispatch event
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
@@ -810,6 +831,9 @@ jobs:
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
     environment: release-publish
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the coder-package-publisher App's JWT
 
     steps:
       - name: Harden Runner
@@ -819,14 +843,18 @@ jobs:
 
       - name: Generate coder-package-publisher App token
         id: publisher_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          kms-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: homebrew-coder
-          permission-contents: write
-          permission-pull-requests: write
+          permissions: |
+            contents: write
+            pull_requests: write
 
       - name: Update homebrew
         env:
@@ -927,9 +955,22 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
+      # Pinned to a release and checked against its SHA-256, which matches both
+      # GitHub's asset digest and the wingetcreate.exe.txt checksum file Microsoft
+      # publishes alongside it. To update, take both values from a newer release
+      # at https://github.com/microsoft/winget-create/releases.
       - name: Install wingetcreate
         run: |
-          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/download/$env:WINGETCREATE_VERSION/wingetcreate.exe" -OutFile wingetcreate.exe
+          $hash = (Get-FileHash -Algorithm SHA256 -Path wingetcreate.exe).Hash
+          if ($hash -ne $env:WINGETCREATE_SHA256) {
+            Remove-Item wingetcreate.exe
+            throw "wingetcreate.exe $env:WINGETCREATE_VERSION checksum mismatch: got $hash"
+          }
+        env:
+          WINGETCREATE_VERSION: v1.28.1.0
+          WINGETCREATE_SHA256: 63D980BA79E97042395BD6EB5992C2DB9E01E9E7A8A22958A95C288F27310413
 
       - name: Submit updated manifest to winget-pkgs
         run: |
