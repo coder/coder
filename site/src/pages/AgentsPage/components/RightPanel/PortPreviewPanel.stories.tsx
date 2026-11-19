@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
-import { WorkspacePreviewPanel } from "./WorkspacePreviewPanel";
+import { PortPreviewPanel } from "./PortPreviewPanel";
 
 const previewTab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	id: "port-3000",
@@ -13,18 +13,9 @@ const previewTab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	protocol: "http",
 };
 
-const mockFilePreviewTab: Extract<UserRightPanelTab, { kind: "file_preview" }> =
-	{
-		id: "file-preview-docs",
-		kind: "file_preview",
-		label: "Docs site",
-		agentId: MockWorkspaceAgent.id,
-		slug: "preview--0123abcd",
-	};
-
 const meta = {
-	title: "pages/AgentsPage/components/RightPanel/WorkspacePreviewPanel",
-	component: WorkspacePreviewPanel,
+	title: "pages/AgentsPage/components/RightPanel/PortPreviewPanel",
+	component: PortPreviewPanel,
 	args: {
 		workspace: MockWorkspace,
 		agent: MockWorkspaceAgent,
@@ -42,7 +33,7 @@ const meta = {
 			</div>
 		),
 	],
-} satisfies Meta<typeof WorkspacePreviewPanel>;
+} satisfies Meta<typeof PortPreviewPanel>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -104,23 +95,4 @@ export const InvalidWildcardHost: Story = {
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
 	},
-};
-
-export const FilePreviewAgentDisconnected: Story = {
-	args: {
-		tab: mockFilePreviewTab,
-		agent: {
-			...MockWorkspaceAgent,
-			status: "disconnected",
-		},
-	},
-	parameters: { pixel: { exclude: false } },
-};
-
-export const FilePreviewMissingWildcardHost: Story = {
-	args: {
-		tab: mockFilePreviewTab,
-		host: "",
-	},
-	parameters: { pixel: { exclude: false } },
 };

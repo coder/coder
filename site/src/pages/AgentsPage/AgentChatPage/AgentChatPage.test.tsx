@@ -25,6 +25,7 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 	MockOpenPreviewResult,
+	MockPreviewSignInResponse,
 } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
@@ -46,14 +47,15 @@ import {
 	createMockWebSocket,
 	type MockWebSocketServer,
 } from "#/testHelpers/websockets";
-import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { RIGHT_PANEL_OPEN_KEY } from "../components/RightPanel/RightPanel";
 import { parseStoredDraft } from "../utils/draftStorage";
 import { overviewCardOpenStorageKey } from "../utils/overviewCardStorage";
 import {
 	getPersistedRightPanelTabs,
 	savePersistedDefaultTerminalHidden,
+	savePersistedRightPanelTabs,
 } from "../utils/rightPanelTabStorage";
 import type { NewFrameTab } from "../utils/rightPanelTabs";
 import { getPersistedSidebarTabId } from "../utils/sidebarTabStorage";
@@ -761,13 +763,13 @@ describe("AgentChatPage", () => {
 
 		const renderPreviewChat = ({
 			messages = [],
-			experiments = ["open-preview"],
 		}: {
 			messages?: readonly TypesGen.ChatMessage[];
-			experiments?: TypesGen.Experiment[];
 		}) => {
 			server.use(
-				http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
+				http.get("/api/v2/experiments", () =>
+					HttpResponse.json(["open-preview"]),
+				),
 			);
 			mockChatPageApi(mockPreviewChat);
 			vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
@@ -777,18 +779,6 @@ describe("AgentChatPage", () => {
 				snapshot_version: 1,
 			});
 			vi.spyOn(API, "getWorkspace").mockResolvedValue(mockPreviewWorkspace);
-			let chatServer: MockWebSocketServer | undefined;
-			vi.spyOn(apiModule, "watchChat").mockImplementation(
-				() =>
-					new OneWayWebSocket({
-						apiRoute: `/api/experimental/chats/${mockPreviewChat.id}/stream`,
-						websocketInit: (url, protocol) => {
-							const [socket, socketServer] = createMockWebSocket(url, protocol);
-							chatServer = socketServer;
-							return socket;
-						},
-					}),
-			);
 			vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
 				() =>
 					new OneWayWebSocket({
@@ -797,24 +787,12 @@ describe("AgentChatPage", () => {
 							createMockWebSocket(url, protocol)[0],
 					}),
 			);
+			const signIn = vi
+				.spyOn(API.experimental, "signInToPreview")
+				.mockResolvedValue(MockPreviewSignInResponse);
 			savePersistedDefaultTerminalHidden(mockPreviewChat.id, true);
 			renderChatPage(mockPreviewChat);
-
-			const publish = (messages: readonly TypesGen.ChatMessage[]) =>
-				act(() =>
-					chatServer?.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(
-								messages.map((message) => ({
-									type: "message",
-									chat_id: mockPreviewChat.id,
-									message,
-								})),
-							),
-						}),
-					),
-				);
-			return { user: userEvent.setup(), publish };
+			return { user: userEvent.setup(), signIn };
 		};
 
 		it.each<{
@@ -828,11 +806,11 @@ describe("AgentChatPage", () => {
 				button: "Open preview",
 				result: { ...MockOpenPreviewResult, url_path: "/docs?page=2" },
 				tab: {
-					kind: "port",
+					kind: "preview",
 					label: MockOpenPreviewResult.title,
-					agentId: mockPreviewAgent.id,
-					port: MockOpenPreviewResult.port,
-					protocol: "http",
+					workspaceId: mockPreviewWorkspace.id,
+					agentName: mockPreviewAgent.name,
+					slug: MockOpenPreviewResult.preview_slug,
 					urlPath: "/docs?page=2",
 				},
 			},
@@ -844,14 +822,15 @@ describe("AgentChatPage", () => {
 					kind: "file",
 					port: undefined,
 					preview_slug: "preview--0123abcd",
-					url_path: "/docs/a.html",
+					url_path: "/?page=2",
 				},
 				tab: {
-					kind: "file_preview",
+					kind: "preview",
 					label: MockOpenPreviewResult.title,
-					agentId: mockPreviewAgent.id,
+					workspaceId: mockPreviewWorkspace.id,
+					agentName: mockPreviewAgent.name,
 					slug: "preview--0123abcd",
-					urlPath: "/docs/a.html",
+					urlPath: "/?page=2",
 				},
 			},
 			{
@@ -861,6 +840,7 @@ describe("AgentChatPage", () => {
 					...MockOpenPreviewResult,
 					kind: "app",
 					port: undefined,
+					preview_slug: undefined,
 					app_slug: mockCodeServerApp.slug,
 					url_path: "/?folder=/home/coder",
 				},
@@ -897,7 +877,7 @@ describe("AgentChatPage", () => {
 			},
 		);
 
-		it("opens the same port at another URL path in its own tab", async () => {
+		it("opens the same preview at another URL path in its own tab", async () => {
 			const page = renderPreviewChat({
 				messages: [
 					...previewExchange(10, MockOpenPreviewResult),
@@ -917,69 +897,25 @@ describe("AgentChatPage", () => {
 			await waitFor(() =>
 				expect(
 					getPersistedRightPanelTabs(mockPreviewChat.id).map((tab) =>
-						tab.kind === "port" ? tab.urlPath : tab.kind,
+						tab.kind === "preview" ? tab.urlPath : tab.kind,
 					),
 				).toEqual([undefined, "/admin"]),
 			);
 		});
 
-		it("opens the tab of a result that arrives while the chat is open, not of one in its history", async () => {
-			const page = renderPreviewChat({
-				messages: previewExchange(10, { ...MockOpenPreviewResult, port: 8080 }),
-			});
-			await screen.findByRole("button", { name: "Open preview" });
-
-			await page.publish(previewExchange(20, MockOpenPreviewResult));
-
-			await waitFor(() =>
-				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([
-					expect.objectContaining({
-						kind: "port",
-						port: MockOpenPreviewResult.port,
-					}),
-				]),
-			);
-			expect(getPersistedSidebarTabId(mockPreviewChat.id)).toBe(
-				getPersistedRightPanelTabs(mockPreviewChat.id)[0]?.id,
-			);
-		});
-
-		it("opens the tab of a new result while the user's message is still sending", async () => {
-			const page = renderPreviewChat({});
-			const sent = createDeferred<TypesGen.CreateChatMessageResponse>();
-			const createChatMessage = vi
-				.spyOn(API.experimental, "createChatMessage")
-				.mockReturnValue(sent.promise);
-			await page.user.click(
-				await screen.findByRole("textbox", { name: "Chat message" }),
-			);
-			await page.user.paste("Show me the docs");
-			await page.user.click(screen.getByRole("button", { name: "Send" }));
-			await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
-
-			await page.publish(previewExchange(20, MockOpenPreviewResult));
-
-			await waitFor(() =>
-				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([
-					expect.objectContaining({
-						kind: "port",
-						port: MockOpenPreviewResult.port,
-					}),
-				]),
-			);
-		});
-
 		it("opens the Browser tab for an agent-browser result", async () => {
-			const page = renderPreviewChat({});
-			await waitForLoadedChat();
-
-			await page.publish(
-				previewExchange(20, {
+			const page = renderPreviewChat({
+				messages: previewExchange(10, {
 					...MockOpenPreviewResult,
 					kind: "app",
 					port: undefined,
+					preview_slug: undefined,
 					app_slug: AGENT_BROWSER_APP_SLUG,
 				}),
+			});
+
+			await page.user.click(
+				await screen.findByRole("button", { name: "Open app" }),
 			);
 
 			await waitFor(() =>
@@ -988,48 +924,38 @@ describe("AgentChatPage", () => {
 			expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([]);
 		});
 
-		it.each<{
-			name: string;
-			experiments?: TypesGen.Experiment[];
-			belowLg?: boolean;
-			result?: Record<string, unknown>;
-		}>([
-			{ name: "without the open-preview experiment", experiments: [] },
-			{ name: "when the panel would replace the chat", belowLg: true },
-			{ name: "from another agent", result: { agent_name: "other-agent" } },
-			{
-				name: "for a path-based app",
-				result: {
-					kind: "app",
-					port: undefined,
-					app_slug: MockWorkspaceApp.slug,
+		it("signs in to a restored preview tab once it is shown, and again on reload", async () => {
+			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+			savePersistedRightPanelTabs(mockPreviewChat.id, [
+				{
+					id: "preview-docs",
+					kind: "preview",
+					label: "Docs site",
+					workspaceId: mockPreviewWorkspace.id,
+					agentName: mockPreviewAgent.name,
+					slug: "preview--3000",
+					urlPath: "/docs",
 				},
-			},
-		])(
-			"does not open a new result's tab $name",
-			async ({ experiments, belowLg = false, result }) => {
-				const { matchMedia } = window;
-				vi.stubGlobal("matchMedia", (query: string) => ({
-					...matchMedia(query),
-					matches: belowLg && query === belowLgViewportMediaQuery,
-				}));
-				onTestFinished(() => {
-					vi.unstubAllGlobals();
-				});
-				const page = renderPreviewChat({ experiments });
-				await waitForLoadedChat();
+			]);
+			const page = renderPreviewChat({});
+			const previewTab = await screen.findByRole("tab", { name: "Docs site" });
+			expect(page.signIn).not.toHaveBeenCalled();
 
-				await page.publish(
-					previewExchange(20, {
-						...MockOpenPreviewResult,
-						...result,
-						title: "Admin site",
-					}),
-				);
+			await page.user.click(previewTab);
+			await waitFor(() => expect(page.signIn).toHaveBeenCalledTimes(1));
+			await page.user.click(
+				screen.getByRole("button", { name: "Reload preview" }),
+			);
 
-				await screen.findByText("Admin site");
-				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([]);
-			},
-		);
+			await waitFor(() => expect(page.signIn).toHaveBeenCalledTimes(2));
+			expect(page.signIn).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					workspace_id: mockPreviewWorkspace.id,
+					agent_name: mockPreviewAgent.name,
+					preview_slug: "preview--3000",
+					url_path: "/docs",
+				}),
+			);
+		});
 	});
 });

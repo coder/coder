@@ -1,5 +1,4 @@
 import {
-	filePreviewURL,
 	portForwardURL,
 	resolveLocalhostPort,
 	rewriteLocalhostURL,
@@ -67,20 +66,6 @@ describe("port forward URL", () => {
 		);
 		expect(forwarded).toEqual(
 			"http://12345--my-agent--my-workspace--my-username.proxy-host.tld/path1/path2?key1=value1&key2=value2",
-		);
-	});
-	it("file preview at a path and query", () => {
-		const url = filePreviewURL(
-			proxyHostWildcard,
-			"preview--0123abcd",
-			sampleAgent,
-			sampleWorkspace,
-			sampleUsername,
-			"/docs/a.html",
-			"?page=2",
-		);
-		expect(url).toEqual(
-			"http://preview--0123abcd--my-agent--my-workspace--my-username.proxy-host.tld/docs/a.html?page=2",
 		);
 	});
 });

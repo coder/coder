@@ -37,6 +37,15 @@ const terminalTab = (
 	...overrides,
 });
 
+const mockPreviewTab: Extract<UserRightPanelTab, { kind: "preview" }> = {
+	id: "preview-docs",
+	kind: "preview",
+	label: "Docs",
+	workspaceId: MockWorkspace.id,
+	agentName: MockWorkspaceAgent.name,
+	slug: "preview--0123abcd",
+};
+
 describe("right-panel tab validation", () => {
 	const tabs: UserRightPanelTab[] = [
 		terminalTab(),
@@ -55,13 +64,7 @@ describe("right-panel tab validation", () => {
 			port: 3000,
 			protocol: "http",
 		},
-		{
-			id: "file-preview-docs",
-			kind: "file_preview",
-			label: "Docs",
-			agentId: MockWorkspaceAgent.id,
-			slug: "preview--0123abcd",
-		},
+		mockPreviewTab,
 	];
 
 	it("keeps tabs that still match the workspace and wildcard host", () => {
@@ -86,7 +89,7 @@ describe("right-panel tab validation", () => {
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
 	});
 
-	it("drops port and file preview tabs when wildcard access is unavailable", () => {
+	it("drops port tabs when wildcard access is unavailable", () => {
 		const validated = validateUserRightPanelTabs(tabs, {
 			workspace: MockWorkspace,
 			workspaceAgent: MockWorkspaceAgent,
@@ -94,12 +97,10 @@ describe("right-panel tab validation", () => {
 			openPreviewEnabled: true,
 		});
 
-		expect(validated).toEqual(
-			tabs.filter((tab) => tab.kind !== "port" && tab.kind !== "file_preview"),
-		);
+		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
 	});
 
-	it("drops file preview tabs when the open-preview experiment is off", () => {
+	it("drops preview tabs when the open-preview experiment is off", () => {
 		const validated = validateUserRightPanelTabs(tabs, {
 			workspace: MockWorkspace,
 			workspaceAgent: MockWorkspaceAgent,
@@ -107,9 +108,24 @@ describe("right-panel tab validation", () => {
 			openPreviewEnabled: false,
 		});
 
-		expect(validated).toEqual(
-			tabs.filter((tab) => tab.kind !== "file_preview"),
+		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "preview"));
+	});
+
+	it("drops preview tabs of another workspace or agent", () => {
+		const validated = validateUserRightPanelTabs(
+			[
+				{ ...mockPreviewTab, workspaceId: "other-workspace" },
+				{ ...mockPreviewTab, agentName: "other-agent" },
+			],
+			{
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+				openPreviewEnabled: true,
+			},
 		);
+
+		expect(validated).toEqual([]);
 	});
 
 	it("drops port tabs when the agent no longer exposes the port forwarding helper", () => {
@@ -292,7 +308,7 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
 	});
 
-	it("persists port and file preview tabs with their URL paths", () => {
+	it("persists port and preview tabs", () => {
 		const tabs: UserRightPanelTab[] = [
 			{
 				id: "port-3000",
@@ -301,16 +317,8 @@ describe("right-panel tab storage", () => {
 				agentId: MockWorkspaceAgent.id,
 				port: 3000,
 				protocol: "http",
-				urlPath: "/docs?page=2",
 			},
-			{
-				id: "file-preview-docs",
-				kind: "file_preview",
-				label: "Docs",
-				agentId: MockWorkspaceAgent.id,
-				slug: "preview--0123abcd",
-				urlPath: "/a.html",
-			},
+			{ ...mockPreviewTab, urlPath: "/?page=2" },
 		];
 
 		savePersistedRightPanelTabs("chat-1", tabs);
@@ -322,23 +330,6 @@ describe("right-panel tab storage", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
 			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
-		);
-
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
-	});
-
-	it("ignores file preview tabs whose slug could change the hostname", () => {
-		localStorage.setItem(
-			`${rightPanelTabStorageKeyPrefix}chat-1`,
-			JSON.stringify([
-				{
-					id: "file-preview-bad",
-					kind: "file_preview",
-					label: "Docs",
-					agentId: MockWorkspaceAgent.id,
-					slug: "evil.example.com/",
-				},
-			]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);

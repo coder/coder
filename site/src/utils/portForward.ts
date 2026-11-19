@@ -22,13 +22,21 @@ export const resolveLocalhostPort = (
 	return protocol === "https:" ? 443 : 80;
 };
 
-const subdomainURL = (
+export const portForwardURL = (
 	host: string,
-	subdomain: string,
+	port: number,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+	protocol: WorkspaceAgentPortShareProtocol,
 	pathname?: string,
 	search?: string,
 ): string => {
 	const { location } = window;
+	const suffix = protocol === "https" ? "s" : "";
+
+	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
+
 	const baseUrl = `${location.protocol}//${host.replace(/\*/g, subdomain)}`;
 	try {
 		const url = new URL(baseUrl);
@@ -44,59 +52,6 @@ const subdomainURL = (
 		// so the link renders without navigating anywhere.
 		return "#";
 	}
-};
-
-export const portForwardURL = (
-	host: string,
-	port: number,
-	agentName: string,
-	workspaceName: string,
-	username: string,
-	protocol: WorkspaceAgentPortShareProtocol,
-	pathname?: string,
-	search?: string,
-): string => {
-	const suffix = protocol === "https" ? "s" : "";
-	return subdomainURL(
-		host,
-		`${port}${suffix}--${agentName}--${workspaceName}--${username}`,
-		pathname,
-		search,
-	);
-};
-
-/** Reports whether value is a TCP port number, from 1 to 65535. */
-export const isValidPort = (value: unknown): value is number =>
-	typeof value === "number" &&
-	Number.isInteger(value) &&
-	value >= 1 &&
-	value <= 65535;
-
-/**
- * Reports whether value is at most 63 lowercase letters, digits, and interior
- * hyphens, so it cannot add a dot, slash, or port to a hostname it goes into.
- */
-export const isHostnameLabel = (value: unknown): value is string =>
-	typeof value === "string" &&
-	value.length <= 63 &&
-	/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value);
-
-/** The URL the workspace agent serves a file preview at, from its slug. */
-export const filePreviewURL = (
-	host: string,
-	slug: string,
-	agentName: string,
-	workspaceName: string,
-	username: string,
-	pathname?: string,
-	search?: string,
-): string => {
-	return subdomainURL(
-		host,
-		`${slug}--${agentName}--${workspaceName}--${username}`,
-		pathname,
-		search,
-	);
 };
 
 /**

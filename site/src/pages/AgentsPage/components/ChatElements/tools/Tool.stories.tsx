@@ -3082,8 +3082,19 @@ export const OpenPreviewAppCompleted: Story = {
 			kind: "app",
 			title: "VS Code",
 			port: undefined,
+			preview_slug: undefined,
 			app_slug: "code-server",
 		},
+	},
+	decorators: [withPreviewOpenAction],
+};
+
+export const OpenPreviewFromMCPServer: Story = {
+	args: {
+		name: "open_preview",
+		mcpServerConfigId: "mcp-server-1",
+		args: { title: "Docs site", port: "3000" },
+		result: MockOpenPreviewResult,
 	},
 	decorators: [withPreviewOpenAction],
 };

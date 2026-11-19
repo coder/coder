@@ -280,6 +280,19 @@ export const findWorkspaceAgent = (
 	return getWorkspaceAgents(workspace).find((agent) => agent.id === agentId);
 };
 
+/**
+ * Searches the agents of every resource in the workspace's latest build, and
+ * returns undefined when none has that name.
+ */
+export const findWorkspaceAgentByName = (
+	workspace: TypesGen.Workspace,
+	agentName: string,
+): TypesGen.WorkspaceAgent | undefined => {
+	return getWorkspaceAgents(workspace).find(
+		(agent) => agent.name === agentName,
+	);
+};
+
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
