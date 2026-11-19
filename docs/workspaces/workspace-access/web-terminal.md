@@ -105,6 +105,19 @@ You can customize the terminal font size through your user settings:
 2. Select **Account** > **Appearance**
 3. Choose your preferred font size
 
+### Tab title
+
+By default, the browser tab shows `Terminal - <owner>/<workspace> - Coder`, or the app's name in place of `Terminal` for a terminal that a template app opens.
+To label the tab yourself, set the terminal title from your shell with a standard escape sequence:
+
+```sh
+printf '\033]0;%s\007' "my-project"
+```
+
+The tab then shows `my-project - <owner>/<workspace> - Coder`.
+Shell prompts and programs that set the terminal title update the tab the same way.
+An empty title restores the default.
+
 ### Rendering Engine
 
 Administrators can configure the terminal renderer for performance optimization:
