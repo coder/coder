@@ -499,6 +499,31 @@ func TestWorkspaceAgentRPCAdmission_Disabled(t *testing.T) {
 	}
 }
 
+// TestWorkspaceAgentRPCDrain verifies that draining closes the connections of
+// connected agents, which is how a shutdown disconnects them gradually.
+func TestWorkspaceAgentRPCDrain(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	conn, err := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken)).ConnectRPCWithRole(ctx, "agent")
+	require.NoError(t, err)
+	defer conn.Close()
+	// The dial returns before the server has finished setting up its side of
+	// the connection. A completed call shows that it has.
+	_, err = agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+
+	require.NoError(t, api.DrainAgentConnections(ctx))
+	testutil.TryReceive(ctx, t, conn.Closed())
+}
+
 func TestWorkspaceAgentRPCConnectionLog(t *testing.T) {
 	t.Parallel()
 

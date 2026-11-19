@@ -1433,6 +1433,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			} else {
 				cliui.Info(inv.Stdout, "Gracefully shut down API server\n")
 			}
+			// Agents redial on a schedule that starts when they lose the
+			// server. Closing their connections a few at a time keeps them
+			// from all coming back at the same moment.
+			err = shutdownWithTimeout(coderAPI.DrainAgentConnections, 15*time.Second)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Disconnecting workspace agents took longer than 15s: %s\n", err)
+			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
