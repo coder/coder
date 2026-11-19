@@ -1,8 +1,17 @@
-import { BoxIcon, CloudCogIcon, SquareTerminalIcon } from "lucide-react";
+import {
+	BoxIcon,
+	CloudCogIcon,
+	SquareTerminalIcon,
+	UserIcon,
+	UsersIcon,
+} from "lucide-react";
 import { useMemo } from "react";
 import { useQueryClient } from "react-query";
 import { API } from "#/api/api";
 import { aiBridgeProviders } from "#/api/queries/aiBridge";
+import { groupsByOrganization } from "#/api/queries/groups";
+import { organizationMembers } from "#/api/queries/organizations";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type {
 	FilterCategory,
@@ -14,6 +23,51 @@ import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon"
 import type { OptionsQueryClient } from "#/utils/filters";
 
 const OPTIONS_LIMIT = 25;
+
+const getUserOptions = async (
+	query: string,
+	organizationId: string,
+	queryClient: OptionsQueryClient,
+): Promise<FilterOption[]> => {
+	const { members } = await queryClient.fetchQuery(
+		organizationMembers(organizationId, { q: query, limit: OPTIONS_LIMIT }),
+	);
+	return members.map((member) => ({
+		label: member.username,
+		value: member.username,
+		startIcon: (
+			<Avatar fallback={member.username} src={member.avatar_url} size="sm" />
+		),
+	}));
+};
+
+const getGroupOptions = async (
+	query: string,
+	organizationId: string,
+	queryClient: OptionsQueryClient,
+): Promise<FilterOption[]> => {
+	const groups = await queryClient.fetchQuery(
+		groupsByOrganization(organizationId),
+	);
+	const normalized = query.trim().toLowerCase();
+	return groups
+		.filter(
+			(group) =>
+				group.name.toLowerCase().includes(normalized) ||
+				group.display_name.toLowerCase().includes(normalized),
+		)
+		.map((group) => ({
+			label: group.name,
+			value: group.name,
+			startIcon: (
+				<Avatar
+					fallback={group.display_name || group.name}
+					src={group.avatar_url}
+					size="sm"
+				/>
+			),
+		}));
+};
 
 const getProviderOptions = async (
 	query: string,
@@ -59,17 +113,37 @@ const getClientOptions = async (query: string): Promise<FilterOption[]> => {
 };
 
 type DetailedReportFilterProps = {
+	organizationId: string;
 	value: string;
 	onChange: (query: string) => void;
 };
 
 export const DetailedReportFilter: React.FC<DetailedReportFilterProps> = ({
+	organizationId,
 	value,
 	onChange,
 }) => {
 	const queryClient = useQueryClient();
 	const categories = useMemo<FilterCategory[]>(
 		() => [
+			{
+				key: "user",
+				optionsKey: `aiSpendReport.user.${organizationId}`,
+				label: "User",
+				icon: <UserIcon />,
+				singleSelect: true,
+				getOptions: (query) =>
+					getUserOptions(query, organizationId, queryClient),
+			},
+			{
+				key: "group",
+				optionsKey: `aiSpendReport.group.${organizationId}`,
+				label: "Group",
+				icon: <UsersIcon />,
+				singleSelect: true,
+				getOptions: (query) =>
+					getGroupOptions(query, organizationId, queryClient),
+			},
 			{
 				key: "provider",
 				optionsKey: "aiSpendReport.provider",
@@ -95,7 +169,7 @@ export const DetailedReportFilter: React.FC<DetailedReportFilterProps> = ({
 				getOptions: getModelOptions,
 			},
 		],
-		[queryClient],
+		[organizationId, queryClient],
 	);
 
 	return (

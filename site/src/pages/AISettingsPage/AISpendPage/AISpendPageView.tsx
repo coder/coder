@@ -161,6 +161,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					</TabsContent>
 					<TabsContent value="detailed-report">
 						<DetailedReportTab
+							organizationId={organization.id}
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}

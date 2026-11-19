@@ -6,6 +6,7 @@ import { SpendDaysPicker } from "./SpendDaysPicker";
 import type { SpendDays } from "./spendDays";
 
 type DetailedReportTabProps = {
+	organizationId: string;
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
@@ -16,6 +17,7 @@ type DetailedReportTabProps = {
 };
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
+	organizationId,
 	now,
 	days,
 	onDaysChange,
@@ -36,7 +38,11 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 			</section>
 			<div className="flex flex-wrap items-center gap-3">
 				{canFilter && (
-					<DetailedReportFilter value={filter} onChange={onFilterChange} />
+					<DetailedReportFilter
+						organizationId={organizationId}
+						value={filter}
+						onChange={onFilterChange}
+					/>
 				)}
 				<SpendDaysPicker now={now} days={days} onDaysChange={onDaysChange} />
 				{/* TODO(AIGOV-731): run the report for the picked days. */}
