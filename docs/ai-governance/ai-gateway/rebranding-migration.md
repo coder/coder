@@ -138,5 +138,4 @@ Only the new prefixes are emitted:
 Update Grafana dashboards, Prometheus alerting rules, and recording rules that reference the removed prefixes to use `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*`.
 Verify the new series are present in your monitoring stack after upgrading.
 
-Cost control and standalone gateway metrics also use the new prefixes.
 Refer to [Metric name migration](monitoring.md#metric-name-migration) for details.

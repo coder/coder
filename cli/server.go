@@ -1198,7 +1198,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// The inner block starts the embedded daemon, which standalone-only
 			// deployments disable with CODER_AI_GATEWAY_EMBEDDED_ENABLED=false.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				costControlReg := prometheus.WrapRegistererWithPrefix("coder_ai_gateway_", coderAPI.PrometheusRegistry)
+				costControlReg := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, coderAPI.PrometheusRegistry)
 				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
 				if vals.Prometheus.Enable {
 					budgetPeriod := codersdk.NewAIBudgetPeriodFromString(vals.AI.BridgeConfig.BudgetPeriod)

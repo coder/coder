@@ -35,7 +35,7 @@ type prefixIndex map[string][]string
 
 // prefixFuncs are the registerer wrappers that prepend to every metric name
 // registered through them. Each maps to the index of the argument holding the
-// canonical prefix.
+// prefix.
 var prefixFuncs = map[string]int{
 	"WrapRegistererWithPrefix": 0,
 }
