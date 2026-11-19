@@ -29,8 +29,6 @@ func TestAgentOpenPreviewIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, selected, publication.Path)
 
-	// AppHTTPClient dials the agent's tailnet address, like the workspace
-	// app proxy does.
 	url := fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s/", workspacesdk.AgentHTTPAPIServerPort, publication.ID)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
