@@ -273,7 +273,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/swaggo/http-swagger/v2 v2.0.1
 	github.com/swaggo/swag v1.16.6
-	github.com/tidwall/gjson v1.19.0
+	github.com/tidwall/gjson v1.20.2
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
 	github.com/valyala/fasthttp v1.77.0
@@ -491,7 +491,7 @@ require (
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
 	github.com/tdewolff/parse/v2 v2.8.12 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
-	github.com/tidwall/pretty v1.2.1
+	github.com/tidwall/pretty v1.3.0
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
