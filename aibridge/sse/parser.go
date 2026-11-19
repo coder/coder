@@ -1,4 +1,5 @@
-package aibridge
+// Package sse parses server-sent event streams.
+package sse
 
 import (
 	"bufio"
@@ -8,34 +9,42 @@ import (
 	"sync"
 )
 
+// Event types used to group parsed events. Events without an explicit type
+// are grouped under EventTypeMessage.
 const (
-	SSEEventTypeMessage = "message"
-	SSEEventTypeError   = "error"
-	SSEEventTypePing    = "ping"
+	EventTypeMessage = "message"
+	EventTypeError   = "error"
+	EventTypePing    = "ping"
 )
 
-type SSEEvent struct {
+// Event is a single parsed server-sent event.
+type Event struct {
 	Type  string
 	Data  string
 	ID    string
 	Retry int
 }
 
-type SSEParser struct {
-	events map[string][]SSEEvent
+// Parser collects server-sent events grouped by event type. It is safe for
+// concurrent use.
+type Parser struct {
+	events map[string][]Event
 	mu     sync.RWMutex
 }
 
-func NewSSEParser() *SSEParser {
-	return &SSEParser{
-		events: make(map[string][]SSEEvent),
+// NewParser returns an empty Parser.
+func NewParser() *Parser {
+	return &Parser{
+		events: make(map[string][]Event),
 	}
 }
 
-func (p *SSEParser) Parse(reader io.Reader) error {
+// Parse reads events from reader until EOF and stores them by type. A
+// trailing event without a terminating blank line is discarded.
+func (p *Parser) Parse(reader io.Reader) error {
 	scanner := bufio.NewScanner(reader)
 
-	var currentEvent SSEEvent
+	var currentEvent Event
 	var dataLines []string
 
 	for scanner.Scan() {
@@ -49,7 +58,7 @@ func (p *SSEParser) Parse(reader io.Reader) error {
 
 			// Default to message type if no event type specified
 			if currentEvent.Type == "" {
-				currentEvent.Type = SSEEventTypeMessage
+				currentEvent.Type = EventTypeMessage
 			}
 
 			// Store the event
@@ -58,7 +67,7 @@ func (p *SSEParser) Parse(reader io.Reader) error {
 			p.mu.Unlock()
 
 			// Reset for next event
-			currentEvent = SSEEvent{}
+			currentEvent = Event{}
 			dataLines = nil
 			continue
 		}
@@ -96,27 +105,31 @@ func (p *SSEParser) Parse(reader io.Reader) error {
 	return scanner.Err()
 }
 
-func (p *SSEParser) EventsByType(eventType string) []SSEEvent {
+// EventsByType returns a copy of the parsed events of the given type, in
+// stream order.
+func (p *Parser) EventsByType(eventType string) []Event {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	events := p.events[eventType]
-	result := make([]SSEEvent, len(events))
+	result := make([]Event, len(events))
 	copy(result, events)
 	return result
 }
 
-func (p *SSEParser) MessageEvents() []SSEEvent {
-	return p.EventsByType(SSEEventTypeMessage)
+// MessageEvents returns a copy of the parsed events of type EventTypeMessage.
+func (p *Parser) MessageEvents() []Event {
+	return p.EventsByType(EventTypeMessage)
 }
 
-func (p *SSEParser) AllEvents() map[string][]SSEEvent {
+// AllEvents returns a copy of all parsed events keyed by event type.
+func (p *Parser) AllEvents() map[string][]Event {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	result := make(map[string][]SSEEvent)
+	result := make(map[string][]Event)
 	for eventType, events := range p.events {
-		eventsCopy := make([]SSEEvent, len(events))
+		eventsCopy := make([]Event, len(events))
 		copy(eventsCopy, events)
 		result[eventType] = eventsCopy
 	}
