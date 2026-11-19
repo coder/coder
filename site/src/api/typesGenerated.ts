@@ -26,6 +26,11 @@ export interface AIBridgeAgenticAction {
 	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
+	 * Organization is the organization of this interception. Nil when none
+	 * was stored.
+	 */
+	readonly organization?: AIBridgeInterceptionOrganization;
+	/**
 	 * PricedModel is the model and prices used for this interception. Nil
 	 * when it was not priced.
 	 */
@@ -95,6 +100,24 @@ export interface AIBridgeConfig {
 	 */
 	readonly disable_content_recording: boolean;
 }
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeInterceptionOrganization is the organization a single
+ * interception was attributed to and how it was chosen.
+ */
+export interface AIBridgeInterceptionOrganization extends MinimalOrganization {
+	readonly source: AIBridgeInterceptionOrganizationSource;
+}
+
+// From codersdk/aibridge.go
+export type AIBridgeInterceptionOrganizationSource =
+	| "chatd"
+	| "effective_group"
+	| "workspace";
+
+export const AIBridgeInterceptionOrganizationSources: AIBridgeInterceptionOrganizationSource[] =
+	["chatd", "effective_group", "workspace"];
 
 // From codersdk/aibridge.go
 export interface AIBridgeListSessionsResponse {
@@ -173,6 +196,11 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	/**
+	 * Organizations are the organizations this session's interceptions were
+	 * attributed to.
+	 */
+	readonly organizations: readonly AIBridgeSessionOrganization[];
+	/**
 	 * NetworkCalls summarizes the Agent Firewall network requests made during the
 	 * session. A nil value means the session did not pass through Agent
 	 * Firewall, so network call monitoring was not active, which the UI
@@ -206,6 +234,15 @@ export interface AIBridgeSessionNetworkDomain {
 
 // From codersdk/aibridge.go
 /**
+ * AIBridgeSessionOrganization is an organization a session's interceptions
+ * were attributed to, with every source used for it.
+ */
+export interface AIBridgeSessionOrganization extends MinimalOrganization {
+	readonly sources: readonly AIBridgeInterceptionOrganizationSource[];
+}
+
+// From codersdk/aibridge.go
+/**
  * AIBridgeSessionThreadsResponse is the response for GET
  * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
@@ -223,6 +260,11 @@ export interface AIBridgeSessionThreadsResponse {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Organizations are the organizations this session's interceptions were
+	 * attributed to.
+	 */
+	readonly organizations: readonly AIBridgeSessionOrganization[];
 	/**
 	 * NetworkCalls summarizes the Agent Firewall network calls made during the
 	 * session. A nil value means the session did not pass through Agent
@@ -295,6 +337,11 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Organization is the organization of the root interception. Nil when
+	 * none was stored.
+	 */
+	readonly organization?: AIBridgeInterceptionOrganization;
 	/**
 	 * PricedModel is the model and prices used for the root interception
 	 * (the prompt). Other requests in the thread may use different models
