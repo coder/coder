@@ -9054,6 +9054,51 @@ export interface PreviewParameterValidation {
  */
 export const PreviewSessionTokenCookie = "coder_preview_session_token";
 
+// From codersdk/previews.go
+/**
+ * PreviewSignInRequest asks for a URL that signs the browser in to one
+ * preview of a workspace the caller owns.
+ */
+export interface PreviewSignInRequest {
+	readonly workspace_id: string;
+	readonly agent_name: string;
+	/**
+	 * PreviewSlug is the preview's app slug, such as "preview--0123abcd" or
+	 * "preview--8080".
+	 */
+	readonly preview_slug: string;
+	/**
+	 * URLPath is the path and query the preview opens at. Empty opens the
+	 * root.
+	 */
+	readonly url_path?: string;
+	/**
+	 * RegionID picks the primary or a workspace proxy. Empty picks the
+	 * primary.
+	 */
+	readonly region_id?: string;
+}
+
+// From codersdk/previews.go
+/**
+ * PreviewSignInResponse is how the dashboard frames a preview.
+ */
+export interface PreviewSignInResponse {
+	/**
+	 * URL is the preview URL with a one-minute sign-in token for its host.
+	 */
+	readonly url: string;
+	/**
+	 * Origin is the preview's origin, the only one its wrapper may frame.
+	 */
+	readonly origin: string;
+	/**
+	 * Sandbox is the iframe sandbox to frame the preview with.
+	 */
+	readonly sandbox: string;
+	readonly mode: PreviewMode;
+}
+
 // From codersdk/deployment.go
 export interface PrometheusConfig {
 	readonly enable: boolean;

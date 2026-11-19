@@ -1365,6 +1365,10 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Put("/", api.putUserEmailExperimental)
 		})
+		r.Route("/previews", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/sign-in", api.postPreviewSignIn)
+		})
 
 		// NOTE(DanielleMaywood):
 		r.Route("/users/{user}/skills", func(r chi.Router) {

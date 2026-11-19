@@ -73,6 +73,38 @@ func (e EncryptedAPIKeyPayload) Validate(ex jwt.Expected) error {
 	return e.RegisteredClaims.Validate(ex)
 }
 
+// PreviewSignInPayload signs a browser in to one preview host. The
+// dashboard mints it for the workspace owner, and the preview host trades it
+// for a host-only cookie. Its audience differs from EncryptedAPIKeyPayload's,
+// so neither payload is accepted as the other.
+type PreviewSignInPayload struct {
+	jwtutils.RegisteredClaims
+	// Host is the preview host the payload signs in to.
+	Host string `json:"host"`
+	// APIKey is an application_connect API key of the user in Subject.
+	APIKey string `json:"api_key"`
+}
+
+const previewSignInAudience = "coder_preview"
+
+// Fill sets the payload's issuer, audience and one-minute validity window.
+func (p *PreviewSignInPayload) Fill(now time.Time) {
+	p.Issuer = "coderd"
+	p.Audience = jwt.Audience{previewSignInAudience}
+	p.Expiry = jwt.NewNumericDate(now.Add(time.Minute))
+	p.NotBefore = jwt.NewNumericDate(now.Add(-time.Minute))
+}
+
+// Validate checks the payload's issuer, audience and validity window.
+func (p PreviewSignInPayload) Validate(ex jwt.Expected) error {
+	if p.NotBefore == nil || p.Expiry == nil {
+		return xerrors.New("not before and expiry are required")
+	}
+	ex.Issuer = "coderd"
+	ex.AnyAudience = jwt.Audience{previewSignInAudience}
+	return p.RegisteredClaims.Validate(ex)
+}
+
 // FromRequest returns the signed token from the request, if it exists and is
 // valid. The caller must check that the token matches the request.
 func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken, bool) {
