@@ -303,8 +303,6 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			ExpectedError: "invalid application url format",
 		},
 		{
-			// Without an agent this keeps its existing meaning: app slug
-			// "preview" on an agent named 0123abcd.
 			Name:      "PreviewWithoutAgentIsAppSlug",
 			Subdomain: "preview--0123abcd--workspace--user",
 			Expected: appurl.ApplicationURL{
