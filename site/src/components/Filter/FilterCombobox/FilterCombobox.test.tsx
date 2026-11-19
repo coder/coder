@@ -2367,12 +2367,18 @@ describe("FilterCombobox", () => {
 			aliases: ["creator"],
 		};
 
+		const scopeLabel = (owner?: string) =>
+			owner
+				? `Include workspaces shared with ${owner}`
+				: "Include shared workspaces";
+
+		// The pointer flyout and a failed option list show a switch.
 		const findScopeSwitch = (owner?: string) =>
-			screen.findByRole("switch", {
-				name: owner
-					? `Include workspaces shared with ${owner}`
-					: "Include shared workspaces",
-			});
+			screen.findByRole("switch", { name: scopeLabel(owner) });
+
+		// An open category lists the scope as its last option.
+		const findScopeRow = (owner?: string) =>
+			screen.findByRole("option", { name: scopeLabel(owner) });
 
 		const openOwnerCategory = async ({ user, filtersButton }: Harness) => {
 			await user.click(filtersButton);
@@ -2500,7 +2506,7 @@ describe("FilterCombobox", () => {
 		});
 
 		it.each([
-			["with loaded options", scopedOwnerCategory],
+			["with loaded options", scopedOwnerCategory, findScopeRow],
 			[
 				"when the options failed to load",
 				{
@@ -2509,21 +2515,26 @@ describe("FilterCombobox", () => {
 						throw new Error("failed");
 					},
 				},
+				findScopeSwitch,
 			],
-		])("switches the scope off for %s", async (_, category) => {
+		])("switches the scope off for %s", async (_, category, findScope) => {
 			const harness = setup([category], { initialValue: "user:alice" });
 			await openOwnerCategory(harness);
-			await harness.user.click(await findScopeSwitch("alice"));
+			await harness.user.click(await findScope("alice"));
 
 			await waitFor(() =>
 				expect(harness.onChange).toHaveBeenLastCalledWith("owner:alice"),
 			);
 		});
 
-		it("disables the scope switch until an owner is picked, then turns it on", async () => {
+		it("disables the scope row until an owner is picked, then turns it on", async () => {
 			const harness = setup([scopedOwnerCategory]);
 			await openOwnerCategory(harness);
-			expect(await findScopeSwitch()).toBeDisabled();
+			// The disabled row has no pointer events, so dispatch the click.
+			const row = await findScopeRow();
+			const callsBefore = harness.onChange.mock.calls.length;
+			fireEvent.click(row);
+			expect(harness.onChange).toHaveBeenCalledTimes(callsBefore);
 			await harness.user.keyboard("{ArrowDown}{Enter}");
 
 			await waitFor(() =>
@@ -2579,16 +2590,16 @@ describe("FilterCombobox", () => {
 			);
 		});
 
-		it("lets the scope switch override a typed owner: prefix", async () => {
+		it("lets the scope row override a typed owner: prefix", async () => {
 			const { user, input } = setup([scopedOwnerCategory], {
 				initialValue: "user:alice",
 			});
 			await user.click(input);
 			await user.type(input, "owner:");
-			const scopeSwitch = await findScopeSwitch("alice");
-			await user.click(scopeSwitch);
+			const scopeRow = await findScopeRow("alice");
+			await user.click(scopeRow);
 
-			expect(scopeSwitch).toBeChecked();
+			expect(scopeRow).toBeChecked();
 		});
 
 		it("follows the applied chip after leaving a typed owner: prefix", async () => {
@@ -2598,11 +2609,11 @@ describe("FilterCombobox", () => {
 
 			await user.click(input);
 			await user.type(input, "owner:");
-			expect(await findScopeSwitch("me")).not.toBeChecked();
+			expect(await findScopeRow("me")).not.toBeChecked();
 			await user.keyboard("{Backspace}");
 			await screen.findByRole("option", { name: "Owner" });
 			await user.keyboard("{ArrowRight}");
-			expect(await findScopeSwitch("me")).toBeChecked();
+			expect(await findScopeRow("me")).toBeChecked();
 			await user.click(await screen.findByRole("option", { name: "alice" }));
 
 			await waitFor(() =>
@@ -2614,11 +2625,13 @@ describe("FilterCombobox", () => {
 			["user:me owner:carol", "me"],
 			["owner:bob user:carol", "bob"],
 		])(
-			"keeps both Owner chips of %s when the scope switch is clicked",
+			"keeps both Owner chips of %s when the scope row is clicked",
 			async (initialValue, owner) => {
 				const harness = setup([scopedOwnerCategory], { initialValue });
 				await openOwnerCategory(harness);
-				await harness.user.click(await findScopeSwitch(owner));
+				// The disabled row has no pointer events, so a user's click cannot
+				// reach it; dispatch one to check that it ignores activation.
+				fireEvent.click(await findScopeRow(owner));
 				for (const [query] of harness.onChange.mock.calls) {
 					expect(query).toBe(initialValue);
 				}
@@ -2741,37 +2754,38 @@ describe("FilterCombobox", () => {
 		});
 
 		describe("keyboard", () => {
-			it("returns from the scope switch to the input with ArrowDown", async () => {
-				const { user, onChange, input, filtersButton } = setup(
-					[scopedOwnerCategory],
-					{ initialValue: "owner:alice" },
-				);
-				await user.click(filtersButton);
-				await user.keyboard("{ArrowDown}{ArrowRight}");
-				await screen.findByRole("option", { name: "alice" });
-				await user.tab();
-				expect(await findScopeSwitch("alice")).toHaveFocus();
-				await user.keyboard("{ArrowDown}");
-				expect(input).toHaveFocus();
-				await user.keyboard("{Enter}");
-
-				await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
-			});
-
-			it("toggles the scope switch with Enter instead of picking an option", async () => {
+			it("reaches the scope row with ArrowDown and toggles it with Enter", async () => {
 				const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
 					initialValue: "owner:alice",
 				});
 				await user.click(filtersButton);
 				await user.keyboard("{ArrowDown}{ArrowRight}");
 				await screen.findByRole("option", { name: "alice" });
-				await user.keyboard("{ArrowDown}");
-				await user.tab();
+				await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+				);
+
+				// The row stays highlighted, so Enter toggles it back.
 				await user.keyboard("{Enter}");
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+				);
+			});
+
+			it("toggles the highlighted scope row with Enter instead of committing typed text", async () => {
+				const { user, onChange, input } = setup([scopedOwnerCategory], {
+					initialValue: "owner:alice",
+				});
+				await user.click(input);
+				await user.type(input, "owner:ali");
+				await screen.findByRole("option", { name: "alice" });
+				await user.keyboard("{End}{Enter}");
 
 				await waitFor(() =>
 					expect(onChange).toHaveBeenLastCalledWith("user:alice"),
 				);
+				expect(onChange).not.toHaveBeenCalledWith("owner:ali");
 			});
 		});
 

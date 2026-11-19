@@ -746,6 +746,21 @@ export const ScopeToggle: Story = {
 	},
 };
 
+export const ScopeToggleKeyboard: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.keyboard("{ArrowRight}");
+		await within(canvasElement.ownerDocument.body).findByRole("option", {
+			name: "Include workspaces shared with alice",
+		});
+		await userEvent.keyboard("{End}");
+	},
+};
+
 export const ScopeToggleTypedMatch: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {
