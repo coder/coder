@@ -466,14 +466,16 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
+	// Handlers build on the last sent query, which `value` can lag.
+	const lastEmittedChips = () => queryToChips(lastEmittedRef.current, chipKeys);
 	const isOptionSelected = (option: FilterOption, token: string) =>
 		option.query !== undefined
 			? value.trim() === option.query.trim()
 			: chipValues.includes(token);
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
-	const scopeChipsOf = (category: FilterCategory) =>
+	const scopeChipsOf = (category: FilterCategory, chips = chipValues) =>
 		category.scopeToggle
-			? chipValues.filter((token) => {
+			? chips.filter((token) => {
 					const key = chipKeyOf(token);
 					return key !== undefined && categoryChipKeys(category).includes(key);
 				})
@@ -948,9 +950,10 @@ export const useFilterCombobox = ({
 	// as a bookmarked URL, are left alone until one is picked.
 	const withInlineOption = (token: string) => {
 		const category = categoryForChip(token);
+		const chips = lastEmittedChips();
 		const kept = category?.inlineOptionsExclusive
-			? chipValues.filter((chip) => categoryForChip(chip) !== category)
-			: chipValues;
+			? chips.filter((chip) => categoryForChip(chip) !== category)
+			: chips;
 		return [...kept, token];
 	};
 
@@ -960,7 +963,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const freeText = browseAll ? typedFreeText : "";
-		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText));
+		emitQuery(composeFilterQuery(lastEmittedChips(), chipKeys, freeText));
 		dispatch({
 			type: "enterCategory",
 			categoryKey,
@@ -1011,7 +1014,8 @@ export const useFilterCombobox = ({
 		toKey: string,
 		{ clearCategorySearch = false }: { clearCategorySearch?: boolean } = {},
 	) => {
-		const rewritten = chipValues.map((token) => {
+		const chips = lastEmittedChips();
+		const rewritten = chips.map((token) => {
 			const parsed = parseChipToken(token, chipKeys);
 			return parsed?.key === fromKey ? chipToken(toKey, parsed.value) : token;
 		});
@@ -1019,7 +1023,7 @@ export const useFilterCombobox = ({
 			const freeText = appliedFreeText();
 			updateFromChips(rewritten, freeText);
 			dispatch({ type: "typeFreeText", value: freeText });
-		} else if (rewritten.some((token, index) => token !== chipValues[index])) {
+		} else if (rewritten.some((token, index) => token !== chips[index])) {
 			emitQueryKeepingLookup(
 				composeFilterQuery(rewritten, chipKeys, appliedFreeText()),
 			);
@@ -1030,30 +1034,33 @@ export const useFilterCombobox = ({
 	// switches the key.
 	const withCategoryOption = (token: string) => {
 		const category = categoryForChip(token);
+		const chips = lastEmittedChips();
 		if (category?.singleSelect) {
 			return [
-				...chipValues.filter((chip) => categoryForChip(chip) !== category),
+				...chips.filter((chip) => categoryForChip(chip) !== category),
 				token,
 			];
 		}
-		const scopeChips = category ? scopeChipsOf(category) : [];
+		const scopeChips = category ? scopeChipsOf(category, chips) : [];
 		const replaced =
 			scopeChips.find((chip) => chipKeyOf(chip) === chipKeyOf(token)) ??
 			scopeChips[0];
 		return replaced === undefined
-			? [...chipValues, token]
-			: chipValues.map((chip) => (chip === replaced ? token : chip));
+			? [...chips, token]
+			: chips.map((chip) => (chip === replaced ? token : chip));
 	};
 
 	const withValueSuggestion = (token: string) =>
 		categoryForChip(token)?.singleSelect
 			? withCategoryOption(token)
-			: [...chipValues, token];
+			: [...lastEmittedChips(), token];
 
-	const toggledChips = (token: string, add: () => string[]): string[] =>
-		chipValues.includes(token)
-			? chipValues.filter((chip) => chip !== token)
+	const toggledChips = (token: string, add: () => string[]): string[] => {
+		const chips = lastEmittedChips();
+		return chips.includes(token)
+			? chips.filter((chip) => chip !== token)
 			: add();
+	};
 
 	const applyQueryOption = (token: string): boolean => {
 		for (const category of categories) {
@@ -1169,18 +1176,17 @@ export const useFilterCombobox = ({
 		if (!isInlineRow && !isSuggestion) {
 			return false;
 		}
+		const chips = lastEmittedChips();
 		const keepApplied =
-			typeaheadActive &&
-			inputValue.trim().length > 0 &&
-			chipValues.includes(token);
+			typeaheadActive && inputValue.trim().length > 0 && chips.includes(token);
 		if (isInlineRow) {
 			if (keepApplied) {
-				applyInlineChips(chipValues);
+				applyInlineChips(chips);
 			} else {
 				toggleInlineOption(token);
 			}
 		} else if (keepApplied) {
-			updateFromChips(chipValues, "");
+			updateFromChips(chips, "");
 			closeMenu();
 		} else {
 			toggleValueSuggestion(token);
@@ -1255,11 +1261,7 @@ export const useFilterCombobox = ({
 			// Chips may change while the lookup runs, so read the last sent query.
 			if (
 				unfiltered &&
-				!hasSeveralOptionsOrChip(
-					category,
-					unfiltered,
-					queryToChips(lastEmittedRef.current, chipKeys),
-				)
+				!hasSeveralOptionsOrChip(category, unfiltered, lastEmittedChips())
 			) {
 				throw new Error("Category leaves the menu");
 			}
@@ -1285,7 +1287,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const query = composeFilterQuery(
-			queryToChips(lastEmittedRef.current, chipKeys),
+			lastEmittedChips(),
 			chipKeys,
 			couldBeFilter ? "" : text,
 		);
@@ -1301,10 +1303,7 @@ export const useFilterCombobox = ({
 	const composeTypedQuery = (text: string) => {
 		const freeText = extractFreeText(text, chipKeys);
 		const query = composeFilterQuery(
-			[
-				...queryToChips(lastEmittedRef.current, chipKeys),
-				...queryToChips(text, chipKeys),
-			],
+			[...lastEmittedChips(), ...queryToChips(text, chipKeys)],
 			chipKeys,
 			freeText,
 		);
@@ -1465,14 +1464,13 @@ export const useFilterCombobox = ({
 	};
 
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
-	// untouched. Chips come from the last sent query, which `value` can lag.
+	// untouched.
 	const handleRemoveChip = (token: string) => {
-		const current = lastEmittedRef.current;
 		emitQueryKeepingLookup(
 			composeFilterQuery(
-				queryToChips(current, chipKeys).filter((entry) => entry !== token),
+				lastEmittedChips().filter((entry) => entry !== token),
 				chipKeys,
-				extractFreeText(current, chipKeys),
+				extractFreeText(lastEmittedRef.current, chipKeys),
 			),
 		);
 	};
@@ -1499,22 +1497,21 @@ export const useFilterCombobox = ({
 			return;
 		}
 
+		const chips = lastEmittedChips();
 		if (
 			isBackspaceOrDelete &&
 			inputValue === "" &&
 			mode !== "category" &&
-			chipValues.length > 0
+			chips.length > 0
 		) {
 			event.preventDefault();
 			// A widened chip is followed by its scope pill, so the pill goes first.
-			const pillCategoryKey = scopePillCategoryKey(
-				chipValues[chipValues.length - 1],
-			);
+			const pillCategoryKey = scopePillCategoryKey(chips[chips.length - 1]);
 			if (pillCategoryKey) {
 				removeScopePill(pillCategoryKey);
 				return;
 			}
-			updateFromChips(chipValues.slice(0, -1), "");
+			updateFromChips(chips.slice(0, -1), "");
 			return;
 		}
 
@@ -1576,9 +1573,7 @@ export const useFilterCombobox = ({
 			if (!hasHighlightedOption && parseChipToken(candidate, chipKeys)) {
 				event.preventDefault();
 				applyInlineChips(
-					chipValues.includes(candidate)
-						? chipValues
-						: withInlineOption(candidate),
+					chips.includes(candidate) ? chips : withInlineOption(candidate),
 				);
 				return;
 			}

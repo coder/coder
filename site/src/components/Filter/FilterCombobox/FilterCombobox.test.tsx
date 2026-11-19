@@ -773,6 +773,50 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
 	});
 
+	it("removes the just-added chip with Backspace before the parent applies it", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterCombobox
+				value="status:running"
+				onChange={onChange}
+				categories={[statusCategory, attributesCategory]}
+				placeholder="Search and filter"
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.click(await screen.findByRole("option", { name: "Outdated" }));
+		await user.click(
+			screen.getByRole("combobox", { name: "Search and filter" }),
+		);
+		await user.keyboard("{Backspace}");
+
+		expect(onChange).toHaveBeenLastCalledWith("status:running");
+	});
+
+	it("re-adds a just-removed chip before the parent applies the removal", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterCombobox
+				value="status:running outdated:true"
+				onChange={onChange}
+				categories={[statusCategory, attributesCategory]}
+				placeholder="Search and filter"
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove status:running" }),
+		);
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.click(await screen.findByRole("option", { name: "Running" }));
+
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true status:running");
+	});
+
 	it("keeps the main menu usable and focused after selecting a flyout option", async () => {
 		const { user, onChange, input, filtersButton } = setup(
 			[ownerCategory, statusCategory],
