@@ -1,3 +1,5 @@
+//go:build !slim
+
 package config
 
 import (
@@ -31,12 +33,13 @@ func BuiltinPostgresConfig(postgresPath string) (embeddedpostgres.PostgresVersio
 		}
 		return "", "", false, xerrors.Errorf("read built-in PostgreSQL version in %s: %w; data was not changed. %s", dataPath, err, advice)
 	}
-	switch strings.TrimSpace(string(version)) {
+	marker := strings.TrimSuffix(string(version), "\n")
+	switch marker {
 	case "13":
 		return embeddedpostgres.V13, filepath.Join(postgresPath, "bin"), false, nil
 	case "18":
 		return embeddedpostgres.V18, filepath.Join(postgresPath, "bin-"+string(embeddedpostgres.V18)), false, nil
 	default:
-		return "", "", false, xerrors.Errorf("unsupported built-in PostgreSQL version %q in %s; data was not changed", strings.TrimSpace(string(version)), dataPath)
+		return "", "", false, xerrors.Errorf("unsupported built-in PostgreSQL version %q in %s; data was not changed", marker, filepath.Join(dataPath, "PG_VERSION"))
 	}
 }

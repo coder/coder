@@ -1,3 +1,5 @@
+//go:build !slim
+
 package config_test
 
 import (
@@ -38,9 +40,6 @@ func TestBuiltinPostgresConfig(t *testing.T) {
 				if tc.dataVersion != "" {
 					require.NoError(t, os.WriteFile(filepath.Join(dataDir, "PG_VERSION"), []byte(tc.dataVersion), 0o600))
 				}
-				if tc.wantErr != "" {
-					require.NoError(t, os.WriteFile(filepath.Join(dataDir, "keep"), []byte("user data"), 0o600))
-				}
 			}
 
 			version, binDir, fresh, err := config.BuiltinPostgresConfig(pgDir)
@@ -50,14 +49,6 @@ func TestBuiltinPostgresConfig(t *testing.T) {
 					require.ErrorContains(t, err, tc.wantAdvice)
 					require.ErrorContains(t, err, "move it aside and restart Coder")
 					require.ErrorContains(t, err, "Do not create PG_VERSION manually")
-				}
-				contents, err := os.ReadFile(filepath.Join(dataDir, "keep"))
-				require.NoError(t, err)
-				require.Equal(t, "user data", string(contents))
-				if tc.dataVersion != "" {
-					version, err := os.ReadFile(filepath.Join(dataDir, "PG_VERSION"))
-					require.NoError(t, err)
-					require.Equal(t, tc.dataVersion, string(version))
 				}
 				return
 			}

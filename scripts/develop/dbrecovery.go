@@ -61,7 +61,7 @@ func recoverDB(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 			}
 			return nil
 		}
-		if err := config.ValidateBuiltinPostgresVersion(pgDir); err != nil {
+		if _, _, _, err := config.BuiltinPostgresConfig(pgDir); err != nil {
 			return err
 		}
 		stopPG, err := startTempPostgresSetURL(ctx, logger, cfg, &pgURL)
