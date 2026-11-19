@@ -990,3 +990,76 @@ func assertNoMutationOrPublish(ctx context.Context, t *testing.T, f *testFixture
 		require.Equal(t, base.snapshot, after.SnapshotVersion, "failed transition must not advance snapshot_version")
 	}
 }
+
+// allExecutionTransitions is the canonical enumeration of every
+// execution-state transition that has an entry in transitionMatrix.
+// Ownership transitions (Acquire, Abandon) are intentionally not part
+// of this slice because they are validated independently and do not
+// have a (from->to) execution mapping.
+var allExecutionTransitions = []chatstate.Transition{
+	chatstate.TransitionCreateChat,
+	chatstate.TransitionSetArchived,
+	chatstate.TransitionSetProject,
+	chatstate.TransitionSendMessage,
+	chatstate.TransitionEditMessage,
+	chatstate.TransitionRequestCompaction,
+	chatstate.TransitionClearContext,
+	chatstate.TransitionDeleteQueuedMessage,
+	chatstate.TransitionSteerQueuedMessage,
+	chatstate.TransitionEditQueuedMessage,
+	chatstate.TransitionInterrupt,
+	chatstate.TransitionCompleteRequiresAction,
+	chatstate.TransitionRecordGenerationAttempt,
+	chatstate.TransitionRecordRetryState,
+	chatstate.TransitionDeliverSteerMessages,
+	chatstate.TransitionCommitStep,
+	chatstate.TransitionEnterRequiresAction,
+	chatstate.TransitionFinishInterruption,
+	chatstate.TransitionFinishTurn,
+	chatstate.TransitionFinishError,
+	chatstate.TransitionCancelRequiresAction,
+	chatstate.TransitionReconcileInvalidState,
+}
+
+var allExecutionStates = []chatstate.ExecutionState{
+	chatstate.StateN,
+	chatstate.StateW,
+	chatstate.StateE0,
+	chatstate.StateE1,
+	chatstate.StateE1P,
+	chatstate.StateR0,
+	chatstate.StateR1,
+	chatstate.StateR1P,
+	chatstate.StateI0,
+	chatstate.StateI1,
+	chatstate.StateI1P,
+	chatstate.StateA0,
+	chatstate.StateA1,
+	chatstate.StateA1P,
+	chatstate.StateP,
+	chatstate.StateXW,
+	chatstate.StateXE0,
+	chatstate.StateXE1,
+	chatstate.StateXE1P,
+	chatstate.StateInvalid,
+}
+
+func allowedExecutionTransitionsFrom(from chatstate.ExecutionState) []chatstate.Transition {
+	var out []chatstate.Transition
+	for _, tr := range allExecutionTransitions {
+		if chatstate.AllowedExecutionTransitionOutputs(from, tr) != nil {
+			out = append(out, tr)
+		}
+	}
+	return out
+}
+
+func allowedInputStates(tr chatstate.Transition) []chatstate.ExecutionState {
+	var out []chatstate.ExecutionState
+	for _, from := range allExecutionStates {
+		if chatstate.AllowedExecutionTransitionOutputs(from, tr) != nil {
+			out = append(out, from)
+		}
+	}
+	return out
+}

@@ -32,6 +32,8 @@ func TestPoolDrain(t *testing.T) {
 	// https://github.com/dgraph-io/ristretto/blob/v2.4.0/ttl.go#L13-L25
 	// https://github.com/dgraph-io/ristretto/blob/v2.4.0/cache.go#L219-L233
 	const cacheCleanupAllowance = 10 * time.Second
+	const bridgeDrainTimeout = 10 * time.Minute
+	const poolShutdownTimeout = 5 * time.Second
 	tests := []struct {
 		name         string
 		expireBridge bool
@@ -55,7 +57,7 @@ func TestPoolDrain(t *testing.T) {
 			expireBridge: true,
 			// Cleanup may start the drain anywhere within the allowance.
 			// Check just before the earliest and just after the latest deadline.
-			aliveFor:     aibridged.BridgeDrainTimeoutForTest - cacheCleanupAllowance - time.Millisecond,
+			aliveFor:     bridgeDrainTimeout - cacheCleanupAllowance - time.Millisecond,
 			cancelWithin: cacheCleanupAllowance + 2*time.Millisecond,
 			wantBody:     firstEvent,
 			wantWarning:  true,
@@ -64,14 +66,14 @@ func TestPoolDrain(t *testing.T) {
 			name:         "ShutdownRetired",
 			expireBridge: true,
 			shutdownPool: true,
-			aliveFor:     aibridged.PoolShutdownTimeoutForTest - time.Millisecond,
+			aliveFor:     poolShutdownTimeout - time.Millisecond,
 			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
 		},
 		{
 			name:         "ShutdownCached",
 			shutdownPool: true,
-			aliveFor:     aibridged.PoolShutdownTimeoutForTest - time.Millisecond,
+			aliveFor:     poolShutdownTimeout - time.Millisecond,
 			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
 		},
@@ -89,7 +91,7 @@ func TestPoolDrain(t *testing.T) {
 			expireBridge: true,
 			shutdownPool: true,
 			blockAcquire: true,
-			aliveFor:     aibridged.PoolShutdownTimeoutForTest - time.Millisecond,
+			aliveFor:     poolShutdownTimeout - time.Millisecond,
 			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
 		},

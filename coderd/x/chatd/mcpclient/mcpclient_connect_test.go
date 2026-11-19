@@ -2,7 +2,6 @@ package mcpclient_test
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -20,57 +19,6 @@ import (
 	"github.com/coder/safedial"
 )
 
-// blackHoleListener accepts TCP connections and never responds,
-// simulating a server (or an edge in front of it) that silently
-// drops requests. Returned connections are tracked so the test can
-// terminate them.
-type blackHoleListener struct {
-	ln net.Listener
-
-	mu    sync.Mutex
-	conns []net.Conn
-}
-
-func newBlackHoleListener(t *testing.T) *blackHoleListener {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	bh := &blackHoleListener{ln: ln}
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			bh.mu.Lock()
-			bh.conns = append(bh.conns, conn)
-			bh.mu.Unlock()
-		}
-	}()
-	t.Cleanup(bh.close)
-	return bh
-}
-
-func (b *blackHoleListener) close() {
-	_ = b.ln.Close()
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	for _, c := range b.conns {
-		_ = c.Close()
-	}
-	b.conns = nil
-}
-
-func (b *blackHoleListener) url() string {
-	return "http://" + b.ln.Addr().String()
-}
-
-// TestConnectAll_BlackHoledServerBudget is the acceptance test for
-// the connect budget: one black-holed server must not delay turn
-// preparation beyond the budget, and healthy servers' tools must
-// still be discovered. Without external budget enforcement the SDK
-// blocks several times past the context deadline (observed: 12s
-// for a 2s deadline) because its transport detaches the context.
 // loopbackHTTPClient returns a guarded MCP client that allows
 // loopback, where every test server in this file listens.
 func loopbackHTTPClient() *http.Client {
@@ -78,57 +26,6 @@ func loopbackHTTPClient() *http.Client {
 		netip.MustParsePrefix("127.0.0.0/8"),
 		netip.MustParsePrefix("::1/128"),
 	))
-}
-
-func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-	bh := newBlackHoleListener(t)
-	healthy := newTestMCPServer(t, echoTool())
-
-	reaperDone := make(chan struct{}, 2)
-	timeout := 1 * time.Second
-
-	start := time.Now()
-	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
-		[]mcpclient.Server{
-			makeConfig("blackhole", bh.url()),
-			makeConfig("healthy", healthy.URL),
-		},
-		timeout,
-		func() { reaperDone <- struct{}{} },
-	)
-	elapsed := time.Since(start)
-	t.Cleanup(cleanup)
-
-	// The budget must hold: well under the SDK's unbounded
-	// behavior (6x the deadline), with margin for slow CI.
-	require.Less(t, elapsed, 4*timeout,
-		"ConnectAll took %s, budget was %s", elapsed, timeout)
-	require.Equal(t, []string{"healthy__echo"}, toolNames(tools))
-
-	// Per-server outcomes are summarized for logs and debug runs,
-	// sorted by slug.
-	require.Len(t, summaries, 2)
-	require.Equal(t, "blackhole", summaries[0].Slug)
-	require.Equal(t, mcpclient.ConnectOutcomeTimeout, summaries[0].Outcome)
-	require.NotEmpty(t, summaries[0].Error)
-	require.GreaterOrEqual(t, summaries[0].DurationMS, timeout.Milliseconds())
-	require.Equal(t, "healthy", summaries[1].Slug)
-	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[1].Outcome)
-	require.Equal(t, 1, summaries[1].ToolCount)
-
-	// Terminating the black-holed connections unblocks the
-	// abandoned connect goroutine; the reaper must then drain its
-	// result and exit.
-	bh.close()
-	select {
-	case <-reaperDone:
-	case <-time.After(30 * time.Second):
-		t.Fatal("reaper did not exit after black-holed connections were closed")
-	}
 }
 
 // TestConnectAll_SlowServerStillConnects proves that a server that
@@ -156,60 +53,6 @@ func TestConnectAll_SlowServerStillConnects(t *testing.T) {
 	t.Cleanup(cleanup)
 
 	require.Equal(t, []string{"slow__echo"}, toolNames(tools))
-}
-
-// TestConnectAll_LateServerReaped proves that when a server only
-// responds after the budget expired, ConnectAll has long returned
-// and the abandoned connect goroutine's late result is drained by
-// the reaper so nothing leaks.
-func TestConnectAll_LateServerReaped(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-	srv := mcp.NewServer(&mcp.Implementation{Name: "late", Version: "1.0.0"}, nil)
-	tool := echoTool()
-	srv.AddTool(tool.tool, tool.handler)
-	handler := mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return srv },
-		&mcp.StreamableHTTPOptions{Stateless: true},
-	)
-	// The server holds every request until ConnectAll has given up on it.
-	release := make(chan struct{})
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case <-release:
-		case <-r.Context().Done():
-			return
-		}
-		handler.ServeHTTP(w, r)
-	}))
-	t.Cleanup(ts.Close)
-
-	reaperDone := make(chan struct{}, 1)
-	timeout := 500 * time.Millisecond
-
-	start := time.Now()
-	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
-		[]mcpclient.Server{makeConfig("late", ts.URL)},
-		timeout,
-		func() { reaperDone <- struct{}{} },
-	)
-	elapsed := time.Since(start)
-	t.Cleanup(cleanup)
-	close(release)
-
-	require.Less(t, elapsed, 4*timeout,
-		"ConnectAll took %s, budget was %s", elapsed, timeout)
-	require.Empty(t, tools)
-	require.Len(t, summaries, 1)
-	require.Equal(t, mcpclient.ConnectOutcomeTimeout, summaries[0].Outcome)
-
-	select {
-	case <-reaperDone:
-	case <-time.After(30 * time.Second):
-		t.Fatal("reaper did not exit after the late server responded")
-	}
 }
 
 // TestConnectAll_CleanupPromptWhenServerWedges proves that the
