@@ -23,6 +23,8 @@ var (
 	// user tries to use a greater port, the proxy will just block it and not cause
 	// any issues. This is a good enough regex check.
 	PortRegex = regexp.MustCompile(`^\d{4,5}s?$`)
+	// previewIDRegex matches the IDs the workspace agent gives file previews.
+	previewIDRegex = regexp.MustCompile(`^[0-9a-f]{8}$`)
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
@@ -143,6 +145,27 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 	return newAppURL
 }
 
+// previewSlugPrefix starts every file preview slug. Preview hostnames have
+// five "--" separated parts and app hostnames at most four, and app slugs
+// cannot contain "--", so the two cannot collide.
+const previewSlugPrefix = "preview--"
+
+// IsPreviewID reports whether id has the format of a file preview ID, e.g.
+// "0123abcd".
+func IsPreviewID(id string) bool {
+	return previewIDRegex.MatchString(id)
+}
+
+// ParsePreviewSlug returns the file preview ID in a preview slug, e.g. ID
+// "0123abcd" for slug "preview--0123abcd".
+func ParsePreviewSlug(slug string) (string, bool) {
+	id, ok := strings.CutPrefix(slug, previewSlugPrefix)
+	if !ok || !IsPreviewID(id) {
+		return "", false
+	}
+	return id, true
+}
+
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
 // the subdomain is not a valid application URL hostname, returns a non-nil
 // error. If the hostname is not a subdomain of the given base hostname, returns
@@ -154,6 +177,7 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 //
 // Where agent name is:
 //   - REQUIRED for ports: 8080--agent--workspace--user, 8080s--agent--workspace--user
+//   - REQUIRED for file previews: preview--0123abcd--agent--workspace--user
 //   - OPTIONAL for app slugs: myapp--workspace--user (agent name omitted)
 //
 // Examples:
@@ -177,6 +201,25 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	if len(prefixSegments) > 1 {
 		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
 		subdomain = prefixSegments[len(prefixSegments)-1]
+	}
+
+	// A preview slug contains "--", so match the rest of the subdomain as an
+	// app URL. Preview URLs always name the agent.
+	if rest, ok := strings.CutPrefix(subdomain, previewSlugPrefix); ok {
+		matches := appURL.FindStringSubmatch(rest)
+		if matches != nil {
+			slug := previewSlugPrefix + matches[appURL.SubexpIndex("AppSlug")]
+			agentName := matches[appURL.SubexpIndex("AgentName")]
+			if _, ok := ParsePreviewSlug(slug); ok && agentName != "" {
+				return ApplicationURL{
+					Prefix:        prefix,
+					AppSlugOrPort: slug,
+					AgentName:     agentName,
+					WorkspaceName: matches[appURL.SubexpIndex("WorkspaceName")],
+					Username:      matches[appURL.SubexpIndex("Username")],
+				}, nil
+			}
+		}
 	}
 
 	matches := appURL.FindStringSubmatch(subdomain)

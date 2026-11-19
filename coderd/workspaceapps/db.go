@@ -48,6 +48,7 @@ type DBTokenProvider struct {
 	WorkspaceAgentInactiveTimeout   time.Duration
 	WorkspaceAppAuditSessionTimeout time.Duration
 	Keycache                        cryptokeys.SigningKeycache
+	Experiments                     codersdk.Experiments
 
 	// agentOfflineTotal counts requests that got the agent offline page. Unlike
 	// coderd_agents_connections, which samples agent status once a minute, it
@@ -71,6 +72,7 @@ func NewDBTokenProvider(ctx context.Context,
 	workspaceAppAuditSessionTimeout time.Duration,
 	signer cryptokeys.SigningKeycache,
 	reg prometheus.Registerer,
+	experiments codersdk.Experiments,
 ) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
@@ -99,6 +101,7 @@ func NewDBTokenProvider(ctx context.Context,
 		WorkspaceAgentInactiveTimeout:   workspaceAgentInactiveTimeout,
 		WorkspaceAppAuditSessionTimeout: workspaceAppAuditSessionTimeout,
 		Keycache:                        signer,
+		Experiments:                     experiments,
 		agentOfflineTotal:               agentOfflineTotal,
 	}
 }
@@ -151,7 +154,9 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	aReq.apiKey = apiKey // Update audit request.
 
 	// Lookup workspace app details from DB.
-	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
+	// Workspace proxies get their tokens here too, so this also keeps
+	// preview hostnames from routing on proxies while the experiment is off.
+	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database, p.Experiments.Enabled(codersdk.ExperimentOpenPreview))
 	switch {
 	case xerrors.Is(err, sql.ErrNoRows):
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())

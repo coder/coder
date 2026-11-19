@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 var errWorkspaceStopped = xerrors.New("stopped workspace")
@@ -215,7 +216,7 @@ type databaseRequest struct {
 //
 // If any of the queries don't return any rows, the error will wrap
 // sql.ErrNoRows. All other errors should be considered internal server errors.
-func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseRequest, error) {
+func (r Request) getDatabase(ctx context.Context, db database.Store, filePreviews bool) (*databaseRequest, error) {
 	// If the AccessMethod is AccessMethodTerminal, then we need to get the
 	// agent first since that's the only info we have.
 	if r.AccessMethod == AccessMethodTerminal {
@@ -309,8 +310,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
 	}
 	corsBehavior = tmpl.CorsBehavior
-	//nolint:nestif
-	if portUintErr == nil {
+	previewID, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
+	switch {
+	// Path-based previews would share the dashboard's origin, so those
+	// requests fall through and find no app. So do all previews while the
+	// open-preview experiment is off.
+	case isPreview && filePreviews && r.AccessMethod == AccessMethodSubdomain:
+		// The agent API serves the files on its reserved port. Previews serve
+		// agent-authored content, so they use the owner sharing level.
+		appURL = fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s", workspacesdk.AgentHTTPAPIServerPort, previewID)
+		appSharingLevel = database.AppSharingLevelOwner
+	case portUintErr == nil:
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
@@ -367,7 +377,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		} else {
 			appSharingLevel = ps.ShareLevel
 		}
-	} else {
+	default:
 		for _, a := range apps {
 			if a.Slug == r.AppSlugOrPort {
 				app = a

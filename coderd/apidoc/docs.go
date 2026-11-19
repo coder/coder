@@ -26826,7 +26826,8 @@ const docTemplate = `{
                 "chat-stage-metrics",
                 "chat-acp-subagents",
                 "chat-automations",
-                "agent-plugins"
+                "agent-plugins",
+                "open-preview"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -26844,6 +26845,7 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentOpenPreview": "Enables the open_preview chat tool and file preview hostnames.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -26866,7 +26868,8 @@ const docTemplate = `{
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "Enables workspace-local ACP subagent tools in root chats.",
                 "Enables webhook and scheduled automations that deliver prompts to agent chats.",
-                "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces."
+                "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.",
+                "Enables the open_preview chat tool and file preview hostnames."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -26886,7 +26889,8 @@ const docTemplate = `{
                 "ExperimentChatStageMetrics",
                 "ExperimentChatACPSubagents",
                 "ExperimentChatAutomations",
-                "ExperimentAgentPlugins"
+                "ExperimentAgentPlugins",
+                "ExperimentOpenPreview"
             ]
         },
         "codersdk.ExperimentRule": {

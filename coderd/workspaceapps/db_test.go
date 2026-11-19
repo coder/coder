@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -81,6 +83,7 @@ func Test_ResolveRequest(t *testing.T) {
 	deploymentValues.DisablePathApps = false
 	deploymentValues.Dangerous.AllowPathAppSharing = true
 	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = true
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentOpenPreview)}
 
 	connLogger := connectionlog.NewFake()
 	t.Cleanup(func() {
@@ -769,6 +772,99 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Contains(t, string(b), "404 - Application Not Found")
 		require.Equal(t, http.StatusNotFound, w.StatusCode)
 		require.Len(t, connLogger.ConnectionLogs(), 0)
+	})
+
+	t.Run("FilePreviewSubdomain", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// A public share of the agent API's port must not widen preview
+		// access.
+		_, err := api.Database.UpsertWorkspaceAgentPortShare(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAgentPortShareParams{
+			WorkspaceID: workspace.ID,
+			AgentName:   agentName,
+			Port:        workspacesdk.AgentHTTPAPIServerPort,
+			ShareLevel:  database.AppSharingLevelPublic,
+			Protocol:    database.PortShareProtocolHttp,
+		})
+		require.NoError(t, err)
+
+		opts := workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest: (workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      me.Username,
+				WorkspaceNameOrID: workspace.Name,
+				AgentNameOrID:     agentName,
+				AppSlugOrPort:     "preview--0123abcd",
+			}).Normalize(),
+		}
+		resolve := func(sessionToken string) (*httptest.ResponseRecorder, *workspaceapps.SignedToken, bool) {
+			rw := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/", nil)
+			if sessionToken != "" {
+				r.Header.Set(codersdk.SessionTokenHeader, sessionToken)
+			}
+			r.RemoteAddr = testutil.RandomIPv6(t)
+			token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, opts)
+			return rw, token, ok
+		}
+
+		_, token, ok := resolve(client.SessionToken())
+		require.True(t, ok)
+		require.Equal(t, agentID, token.AgentID)
+		require.Equal(t, fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort), token.AppURL)
+
+		// Previews use the owner sharing level.
+		_, token, ok = resolve("")
+		require.False(t, ok)
+		require.Nil(t, token)
+
+		// Without the experiment, preview hostnames find no app. Workspace
+		// proxies get their tokens from this provider, so this covers them too.
+		withoutExperiment := *api.WorkspaceAppsProvider.(*workspaceapps.DBTokenProvider)
+		withoutExperiment.Experiments = nil
+		opts.SignedTokenProvider = &withoutExperiment
+		rw, token, ok := resolve(client.SessionToken())
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
+	})
+
+	// Path-based previews would share the dashboard's origin.
+	t.Run("FilePreviewPath", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     "preview--0123abcd",
+		}).Normalize()
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+		r.RemoteAddr = testutil.RandomIPv6(t)
+
+		token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
 	})
 
 	t.Run("SubdomainEndsInS", func(t *testing.T) {

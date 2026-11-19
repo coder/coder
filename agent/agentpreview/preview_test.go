@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentpreview"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -210,7 +211,7 @@ func publish(t *testing.T, handler http.Handler, path string) workspacesdk.OpenP
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var published workspacesdk.OpenPreviewResponse
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&published))
-	require.Regexp(t, "^[0-9a-f]{8}$", published.ID)
+	require.True(t, appurl.IsPreviewID(published.ID), published.ID)
 	return published
 }
 
