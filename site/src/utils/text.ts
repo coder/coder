@@ -1,8 +1,13 @@
 /**
  * Clamp a message body to a maximum character length, adding an
- * ellipsis when truncated.
+ * ellipsis when truncated. `keep: "tail"` keeps the end of the text
+ * and puts the ellipsis first.
  */
-export const clampContent = (text: string, maxLen: number): string => {
+export const clampContent = (
+	text: string,
+	maxLen: number,
+	{ keep = "head" }: { keep?: "head" | "tail" } = {},
+): string => {
 	const trimmed = text.trim();
 	if (trimmed.length <= maxLen) {
 		return trimmed;
@@ -13,6 +18,9 @@ export const clampContent = (text: string, maxLen: number): string => {
 	const codePoints = Array.from(trimmed);
 	if (codePoints.length <= maxLen) {
 		return trimmed;
+	}
+	if (keep === "tail") {
+		return `…${codePoints.slice(-maxLen).join("").trimStart()}`;
 	}
 	return `${codePoints.slice(0, maxLen).join("").trimEnd()}…`;
 };

@@ -36,6 +36,31 @@ import { ToolCallTable } from "./ToolCallTable";
 // the text it belongs to.
 const TOGGLE_CONTEXT_MAX_CHARS = 40;
 
+// Tool input is usually a JSON object whose first argument (a path, command,
+// or query) tells repeated calls apart. Paths and commands usually differ at
+// the end, so that part is kept.
+const firstToolArgument = (input: string): string => {
+	const clamp = (text: string) =>
+		clampContent(text, TOGGLE_CONTEXT_MAX_CHARS, { keep: "tail" });
+	try {
+		const parsed: unknown = JSON.parse(input);
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			const [entry] = Object.entries(parsed);
+			if (!entry) return "";
+			const [name, value] = entry;
+			return `${name} ${clamp(typeof value === "string" ? value : JSON.stringify(value))}`;
+		}
+	} catch {
+		// Not JSON, so the raw input is used.
+	}
+	return clamp(input);
+};
+
+const toolCallInputContext = (input: string): string | undefined => {
+	const argument = firstToolArgument(input);
+	return argument ? `with ${argument}` : undefined;
+};
+
 type ExpandableTextProps = {
 	maxHeight: number;
 	text: string;
@@ -109,6 +134,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 						variant="outline"
 						className="bg-surface-primary shadow-xs"
 						aria-label={`${toggleLabel}: ${clampContent(text, TOGGLE_CONTEXT_MAX_CHARS)}`}
+						aria-expanded={isExpanded}
 						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
 						{toggleLabel}
@@ -137,6 +163,7 @@ const CollapseButton: React.FC<CollapseButtonProps> = ({
 		type="button"
 		variant="subtle"
 		onClick={onClick}
+		aria-expanded={isOpen}
 		className="border-none bg-transparent text-content-secondary flex items-center"
 		size="sm"
 	>
@@ -146,7 +173,6 @@ const CollapseButton: React.FC<CollapseButtonProps> = ({
 				isOpen && "rotate-90",
 			)}
 		/>
-		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
 		{accessibleNameSuffix && (
 			<span className="sr-only">{accessibleNameSuffix}</span>
@@ -236,6 +262,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
+					accessibleNameSuffix={toolCallInputContext(input)}
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
