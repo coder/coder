@@ -9,6 +9,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
 import {
 	InputGroupAddon,
@@ -46,7 +47,6 @@ import {
 	FilterComboboxRoot,
 	FilterComboboxStatus,
 	isListNavigationKey,
-	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
@@ -884,6 +884,7 @@ function MainPanel({
 								)}
 								key={token}
 								value={token}
+								aria-selected={selected}
 								onSelect={() => onToggleInlineOption(token)}
 							>
 								<OptionRowContent
@@ -908,6 +909,7 @@ function MainPanel({
 								)}
 								key={suggestion.token}
 								value={suggestion.token}
+								aria-selected={suggestion.selected}
 								onSelect={() => onSelectSuggestion(suggestion.token)}
 							>
 								<OptionRowContent
@@ -1235,6 +1237,7 @@ function FlyoutCategoryPanel({
 							)}
 							key={token}
 							type="button"
+							aria-pressed={selected}
 							// Keep focus in the combobox input so keyboard navigation continues.
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onSelectOption(token)}
@@ -1342,6 +1345,7 @@ function CategoryOptionsList({
 							)}
 							key={token}
 							value={token}
+							aria-selected={selected}
 							onSelect={() => onSelectOption(token)}
 						>
 							<OptionRowContent

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "#/components/Toaster/toast";
 
-const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
 const DIALOG_SELECTOR = 'dialog[open], [role="dialog"], [role="alertdialog"]';
+const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift"]);
 export const HTTP_FALLBACK_DATA_ID = "http-fallback";
 
 export type UseClipboardInput = Readonly<{
@@ -28,16 +28,17 @@ export type UseClipboardResult = Readonly<{
 
 	/**
 	 * Indicates whether the UI should show a successfully-copied status to the
-	 * user. When flipped to true, this will eventually flip to false, with no
-	 * action from the user.
+	 * user. Once true, it stays true until the user's next click, pointer press,
+	 * or non-modifier key press, so the confirmation never disappears on a timer
+	 * (WCAG 2.2.1).
 	 *
 	 * ---
 	 *
 	 * This is _not_ the same as an `isCopied` property, because the hook never
 	 * actually checks the clipboard to determine any state, so it is possible for
 	 * there to be misleading state combos like:
-	 * - User accidentally copies new text before showCopiedSuccess naturally
-	 *   flips to false
+	 * - The user copies other text outside Coder while showCopiedSuccess is
+	 *   still true
 	 *
 	 * Trying to make this property accurate enough that it could safely be called
 	 * `isCopied` led to browser compatibility issues in Safari.
@@ -61,19 +62,33 @@ export const useClipboard = (
 			return;
 		}
 
-		const timeoutId = window.setTimeout(() => {
+		const dismiss = () => {
 			setSuccessToken((current) =>
 				current === successToken ? undefined : current,
 			);
-		}, CLIPBOARD_TIMEOUT_MS);
-		return () => window.clearTimeout(timeoutId);
+		};
+		const dismissOnKey = (event: KeyboardEvent) => {
+			if (!MODIFIER_KEYS.has(event.key)) {
+				dismiss();
+			}
+		};
+		// Capture so components that stop propagation still dismiss it. Assistive
+		// technologies can activate controls with a click alone.
+		document.addEventListener("pointerdown", dismiss, true);
+		document.addEventListener("click", dismiss, true);
+		document.addEventListener("keydown", dismissOnKey, true);
+		return () => {
+			document.removeEventListener("pointerdown", dismiss, true);
+			document.removeEventListener("click", dismiss, true);
+			document.removeEventListener("keydown", dismissOnKey, true);
+		};
 	}, [successToken]);
 
 	const copyToClipboard = useCallback(
 		async (textToCopy: string): Promise<boolean> => {
 			const markSuccess = () => {
 				lastCopiedTextRef.current = textToCopy;
-				// A unique token restarts feedback even when copying the same text.
+				// A unique token keeps a stale dismissal from clearing a newer success.
 				setSuccessToken(Symbol());
 				if (clearErrorOnSuccess) {
 					setError(undefined);

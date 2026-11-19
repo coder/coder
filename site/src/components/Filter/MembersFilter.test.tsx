@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useSearchParams } from "react-router";
 import { useFilter } from "#/components/Filter/Filter";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { OrganizationMembersFilter } from "./OrganizationMembersFilter";
+import { MembersFilter } from "./MembersFilter";
 
 const Harness = ({ onChange }: { onChange: (query: string) => void }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -12,10 +12,10 @@ const Harness = ({ onChange }: { onChange: (query: string) => void }) => {
 		onSearchParamsChange: setSearchParams,
 		onUpdate: onChange,
 	});
-	return <OrganizationMembersFilter filter={filter} />;
+	return <MembersFilter filter={filter} />;
 };
 
-describe("OrganizationMembersFilter", () => {
+describe("MembersFilter", () => {
 	it("adds a status while preserving advanced query fields", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();

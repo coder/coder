@@ -33,7 +33,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { useFilter } from "#/components/Filter/Filter";
-import type { UsersFilter } from "#/components/Filter/UsersFilter";
+import type { MembersFilter } from "#/components/Filter/MembersFilter";
 import { Loader } from "#/components/Loader/Loader";
 import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
@@ -53,7 +53,7 @@ export type GroupPageOutletContext = {
 	organization: string;
 	groupQuery: ReturnType<typeof useQuery>;
 	membersQuery: PaginationResult;
-	filterProps: React.ComponentProps<typeof UsersFilter>;
+	filterProps: React.ComponentProps<typeof MembersFilter>;
 };
 
 const GroupPage: React.FC = () => {

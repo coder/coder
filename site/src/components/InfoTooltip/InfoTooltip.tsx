@@ -9,7 +9,7 @@ import {
 
 export type InfoTooltipType = "info" | "warning";
 
-type InfoTooltipSize = "small" | "medium";
+type InfoTooltipSize = "xsmall" | "small" | "medium";
 
 type InfoTooltipProps = {
 	type?: InfoTooltipType;
@@ -26,10 +26,11 @@ const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
 
 const typeIconColor: Record<InfoTooltipType, string> = {
 	info: "text-content-secondary hover:text-content-primary",
-	warning: "text-content-warning",
+	warning: "text-border-warning",
 };
 
 const sizeClasses: Record<InfoTooltipSize, string> = {
+	xsmall: "[&_svg]:size-2.5",
 	small: "[&_svg]:size-3",
 	medium: "[&_svg]:size-4",
 };
@@ -58,7 +59,11 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 			>
 				<Icon />
 			</TooltipTrigger>
-			<TooltipContent side={side} align="center" className="max-w-xs">
+			<TooltipContent
+				side={side}
+				align="center"
+				className="max-w-[min(20rem,var(--radix-popper-available-width))]"
+			>
 				{children}
 			</TooltipContent>
 		</Tooltip>
