@@ -59,6 +59,12 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("process exited with code %d", *e.ExitCode)
 }
 
+// isExitError reports whether err is or wraps an *ExitError.
+func isExitError(err error) bool {
+	var exitErr *ExitError
+	return errors.As(err, &exitErr)
+}
+
 // waitForExit waits a bounded amount of time for process to exit and returns
 // the resulting ExitError, or nil if it is still running.
 func waitForExit(process pty.Process) *ExitError {

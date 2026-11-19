@@ -2790,7 +2790,7 @@ func TestAgent_ReconnectingPTYExited(t *testing.T) {
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			//nolint:dogsled
+			//nolint:dogsled // Only the agent connection is needed.
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
 			runsFile := filepath.Join(t.TempDir(), "runs")

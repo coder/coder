@@ -196,7 +196,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	if state != StateReady {
 		// A finished session has replayed its output above, which is all a
 		// connection to it gets.
-		if _, ok := errors.AsType[*ExitError](err); ok {
+		if isExitError(err) {
 			return nil
 		}
 		return err
