@@ -1759,7 +1759,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
@@ -1796,6 +1795,7 @@ func TestUserOIDC(t *testing.T) {
 			ResourceType:     database.ResourceTypeUser,
 			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
 		}))
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 
@@ -1874,7 +1874,6 @@ func TestUserOIDC(t *testing.T) {
 	// user_link exists (e.g. a dormant OIDC user created via SCIM or API).
 	t.Run("OIDCFirstTimeLinkByEmailAllowed", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -1907,6 +1906,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -1929,7 +1929,6 @@ func TestUserOIDC(t *testing.T) {
 	// and that their linked_id is backfilled with the correct value.
 	t.Run("OIDCLegacyLinkBackfill", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -1964,6 +1963,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -2046,7 +2046,6 @@ func TestUserOIDC(t *testing.T) {
 	// so the user can keep logging in with either subject.
 	t.Run("OIDCInsecureEmailFallbackAllowed", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2087,6 +2086,7 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode,
 			"insecure email fallback must allow login with a mismatched subject")
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -2111,7 +2111,6 @@ func TestUserOIDC(t *testing.T) {
 	// matching directly.
 	t.Run("OIDCInsecureEmailFallbackPreservesOriginalLogin", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2156,6 +2155,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID)
