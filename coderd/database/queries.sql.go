@@ -4231,7 +4231,6 @@ unpriced_models AS (
 	FROM spend
 	WHERE is_model
 		AND has_unpriced_usage
-		AND model IS NOT NULL
 	GROUP BY user_id
 ),
 user_page AS (
@@ -4345,9 +4344,10 @@ type ListOrganizationAISpendUsersRow struct {
 // row per provider, model, and client they spent through, and every row
 // carries the user's spend and the count and totals over every matching user.
 // It must count the same token usage as the CSV export for the same filters.
-// user_page keeps one row per user, so the page, count, and totals apply to users.
-// Includes deleted providers, since usage still references them, and prefers
-// the live provider when a name was reused.
+// The page, count, and totals apply to users, not to their provider, model,
+// and client rows.
+// Provider details include deleted providers, since usage still references
+// them, and prefer the live provider when a name was reused.
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
 		arg.OrganizationID,
