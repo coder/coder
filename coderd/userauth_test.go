@@ -1759,7 +1759,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
@@ -1796,6 +1795,7 @@ func TestUserOIDC(t *testing.T) {
 			ResourceType:     database.ResourceTypeUser,
 			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
 		}))
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 
@@ -1874,7 +1874,6 @@ func TestUserOIDC(t *testing.T) {
 	// user_link exists (e.g. a dormant OIDC user created via SCIM or API).
 	t.Run("OIDCFirstTimeLinkByEmailAllowed", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -1907,6 +1906,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -1929,7 +1929,6 @@ func TestUserOIDC(t *testing.T) {
 	// and that their linked_id is backfilled with the correct value.
 	t.Run("OIDCLegacyLinkBackfill", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -1964,6 +1963,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -1989,7 +1989,6 @@ func TestUserOIDC(t *testing.T) {
 	// linked_id (old issuer) differs from the newly computed one (new issuer).
 	t.Run("OIDCEmailFallbackBlockedByIssuerChange", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2030,6 +2029,7 @@ func TestUserOIDC(t *testing.T) {
 			"issuer change must block the email fallback for an existing link")
 
 		// The stored link must remain unchanged.
+		ctx := testutil.Context(t, testutil.WaitShort)
 		link, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    user.ID,
 			LoginType: database.LoginTypeOIDC,
@@ -2046,7 +2046,6 @@ func TestUserOIDC(t *testing.T) {
 	// so the user can keep logging in with either subject.
 	t.Run("OIDCInsecureEmailFallbackAllowed", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2087,6 +2086,7 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode,
 			"insecure email fallback must allow login with a mismatched subject")
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -2111,7 +2111,6 @@ func TestUserOIDC(t *testing.T) {
 	// matching directly.
 	t.Run("OIDCInsecureEmailFallbackPreservesOriginalLogin", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2156,6 +2155,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID)
@@ -2211,7 +2211,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("OIDCSuspended", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2251,6 +2250,7 @@ func TestUserOIDC(t *testing.T) {
 		// The user's status must remain suspended; nothing in the OAuth
 		// transaction should have been committed.
 		//nolint:gocritic // System read for verification.
+		ctx := testutil.Context(t, testutil.WaitShort)
 		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.UserStatusSuspended, dbUser.Status)
@@ -2518,7 +2518,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("StripRedirectHost", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		expectedRedirect := "/foo/bar?hello=world&bar=baz"
 		redirectURL := "https://malicious" + expectedRedirect
@@ -2565,6 +2564,7 @@ func TestUserOIDC(t *testing.T) {
 		require.NotContains(t, location.String(), "malicious")
 
 		// Verify the user was created
+		ctx := testutil.Context(t, testutil.WaitShort)
 		user, err := loginClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "user@example.com", user.Email)

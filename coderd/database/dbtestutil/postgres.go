@@ -184,7 +184,8 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	if emptyTemplateDBName {
 		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
 	}
-	_, err := db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
+	createFromTemplate := "CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName + templateCopyStrategy(db)
+	_, err := db.Exec(createFromTemplate)
 	if err == nil {
 		// Template database already exists and we successfully created the new database.
 		return nil
@@ -212,10 +213,41 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	}
 
 	// Try to create the database again now that a template exists.
-	if _, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName); err != nil {
+	if _, err = db.Exec(createFromTemplate); err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
 	}
 	return nil
+}
+
+var (
+	templateCopyStrategyOnce   sync.Once
+	templateCopyStrategyClause string
+)
+
+// templateCopyStrategy returns the STRATEGY clause to append to CREATE
+// DATABASE ... WITH TEMPLATE for the server db is connected to.
+func templateCopyStrategy(db *sql.DB) string {
+	templateCopyStrategyOnce.Do(func() {
+		var versionNum int
+		if err := db.QueryRow("SELECT current_setting('server_version_num')::int").Scan(&versionNum); err != nil {
+			return
+		}
+		templateCopyStrategyClause = copyStrategyForVersion(versionNum)
+	})
+	return templateCopyStrategyClause
+}
+
+// copyStrategyForVersion returns the STRATEGY clause for a server_version_num,
+// or an empty string if that version has no STRATEGY option.
+func copyStrategyForVersion(versionNum int) string {
+	// PostgreSQL 15 added the STRATEGY option and made WAL_LOG the default.
+	// WAL_LOG writes the whole template to the write-ahead log, so many tests
+	// creating databases at once wait on each other. FILE_COPY is what older
+	// versions always did.
+	if versionNum >= 150000 {
+		return " STRATEGY FILE_COPY"
+	}
+	return ""
 }
 
 func createAndInitDatabase(t TBSubset, connParams ConnectionParams, db *sql.DB, name string, initialize func(*sql.DB) error) error {
