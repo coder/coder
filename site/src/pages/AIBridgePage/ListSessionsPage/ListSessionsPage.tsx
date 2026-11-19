@@ -8,10 +8,10 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { pageTitle } from "#/utils/page";
 import { useClientFilterMenu } from "../filters/ClientFilter";
 import { useModelFilterMenu } from "../filters/ModelFilter";
+import { useOrganizationFilterMenu } from "../filters/OrganizationFilter";
 import { useProviderFilterMenu } from "../filters/ProviderFilter";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { ListSessionsPageView } from "./ListSessionsPageView";
@@ -114,8 +114,9 @@ const AISessionListPage: React.FC = () => {
 			}),
 	});
 
-	const organizationsMenu = useOrganizationsFilterMenu({
+	const organizationMenu = useOrganizationFilterMenu({
 		value: filter.values.organization,
+		enabled: showOrganizations,
 		onChange: (option) =>
 			filter.update({
 				...filter.values,
@@ -145,7 +146,7 @@ const AISessionListPage: React.FC = () => {
 						provider: providerMenu,
 						client: clientMenu,
 						model: modelMenu,
-						organization: showOrganizations ? organizationsMenu : undefined,
+						organization: showOrganizations ? organizationMenu : undefined,
 					},
 					timeRange: {
 						start: timeRange.start,
