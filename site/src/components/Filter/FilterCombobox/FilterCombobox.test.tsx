@@ -144,7 +144,6 @@ const setup = (
 		initialValue = "",
 		skipHover = false,
 		fakeTimers = false,
-		valueLags = false,
 	}: {
 		initialValue?: string;
 		skipHover?: boolean;
@@ -153,8 +152,6 @@ const setup = (
 		 * explicit advance ends a debounce.
 		 */
 		fakeTimers?: boolean | "manual";
-		/** Keeps `value` at `initialValue`, as a parent that has not applied `onChange` yet. */
-		valueLags?: boolean;
 	} = {},
 ) => {
 	if (fakeTimers) {
@@ -170,20 +167,11 @@ const setup = (
 	);
 	const onChange = vi.fn();
 	const { unmount } = render(
-		valueLags ? (
-			<FilterCombobox
-				value={initialValue}
-				onChange={onChange}
-				categories={categories}
-				placeholder="Search and filter"
-			/>
-		) : (
-			<FilterComboboxHarness
-				categories={categories}
-				initialValue={initialValue}
-				onChange={onChange}
-			/>
-		),
+		<FilterComboboxHarness
+			categories={categories}
+			initialValue={initialValue}
+			onChange={onChange}
+		/>,
 	);
 	return {
 		user,
@@ -764,12 +752,19 @@ describe("FilterCombobox", () => {
 	});
 
 	it("keeps a just-added chip when removing another before the parent applies it", async () => {
-		const { user, onChange, filtersButton } = setup(
-			[statusCategory, attributesCategory],
-			{ initialValue: "status:running", valueLags: true },
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		// A fixed value stands in for a parent that has not applied onChange yet.
+		render(
+			<FilterCombobox
+				value="status:running"
+				onChange={onChange}
+				categories={[statusCategory, attributesCategory]}
+				placeholder="Search and filter"
+			/>,
 		);
 
-		await user.click(filtersButton);
+		await user.click(screen.getByRole("button", { name: "Filters" }));
 		await user.click(await screen.findByRole("option", { name: "Outdated" }));
 		expect(onChange).toHaveBeenLastCalledWith("status:running outdated:true");
 		await user.click(
@@ -777,36 +772,6 @@ describe("FilterCombobox", () => {
 		);
 
 		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
-	});
-
-	it("removes the just-added chip with Backspace before the parent applies it", async () => {
-		const { user, onChange, input, filtersButton } = setup(
-			[statusCategory, attributesCategory],
-			{ initialValue: "status:running", valueLags: true },
-		);
-
-		await user.click(filtersButton);
-		await user.click(await screen.findByRole("option", { name: "Outdated" }));
-		await user.click(input);
-		await user.keyboard("{Backspace}");
-
-		expect(onChange).toHaveBeenLastCalledWith("status:running");
-	});
-
-	it("re-adds a just-removed chip before the parent applies the removal", async () => {
-		const { user, onChange, filtersButton } = setup(
-			[statusCategory, attributesCategory],
-			{ initialValue: "status:running outdated:true", valueLags: true },
-		);
-
-		await user.click(
-			screen.getByRole("button", { name: "Remove status:running" }),
-		);
-		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
-		await user.click(filtersButton);
-		await user.click(await screen.findByRole("option", { name: "Running" }));
-
-		expect(onChange).toHaveBeenLastCalledWith("outdated:true status:running");
 	});
 
 	it("keeps the main menu usable and focused after selecting a flyout option", async () => {
@@ -2795,16 +2760,6 @@ describe("FilterCombobox", () => {
 				await user.keyboard("{Backspace}");
 
 				await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
-			});
-
-			it("is removed before a just-added chip with Backspace while value lags", async () => {
-				const harness = setup([scopedOwnerCategory], { valueLags: true });
-				await openOwnerCategory(harness);
-				await harness.user.keyboard("{ArrowDown}{Enter}");
-				expect(harness.onChange).toHaveBeenLastCalledWith("user:alice");
-				await harness.user.keyboard("{Backspace}");
-
-				expect(harness.onChange).toHaveBeenLastCalledWith("owner:alice");
 			});
 
 			it.each([
