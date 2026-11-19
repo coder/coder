@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
@@ -318,12 +319,21 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
 	}
 
+	var previews *previewhost.Hosting
+	if opts.AppHostname != "" {
+		previews, err = previewhost.Strict(opts.AppHostname, opts.AccessURL, opts.DashboardURL)
+		if err != nil {
+			return nil, xerrors.Errorf("create preview hosting: %w", err)
+		}
+	}
+
 	s.AppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
 		HostnameRegex: opts.AppHostnameRegex,
+		Previews:      previews,
 		RealIPConfig:  opts.RealIPConfig,
 		SignedTokenProvider: &TokenProvider{
 			DashboardURL:             opts.DashboardURL,

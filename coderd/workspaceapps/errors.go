@@ -148,3 +148,14 @@ func WriteWorkspaceOffline(log slog.Logger, accessURL *url.URL, rw http.Response
 		Actions:     actions,
 	})
 }
+
+// writePreviewSignedOut writes the page a preview shows without a session.
+// It has no link: the preview is framed by the dashboard, which mints a new
+// sign-in when the user reopens or reloads the preview.
+func writePreviewSignedOut(rw http.ResponseWriter, r *http.Request) {
+	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+		Status:      http.StatusUnauthorized,
+		Title:       "Signed Out of Preview",
+		Description: "Reopen this preview from Coder to sign in again.",
+	})
+}

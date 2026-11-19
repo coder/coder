@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -774,58 +775,87 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, connLogger.ConnectionLogs(), 0)
 	})
 
-	t.Run("FilePreviewSubdomain", func(t *testing.T) {
+	t.Run("PreviewSubdomain", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		// A public port share must not open the port's preview to others.
 		_, err := api.Database.UpsertWorkspaceAgentPortShare(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   agentName,
-			Port:        workspacesdk.AgentHTTPAPIServerPort,
+			Port:        8080,
 			ShareLevel:  database.AppSharingLevelPublic,
 			Protocol:    database.PortShareProtocolHttp,
 		})
 		require.NoError(t, err)
+		siteAdmin, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
 
-		opts := workspaceapps.ResolveRequestOptions{
-			Logger:              api.Logger,
-			SignedTokenProvider: api.WorkspaceAppsProvider,
-			DashboardURL:        api.AccessURL,
-			PathAppBaseURL:      api.AccessURL,
-			AppHostname:         api.AppHostname,
-			AppRequest: (workspaceapps.Request{
-				AccessMethod:      workspaceapps.AccessMethodSubdomain,
-				BasePath:          "/",
-				UsernameOrID:      me.Username,
-				WorkspaceNameOrID: workspace.Name,
-				AgentNameOrID:     agentName,
-				AppSlugOrPort:     "preview--0123abcd",
-			}).Normalize(),
-		}
-		resolve := func(sessionToken string) (*httptest.ResponseRecorder, *workspaceapps.SignedToken, bool) {
+		resolve := func(provider workspaceapps.SignedTokenProvider, slug string, setSession func(*http.Request)) (*httptest.ResponseRecorder, *workspaceapps.SignedToken, bool) {
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/", nil)
-			if sessionToken != "" {
-				r.Header.Set(codersdk.SessionTokenHeader, sessionToken)
-			}
+			setSession(r)
 			r.RemoteAddr = testutil.RandomIPv6(t)
-			token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, opts)
+			token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: provider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest: (workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					BasePath:          "/",
+					UsernameOrID:      me.Username,
+					WorkspaceNameOrID: workspace.Name,
+					AgentNameOrID:     agentName,
+					AppSlugOrPort:     slug,
+				}).Normalize(),
+			})
 			return rw, token, ok
 		}
+		previewCookie := func(sessionToken string) func(*http.Request) {
+			return func(r *http.Request) {
+				r.AddCookie(&http.Cookie{Name: codersdk.PreviewSessionTokenCookie, Value: sessionToken})
+			}
+		}
 
-		_, token, ok := resolve(client.SessionToken())
-		require.True(t, ok)
-		require.Equal(t, agentID, token.AgentID)
-		require.Equal(t, fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort), token.AppURL)
+		for slug, wantURL := range map[string]string{
+			"preview--0123abcd": fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort),
+			"preview--8080":     "http://127.0.0.1:8080",
+		} {
+			_, token, ok := resolve(api.WorkspaceAppsProvider, slug, previewCookie(client.SessionToken()))
+			require.True(t, ok, slug)
+			require.Equal(t, agentID, token.AgentID)
+			require.Equal(t, wantURL, token.AppURL)
+		}
 
-		_, token, ok = resolve("")
+		// Only the preview cookie signs in, and a signed-out preview never
+		// redirects to the auth flow that sets the app wildcard cookie.
+		for name, setSession := range map[string]func(*http.Request){
+			"None": func(*http.Request) {},
+			"Header": func(r *http.Request) {
+				r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			},
+			"AppCookie": func(r *http.Request) {
+				r.AddCookie(&http.Cookie{Name: codersdk.SubdomainAppSessionTokenCookie + "_test", Value: client.SessionToken()})
+			},
+		} {
+			rw, token, ok := resolve(api.WorkspaceAppsProvider, "preview--8080", setSession)
+			require.False(t, ok, name)
+			require.Nil(t, token, name)
+			require.Equal(t, http.StatusUnauthorized, rw.Code, name)
+			require.Empty(t, rw.Header().Get("Location"), name)
+		}
+
+		// A site owner may connect to the workspace's apps, but a preview
+		// opens only for the workspace owner.
+		rw, token, ok := resolve(api.WorkspaceAppsProvider, "preview--8080", previewCookie(siteAdmin.SessionToken()))
 		require.False(t, ok)
 		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
 
 		withoutExperiment := *api.WorkspaceAppsProvider.(*workspaceapps.DBTokenProvider)
 		withoutExperiment.Experiments = nil
-		opts.SignedTokenProvider = &withoutExperiment
-		rw, token, ok := resolve(client.SessionToken())
+		rw, token, ok = resolve(&withoutExperiment, "preview--8080", previewCookie(client.SessionToken()))
 		require.False(t, ok)
 		require.Nil(t, token)
 		require.Equal(t, http.StatusNotFound, rw.Code)

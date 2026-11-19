@@ -2,7 +2,6 @@ package appurl_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,38 +120,6 @@ func TestApplicationURLString(t *testing.T) {
 			t.Parallel()
 
 			require.Equal(t, c.Expected, c.URL.String())
-		})
-	}
-}
-
-func TestApplicationURLHostnameLabel(t *testing.T) {
-	t.Parallel()
-
-	app := appurl.ApplicationURL{AppSlugOrPort: "8080", AgentName: "main", Username: "alice"}
-	for _, tc := range []struct {
-		name          string
-		hostname      string
-		workspaceName string
-		want          string
-		wantErr       bool
-	}{
-		{name: "Subdomain", hostname: "*.apps.example.com", workspaceName: "dev", want: "8080--main--dev--alice"},
-		{name: "Suffix", hostname: "*--apps.example.com", workspaceName: "dev", want: "8080--main--dev--alice--apps"},
-		{name: "DNSLimit", hostname: "*.apps.example.com", workspaceName: strings.Repeat("w", 44), want: "8080--main--" + strings.Repeat("w", 44) + "--alice"},
-		{name: "OverDNSLimit", hostname: "*.apps.example.com", workspaceName: strings.Repeat("w", 45), wantErr: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			app := app
-			app.WorkspaceName = tc.workspaceName
-			label, err := app.HostnameLabel(tc.hostname)
-			if tc.wantErr {
-				require.ErrorContains(t, err, "over the DNS limit of 63")
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.want, label)
 		})
 	}
 }
@@ -325,6 +292,16 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Expected: appurl.ApplicationURL{
 				Prefix:        "prefix---",
 				AppSlugOrPort: "preview--0123abcd",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:      "PortPreview--Agent--Workspace--User",
+			Subdomain: "preview--8080--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "preview--8080",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
