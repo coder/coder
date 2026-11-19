@@ -13,14 +13,17 @@ The AWS Marketplace guide uses a CloudFormation template that creates a new EKS 
 
 ## AWS
 
-We publish Coder Community Edition on the AWS Marketplace.
-Follow the tutorial here:
+For a deployment that other people depend on, install Coder with Helm on Amazon Elastic Kubernetes Service (EKS):
 
-- [Install Coder Community Edition from AWS Marketplace](./aws-marketplace.md)
+- [Install Coder on Amazon EKS](./aws-marketplace.md#install-coder-on-amazon-eks)
 
-Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing Kubernetes cluster.
+To try Coder Community Edition in a sandbox account, launch it from the AWS Marketplace:
 
-For installation guidance specific to Amazon Elastic Kubernetes Service (EKS), see the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
+- [Install Coder Community Edition from AWS Marketplace](./aws-marketplace.md#launch-coder-community-edition-from-the-aws-marketplace)
+
+Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine.
+
+For installation guidance specific to EKS, refer to the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
 
 ## GCP
 
