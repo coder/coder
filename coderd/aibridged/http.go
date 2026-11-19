@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/routing"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
@@ -196,10 +197,10 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if budgetResp.GetExceeded() {
-		http.Error(rw, fmt.Sprintf(
+		routing.WriteForbiddenError(rw, r, routing.ErrorCodeBudgetExceeded, fmt.Sprintf(
 			"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
 			float64(budgetResp.GetSpendLimitMicros())/1_000_000,
-		), http.StatusForbidden)
+		))
 		return
 	}
 
