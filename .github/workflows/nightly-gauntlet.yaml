@@ -152,7 +152,7 @@ jobs:
     steps:
       - name: Send Slack notification
         run: |
-          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+          ESCAPED_PROMPT=$(printf "%s" "<@U0C44L5FV52> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [
