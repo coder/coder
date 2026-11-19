@@ -1,3 +1,4 @@
+import isNil from "lodash/isNil";
 import { useState } from "react";
 import type { UseMutateFunction } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
@@ -65,13 +66,13 @@ export const OrganizationInstructionsSettings: React.FC<
 			className="flex flex-col rounded-lg border p-6"
 			onSubmit={handleSubmit}
 		>
-			{loadError !== null && loadError !== undefined ? (
+			{!isNil(loadError) ? (
 				<ErrorAlert error={loadError} />
 			) : isLoading ? (
 				<Loader label="Loading organization instructions" />
 			) : (
 				<>
-					{refetchError !== null && refetchError !== undefined && (
+					{!isNil(refetchError) && (
 						<ErrorAlert error={refetchError} className="mb-4" />
 					)}
 					<TextareaAutosize
@@ -90,7 +91,7 @@ export const OrganizationInstructionsSettings: React.FC<
 						maxRows={9}
 					/>
 					<InvisibleCharactersAlert text={value} className="mt-2" />
-					{saveError !== null && saveError !== undefined && (
+					{!isNil(saveError) && (
 						<p
 							role="alert"
 							className="m-0 mt-4 text-xs text-content-destructive"
@@ -110,10 +111,7 @@ export const OrganizationInstructionsSettings: React.FC<
 									onResetSave();
 									setDraft(undefined);
 								}}
-								disabled={
-									isSaving ||
-									(!isDirty && (saveError === null || saveError === undefined))
-								}
+								disabled={isSaving || (!isDirty && isNil(saveError))}
 							>
 								Cancel
 							</Button>

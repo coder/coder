@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import isNil from "lodash/isNil";
 import { ChevronDownIcon } from "lucide-react";
 import {
 	Collapsible,
@@ -46,7 +47,7 @@ export const ContextResourceAccordionTrigger: React.FC<
 				{children}
 			</span>
 		</div>
-		{detail !== null && detail !== undefined && (
+		{!isNil(detail) && (
 			<span className="font-medium text-content-secondary group-data-[state=open]:opacity-0 transition-opacity duration-25">
 				{detail}
 			</span>

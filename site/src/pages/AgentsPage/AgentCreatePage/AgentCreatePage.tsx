@@ -1,3 +1,4 @@
+import isNil from "lodash/isNil";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -69,23 +70,22 @@ const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	error,
 	build,
 }) => {
-	const alert =
-		error !== null && error !== undefined ? (
-			<Alert severity="error" prominent>
-				<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
-				<AlertDescription>
-					{getErrorMessage(error, "The request failed.")}
-				</AlertDescription>
-			</Alert>
-		) : build && build.job.status !== "failed" ? (
-			<Alert severity="info">
-				<AlertTitle>Nothing to debug</AlertTitle>
-				<AlertDescription>
-					Build #{build.build_number} of workspace {build.workspace_owner_name}/
-					{build.workspace_name} has not failed (status: {build.job.status}).
-				</AlertDescription>
-			</Alert>
-		) : null;
+	const alert = !isNil(error) ? (
+		<Alert severity="error" prominent>
+			<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
+			<AlertDescription>
+				{getErrorMessage(error, "The request failed.")}
+			</AlertDescription>
+		</Alert>
+	) : build && build.job.status !== "failed" ? (
+		<Alert severity="info">
+			<AlertTitle>Nothing to debug</AlertTitle>
+			<AlertDescription>
+				Build #{build.build_number} of workspace {build.workspace_owner_name}/
+				{build.workspace_name} has not failed (status: {build.job.status}).
+			</AlertDescription>
+		</Alert>
+	) : null;
 	return alert ? (
 		<div className="mx-auto w-full max-w-3xl px-4 pt-4">{alert}</div>
 	) : null;

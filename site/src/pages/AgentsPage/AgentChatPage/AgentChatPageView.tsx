@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import isNil from "lodash/isNil";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import type { UrlTransform } from "streamdown";
@@ -621,10 +622,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								}}
 								overviewToggle={overviewToggle}
 							/>
-							{modelCatalogError !== null &&
-								modelCatalogError !== undefined && (
-									<ErrorAlert error={modelCatalogError} />
-								)}
+							{!isNil(modelCatalogError) && (
+								<ErrorAlert error={modelCatalogError} />
+							)}
 							{unavailableModelNotice && (
 								<div
 									role="status"

@@ -1,3 +1,4 @@
+import isNil from "lodash/isNil";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
@@ -69,9 +70,7 @@ const UpdateModelPageView: React.FC<UpdateModelPageViewProps> = (props) => {
 			<title>
 				{pageTitle(model.display_name || model.model, "AI settings")}
 			</title>
-			{refetchError !== null && refetchError !== undefined && (
-				<ErrorAlert error={refetchError} />
-			)}
+			{!isNil(refetchError) && <ErrorAlert error={refetchError} />}
 			<ModelForm
 				key={model.id}
 				editingModel={model}
