@@ -1,4 +1,0 @@
-package coderd
-
-// NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
-var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference

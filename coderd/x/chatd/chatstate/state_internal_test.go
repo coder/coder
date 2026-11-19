@@ -143,7 +143,7 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 	// reached once; the states without rows ignore it and are reached
 	// with it both set and unset.
 	require.Zero(t, tuplesByState[StateN], "N requires a missing chat")
-	for _, state := range AllExecutionStates {
+	for state := range transitionMatrix {
 		switch state {
 		case StateN, StateInvalid:
 		case StateE1, StateE1P, StateR1, StateR1P, StateI1, StateI1P, StateA1, StateA1P, StateP, StateXE1, StateXE1P:
@@ -151,25 +151,6 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 		default:
 			require.Equal(t, 2, tuplesByState[state], "%s", state)
 		}
-	}
-}
-
-// TestAllExecutionStates_Enumeration verifies AllExecutionStates
-// contains every declared execution state exactly once.
-func TestAllExecutionStates_Enumeration(t *testing.T) {
-	t.Parallel()
-	want := map[ExecutionState]bool{
-		StateN: true, StateW: true, StateE0: true, StateE1: true, StateE1P: true,
-		StateR0: true, StateR1: true, StateR1P: true, StateI0: true, StateI1: true, StateI1P: true,
-		StateA0: true, StateA1: true, StateA1P: true, StateP: true, StateXW: true,
-		StateXE0: true, StateXE1: true, StateXE1P: true, StateInvalid: true,
-	}
-	require.Len(t, AllExecutionStates, len(want))
-	seen := make(map[ExecutionState]bool, len(want))
-	for _, s := range AllExecutionStates {
-		require.True(t, want[s], "unexpected state %s", s)
-		require.False(t, seen[s], "duplicate state %s", s)
-		seen[s] = true
 	}
 }
 
@@ -183,7 +164,7 @@ func TestExecutionState_IsRunnable(t *testing.T) {
 		StateI0: true, StateI1: true, StateI1P: true,
 		StateA0: true, StateA1: true, StateA1P: true,
 	}
-	for _, s := range AllExecutionStates {
+	for s := range transitionMatrix {
 		require.Equal(t, runnable[s], s.IsRunnable(), "IsRunnable(%s)", s)
 	}
 }

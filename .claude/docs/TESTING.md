@@ -85,8 +85,7 @@ dominate package wall time.
   convention, and the repo standardizes on the latter.
 - **Do not add `export_test.go`.** First rework the test so that it needs
   only the exported API. As a last resort, move a test that needs an
-  unexported symbol to a `*_internal_test.go` file. The existing
-  `export_test.go` files are legacy: do not extend them.
+  unexported symbol to a `*_internal_test.go` file.
 
 ## RFC Protocol Testing
 

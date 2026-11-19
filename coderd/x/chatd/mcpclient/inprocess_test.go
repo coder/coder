@@ -68,7 +68,7 @@ func TestConnectInProcess_RejectsTooManyTools(t *testing.T) {
 func TestConnectInProcess_ToolResultCap(t *testing.T) {
 	t.Parallel()
 
-	const maxBytes = mcpclient.MaxInProcessToolResultTextBytesForTest
+	const maxBytes = 256 << 10
 	for _, tc := range []struct {
 		name      string
 		result    *mcp.CallToolResult

@@ -192,10 +192,6 @@ linters:
       - linters:
           - exhaustruct
         path: ^scripts/
-      # Legacy export_test.go shims. Do not add to this list.
-      - linters:
-          - testpackage
-        path: ^coderd/(|aibridged/|x/chatd/|x/chatd/chatstate/|x/chatd/mcpclient/)export_test\.go$
       - linters:
           - ALL
         path: scripts/rules.go
