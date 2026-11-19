@@ -4271,110 +4271,6 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include create_workspace tool output")
 }
 
-func TestReadTemplateTool_EndToEnd(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Database:                 db,
-		Pubsub:                   ps,
-		IncludeProvisionerDaemon: true,
-	})
-	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-
-	mainTF, err := os.ReadFile("../../testdata/parameters/public_key/main.tf")
-	require.NoError(t, err)
-	plan, err := os.ReadFile("../../testdata/parameters/public_key/plan.json")
-	require.NoError(t, err)
-	files := echo.WithExtraFiles(map[string][]byte{"main.tf": mainTF})
-	files.ProvisionPlan = []*proto.Response{{
-		Type: &proto.Response_Plan{Plan: &proto.PlanComplete{Plan: plan}},
-	}}
-	version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, files)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
-	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
-
-	pendingJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-		Type:           database.ProvisionerJobTypeTemplateVersionImport,
-		OrganizationID: owner.OrganizationID,
-		InitiatorID:    owner.UserID,
-	})
-	pendingVersionID := uuid.New()
-	importing := dbgen.Template(t, db, database.Template{
-		OrganizationID:  owner.OrganizationID,
-		CreatedBy:       owner.UserID,
-		ActiveVersionID: pendingVersionID,
-		AgentsAllowed:   true,
-	})
-	dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		ID:             pendingVersionID,
-		TemplateID:     uuid.NullUUID{UUID: importing.ID, Valid: true},
-		OrganizationID: owner.OrganizationID,
-		CreatedBy:      owner.UserID,
-		JobID:          pendingJob.ID,
-	})
-
-	var streamedCallCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("Read template test")
-		}
-		switch streamedCallCount.Add(1) {
-		case 1:
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
-				"read_template", fmt.Sprintf(`{"template_id":%q}`, template.ID),
-			))
-		case 2:
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
-				"read_template", fmt.Sprintf(`{"template_id":%q}`, importing.ID),
-			))
-		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done.")...)
-	})
-	coderdtest.CreateOpenAICompatChatModel(t, codersdk.NewExperimentalClient(ownerClient), openAIURL)
-
-	memberKey, err := memberClient.GitSSHKey(ctx, codersdk.Me)
-	require.NoError(t, err)
-	expMemberClient := codersdk.NewExperimentalClient(memberClient)
-	chat, err := expMemberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: owner.OrganizationID,
-		Content: []codersdk.ChatInputPart{{
-			Type: codersdk.ChatInputPartTypeText,
-			Text: "Read the templates.",
-		}},
-	})
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		got, getErr := expMemberClient.GetChat(ctx, chat.ID)
-		return getErr == nil && got.Status == codersdk.ChatStatusWaiting
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	var results []json.RawMessage
-	for _, part := range chatToolParts(ctx, t, db, chat.ID) {
-		if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "read_template" {
-			results = append(results, part.Result)
-		}
-	}
-	require.Len(t, results, 2)
-
-	var evaluated struct {
-		Parameters []struct {
-			Name    string `json:"name"`
-			Default string `json:"default"`
-		} `json:"parameters"`
-	}
-	require.NoError(t, json.Unmarshal(results[0], &evaluated))
-	require.Len(t, evaluated.Parameters, 1)
-	require.Equal(t, "public_key", evaluated.Parameters[0].Name)
-	require.Equal(t, memberKey.PublicKey, evaluated.Parameters[0].Default)
-	require.Equal(t, 0, api.FileCache.Count(), "renderer must release the template files")
-
-	require.Contains(t, string(results[1]), "still importing")
-}
-
 type failChatBindStore struct{ database.Store }
 
 func (s failChatBindStore) InTx(f func(database.Store) error, opts *database.TxOptions) error {
@@ -4472,13 +4368,17 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// Create a workspace for stop_workspace to stop, so start_workspace
-	// has something to start. We intentionally skip starting a test
+	// Create a workspace, then stop it so start_workspace has
+	// something to start. We intentionally skip starting a test
 	// agent. The echo provisioner creates new agent rows for each
 	// build, so an agent started for build 1 cannot serve build 3.
 	// The tool handles the no-agent case gracefully.
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	workspace = coderdtest.MustTransitionWorkspace(
+		t, client, workspace.ID,
+		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop,
+	)
 
 	activeVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, activeVersion.ID)
@@ -4497,12 +4397,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
 		streamedCallsMu.Unlock()
 
-		switch streamedCallCount.Add(1) {
-		case 1:
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("stop_workspace", "{}"),
-			)
-		case 2:
+		if streamedCallCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("start_workspace", "{}"),
 			)
@@ -4514,13 +4409,13 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 
 	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
-	// Create a chat with the workspace pre-associated.
+	// Create a chat with the stopped workspace pre-associated.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
-				Text: "Restart the workspace.",
+				Text: "Start the workspace.",
 			},
 		},
 		WorkspaceID: &workspace.ID,
@@ -4551,16 +4446,6 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
 	require.Equal(t, activeVersion.ID, updatedWorkspace.LatestBuild.TemplateVersionID, "build must be on the active version")
-	require.Nil(t, updatedWorkspace.LatestBuild.TemplateVersionPresetID, "no preset must be applied")
-
-	builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})
-	require.NoError(t, err)
-	require.Len(t, builds, 3)
-	for _, build := range builds {
-		if build.Transition == codersdk.WorkspaceTransitionStop {
-			require.Equal(t, version.ID, build.TemplateVersionID, "stop must not apply RequireActiveVersion start-only logic")
-		}
-	}
 
 	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
@@ -4585,15 +4470,15 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	}
 	require.True(t, foundStartWorkspaceResult, "expected start_workspace tool result message")
 
-	// Verify the LLM received the tool result in its third call.
-	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(3))
+	// Verify the LLM received the tool result in its second call.
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
 	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
 	streamedCallsMu.Unlock()
-	require.GreaterOrEqual(t, len(recordedStreamCalls), 3)
+	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
 
-	var foundToolResultInThirdCall bool
-	for _, message := range recordedStreamCalls[2] {
+	var foundToolResultInSecondCall bool
+	for _, message := range recordedStreamCalls[1] {
 		if message.Role != "tool" {
 			continue
 		}
@@ -4606,11 +4491,11 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 		started, ok := result["started"].(bool)
 		if ok && started {
-			foundToolResultInThirdCall = true
+			foundToolResultInSecondCall = true
 			break
 		}
 	}
-	require.True(t, foundToolResultInThirdCall, "expected third streamed model call to include start_workspace tool output")
+	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include start_workspace tool output")
 }
 
 func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T) {

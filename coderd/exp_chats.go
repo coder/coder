@@ -4610,10 +4610,9 @@ func (api *API) chatCreateWorkspace(
 	return workspace, chat, nil
 }
 
-// chatStartWorkspace starts a stopped workspace by creating a new
-// build with the "start" transition. It mirrors chatCreateWorkspace
-// but for the start path.
-func (api *API) chatStartWorkspace(
+// chatBuildWorkspace creates a workspace build with the transition in
+// req, as the workspace owner. The chat start and stop tools share it.
+func (api *API) chatBuildWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	workspaceID uuid.UUID,
@@ -4630,24 +4629,20 @@ func (api *API) chatStartWorkspace(
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
 
-	updatedToActiveVersion := false
-	if req.Transition == codersdk.WorkspaceTransitionStart {
-		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
-		}
-
-		templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
-		if templateAccessControl.RequireActiveVersion {
-			latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-			if err != nil {
-				return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
-			}
-
-			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
-			req.TemplateVersionID = template.ActiveVersionID
-		}
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
 	}
+	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+	req, updatedToActiveVersion := resolveChatStartVersion(
+		req,
+		(*(api.AccessControlStore.Load())).GetTemplateAccessControl(template),
+		latestBuild.TemplateVersionID,
+		template.ActiveVersionID,
+	)
 
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
@@ -4686,51 +4681,17 @@ func (api *API) chatStartWorkspace(
 	return apiBuild, nil
 }
 
-// chatStopWorkspace stops a workspace by creating a new build with the
-// "stop" transition. It mirrors chatStartWorkspace, without start-only
-// active-version behavior.
-func (api *API) chatStopWorkspace(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	workspaceID uuid.UUID,
+func resolveChatStartVersion(
 	req codersdk.CreateWorkspaceBuildRequest,
-) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+	accessControl dbauthz.TemplateAccessControl,
+	latestBuildVersionID uuid.UUID,
+	activeVersionID uuid.UUID,
+) (_ codersdk.CreateWorkspaceBuildRequest, updatedToActiveVersion bool) {
+	if req.Transition != codersdk.WorkspaceTransitionStart || !accessControl.RequireActiveVersion {
+		return req, false
 	}
-	ctx = dbauthz.As(ctx, actor)
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
-	}
-
-	req.Transition = codersdk.WorkspaceTransitionStop
-
-	// Build a synthetic API key so postWorkspaceBuildsInternal can
-	// record the correct initiator.
-	syntheticKey := database.APIKey{
-		UserID: ownerID,
-	}
-
-	apiBuild, err := api.postWorkspaceBuildsInternal(
-		ctx,
-		syntheticKey,
-		workspace,
-		req,
-		func(action policy.Action, object rbac.Objecter) bool {
-			// Authorization is handled by dbauthz on the context.
-			authErr := api.HTTPAuth.Authorizer.Authorize(ctx, actor, action, object.RBACObject())
-			return authErr == nil
-		},
-		audit.WorkspaceBuildBaggage{},
-	)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
-	}
-
-	return apiBuild, nil
+	req.TemplateVersionID = activeVersionID
+	return req, latestBuildVersionID != activeVersionID
 }
 
 func rewriteChatStartWorkspaceManualUpdateResponse(resp codersdk.Response, fallbackDetail string, retryInstructions string) codersdk.Response {
