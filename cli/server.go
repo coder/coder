@@ -2471,6 +2471,9 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	if usr.Uid == "0" {
 		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
 	}
+	if err := config.ValidateBuiltinPostgresVersion(cfg.PostgresPath()); err != nil {
+		return "", nil, err
+	}
 
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
 	if customCacheDir != "" {
