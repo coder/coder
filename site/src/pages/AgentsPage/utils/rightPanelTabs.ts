@@ -157,7 +157,10 @@ export function validateUserRightPanelTabs(
 	return tabs.filter((tab) => isUserRightPanelTabAvailable(tab, options));
 }
 
-/** Reports whether the workspace can still show the tab. */
+/**
+ * Reports whether the tab can still be shown, given the workspace and the
+ * enabled experiments.
+ */
 export function isUserRightPanelTabAvailable(
 	tab: WithoutID<UserRightPanelTab>,
 	{

@@ -54,7 +54,7 @@ const parseTarget = (
 
 /**
  * Parses a stored `open_preview` tool result. Returns undefined for an error
- * result or one whose target is missing or of an unknown kind.
+ * result or one without a valid target of a known kind.
  */
 export const parseOpenPreviewResult = (
 	result: unknown,

@@ -72,9 +72,14 @@ export const isValidPort = (value: unknown): value is number =>
 	value >= 1 &&
 	value <= 65535;
 
-/** Reports whether value can be one label of a hostname, such as an app slug. */
+/**
+ * Reports whether value is at most 63 lowercase letters, digits, and interior
+ * hyphens, so it cannot add a dot, slash, or port to a hostname it goes into.
+ */
 export const isHostnameLabel = (value: unknown): value is string =>
-	typeof value === "string" && /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value);
+	typeof value === "string" &&
+	value.length <= 63 &&
+	/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value);
 
 /** The URL the workspace agent serves a file preview at, from its slug. */
 export const filePreviewURL = (
