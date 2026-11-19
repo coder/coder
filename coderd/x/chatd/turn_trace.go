@@ -207,6 +207,18 @@ func (t *runnerTurnSpan) Release(taskID uuid.UUID) {
 	}
 }
 
+// SetProvider records the model provider on the turn's invoke_agent span.
+func (t *runnerTurnSpan) SetProvider(token turnToken, model chatloop.StageModel) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if turn := t.turns[token]; turn != nil {
+		turn.span.SetGenAIProvider(model)
+	}
+}
+
 // OpenToken returns the zero token when ctx is done.
 func (t *runnerTurnSpan) OpenToken(ctx context.Context) turnToken {
 	if t == nil {

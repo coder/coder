@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -85,6 +86,10 @@ func (r resolvedModelCall) stageModel() chatloop.StageModel {
 	}
 	if r.model.Valid() {
 		stageModel.Provider = r.model.Provider()
+	}
+	// Settings were validated when the provider was configured.
+	if settings, err := db2sdk.AIProviderSettings(r.route.Provider.Settings); err == nil {
+		stageModel.Bedrock = settings.Bedrock != nil
 	}
 	return stageModel
 }

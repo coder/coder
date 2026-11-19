@@ -14758,6 +14758,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.NotEmpty(t, chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, stream, chatloop.AttrProvider), chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, "chat "+h.model.Model, stream.Name())
+		require.Equal(t, chatd.SpanAttr(t, stream, "gen_ai.provider.name"), chatd.SpanAttr(t, turn, "gen_ai.provider.name"))
 		require.Equal(t, chatID.String(), chatd.SpanAttr(t, stream, "gen_ai.conversation.id"))
 		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, stream, "user.id"))
 		require.Equal(t, h.model.Model, chatd.SpanAttr(t, stream, "gen_ai.request.model"))

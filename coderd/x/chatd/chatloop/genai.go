@@ -126,6 +126,9 @@ func stageSpanStart(ctx context.Context, stage Stage, model StageModel, toolName
 // genAIProviderName maps a configured provider type, or the wire protocol
 // when the type is unknown, to gen_ai.provider.name.
 func genAIProviderName(model StageModel) string {
+	if model.Bedrock {
+		return semconv.GenAIProviderNameAWSBedrock.Value.AsString()
+	}
 	switch model.ProviderType {
 	case "openai":
 		return semconv.GenAIProviderNameOpenAI.Value.AsString()
@@ -153,6 +156,17 @@ func genAIModelAttributes(model StageModel) []attribute.KeyValue {
 		attrs = append(attrs, semconv.GenAIRequestModel(model.Model))
 	}
 	return attrs
+}
+
+// SetGenAIProvider records gen_ai.provider.name. invoke_agent spans
+// require it but start before the turn resolves its model.
+func (s *StageSpan) SetGenAIProvider(model StageModel) {
+	if s == nil || s.ended {
+		return
+	}
+	if provider := genAIProviderName(model); provider != "" {
+		s.span.SetAttributes(semconv.GenAIProviderNameKey.String(provider))
+	}
 }
 
 // errorType returns error.type for a failed stage.

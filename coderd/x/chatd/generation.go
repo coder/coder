@@ -644,6 +644,7 @@ func (s *taskStarter) runGenerationStep(
 	if err == nil {
 		prepareSpan.SetModel(prepared.StageModel)
 		stepSpan.SetModel(prepared.StageModel)
+		input.TurnSpan.SetProvider(input.TurnToken, prepared.StageModel)
 	}
 	prepareSpan.End(err)
 	if err != nil {

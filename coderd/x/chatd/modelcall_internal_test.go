@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -96,6 +97,23 @@ func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	require.NoError(t, err)
 	requireOpenAIUserOption(t, resolved.providerOptions, "summary-options-sentinel")
 	requireOpenAIUserOption(t, summaryObjectCall(resolved).ProviderOptions, "summary-options-sentinel")
+}
+
+func TestResolvedModelCallStageModelMarksBedrockSettings(t *testing.T) {
+	t.Parallel()
+	settings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+	resolved := resolvedModelCall{
+		route: aiGatewayModelRoute{Provider: database.AIProvider{
+			Type:     database.AIProviderTypeAnthropic,
+			Settings: sql.NullString{String: string(settings), Valid: true},
+		}},
+		resolvedModel: "claude",
+	}
+
+	require.True(t, resolved.stageModel().Bedrock)
 }
 
 func TestResolveModelCallStageModel(t *testing.T) {

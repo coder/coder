@@ -107,6 +107,20 @@ func TestRunnerTurnSpanCarriesChatIdentity(t *testing.T) {
 	}
 }
 
+func TestRunnerTurnSpanRecordsProvider(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer, false)
+
+	_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Time{})
+	turn.SetProvider(token, chatloop.StageModel{ProviderType: "anthropic", Bedrock: true})
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 1)
+	require.Contains(t, turns[0].Attributes(), attribute.String("gen_ai.provider.name", "aws.bedrock"))
+}
+
 func TestRunnerTurnSpanEnsureReusesTurnForSameTrigger(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)

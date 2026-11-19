@@ -41,7 +41,7 @@ All three GenAI spans carry attributes that identify the chat and its owner:
 | `coder.chat.parent_id`   | The ID of the parent chat, for subagent chats |
 | `coder.chat.root_id`     | The ID of the root chat, for subagent chats   |
 
-The `invoke_agent coder` span also carries `gen_ai.agent.name` (`coder`).
+The `invoke_agent coder` span also carries `gen_ai.agent.name` (`coder`) and, once the turn selects a model, `gen_ai.provider.name`.
 
 The `chat` span carries the model call's details:
 

@@ -148,6 +148,9 @@ type StageModel struct {
 	ProviderType string
 	Model        string
 	Effort       string
+	// Bedrock reports that the provider serves the model through AWS
+	// Bedrock, which an anthropic provider type can do.
+	Bedrock bool
 }
 
 func (m StageModel) attributes() []attribute.KeyValue {
