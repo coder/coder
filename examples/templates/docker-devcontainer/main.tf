@@ -169,7 +169,7 @@ module "devcontainers-cli" {
   # This ensures that the latest non-breaking version of the module gets
   # downloaded, you can also pin the module version to prevent breaking
   # changes in production.
-  version = "~> 1.0"
+  version = "~> 2.0"
 }
 
 # See https://registry.coder.com/modules/coder/git-clone
