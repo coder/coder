@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { screen, userEvent } from "storybook/test";
-import type { OrganizationAISpendOverview } from "#/api/typesGenerated";
-import { MockOrganizationAISpendOverview } from "#/testHelpers/entities";
+import type {
+	OrganizationAISpendModel,
+	OrganizationAISpendOverview,
+	OrganizationAISpendUser,
+} from "#/api/typesGenerated";
+import {
+	MockOrganizationAISpendOverview,
+	MockOrganizationAISpendUser,
+} from "#/testHelpers/entities";
 import { MICROS_PER_DOLLAR } from "#/utils/currency";
 import { TopSpendersCard } from "./TopSpendersCard";
 
@@ -33,10 +40,56 @@ const mockBusyOverview: OrganizationAISpendOverview = {
 	})),
 };
 
+const mockUnpricedLlamaModel: OrganizationAISpendModel = {
+	name: "llama-4-maverick",
+	cost_micros: 0,
+	has_unpriced_usage: true,
+};
+
+const mockUnpricedModelsByName: Record<string, OrganizationAISpendModel[]> = {
+	"Maya Patel": [mockUnpricedLlamaModel],
+	"Jane Doe": [mockUnpricedLlamaModel],
+};
+
+// Each user spent everything on one priced model, plus any unpriced ones.
+// Jane used that model before it had a price, so it also counts as unpriced.
+const mockTopSpenders: OrganizationAISpendUser[] = mockBusyOverview.users.map(
+	(user) => ({
+		...MockOrganizationAISpendUser,
+		user_id: user.user_id,
+		cost_micros: user.spend_micros,
+		provider_spend: [
+			{
+				...MockOrganizationAISpendUser.provider_spend[0],
+				cost_micros: user.spend_micros,
+			},
+		],
+		model_spend: [
+			{
+				name: "claude-opus-4-6",
+				cost_micros: user.spend_micros,
+				has_unpriced_usage: user.name === "Jane Doe",
+			},
+			...(mockUnpricedModelsByName[user.name] ?? []),
+		],
+		client_spend: [
+			{
+				name: "Claude Code",
+				cost_micros: user.spend_micros,
+				has_unpriced_usage: false,
+			},
+		],
+	}),
+);
+
 const meta = {
 	title: "pages/AISettingsPage/AISpendPage/TopSpendersCard",
 	component: TopSpendersCard,
-	args: { overview: mockBusyOverview, canViewSessions: true },
+	args: {
+		overview: mockBusyOverview,
+		topSpenderDetails: mockTopSpenders,
+		canViewSessions: true,
+	},
 	decorators: [
 		(Story) => (
 			<div className="max-w-xl">
@@ -61,6 +114,27 @@ export const MenuOpen: Story = {
 			screen.getByRole("button", { name: "Open menu for Maya Patel" }),
 		);
 	},
+};
+
+export const UnpricedModelTooltipOpen: Story = {
+	play: async () => {
+		await userEvent.click(
+			screen.getByRole("button", { name: "1 model without pricing" }),
+		);
+	},
+};
+
+export const UnpricedModelsTooltipOpen: Story = {
+	play: async () => {
+		await userEvent.click(
+			screen.getByRole("button", { name: "2 models without pricing" }),
+		);
+	},
+};
+
+/** The warnings follow once the users' details load. */
+export const UnpricedModelsLoading: Story = {
+	args: { topSpenderDetails: undefined },
 };
 
 /** Every user with spend fits in the list, so there is no summary. */
