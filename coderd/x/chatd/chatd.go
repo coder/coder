@@ -1245,9 +1245,6 @@ type Config struct {
 	Experiments                    codersdk.Experiments
 	PrometheusRegistry             prometheus.Registerer
 	TracerProvider                 trace.TracerProvider
-	// TraceContentCapture records prompts, responses, and tool payloads
-	// on GenAI spans.
-	TraceContentCapture bool
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1390,10 +1387,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
-	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics,
-		chatloop.WithClock(clk),
-		chatloop.WithContentCapture(cfg.TraceContentCapture),
-	)
+	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics, chatloop.WithClock(clk))
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,

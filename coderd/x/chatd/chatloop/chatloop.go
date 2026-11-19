@@ -305,9 +305,6 @@ type stepResult struct {
 	// unfinishedToolCalls holds local calls whose input started streaming
 	// but never completed into a ToolCall.
 	unfinishedToolCalls []fantasy.ToolCallContent
-	// unfinishedContent holds text and reasoning that never received an
-	// end part. It is traced, not persisted.
-	unfinishedContent []fantasy.Content
 }
 
 // reasoningState accumulates reasoning content and provider
@@ -409,19 +406,15 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
-	// finish surfaces a silence timeout that ended the stream without an
-	// error part.
-	finishErr := attempt.finish(processErr)
 	inference = InferenceResponse{
 		ResponseID:   result.providerResponseID,
 		FinishReason: result.finishReason,
 		Usage:        result.usage,
-		Content:      append(slices.Clip(result.content), result.unfinishedContent...),
 	}
 	// Observe before error handling so failed or rejected responses are still counted.
 	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
-	if finishErr != nil {
-		wrappedErr := wrapProviderStreamError(errorProvider, finishErr)
+	if err := attempt.finish(processErr); err != nil {
+		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
@@ -998,21 +991,6 @@ func processStepStream(
 	toolNames := make(map[string]string)
 	var startedToolInputIDs []string
 
-	// Text and reasoning blocks still open when the stream stops are kept
-	// for tracing a failed or cut-off response.
-	collectUnfinished := func() {
-		for _, id := range slices.Sorted(maps.Keys(activeReasoningContent)) {
-			if text := activeReasoningContent[id].text; text != "" {
-				result.unfinishedContent = append(result.unfinishedContent, fantasy.ReasoningContent{Text: text})
-			}
-		}
-		for _, id := range slices.Sorted(maps.Keys(activeTextContent)) {
-			if text := activeTextContent[id].text; text != "" {
-				result.unfinishedContent = append(result.unfinishedContent, fantasy.TextContent{Text: text})
-			}
-		}
-	}
-
 	for part := range stream {
 		// Counts Delta on every part type. This relies on providers keeping
 		// summary data, such as ToolCall input, out of Delta. Only
@@ -1192,11 +1170,9 @@ func processStepStream(
 			result.providerResponseID = providerResponseID(part)
 
 		case fantasy.StreamPartTypeError:
-			collectUnfinished()
 			return result, part.Error
 		}
 	}
-	collectUnfinished()
 
 	for _, id := range startedToolInputIDs {
 		providerExecuted, unfinished := providerExecutedCalls[id]
@@ -1316,11 +1292,6 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 			executions[i].interval.End = completedAt
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
-			}
-			// The conventions define a result only for calls that ran
-			// successfully.
-			if execErr == nil {
-				toolSpan.SetToolResult(executions[i].content)
 			}
 			toolSpan.End(execErr)
 		}()

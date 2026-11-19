@@ -62,26 +62,8 @@ The `chat` span carries the model call's details:
 The `execute_tool` span carries `gen_ai.tool.name`, `gen_ai.tool.call.id`, and `gen_ai.tool.type`.
 The tool type is `function` for built-in Coder Agents tools and `extension` for other tools, such as tools from MCP servers.
 
-The operation name, provider, and model are set when the span starts, so samplers can use them.
+The operation name, provider, model, and tool attributes are set when the span starts, so samplers can use them.
 A failed span has an error status and an `error.type` attribute.
 
-## Capture prompts, responses, and tool payloads
-
-By default, spans contain metadata only.
-To also record message content, start the server with `--chat-trace-content-capture-enabled` (`CODER_CHAT_TRACE_CONTENT_CAPTURE_ENABLED=true`).
-
-> [!IMPORTANT]
-> Prompts, responses, and tool payloads can contain source code, credentials, and other sensitive data.
-> Anyone with access to your tracing backend can read them.
-
-With content capture enabled:
-
-- Each `chat` span records `gen_ai.input.messages` and `gen_ai.output.messages`.
-  The input contains only the messages that the model call responds to, such as the user's prompt or the tool results since the previous model reply, not the whole conversation.
-  System instructions are not recorded.
-- Each `execute_tool` span records `gen_ai.tool.call.arguments`, and `gen_ai.tool.call.result` when the tool runs without failing.
-
-File attachments, images, source citations, and tools that the model provider runs, such as web search, are not recorded.
-Each content attribute is limited to 64 KiB.
-When messages exceed the limit, the text of each message part is shortened so the value stays valid JSON.
-A tool argument or result that is not JSON, or that exceeds the limit, is recorded as a JSON string, shortened if needed.
+Spans contain metadata only.
+Prompts, model responses, and tool arguments and results are not recorded.

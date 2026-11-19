@@ -97,9 +97,6 @@ type StageTracer struct {
 	tracer  trace.Tracer
 	metrics *Metrics
 	clock   quartz.Clock
-	// captureContent records prompts, responses, and tool payloads on
-	// GenAI spans.
-	captureContent bool
 }
 
 // StageTracerOption configures a StageTracer.
@@ -109,14 +106,6 @@ type StageTracerOption func(*StageTracer)
 func WithClock(clock quartz.Clock) StageTracerOption {
 	return func(t *StageTracer) {
 		t.clock = clock
-	}
-}
-
-// WithContentCapture records prompts, responses, and tool payloads on
-// GenAI spans. They can contain sensitive data, so it is off by default.
-func WithContentCapture(enabled bool) StageTracerOption {
-	return func(t *StageTracer) {
-		t.captureContent = enabled
 	}
 }
 
@@ -252,10 +241,8 @@ func (t *StageTracer) StartTool(
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
 	attrs = append(attrs, genAIToolAttributes(call, toolType)...)
-	ctx, span := t.startSpan(ctx, StageToolCall, scopeFromContext(ctx), time.Time{}, model, call.ToolName,
+	return t.startSpan(ctx, StageToolCall, scopeFromContext(ctx), time.Time{}, model, call.ToolName,
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
-	span.setToolArguments(call.Input)
-	return ctx, span
 }
 
 // StartRootAt begins a turn-scoped span in a new trace, backdated to

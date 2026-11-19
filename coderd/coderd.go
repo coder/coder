@@ -961,7 +961,6 @@ func New(options *Options) *API {
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
 				TracerProvider:                 options.TracerProvider,
-				TraceContentCapture:            options.DeploymentValues.AI.Chat.TraceContentCaptureEnabled.Value(),
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,

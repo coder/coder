@@ -2,9 +2,7 @@ package chatloop
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -141,17 +139,6 @@ func spanAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) string 
 	return ""
 }
 
-func requireNoContentAttributes(t *testing.T, span sdktrace.ReadOnlySpan) {
-	t.Helper()
-	for _, attr := range span.Attributes() {
-		switch string(attr.Key) {
-		case "gen_ai.input.messages", "gen_ai.output.messages",
-			"gen_ai.tool.call.arguments", "gen_ai.tool.call.result":
-			t.Fatalf("span %s captured %s without content capture", span.Name(), attr.Key)
-		}
-	}
-}
-
 // recordingSampler records what the sampler sees when each span starts.
 type recordingSampler struct {
 	mu     sync.Mutex
@@ -187,7 +174,7 @@ type stageMetricsFixture struct {
 	clock    *quartz.Mock
 }
 
-func newStageMetricsFixture(t *testing.T, opts ...StageTracerOption) stageMetricsFixture {
+func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
@@ -198,7 +185,7 @@ func newStageMetricsFixture(t *testing.T, opts ...StageTracerOption) stageMetric
 	metrics := NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: true})
 	clock := quartz.NewMock(t)
 	return stageMetricsFixture{
-		tracer:   NewStageTracer(provider, metrics, append([]StageTracerOption{WithClock(clock)}, opts...)...),
+		tracer:   NewStageTracer(provider, metrics, WithClock(clock)),
 		spans:    recorder,
 		registry: registry,
 		metrics:  metrics,
@@ -442,7 +429,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 	t.Parallel()
 
 	stageModel := StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"}
-	generateWithMessages := func(t *testing.T, fixture stageMetricsFixture, messages []fantasy.Message, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
+	generateWith := func(t *testing.T, fixture stageMetricsFixture, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
 		t.Helper()
 		model := &chattest.FakeModel{
 			ProviderName: "anthropic",
@@ -451,17 +438,13 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		}
 		_, err := GenerateAssistant(t.Context(), GenerateAssistantOptions{
 			Model:      model,
-			Messages:   messages,
+			Messages:   []fantasy.Message{},
 			Clock:      fixture.clock,
 			Metrics:    fixture.metrics,
 			Stages:     fixture.tracer,
 			StageModel: stageModel,
 		})
 		return err
-	}
-	generateWith := func(t *testing.T, fixture stageMetricsFixture, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
-		t.Helper()
-		return generateWithMessages(t, fixture, []fantasy.Message{}, streamFn)
 	}
 
 	generate := func(t *testing.T, fixture stageMetricsFixture, parts []fantasy.StreamPart) error {
@@ -508,7 +491,6 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			attribute.Int("gen_ai.usage.cache_read.input_tokens", 3),
 			attribute.Int("gen_ai.usage.cache_creation.input_tokens", 2),
 		})
-		requireNoContentAttributes(t, stream)
 		ttft := endedSpan(t, fixture.spans, StageTimeToFirstToken)
 		require.Equal(t, codes.Unset, stream.Status().Code)
 		require.Equal(t, codes.Unset, ttft.Status().Code)
@@ -521,61 +503,6 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			attribute.String(AttrReasoningEffort, stageModel.Effort),
 		})
 		requireStreamObserved(t, fixture)
-	})
-
-	t.Run("ContentCaptureRecordsOnlyTheStep", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-
-		messages := []fantasy.Message{
-			{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system prompt"}}},
-			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "earlier prompt"}}},
-			{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{fantasy.ToolCallPart{ToolCallID: "call-1", ToolName: "read_file", Input: `{"path":"a"}`}}},
-			{Role: fantasy.MessageRoleTool, Content: []fantasy.MessagePart{fantasy.ToolResultPart{ToolCallID: "call-1", Output: fantasy.ToolResultOutputContentText{Text: "file body"}}}},
-		}
-		err := generateWithMessages(t, fixture, messages, func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-			return streamFromParts([]fantasy.StreamPart{
-				{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-				{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
-				{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-			}), nil
-		})
-		require.NoError(t, err)
-
-		stream := endedSpan(t, fixture.spans, StageStream)
-		require.JSONEq(t,
-			`[{"role":"tool","parts":[{"type":"tool_call_response","id":"call-1","response":"file body"}]}]`,
-			spanAttribute(t, stream, "gen_ai.input.messages"))
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
-			spanAttribute(t, stream, "gen_ai.output.messages"))
-	})
-
-	t.Run("ContentCaptureKeepsOversizedMessagesValidJSON", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-
-		prompt := strings.Repeat(`"quoted" `, MaxContentAttributeBytes)
-		err := generateWithMessages(t, fixture, []fantasy.Message{
-			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: prompt}}},
-		}, func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-			return streamFromParts([]fantasy.StreamPart{
-				{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-				{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
-				{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-			}), nil
-		})
-		require.NoError(t, err)
-
-		input := spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.input.messages")
-		require.LessOrEqual(t, len(input), MaxContentAttributeBytes)
-		var messages []genAIMessage
-		require.NoError(t, json.Unmarshal([]byte(input), &messages))
-		require.Len(t, messages, 1)
-		require.Len(t, messages[0].Parts, 1)
-		require.True(t, strings.HasPrefix(prompt, messages[0].Parts[0].Content))
 	})
 
 	t.Run("SamplerSeesModelAtCreation", func(t *testing.T) {
@@ -604,28 +531,9 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		})
 	})
 
-	t.Run("ContentCaptureKeepsRequiredEmptyFields", func(t *testing.T) {
+	t.Run("CleanCloseWithoutFinishRecordsStop", func(t *testing.T) {
 		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-
-		err := generate(t, fixture, []fantasy.StreamPart{
-			{Type: fantasy.StreamPartTypeTextStart, ID: "empty"},
-			{Type: fantasy.StreamPartTypeTextEnd, ID: "empty"},
-			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
-			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-		})
-		require.NoError(t, err)
-
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":""},{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
-			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
-	})
-
-	t.Run("ContentCaptureAcceptsCleanCloseWithoutFinish", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+		fixture := newStageMetricsFixture(t)
 
 		err := generate(t, fixture, []fantasy.StreamPart{
 			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
@@ -637,101 +545,6 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Unset, stream.Status().Code)
 		require.Contains(t, stream.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
-			spanAttribute(t, stream, "gen_ai.output.messages"))
-	})
-
-	t.Run("ContentCaptureOmitsProviderExecutedTools", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-
-		err := generate(t, fixture, []fantasy.StreamPart{
-			{Type: fantasy.StreamPartTypeToolCall, ID: "ws", ToolCallName: "web_search", ToolCallInput: `{}`, ProviderExecuted: true},
-			{Type: fantasy.StreamPartTypeToolResult, ID: "ws", ToolCallName: "web_search", ProviderExecuted: true},
-			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
-			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-		})
-		require.NoError(t, err)
-
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]`,
-			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
-	})
-
-	t.Run("ContentCaptureRecordsPartialResponseFinishReason", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-
-		streamErr := xerrors.New("provider dropped the connection")
-		err := generate(t, fixture, []fantasy.StreamPart{
-			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "partial"},
-			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-			{Type: fantasy.StreamPartTypeError, Error: streamErr},
-		})
-		require.ErrorContains(t, err, streamErr.Error())
-
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
-			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
-	})
-
-	t.Run("ContentCaptureRecordsUnfinishedText", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-
-		streamErr := xerrors.New("provider dropped the connection")
-		err := generate(t, fixture, []fantasy.StreamPart{
-			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "partial"},
-			{Type: fantasy.StreamPartTypeError, Error: streamErr},
-		})
-		require.ErrorContains(t, err, streamErr.Error())
-
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
-			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
-	})
-
-	t.Run("ContentCaptureMarksSilentTimeoutAsError", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-		trap := fixture.clock.Trap().AfterFunc(streamSilenceGuardTimerTag)
-		defer trap.Close()
-
-		sent := make(chan struct{})
-		done := make(chan error, 1)
-		go func() {
-			done <- generateWith(t, fixture, func(streamCtx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				return func(yield func(fantasy.StreamPart) bool) {
-					for _, part := range []fantasy.StreamPart{
-						{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
-						{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "partial"},
-						{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
-					} {
-						if !yield(part) {
-							return
-						}
-					}
-					close(sent)
-					// A provider that notices the cancellation can return
-					// without an error part.
-					<-streamCtx.Done()
-				}, nil
-			})
-		}()
-		trap.MustWait(ctx).MustRelease(ctx)
-		testutil.TryReceive(ctx, t, sent)
-		fixture.clock.Advance(DefaultStreamSilenceTimeout).MustWait(ctx)
-		require.Error(t, testutil.TryReceive(ctx, t, done))
-
-		require.JSONEq(t,
-			`[{"role":"assistant","parts":[{"type":"text","content":"partial"}],"finish_reason":"error"}]`,
-			spanAttribute(t, endedSpan(t, fixture.spans, StageStream), "gen_ai.output.messages"))
 	})
 
 	t.Run("OpenFailureEndsStreamWithError", func(t *testing.T) {
@@ -780,6 +593,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Error, stream.Status().Code)
 		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
+		require.Contains(t, stream.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"error"}))
 		requireStreamObserved(t, fixture)
 	})
 
@@ -871,7 +685,6 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 			attribute.String("gen_ai.tool.call.id", "call-1"),
 			attribute.String("gen_ai.tool.type", "extension"),
 		})
-		requireNoContentAttributes(t, toolCall)
 		count, ok := stageSampleCount(t, fixture.registry, StageToolCall)
 		require.True(t, ok)
 		require.Equal(t, uint64(1), count)
@@ -903,53 +716,6 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		})
 	})
 
-	t.Run("ContentCaptureRecordsPayloads", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-		tool := fantasy.NewAgentTool("read_file", "reads a file",
-			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.NewTextResponse("file body"), nil
-			})
-
-		executeWithBuiltins(t, fixture, tool, map[string]bool{"read_file": true})
-
-		toolCall := endedSpan(t, fixture.spans, StageToolCall)
-		require.Subset(t, toolCall.Attributes(), []attribute.KeyValue{
-			attribute.String("gen_ai.tool.type", "function"),
-			attribute.String("gen_ai.tool.call.arguments", "{}"),
-			attribute.String("gen_ai.tool.call.result", `"file body"`),
-		})
-	})
-
-	t.Run("ContentCaptureKeepsOversizedArgumentsValidJSON", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
-		tool := fantasy.NewAgentTool("write_file", "writes a file",
-			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.NewTextResponse(`{"body":"` + strings.Repeat("r", MaxContentAttributeBytes) + `"}`), nil
-			})
-		input := `{"content":"` + strings.Repeat(`\"a`, MaxContentAttributeBytes) + `"}`
-
-		_, err := ExecuteLocalTools(ContextWithScope(t.Context(), ScopeTurn), ExecuteLocalToolsOptions{
-			Tools:       []fantasy.AgentTool{tool},
-			ActiveTools: []string{"write_file"},
-			ToolCalls:   []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: "write_file", Input: input}},
-			// A large window keeps the result under the model's result
-			// budget, so only the span limit applies.
-			ContextLimit: 10_000_000,
-			Stages:       fixture.tracer,
-			Clock:        fixture.clock,
-		})
-		require.NoError(t, err)
-
-		toolCall := endedSpan(t, fixture.spans, StageToolCall)
-		for _, key := range []string{"gen_ai.tool.call.arguments", "gen_ai.tool.call.result"} {
-			value := spanAttribute(t, toolCall, key)
-			require.LessOrEqual(t, len(value), MaxContentAttributeBytes, key)
-			require.True(t, json.Valid([]byte(value)), "%s is not valid JSON", key)
-		}
-	})
-
 	t.Run("ErrorResultEndsWithoutError", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
@@ -969,7 +735,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 
 	t.Run("ExecutionFailureEndsWithError", func(t *testing.T) {
 		t.Parallel()
-		fixture := newStageMetricsFixture(t, WithContentCapture(true))
+		fixture := newStageMetricsFixture(t)
 		runErr := xerrors.New("workspace agent unreachable")
 		tool := fantasy.NewAgentTool("read_file", "reads a file",
 			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -982,10 +748,6 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Equal(t, codes.Error, toolCall.Status().Code)
 		require.Equal(t, runErr.Error(), recordedErrorMessage(t, toolCall))
 		require.NotEmpty(t, spanAttribute(t, toolCall, "error.type"))
-		// The conventions define a result only for successful calls.
-		for _, attr := range toolCall.Attributes() {
-			require.NotEqual(t, "gen_ai.tool.call.result", string(attr.Key))
-		}
 	})
 
 	t.Run("PanicEndsWithError", func(t *testing.T) {

@@ -2342,11 +2342,6 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
-	/**
-	 * TraceContentCaptureEnabled records prompts, responses, and tool
-	 * payloads on Coder Agents OpenTelemetry spans.
-	 */
-	readonly trace_content_capture_enabled: boolean;
 	readonly hook_url: string;
 	readonly hook_secret: string;
 	readonly hook_timeout: number;

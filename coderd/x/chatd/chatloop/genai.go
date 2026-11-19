@@ -2,10 +2,7 @@ package chatloop
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"strings"
-	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -33,10 +30,6 @@ const (
 	AttrParentChatID   = "coder.chat.parent_id"
 	AttrRootChatID     = "coder.chat.root_id"
 )
-
-// MaxContentAttributeBytes bounds each captured content attribute so one
-// large prompt or tool payload cannot exceed exporter message limits.
-const MaxContentAttributeBytes = 64 << 10
 
 // ChatIdentity attributes GenAI spans to a chat and its owner.
 type ChatIdentity struct {
@@ -194,23 +187,7 @@ func genAIToolAttributes(call fantasy.ToolCallContent, toolType string) []attrib
 	return attrs
 }
 
-func (s *StageSpan) setToolArguments(input string) {
-	if s.capturesContent() && input != "" {
-		s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallArgumentsKey), jsonAttributeValue(input)))
-	}
-}
-
-// SetToolResult records the tool result when content capture is enabled.
-func (s *StageSpan) SetToolResult(result fantasy.ToolResultContent) {
-	if !s.capturesContent() || result.Result == nil {
-		return
-	}
-	s.span.SetAttributes(attribute.String(string(semconv.GenAIToolCallResultKey), jsonAttributeValue(toolResultText(result.Result))))
-}
-
-// SetInferenceRequest records request attributes of a chat span. With
-// content capture enabled it records the messages added since the last
-// assistant message, so each span carries only its own step's input.
+// SetInferenceRequest records request attributes of a chat span.
 func (s *StageSpan) SetInferenceRequest(call fantasy.Call) {
 	if s == nil || s.ended {
 		return
@@ -221,12 +198,6 @@ func (s *StageSpan) SetInferenceRequest(call fantasy.Call) {
 	if call.Temperature != nil {
 		s.span.SetAttributes(semconv.GenAIRequestTemperature(*call.Temperature))
 	}
-	if !s.capturesContent() {
-		return
-	}
-	if encoded, ok := encodeMessages(stepInputMessages(call.Prompt)); ok {
-		s.span.SetAttributes(attribute.String(string(semconv.GenAIInputMessagesKey), encoded))
-	}
 }
 
 // InferenceResponse is the outcome of one chat span.
@@ -234,7 +205,6 @@ type InferenceResponse struct {
 	ResponseID   string
 	FinishReason fantasy.FinishReason
 	Usage        fantasy.Usage
-	Content      []fantasy.Content
 }
 
 // SetInferenceResponse records response attributes of a chat span.
@@ -249,23 +219,12 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 	attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
 	attrs = append(attrs, usageAttributes(resp.Usage)...)
 	s.span.SetAttributes(attrs...)
-	if !s.capturesContent() || len(resp.Content) == 0 {
-		return
-	}
-	msg := genAIMessage{
-		Role:         string(fantasy.MessageRoleAssistant),
-		Parts:        contentParts(resp.Content),
-		FinishReason: genAIFinishReason(resp.FinishReason),
-	}
-	if encoded, ok := encodeMessages([]genAIMessage{msg}); ok {
-		s.span.SetAttributes(attribute.String(string(semconv.GenAIOutputMessagesKey), encoded))
-	}
 }
 
 // genAIFinishReason maps a fantasy finish reason to the GenAI finish
-// reason enum. The output message schema requires one, and the enum has
-// no value for a missing or unclassified reason. GenerateAssistant marks
-// every failed call as error, so those map to stop.
+// reason enum, which has no value for a missing or unclassified reason.
+// GenerateAssistant marks every failed call as error, so those map to
+// stop.
 func genAIFinishReason(reason fantasy.FinishReason) string {
 	switch reason {
 	case fantasy.FinishReasonLength:
@@ -298,234 +257,4 @@ func usageAttributes(usage fantasy.Usage) []attribute.KeyValue {
 		attrs = append(attrs, semconv.GenAIUsageReasoningOutputTokens(int(usage.ReasoningTokens)))
 	}
 	return attrs
-}
-
-func (s *StageSpan) capturesContent() bool {
-	return s != nil && !s.ended && s.tracer != nil && s.tracer.captureContent && s.span.IsRecording()
-}
-
-// genAIMessage and genAIPart follow the GenAI input and output message
-// JSON schemas.
-type genAIMessage struct {
-	Role         string      `json:"role"`
-	Parts        []genAIPart `json:"parts"`
-	FinishReason string      `json:"finish_reason,omitempty"`
-}
-
-type genAIPart struct {
-	Type      string          `json:"type"`
-	Content   string          `json:"content,omitempty"`
-	ID        string          `json:"id,omitempty"`
-	Name      string          `json:"name,omitempty"`
-	Arguments json.RawMessage `json:"arguments,omitempty"`
-	Response  string          `json:"response,omitempty"`
-}
-
-// MarshalJSON keeps the fields each part type requires, even when they
-// are empty.
-func (p genAIPart) MarshalJSON() ([]byte, error) {
-	switch p.Type {
-	case "text", "reasoning":
-		return json.Marshal(struct {
-			Type    string `json:"type"`
-			Content string `json:"content"`
-		}{p.Type, p.Content})
-	case "tool_call_response":
-		return json.Marshal(struct {
-			Type     string `json:"type"`
-			ID       string `json:"id,omitempty"`
-			Response string `json:"response"`
-		}{p.Type, p.ID, p.Response})
-	default:
-		type plain genAIPart
-		return json.Marshal(plain(p))
-	}
-}
-
-// stepInputMessages returns the non-system messages after the last
-// assistant message: the user prompt or the tool results the step
-// responds to.
-func stepInputMessages(prompt []fantasy.Message) []genAIMessage {
-	start := 0
-	for i := len(prompt) - 1; i >= 0; i-- {
-		if prompt[i].Role == fantasy.MessageRoleAssistant {
-			start = i + 1
-			break
-		}
-	}
-	messages := make([]genAIMessage, 0, len(prompt)-start)
-	for _, msg := range prompt[start:] {
-		if msg.Role == fantasy.MessageRoleSystem {
-			continue
-		}
-		parts := make([]genAIPart, 0, len(msg.Content))
-		for _, part := range msg.Content {
-			if p, ok := messagePart(part); ok {
-				parts = append(parts, p)
-			}
-		}
-		messages = append(messages, genAIMessage{Role: string(msg.Role), Parts: parts})
-	}
-	return messages
-}
-
-func messagePart(part fantasy.MessagePart) (genAIPart, bool) {
-	switch p := part.(type) {
-	case fantasy.TextPart:
-		return genAIPart{Type: "text", Content: p.Text}, true
-	case fantasy.ReasoningPart:
-		return genAIPart{Type: "reasoning", Content: p.Text}, true
-	case fantasy.ToolCallPart:
-		if p.ProviderExecuted {
-			// Server tool parts require provider-specific details that
-			// fantasy does not keep.
-			return genAIPart{}, false
-		}
-		return toolCallPart(p.ToolCallID, p.ToolName, p.Input), true
-	case fantasy.ToolResultPart:
-		if p.ProviderExecuted {
-			return genAIPart{}, false
-		}
-		return genAIPart{Type: "tool_call_response", ID: p.ToolCallID, Response: toolResultText(p.Output)}, true
-	default:
-		// File parts are left out: the schema requires their bytes.
-		return genAIPart{}, false
-	}
-}
-
-func contentParts(content []fantasy.Content) []genAIPart {
-	parts := make([]genAIPart, 0, len(content))
-	for _, c := range content {
-		switch p := c.(type) {
-		case fantasy.TextContent:
-			parts = append(parts, genAIPart{Type: "text", Content: p.Text})
-		case fantasy.ReasoningContent:
-			parts = append(parts, genAIPart{Type: "reasoning", Content: p.Text})
-		case fantasy.ToolCallContent:
-			// Server tool parts require provider-specific details that
-			// fantasy does not keep.
-			if !p.ProviderExecuted {
-				parts = append(parts, toolCallPart(p.ToolCallID, p.ToolName, p.Input))
-			}
-		case fantasy.ToolResultContent:
-			if p.Result != nil && !p.ProviderExecuted {
-				parts = append(parts, genAIPart{Type: "tool_call_response", ID: p.ToolCallID, Response: toolResultText(p.Result)})
-			}
-		}
-		// File and source content is left out: the schema requires file
-		// bytes and a modality that citations do not have.
-	}
-	return parts
-}
-
-func toolCallPart(id, name, input string) genAIPart {
-	part := genAIPart{Type: "tool_call", ID: id, Name: name}
-	if json.Valid([]byte(input)) {
-		part.Arguments = json.RawMessage(input)
-	} else if input != "" {
-		if encoded, err := json.Marshal(input); err == nil {
-			part.Arguments = encoded
-		}
-	}
-	return part
-}
-
-// toolResultText omits media bytes, keeping any accompanying text.
-func toolResultText(output fantasy.ToolResultOutputContent) string {
-	switch o := output.(type) {
-	case fantasy.ToolResultOutputContentText:
-		return o.Text
-	case fantasy.ToolResultOutputContentError:
-		if o.Error == nil {
-			return ""
-		}
-		return o.Error.Error()
-	case fantasy.ToolResultOutputContentMedia:
-		return o.Text
-	default:
-		return ""
-	}
-}
-
-// encodeMessages marshals messages within MaxContentAttributeBytes. When
-// they do not fit, it clips every part's text to a shrinking budget so the
-// value stays valid JSON.
-func encodeMessages(messages []genAIMessage) (string, bool) {
-	if len(messages) == 0 {
-		return "", false
-	}
-	encoded, err := json.Marshal(messages)
-	if err != nil {
-		return "", false
-	}
-	if len(encoded) <= MaxContentAttributeBytes {
-		return string(encoded), true
-	}
-	parts := 0
-	for _, msg := range messages {
-		parts += len(msg.Parts)
-	}
-	// JSON escaping can expand text, so halve the budget until it fits.
-	for budget := MaxContentAttributeBytes / max(parts, 1); budget > 0; budget /= 2 {
-		encoded, err = json.Marshal(clipMessages(messages, budget))
-		if err != nil {
-			return "", false
-		}
-		if len(encoded) <= MaxContentAttributeBytes {
-			return string(encoded), true
-		}
-	}
-	return "", false
-}
-
-func clipMessages(messages []genAIMessage, budget int) []genAIMessage {
-	clipped := make([]genAIMessage, len(messages))
-	for i, msg := range messages {
-		clipped[i] = msg
-		clipped[i].Parts = make([]genAIPart, len(msg.Parts))
-		for j, part := range msg.Parts {
-			part.Content = truncateBytes(part.Content, budget)
-			part.Response = truncateBytes(part.Response, budget)
-			if len(part.Arguments) > budget {
-				// Clipped arguments are no longer a JSON object, so they
-				// are recorded as a string.
-				if encoded, err := json.Marshal(truncateBytes(string(part.Arguments), budget)); err == nil {
-					part.Arguments = encoded
-				} else {
-					part.Arguments = nil
-				}
-			}
-			clipped[i].Parts[j] = part
-		}
-	}
-	return clipped
-}
-
-// jsonAttributeValue returns s when it is JSON that fits. Otherwise it
-// returns a JSON string of s, or of a prefix that fits, since the
-// conventions record tool payloads as serialized JSON on spans.
-func jsonAttributeValue(s string) string {
-	if len(s) <= MaxContentAttributeBytes && json.Valid([]byte(s)) {
-		return s
-	}
-	// JSON escaping can expand text, so halve the budget until it fits.
-	for budget := MaxContentAttributeBytes; budget > 0; budget /= 2 {
-		encoded, err := json.Marshal(truncateBytes(s, budget))
-		if err == nil && len(encoded) <= MaxContentAttributeBytes {
-			return string(encoded)
-		}
-	}
-	return `""`
-}
-
-// truncateBytes cuts s to at most limit bytes on a rune boundary.
-func truncateBytes(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	cut := limit
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return strings.ToValidUTF8(s[:cut], "\uFFFD")
 }
