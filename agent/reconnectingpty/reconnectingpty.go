@@ -295,7 +295,10 @@ func (s *ptyState) setState(state State, err error) {
 func (s *ptyState) exitError() *ExitError {
 	s.cond.L.Lock()
 	defer s.cond.L.Unlock()
-	exitErr, _ := errors.AsType[*ExitError](s.error)
+	var exitErr *ExitError
+	if !errors.As(s.error, &exitErr) {
+		return nil
+	}
 	return exitErr
 }
 
