@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/internal/testutil/mockprovider"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -190,7 +191,7 @@ func TestForwardingHandlerRejects(t *testing.T) {
 		t.Error("rejected requests must not call upstream")
 	}))
 	t.Cleanup(upstream.Close)
-	prov := &testutil.MockProvider{
+	prov := &mockprovider.MockProvider{
 		NameStr: "test", URL: upstream.URL,
 		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
 			t.Error("forwarding must not create an interceptor")
