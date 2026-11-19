@@ -1052,6 +1052,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 			roles = append(roles, role)
 		}
 	}
+	sortRolesByName(roles)
 	return roles
 }
 
@@ -1069,7 +1070,16 @@ func SiteBuiltInRoles() []Role {
 			roles = append(roles, role)
 		}
 	}
+	sortRolesByName(roles)
 	return roles
+}
+
+// sortRolesByName gives a stable order to roles collected from the
+// builtInRoles map, whose iteration order is random.
+func sortRolesByName(roles []Role) {
+	slices.SortFunc(roles, func(a, b Role) int {
+		return strings.Compare(a.Identifier.Name, b.Identifier.Name)
+	})
 }
 
 // ChangeRoleSet is a helper function that finds the difference of 2 sets of
