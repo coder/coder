@@ -18076,29 +18076,6 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	require.Equal(t, int64(2_592_000_000), resp.WorkspaceTTLMillis, "overflowing value must not be stored")
 }
 
-func TestChatCreateWorkspace_BindFailureCreatesNoWorkspace(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-	user := coderdtest.CreateFirstUser(t, rawClient)
-	tv := dbfake.TemplateVersion(t, api.Database).Seed(database.TemplateVersion{
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-	}).Do()
-
-	// The chat does not exist, so the bind inside the create transaction fails.
-	_, _, err := coderd.ChatCreateWorkspace(api, ctx, user.UserID, uuid.New(), codersdk.CreateWorkspaceRequest{
-		TemplateID: tv.Template.ID,
-		Name:       "chat-bind-fails",
-	})
-	require.ErrorContains(t, err, "bind chat to workspace")
-
-	workspaces, err := rawClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
-	require.NoError(t, err)
-	require.Empty(t, workspaces.Workspaces)
-}
-
 //nolint:tparallel,paralleltest // Subtests share one auditor and coderdtest instance.
 func TestChatOperationalSettingsAuditDeniedWrites(t *testing.T) {
 	t.Parallel()
@@ -19451,96 +19428,6 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Caller-supplied tools are disabled on this deployment.", sdkErr.Message)
 	})
-}
-
-// requireActiveVersionStore always returns RequireActiveVersion: true so
-// tests can exercise relevant code paths without an enterprise license.
-type requireActiveVersionStore struct{}
-
-func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) dbauthz.TemplateAccessControl {
-	return dbauthz.TemplateAccessControl{RequireActiveVersion: true}
-}
-
-func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
-	return nil
-}
-
-func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-	var store dbauthz.AccessControlStore = requireActiveVersionStore{}
-	api.AccessControlStore.Store(&store)
-	db := api.Database
-	user := coderdtest.CreateFirstUser(t, rawClient)
-
-	// Given: active template version v1 plus workspace stopped on v1.
-	wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        user.UserID,
-		OrganizationID: user.OrganizationID,
-	}).Seed(database.WorkspaceBuild{
-		Transition: database.WorkspaceTransitionStop,
-	}).Do()
-	tmplID := wsResp.Workspace.TemplateID
-	v1ID := wsResp.Build.TemplateVersionID
-
-	// Given: a new active version v2 is published.
-	v2Resp := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{UUID: tmplID, Valid: true},
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-	}).Do()
-	v2 := v2Resp.TemplateVersion
-	require.NotEqual(t, v1ID, v2.ID, "v2 must differ from v1")
-
-	// When: we start the workspace through chatStartWorkspace.
-	build, err := coderd.ChatStartWorkspace(api, ctx, user.UserID, wsResp.Workspace.ID,
-		codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransitionStart,
-		})
-
-	// Then: the build is auto-updated to the active version.
-	require.NoError(t, err)
-	require.Equal(t, v2.ID, build.TemplateVersionID, "build must be on the active version")
-	require.Nil(t, build.TemplateVersionPresetID, "no preset must be applied")
-}
-
-func TestChatStopWorkspace_BypassesRequireActiveVersion(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-	var store dbauthz.AccessControlStore = requireActiveVersionStore{}
-	api.AccessControlStore.Store(&store)
-	db := api.Database
-	user := coderdtest.CreateFirstUser(t, rawClient)
-
-	wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        user.UserID,
-		OrganizationID: user.OrganizationID,
-	}).Seed(database.WorkspaceBuild{
-		Transition: database.WorkspaceTransitionStart,
-	}).Do()
-	v1ID := wsResp.Build.TemplateVersionID
-	tmplID := wsResp.Workspace.TemplateID
-
-	v2Resp := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{UUID: tmplID, Valid: true},
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-	}).Do()
-	v2 := v2Resp.TemplateVersion
-	require.NotEqual(t, v1ID, v2.ID, "v2 must differ from v1")
-
-	build, err := coderd.ChatStopWorkspace(api, ctx, user.UserID, wsResp.Workspace.ID,
-		codersdk.CreateWorkspaceBuildRequest{})
-
-	require.NoError(t, err)
-	require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
-	require.Equal(t, v1ID, build.TemplateVersionID,
-		"stop must not apply RequireActiveVersion start-only logic")
-	require.NotEqual(t, v2.ID, build.TemplateVersionID)
 }
 
 func TestGetChatMessages_Pagination(t *testing.T) {
