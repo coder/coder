@@ -9,15 +9,12 @@ Common traits of a sandbox include:
 - **Network isolation**: agents run with no (or limited) network access, which reduces the risk of data loss, a compromised supply chain, or prompt injection.
 - **Secrets isolation**: agents run with isolated or scoped-down secrets and identity, compared to the user, which reduces the blast radius.
 
-A Coder sandbox is a workspace, so it waits for a workspace build: Terraform, scheduling, the image pull, the agent connection, and startup scripts.
-In exchange, the sandbox runs on any infrastructure a Coder template can provision.
-With [prebuilt workspaces](./prebuilt-workspaces.md) and a template that keeps the Pod at claim, a Kubernetes sandbox can be ready in about 2&nbsp;seconds.
-For this and other methods, refer to [Fast startup](#fast-startup).
+Additionally, sandboxes are often seen as faster and lighter weight than traditional compute, quickly provisioning for agentic tasks.
+Coder workspaces can have every trait of a sandbox, including fast startup, and Coder supports the wider sandbox ecosystem.
+Each trait is a building block you add to a template based on your infrastructure and requirements, giving you control over where and how agents run.
 
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the previous definitions.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
-
-Each trait is independent, so you can combine only the ones your agents need.
 
 | Trait                                   | Options                                                       | Main tradeoff                                                          |
 |-----------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
