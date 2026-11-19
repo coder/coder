@@ -16,7 +16,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -750,6 +749,10 @@ func TestWorkspaceWSRelatedTags(t *testing.T) {
 	fields := collectWSRelatedFields(reflect.TypeFor[codersdk.Workspace](), nil, "")
 	require.NotEmpty(t, fields)
 
+	// This test works by checking that each field gets a non-zero value when its `wsrelated` tag is used as the
+	// wsreleated.Config. However, some fields are mutually exclusive, so cannot all be non-zero from a single
+	// fixture. These fields are related to healthy and unhealthy workspaces. So this test includes both a healthy
+	// and an unhealthy workspace as fixtures, and considers the field a pass if the field is non-zero for either.
 	healthy := newWSRelatedFixture()
 	fixtures := []wsrelatedFixture{healthy, healthy.unhealthy()}
 	apis := make([]*API, len(fixtures))
@@ -757,7 +760,7 @@ func TestWorkspaceWSRelatedTags(t *testing.T) {
 		apis[i] = f.newAPI(t)
 	}
 
-	// Convert one workspace per fixture for each distinct tag.
+	// Convert one workspace per fixture (healthy, unhealthy) for each distinct `wsrelated` tag.
 	results := map[string][]codersdk.Workspace{}
 	for _, field := range fields {
 		if _, ok := results[field.tag]; ok {
