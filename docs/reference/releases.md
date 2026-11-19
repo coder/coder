@@ -62,6 +62,7 @@ A fix might ship only in mainline and stable, in which case the supported path f
 
 Patch releases do not include database migrations (schema changes).
 Changes that require a database migration ship in the next minor release.
+Because patch releases don't include database migrations, you can upgrade between patch releases of the same minor version, such as v2.38.5 to v2.38.10, with a rolling update.
 
 ## Release channels
 
