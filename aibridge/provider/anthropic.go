@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
@@ -188,6 +189,14 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// CreateExtractor serves the messages route.
+func (p *Anthropic) CreateExtractor(path string) extractors.Extractor {
+	if path == p.RoutePrefix()+routeMessages {
+		return extractors.NewMessages()
+	}
+	return nil
 }
 
 // ResolveCredential determines the upstream credential for a request.
