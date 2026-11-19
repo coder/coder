@@ -261,7 +261,6 @@ const ButtonPreview: React.FC<ButtonPreviewProps> = ({
 			</div>
 			<Button
 				variant="default"
-				disabled={clipboard.showCopiedSuccess}
 				onClick={() => {
 					const textToCopy = getClipboardCopyContent(template, buttonValues);
 					clipboard.copyToClipboard(textToCopy);

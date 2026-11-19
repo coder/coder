@@ -48,6 +48,8 @@ The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions
 By default it shows sessions with activity in the last 24&nbsp;hours.
 Use the time range filter in the filter bar to widen or narrow the window, for example to see older sessions.
 
+If your deployment has more than one organization, use the organization filter to show only sessions with at least one request attributed to that organization.
+
 Each row shows the last prompt, initiator, provider, client, token usage, network requests, thread count, and timestamp.
 
 The **Network** column reports the total and blocked [Agent Firewall](../agent-firewall/index.md) requests for the session.

@@ -7,10 +7,10 @@ description: |
   PKCS#11 support is not in a published apple-codesign release (latest is
   0.29.0) and is gated behind the optional "pkcs11" cargo feature, so we build
   rcodesign from source at a pinned revision and cache the resulting binary.
-  We also apply pkcs11-single-init.patch (the apple-codesign/src portion of
-  https://github.com/indygreg/apple-platform-rs/pull/350) because without it
-  the module is initialized twice per process and signing fails with
-  CKR_CRYPTOKI_ALREADY_INITIALIZED.
+  We also apply pkcs11-single-init.patch (based on the apple-codesign/src
+  portion of https://github.com/indygreg/apple-platform-rs/pull/350; the patch
+  file says how it differs) because without it the module is initialized twice
+  per process and signing fails with CKR_CRYPTOKI_ALREADY_INITIALIZED.
 
   TODO: switch back to a prebuilt release tarball once a release containing
   PKCS#11 support and the initialization fix is published with the feature

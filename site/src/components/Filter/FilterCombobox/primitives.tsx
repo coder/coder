@@ -13,12 +13,14 @@ import {
 	keyboardHighlightRingClassName,
 	useHighlightSource,
 } from "#/components/Command/useHighlightSource";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
 import {
 	Popover,
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 
 // Primitive layer for `FilterCombobox`, built on cmdk (listbox, keyboard
 // navigation) and Radix Popover (positioning, dismissal). These are prefixed
@@ -26,13 +28,6 @@ import {
 // `components/Combobox` single-select primitives. They overlap cosmetically
 // with `components/Command`; a future consolidation into a variant-driven
 // `Command*` layer could remove the duplication.
-
-/**
- * Height cap for the popup, bounded only by the space Radix reports to the
- * viewport edge, and for each menu inside it when the caller makes the popup
- * `overflow-visible` so flyouts can extend past it, as `FilterCombobox` does.
- */
-export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
 
 const LIST_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End"]);
 // cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
@@ -326,6 +321,8 @@ export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
+			// Several filter values can be applied at once.
+			aria-multiselectable
 			className={cn(
 				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
@@ -341,7 +338,9 @@ type FilterComboboxItemProps = React.ComponentProps<
 
 /**
  * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
- * click and on Enter for the highlighted row.
+ * click and on Enter for the highlighted row. `aria-selected` reports whether
+ * the row's value is applied, since `aria-activedescendant` already conveys
+ * the highlight.
  */
 export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,
@@ -350,6 +349,7 @@ export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	return (
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
+			aria-selected={false}
 			className={cn(
 				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				keyboardHighlightRingClassName,
@@ -532,6 +532,7 @@ export const FilterComboboxChipsInput: React.FC<
 
 	return (
 		<CommandPrimitive.Input
+			{...passwordManagerIgnoreProps}
 			ref={ref}
 			data-slot="combobox-chip-input"
 			value={inputValue}

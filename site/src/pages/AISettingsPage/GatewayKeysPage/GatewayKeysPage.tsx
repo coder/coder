@@ -36,7 +36,7 @@ const GatewayKeysPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAIGatewayKeys}>
-			<title>{pageTitle("AI Gateway Keys")}</title>
+			<title>{pageTitle("AI Gateway keys")}</title>
 
 			<GatewayKeysPageView
 				keys={keysQuery.data ?? []}

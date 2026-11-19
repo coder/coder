@@ -40,6 +40,10 @@ import {
 } from "./steps";
 import { TemplateAlternatives } from "./TemplateAlternatives";
 import {
+	StepHeadingRefProvider,
+	useStepHeadingFocus,
+} from "./TemplateBuilderHeader";
+import {
 	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
 	TemplateCustomizationsStep,
 } from "./TemplateCustomizationsStep";
@@ -132,6 +136,7 @@ export const TemplateBuilderPageView: React.FC<
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
+	const stepHeadingRef = useStepHeadingFocus(currentStep.id);
 
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
@@ -312,18 +317,20 @@ export const TemplateBuilderPageView: React.FC<
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
 					<div className="p-6 border rounded-lg overflow-x-auto">
-						<StepContent
-							stepId={currentStep.id}
-							state={state}
-							dispatch={dispatch}
-							moduleVarMap={moduleVarMap}
-							createError={createError}
-							onProvisionerStatusChange={handleProvisionerStatusChange}
-							onRemoveModule={handleDeselectModule}
-							registerModuleRef={registerModuleRef}
-							onCreate={handleCreate}
-							showValidationErrors={showContinueError}
-						/>
+						<StepHeadingRefProvider value={stepHeadingRef}>
+							<StepContent
+								stepId={currentStep.id}
+								state={state}
+								dispatch={dispatch}
+								moduleVarMap={moduleVarMap}
+								createError={createError}
+								onProvisionerStatusChange={handleProvisionerStatusChange}
+								onRemoveModule={handleDeselectModule}
+								registerModuleRef={registerModuleRef}
+								onCreate={handleCreate}
+								showValidationErrors={showContinueError}
+							/>
+						</StepHeadingRefProvider>
 					</div>
 
 					{/* Navigation controls */}
@@ -341,7 +348,7 @@ export const TemplateBuilderPageView: React.FC<
 								form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
 								disabled={state.hasProvisioners === false}
 							>
-								Create Template
+								Create template
 							</Button>
 						) : (
 							<Button onClick={handleNext}>Continue</Button>

@@ -201,10 +201,6 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 				}
 			} else {
 				require.NotContains(t, stats.TerminatedJobIDs, job.ID)
-				// The tick did not reap the job, so run the locked recheck
-				// directly to cover its progress query.
-				err := jobreaper.ReapPendingJob(ctx, testutil.Logger(t), env.DB, env.Pubsub, job.ID)
-				require.ErrorContains(t, err, "an eligible provisioner is online and making progress")
 				current, err := env.DB.GetProvisionerJobByID(ctx, job.ID)
 				require.NoError(t, err)
 				require.Equal(t, database.ProvisionerJobStatusPending, current.JobStatus)

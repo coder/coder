@@ -127,6 +127,8 @@ const getAgentBorderClass = (
 	);
 };
 
+// Matches the log source display name that coderd assigns to startup scripts.
+// sentence-case-expect: this is an API value, not UI text.
 const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
 
 // A script is considered failed if it exited with a non-zero code, or if its
@@ -144,7 +146,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	onUpdateAgent,
 	initialMetadata,
 }) => {
-	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const features = useFeatureVisibility();
+	const { workspace_external_agent } = features;
+	const browser_only = features.browser_only || template.browser_only;
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -338,7 +342,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		error: boolean;
 	}[] = [
 		{
-			title: "All Logs",
+			title: "All logs",
 			value: "all",
 			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 			error: false,

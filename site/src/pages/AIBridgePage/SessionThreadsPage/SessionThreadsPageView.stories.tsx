@@ -12,6 +12,7 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 	id: MockSession.id,
 	initiator: MockSession.initiator,
 	providers: MockSession.providers,
+	organizations: [],
 	models: MockSession.models,
 	metadata: MockSession.metadata,
 	started_at: MockSession.started_at,
@@ -71,7 +72,7 @@ export const SearchFiltersEvents: Story = {
 		});
 		const promptByText = (text: string) =>
 			canvas
-				.getAllByRole("paragraph")
+				.getAllByRole("blockquote")
 				.find((element) => element.textContent === text);
 
 		await expect(promptByText("Summarize the project structure")).toBeVisible();
