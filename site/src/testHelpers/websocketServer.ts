@@ -6,7 +6,7 @@
 import { type WebSocketData, ws } from "msw";
 import { server } from "./server";
 
-export type MockWebSocketConnection = Readonly<{
+type MockWebSocketConnection = Readonly<{
 	/** The URL the client connected to, including its query parameters. */
 	url: URL;
 	/** Path parameters matched from the URL pattern. */
@@ -17,7 +17,7 @@ export type MockWebSocketConnection = Readonly<{
 	close: (code?: number, reason?: string) => void;
 }>;
 
-export type MockWebSocketServer = Readonly<{
+type MockWebSocketServer = Readonly<{
 	/** Every connection made to the server so far, oldest first. */
 	connections: readonly MockWebSocketConnection[];
 	/** Resolves with the connection at `index` once the client has made it. */
