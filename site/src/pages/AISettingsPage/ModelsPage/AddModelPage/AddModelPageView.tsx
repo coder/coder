@@ -99,7 +99,9 @@ const AddModelPageView: React.FC<AddModelPageViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4">
-			{refetchError != null && <ErrorAlert error={refetchError} />}
+			{refetchError !== null && refetchError !== undefined && (
+				<ErrorAlert error={refetchError} />
+			)}
 			<ModelForm
 				duplicateSourceModel={duplicateSourceModel}
 				currentDefaultModel={currentDefaultModel}

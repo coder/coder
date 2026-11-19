@@ -46,7 +46,7 @@ export const ContextResourceAccordionTrigger: React.FC<
 				{children}
 			</span>
 		</div>
-		{detail != null && (
+		{detail !== null && detail !== undefined && (
 			<span className="font-medium text-content-secondary group-data-[state=open]:opacity-0 transition-opacity duration-25">
 				{detail}
 			</span>

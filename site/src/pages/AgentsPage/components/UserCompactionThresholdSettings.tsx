@@ -647,12 +647,17 @@ export const UserCompactionThresholdSettings: React.FC<
 	);
 	const isTableLoading = isThresholdsLoading || isLoadingModels;
 	const showRows =
-		!isTableLoading && thresholdsError == null && enabledModels.length > 0;
+		!isTableLoading &&
+		(thresholdsError === null || thresholdsError === undefined) &&
+		enabledModels.length > 0;
 	// A failed load is the alert above the table. The in-table empty state is
 	// only for a successful load with no enabled models.
 	const blockingError =
-		thresholdsError != null ||
-		(!isLoadingModels && modelsError != null && enabledModels.length === 0);
+		(thresholdsError !== null && thresholdsError !== undefined) ||
+		(!isLoadingModels &&
+			modelsError !== null &&
+			modelsError !== undefined &&
+			enabledModels.length === 0);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -663,8 +668,12 @@ export const UserCompactionThresholdSettings: React.FC<
 					compactionTriggerLoadErrors.length > 0
 				}
 			/>
-			{thresholdsError != null && <ErrorAlert error={thresholdsError} />}
-			{modelsError != null && <ErrorAlert error={modelsError} />}
+			{thresholdsError !== null && thresholdsError !== undefined && (
+				<ErrorAlert error={thresholdsError} />
+			)}
+			{modelsError !== null && modelsError !== undefined && (
+				<ErrorAlert error={modelsError} />
+			)}
 			{showRows && compactionTriggerLoadErrors.length > 0 && (
 				<p className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(

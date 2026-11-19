@@ -92,15 +92,18 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 					onSelectOrganization={onSelectOrganization}
 					requestedOrganizationDenied={requestedOrganizationDenied}
 				>
-					{organizationAccessError != null && (
-						<ErrorAlert error={organizationAccessError} />
-					)}
-					{organizationPermissionsError != null && (
-						<ErrorAlert error={organizationPermissionsError} />
-					)}
+					{organizationAccessError !== null &&
+						organizationAccessError !== undefined && (
+							<ErrorAlert error={organizationAccessError} />
+						)}
+					{organizationPermissionsError !== null &&
+						organizationPermissionsError !== undefined && (
+							<ErrorAlert error={organizationPermissionsError} />
+						)}
 					{organizationSettings}
 				</OrganizationSettingsSection>
-			) : organizationAccessError != null ? (
+			) : organizationAccessError !== null &&
+				organizationAccessError !== undefined ? (
 				<ErrorAlert error={organizationAccessError} />
 			) : null}
 

@@ -71,7 +71,7 @@ const OrganizationModelsLayout: React.FC = () => {
 		>
 			<div className="flex flex-col gap-6">
 				{(accessibleOrganizationsQuery.partialError ??
-					permissionsQuery.error) != null && (
+					permissionsQuery.error) !== null && (
 					<div>
 						<ErrorAlert
 							error={

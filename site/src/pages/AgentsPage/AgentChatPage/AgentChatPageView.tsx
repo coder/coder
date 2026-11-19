@@ -621,9 +621,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								}}
 								overviewToggle={overviewToggle}
 							/>
-							{modelCatalogError != null && (
-								<ErrorAlert error={modelCatalogError} />
-							)}
+							{modelCatalogError !== null &&
+								modelCatalogError !== undefined && (
+									<ErrorAlert error={modelCatalogError} />
+								)}
 							{unavailableModelNotice && (
 								<div
 									role="status"

@@ -506,7 +506,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// Build a set of message IDs that appear after the message
 		// currently being edited so they can be visually faded.
 		const afterEditingMessageIds = new Set<number>();
-		if (editingMessageId != null) {
+		if (editingMessageId !== null && editingMessageId !== undefined) {
 			let found = false;
 			for (const entry of parsedMessages) {
 				if (entry.message.id === editingMessageId) {

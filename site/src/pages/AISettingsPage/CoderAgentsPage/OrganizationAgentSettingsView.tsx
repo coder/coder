@@ -242,7 +242,7 @@ const OrganizationAgentSettingsView: React.FC<
 	// The default row only needs the model catalog, so a failed initial
 	// overrides load removes just the override rows.
 	const visibleSettings =
-		overridesLoadError == null
+		overridesLoadError === null || overridesLoadError === undefined
 			? settings.filter(
 					(setting) => setting.context !== "computer_use" || showComputerUse,
 				)
@@ -256,10 +256,12 @@ const OrganizationAgentSettingsView: React.FC<
 
 	return (
 		<div className="flex flex-col gap-6">
-			{bannerError != null && <ErrorAlert error={bannerError} />}
+			{bannerError !== null && bannerError !== undefined && (
+				<ErrorAlert error={bannerError} />
+			)}
 			{enabledModels.length === 0 &&
 				!isModelsLoading &&
-				modelsError == null && (
+				(modelsError === null || modelsError === undefined) && (
 					<p role="status" className="m-0 text-content-secondary">
 						This organization has no enabled chat models.
 					</p>

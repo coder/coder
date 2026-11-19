@@ -85,7 +85,10 @@ const CoderAgentsPage: React.FC = () => {
 				showComputerUse={showComputerUseSettings}
 			/>
 		);
-	} else if (activeOrganization && organizationPermissionsQuery.error == null) {
+	} else if (
+		activeOrganization &&
+		organizationPermissionsQuery.error === null
+	) {
 		organizationSettings = <Loader />;
 	}
 

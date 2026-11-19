@@ -60,7 +60,7 @@ const InstructionsPage: React.FC = () => {
 				permissions.editDeploymentConfig ||
 				readableOrganizations.length > 0 ||
 				organizationPermissionsQuery.isLoading ||
-				organizationPermissionsQuery.error != null
+				organizationPermissionsQuery.error !== null
 			}
 		>
 			<title>{pageTitle("Instructions", "AI settings")}</title>

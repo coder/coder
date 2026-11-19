@@ -311,7 +311,7 @@ export const TemplateBuilderPageView: React.FC<
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			{error != null && <ErrorAlert error={error} />}
+			{error !== null && error !== undefined && <ErrorAlert error={error} />}
 
 			<div className="flex gap-8">
 				{/* Main content area */}
@@ -469,7 +469,7 @@ const StepContent: React.FC<StepContentProps> = ({
 		case "customizations":
 			return (
 				<>
-					{createError != null && <ErrorAlert error={createError} />}
+					{createError !== null && <ErrorAlert error={createError} />}
 					<TemplateCustomizationsStep
 						state={state}
 						onCreate={onCreate}

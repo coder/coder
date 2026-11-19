@@ -647,7 +647,7 @@ export const AttachmentBlock: React.FC<{
 				/>
 			);
 		}
-		if (block.data == null) {
+		if (block.data === undefined) {
 			return null;
 		}
 		const content = decodeInlineTextAttachment(block.data);

@@ -978,16 +978,18 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						<ErrorAlert error={createError} />
 					)
 				) : null}
-				{workspacesError != null && <ErrorAlert error={workspacesError} />}
+				{workspacesError !== null && workspacesError !== undefined && (
+					<ErrorAlert error={workspacesError} />
+				)}
 				{mcpServersQuery.data === undefined &&
-					mcpServersQuery.error != null && (
+					mcpServersQuery.error !== null && (
 						<ErrorAlert error={mcpServersQuery.error} />
 					)}
-				{permittedOrgsQuery.error != null && (
+				{permittedOrgsQuery.error !== null && (
 					<ErrorAlert error={permittedOrgsQuery.error} />
 				)}
-				{modelsQuery.error != null && <ErrorAlert error={modelsQuery.error} />}
-				{personalModelOverridesQuery.error != null && (
+				{modelsQuery.error !== null && <ErrorAlert error={modelsQuery.error} />}
+				{personalModelOverridesQuery.error !== null && (
 					<ErrorAlert error={personalModelOverridesQuery.error} />
 				)}
 				{(showOrgSelector || showProjectSelector) && (

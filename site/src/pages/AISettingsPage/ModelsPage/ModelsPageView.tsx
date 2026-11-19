@@ -272,6 +272,8 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 		});
 	};
 
+	const alertError = loadError ?? refetchError;
+
 	return (
 		<div>
 			<SettingsHeader
@@ -288,9 +290,9 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 					<SettingsHeaderDocsLink href={docs("/coder-agents/models#models")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			{(loadError ?? refetchError) != null && (
+			{alertError !== null && alertError !== undefined && (
 				<div className="mb-4">
-					<ErrorAlert error={loadError ?? refetchError} />
+					<ErrorAlert error={alertError} />
 				</div>
 			)}
 			<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -365,7 +367,8 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
-					) : loadError != null ? null : !hasModels ? (
+					) : loadError !== null &&
+						loadError !== undefined ? null : !hasModels ? (
 						<TableEmpty
 							message="No models configured"
 							description="Configured models will appear here."

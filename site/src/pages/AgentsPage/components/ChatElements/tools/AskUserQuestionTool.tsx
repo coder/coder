@@ -398,7 +398,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const isRunning = status === "running";
 	const displayedSubmittedResponseText =
 		previousResponseText ?? submittedResponseText;
-	const hasSubmittedResponse = displayedSubmittedResponseText != null;
+	const hasSubmittedResponse = displayedSubmittedResponseText !== null;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
 	const activeQuestionIndex = Math.min(

@@ -65,13 +65,13 @@ export const OrganizationInstructionsSettings: React.FC<
 			className="flex flex-col rounded-lg border p-6"
 			onSubmit={handleSubmit}
 		>
-			{loadError != null ? (
+			{loadError !== null && loadError !== undefined ? (
 				<ErrorAlert error={loadError} />
 			) : isLoading ? (
 				<Loader label="Loading organization instructions" />
 			) : (
 				<>
-					{refetchError != null && (
+					{refetchError !== null && refetchError !== undefined && (
 						<ErrorAlert error={refetchError} className="mb-4" />
 					)}
 					<TextareaAutosize
@@ -90,7 +90,7 @@ export const OrganizationInstructionsSettings: React.FC<
 						maxRows={9}
 					/>
 					<InvisibleCharactersAlert text={value} className="mt-2" />
-					{saveError != null && (
+					{saveError !== null && saveError !== undefined && (
 						<p
 							role="alert"
 							className="m-0 mt-4 text-xs text-content-destructive"
@@ -110,7 +110,10 @@ export const OrganizationInstructionsSettings: React.FC<
 									onResetSave();
 									setDraft(undefined);
 								}}
-								disabled={isSaving || (!isDirty && saveError == null)}
+								disabled={
+									isSaving ||
+									(!isDirty && (saveError === null || saveError === undefined))
+								}
 							>
 								Cancel
 							</Button>

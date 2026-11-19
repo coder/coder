@@ -70,7 +70,7 @@ const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	build,
 }) => {
 	const alert =
-		error != null ? (
+		error !== null && error !== undefined ? (
 			<Alert severity="error" prominent>
 				<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
 				<AlertDescription>
@@ -268,7 +268,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	// and attachment only on mount.
 	const isPrefillLoading =
 		debugBuildId !== null &&
-		prefillError == null &&
+		prefillError === null &&
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 

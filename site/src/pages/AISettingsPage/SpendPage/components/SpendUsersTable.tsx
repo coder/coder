@@ -55,7 +55,7 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 
 	const report = reportQuery.data;
 	if (report === undefined) {
-		return reportQuery.error != null ? (
+		return reportQuery.error !== null && reportQuery.error !== undefined ? (
 			<div className="flex min-h-60 flex-col items-center justify-center gap-4 text-center">
 				<ErrorAlert error={reportQuery.error} />
 				{retryButton}
@@ -73,7 +73,7 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 
 	return (
 		<div className="space-y-6">
-			{reportQuery.error != null && (
+			{reportQuery.error !== null && reportQuery.error !== undefined && (
 				<ErrorAlert error={reportQuery.error} actions={retryButton} />
 			)}
 			<div className="relative flex flex-col gap-6">
