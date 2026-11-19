@@ -944,6 +944,31 @@ describe("AgentChatPage", () => {
 			);
 		});
 
+		it("opens the tab of a new result while the user's message is still sending", async () => {
+			const page = renderPreviewChat({});
+			const sent = createDeferred<TypesGen.CreateChatMessageResponse>();
+			const createChatMessage = vi
+				.spyOn(API.experimental, "createChatMessage")
+				.mockReturnValue(sent.promise);
+			await page.user.click(
+				await screen.findByRole("textbox", { name: "Chat message" }),
+			);
+			await page.user.paste("Show me the docs");
+			await page.user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
+
+			await page.publish(previewExchange(20, MockOpenPreviewResult));
+
+			await waitFor(() =>
+				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([
+					expect.objectContaining({
+						kind: "port",
+						port: MockOpenPreviewResult.port,
+					}),
+				]),
+			);
+		});
+
 		it("opens the Browser tab for an agent-browser result", async () => {
 			const page = renderPreviewChat({});
 			await waitForLoadedChat();
