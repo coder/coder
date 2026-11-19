@@ -11,7 +11,7 @@ import {
 	getStatusFilterOptions,
 	getUserTypeFilterOptions,
 	USER_TYPE_CHIP_KEYS,
-} from "#/pages/UsersPage/filter/categoryOptions";
+} from "#/components/Filter/userFilterOptions";
 
 const categories: FilterCategory[] = [
 	{
@@ -36,15 +36,16 @@ const categories: FilterCategory[] = [
 	},
 ];
 
-type OrganizationMembersFilterProps = {
+type MembersFilterProps = {
 	filter: UseFilterResult;
 	error?: unknown;
 };
 
-/** Filters organization members by account status and type. */
-export const OrganizationMembersFilter: React.FC<
-	OrganizationMembersFilterProps
-> = ({ filter, error }) => (
+/** Filters members by account status and type. */
+export const MembersFilter: React.FC<MembersFilterProps> = ({
+	filter,
+	error,
+}) => (
 	<FilterCombobox
 		value={filter.query}
 		onChange={filter.update}

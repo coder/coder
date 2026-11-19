@@ -1203,7 +1203,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// The inner block starts the embedded daemon, which standalone-only
 			// deployments disable with CODER_AI_GATEWAY_EMBEDDED_ENABLED=false.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				costControlReg := prometheus.WrapRegistererWithPrefix("coder_ai_gateway_", coderAPI.PrometheusRegistry)
+				costControlReg := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, coderAPI.PrometheusRegistry)
 				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
 				if vals.Prometheus.Enable {
 					budgetPeriod := codersdk.NewAIBudgetPeriodFromString(vals.AI.BridgeConfig.BudgetPeriod)
@@ -1214,10 +1214,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer closeBlockedUsersFunc()
 				}
 				if vals.AI.BridgeConfig.EmbeddedEnabled.Value() {
-					// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
-					// See AIGOV-447:
-					// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
-					aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
+					aibridgeReg := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, coderAPI.PrometheusRegistry)
 					aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
 					var unsubscribeProviderReload func()
 					aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
