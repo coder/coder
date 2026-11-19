@@ -171,7 +171,8 @@ func (s *StageSpan) SetGenAIProvider(model StageModel) {
 
 // errorType returns error.type for a failed stage.
 func errorType(err error) string {
-	if errors.Is(err, context.Canceled) {
+	// A transport reset wraps context.Canceled but is a provider failure.
+	if errors.Is(err, context.Canceled) && !errors.Is(err, chaterror.ErrProviderTransportReset) {
 		return "canceled"
 	}
 	if kind := chaterror.Classify(err).Kind; kind != "" {
