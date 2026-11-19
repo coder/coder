@@ -61,7 +61,7 @@ func recoverDB(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 			}
 			return nil
 		}
-		if err := config.ValidateBuiltinPostgresVersion(pgDir); err != nil {
+		if _, _, _, err := config.BuiltinPostgresConfig(pgDir); err != nil {
 			return err
 		}
 		stopPG, err := startTempPostgresSetURL(ctx, logger, cfg, &pgURL)
@@ -546,6 +546,10 @@ func connectDB(ctx context.Context, pgURL string) (*sql.DB, error) {
 
 func startTempPostgresSetURL(ctx context.Context, logger slog.Logger, cfg *devConfig, pgURL *string) (func(), error) {
 	pgDir := filepath.Join(cfg.configDir, "postgres")
+	pgVersion, binariesPath, _, err := config.BuiltinPostgresConfig(pgDir)
+	if err != nil {
+		return nil, err
+	}
 	cleanStalePIDFile(filepath.Join(pgDir, "data"))
 
 	passwordBytes, err := os.ReadFile(filepath.Join(pgDir, "password"))
@@ -567,8 +571,8 @@ func startTempPostgresSetURL(ctx context.Context, logger slog.Logger, cfg *devCo
 
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
-			Version(embeddedpostgres.V13).
-			BinariesPath(filepath.Join(pgDir, "bin")).
+			Version(pgVersion).
+			BinariesPath(binariesPath).
 			CachePath(filepath.Join(pgDir, "cache")).
 			DataPath(filepath.Join(pgDir, "data")).
 			RuntimePath(filepath.Join(pgDir, "runtime")).
