@@ -2581,9 +2581,9 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	if p.previewAppHostname != "" && p.experiments.Enabled(codersdk.ExperimentOpenPreview) {
+	if p.experiments.Enabled(codersdk.ExperimentOpenPreview) {
 		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
-			AppHostname:         p.previewAppHostname,
+			Hosting:             p.previewHosting,
 			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
 			DB:                  p.db,
 			OwnerID:             opts.chat.OwnerID,
@@ -2660,6 +2660,12 @@ func appendDynamicTools(
 	dynamicToolNames, err := parseDynamicToolNames(raw)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("parse dynamic tool names: %w", err)
+	}
+	// The dashboard trusts open_preview results, so the name stays reserved
+	// in turns without the built-in tool too.
+	if dynamicToolNames[chattool.OpenPreviewToolName] {
+		logger.Warn(ctx, "dropping dynamic tool with a reserved name", slog.F("tool_name", chattool.OpenPreviewToolName))
+		delete(dynamicToolNames, chattool.OpenPreviewToolName)
 	}
 	if len(dynamicToolNames) == 0 {
 		return tools, dynamicToolNames, nil
