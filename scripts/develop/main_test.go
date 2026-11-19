@@ -295,7 +295,6 @@ func TestDevConfigValidate(t *testing.T) {
 			webPort:          8080,
 			proxyPort:        3010,
 			coderMetricsPort: 2114,
-			password:         defaultPassword,
 			bindAddress:      defaultBindAddress,
 		}
 	}
@@ -337,6 +336,15 @@ func TestDevConfigValidate(t *testing.T) {
 				cfg.multiOrg = true
 			},
 			wantErrs: []string{"--agpl and --multi-organization"},
+		},
+		{
+			name:     "OldDefaultPassword",
+			mutate:   func(cfg *devConfig) { cfg.password = oldDefaultPassword },
+			wantErrs: []string{"--password must not be the old default password"},
+		},
+		{
+			name:   "PasswordContainingOldDefault",
+			mutate: func(cfg *devConfig) { cfg.password = oldDefaultPassword + "-and-more" },
 		},
 		{
 			name:     "PortTooLow",
