@@ -9,7 +9,7 @@ import {
 
 export type InfoTooltipType = "info" | "warning";
 
-type InfoTooltipSize = "small" | "medium";
+type InfoTooltipSize = "xsmall" | "small" | "medium";
 
 type InfoTooltipProps = {
 	type?: InfoTooltipType;
@@ -30,6 +30,7 @@ const typeIconColor: Record<InfoTooltipType, string> = {
 };
 
 const sizeClasses: Record<InfoTooltipSize, string> = {
+	xsmall: "[&_svg]:size-2.5",
 	small: "[&_svg]:size-3",
 	medium: "[&_svg]:size-4",
 };
