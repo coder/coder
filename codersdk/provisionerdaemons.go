@@ -89,14 +89,14 @@ type MatchedProvisioners struct {
 	// Count is the number of provisioner daemons that matched the given
 	// tags. If the count is 0, it means no provisioner daemons matched the
 	// requested tags.
-	Count int `json:"count" wsrelated:"latest_build.job"`
+	Count int `json:"count"`
 	// Available is the number of provisioner daemons that are available to
 	// take jobs. This may be less than the count if some provisioners are
 	// busy or have been stopped.
-	Available int `json:"available" wsrelated:"latest_build.job"`
+	Available int `json:"available"`
 	// MostRecentlySeen is the most recently seen time of the set of matched
 	// provisioners. If no provisioners matched, this field will be null.
-	MostRecentlySeen NullTime `json:"most_recently_seen,omitempty" format:"date-time" wsrelated:"latest_build.job"`
+	MostRecentlySeen NullTime `json:"most_recently_seen,omitempty" format:"date-time"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
@@ -135,9 +135,9 @@ func ProvisionerJobStatusEnums() []ProvisionerJobStatus {
 
 // ProvisionerJobInput represents the input for the job.
 type ProvisionerJobInput struct {
-	TemplateVersionID *uuid.UUID `json:"template_version_id,omitempty" format:"uuid" table:"template version id" wsrelated:"latest_build.job"`
-	WorkspaceBuildID  *uuid.UUID `json:"workspace_build_id,omitempty" format:"uuid" table:"workspace build id" wsrelated:"latest_build.job"`
-	Error             string     `json:"error,omitempty" table:"-" wsrelated:"latest_build.job"`
+	TemplateVersionID *uuid.UUID `json:"template_version_id,omitempty" format:"uuid" table:"template version id"`
+	WorkspaceBuildID  *uuid.UUID `json:"workspace_build_id,omitempty" format:"uuid" table:"workspace build id"`
+	Error             string     `json:"error,omitempty" table:"-"`
 }
 
 // ProvisionerJobMetadata contains metadata for the job.

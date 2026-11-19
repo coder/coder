@@ -99,11 +99,11 @@ type WorkspaceApp struct {
 
 type Healthcheck struct {
 	// URL specifies the endpoint to check for the app health.
-	URL string `json:"url" wsrelated:"latest_build.resources.agents.apps"`
+	URL string `json:"url"`
 	// Interval specifies the seconds between each health check.
-	Interval int32 `json:"interval" wsrelated:"latest_build.resources.agents.apps"`
+	Interval int32 `json:"interval"`
 	// Threshold specifies the number of consecutive failed health checks before returning "unhealthy".
-	Threshold int32 `json:"threshold" wsrelated:"latest_build.resources.agents.apps"`
+	Threshold int32 `json:"threshold"`
 }
 
 type WorkspaceAppStatus struct {

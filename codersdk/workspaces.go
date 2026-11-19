@@ -87,8 +87,8 @@ func (w Workspace) FullName() string {
 }
 
 type WorkspaceHealth struct {
-	Healthy       bool        `json:"healthy" example:"false" wsrelated:"latest_build.resources.agents"`      // Healthy is true if the workspace is healthy.
-	FailingAgents []uuid.UUID `json:"failing_agents" format:"uuid" wsrelated:"latest_build.resources.agents"` // FailingAgents lists the IDs of the agents that are failing, if any.
+	Healthy       bool        `json:"healthy" example:"false"`      // Healthy is true if the workspace is healthy.
+	FailingAgents []uuid.UUID `json:"failing_agents" format:"uuid"` // FailingAgents lists the IDs of the agents that are failing, if any.
 }
 
 type WorkspacesRequest struct {
@@ -832,11 +832,11 @@ type WorkspaceUser struct {
 }
 
 type SharedWorkspaceActor struct {
-	ID        uuid.UUID                `json:"id" format:"uuid" wsrelated:""`
-	ActorType SharedWorkspaceActorType `json:"actor_type" wsrelated:""`
-	Name      string                   `json:"name" wsrelated:""`
-	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri" wsrelated:""`
-	Roles     []WorkspaceRole          `json:"roles" wsrelated:""`
+	ID        uuid.UUID                `json:"id" format:"uuid"`
+	ActorType SharedWorkspaceActorType `json:"actor_type"`
+	Name      string                   `json:"name"`
+	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri"`
+	Roles     []WorkspaceRole          `json:"roles"`
 }
 
 type WorkspaceRole string

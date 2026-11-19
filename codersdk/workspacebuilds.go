@@ -114,9 +114,9 @@ type WorkspaceResource struct {
 
 // WorkspaceResourceMetadata annotates the workspace resource with custom key-value pairs.
 type WorkspaceResourceMetadata struct {
-	Key       string `json:"key" wsrelated:"latest_build.resources.metadata"`
-	Value     string `json:"value" wsrelated:"latest_build.resources.metadata"`
-	Sensitive bool   `json:"sensitive" wsrelated:"latest_build.resources.metadata"`
+	Key       string `json:"key"`
+	Value     string `json:"value"`
+	Sensitive bool   `json:"sensitive"`
 }
 
 // WorkspaceBuildParameter represents a parameter specific for a workspace build.

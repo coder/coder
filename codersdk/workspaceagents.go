@@ -185,11 +185,11 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentLogSource struct {
-	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid" wsrelated:"latest_build.resources.agents.log_sources"`
-	ID               uuid.UUID `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents.log_sources"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time" wsrelated:"latest_build.resources.agents.log_sources"`
-	DisplayName      string    `json:"display_name" wsrelated:"latest_build.resources.agents.log_sources"`
-	Icon             string    `json:"icon" wsrelated:"latest_build.resources.agents.log_sources"`
+	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid"`
+	ID               uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	DisplayName      string    `json:"display_name"`
+	Icon             string    `json:"icon"`
 }
 
 type WorkspaceAgentScriptStatus string
@@ -205,25 +205,25 @@ const (
 )
 
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID     `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents.scripts"`
-	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid" wsrelated:"latest_build.resources.agents.scripts"`
-	LogPath          string        `json:"log_path" wsrelated:"latest_build.resources.agents.scripts"`
-	Script           string        `json:"script" wsrelated:"latest_build.resources.agents.scripts"`
-	Cron             string        `json:"cron" wsrelated:"latest_build.resources.agents.scripts"`
-	RunOnStart       bool          `json:"run_on_start" wsrelated:"latest_build.resources.agents.scripts"`
-	RunOnStop        bool          `json:"run_on_stop" wsrelated:"latest_build.resources.agents.scripts"`
-	StartBlocksLogin bool          `json:"start_blocks_login" wsrelated:"latest_build.resources.agents.scripts"`
-	Timeout          time.Duration `json:"timeout" wsrelated:"latest_build.resources.agents.scripts"`
-	DisplayName      string        `json:"display_name" wsrelated:"latest_build.resources.agents.scripts"`
+	ID               uuid.UUID     `json:"id" format:"uuid"`
+	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
+	LogPath          string        `json:"log_path"`
+	Script           string        `json:"script"`
+	Cron             string        `json:"cron"`
+	RunOnStart       bool          `json:"run_on_start"`
+	RunOnStop        bool          `json:"run_on_stop"`
+	StartBlocksLogin bool          `json:"start_blocks_login"`
+	Timeout          time.Duration `json:"timeout"`
+	DisplayName      string        `json:"display_name"`
 	// ResourceAddress is the full Terraform address of the coder_script
 	// resource, for example "module.git_clone.coder_script.clone". It is
 	// empty for scripts that are not coder_script resources.
-	ResourceAddress string `json:"resource_address" wsrelated:"latest_build.resources.agents.scripts"`
+	ResourceAddress string `json:"resource_address"`
 	// Dependencies lists the scripts this one waits for, as the
 	// provisioner resolved them. It is omitted when empty.
-	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty" wsrelated:"latest_build.resources.agents.scripts"`
-	ExitCode     *int32                           `json:"exit_code,omitempty" wsrelated:"latest_build.resources.agents.scripts"`
-	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty" wsrelated:"latest_build.resources.agents.scripts"`
+	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty"`
+	ExitCode     *int32                           `json:"exit_code,omitempty"`
+	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty"`
 }
 
 // WorkspaceAgentScriptDependencyRequirement is the outcome a prerequisite
@@ -249,18 +249,18 @@ func (r WorkspaceAgentScriptDependencyRequirement) Valid() bool {
 // WorkspaceAgentScriptDependency names a prerequisite script and the
 // outcome it must reach.
 type WorkspaceAgentScriptDependency struct {
-	PrerequisiteResourceAddress string                                    `json:"prerequisite_resource_address" wsrelated:"latest_build.resources.agents.scripts"`
-	Requirement                 WorkspaceAgentScriptDependencyRequirement `json:"requirement" wsrelated:"latest_build.resources.agents.scripts"`
+	PrerequisiteResourceAddress string                                    `json:"prerequisite_resource_address"`
+	Requirement                 WorkspaceAgentScriptDependencyRequirement `json:"requirement"`
 }
 
 type WorkspaceAgentHealth struct {
-	Healthy bool   `json:"healthy" example:"false" wsrelated:"latest_build.resources.agents"`                              // Healthy is true if the agent is healthy.
-	Reason  string `json:"reason,omitempty" example:"agent has lost connection" wsrelated:"latest_build.resources.agents"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
+	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
+	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
 type DERPRegion struct {
-	Preferred           bool    `json:"preferred" wsrelated:"latest_build.resources.agents"`
-	LatencyMilliseconds float64 `json:"latency_ms" wsrelated:"latest_build.resources.agents"`
+	Preferred           bool    `json:"preferred"`
+	LatencyMilliseconds float64 `json:"latency_ms"`
 }
 
 type WorkspaceAgentLog struct {
