@@ -1679,15 +1679,14 @@ func OrganizationAISpendUsers(rows []database.ListOrganizationAISpendUsersRow) [
 			i = len(users)
 			userIndex[row.UserID] = i
 			users = append(users, codersdk.OrganizationAISpendUser{
-				UserID:             row.UserID,
-				Username:           row.Username,
-				Name:               row.Name,
-				AvatarURL:          row.AvatarURL,
-				CostMicros:         row.CostMicros,
-				UnpricedModelCount: row.UnpricedModelCount,
-				ProviderSpend:      []codersdk.OrganizationAISpendProvider{},
-				ModelSpend:         []codersdk.OrganizationAISpendModel{},
-				ClientSpend:        []codersdk.OrganizationAISpendClient{},
+				UserID:        row.UserID,
+				Username:      row.Username,
+				Name:          row.Name,
+				AvatarURL:     row.AvatarURL,
+				CostMicros:    row.CostMicros,
+				ProviderSpend: []codersdk.OrganizationAISpendProvider{},
+				ModelSpend:    []codersdk.OrganizationAISpendModel{},
+				ClientSpend:   []codersdk.OrganizationAISpendClient{},
 			})
 		}
 		switch row.Dimension {

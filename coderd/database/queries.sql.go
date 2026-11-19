@@ -4275,15 +4275,6 @@ WITH spend AS (
 		(ai.initiator_id, COALESCE(ai.client, 'Unknown'))
 	)
 ),
-unpriced_models AS (
-	SELECT
-		user_id,
-		COUNT(*)::BIGINT AS unpriced_model_count
-	FROM spend
-	WHERE is_model
-		AND has_unpriced_usage
-	GROUP BY user_id
-),
 user_page AS (
 	SELECT
 		spend.user_id,
@@ -4291,17 +4282,11 @@ user_page AS (
 		users.name,
 		users.avatar_url,
 		spend.cost_micros,
-		COALESCE(
-			unpriced_models.unpriced_model_count,
-			0
-		)::BIGINT AS unpriced_model_count,
 		COUNT(*) OVER ()::BIGINT AS count,
 		COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
 		BOOL_OR(spend.has_unpriced_usage) OVER () AS total_has_unpriced_usage
 	FROM spend
 	JOIN users ON users.id = spend.user_id
-	LEFT JOIN unpriced_models
-		ON unpriced_models.user_id = spend.user_id
 	WHERE NOT (spend.is_provider OR spend.is_model OR spend.is_client)
 	ORDER BY spend.cost_micros DESC, LOWER(users.username), spend.user_id
 	LIMIT NULLIF($10::int, 0)
@@ -4314,7 +4299,6 @@ SELECT
 	user_page.avatar_url,
 	$1::uuid AS organization_id,
 	user_page.cost_micros,
-	user_page.unpriced_model_count,
 	user_page.count,
 	user_page.total_cost_micros,
 	user_page.total_has_unpriced_usage,
@@ -4377,7 +4361,6 @@ type ListOrganizationAISpendUsersRow struct {
 	AvatarURL                 string    `db:"avatar_url" json:"avatar_url"`
 	OrganizationID            uuid.UUID `db:"organization_id" json:"organization_id"`
 	CostMicros                int64     `db:"cost_micros" json:"cost_micros"`
-	UnpricedModelCount        int64     `db:"unpriced_model_count" json:"unpriced_model_count"`
 	Count                     int64     `db:"count" json:"count"`
 	TotalCostMicros           int64     `db:"total_cost_micros" json:"total_cost_micros"`
 	TotalHasUnpricedUsage     bool      `db:"total_has_unpriced_usage" json:"total_has_unpriced_usage"`
@@ -4426,7 +4409,6 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 			&i.AvatarURL,
 			&i.OrganizationID,
 			&i.CostMicros,
-			&i.UnpricedModelCount,
 			&i.Count,
 			&i.TotalCostMicros,
 			&i.TotalHasUnpricedUsage,

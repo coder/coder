@@ -662,15 +662,6 @@ WITH spend AS (
 		(ai.initiator_id, COALESCE(ai.client, 'Unknown'))
 	)
 ),
-unpriced_models AS (
-	SELECT
-		user_id,
-		COUNT(*)::BIGINT AS unpriced_model_count
-	FROM spend
-	WHERE is_model
-		AND has_unpriced_usage
-	GROUP BY user_id
-),
 -- The page, count, and totals apply to users, not to their provider, model,
 -- and client rows.
 user_page AS (
@@ -680,17 +671,11 @@ user_page AS (
 		users.name,
 		users.avatar_url,
 		spend.cost_micros,
-		COALESCE(
-			unpriced_models.unpriced_model_count,
-			0
-		)::BIGINT AS unpriced_model_count,
 		COUNT(*) OVER ()::BIGINT AS count,
 		COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
 		BOOL_OR(spend.has_unpriced_usage) OVER () AS total_has_unpriced_usage
 	FROM spend
 	JOIN users ON users.id = spend.user_id
-	LEFT JOIN unpriced_models
-		ON unpriced_models.user_id = spend.user_id
 	WHERE NOT (spend.is_provider OR spend.is_model OR spend.is_client)
 	ORDER BY spend.cost_micros DESC, LOWER(users.username), spend.user_id
 	LIMIT NULLIF(@limit_opt::int, 0)
@@ -703,7 +688,6 @@ SELECT
 	user_page.avatar_url,
 	@organization_id::uuid AS organization_id,
 	user_page.cost_micros,
-	user_page.unpriced_model_count,
 	user_page.count,
 	user_page.total_cost_micros,
 	user_page.total_has_unpriced_usage,

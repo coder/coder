@@ -13045,7 +13045,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
           "type": "openai"
         }
       ],
-      "unpriced_model_count": 0,
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
       "username": "string"
     }
@@ -13111,7 +13110,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "type": "openai"
     }
   ],
-  "unpriced_model_count": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
   "username": "string"
 }
@@ -13119,17 +13117,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                   | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                              |
-|------------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `avatar_url`           | string                                                                                | false    |              |                                                                                                                                                                                                                          |
-| `client_spend`         | array of [codersdk.OrganizationAISpendClient](#codersdkorganizationaispendclient)     | false    |              | Client spend is the user's spend per client, most expensive first. Usage without a recorded client is reported as Unknown.                                                                                               |
-| `cost_micros`          | integer                                                                               | false    |              | Cost micros is the user's priced spend over the period.                                                                                                                                                                  |
-| `model_spend`          | array of [codersdk.OrganizationAISpendModel](#codersdkorganizationaispendmodel)       | false    |              | Model spend is the user's spend per model, most expensive first.                                                                                                                                                         |
-| `name`                 | string                                                                                | false    |              |                                                                                                                                                                                                                          |
-| `provider_spend`       | array of [codersdk.OrganizationAISpendProvider](#codersdkorganizationaispendprovider) | false    |              | Provider spend is the user's spend per configured provider, most expensive first.                                                                                                                                        |
-| `unpriced_model_count` | integer                                                                               | false    |              | Unpriced model count is the number of models the user spent through with token usage recorded without a price, so CostMicros is a lower bound when it is above zero. A model used through several providers counts once. |
-| `user_id`              | string                                                                                | false    |              |                                                                                                                                                                                                                          |
-| `username`             | string                                                                                | false    |              |                                                                                                                                                                                                                          |
+| Name             | Type                                                                                  | Required | Restrictions | Description                                                                                                                  |
+|------------------|---------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`     | string                                                                                | false    |              |                                                                                                                              |
+| `client_spend`   | array of [codersdk.OrganizationAISpendClient](#codersdkorganizationaispendclient)     | false    |              | Client spend is the user's spend per client, most expensive first. Usage without a recorded client is reported as Unknown.   |
+| `cost_micros`    | integer                                                                               | false    |              | Cost micros is the user's priced spend over the period. It is a lower bound when any entry in ModelSpend has unpriced usage. |
+| `model_spend`    | array of [codersdk.OrganizationAISpendModel](#codersdkorganizationaispendmodel)       | false    |              | Model spend is the user's spend per model, most expensive first.                                                             |
+| `name`           | string                                                                                | false    |              |                                                                                                                              |
+| `provider_spend` | array of [codersdk.OrganizationAISpendProvider](#codersdkorganizationaispendprovider) | false    |              | Provider spend is the user's spend per configured provider, most expensive first.                                            |
+| `user_id`        | string                                                                                | false    |              |                                                                                                                              |
+| `username`       | string                                                                                | false    |              |                                                                                                                              |
 
 ## codersdk.OrganizationChatModelsResponse
 

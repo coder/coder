@@ -21580,12 +21580,11 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		hasUnpricedUsage bool
 	}
 	type userSpend struct {
-		userID             uuid.UUID
-		costMicros         int64
-		unpricedModelCount int64
-		providerSpend      []itemSpend
-		modelSpend         []itemSpend
-		clientSpend        []itemSpend
+		userID        uuid.UUID
+		costMicros    int64
+		providerSpend []itemSpend
+		modelSpend    []itemSpend
+		clientSpend   []itemSpend
 	}
 	type spendReport struct {
 		count                 int64
@@ -21603,9 +21602,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			report.totalHasUnpricedUsage = row.TotalHasUnpricedUsage
 			if len(report.users) == 0 || report.users[len(report.users)-1].userID != row.UserID {
 				report.users = append(report.users, userSpend{
-					userID:             row.UserID,
-					costMicros:         row.CostMicros,
-					unpricedModelCount: row.UnpricedModelCount,
+					userID:     row.UserID,
+					costMicros: row.CostMicros,
 				})
 			}
 			user := &report.users[len(report.users)-1]
@@ -21637,13 +21635,13 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		}
 	}
 	aliceSpend := userSpend{
-		userID: alice.ID, costMicros: 1500, unpricedModelCount: 2,
+		userID: alice.ID, costMicros: 1500,
 		providerSpend: []itemSpend{{name: "anthropic-prod", costMicros: 1000, hasUnpricedUsage: true}, {name: "openai-prod", costMicros: 500, hasUnpricedUsage: true}},
 		modelSpend:    []itemSpend{{name: "claude", costMicros: 1000}, {name: "gpt-4", costMicros: 500}, {name: "gpt-4o", hasUnpricedUsage: true}, {name: "o3", hasUnpricedUsage: true}},
 		clientSpend:   []itemSpend{{name: "vscode", costMicros: 1000, hasUnpricedUsage: true}, {name: "Unknown", costMicros: 500, hasUnpricedUsage: true}},
 	}
 	aliceOpenAISpend := userSpend{
-		userID: alice.ID, costMicros: 500, unpricedModelCount: 2,
+		userID: alice.ID, costMicros: 500,
 		providerSpend: []itemSpend{{name: "openai-prod", costMicros: 500, hasUnpricedUsage: true}},
 		modelSpend:    []itemSpend{{name: "gpt-4", costMicros: 500}, {name: "gpt-4o", hasUnpricedUsage: true}, {name: "o3", hasUnpricedUsage: true}},
 		clientSpend:   []itemSpend{{name: "Unknown", costMicros: 500, hasUnpricedUsage: true}},
@@ -21781,7 +21779,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				periodStart: periodStart.Add(2 * time.Hour),
 				periodEnd:   periodEnd,
 				want: spendReport{count: 1, totalHasUnpricedUsage: true, users: []userSpend{{
-					userID: alice.ID, unpricedModelCount: 2,
+					userID:        alice.ID,
 					providerSpend: []itemSpend{{name: "anthropic-prod", hasUnpricedUsage: true}, {name: "openai-prod", hasUnpricedUsage: true}},
 					modelSpend:    []itemSpend{{name: "gpt-4o", hasUnpricedUsage: true}, {name: "o3", hasUnpricedUsage: true}},
 					clientSpend:   []itemSpend{{name: "Unknown", hasUnpricedUsage: true}, {name: "vscode", hasUnpricedUsage: true}},

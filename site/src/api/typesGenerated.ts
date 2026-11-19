@@ -8471,15 +8471,10 @@ export interface OrganizationAISpendUser {
 	readonly name: string;
 	readonly avatar_url: string;
 	/**
-	 * CostMicros is the user's priced spend over the period.
+	 * CostMicros is the user's priced spend over the period. It is a lower
+	 * bound when any entry in ModelSpend has unpriced usage.
 	 */
 	readonly cost_micros: number;
-	/**
-	 * UnpricedModelCount is the number of models the user spent through with
-	 * token usage recorded without a price, so CostMicros is a lower bound when
-	 * it is above zero. A model used through several providers counts once.
-	 */
-	readonly unpriced_model_count: number;
 	/**
 	 * ProviderSpend is the user's spend per configured provider, most
 	 * expensive first.

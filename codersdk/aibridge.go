@@ -620,12 +620,9 @@ type OrganizationAISpendUser struct {
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
 	AvatarURL string    `json:"avatar_url"`
-	// CostMicros is the user's priced spend over the period.
+	// CostMicros is the user's priced spend over the period. It is a lower
+	// bound when any entry in ModelSpend has unpriced usage.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedModelCount is the number of models the user spent through with
-	// token usage recorded without a price, so CostMicros is a lower bound when
-	// it is above zero. A model used through several providers counts once.
-	UnpricedModelCount int64 `json:"unpriced_model_count"`
 	// ProviderSpend is the user's spend per configured provider, most
 	// expensive first.
 	ProviderSpend []OrganizationAISpendProvider `json:"provider_spend"`

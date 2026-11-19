@@ -5845,7 +5845,6 @@ export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
 	name: "Test User",
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	cost_micros: 2_500_000,
-	unpriced_model_count: 0,
 	provider_spend: [
 		{
 			name: "anthropic",
