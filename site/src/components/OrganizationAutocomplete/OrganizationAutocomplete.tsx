@@ -152,7 +152,8 @@ export const OrganizationAutocomplete: React.FC<
 										src={org.icon}
 										fallback={org.display_name}
 									/>
-									<span className="truncate">
+									{/* Wrap instead of truncating so long names stay readable in narrow viewports. */}
+									<span className="wrap-anywhere">
 										{getOrganizationLabel(org, labelContext)}
 									</span>
 									{value?.id === org.id && (
