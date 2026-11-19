@@ -31,6 +31,8 @@ WHERE
 	ELSE
 		is_system = false
 	END
+ORDER BY
+	name, organization_id
 ;
 
 -- name: DeleteCustomRole :exec
