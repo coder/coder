@@ -42,8 +42,6 @@ func TestPreviewFile(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, response.Code, path)
 	}
 
-	// Saves that write a temporary file and rename it over the published
-	// file must be served.
 	temporary := filepath.Join(root, "save.html")
 	require.NoError(t, os.WriteFile(temporary, []byte("<h1>second</h1>"), 0o600))
 	require.NoError(t, os.Rename(temporary, selected))
@@ -96,7 +94,6 @@ func TestPreviewDirectory(t *testing.T) {
 		{"/assets/fonts/a.css", "font{}", http.StatusOK},
 		{"/nested/", "nested", http.StatusOK},
 		{"/vendors~main.js", "bundle", tildeStatus},
-		// Directories without index.html are not listed.
 		{"/empty/", "", http.StatusNotFound},
 		{"/../outside.txt", "", http.StatusNotFound},
 		{"/%2ehidden/token", "", http.StatusNotFound},
@@ -111,8 +108,6 @@ func TestPreviewDirectory(t *testing.T) {
 	}
 }
 
-// Build tools often delete their output directory before writing it again.
-// The preview serves the new directory without being published again.
 func TestPreviewRebuiltDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -149,7 +144,6 @@ func TestPreviewSymlinks(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.txt"), []byte("outside"), 0o600))
 	require.NoError(t, os.Symlink("../outside.txt", filepath.Join(root, "escape.txt")))
 	require.NoError(t, os.Symlink("index.html", filepath.Join(root, "alias.html")))
-	// A link to a hidden directory must not get past the dotfile check.
 	require.NoError(t, os.Symlink(".git", filepath.Join(root, "repo")))
 
 	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
@@ -174,7 +168,6 @@ func TestPreviewInvalidPublications(t *testing.T) {
 		filepath.Join(root, "missing.html"),
 		filepath.Join(root, "file.txt"),
 		filepath.Join(root, "page.htm"),
-		// A directory needs index.html.
 		root,
 	} {
 		response := publishResponse(t, handler, name)
@@ -184,8 +177,6 @@ func TestPreviewInvalidPublications(t *testing.T) {
 	publish(t, handler, filepath.Join(root, "PAGE.HTML"))
 }
 
-// IDs are random, so an ID from before an agent restart can't serve the path
-// that gets an ID after it.
 func TestPreviewIDsAcrossRestarts(t *testing.T) {
 	t.Parallel()
 

@@ -22,8 +22,7 @@ var (
 	// PortRegex should not be able to be greater than 65535. In usage though, if a
 	// user tries to use a greater port, the proxy will just block it and not cause
 	// any issues. This is a good enough regex check.
-	PortRegex = regexp.MustCompile(`^\d{4,5}s?$`)
-	// previewIDRegex matches the IDs the workspace agent gives file previews.
+	PortRegex      = regexp.MustCompile(`^\d{4,5}s?$`)
 	previewIDRegex = regexp.MustCompile(`^[0-9a-f]{8}$`)
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
@@ -145,9 +144,6 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 	return newAppURL
 }
 
-// previewSlugPrefix starts every file preview slug. Preview hostnames have
-// five "--" separated parts and app hostnames at most four, and app slugs
-// cannot contain "--", so the two cannot collide.
 const previewSlugPrefix = "preview--"
 
 // IsPreviewID reports whether id has the format of a file preview ID, e.g.
@@ -209,8 +205,6 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 		subdomain = prefixSegments[len(prefixSegments)-1]
 	}
 
-	// A preview slug contains "--", so match the rest of the subdomain as an
-	// app URL. Preview URLs always name the agent.
 	if rest, ok := strings.CutPrefix(subdomain, previewSlugPrefix); ok {
 		matches := appURL.FindStringSubmatch(rest)
 		if matches != nil {

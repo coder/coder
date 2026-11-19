@@ -651,8 +651,6 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 
-		// The agent API serves file previews on its reserved port, so allow
-		// that port for file previews only.
 		isFilePreviewOnAgentAPI := isFilePreview && portInt == workspacesdk.AgentHTTPAPIServerPort
 		if portInt < workspacesdk.AgentMinimumListeningPort && !isFilePreviewOnAgentAPI {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -664,14 +662,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		}
 	}
 
-	// The agent API saves and replays its response for each chat and tool
-	// call these headers name, and only coderd should set them. File previews
-	// go to the same agent API, so remove them to stop a preview page from
-	// filling that store or answering in place of a real tool call.
 	if isFilePreview {
-		r.Header.Del(workspacesdk.CoderChatIDHeader)
-		r.Header.Del(workspacesdk.CoderToolCallIDHeader)
-		r.Header.Del(workspacesdk.CoderAncestorChatIDsHeader)
+		removeCoderdAgentHeaders(r.Header)
 	}
 
 	// Ensure path and query parameter correctness.
@@ -773,6 +765,12 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}()
 
 	proxy.ServeHTTP(rw, r)
+}
+
+func removeCoderdAgentHeaders(h http.Header) {
+	h.Del(workspacesdk.CoderChatIDHeader)
+	h.Del(workspacesdk.CoderToolCallIDHeader)
+	h.Del(workspacesdk.CoderAncestorChatIDsHeader)
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
