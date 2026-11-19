@@ -4,9 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"strings"
 
 	"golang.org/x/xerrors"
 )
+
+const previewSlugPrefix = "preview--"
 
 var previewIDFormat = regexp.MustCompile(`^[0-9a-f]{8}$`)
 
@@ -29,4 +32,20 @@ func (id *PreviewID) UnmarshalText(text []byte) error {
 	}
 	*id = PreviewID(text)
 	return nil
+}
+
+// Slug returns the app slug that serves the preview, such as
+// "preview--0123abcd".
+func (id PreviewID) Slug() string {
+	return previewSlugPrefix + string(id)
+}
+
+// ParsePreviewSlug returns the ID of the file preview that slug serves, such
+// as "0123abcd" for "preview--0123abcd".
+func ParsePreviewSlug(slug string) (PreviewID, bool) {
+	id, ok := strings.CutPrefix(slug, previewSlugPrefix)
+	if !ok || !previewIDFormat.MatchString(id) {
+		return "", false
+	}
+	return PreviewID(id), true
 }

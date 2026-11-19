@@ -22,8 +22,7 @@ var (
 	// PortRegex should not be able to be greater than 65535. In usage though, if a
 	// user tries to use a greater port, the proxy will just block it and not cause
 	// any issues. This is a good enough regex check.
-	PortRegex      = regexp.MustCompile(`^\d{4,5}s?$`)
-	previewIDRegex = regexp.MustCompile(`^[0-9a-f]{8}$`)
+	PortRegex = regexp.MustCompile(`^\d{4,5}s?$`)
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
@@ -144,22 +143,18 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 	return newAppURL
 }
 
-const previewSlugPrefix = "preview--"
+const maxHostnameLabelLength = 63
 
-// IsPreviewID reports whether id has the format of a file preview ID, e.g.
-// "0123abcd".
-func IsPreviewID(id string) bool {
-	return previewIDRegex.MatchString(id)
-}
-
-// ParsePreviewSlug returns the file preview ID in a preview slug, e.g. ID
-// "0123abcd" for slug "preview--0123abcd".
-func ParsePreviewSlug(slug string) (string, bool) {
-	id, ok := strings.CutPrefix(slug, previewSlugPrefix)
-	if !ok || !IsPreviewID(id) {
-		return "", false
+// HostnameLabel returns the first label of a's hostname under a wildcard
+// hostname such as "*.apps.example.com" or "*--apps.example.com". It returns
+// an error when the label is longer than the DNS limit of 63 characters.
+func (a ApplicationURL) HostnameLabel(wildcardHostname string) (string, error) {
+	pattern, _, _ := strings.Cut(wildcardHostname, ".")
+	label := strings.Replace(pattern, "*", a.String(), 1)
+	if len(label) > maxHostnameLabelLength {
+		return "", xerrors.Errorf("the hostname label %q is %d characters, over the DNS limit of %d", label, len(label), maxHostnameLabelLength)
 	}
-	return id, true
+	return label, nil
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
