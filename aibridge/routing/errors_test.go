@@ -46,7 +46,7 @@ func TestWriteForbiddenError(t *testing.T) {
 			routing.WriteForbiddenError(rec, req, routing.ErrorCodeBudgetExceeded, "budget gone")
 
 			require.Equal(t, http.StatusForbidden, rec.Code)
-			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+			require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
 			var got errorBody
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 			require.Equal(t, tc.wantType, got.Type)
