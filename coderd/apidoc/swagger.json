@@ -26935,7 +26935,7 @@
 					}
 				},
 				"cost_micros": {
-					"description": "CostMicros is the user's priced spend over the period.",
+					"description": "CostMicros is the user's priced spend over the period. It is a lower\nbound when any entry in ModelSpend has unpriced usage.",
 					"type": "integer"
 				},
 				"model_spend": {
@@ -26954,10 +26954,6 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.OrganizationAISpendProvider"
 					}
-				},
-				"unpriced_model_count": {
-					"description": "UnpricedModelCount is the number of models the user spent through with\ntoken usage recorded without a price, so CostMicros is a lower bound when\nit is above zero. A model used through several providers counts once.",
-					"type": "integer"
 				},
 				"user_id": {
 					"type": "string",

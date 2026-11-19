@@ -5785,8 +5785,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			},
 		})
 		targetUserSpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
-			CostMicros:         1500,
-			UnpricedModelCount: 1,
+			CostMicros: 1500,
 			ProviderSpend: []codersdk.OrganizationAISpendProvider{
 				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 1000},
 				{Name: "openai-prod", DisplayName: "openai-prod", CostMicros: 500, HasUnpricedUsage: true},
@@ -5802,8 +5801,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			},
 		})
 		targetUserOpenAISpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
-			CostMicros:         500,
-			UnpricedModelCount: 1,
+			CostMicros: 500,
 			ProviderSpend: []codersdk.OrganizationAISpendProvider{
 				{Name: "openai-prod", DisplayName: "openai-prod", CostMicros: 500, HasUnpricedUsage: true},
 			},
@@ -6831,10 +6829,14 @@ func TestGroupMembersAISpend(t *testing.T) {
 		// When: querying spend.
 		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, ids)
 
-		// Then: request fails with 400.
+		// Then: request fails with 400 and a user_ids validation error.
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "user_ids",
+			Detail: "user_ids has 101 entries, maximum is 100.",
+		}}, sdkErr.Validations)
 	})
 
 	t.Run("MalformedUserID", func(t *testing.T) {

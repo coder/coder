@@ -166,7 +166,9 @@ const SpendUserRow: React.FC<SpendUserRowProps> = ({
 			<SpendAmount
 				scope={{ user: user.name || user.username }}
 				costMicros={user.cost_micros}
-				hasUnpricedUsage={user.unpriced_model_count > 0}
+				hasUnpricedUsage={user.model_spend.some(
+					(model) => model.has_unpriced_usage,
+				)}
 			/>
 		</TableCell>
 	</TableRow>

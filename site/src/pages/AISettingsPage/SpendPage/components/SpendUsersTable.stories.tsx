@@ -33,12 +33,24 @@ const pendingReportQuery = (): SpendReportQuery => ({
 	refetch: fn(),
 });
 
+// Every provider, model, and client of each user has unpriced usage.
 const mockUnpricedUsageReport: OrganizationAISpendReport = {
 	...MockOrganizationAISpendReport,
 	totals: { cost_micros: 3_500_000, has_unpriced_usage: true },
-	users: MockOrganizationAISpendReport.users.map((user, index) => ({
+	users: MockOrganizationAISpendReport.users.map((user) => ({
 		...user,
-		unpriced_model_count: index === 0 ? 2 : 1,
+		provider_spend: user.provider_spend.map((provider) => ({
+			...provider,
+			has_unpriced_usage: true,
+		})),
+		model_spend: user.model_spend.map((model) => ({
+			...model,
+			has_unpriced_usage: true,
+		})),
+		client_spend: user.client_spend.map((client) => ({
+			...client,
+			has_unpriced_usage: true,
+		})),
 	})),
 };
 

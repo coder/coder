@@ -1780,20 +1780,20 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 	parser := httpapi.NewQueryParamParser()
 	parser.RequiredNotEmpty("user_ids")
 	userIDs := parser.UUIDs(r.URL.Query(), nil, "user_ids")
+	if len(userIDs) > maxAISpendUserIDs {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field: "user_ids",
+			Detail: fmt.Sprintf(
+				"user_ids has %d entries, maximum is %d.",
+				len(userIDs), maxAISpendUserIDs,
+			),
+		})
+	}
 	parser.ErrorExcessParams(r.URL.Query())
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: parser.Errors,
-		})
-		return
-	}
-	if len(userIDs) > maxAISpendUserIDs {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(
-				"user_ids has %d entries, maximum is %d.",
-				len(userIDs), maxAISpendUserIDs,
-			),
 		})
 		return
 	}
