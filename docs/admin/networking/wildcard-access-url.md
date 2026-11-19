@@ -58,12 +58,16 @@ This configuration serves the dashboard from `https://apps.example.com` and a wo
 ### Long application hostnames
 
 A DNS label has a limit of 63 characters.
-When the agent, workspace, and owner names do not fit in one label, Coder identifies the workspace by its ID instead, for example `8080--0oq73xnihgtc6v280bd0muhq4--1t30hzc.apps.example.com`.
+When the parts of an application hostname do not fit in one label, Coder identifies the workspace by its ID instead, for example `8080--0oq73xnihgtc6v280bd0muhq4--1t30hzc.apps.example.com`.
 For ports, Coder makes this decision for the longest possible port (`65535s`), so all ports of an agent use the same form.
 
 The short form takes up to 42 characters.
 Keep the fixed part of the first wildcard label, such as `-apps` in `*-apps.example.com`, to 21 characters or fewer.
 Coder logs a warning at startup when the fixed part is longer.
+
+Coder selects the form with the wildcard access URL of the control plane.
+If a workspace proxy uses a longer fixed part, a hostname that fits on the control plane can be too long on that proxy.
+Workspace proxies on earlier versions do not accept the short form, so upgrade them at the same time as the control plane.
 
 ### TLS Certificate Setup
 
