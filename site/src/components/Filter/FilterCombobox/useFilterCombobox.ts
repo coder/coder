@@ -482,9 +482,11 @@ export const useFilterCombobox = ({
 			: [];
 	// With a chip under each key, such as a bookmarked `user:me owner:carol`,
 	// rewriting one would collide with the other and drop a filter.
-	const isScopeToggleDisabled = (category: FilterCategory) =>
-		scopeChipsOf(category).length !== 1;
-	const isScopeWidened = (category: FilterCategory) => {
+	const isScopeToggleDisabled = (
+		category: FilterCategory,
+		chips = chipValues,
+	) => scopeChipsOf(category, chips).length !== 1;
+	const isScopeWidened = (category: FilterCategory, chips = chipValues) => {
 		const toggle = category.scopeToggle;
 		if (!toggle) {
 			return false;
@@ -492,32 +494,36 @@ export const useFilterCombobox = ({
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
 			return typedScopeWidened;
 		}
-		const [scopeChip] = scopeChipsOf(category);
+		const [scopeChip] = scopeChipsOf(category, chips);
 		return (
 			scopeChip === undefined || chipKeyOf(scopeChip) === toggle.widenedKey
 		);
 	};
 	// Follows the applied chip, not a typed `owner:` or `user:` prefix.
-	const scopePillCategoryKey = (token: string) => {
+	const scopePillCategoryKey = (token: string, chips = chipValues) => {
 		const category = categoryForChip(token);
 		return category?.scopeToggle &&
-			!isScopeToggleDisabled(category) &&
+			!isScopeToggleDisabled(category, chips) &&
 			chipKeyOf(token) === category.scopeToggle.widenedKey
 			? category.key
 			: undefined;
 	};
-	const optionChipKey = (category: FilterCategory) =>
-		category.scopeToggle && isScopeWidened(category)
+	const optionChipKey = (category: FilterCategory, chips = chipValues) =>
+		category.scopeToggle && isScopeWidened(category, chips)
 			? category.scopeToggle.widenedKey
 			: category.key;
 	// An option whose value an applied chip holds, ignoring case, maps to that
 	// chip, so it shows as selected and toggles the chip off.
-	const scopeChipHolding = (category: FilterCategory, value: string) => {
+	const scopeChipHolding = (
+		category: FilterCategory,
+		value: string,
+		chips = chipValues,
+	) => {
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
 			return undefined;
 		}
 		const folded = value.toLowerCase();
-		return scopeChipsOf(category).find(
+		return scopeChipsOf(category, chips).find(
 			(chip) => parseChipToken(chip, chipKeys)?.value.toLowerCase() === folded,
 		);
 	};
@@ -986,10 +992,11 @@ export const useFilterCombobox = ({
 	) => {
 		const category = categories.find((entry) => entry.key === categoryKey);
 		const toggle = category?.scopeToggle;
-		if (!category || !toggle || isScopeToggleDisabled(category)) {
+		const chips = lastEmittedChips();
+		if (!category || !toggle || isScopeToggleDisabled(category, chips)) {
 			return;
 		}
-		const widened = isScopeWidened(category);
+		const widened = isScopeWidened(category, chips);
 		dispatch({ type: "resetTypedScope" });
 		rewriteScopeKey(
 			widened ? toggle.widenedKey : category.key,
@@ -1003,7 +1010,11 @@ export const useFilterCombobox = ({
 	const removeScopePill = (categoryKey: string) => {
 		const category = categories.find((entry) => entry.key === categoryKey);
 		const toggle = category?.scopeToggle;
-		if (!category || !toggle || isScopeToggleDisabled(category)) {
+		if (
+			!category ||
+			!toggle ||
+			isScopeToggleDisabled(category, lastEmittedChips())
+		) {
 			return;
 		}
 		rewriteScopeKey(toggle.widenedKey, category.key);
@@ -1506,7 +1517,10 @@ export const useFilterCombobox = ({
 		) {
 			event.preventDefault();
 			// A widened chip is followed by its scope pill, so the pill goes first.
-			const pillCategoryKey = scopePillCategoryKey(chips[chips.length - 1]);
+			const pillCategoryKey = scopePillCategoryKey(
+				chips[chips.length - 1],
+				chips,
+			);
 			if (pillCategoryKey) {
 				removeScopePill(pillCategoryKey);
 				return;
@@ -1533,9 +1547,9 @@ export const useFilterCombobox = ({
 			// Unlisted values avoid the widened key, which a backend can
 			// reject (#29961 for Workspaces `user:`).
 			const candidate =
-				scopeChipHolding(activeCategory, typedOption.value) ??
+				scopeChipHolding(activeCategory, typedOption.value, chips) ??
 				(listedOption
-					? optionToken(optionChipKey(activeCategory), listedOption)
+					? optionToken(optionChipKey(activeCategory, chips), listedOption)
 					: chipToken(
 							typedScopeWidened === true
 								? optionChipKey(activeCategory)
