@@ -1516,6 +1516,10 @@ type OpenPreviewResponse struct {
 	File bool             `json:"file"`
 }
 
+// ErrPreviewsUnsupported is returned by OpenPreview when the workspace agent
+// predates file previews.
+var ErrPreviewsUnsupported = xerrors.New("workspace agent does not support file previews")
+
 // OpenPreview publishes a workspace file or directory as a preview.
 func (c *agentConn) OpenPreview(ctx context.Context, req OpenPreviewRequest) (OpenPreviewResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
@@ -1525,6 +1529,9 @@ func (c *agentConn) OpenPreview(ctx context.Context, req OpenPreviewRequest) (Op
 		return OpenPreviewResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return OpenPreviewResponse{}, ErrPreviewsUnsupported
+	}
 	if res.StatusCode != http.StatusOK {
 		return OpenPreviewResponse{}, codersdk.ReadBodyAsError(res)
 	}
