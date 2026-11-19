@@ -1284,3 +1284,15 @@ func TestAIBridgeInterceptionOrganizationSource(t *testing.T) {
 		})
 	}
 }
+
+func TestOrganizationAISpendUsers_UnknownDimension(t *testing.T) {
+	t.Parallel()
+
+	_, err := db2sdk.OrganizationAISpendUsers([]database.ListOrganizationAISpendUsersRow{{
+		UserID:        uuid.New(),
+		Dimension:     "region",
+		DimensionName: "us-east-1",
+	}})
+
+	require.ErrorContains(t, err, `unknown AI spend dimension "region"`)
+}

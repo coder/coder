@@ -1668,8 +1668,9 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 }
 
 // OrganizationAISpendUsers groups the per-dimension rows of
-// ListOrganizationAISpendUsers into users, keeping the query's order.
-func OrganizationAISpendUsers(rows []database.ListOrganizationAISpendUsersRow) []codersdk.OrganizationAISpendUser {
+// ListOrganizationAISpendUsers into users, keeping the query's order. It
+// returns an error for a dimension it does not know.
+func OrganizationAISpendUsers(rows []database.ListOrganizationAISpendUsersRow) ([]codersdk.OrganizationAISpendUser, error) {
 	users := make([]codersdk.OrganizationAISpendUser, 0)
 	// userIndex maps a user to their position in users.
 	userIndex := make(map[uuid.UUID]int)
@@ -1715,9 +1716,11 @@ func OrganizationAISpendUsers(rows []database.ListOrganizationAISpendUsersRow) [
 				CostMicros:       row.DimensionCostMicros,
 				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
 			})
+		default:
+			return nil, xerrors.Errorf("unknown AI spend dimension %q", row.Dimension)
 		}
 	}
-	return users
+	return users, nil
 }
 
 func OrganizationAISpendOverviewUsers(rows []database.ListOrganizationAISpendPerUserRow) []codersdk.OrganizationAISpendOverviewUser {

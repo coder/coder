@@ -1675,9 +1675,15 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+	users, err := db2sdk.OrganizationAISpendUsers(rows)
+	if err != nil {
+		logger.Error(ctx, "failed to convert organization AI spend users", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	report := codersdk.OrganizationAISpendReport{
 		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
-		Users:               db2sdk.OrganizationAISpendUsers(rows),
+		Users:               users,
 	}
 	if !period.retentionStart.IsZero() {
 		report.RetentionStart = &period.retentionStart
