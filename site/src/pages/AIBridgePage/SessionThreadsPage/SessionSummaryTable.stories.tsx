@@ -201,7 +201,7 @@ export const MultipleOrganizations: Story = {
 		...Default.args,
 		organizations: [
 			MockAIBridgeSessionOrganization,
-			MockAIBridgeSessionOrganization2,
+			{ ...MockAIBridgeSessionOrganization2, icon: "" },
 		],
 	},
 };
@@ -210,5 +210,14 @@ export const OrganizationNotRecorded: Story = {
 	args: {
 		...Default.args,
 		organizations: [],
+	},
+};
+
+export const OrganizationInfoTooltip: Story = {
+	args: OneOrganization.args,
+	play: async ({ canvas }) => {
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "How the organization is chosen" }),
+		);
 	},
 };

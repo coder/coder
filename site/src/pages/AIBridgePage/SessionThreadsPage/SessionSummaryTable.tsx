@@ -188,8 +188,31 @@ export const SessionSummaryTable = ({
 
 			{organizations !== undefined && (
 				<div className="flex items-start justify-between">
-					<dt className="shrink-0 font-normal whitespace-nowrap mt-1">
+					<dt className="flex shrink-0 items-center gap-1 font-normal whitespace-nowrap mt-1">
 						Organization
+						<InfoTooltip
+							size="small"
+							ariaLabel="How the organization is chosen"
+						>
+							<TooltipMessage>
+								Each AI request is attributed to one organization, based on how
+								it was made (from a workspace, from Coder Agents, or from the
+								user's group budgets). A session can include requests from more
+								than one organization. Sessions from before v2.39 show "Not
+								recorded".
+								<br />
+								<Link
+									size="sm"
+									href={docs(
+										"/ai-governance/ai-gateway/request-organization#how-ai-gateway-chooses-the-organization",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									How the organization is chosen
+								</Link>
+							</TooltipMessage>
+						</InfoTooltip>
 					</dt>
 					<dd className="ml-4 min-w-0 text-content-primary flex flex-wrap gap-1">
 						{organizations.length === 0
@@ -202,6 +225,11 @@ export const SessionSummaryTable = ({
 										className="max-w-full min-w-0"
 									>
 										<RouterLink to={`/organizations/${org.name}`}>
+											<Avatar
+												size="xs"
+												src={org.icon}
+												fallback={org.display_name || org.name}
+											/>
 											<span
 												className="truncate min-w-0"
 												title={org.display_name || org.name}
