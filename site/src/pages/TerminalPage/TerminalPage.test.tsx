@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Terminal } from "@xterm/xterm";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, ws } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Workspace, WorkspaceApp } from "#/api/typesGenerated";
@@ -13,9 +13,8 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { mockWebSocketServer } from "#/testHelpers/websocketServer";
 import TerminalPage from "./TerminalPage";
-
-const reconnectToken = "terminal-page-test-reconnect-token";
 
 const { mockSessionId } = vi.hoisted(() => ({
 	mockSessionId: "0123456789abcdef0123456789abcdef",
@@ -27,7 +26,6 @@ vi.mock("#/utils/random", () => ({
 }));
 vi.stubGlobal("jest", vi);
 await import("jest-canvas-mock");
-const { default: WS } = await import("jest-websocket-mock");
 
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
@@ -44,10 +42,9 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 const createWorkspaceTerminalWebSocket = () => {
-	const websocketProtocol = location.protocol === "https:" ? "wss" : "ws";
-	const websocketUrl = `${websocketProtocol}://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&height=24&width=80`;
-
-	return new WS(websocketUrl);
+	return mockWebSocketServer(
+		`*/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
+	);
 };
 
 // Renders the terminal page and waits for the terminal to finish
@@ -132,7 +129,6 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
 describe("TerminalPage", () => {
 	afterEach(async () => {
 		vi.restoreAllMocks();
-		await WS.clean();
 	});
 
 	it("loads the right workspace data", async () => {
@@ -166,9 +162,11 @@ describe("TerminalPage", () => {
 
 	it("shows reconnect message when websocket fails", async () => {
 		server.use(
-			http.get("/api/v2/workspaceagents/:agentId/pty", () => {
-				return HttpResponse.json({}, { status: 500 });
-			}),
+			ws
+				.link(`*/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`)
+				.addEventListener("connection", ({ client }) => {
+					client.close(1011, "internal error");
+				}),
 		);
 
 		const { container } = await renderTerminal();
@@ -195,7 +193,7 @@ describe("TerminalPage", () => {
 	// for now the initial resize message (and this test) are here to stay.
 	it("resizes on connect", async () => {
 		const ws = createWorkspaceTerminalWebSocket();
-		const resizeMessage = ws.nextMessage;
+		const resizeMessage = ws.nextMessage();
 
 		await renderTerminal();
 
@@ -219,12 +217,12 @@ describe("TerminalPage", () => {
 
 	it("supports shift+enter", async () => {
 		const ws = createWorkspaceTerminalWebSocket();
-		const initialResizeMessage = ws.nextMessage;
+		const initialResizeMessage = ws.nextMessage();
 
 		const { container } = await renderTerminal();
 		await initialResizeMessage;
 
-		const msg = ws.nextMessage;
+		const msg = ws.nextMessage();
 		const terminal = container.getElementsByClassName("xterm");
 		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
@@ -262,11 +260,7 @@ describe("TerminalPage", () => {
 	});
 
 	it("executes command after confirmation", async () => {
-		const websocketProtocol =
-			window.location.protocol === "https:" ? "wss" : "ws";
-		const ws = new WS(
-			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&command=echo+hello&height=24&width=80`,
-		);
+		const ws = createWorkspaceTerminalWebSocket();
 		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
 		);
@@ -277,7 +271,7 @@ describe("TerminalPage", () => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
 		);
 		// Verify the websocket connected and received a resize message.
-		const msg = await ws.nextMessage;
+		const msg = await ws.nextMessage();
 		const resizeReq = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
 		expect(resizeReq.height).toBeGreaterThan(0);
 		expect(resizeReq.width).toBeGreaterThan(0);
@@ -320,7 +314,7 @@ describe("TerminalPage", () => {
 		it("copies to clipboard via OSC 52", async () => {
 			const ws = createWorkspaceTerminalWebSocket();
 			await renderTerminal();
-			await ws.nextMessage;
+			await ws.nextMessage();
 
 			// OSC 52 sequence per #16577:
 			// printf "\033]52;c;$(echo -n 'Coder is Cool' | base64)\a"
@@ -335,7 +329,7 @@ describe("TerminalPage", () => {
 		it("ignores OSC 52 with missing separator", async () => {
 			const ws = createWorkspaceTerminalWebSocket();
 			await renderTerminal();
-			await ws.nextMessage;
+			await ws.nextMessage();
 
 			ws.send("\x1b]52;no-separator\x07");
 
@@ -347,7 +341,7 @@ describe("TerminalPage", () => {
 		it("ignores OSC 52 clipboard read query", async () => {
 			const ws = createWorkspaceTerminalWebSocket();
 			await renderTerminal();
-			await ws.nextMessage;
+			await ws.nextMessage();
 
 			ws.send("\x1b]52;c;?\x07");
 
@@ -358,7 +352,7 @@ describe("TerminalPage", () => {
 		it("ignores OSC 52 with invalid base64", async () => {
 			const ws = createWorkspaceTerminalWebSocket();
 			await renderTerminal();
-			await ws.nextMessage;
+			await ws.nextMessage();
 
 			ws.send("\x1b]52;c;!!!invalid-base64!!!\x07");
 
@@ -371,24 +365,20 @@ describe("TerminalPage", () => {
 		// Give the agent an app with a command that matches the ?app= slug.
 		mockAgentApp({ slug: "my-app", command: "echo trusted" });
 
-		const websocketProtocol =
-			window.location.protocol === "https:" ? "wss" : "ws";
-		const ws = new WS(
-			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&client_session_id=${mockSessionId}&command=echo+trusted&height=24&width=80`,
-		);
+		const ws = createWorkspaceTerminalWebSocket();
 		await renderTerminal(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`,
 		);
 
-		// The resolved command is sent to the PTY. The mock server matches
-		// URLs without the query string, so check the client's URL.
-		expect(ws.server.clients()[0].url).toContain("command=echo+trusted");
+		// The resolved command is sent to the PTY.
+		const connection = await ws.connection();
+		expect(connection.url.searchParams.get("command")).toBe("echo trusted");
 
 		// No dialog should appear.
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
 		// The websocket should connect with the resolved command.
-		const msg = await ws.nextMessage;
+		const msg = await ws.nextMessage();
 		const resizeReq = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
 		expect(resizeReq.height).toBeGreaterThan(0);
 		expect(resizeReq.width).toBeGreaterThan(0);

@@ -1,6 +1,5 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
-import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -24,6 +23,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { mockWebSocketServer } from "#/testHelpers/websocketServer";
 import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import TemplateVersionEditorPage, {
@@ -556,9 +556,7 @@ test("display pending badge and update it to running when status changes", async
 
 	// Mock the logs when the status is running. This prevents connection errors
 	// from being thrown in the console during the test.
-	new WS(
-		`ws://localhost/api/v2/templateversions/${MockTemplateVersion.name}/logs?follow=true`,
-	);
+	mockWebSocketServer("*/api/v2/templateversions/:versionId/logs");
 
 	renderEditorPage(createTestQueryClient());
 
