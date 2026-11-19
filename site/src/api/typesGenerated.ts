@@ -8228,6 +8228,11 @@ export interface OrganizationAISpendDetailsFilter {
 	readonly group_id?: string;
 	readonly provider_name?: string;
 	readonly model?: string;
+	/**
+	 * Client matches the client recorded on the intercepted request. Unknown
+	 * matches usage without a recorded client.
+	 */
+	readonly client?: string;
 }
 
 // From codersdk/aibridge.go

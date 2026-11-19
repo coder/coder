@@ -1181,7 +1181,7 @@ var AISpendExportCSVHeader = []string{
 	"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
 	"model", "provider", "provider_name",
 	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
-	"cost_micros", "period_start", "period_end",
+	"cost_micros", "period_start", "period_end", "client",
 }
 
 // csvFormulaPrefixes are the leading characters a spreadsheet treats as the
@@ -1293,7 +1293,7 @@ func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWrite
 }
 
 // @Summary Export organization AI spend as CSV
-// @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+// @Description Returns per-user, per-group, per-model, per-provider, per-client aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage. Usage without a recorded client is reported as Unknown. New columns are only added at the end.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
 // @Description Unknown query parameters are rejected.
@@ -1309,6 +1309,7 @@ func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWrite
 // @Param group_id query string false "Effective group ID" format(uuid)
 // @Param provider_name query string false "Configured provider name"
 // @Param model query string false "Model name"
+// @Param client query string false "Only include usage from this client. Unknown matches usage without a recorded client."
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -1329,6 +1330,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	groupID := parser.UUID(query, uuid.Nil, "group_id")
 	providerName := parser.String(query, "", "provider_name")
 	model := parser.String(query, "", "model")
+	client := parser.String(query, "", "client")
 	period, ok := api.aiSpendRetainedPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
@@ -1347,6 +1349,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		GroupID:        groupID,
 		ProviderName:   providerName,
 		Model:          model,
+		Client:         client,
 		LimitOpt:       0,
 		OffsetOpt:      0,
 	})
@@ -1384,6 +1387,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 			strconv.FormatInt(row.CostMicros, 10),
 			start,
 			end,
+			escapeCSVCell(row.Client),
 		}); err != nil {
 			logger.Error(ctx, "failed to write AI spend export row", slog.Error(err))
 			httpapi.InternalServerError(rw, err)

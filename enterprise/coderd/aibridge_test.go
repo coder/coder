@@ -5123,6 +5123,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "300", "150", "30", "15", "3000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+			"Unknown",
 		}, records[1])
 	})
 
@@ -5183,6 +5184,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			"2026-03-06T12:00:00Z", "2026-04-01T00:00:00Z",
+			"Unknown",
 		}, records[1])
 	})
 
@@ -5235,6 +5237,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			start.Format(time.RFC3339), end.Format(time.RFC3339),
+			"Unknown",
 		}, records[1])
 	})
 
@@ -5319,6 +5322,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			"2024-03-10T07:00:00Z", "2024-03-10T09:00:00Z",
+			"Unknown",
 		}, records[1])
 	})
 
@@ -5374,8 +5378,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		periodStart := "2026-03-01T00:00:00Z"
 		periodEnd := "2026-04-01T00:00:00Z"
 		// Ordered by provider then model: anthropic/claude-4, then openai/gpt-4.
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "gpt-4", "openai", "openai-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd, "Unknown"}, records[1])
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "gpt-4", "openai", "openai-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd, "Unknown"}, records[2])
 	})
 
 	t.Run("SeparateRowPerProviderName", func(t *testing.T) {
@@ -5435,8 +5439,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		periodStart := "2026-03-01T00:00:00Z"
 		periodEnd := "2026-04-01T00:00:00Z"
 		// Ordered by provider name: anthropic-dev, then anthropic-prod.
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-dev", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-dev", "100", "50", "0", "0", "1000", periodStart, periodEnd, "Unknown"}, records[1])
+		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd, "Unknown"}, records[2])
 	})
 
 	t.Run("SeparateRowPerGroup", func(t *testing.T) {
@@ -5502,8 +5506,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// Rows are ordered by group ID, which is a random UUID, so compare
 		// without depending on which group sorts first.
 		require.ElementsMatch(t, [][]string{
-			{userID, username, group.ID.String(), group.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd},
-			{userID, username, secondGroup.ID.String(), secondGroup.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd},
+			{userID, username, group.ID.String(), group.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd, "Unknown"},
+			{userID, username, secondGroup.ID.String(), secondGroup.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd, "Unknown"},
 		}, records[1:])
 	})
 
@@ -5560,6 +5564,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+			"Unknown",
 		}, records[1])
 	})
 
@@ -5585,13 +5590,15 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			groupID      uuid.UUID
 			providerName string
 			model        string
+			client       string
 			costMicros   int64
 		}{
-			{group.ID, "provider-one", "model-one", 100},
-			{otherGroup.ID, "provider-two", "model-two", 200},
+			{group.ID, "provider-one", "model-one", "cursor", 100},
+			{otherGroup.ID, "provider-two", "model-two", "", 200},
 		} {
 			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: seed.providerName, Model: seed.model, StartedAt: at,
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: seed.providerName, Model: seed.model,
+				Client: sql.NullString{String: seed.client, Valid: seed.client != ""}, StartedAt: at,
 			}, nil)
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 				InterceptionID: intc.ID, CreatedAt: at,
@@ -5609,6 +5616,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			{name: "Group", filter: codersdk.OrganizationAISpendDetailsFilter{GroupID: group.ID}, wantCosts: []string{"100"}},
 			{name: "Provider", filter: codersdk.OrganizationAISpendDetailsFilter{ProviderName: "provider-two"}, wantCosts: []string{"200"}},
 			{name: "Model", filter: codersdk.OrganizationAISpendDetailsFilter{Model: "model-one"}, wantCosts: []string{"100"}},
+			{name: "Client", filter: codersdk.OrganizationAISpendDetailsFilter{Client: "cursor"}, wantCosts: []string{"100"}},
 			{name: "Combined", filter: codersdk.OrganizationAISpendDetailsFilter{UserID: targetUser.ID, GroupID: otherGroup.ID, ProviderName: "provider-two", Model: "model-two"}, wantCosts: []string{"200"}},
 			{name: "NoMatch", filter: codersdk.OrganizationAISpendDetailsFilter{ProviderName: "missing"}},
 		}
@@ -5745,6 +5753,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			owner.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+			"Unknown",
 		}, records[1])
 	})
 
@@ -5767,13 +5776,15 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
 		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
 
-		// Model, provider, and provider name are recorded verbatim from the
-		// intercepted request, so a leading formula character must be escaped.
+		// Model, provider, provider name, and client are recorded verbatim from
+		// the intercepted request, so a leading formula character must be
+		// escaped.
 		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:  targetUser.ID,
 			Provider:     "+openai",
 			ProviderName: "@prod",
 			Model:        `=HYPERLINK("http://insecure/","invoice")`,
+			Client:       sql.NullString{String: "-cursor", Valid: true},
 			StartedAt:    inMonth,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
@@ -5795,6 +5806,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			`'=HYPERLINK("http://insecure/","invoice")`, "'+openai", "'@prod",
 			"100", "50", "0", "0", "1000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+			"'-cursor",
 		}, records[1])
 	})
 
@@ -5836,7 +5848,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
 			"model", "provider", "provider_name",
 			"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
-			"cost_micros", "period_start", "period_end",
+			"cost_micros", "period_start", "period_end", "client",
 		}, records[0])
 		require.Len(t, records, 1)
 	})
