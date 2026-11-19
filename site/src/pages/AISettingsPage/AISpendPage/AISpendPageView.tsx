@@ -173,12 +173,16 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					<TabsContent value="detailed-report">
 						<DetailedReportTab
 							organizationId={organization.id}
+							organizationName={getOrganizationLabel(
+								organization,
+								organizations,
+							)}
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}
 							filter={reportFilter}
 							onFilterChange={onReportFilterChange}
-							canFilter={canViewSessions}
+							canViewSessions={canViewSessions}
 							reportQuery={reportQuery}
 							hasRunReport={hasRunReport}
 							isReportOutdated={isReportOutdated}

@@ -12,13 +12,14 @@ import type { SpendDays } from "./spendDays";
 
 type DetailedReportTabProps = {
 	organizationId: string;
+	organizationName: string;
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	filter: string;
 	onFilterChange: (filter: string) => void;
-	/** The filter options come from AI Gateway endpoints that need read access to every session. */
-	canFilter: boolean;
+	/** The filter options and session logs need read access to every session. */
+	canViewSessions: boolean;
 	reportQuery: DetailedReportQuery;
 	hasRunReport: boolean;
 	/** The days or filter changed since the report last ran. */
@@ -29,12 +30,13 @@ type DetailedReportTabProps = {
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	organizationId,
+	organizationName,
 	now,
 	days,
 	onDaysChange,
 	filter,
 	onFilterChange,
-	canFilter,
+	canViewSessions,
 	reportQuery,
 	hasRunReport,
 	isReportOutdated,
@@ -57,7 +59,7 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 				</p>
 			</section>
 			<div className="flex flex-wrap items-center gap-3">
-				{canFilter && (
+				{canViewSessions && (
 					<DetailedReportFilter
 						organizationId={organizationId}
 						value={filter}
@@ -90,7 +92,11 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 							update the results.
 						</Alert>
 					)}
-					<DetailedReportTable reportQuery={reportQuery} />
+					<DetailedReportTable
+						reportQuery={reportQuery}
+						organizationName={organizationName}
+						canViewSessions={canViewSessions}
+					/>
 				</>
 			) : (
 				<EmptyState

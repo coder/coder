@@ -28,11 +28,16 @@ import { DATE_FORMAT } from "#/utils/time";
 
 dayjs.extend(utc);
 
+export type CostDetailsUser = Pick<
+	OrganizationAISpendOverviewUser,
+	"username" | "name" | "avatar_url" | "spend_micros"
+>;
+
 type CostDetailsDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onCloseAutoFocus: (event: Event) => void;
-	user: OrganizationAISpendOverviewUser;
+	user: CostDetailsUser;
 	/** Undefined while the user's details load, null when they have none. */
 	details: OrganizationAISpendUser | null | undefined;
 	detailsError: Error | null;
