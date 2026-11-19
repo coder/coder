@@ -98,17 +98,19 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 type WrapperProps = React.PropsWithChildren<{
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
+	experiments?: TypesGen.Experiment[];
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
+	experiments = [],
 }) => {
 	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
-		experiments: [],
+		experiments,
 		appearance: MockAppearanceConfig,
 		buildInfo: MockBuildInfo,
 		organizations,
@@ -739,6 +741,22 @@ describe("ChatsSidebar projects", () => {
 		expect(
 			screen.getByRole("button", { name: `Collapse ${mockOtherProject.name}` }),
 		).toBeInTheDocument();
+	});
+});
+
+it("opens the Automations page", async () => {
+	const user = userEvent.setup();
+	render(
+		<Wrapper initialEntry="/agents/chat-1" experiments={["chat-automations"]}>
+			<ChatsSidebar {...defaultProps} />
+			<ProjectLocationProbe />
+		</Wrapper>,
+	);
+	await user.click(screen.getByRole("link", { name: "Automations" }));
+	await waitFor(() => {
+		expect(screen.getByTestId("location-pathname").textContent).toBe(
+			"/agents/automations",
+		);
 	});
 });
 

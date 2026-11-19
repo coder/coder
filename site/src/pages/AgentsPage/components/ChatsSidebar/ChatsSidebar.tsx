@@ -104,7 +104,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
 	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	// The sidebar lists the user's projects across organizations.
@@ -257,6 +257,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
+				chatAutomationsEnabled={experiments.includes("chat-automations")}
 				projects={projectsQuery.data ?? []}
 				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
@@ -290,7 +291,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId
+					!sidebarView.projectId &&
+					location.pathname !== "/agents/automations"
 				}
 				location={location}
 				currentUserId={currentUserId}

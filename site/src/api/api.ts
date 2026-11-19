@@ -3310,6 +3310,26 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatAutomations = async (
+		organizationId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatAutomation[]> => {
+		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations`,
+			{ signal },
+		);
+		return response.data;
+	};
+
+	deleteChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations/${encodeURIComponent(automationId)}`,
+		);
+	};
+
 	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
 		const response = await this.axios.get<TypesGen.ChatProject[]>(
 			"/api/experimental/chats/projects",
