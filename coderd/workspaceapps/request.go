@@ -216,7 +216,7 @@ type databaseRequest struct {
 //
 // If any of the queries don't return any rows, the error will wrap
 // sql.ErrNoRows. All other errors should be considered internal server errors.
-func (r Request) getDatabase(ctx context.Context, db database.Store, filePreviews bool) (*databaseRequest, error) {
+func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseRequest, error) {
 	// If the AccessMethod is AccessMethodTerminal, then we need to get the
 	// agent first since that's the only info we have.
 	if r.AccessMethod == AccessMethodTerminal {
@@ -312,7 +312,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store, filePreview
 	corsBehavior = tmpl.CorsBehavior
 	previewID, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
 	switch {
-	case isPreview && filePreviews && r.AccessMethod == AccessMethodSubdomain:
+	case isPreview:
 		appURL = fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s", workspacesdk.AgentHTTPAPIServerPort, previewID)
 		appSharingLevel = database.AppSharingLevelOwner
 	case portUintErr == nil:

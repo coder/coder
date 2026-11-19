@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -153,8 +154,14 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	aReq.apiKey = apiKey // Update audit request.
 
+	if _, ok := appurl.ParsePreviewSlug(appReq.AppSlugOrPort); ok &&
+		(!p.Experiments.Enabled(codersdk.ExperimentOpenPreview) || appReq.AccessMethod != AccessMethodSubdomain) {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "file previews require the open-preview experiment and a subdomain app URL")
+		return nil, "", false
+	}
+
 	// Lookup workspace app details from DB.
-	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database, p.Experiments.Enabled(codersdk.ExperimentOpenPreview))
+	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	switch {
 	case xerrors.Is(err, sql.ErrNoRows):
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())

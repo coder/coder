@@ -26,6 +26,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -1507,11 +1508,17 @@ type OpenPreviewRequest struct {
 
 // OpenPreviewResponse describes a published preview. The agent serves it
 // under /api/v0/previews/{id}/ on AgentHTTPAPIServerPort until it restarts.
-// Path is the cleaned path it serves.
+// Path is the cleaned path it serves. A File preview serves only that file,
+// at the preview's root.
 type OpenPreviewResponse struct {
-	ID   string `json:"id"`
-	Path string `json:"path"`
+	ID   appurl.PreviewID `json:"id"`
+	Path string           `json:"path"`
+	File bool             `json:"file"`
 }
+
+// ErrPreviewsUnsupported is returned by OpenPreview when the workspace agent
+// predates file previews.
+var ErrPreviewsUnsupported = xerrors.New("workspace agent does not support file previews")
 
 // OpenPreview publishes a workspace file or directory as a preview.
 func (c *agentConn) OpenPreview(ctx context.Context, req OpenPreviewRequest) (OpenPreviewResponse, error) {
@@ -1522,6 +1529,9 @@ func (c *agentConn) OpenPreview(ctx context.Context, req OpenPreviewRequest) (Op
 		return OpenPreviewResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return OpenPreviewResponse{}, ErrPreviewsUnsupported
+	}
 	if res.StatusCode != http.StatusOK {
 		return OpenPreviewResponse{}, codersdk.ReadBodyAsError(res)
 	}

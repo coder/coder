@@ -159,9 +159,9 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 					}
 					return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err)), nil
 				}
-				result.PreviewID = preview.ID
+				result.PreviewID = string(preview.ID)
 				result.Path = preview.Path
-				slug = appurl.PreviewSlug(preview.ID)
+				slug = preview.ID.Slug()
 			}
 
 			if err := checkHostnameLength(options.AppHostname, workspace, slug); err != nil {
