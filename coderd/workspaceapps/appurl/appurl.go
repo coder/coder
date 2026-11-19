@@ -143,20 +143,6 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 	return newAppURL
 }
 
-const maxHostnameLabelLength = 63
-
-// HostnameLabel returns the first label of a's hostname under a wildcard
-// hostname such as "*.apps.example.com" or "*--apps.example.com". It returns
-// an error when the label is longer than the DNS limit of 63 characters.
-func (a ApplicationURL) HostnameLabel(wildcardHostname string) (string, error) {
-	pattern, _, _ := strings.Cut(wildcardHostname, ".")
-	label := strings.Replace(pattern, "*", a.String(), 1)
-	if len(label) > maxHostnameLabelLength {
-		return "", xerrors.Errorf("the hostname label %q is %d characters, over the DNS limit of %d", label, len(label), maxHostnameLabelLength)
-	}
-	return label, nil
-}
-
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
 // the subdomain is not a valid application URL hostname, returns a non-nil
 // error. If the hostname is not a subdomain of the given base hostname, returns
@@ -168,7 +154,7 @@ func (a ApplicationURL) HostnameLabel(wildcardHostname string) (string, error) {
 //
 // Where agent name is:
 //   - REQUIRED for ports: 8080--agent--workspace--user, 8080s--agent--workspace--user
-//   - REQUIRED for file previews: preview--0123abcd--agent--workspace--user
+//   - REQUIRED for previews: preview--0123abcd--agent--workspace--user, preview--8080--agent--workspace--user
 //   - OPTIONAL for app slugs: myapp--workspace--user (agent name omitted)
 //
 // Examples:

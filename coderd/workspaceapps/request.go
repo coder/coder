@@ -310,10 +310,15 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
 	}
 	corsBehavior = tmpl.CorsBehavior
-	previewID, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
+	preview, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
 	switch {
 	case isPreview:
-		appURL = fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s", workspacesdk.AgentHTTPAPIServerPort, previewID)
+		// Previews serve agent-written pages, so port shares never apply.
+		if preview.Port != 0 {
+			appURL = fmt.Sprintf("http://127.0.0.1:%d", preview.Port)
+		} else {
+			appURL = fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s", workspacesdk.AgentHTTPAPIServerPort, preview.ID)
+		}
 		appSharingLevel = database.AppSharingLevelOwner
 	case portUintErr == nil:
 		protocol := "http"

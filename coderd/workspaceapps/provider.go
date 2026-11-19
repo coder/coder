@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -55,11 +56,21 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		return token, true
 	}
 
+	sessionToken := opts.Cookies.TokenFromRequest(r, appReq.AccessMethod)
+	if _, isPreview := appurl.ParsePreviewSlug(appReq.AppSlugOrPort); isPreview {
+		// A preview accepts only the cookie its own sign-in set, never the
+		// app wildcard cookie, a header, or a query parameter.
+		sessionToken = ""
+		if cookie, err := r.Cookie(codersdk.PreviewSessionTokenCookie); err == nil {
+			sessionToken = cookie.Value
+		}
+	}
+
 	issueReq := IssueTokenRequest{
 		AppRequest:     appReq,
 		PathAppBaseURL: opts.PathAppBaseURL.String(),
 		AppHostname:    opts.AppHostname,
-		SessionToken:   opts.Cookies.TokenFromRequest(r, appReq.AccessMethod),
+		SessionToken:   sessionToken,
 		AppPath:        opts.AppPath,
 		AppQuery:       opts.AppQuery,
 	}

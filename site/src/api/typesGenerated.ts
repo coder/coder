@@ -8986,6 +8986,11 @@ export interface PresetParameter {
 	readonly Value: string;
 }
 
+// From codersdk/previews.go
+export type PreviewMode = "strict";
+
+export const PreviewModes: PreviewMode[] = ["strict"];
+
 // From codersdk/parameters.go
 export interface PreviewParameter extends PreviewParameterData {
 	readonly value: NullHCLString;
@@ -9040,6 +9045,14 @@ export interface PreviewParameterValidation {
 	readonly validation_max: number | null;
 	readonly validation_monotonic: string | null;
 }
+
+// From codersdk/client.go
+/**
+ * PreviewSessionTokenCookie is the name of the host-only cookie that
+ * stores an application-scoped API token on one preview host.
+ *nolint:gosec
+ */
+export const PreviewSessionTokenCookie = "coder_preview_session_token";
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {
