@@ -309,13 +309,13 @@ func reviewGroupSyncSettings(ctx context.Context, tx database.Store, orgID uuid.
 
 	review := groupSyncReview{
 		received: settings,
-		plan:     idpsync.RewritePlan(idpsync.RelaxedGroupSyncAction, route, findings),
+		plan:     idpsync.RewritePlan(idpsync.RelaxedGroupSyncFindingAction, route, findings),
 	}
-	if review.plan.Instruction == idpsync.GroupSyncInstructionReject {
+	if review.plan.Instruction == idpsync.GroupSyncSettingsInstructionReject {
 		if route != idpsync.GroupSyncRouteFetch {
 			return review, nil
 		}
-		review.plan.Instruction = idpsync.GroupSyncInstructionKeep
+		review.plan.Instruction = idpsync.GroupSyncSettingsInstructionKeep
 	}
 	review.result, err = idpsync.RewriteResult(settings, review.plan)
 	if err != nil {
@@ -326,7 +326,7 @@ func reviewGroupSyncSettings(ctx context.Context, tx database.Store, orgID uuid.
 
 // rejected reports whether the plan rejects the settings.
 func (r groupSyncReview) rejected() bool {
-	return r.plan.Instruction == idpsync.GroupSyncInstructionReject
+	return r.plan.Instruction == idpsync.GroupSyncSettingsInstructionReject
 }
 
 // response builds the response body for settings the plan did not reject.
@@ -355,7 +355,7 @@ func (r groupSyncReview) rejection() codersdk.Response {
 		Detail:  "Each validation names the element by its JSON Pointer and the condition it violates.",
 	}
 	for _, planned := range r.plan.Actions {
-		if planned.Action != idpsync.GroupSyncActionReject {
+		if planned.Action != idpsync.GroupSyncFindingActionReject {
 			continue
 		}
 		resp.Validations = append(resp.Validations, codersdk.ValidationError{

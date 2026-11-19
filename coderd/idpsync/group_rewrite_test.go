@@ -847,8 +847,8 @@ func TestRewriteResultCallerErrors(t *testing.T) {
 			name: "reject",
 			why:  "A plan that says reject leaves nothing to carry out.",
 			plan: idpsync.GroupSyncRewritePlan{
-				Instruction: idpsync.GroupSyncInstructionReject,
-				Actions:     []idpsync.GroupSyncPlannedAction{{Finding: finding, Action: idpsync.GroupSyncActionReject}},
+				Instruction: idpsync.GroupSyncSettingsInstructionReject,
+				Actions:     []idpsync.GroupSyncPlannedAction{{Finding: finding, Action: idpsync.GroupSyncFindingActionReject}},
 			},
 		},
 		{
@@ -856,7 +856,7 @@ func TestRewriteResultCallerErrors(t *testing.T) {
 			why:  "An instruction RewritePlan never gives cannot be carried out.",
 			plan: idpsync.GroupSyncRewritePlan{
 				Instruction: "unknown_instruction",
-				Actions:     []idpsync.GroupSyncPlannedAction{{Finding: finding, Action: idpsync.GroupSyncActionRewrite}},
+				Actions:     []idpsync.GroupSyncPlannedAction{{Finding: finding, Action: idpsync.GroupSyncFindingActionRewrite}},
 			},
 		},
 	}

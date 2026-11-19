@@ -72,14 +72,14 @@ func RewriteResult(settings codersdk.GroupSyncSettings, plan GroupSyncRewritePla
 	}
 
 	switch plan.Instruction {
-	case GroupSyncInstructionAccept:
+	case GroupSyncSettingsInstructionAccept:
 		return GroupSyncRewriteResult{
 			Outcome:  GroupSyncRewriteOutcomeValid,
 			Settings: settings,
 			Warnings: []codersdk.GroupSyncWarning{},
 		}, nil
 
-	case GroupSyncInstructionKeep:
+	case GroupSyncSettingsInstructionKeep:
 		warnings := make([]codersdk.GroupSyncWarning, 0, len(findings))
 		for _, f := range findings {
 			received, err := elementJSON(settings, f.Path)
@@ -94,10 +94,10 @@ func RewriteResult(settings codersdk.GroupSyncSettings, plan GroupSyncRewritePla
 			Warnings: warnings,
 		}, nil
 
-	case GroupSyncInstructionRewrite:
+	case GroupSyncSettingsInstructionRewrite:
 		return rewriteSettings(settings, findings)
 
-	case GroupSyncInstructionReject:
+	case GroupSyncSettingsInstructionReject:
 		return GroupSyncRewriteResult{}, xerrors.New("plan rejects the settings, so there is nothing to carry out")
 
 	default:
