@@ -2,6 +2,7 @@ import type {
 	AdvisorConfig,
 	Chat,
 	ChatAttachment,
+	ChatAutomation,
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
@@ -11,7 +12,7 @@ import type {
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
-import { MockUserOwner } from "./entities";
+import { MockDefaultOrganization, MockUserOwner } from "./entities";
 
 export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
@@ -38,6 +39,64 @@ export const MockChat: Chat = {
 	has_unread: false,
 	client_type: "ui",
 	children: [],
+};
+
+export const MockChatAutomation: ChatAutomation = {
+	id: "daily-pr-review",
+	organization_id: MockDefaultOrganization.id,
+	owner_id: MockUserOwner.id,
+	owner: {
+		id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: MockUserOwner.name,
+		avatar_url: "",
+	},
+	name: "Daily PR review",
+	kind: "schedule",
+	enabled: true,
+	target_mode: "existing_chat",
+	target_chat_id: MockChat.id,
+	target_chat: {
+		id: MockChat.id,
+		title: MockChat.title,
+		archived: false,
+	},
+	created_by_chat_id: null,
+	created_by_chat: null,
+	when_busy: "queue",
+	new_chat_model_config_id: null,
+	project_id: null,
+	reasoning_effort: null,
+	webhook_auth: null,
+	webhook_secret_version: 0,
+	prompt:
+		"Review open pull requests and summarize anything that needs attention.",
+	schedule_cron: "*/5 * * * *",
+	schedule_time_zone: "UTC",
+	schedule_next_run_at: null,
+	next_run_times: [],
+	paused_reasons: [],
+	last_run: null,
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+};
+
+export const MockWebhookChatAutomation: ChatAutomation = {
+	...MockChatAutomation,
+	id: "release-notes",
+	name: "Release notes",
+	prompt: "Draft release notes from changes merged this week.",
+	kind: "webhook",
+	enabled: false,
+	target_mode: "new_chat",
+	target_chat_id: null,
+	target_chat: null,
+	when_busy: null,
+	new_chat_model_config_id: "model-config-1",
+	webhook_auth: "bearer",
+	webhook_secret_version: 1,
+	schedule_cron: null,
+	schedule_time_zone: null,
 };
 
 export const mockChatCost = (

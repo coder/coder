@@ -98,17 +98,19 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 type WrapperProps = React.PropsWithChildren<{
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
+	experiments?: TypesGen.Experiment[];
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
+	experiments = [],
 }) => {
 	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
-		experiments: [],
+		experiments,
 		appearance: MockAppearanceConfig,
 		buildInfo: MockBuildInfo,
 		organizations,
@@ -745,7 +747,7 @@ describe("ChatsSidebar projects", () => {
 it("opens the Automations page", async () => {
 	const user = userEvent.setup();
 	render(
-		<Wrapper initialEntry="/agents/chat-1">
+		<Wrapper initialEntry="/agents/chat-1" experiments={["chat-automations"]}>
 			<ChatsSidebar {...defaultProps} />
 			<ProjectLocationProbe />
 		</Wrapper>,

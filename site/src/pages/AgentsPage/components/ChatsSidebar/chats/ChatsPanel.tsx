@@ -117,6 +117,7 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
+	readonly chatAutomationsEnabled: boolean;
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly isProjectsLoading: boolean;
@@ -155,6 +156,7 @@ type ChatsPanelProps = {
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
+	chatAutomationsEnabled,
 	projects,
 	organizations,
 	isProjectsLoading,
@@ -553,12 +555,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
-				<SettingsNavItem
-					icon={RotateCwFadingClockIcon}
-					label="Automations"
-					active={location.pathname === "/agents/automations"}
-					to={{ pathname: "/agents/automations", search: locationSearch }}
-				/>
+				{chatAutomationsEnabled && (
+					<SettingsNavItem
+						icon={RotateCwFadingClockIcon}
+						label="Automations"
+						active={location.pathname === "/agents/automations"}
+						to={{ pathname: "/agents/automations", search: locationSearch }}
+					/>
+				)}
 				{onOpenSearchDialog && (
 					<SettingsNavItem
 						icon={SearchIcon}

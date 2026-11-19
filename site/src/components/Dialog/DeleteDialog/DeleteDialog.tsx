@@ -18,6 +18,7 @@ type DeleteDialogProps = {
 	isOpen: boolean;
 	onConfirm: () => void;
 	onCancel: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 	entity: string;
 	name: string;
 	info?: string;
@@ -31,6 +32,7 @@ type DeleteDialogProps = {
 export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 	isOpen,
 	onCancel,
+	onCloseAutoFocus,
 	onConfirm,
 	entity,
 	info,
@@ -59,7 +61,11 @@ export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
-			<DialogContent variant="destructive" data-testid="dialog">
+			<DialogContent
+				variant="destructive"
+				data-testid="dialog"
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
 				<DialogHeader>
 					<DialogTitle>{title ?? `Delete ${entity}`}</DialogTitle>
 					<DialogDescription>

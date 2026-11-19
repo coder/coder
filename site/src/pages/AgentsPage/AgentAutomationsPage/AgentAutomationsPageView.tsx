@@ -1,3 +1,4 @@
+import cronstrue from "cronstrue";
 import {
 	CalendarClockIcon,
 	CircleDotIcon,
@@ -11,9 +12,14 @@ import {
 	WebhookIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
-import type { MinimalUser } from "#/api/typesGenerated";
+import type {
+	ChatAutomation,
+	ChatAutomationWebhookAuth,
+	Organization,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
@@ -34,8 +40,10 @@ import type {
 	FilterOption,
 } from "#/components/Filter/FilterCombobox/types";
 import { parseFilterQuery } from "#/components/Filter/filterQuery";
-import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
-import { Switch } from "#/components/Switch/Switch";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+} from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -45,41 +53,46 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { RetryButton } from "../components/RetryButton";
 import { SectionHeader } from "../components/SectionHeader";
 
-type AutomationTrigger =
-	| {
-			type: "timetable";
-			label: string;
-			timezone: string;
-	  }
-	| {
-			type: "webhook";
-			usage: string;
-	  };
+const webhookAuthLabels: Record<ChatAutomationWebhookAuth, string> = {
+	bearer: "Bearer token",
+	github: "GitHub",
+	standard_webhooks: "Standard Webhooks",
+};
 
-const statusOptions: readonly FilterOption[] = [
-	{
-		label: "Enabled",
-		value: "enabled",
-		startIcon: <StatusIndicatorDot variant="success" size="md" />,
-	},
-	{
-		label: "Disabled",
-		value: "disabled",
-		startIcon: <StatusIndicatorDot variant="inactive" size="md" />,
-	},
-	{
-		label: "Paused",
-		value: "paused",
-		startIcon: <StatusIndicatorDot variant="warning" size="md" />,
-	},
-	{
-		label: "Used",
-		value: "used",
-		startIcon: <StatusIndicatorDot variant="inactive" size="md" />,
-	},
-];
+const automationOwnerName = (owner: ChatAutomation["owner"]) =>
+	owner?.name || owner?.username || "Unknown";
+
+const automationStatus = (automation: ChatAutomation) => {
+	if (!automation.enabled) {
+		return "disabled";
+	}
+	return automation.paused_reasons.length > 0 ? "paused" : "enabled";
+};
+
+const scheduleLabel = (automation: ChatAutomation) =>
+	automation.schedule_cron
+		? cronstrue.toString(automation.schedule_cron, {
+				throwExceptionOnParseError: false,
+			})
+		: "Schedule unavailable";
+
+const automationStatuses = {
+	enabled: { label: "Enabled", variant: "success" },
+	disabled: { label: "Disabled", variant: "inactive" },
+	paused: { label: "Paused", variant: "warning" },
+} as const;
+
+const statusOptions: readonly FilterOption[] = Object.entries(
+	automationStatuses,
+).map(([value, { label, variant }]) => ({
+	label,
+	value,
+	startIcon: <StatusIndicatorDot variant={variant} size="md" />,
+}));
 
 const triggerOptions: readonly FilterOption[] = [
 	{
@@ -88,58 +101,50 @@ const triggerOptions: readonly FilterOption[] = [
 		startIcon: <WebhookIcon />,
 	},
 	{
-		label: "Timetable",
-		value: "timetable",
+		label: "Schedule",
+		value: "schedule",
 		startIcon: <CalendarClockIcon />,
 	},
 ];
 
-const filterKeys = ["owner", "trigger", "status"];
-
-/** An automation started by either a timetable or webhook. */
-export type Automation = {
-	id: string;
-	name: string;
-	prompt: string;
-	owner: Pick<MinimalUser, "username" | "name" | "avatar_url">;
-	trigger: AutomationTrigger;
-	enabled: boolean;
-};
-
 type AgentAutomationsPageViewProps = {
-	automations: readonly Automation[];
-	onEnabledChange: (id: string, enabled: boolean) => void;
-	onEditAutomation: (automation: Automation) => void;
-	onRunAutomation: (automation: Automation) => void;
-	onViewChats: (automation: Automation) => void;
-	onDeleteAutomation: (automation: Automation) => void;
+	automations: readonly ChatAutomation[];
+	organizations: readonly Organization[];
+	isLoading: boolean;
+	loadErrors: readonly {
+		organization: Organization;
+		error: unknown;
+		isRetrying: boolean;
+	}[];
+	onRetry: (organizationId: string) => void;
+	onMenuTrigger: React.ReactEventHandler<HTMLButtonElement>;
+	onDeleteAutomation: (automation: ChatAutomation) => void;
 };
 
-/**
- * Displays automation triggers. The caller owns each enabled state and
- * handles row actions through the corresponding callbacks.
- */
+/** Renders a filterable automation list alongside per-organization load errors. */
 export const AgentAutomationsPageView: React.FC<
 	AgentAutomationsPageViewProps
 > = ({
 	automations,
-	onEnabledChange,
-	onEditAutomation,
-	onRunAutomation,
-	onViewChats,
+	organizations,
+	isLoading,
+	loadErrors,
+	onRetry,
+	onMenuTrigger,
 	onDeleteAutomation,
 }) => {
 	const [filterQuery, setFilterQuery] = useState("");
 	const ownersByUsername = new Map(
-		automations.map((automation) => [
-			automation.owner.username,
-			automation.owner,
-		]),
+		automations.flatMap((automation) =>
+			automation.owner
+				? [[automation.owner.username, automation.owner] as const]
+				: [],
+		),
 	);
 	const ownerOptions: readonly FilterOption[] = Array.from(
 		ownersByUsername.values(),
 		(owner) => {
-			const ownerName = owner.name || owner.username;
+			const ownerName = automationOwnerName(owner);
 			return {
 				label: ownerName,
 				value: owner.username,
@@ -180,16 +185,17 @@ export const AgentAutomationsPageView: React.FC<
 		},
 	];
 	const filterValues = parseFilterQuery(filterQuery);
-	const normalizedQuery = extractFreeText(
-		filterQuery,
-		filterKeys,
-	).toLocaleLowerCase("en-US");
+	const normalizedQuery = extractFreeText(filterQuery, [
+		"owner",
+		"trigger",
+		"status",
+	]).toLocaleLowerCase("en-US");
 	const filteredAutomations = automations.filter((automation) => {
-		const ownerName = automation.owner.name || automation.owner.username;
+		const ownerName = automationOwnerName(automation.owner);
 		const triggerText =
-			automation.trigger.type === "timetable"
-				? `${automation.trigger.label} ${automation.trigger.timezone}`
-				: `Webhook ${automation.trigger.usage}`;
+			automation.kind === "schedule"
+				? `${scheduleLabel(automation)} ${automation.schedule_time_zone ?? ""}`
+				: `Webhook ${automation.webhook_auth ? webhookAuthLabels[automation.webhook_auth] : ""}`;
 		const matchesSearch = [
 			automation.name,
 			automation.prompt,
@@ -200,14 +206,13 @@ export const AgentAutomationsPageView: React.FC<
 		);
 		const matchesStatus =
 			filterValues.status === undefined ||
-			(filterValues.status === "enabled" && automation.enabled) ||
-			(filterValues.status === "disabled" && !automation.enabled);
+			automationStatus(automation) === filterValues.status;
 		const matchesTrigger =
 			filterValues.trigger === undefined ||
-			automation.trigger.type === filterValues.trigger;
+			automation.kind === filterValues.trigger;
 		const matchesOwner =
 			filterValues.owner === undefined ||
-			automation.owner.username === filterValues.owner;
+			automation.owner?.username === filterValues.owner;
 
 		return matchesSearch && matchesStatus && matchesTrigger && matchesOwner;
 	});
@@ -220,15 +225,39 @@ export const AgentAutomationsPageView: React.FC<
 				description="Manage automations for your agents."
 				badge={<ExperimentalBadge />}
 				action={
-					<Button asChild>
-						<Link to="#">
-							<PlusIcon />
-							Create automation
-						</Link>
+					<Button disabled>
+						<PlusIcon />
+						Create automation
 					</Button>
 				}
 			/>
 			<div className="flex flex-col gap-4">
+				<p className="m-0 text-sm text-content-secondary">
+					This preview supports viewing and deleting automations. Creation,
+					editing, manual runs, and enabling or disabling automations are not
+					available yet.
+				</p>
+				{loadErrors.map(({ organization, error, isRetrying }) => (
+					<div key={organization.id} className="flex flex-col gap-2">
+						<p className="m-0 text-sm text-content-secondary">
+							Could not load automations for{" "}
+							{organization.display_name || organization.name}.
+						</p>
+						<ErrorAlert
+							error={error}
+							showDebugDetail={false}
+							actions={
+								<RetryButton
+									size="sm"
+									variant="outline"
+									aria-label={`Retry loading automations for ${organization.display_name || organization.name}`}
+									isRetrying={isRetrying}
+									onRetry={() => onRetry(organization.id)}
+								/>
+							}
+						/>
+					</div>
+				))}
 				<FilterCombobox
 					value={filterQuery}
 					onChange={setFilterQuery}
@@ -236,136 +265,199 @@ export const AgentAutomationsPageView: React.FC<
 					placeholder="Search and filter automations…"
 					className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				/>
-				<Table aria-label="Automations">
-					<TableHeader>
-						<TableRow>
-							<TableHead>
-								<span className="sr-only">Enabled</span>
-							</TableHead>
-							<TableHead>Name</TableHead>
-							<TableHead>Owner</TableHead>
-							<TableHead>Trigger</TableHead>
-							<TableHead>
-								<span className="sr-only">Actions</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody size="lg">
-						{filteredAutomations.length === 0 ? (
-							<TableEmpty
-								message={
-									hasActiveFilters
-										? "No matching automations"
-										: "No automations yet"
-								}
-								description={
-									hasActiveFilters
-										? "Try adjusting your search or filters."
-										: "Your automations will appear here."
-								}
-							/>
-						) : (
-							filteredAutomations.map((automation) => (
-								<TableRow key={automation.id}>
-									<TableCell className="w-0">
-										<Switch
-											aria-label={`Enable ${automation.name}`}
-											checked={automation.enabled}
-											onCheckedChange={(enabled) =>
-												onEnabledChange(automation.id, enabled)
-											}
-										/>
-									</TableCell>
-									<TableCell className="w-full min-w-48 max-w-0">
-										<div className="text-content-primary">
-											{automation.name}
-										</div>
-										<p className="m-0 truncate" title={automation.prompt}>
-											{automation.prompt}
-										</p>
-									</TableCell>
-									<TableCell className="w-40 max-w-40">
-										<div className="flex items-center gap-2">
-											<Avatar
-												size="sm"
-												fallback={
-													automation.owner.name || automation.owner.username
-												}
-												src={automation.owner.avatar_url}
-											/>
-											<span className="truncate text-content-primary">
-												{automation.owner.name || automation.owner.username}
-											</span>
-										</div>
-									</TableCell>
-									<TableCell className="min-w-48">
-										<div className="flex items-start gap-3">
-											{automation.trigger.type === "timetable" ? (
-												<CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
-											) : (
-												<WebhookIcon className="mt-0.5 size-4 shrink-0" />
-											)}
-											<div className="min-w-0">
-												<div className="text-content-primary">
-													{automation.trigger.type === "timetable"
-														? automation.trigger.label
-														: "Webhook"}
-												</div>
-												<div>
-													{automation.trigger.type === "timetable"
-														? automation.trigger.timezone
-														: automation.trigger.usage}
-												</div>
-											</div>
-										</div>
-									</TableCell>
-									<TableCell className="w-0">
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													aria-label={`More actions for ${automation.name}`}
-												>
-													<EllipsisVerticalIcon aria-hidden="true" />
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												<DropdownMenuItem
-													onClick={() => onRunAutomation(automation)}
-												>
-													<PlayIcon />
-													Run now
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													onClick={() => onViewChats(automation)}
-												>
-													<MessagesSquareIcon />
-													View chats
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													onClick={() => onEditAutomation(automation)}
-												>
-													<PencilIcon />
-													Edit
-												</DropdownMenuItem>
-												<DropdownMenuSeparator />
-												<DropdownMenuItem
-													className="text-content-destructive focus:text-content-destructive"
-													onClick={() => onDeleteAutomation(automation)}
-												>
-													<TrashIcon />
-													Delete&hellip;
-												</DropdownMenuItem>
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
+				{(automations.length > 0 || isLoading || loadErrors.length === 0) && (
+					<Table
+						aria-label="Automations"
+						wrapperProps={{
+							tabIndex: 0,
+							role: "region",
+							"aria-label": "Automations table",
+						}}
+					>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Status</TableHead>
+								<TableHead>Name</TableHead>
+								<TableHead>Owner</TableHead>
+								{organizations.length > 1 && (
+									<TableHead>Organization</TableHead>
+								)}
+								<TableHead>Trigger</TableHead>
+								<TableHead>
+									<span className="sr-only">Actions</span>
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody size="lg">
+							{filteredAutomations.length === 0 &&
+								!isLoading &&
+								(hasActiveFilters || loadErrors.length === 0) && (
+									<TableEmpty
+										message={
+											hasActiveFilters
+												? "No matching automations"
+												: "No automations yet"
+										}
+										description={
+											hasActiveFilters
+												? "Try adjusting your search or filters."
+												: "Your automations will appear here."
+										}
+									/>
+								)}
+							{filteredAutomations.map((automation) => (
+								<AutomationRow
+									key={automation.id}
+									automation={automation}
+									organization={organizations.find(
+										(org) => org.id === automation.organization_id,
+									)}
+									showOrganization={organizations.length > 1}
+									onMenuTrigger={onMenuTrigger}
+									onDeleteAutomation={onDeleteAutomation}
+								/>
+							))}
+							{isLoading && <TableLoader />}
+						</TableBody>
+					</Table>
+				)}
 			</div>
 		</div>
+	);
+};
+
+type AutomationRowProps = {
+	automation: ChatAutomation;
+	organization: Organization | undefined;
+	showOrganization: boolean;
+	onMenuTrigger: React.ReactEventHandler<HTMLButtonElement>;
+	onDeleteAutomation: (automation: ChatAutomation) => void;
+};
+
+const AutomationRow: React.FC<AutomationRowProps> = ({
+	automation,
+	organization,
+	showOrganization,
+	onMenuTrigger,
+	onDeleteAutomation,
+}) => {
+	const deleteSelectedRef = useRef(false);
+	const status = automationStatuses[automationStatus(automation)];
+	const ownerName = automationOwnerName(automation.owner);
+
+	return (
+		<TableRow>
+			<TableCell className="w-0">
+				<StatusIndicator
+					variant={status.variant}
+					className="text-content-primary"
+				>
+					<StatusIndicatorDot />
+					{status.label}
+				</StatusIndicator>
+			</TableCell>
+			<TableCell className="w-full min-w-48 max-w-0">
+				<div className="truncate text-content-primary" title={automation.name}>
+					{automation.name}
+				</div>
+				<p className="m-0 truncate" title={automation.prompt}>
+					{automation.prompt}
+				</p>
+			</TableCell>
+			<TableCell className="w-40 max-w-40">
+				<div className="flex items-center gap-2">
+					<Avatar
+						size="sm"
+						fallback={ownerName}
+						src={automation.owner?.avatar_url}
+					/>
+					<span className="truncate text-content-primary">{ownerName}</span>
+				</div>
+			</TableCell>
+			{showOrganization && (
+				<TableCell className="max-w-40 truncate">
+					{organization?.display_name || organization?.name || "Unknown"}
+				</TableCell>
+			)}
+			<TableCell className="min-w-48 max-w-64">
+				<div className="flex items-start gap-3">
+					{automation.kind === "schedule" ? (
+						<CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
+					) : (
+						<WebhookIcon className="mt-0.5 size-4 shrink-0" />
+					)}
+					<div className="min-w-0">
+						<div className="text-content-primary">
+							{automation.kind === "schedule"
+								? scheduleLabel(automation)
+								: "Webhook"}
+						</div>
+						<div>
+							{automation.kind === "schedule"
+								? automation.schedule_time_zone || "Unknown time zone"
+								: automation.webhook_auth
+									? webhookAuthLabels[automation.webhook_auth]
+									: "Authentication unavailable"}
+						</div>
+					</div>
+				</div>
+			</TableCell>
+			<TableCell className="w-0">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							size="icon"
+							variant="subtle"
+							aria-label={`More actions for ${automation.name}`}
+							onPointerDown={onMenuTrigger}
+							onKeyDown={onMenuTrigger}
+						>
+							<EllipsisVerticalIcon aria-hidden="true" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align="end"
+						onCloseAutoFocus={(event) => {
+							if (deleteSelectedRef.current) {
+								deleteSelectedRef.current = false;
+								event.preventDefault();
+								// The menu must release focus before the dialog takes it.
+								onDeleteAutomation(automation);
+							}
+						}}
+					>
+						<DropdownMenuItem disabled>
+							<PlayIcon />
+							Run now
+						</DropdownMenuItem>
+						{automation.target_mode === "existing_chat" &&
+							automation.target_chat && (
+								<DropdownMenuItem asChild>
+									<Link
+										to={`/agents/${encodeURIComponent(automation.target_chat.id)}`}
+									>
+										<MessagesSquareIcon />
+										View chat
+									</Link>
+								</DropdownMenuItem>
+							)}
+						<DropdownMenuItem disabled>
+							<PencilIcon />
+							Edit
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							className="text-content-destructive focus:text-content-destructive"
+							onSelect={() => {
+								deleteSelectedRef.current = true;
+							}}
+						>
+							<TrashIcon />
+							Delete&hellip;
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</TableCell>
+		</TableRow>
 	);
 };

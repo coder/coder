@@ -13,6 +13,7 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatAutomationsKey } from "#/api/queries/chatAutomations";
 import {
 	chatEntityKey,
 	chatMessagesKey,
@@ -26,7 +27,9 @@ import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBu
 import {
 	MockAdvisorConfig,
 	MockChat,
+	MockChatAutomation,
 	MockMCPServerConfig,
+	MockWebhookChatAutomation,
 } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
@@ -401,6 +404,13 @@ const mockChats = (chats: Chat[]) => {
 
 export const Automations: Story = {
 	parameters: {
+		experiments: ["chat-automations"],
+		queries: [
+			{
+				key: chatAutomationsKey(MockDefaultOrganization.id),
+				data: [MockChatAutomation, MockWebhookChatAutomation],
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/automations" },
 			routing: [agentsRouting, aiSettingsRouting],
@@ -411,6 +421,47 @@ export const Automations: Story = {
 export const AutomationsMobile: Story = {
 	...Automations,
 	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const AutomationDeleteConfirmation: Story = {
+	...Automations,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `More actions for ${MockChatAutomation.name}`,
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Delete…" }),
+		);
+	},
+};
+
+export const AutomationDeleting: Story = {
+	...Automations,
+	beforeEach: () => {
+		spyOn(API.experimental, "deleteChatAutomation").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `More actions for ${MockChatAutomation.name}`,
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Delete…" }),
+		);
+		const dialog = within(
+			await screen.findByRole("dialog", { name: "Delete automation" }),
+		);
+		await userEvent.type(
+			dialog.getByRole("textbox", { name: "Name of the automation to delete" }),
+			MockChatAutomation.name,
+		);
+		await userEvent.click(dialog.getByRole("button", { name: "Delete" }));
+	},
 };
 
 export const EmptyState: Story = {
