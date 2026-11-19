@@ -50,9 +50,6 @@ func NewChatMachine(
 	}
 }
 
-// ChatID returns the chat ID this machine is scoped to.
-func (m *ChatMachine) ChatID() uuid.UUID { return m.chatID }
-
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. A transition validates against its input's Snapshot when
 // set and reads the chat otherwise.

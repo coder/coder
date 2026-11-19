@@ -75,19 +75,19 @@ func commitAssistantToolCall(
 func landInW(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
+	chat, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})
 	require.NoError(t, err)
-	require.Equal(t, chatstate.StateW, f.classify(ctx, t, m.ChatID()))
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, chat.ID))
 }
 
 // landInE0 puts a fresh R0 chat into state E0 (error, empty queue).
 func landInE0(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
+	chat, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishError(chatstate.FinishErrorInput{
 			LastError: pqtype.NullRawMessage{
 				RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -97,7 +97,7 @@ func landInE0(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 		return err
 	})
 	require.NoError(t, err)
-	require.Equal(t, chatstate.StateE0, f.classify(ctx, t, m.ChatID()))
+	require.Equal(t, chatstate.StateE0, f.classify(ctx, t, chat.ID))
 }
 
 func TestSyntheticCancellation_SendMessageDirect(t *testing.T) {

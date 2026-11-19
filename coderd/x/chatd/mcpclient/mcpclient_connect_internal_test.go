@@ -2,7 +2,6 @@ package mcpclient
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,110 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/safedial"
 )
-
-// connectAllForTest exposes connectAll with an injectable connect
-// timeout and a reaperDone hook that fires after an abandoned
-// connect goroutine has been drained and its late session closed.
-func connectAllForTest(
-	ctx context.Context,
-	logger slog.Logger,
-	servers []Server,
-	timeout time.Duration,
-	reaperDone func(),
-) ([]fantasy.AgentTool, []ConnectSummary, func()) {
-	// Connect-budget tests serve from loopback, which the guard
-	// blocks by default, so allow it explicitly.
-	httpClient := NewHTTPClient(nil, safedial.WithAllowedPrefixes(
-		netip.MustParsePrefix("127.0.0.0/8"),
-		netip.MustParsePrefix("::1/128"),
-	))
-	return connectAllWithHooks(
-		ctx, logger, servers, nil, uuid.Nil, nil, nil,
-		connectOptions{
-			httpClient: httpClient,
-			timeout:    timeout,
-			hooks:      connectHooks{reaperDone: reaperDone},
-			kind:       connectionKindOrg,
-		},
-	)
-}
-
-type testTool struct {
-	tool    *mcp.Tool
-	handler mcp.ToolHandler
-}
-
-func newTestMCPServer(t *testing.T, tools ...testTool) *httptest.Server {
-	t.Helper()
-	srv := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
-	for _, tool := range tools {
-		srv.AddTool(tool.tool, tool.handler)
-	}
-	httpSrv := mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return srv },
-		&mcp.StreamableHTTPOptions{Stateless: true},
-	)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
-	return ts
-}
-
-func textToolResult(text string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}
-}
-
-func echoTool() testTool {
-	return testTool{
-		tool: &mcp.Tool{
-			Name:        "echo",
-			Description: "Echoes the input",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"input": map[string]any{
-						"type":        "string",
-						"description": "The input",
-					},
-				},
-				"required": []string{"input"},
-			},
-		},
-		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var args map[string]any
-			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-				return nil, err
-			}
-			input, _ := args["input"].(string)
-			return textToolResult("echo: " + input), nil
-		},
-	}
-}
-
-func makeConfig(slug, url string) Server {
-	return Server{
-		ID:        uuid.New(),
-		Slug:      slug,
-		URL:       url,
-		Transport: TransportStreamableHTTP,
-	}
-}
-
-func toolNames(tools []fantasy.AgentTool) []string {
-	names := make([]string, 0, len(tools))
-	for _, t := range tools {
-		names = append(names, t.Info().Name)
-	}
-	return names
-}
 
 // blackHoleListener accepts TCP connections and never responds,
 // simulating a server (or an edge in front of it) that silently
@@ -173,19 +75,41 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	bh := newBlackHoleListener(t)
-	healthy := newTestMCPServer(t, echoTool())
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
+	server.AddTool(
+		&mcp.Tool{Name: "echo", InputSchema: map[string]any{"type": "object"}},
+		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
+		},
+	)
+	healthy := httptest.NewServer(mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return server },
+		&mcp.StreamableHTTPOptions{Stateless: true},
+	))
+	t.Cleanup(healthy.Close)
 
 	reaperDone := make(chan struct{}, 2)
 	timeout := 1 * time.Second
 
 	start := time.Now()
-	tools, summaries, cleanup := connectAllForTest(ctx, logger,
+	tools, summaries, cleanup := connectAllWithHooks(
+		ctx, logger,
 		[]Server{
-			makeConfig("blackhole", bh.url()),
-			makeConfig("healthy", healthy.URL),
+			{ID: uuid.New(), Slug: "blackhole", URL: bh.url(), Transport: TransportStreamableHTTP},
+			{ID: uuid.New(), Slug: "healthy", URL: healthy.URL, Transport: TransportStreamableHTTP},
 		},
-		timeout,
-		func() { reaperDone <- struct{}{} },
+		nil, uuid.Nil, nil, nil,
+		connectOptions{
+			// Both servers listen on loopback, which the guard
+			// blocks by default.
+			httpClient: NewHTTPClient(nil, safedial.WithAllowedPrefixes(
+				netip.MustParsePrefix("127.0.0.0/8"),
+				netip.MustParsePrefix("::1/128"),
+			)),
+			timeout: timeout,
+			hooks:   connectHooks{reaperDone: func() { reaperDone <- struct{}{} }},
+			kind:    connectionKindOrg,
+		},
 	)
 	elapsed := time.Since(start)
 	t.Cleanup(cleanup)
@@ -194,7 +118,8 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	// behavior (6x the deadline), with margin for slow CI.
 	require.Less(t, elapsed, 4*timeout,
 		"ConnectAll took %s, budget was %s", elapsed, timeout)
-	require.Equal(t, []string{"healthy__echo"}, toolNames(tools))
+	require.Len(t, tools, 1)
+	require.Equal(t, "healthy__echo", tools[0].Info().Name)
 
 	// Per-server outcomes are summarized for logs and debug runs,
 	// sorted by slug.
