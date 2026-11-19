@@ -166,6 +166,7 @@ export const useChatPreviewPanel = ({
 				workspace,
 				workspaceAgent,
 				wildcardHostname,
+				openPreviewEnabled: enabled,
 			})
 			? () => openFrameTab(tab)
 			: undefined;

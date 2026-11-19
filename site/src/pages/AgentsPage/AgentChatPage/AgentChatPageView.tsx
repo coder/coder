@@ -389,7 +389,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
-		{ workspace, workspaceAgent, wildcardHostname },
+		{
+			workspace,
+			workspaceAgent,
+			wildcardHostname,
+			openPreviewEnabled,
+		},
 	);
 
 	// The built-in Terminal renders like any other terminal tab. Its

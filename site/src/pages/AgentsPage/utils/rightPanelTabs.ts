@@ -91,6 +91,7 @@ type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
 	workspaceAgent: WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	openPreviewEnabled: boolean;
 };
 
 export function isUserRightPanelTab(
@@ -151,19 +152,9 @@ export function isUserRightPanelTab(
 
 export function validateUserRightPanelTabs(
 	tabs: readonly UserRightPanelTab[],
-	{
-		workspace,
-		workspaceAgent,
-		wildcardHostname,
-	}: ValidateUserRightPanelTabsOptions,
+	options: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
-	return tabs.filter((tab) =>
-		isUserRightPanelTabAvailable(tab, {
-			workspace,
-			workspaceAgent,
-			wildcardHostname,
-		}),
-	);
+	return tabs.filter((tab) => isUserRightPanelTabAvailable(tab, options));
 }
 
 /** Reports whether the workspace can still show the tab. */
@@ -173,6 +164,7 @@ export function isUserRightPanelTabAvailable(
 		workspace,
 		workspaceAgent,
 		wildcardHostname,
+		openPreviewEnabled,
 	}: ValidateUserRightPanelTabsOptions,
 ): boolean {
 	if (tab.kind === "terminal") {
@@ -203,6 +195,7 @@ export function isUserRightPanelTabAvailable(
 		}
 		case "file_preview":
 			return (
+				openPreviewEnabled &&
 				findWorkspaceAgent(workspace, tab.agentId) !== undefined &&
 				wildcardHostname.trim() !== ""
 			);
