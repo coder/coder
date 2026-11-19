@@ -16,7 +16,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
-	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // windowsUnsafeNameChars are characters that let a requested name reach
@@ -28,6 +29,7 @@ const windowsUnsafeNameChars = `\:~`
 var (
 	errNotServed     = xerrors.New("previews serve only regular files and do not follow symlinks")
 	errNameNotServed = xerrors.New("previews do not serve path elements that are empty, start with a dot, or on Windows contain any of " + windowsUnsafeNameChars)
+	errIDTaken       = xerrors.New("another published path has the same preview ID; rename the file or directory and try again")
 )
 
 type preview struct {
@@ -35,54 +37,44 @@ type preview struct {
 	file string
 }
 
-func (api *API) publish(name string) (id, cleaned string, err error) {
+func (api *API) publish(name string) (workspacesdk.OpenPreviewResponse, error) {
 	if !filepath.IsAbs(name) {
-		return "", "", xerrors.New("preview path must be absolute")
+		return workspacesdk.OpenPreviewResponse{}, xerrors.New("preview path must be absolute")
 	}
-	cleaned = filepath.Clean(name)
+	cleaned := filepath.Clean(name)
 
 	info, err := os.Stat(cleaned)
 	if err != nil {
-		return "", "", err
+		return workspacesdk.OpenPreviewResponse{}, err
 	}
 
 	p := preview{dir: cleaned}
 	if !info.IsDir() {
 		if !strings.EqualFold(filepath.Ext(cleaned), ".html") {
-			return "", "", xerrors.New("preview requires an .html file or a directory with index.html")
+			return workspacesdk.OpenPreviewResponse{}, xerrors.New("preview requires an .html file or a directory with index.html")
 		}
 		p = preview{dir: filepath.Dir(cleaned), file: filepath.Base(cleaned)}
 	}
 
 	first, err := p.servedName("")
 	if err != nil {
-		return "", "", err
+		return workspacesdk.OpenPreviewResponse{}, err
 	}
 	f, err := openServed(p.dir, first)
 	if err != nil {
-		return "", "", xerrors.Errorf("%s: %w", first, err)
+		return workspacesdk.OpenPreviewResponse{}, xerrors.Errorf("%s: %w", first, err)
 	}
 	_ = f.Close()
 
+	id := appurl.NewPreviewID(cleaned)
 	api.mu.Lock()
 	defer api.mu.Unlock()
-
-	id, ok := api.idsByPath[cleaned]
-	if !ok {
-		for {
-			id, err = cryptorand.HexString(8)
-			if err != nil {
-				return "", "", xerrors.Errorf("generate preview ID: %w", err)
-			}
-			if _, taken := api.previews[id]; !taken {
-				break
-			}
-		}
-		api.idsByPath[cleaned] = id
+	if existing, ok := api.previews[id]; ok && existing != p {
+		return workspacesdk.OpenPreviewResponse{}, errIDTaken
 	}
 	api.previews[id] = p
 
-	return id, cleaned, nil
+	return workspacesdk.OpenPreviewResponse{ID: id, Path: cleaned, File: p.file != ""}, nil
 }
 
 func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
@@ -94,7 +86,7 @@ func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	_, name, _ := strings.Cut(r.URL.Path, "/"+id+"/")
 
-	f, name, err := api.open(id, name)
+	f, name, err := api.open(appurl.PreviewID(id), name)
 	if err != nil {
 		if requestLogger := loggermw.RequestLoggerFromContext(r.Context()); requestLogger != nil {
 			requestLogger.WithFields(slog.Error(err))
@@ -107,7 +99,7 @@ func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
 	http.ServeContent(rw, r, name, time.Time{}, f)
 }
 
-func (api *API) open(id, name string) (*os.File, string, error) {
+func (api *API) open(id appurl.PreviewID, name string) (*os.File, string, error) {
 	api.mu.RLock()
 	p, ok := api.previews[id]
 	api.mu.RUnlock()

@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentpreview"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -28,15 +30,16 @@ func TestPreviewFile(t *testing.T) {
 	handler := agentpreview.NewAPI().Routes()
 	published := publish(t, handler, selected)
 	require.Equal(t, selected, published.Path)
+	require.True(t, published.File)
 
-	response := serve(t, handler, http.MethodGet, "/"+published.ID+"/")
+	response := serve(t, handler, http.MethodGet, "/"+string(published.ID)+"/")
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Equal(t, "<h1>first</h1>", response.Body.String())
 	require.Contains(t, response.Header().Get("Content-Type"), "text/html")
 	require.Equal(t, "no-store", response.Header().Get("Cache-Control"))
 	require.Equal(t, "nosniff", response.Header().Get("X-Content-Type-Options"))
 
-	for _, path := range []string{"/" + published.ID + "/private.html", "/ffffffff/"} {
+	for _, path := range []string{"/" + string(published.ID) + "/private.html", "/ffffffff/"} {
 		response = serve(t, handler, http.MethodGet, path)
 		require.Equal(t, http.StatusNotFound, response.Code, path)
 	}
@@ -44,11 +47,11 @@ func TestPreviewFile(t *testing.T) {
 	temporary := filepath.Join(root, "save.html")
 	require.NoError(t, os.WriteFile(temporary, []byte("<h1>second</h1>"), 0o600))
 	require.NoError(t, os.Rename(temporary, selected))
-	response = serve(t, handler, http.MethodGet, "/"+published.ID+"/")
+	response = serve(t, handler, http.MethodGet, "/"+string(published.ID)+"/")
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Equal(t, "<h1>second</h1>", response.Body.String())
 
-	response = serve(t, handler, http.MethodHead, "/"+published.ID+"/")
+	response = serve(t, handler, http.MethodHead, "/"+string(published.ID)+"/")
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Empty(t, response.Body.String())
 
@@ -76,7 +79,9 @@ func TestPreviewDirectory(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.txt"), []byte("outside"), 0o600))
 
 	handler := agentpreview.NewAPI().Routes()
-	id := publish(t, handler, root).ID
+	published := publish(t, handler, root)
+	require.False(t, published.File)
+	id := string(published.ID)
 
 	// Only Windows reads a tilde as part of a short name such as HIDDEN~1.
 	tildeStatus := http.StatusOK
@@ -115,7 +120,7 @@ func TestPreviewRebuiltDirectory(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("old build"), 0o600))
 
 	handler := agentpreview.NewAPI().Routes()
-	id := publish(t, handler, root).ID
+	id := string(publish(t, handler, root).ID)
 
 	require.NoError(t, os.RemoveAll(root))
 	response := serve(t, handler, http.MethodGet, "/"+id+"/")
@@ -146,7 +151,7 @@ func TestPreviewSymlinks(t *testing.T) {
 	require.NoError(t, os.Symlink(".git", filepath.Join(root, "repo")))
 
 	handler := agentpreview.NewAPI().Routes()
-	id := publish(t, handler, root).ID
+	id := string(publish(t, handler, root).ID)
 	for _, path := range []string{"/escape.txt", "/alias.html", "/repo/config"} {
 		response := serve(t, handler, http.MethodGet, "/"+id+path)
 		require.Equal(t, http.StatusNotFound, response.Code, path)
@@ -179,19 +184,51 @@ func TestPreviewInvalidPublications(t *testing.T) {
 func TestPreviewIDsAcrossRestarts(t *testing.T) {
 	t.Parallel()
 
-	root := testutil.TempDirResolved(t)
-	for _, name := range []string{"a.html", "b.html"} {
-		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(name), 0o600))
-	}
+	page := filepath.Join(testutil.TempDirResolved(t), "page.html")
+	require.NoError(t, os.WriteFile(page, []byte("page"), 0o600))
 
 	before := agentpreview.NewAPI().Routes()
-	oldID := publish(t, before, filepath.Join(root, "a.html")).ID
+	id := publish(t, before, page).ID
 
 	after := agentpreview.NewAPI().Routes()
-	publish(t, after, filepath.Join(root, "b.html"))
-
-	response := serve(t, after, http.MethodGet, "/"+oldID+"/")
+	response := serve(t, after, http.MethodGet, "/"+string(id)+"/")
 	require.Equal(t, http.StatusNotFound, response.Code)
+
+	require.Equal(t, id, publish(t, after, page).ID)
+	response = serve(t, after, http.MethodGet, "/"+string(id)+"/")
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, "page", response.Body.String())
+}
+
+func TestPreviewIDCollision(t *testing.T) {
+	t.Parallel()
+
+	root := testutil.TempDirResolved(t)
+	first, second := collidingPaths(root)
+	for _, name := range []string{first, second} {
+		require.NoError(t, os.WriteFile(name, []byte(name), 0o600))
+	}
+
+	handler := agentpreview.NewAPI().Routes()
+	id := publish(t, handler, first).ID
+	require.Equal(t, http.StatusConflict, publishResponse(t, handler, second).Code)
+
+	response := serve(t, handler, http.MethodGet, "/"+string(id)+"/")
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, first, response.Body.String())
+}
+
+// collidingPaths returns two .html files in dir whose preview IDs are equal.
+func collidingPaths(dir string) (first, second string) {
+	seen := make(map[appurl.PreviewID]string)
+	for i := 0; ; i++ {
+		name := filepath.Join(dir, strconv.Itoa(i)+".html")
+		id := appurl.NewPreviewID(name)
+		if other, ok := seen[id]; ok {
+			return other, name
+		}
+		seen[id] = name
+	}
 }
 
 func publish(t *testing.T, handler http.Handler, path string) workspacesdk.OpenPreviewResponse {
@@ -201,7 +238,6 @@ func publish(t *testing.T, handler http.Handler, path string) workspacesdk.OpenP
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var published workspacesdk.OpenPreviewResponse
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&published))
-	require.Regexp(t, "^[0-9a-f]{8}$", published.ID)
 	return published
 }
 

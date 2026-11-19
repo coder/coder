@@ -37,7 +37,7 @@ func TestPreviewRejectsShortNames(t *testing.T) {
 	}
 
 	handler := agentpreview.NewAPI().Routes()
-	id := publish(t, handler, root).ID
+	id := string(publish(t, handler, root).ID)
 	response := serve(t, handler, http.MethodGet, "/"+id+"/"+short+"/token")
 	require.Equal(t, http.StatusNotFound, response.Code)
 }
