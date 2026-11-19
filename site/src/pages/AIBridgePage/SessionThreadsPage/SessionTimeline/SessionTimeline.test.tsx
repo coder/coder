@@ -60,9 +60,9 @@ describe(SessionTimeline.name, () => {
 		await user.click(loopToggle);
 		expect(loopToggle).toHaveAttribute("aria-expanded", "true");
 
-		screen.getByRole("button", { name: "Tool call read_file 1 of 2" });
+		screen.getByRole("button", { name: "Tool call read_file 1" });
 		const secondToggle = screen.getByRole("button", {
-			name: "Tool call read_file 2 of 2",
+			name: "Tool call read_file 2",
 		});
 		expect(secondToggle).toHaveAttribute("aria-expanded", "false");
 		await user.click(secondToggle);

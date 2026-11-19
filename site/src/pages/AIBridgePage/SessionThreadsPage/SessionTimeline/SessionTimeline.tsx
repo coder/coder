@@ -218,9 +218,8 @@ type ToolCallBlockProps = {
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
-	/** 1-based position among the loop's tool calls, which names the toggle. */
-	position: number;
-	total: number;
+	/** 1-based number among the loop's tool calls, which names the toggle. */
+	number: number;
 };
 
 const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
@@ -230,8 +229,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	timestamp,
 	expandedByDefault = false,
 	highlight,
-	position,
-	total,
+	number,
 }) => {
 	// Only user toggles are stored, so a later search match still reveals it.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
@@ -242,7 +240,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
-					accessibleNameSuffix={`${position} of ${total}`}
+					accessibleNameSuffix={String(number)}
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
@@ -289,15 +287,15 @@ type AgenticActionItemProps = {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matches in the tool calls. */
 	highlight: string;
-	/** Each tool call's 1-based position in the whole loop, by ID. */
-	toolCallPositions: Map<string, number>;
+	/** Each tool call's 1-based number in the whole loop, by ID. */
+	toolCallNumbers: Map<string, number>;
 };
 
 const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
-	toolCallPositions,
+	toolCallNumbers,
 }) => {
 	const visibleToolCalls = matchedToolCallIds?.size
 		? action.tool_calls.filter((tool_call) =>
@@ -322,8 +320,7 @@ const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 					timestamp={new Date(tool_call.created_at)}
 					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
-					position={toolCallPositions.get(tool_call.id) ?? 0}
-					total={toolCallPositions.size}
+					number={toolCallNumbers.get(tool_call.id) ?? 0}
 				/>
 			))}
 		</>
@@ -375,7 +372,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 		(count, action) => count + action.tool_calls.length,
 		0,
 	);
-	const toolCallPositions = new Map(
+	const toolCallNumbers = new Map(
 		thread.agentic_actions
 			.flatMap((action) => action.tool_calls)
 			.map((toolCall, i) => [toolCall.id, i + 1] as const),
@@ -494,7 +491,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 									action={action}
 									matchedToolCallIds={matchedToolCallIds}
 									highlight={highlight}
-									toolCallPositions={toolCallPositions}
+									toolCallNumbers={toolCallNumbers}
 								/>
 							))}
 
