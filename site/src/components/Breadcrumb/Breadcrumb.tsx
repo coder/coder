@@ -5,7 +5,7 @@
 
 import { cn } from "cn";
 import { MoreHorizontalIcon } from "lucide-react";
-import { NavLink } from "react-router";
+import { Link } from "react-router";
 
 type BreadcrumbProps = React.ComponentProps<"nav"> & {
 	separator?: React.ReactNode;
@@ -45,14 +45,16 @@ export const BreadcrumbItem: React.FC<React.ComponentProps<"li">> = ({
 	);
 };
 
-type BreadcrumbLinkProps = React.ComponentProps<typeof NavLink>;
+// Link, not NavLink: crumbs point at ancestors, which NavLink marks as
+// aria-current="page".
+type BreadcrumbLinkProps = React.ComponentProps<typeof Link>;
 
 export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	className,
 	...props
 }) => {
 	return (
-		<NavLink
+		<Link
 			className={cn(
 				"text-content-secondary transition-colors hover:text-content-primary no-underline hover:underline",
 				className,
