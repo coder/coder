@@ -16,12 +16,22 @@ export const SCROLLBAR_WIDTH = 10;
 export const isViewport = (element: Element | null) =>
 	element?.getAttribute("role") === "region";
 
-const sizeOf = (element: Element, dimension: "height" | "width") =>
-	element instanceof HTMLElement && !element.hidden
-		? Number.parseFloat(
-				element.dataset[dimension] ?? element.style[dimension],
-			) || 0
-		: 0;
+// Set from setupMessageScrollerLayout's rowHeight option for its describe.
+let rowHeight: ((messageId: string) => number) | undefined;
+
+const sizeOf = (element: Element, dimension: "height" | "width") => {
+	if (!(element instanceof HTMLElement) || element.hidden) {
+		return 0;
+	}
+	const { messageId } = element.dataset;
+	if (dimension === "height" && rowHeight && messageId !== undefined) {
+		return rowHeight(messageId);
+	}
+	return (
+		Number.parseFloat(element.dataset[dimension] ?? element.style[dimension]) ||
+		0
+	);
+};
 
 const contentHeight = (viewport: Element) =>
 	Array.from(viewport.firstElementChild?.children ?? []).reduce(
@@ -103,10 +113,14 @@ export const visibleRowsAfterLayout = async () => {
 
 /**
  * Installs the layout mocks for the enclosing describe block. Call it at the
- * top of a describe that renders a transcript with renderTranscript.
+ * top of a describe that renders a transcript. Rows take their data-height,
+ * or with rowHeight, the height it returns for their message ID.
  */
-export const setupMessageScrollerLayout = () => {
+export const setupMessageScrollerLayout = (
+	options: { rowHeight?: (messageId: string) => number } = {},
+) => {
 	beforeEach(() => {
+		rowHeight = options.rowHeight;
 		const scrollTops = new WeakMap<Element, number>();
 		MockResizeObserver.reset();
 		vi.spyOn(Element.prototype, "scrollTo").mockImplementation(function (
@@ -191,6 +205,7 @@ export const setupMessageScrollerLayout = () => {
 	});
 
 	afterEach(() => {
+		rowHeight = undefined;
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
 	});
