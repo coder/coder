@@ -15,12 +15,13 @@ import {
 	selectModelOrganization,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
-import { AISpendPageView } from "./AISpendPageView";
+import { AISpendPageView, type AISpendTab } from "./AISpendPageView";
 import { defaultSpendDays, parseSpendDays, toSpendPeriod } from "./spendDays";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
+const tabSearchParam = "tab";
 
 type AISpendPageProps = {
 	now?: Date;
@@ -67,6 +68,10 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 			searchParams.get(endDateSearchParam),
 		) ?? defaultSpendDays(now ?? new Date());
 	const period = toSpendPeriod(days);
+	const tab: AISpendTab =
+		searchParams.get(tabSearchParam) === "detailed-report"
+			? "detailed-report"
+			: "overview";
 
 	const overviewQuery = useQuery({
 		...organizationAISpendOverview(
@@ -105,6 +110,8 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				onOrganizationChange={(next) =>
 					setSearchParamValues({ [modelOrganizationSearchParam]: next.name })
 				}
+				tab={tab}
+				onTabChange={(next) => setSearchParamValues({ [tabSearchParam]: next })}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
 				days={days}

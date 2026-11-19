@@ -160,3 +160,13 @@ it("requests no spend for an organization the viewer cannot see", async () => {
 	expect(overviewSpy).not.toHaveBeenCalled();
 	expect(unpricedModelsSpy).not.toHaveBeenCalled();
 });
+
+it("keeps the selected tab in the URL", async () => {
+	const user = userEvent.setup();
+	const { searchParam } = renderAISpendPage();
+	await user.click(await screen.findByRole("tab", { name: "Detailed report" }));
+	expect(
+		await screen.findByRole("heading", { name: "Generate a detailed report" }),
+	).toBeInTheDocument();
+	expect(searchParam("tab")).toBe("detailed-report");
+});
