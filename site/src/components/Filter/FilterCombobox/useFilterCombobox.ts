@@ -1465,7 +1465,7 @@ export const useFilterCombobox = ({
 	};
 
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
-	// untouched.
+	// untouched. Chips come from the last sent query, which `value` can lag.
 	const handleRemoveChip = (token: string) => {
 		const current = lastEmittedRef.current;
 		emitQueryKeepingLookup(
