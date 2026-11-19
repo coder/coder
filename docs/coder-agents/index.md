@@ -273,6 +273,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                                                       |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                                                               |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                                                          |
+| `open_preview`                              | Show a workspace port, an `.html` file or directory, or a subdomain `coder_app` in the chat's right panel. Refer to [Workspace previews](#workspace-previews)                                     |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                                                |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                                                          |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                                                           |
@@ -299,6 +300,75 @@ It also requires a model from an Anthropic, OpenAI, or OpenAI-compatible AI prov
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
+
+## Workspace previews
+
+> [!NOTE]
+> Workspace previews are experimental.
+> The `open_preview` tool and the way previews behave can change in any release.
+
+The agent can call `open_preview` to show you a web page from the workspace in the chat's right panel.
+The tool result has a button that opens the preview again.
+Only root chats outside [plan mode](#plan-mode) have the tool.
+
+### Enable workspace previews
+
+Workspace previews require a [wildcard access URL](../admin/networking/wildcard-access-url.md).
+To give the agent the tool, add `open-preview` to the experiments that the control plane enables:
+
+```dotenv
+CODER_EXPERIMENTS=open-preview
+```
+
+The `*` value doesn't enable `open-preview`, because `*` enables only the experiments that Coder marks as safe to opt in to.
+Refer to [Feature stages](../reference/feature-stages.md) for how experiments work.
+Coder reads the experiment list at startup, so restart the control plane after you change it.
+While the experiment is off, the agent doesn't get the tool and Coder doesn't serve file previews.
+
+### What the agent can preview
+
+Each `open_preview` call has a title of up to 80 characters and exactly one of these targets:
+
+- `port` opens a plain HTTP server, not HTTPS, that already listens on a workspace port from 9 to 65535.
+  The tool doesn't start the server or wait for it.
+  A template that sets `port_forwarding_helper = false` in the `display_apps` block of its `coder_agent` resource turns off port previews.
+- `path` opens a file preview of an `.html` file, or of a directory that contains `index.html`, at an absolute workspace path.
+  The workspace agent serves the files, so no server has to run.
+  A preview of an `.html` file serves only that file, so a page that loads local stylesheets, scripts, or images needs a directory preview.
+- `app` opens a subdomain `coder_app` on the workspace agent, such as an IDE.
+  The app can't be hidden, external, or a command app.
+
+The agent can also pass `url_path`, a path and query to open instead of `/`, such as `/?folder=/home/coder/project`.
+
+A file preview reads the files on each request, so it shows their current contents, even after a build deletes and recreates the directory.
+File previews last until the workspace agent restarts.
+After a restart, ask the agent to call `open_preview` again.
+
+`open_preview` returns an error when the first label of the preview's hostname would be longer than 63 characters, the DNS limit.
+The label contains the workspace agent, workspace, and owner names, so a shorter workspace name fixes the error.
+
+### Preview security
+
+Previews follow the same security model as `coder_app` resources and [port forwarding](../admin/networking/port-forwarding.md):
+
+- A port preview uses the port forwarding URL for that port, so the port's [sharing level](../admin/networking/port-forwarding.md#share-ports) applies.
+- An app preview opens the app's URL, so the app's `share` setting applies.
+- A file preview has a hostname of its own, such as `preview--0123abcd--main--myworkspace--john.apps.example.com` for `*.apps.example.com`.
+  It uses the `owner` sharing level.
+  The workspace owner can open it, and so can users with `use` or `admin` access to the workspace through [workspace sharing](../workspaces/shared-workspaces.md).
+  Users with the Owner role can also open it, unless the deployment sets [`--disable-owner-workspace-access`](../reference/cli/server/index.md#--disable-owner-workspace-access).
+  Port sharing doesn't apply to file previews, and path-based app URLs don't serve them.
+
+Coder adds no browser restrictions of its own to previews, so treat a preview like any app that runs code the agent controls.
+
+A directory preview serves every regular file in the directory and its subdirectories.
+It doesn't serve symbolic links, or a file or subdirectory if its name starts with a dot.
+On Windows, it also doesn't serve a name that contains `\`, `:`, or `~`.
+It has no directory listing, and a URL that ends in `/` serves the `index.html` in that directory.
+
+> [!WARNING]
+> Do not let the agent preview a directory that contains secrets.
+> Everyone who can open the preview can read every file it serves, including files added after the agent opened it.
 
 ## Plan mode
 
