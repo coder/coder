@@ -230,12 +230,9 @@ export async function submitChatTurn(
 		setCachedChatPlanMode,
 	} = params;
 
-	// A send or edit that adds a pending row to the transcript moves the view
-	// to the end at the click, where the scroller follows the reply while the
-	// user stays there. A send to a running chat adds a queued row outside the
-	// transcript and leaves the view in place. A failed send or edit removes
-	// what its pending action showed, so the transcript scrolls to the end,
-	// where the latest state is.
+	// A send that only adds a queue row leaves the transcript as it was, so the
+	// view stays. A failure removes the pending row, so the view scrolls to the
+	// end again, where the latest state is.
 	const runTurnRequest = async (
 		action: PendingAction,
 		request: () => Promise<unknown>,
@@ -245,7 +242,7 @@ export async function submitChatTurn(
 		const latestRowID = () =>
 			selectOrderedMessageIDs(store.getSnapshot()).at(-1);
 		const latestRowBefore = latestRowID();
-		const pending = store.runPendingAction(action, request);
+		const turnRequest = store.runPendingAction(action, request);
 		const latestRowAfter = latestRowID();
 		if (
 			latestRowAfter !== undefined &&
@@ -255,7 +252,7 @@ export async function submitChatTurn(
 			scrollToEnd({ behavior: "auto" });
 		}
 		try {
-			await pending;
+			await turnRequest;
 		} catch (error) {
 			scrollToEnd({ behavior: "smooth" });
 			onRequestError(error);
