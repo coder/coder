@@ -35,10 +35,10 @@ const pendingReportQuery = (): SpendReportQuery => ({
 
 const mockUnpricedUsageReport: OrganizationAISpendReport = {
 	...MockOrganizationAISpendReport,
-	totals: { cost_micros: 3_500_000, unpriced_usage_count: 4 },
+	totals: { cost_micros: 3_500_000, has_unpriced_usage: true },
 	users: MockOrganizationAISpendReport.users.map((user, index) => ({
 		...user,
-		unpriced_usage_count: index === 0 ? 3 : 1,
+		unpriced_model_count: index === 0 ? 2 : 1,
 	})),
 };
 
@@ -48,9 +48,9 @@ const mockMultipleDimensionsReport: OrganizationAISpendReport = {
 	...MockOrganizationAISpendReport,
 	users: MockOrganizationAISpendReport.users.map((user) => ({
 		...user,
-		providers: MockOrganizationAISpendUser.providers,
-		models: MockOrganizationAISpendUser.models,
-		clients: MockOrganizationAISpendUser.clients,
+		provider_spend: MockOrganizationAISpendUser.provider_spend,
+		model_spend: MockOrganizationAISpendUser.model_spend,
+		client_spend: MockOrganizationAISpendUser.client_spend,
 	})),
 };
 
@@ -71,7 +71,7 @@ export const Empty: Story = {
 		reportQuery: loadedReportQuery({
 			...MockOrganizationAISpendReport,
 			count: 0,
-			totals: { cost_micros: 0, unpriced_usage_count: 0 },
+			totals: { cost_micros: 0, has_unpriced_usage: false },
 			users: [],
 		}),
 	},
@@ -169,9 +169,11 @@ export const LongModelsList: Story = {
 			...mockMultipleDimensionsReport,
 			users: mockMultipleDimensionsReport.users.map((user) => ({
 				...user,
-				models: Array.from({ length: 40 }, (_, i) =>
-					i % 2 === 0 ? `claude-model-${i}` : `gpt-model-${i}`,
-				),
+				model_spend: Array.from({ length: 40 }, (_, i) => ({
+					name: i % 2 === 0 ? `claude-model-${i}` : `gpt-model-${i}`,
+					cost_micros: 0,
+					has_unpriced_usage: false,
+				})),
 			})),
 		}),
 	},
