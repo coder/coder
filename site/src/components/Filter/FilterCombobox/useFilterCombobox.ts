@@ -1552,7 +1552,7 @@ export const useFilterCombobox = ({
 					? optionToken(optionChipKey(activeCategory, chips), listedOption)
 					: chipToken(
 							typedScopeWidened === true
-								? optionChipKey(activeCategory)
+								? optionChipKey(activeCategory, chips)
 								: activeCategory.key,
 							typedOption.value,
 						));

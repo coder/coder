@@ -2797,7 +2797,7 @@ describe("FilterCombobox", () => {
 				await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 			});
 
-			it("is removed before a just-added chip with Backspace before the parent applies it", async () => {
+			it("is removed before a just-added chip with Backspace while value lags", async () => {
 				const harness = setup([scopedOwnerCategory], { valueLags: true });
 				await openOwnerCategory(harness);
 				await harness.user.keyboard("{ArrowDown}{Enter}");
