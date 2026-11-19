@@ -75,7 +75,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("AI spend", "AI Settings")}</title>
+			<title>{pageTitle("AI spend", "AI settings")}</title>
 			<AISpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
