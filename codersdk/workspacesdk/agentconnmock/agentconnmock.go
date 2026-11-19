@@ -17,19 +17,18 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
-	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	ipnstate "tailscale.com/ipn/ipnstate"
-	speedtest "tailscale.com/net/speedtest"
-
 	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
 	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
+	ssh "golang.org/x/crypto/ssh"
+	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	ipnstate "tailscale.com/ipn/ipnstate"
+	speedtest "tailscale.com/net/speedtest"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -557,6 +556,21 @@ func (mr *MockAgentConnMockRecorder) ReconnectingPTY(ctx, id, height, width, com
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, id, height, width, command}, initOpts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconnectingPTY", reflect.TypeOf((*MockAgentConn)(nil).ReconnectingPTY), varargs...)
+}
+
+// ReconnectingPTYStatus mocks base method.
+func (m *MockAgentConn) ReconnectingPTYStatus(ctx context.Context, id uuid.UUID) (workspacesdk.ReconnectingPTYStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReconnectingPTYStatus", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.ReconnectingPTYStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReconnectingPTYStatus indicates an expected call of ReconnectingPTYStatus.
+func (mr *MockAgentConnMockRecorder) ReconnectingPTYStatus(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconnectingPTYStatus", reflect.TypeOf((*MockAgentConn)(nil).ReconnectingPTYStatus), ctx, id)
 }
 
 // RecreateDevcontainer mocks base method.

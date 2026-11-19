@@ -187,13 +187,16 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 
 	go heartbeat(ctx, rpty.timer, rpty.timeout)
 
-	ptty, process, clientExited, err := rpty.doAttach(ctx, conn, height, width, logger)
+	ptty, process, outputDone, err := rpty.doAttach(ctx, conn, height, width, logger)
 	if err != nil {
 		logger.Debug(ctx, "unable to attach to screen reconnecting pty", slog.Error(err))
 		if errors.Is(err, context.Canceled) {
 			// Likely the process was too short-lived and canceled the version
-			// command, or the session has already ended.
-			rpty.closeIfSessionEnded(ctx, logger)
+			// command, or the session has already ended.  Wait for the output
+			// goroutine to record that before the connection closes.
+			if outputDone != nil {
+				<-outputDone
+			}
 			return nil
 		}
 		return err
@@ -201,6 +204,10 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 	logger.Debug(ctx, "attached to screen reconnecting pty")
 
 	defer func() {
+		// The connection went away, so the session is left running for the next
+		// attach.  Cancel first so the output goroutine skips checking whether
+		// the session ended once the client is killed.
+		cancel()
 		// Log only for debugging since the process might have already exited on its
 		// own.
 		err := ptty.Close()
@@ -215,15 +222,6 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 
 	// Pipe conn -> pty and block.
 	readConnLoop(ctx, conn, ptty, rpty.metrics, logger)
-
-	// If the screen client exited on its own, either the session ended or the
-	// client was detached.  Otherwise the connection went away and the session
-	// is left running for the next attach.
-	select {
-	case <-clientExited:
-		rpty.closeIfSessionEnded(ctx, logger)
-	default:
-	}
 	return nil
 }
 
@@ -257,9 +255,9 @@ func (rpty *screenReconnectingPTY) sessionExists(ctx context.Context) bool {
 }
 
 // doAttach spawns the screen client and waits for the session to come up.  The
-// returned channel closes when the client exits.  It exists separately only so
-// we can defer the mutex unlock which is not possible in Attach since it
-// blocks.
+// returned channel, if not nil, closes once the client has exited and the
+// connection has been closed.  It exists separately only so we can defer the
+// mutex unlock which is not possible in Attach since it blocks.
 func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, height, width uint16, logger slog.Logger) (pty.PTYCmd, pty.Process, <-chan struct{}, error) {
 	// Ensure another attach does not come in and spawn a duplicate session.
 	rpty.mutex.Lock()
@@ -311,13 +309,14 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	versionCtx, versionCancel := context.WithCancel(ctx)
 	defer versionCancel()
 
-	clientExited := make(chan struct{})
+	outputDone := make(chan struct{})
 
 	// Pipe pty -> conn and close the connection when the process exits.
 	// We do not need to separately monitor for the process exiting.  When it
 	// exits, our ptty.OutputReader() will return EOF after reading all process
 	// output.
 	go func() {
+		defer close(outputDone)
 		defer versionCancel()
 		defer func() {
 			err := conn.Close()
@@ -340,9 +339,13 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 					rpty.metrics.WithLabelValues("screen_output_reader").Add(1)
 				}
 				// The process might have died because the session itself died or it
-				// might have been detached and the session is still up.  Attach checks
-				// which one it was.
-				close(clientExited)
+				// might have been detached and the session is still up.  Check which
+				// one it was before closing the connection, so the session is
+				// already marked finished once the client sees the close.  Cancel
+				// the version command first since doAttach holds the mutex until
+				// it returns.
+				versionCancel()
+				rpty.closeIfSessionEnded(ctx, logger)
 				break
 			}
 			part := buffer[:read]
@@ -374,10 +377,10 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 			logger.Debug(ctx, "killed process with error", slog.Error(killErr))
 		}
 		rpty.metrics.WithLabelValues("screen_wait").Add(1)
-		return nil, nil, nil, err
+		return nil, nil, outputDone, err
 	}
 
-	return ptty, process, clientExited, nil
+	return ptty, process, outputDone, nil
 }
 
 // sendCommand runs a screen command against a running screen session.  If the
@@ -462,6 +465,10 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 func (rpty *screenReconnectingPTY) Wait() error {
 	_, err := rpty.state.waitForState(StateClosing)
 	return err
+}
+
+func (rpty *screenReconnectingPTY) ExitError() *ExitError {
+	return rpty.state.exitError()
 }
 
 func (rpty *screenReconnectingPTY) Close(err error) {

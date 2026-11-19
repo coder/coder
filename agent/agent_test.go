@@ -2768,7 +2768,8 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 }
 
 // TestAgent_ReconnectingPTYExited ensures that reconnecting to a session whose
-// process has exited does not run the command again.
+// process has exited does not run the command again, and that its status
+// reports the exit.
 func TestAgent_ReconnectingPTYExited(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -2794,8 +2795,12 @@ func TestAgent_ReconnectingPTYExited(t *testing.T) {
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
 			runsFile := filepath.Join(t.TempDir(), "runs")
-			command := fmt.Sprintf("echo ran >> %s; echo done", runsFile)
+			command := fmt.Sprintf("echo ran >> %s; echo done; exit 3", runsFile)
 			id := uuid.New()
+
+			_, err := conn.ReconnectingPTYStatus(ctx, id)
+			require.Error(t, err, "unknown session")
+
 			for i := range 3 {
 				netConn, err := conn.ReconnectingPTY(ctx, id, 80, 80, command, func(arp *workspacesdk.AgentReconnectingPTYInit) {
 					arp.BackendType = backendType
@@ -2808,11 +2813,37 @@ func TestAgent_ReconnectingPTYExited(t *testing.T) {
 					// The buffered backend replays the finished session's output.
 					require.Contains(t, string(output), "done", "connection %d", i)
 				}
+
+				// The session is marked finished before the connection closes.
+				status, err := conn.ReconnectingPTYStatus(ctx, id)
+				require.NoError(t, err)
+				require.True(t, status.Exited, "connection %d", i)
+				if backendType == "buffered" {
+					require.NotNil(t, status.ExitCode)
+					require.Equal(t, 3, *status.ExitCode)
+				} else {
+					require.Nil(t, status.ExitCode)
+				}
 			}
 
 			runs, err := os.ReadFile(runsFile)
 			require.NoError(t, err)
 			require.Equal(t, "ran\n", string(runs))
+
+			// A running session is not exited.
+			runningID := uuid.New()
+			netConn, err := conn.ReconnectingPTY(ctx, runningID, 80, 80, "sleep 300", func(arp *workspacesdk.AgentReconnectingPTYInit) {
+				arp.BackendType = backendType
+			})
+			require.NoError(t, err)
+			defer netConn.Close()
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				status, err := conn.ReconnectingPTYStatus(ctx, runningID)
+				if !assert.NoError(c, err) {
+					return
+				}
+				assert.False(c, status.Exited)
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }
