@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -223,6 +225,162 @@ func TestAISpendRetainedPeriod(t *testing.T) {
 			got, ok := api.aiSpendRetainedPeriod(r.Context(), rw, r, httpapi.NewQueryParamParser())
 
 			requireAISpendPeriodResult(t, tc, rw, got, ok)
+		})
+	}
+}
+
+func TestParseOrganizationAISpendPage(t *testing.T) {
+	t.Parallel()
+
+	limitRange := codersdk.ValidationError{Field: "limit", Detail: `Query param "limit" must be in range [1, 100].`}
+
+	cases := []struct {
+		name   string
+		params map[string]string
+		want   codersdk.OrganizationAISpendPage
+		// wantErrors is every validation error, in order.
+		wantErrors []codersdk.ValidationError
+	}{
+		{
+			name:       "Default",
+			want:       codersdk.OrganizationAISpendPage{Limit: 10},
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "LimitAndOffset",
+			params:     map[string]string{"limit": "25", "offset": "50"},
+			want:       codersdk.OrganizationAISpendPage{Limit: 25, Offset: 50},
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "LimitMax",
+			params:     map[string]string{"limit": "100"},
+			want:       codersdk.OrganizationAISpendPage{Limit: 100},
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "LimitAboveMax",
+			params:     map[string]string{"limit": "101"},
+			want:       codersdk.OrganizationAISpendPage{Limit: 101},
+			wantErrors: []codersdk.ValidationError{limitRange},
+		},
+		{
+			name:       "LimitZero",
+			params:     map[string]string{"limit": "0"},
+			want:       codersdk.OrganizationAISpendPage{},
+			wantErrors: []codersdk.ValidationError{limitRange},
+		},
+		{
+			name:   "NegativeOffset",
+			params: map[string]string{"offset": "-1"},
+			want:   codersdk.OrganizationAISpendPage{Limit: 10},
+			wantErrors: []codersdk.ValidationError{
+				{Field: "offset", Detail: `Query param "offset" must be a valid 32-bit positive integer: value is negative`},
+			},
+		},
+		{
+			// An unparsable limit is read as zero, so it also fails the range.
+			name:   "InvalidLimit",
+			params: map[string]string{"limit": "ten"},
+			want:   codersdk.OrganizationAISpendPage{},
+			wantErrors: []codersdk.ValidationError{
+				{Field: "limit", Detail: `Query param "limit" must be a valid 32-bit positive integer: strconv.ParseInt: parsing "ten": invalid syntax`},
+				limitRange,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			query := url.Values{}
+			for k, v := range tc.params {
+				query.Set(k, v)
+			}
+			parser := httpapi.NewQueryParamParser()
+
+			got := parseOrganizationAISpendPage(parser, query)
+
+			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.wantErrors, parser.Errors)
+		})
+	}
+}
+
+func TestParseAISpendUserIDs(t *testing.T) {
+	t.Parallel()
+
+	newUserIDs := func(count int) []uuid.UUID {
+		userIDs := make([]uuid.UUID, 0, count)
+		for range count {
+			userIDs = append(userIDs, uuid.New())
+		}
+		return userIDs
+	}
+	joinUserIDs := func(userIDs []uuid.UUID) string {
+		values := make([]string, 0, len(userIDs))
+		for _, userID := range userIDs {
+			values = append(values, userID.String())
+		}
+		return strings.Join(values, ",")
+	}
+	twoUserIDs := newUserIDs(2)
+	maxUserIDs := newUserIDs(100)
+	aboveMaxUserIDs := newUserIDs(101)
+
+	cases := []struct {
+		name   string
+		params map[string]string
+		want   []uuid.UUID
+		// wantErrors is every validation error, in order.
+		wantErrors []codersdk.ValidationError
+	}{
+		{
+			name:       "Missing",
+			want:       nil,
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "SeveralUserIDs",
+			params:     map[string]string{"user_ids": joinUserIDs(twoUserIDs)},
+			want:       twoUserIDs,
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:       "MaxUserIDs",
+			params:     map[string]string{"user_ids": joinUserIDs(maxUserIDs)},
+			want:       maxUserIDs,
+			wantErrors: []codersdk.ValidationError{},
+		},
+		{
+			name:   "AboveMaxUserIDs",
+			params: map[string]string{"user_ids": joinUserIDs(aboveMaxUserIDs)},
+			want:   aboveMaxUserIDs,
+			wantErrors: []codersdk.ValidationError{
+				{Field: "user_ids", Detail: "user_ids has 101 entries, maximum is 100."},
+			},
+		},
+		{
+			name:   "InvalidUserID",
+			params: map[string]string{"user_ids": "not-a-uuid"},
+			want:   []uuid.UUID{},
+			wantErrors: []codersdk.ValidationError{
+				{Field: "user_ids", Detail: `Query param "user_ids" has invalid values: invalid UUID length: 10`},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			query := url.Values{}
+			for key, value := range tc.params {
+				query.Set(key, value)
+			}
+			parser := httpapi.NewQueryParamParser()
+
+			got := parseAISpendUserIDs(parser, query)
+
+			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.wantErrors, parser.Errors)
 		})
 	}
 }
