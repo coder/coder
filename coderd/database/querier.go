@@ -1472,9 +1472,10 @@ type sqlcQuerier interface {
 	// row per provider, model, and client they spent through, and every row
 	// carries the user's spend and the count and totals over every matching user.
 	// It must count the same token usage as the CSV export for the same filters.
-	// user_page keeps one row per user, so the page, count, and totals apply to users.
-	// Includes deleted providers, since usage still references them, and prefers
-	// the live provider when a name was reused.
+	// The page, count, and totals apply to users, not to their provider, model,
+	// and client rows.
+	// Provider details include deleted providers, since usage still references
+	// them, and prefer the live provider when a name was reused.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationSkillMetadataByOrganizationIDRow, error)
 	ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error)

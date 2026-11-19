@@ -669,10 +669,10 @@ unpriced_models AS (
 	FROM spend
 	WHERE is_model
 		AND has_unpriced_usage
-		AND model IS NOT NULL
 	GROUP BY user_id
 ),
--- user_page keeps one row per user, so the page, count, and totals apply to users.
+-- The page, count, and totals apply to users, not to their provider, model,
+-- and client rows.
 user_page AS (
 	SELECT
 		spend.user_id,
@@ -726,8 +726,8 @@ FROM user_page
 JOIN spend
 	ON spend.user_id = user_page.user_id
 	AND (spend.is_provider OR spend.is_model OR spend.is_client)
--- Includes deleted providers, since usage still references them, and prefers
--- the live provider when a name was reused.
+-- Provider details include deleted providers, since usage still references
+-- them, and prefer the live provider when a name was reused.
 LEFT JOIN LATERAL (
 	SELECT ai_providers.display_name, ai_providers.icon, ai_providers.type
 	FROM ai_providers
