@@ -346,60 +346,12 @@ func TestSingleWorkspaceData(t *testing.T) {
 	})
 }
 
-// wsrelatedDeprecatedFields lists deprecated fields that are never populated.
-// They count as covered by their parent's wsrelated tag but cannot be non-zero.
+// wsrelatedDeprecatedFields lists deprecated fields, by declaring struct and
+// field name, that are never populated. They count as covered by their
+// parent's wsrelated tag but cannot be non-zero.
 var wsrelatedDeprecatedFields = map[string]bool{
 	"WorkspaceAppStatus.Icon":               true,
 	"WorkspaceAppStatus.NeedsUserAttention": true,
-}
-
-// wsrelatedField is a field reachable from codersdk.Workspace along with the
-// include_related value that must populate it.
-type wsrelatedField struct {
-	// path is the chain of field names from the root codersdk.Workspace.
-	path []string
-	tag  string
-}
-
-// collectWSRelatedFields walks the codersdk struct t and returns every field
-// that is returned as part of a workspace. In a struct where any field has a
-// wsrelated tag, untagged fields are not returned and are skipped. A struct
-// with no tags is covered entirely by the tag on the field that contains it.
-func collectWSRelatedFields(t reflect.Type, path []string, parentTag string) []wsrelatedField {
-	tagged := false
-	for i := range t.NumField() {
-		if _, ok := t.Field(i).Tag.Lookup("wsrelated"); ok {
-			tagged = true
-			break
-		}
-	}
-
-	var fields []wsrelatedField
-	for i := range t.NumField() {
-		f := t.Field(i)
-		if !f.IsExported() || wsrelatedDeprecatedFields[t.Name()+"."+f.Name] {
-			continue
-		}
-		tag := parentTag
-		if tagged {
-			var ok bool
-			tag, ok = f.Tag.Lookup("wsrelated")
-			if !ok {
-				continue
-			}
-		}
-		fieldPath := append(append([]string{}, path...), f.Name)
-		fields = append(fields, wsrelatedField{path: fieldPath, tag: tag})
-
-		elem := f.Type
-		for elem.Kind() == reflect.Pointer || elem.Kind() == reflect.Slice || elem.Kind() == reflect.Map {
-			elem = elem.Elem()
-		}
-		if elem.Kind() == reflect.Struct && elem.PkgPath() == t.PkgPath() {
-			fields = append(fields, collectWSRelatedFields(elem, fieldPath, tag)...)
-		}
-	}
-	return fields
 }
 
 // resolveWSRelatedField follows path from v, descending into the first element
@@ -746,7 +698,12 @@ func (f wsrelatedFixture) newAPI(t *testing.T) *API {
 func TestWorkspaceWSRelatedTags(t *testing.T) {
 	t.Parallel()
 
-	fields := collectWSRelatedFields(reflect.TypeFor[codersdk.Workspace](), nil, "")
+	var fields []wsrelated.Field
+	for _, field := range wsrelated.Fields(reflect.TypeFor[codersdk.Workspace]()) {
+		if !wsrelatedDeprecatedFields[field.Struct.Name()+"."+field.GoPath[len(field.GoPath)-1]] {
+			fields = append(fields, field)
+		}
+	}
 	require.NotEmpty(t, fields)
 
 	// This test works by checking that each field gets a non-zero value when its `wsrelated` tag is used as the
@@ -763,11 +720,11 @@ func TestWorkspaceWSRelatedTags(t *testing.T) {
 	// Convert one workspace per fixture (healthy, unhealthy) for each distinct `wsrelated` tag.
 	results := map[string][]codersdk.Workspace{}
 	for _, field := range fields {
-		if _, ok := results[field.tag]; ok {
+		if _, ok := results[field.Tag]; ok {
 			continue
 		}
-		cfg, err := wsrelated.Parse(field.tag)
-		require.NoError(t, err, "parse wsrelated tag %q on %s", field.tag, strings.Join(field.path, "."))
+		cfg, err := wsrelated.Parse(field.Tag)
+		require.NoError(t, err, "parse wsrelated tag %q on %s", field.Tag, strings.Join(field.GoPath, "."))
 
 		for i, f := range fixtures {
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -788,22 +745,22 @@ func TestWorkspaceWSRelatedTags(t *testing.T) {
 			}
 			ws, err := convertWorkspace(ctx, apis[i].Logger, f.workspace.OwnerID, f.workspace, build, template, apis[i].AllowWorkspaceRenames, appStatus)
 			require.NoError(t, err)
-			results[field.tag] = append(results[field.tag], ws)
+			results[field.Tag] = append(results[field.Tag], ws)
 		}
 	}
 
 	for _, field := range fields {
-		name := strings.Join(field.path, ".")
+		name := strings.Join(field.GoPath, ".")
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			// Some fields are mutually exclusive, so the field must be set in
 			// at least one fixture.
-			for _, ws := range results[field.tag] {
-				if v, ok := resolveWSRelatedField(reflect.ValueOf(ws), field.path); ok && !isEmptyWSRelatedValue(v) {
+			for _, ws := range results[field.Tag] {
+				if v, ok := resolveWSRelatedField(reflect.ValueOf(ws), field.GoPath); ok && !isEmptyWSRelatedValue(v) {
 					return
 				}
 			}
-			t.Errorf("%s is zero with include_related=%q", name, field.tag)
+			t.Errorf("%s is zero with include_related=%q", name, field.Tag)
 		})
 	}
 }
