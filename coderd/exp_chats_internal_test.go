@@ -31,10 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -695,6 +697,108 @@ func TestWriteChatFileErrorUnavailable(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
 	require.Equal(t, "Chat attachment unavailable.", response.Message)
 	require.Equal(t, "An attachment is no longer available. Upload it again and retry.", response.Detail)
+}
+
+func TestChatRenderTemplateParameters(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	api := &API{Options: &Options{Database: dbauthzTestStore(t, db)}}
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         owner.ID,
+	})
+	ready := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	}).Params(database.TemplateVersionParameter{Name: "region"}).Do()
+	pendingJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+		InitiatorID:    owner.ID,
+	})
+	pending := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: ready.Template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+		JobID:          pendingJob.ID,
+	})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	params, _, err := api.chatRenderTemplateParameters(ctx, owner.ID, ready.TemplateVersion.ID)
+	require.NoError(t, err)
+	require.Len(t, params, 1)
+	require.Equal(t, "region", params[0].Name)
+
+	_, _, err = api.chatRenderTemplateParameters(ctx, owner.ID, pending.ID)
+	require.ErrorIs(t, err, dynamicparameters.ErrTemplateVersionNotReady)
+}
+
+func TestResolveChatStartVersion(t *testing.T) {
+	t.Parallel()
+
+	requested, outdated, active := uuid.New(), uuid.New(), uuid.New()
+	tests := []struct {
+		name                 string
+		transition           codersdk.WorkspaceTransition
+		requireActiveVersion bool
+		latestBuildVersionID uuid.UUID
+		wantVersionID        uuid.UUID
+		wantUpdated          bool
+	}{
+		{
+			name:                 "NotRequired",
+			transition:           codersdk.WorkspaceTransitionStart,
+			requireActiveVersion: false,
+			latestBuildVersionID: outdated,
+			wantVersionID:        requested,
+			wantUpdated:          false,
+		},
+		{
+			name:                 "RequiredAndOutdated",
+			transition:           codersdk.WorkspaceTransitionStart,
+			requireActiveVersion: true,
+			latestBuildVersionID: outdated,
+			wantVersionID:        active,
+			wantUpdated:          true,
+		},
+		{
+			name:                 "RequiredAndCurrent",
+			transition:           codersdk.WorkspaceTransitionStart,
+			requireActiveVersion: true,
+			latestBuildVersionID: active,
+			wantVersionID:        active,
+			wantUpdated:          false,
+		},
+		{
+			name:                 "RequiredButNotStart",
+			transition:           codersdk.WorkspaceTransitionStop,
+			requireActiveVersion: true,
+			latestBuildVersionID: outdated,
+			wantVersionID:        requested,
+			wantUpdated:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, gotUpdated := resolveChatStartVersion(
+				codersdk.CreateWorkspaceBuildRequest{
+					Transition:        tt.transition,
+					TemplateVersionID: requested,
+				},
+				dbauthz.TemplateAccessControl{RequireActiveVersion: tt.requireActiveVersion},
+				tt.latestBuildVersionID,
+				active,
+			)
+			require.Equal(t, tt.wantVersionID, got.TemplateVersionID)
+			require.Equal(t, tt.wantUpdated, gotUpdated)
+		})
+	}
 }
 
 func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
