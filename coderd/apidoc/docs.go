@@ -26232,6 +26232,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "agent_connect_concurrency": {
+                    "type": "integer"
+                },
+                "agent_connect_queue_size": {
+                    "type": "integer"
+                },
                 "agent_fallback_troubleshooting_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },

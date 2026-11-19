@@ -136,6 +136,10 @@ type Options struct {
 	Experiments               codersdk.Experiments
 
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
+
+	// OnManifestServed is called each time the agent has been sent its
+	// manifest, or the attempt to build it has failed. Optional.
+	OnManifestServed func()
 }
 
 func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
@@ -161,6 +165,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		DerpMapFn:                 opts.DerpMapFn,
 		WorkspaceID:               opts.WorkspaceID,
 		WorkspaceBuildID:          opts.WorkspaceBuildID,
+		OnServed:                  opts.OnManifestServed,
 	}
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated

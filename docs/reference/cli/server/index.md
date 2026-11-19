@@ -1170,6 +1170,28 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
+### --agent-connect-concurrency
+
+| Property    | Value                                                |
+|-------------|------------------------------------------------------|
+| Type        | <code>int</code>                                     |
+| Environment | <code>$CODER_AGENT_CONNECT_CONCURRENCY</code>        |
+| YAML        | <code>networking.http.agentConnectConcurrency</code> |
+| Default     | <code>64</code>                                      |
+
+Maximum number of workspace agent connections that a replica sets up at the same time. Connections over the limit wait in a queue. The replica rejects a connection with HTTP 503 and a Retry-After header when the queue is full or the connection waits too long. Set to 0 to turn off the limit.
+
+### --agent-connect-queue-size
+
+| Property    | Value                                              |
+|-------------|----------------------------------------------------|
+| Type        | <code>int</code>                                   |
+| Environment | <code>$CODER_AGENT_CONNECT_QUEUE_SIZE</code>       |
+| YAML        | <code>networking.http.agentConnectQueueSize</code> |
+| Default     | <code>2048</code>                                  |
+
+Maximum number of workspace agent connections that wait for their setup to begin. Has no effect when --agent-connect-concurrency is 0.
+
 ### --browser-only
 
 | Property    | Value                               |

@@ -749,6 +749,8 @@ type DeploymentValues struct {
 	MetricsCacheRefreshInterval             serpent.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval                serpent.Duration                     `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	AgentConnectConcurrency                 serpent.Int64                        `json:"agent_connect_concurrency,omitempty" typescript:",notnull"`
+	AgentConnectQueueSize                   serpent.Int64                        `json:"agent_connect_queue_size,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
 	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
@@ -3772,6 +3774,26 @@ communicating directly.`,
 			Default:     "https://coder.com/docs/admin/templates/troubleshooting",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
+		},
+		{
+			Name:        "Agent Connect Concurrency",
+			Description: "Maximum number of workspace agent connections that a replica sets up at the same time. Connections over the limit wait in a queue. The replica rejects a connection with HTTP 503 and a Retry-After header when the queue is full or the connection waits too long. Set to 0 to turn off the limit.",
+			Flag:        "agent-connect-concurrency",
+			Env:         "CODER_AGENT_CONNECT_CONCURRENCY",
+			Default:     "64",
+			Value:       &c.AgentConnectConcurrency,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "agentConnectConcurrency",
+		},
+		{
+			Name:        "Agent Connect Queue Size",
+			Description: "Maximum number of workspace agent connections that wait for their setup to begin. Has no effect when --agent-connect-concurrency is 0.",
+			Flag:        "agent-connect-queue-size",
+			Env:         "CODER_AGENT_CONNECT_QUEUE_SIZE",
+			Default:     "2048",
+			Value:       &c.AgentConnectQueueSize,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "agentConnectQueueSize",
 		},
 		{
 			Name:        "Browser Only",
