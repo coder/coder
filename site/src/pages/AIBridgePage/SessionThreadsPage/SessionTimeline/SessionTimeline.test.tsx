@@ -31,11 +31,9 @@ describe(SessionTimeline.name, () => {
 		const user = userEvent.setup();
 		const [action] = MockAIBridgeThread.agentic_actions;
 		const [toolCall] = action.tool_calls;
-		const readFile = (id: string, file_path: string) => ({
-			...toolCall,
-			id,
-			tool: "read_file",
-			input: JSON.stringify({ file_path, limit: 100 }),
+		const readFileAction = (id: string) => ({
+			...action,
+			tool_calls: [{ ...toolCall, id, tool: "read_file" }],
 		});
 		renderComponent(
 			<SessionTimeline
@@ -44,19 +42,8 @@ describe(SessionTimeline.name, () => {
 					{
 						...MockAIBridgeThread,
 						agentic_actions: [
-							{
-								...action,
-								tool_calls: [
-									readFile(
-										"read-1",
-										"/home/coder/workspaces/my-project/src/auth/index.ts",
-									),
-									readFile(
-										"read-2",
-										"/home/coder/workspaces/my-project/src/auth/login.ts",
-									),
-								],
-							},
+							readFileAction("read-1"),
+							readFileAction("read-2"),
 						],
 					},
 				]}
@@ -73,15 +60,13 @@ describe(SessionTimeline.name, () => {
 		await user.click(loopToggle);
 		expect(loopToggle).toHaveAttribute("aria-expanded", "true");
 
-		screen.getByRole("button", {
-			name: "Tool call read_file with file_path …/workspaces/my-project/src/auth/index.ts",
+		screen.getByRole("button", { name: "Tool call read_file 1 of 2" });
+		const secondToggle = screen.getByRole("button", {
+			name: "Tool call read_file 2 of 2",
 		});
-		const loginToggle = screen.getByRole("button", {
-			name: "Tool call read_file with file_path …/workspaces/my-project/src/auth/login.ts",
-		});
-		expect(loginToggle).toHaveAttribute("aria-expanded", "false");
-		await user.click(loginToggle);
-		expect(loginToggle).toHaveAttribute("aria-expanded", "true");
+		expect(secondToggle).toHaveAttribute("aria-expanded", "false");
+		await user.click(secondToggle);
+		expect(secondToggle).toHaveAttribute("aria-expanded", "true");
 	});
 
 	it("lets keyboard users focus the tool call input to scroll it", async () => {

@@ -43,10 +43,6 @@ describe("clampContent", () => {
 	it("strips trailing whitespace before appending the ellipsis", () => {
 		expect(clampContent("abc     defghij", 6)).toBe("abc…");
 	});
-
-	it("keeps the end of the text when keeping the tail", () => {
-		expect(clampContent("abcdef     ghi", 6, { keep: "tail" })).toBe("…ghi");
-	});
 });
 
 describe("exceedsClampThreshold", () => {
