@@ -312,12 +312,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store, filePreview
 	corsBehavior = tmpl.CorsBehavior
 	previewID, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
 	switch {
-	// Path-based previews would share the dashboard's origin, so those
-	// requests fall through and find no app. So do all previews while the
-	// open-preview experiment is off.
 	case isPreview && filePreviews && r.AccessMethod == AccessMethodSubdomain:
-		// The agent API serves the files on its reserved port. Previews serve
-		// agent-authored content, so they use the owner sharing level.
 		appURL = fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s", workspacesdk.AgentHTTPAPIServerPort, previewID)
 		appSharingLevel = database.AppSharingLevelOwner
 	case portUintErr == nil:

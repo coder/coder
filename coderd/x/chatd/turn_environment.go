@@ -1920,8 +1920,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			c.clearCachedWorkspaceState()
 			continue
 		}
-		// Cache the agent with the conn so readers never pair a conn with an
-		// agent that a concurrent call cleared or switched.
 		if c.conn == nil {
 			c.conn = agentConn
 			c.releaseConn = agentRelease
@@ -1965,8 +1963,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
-// getPreviewWorkspace returns the cached conn with the workspace and agent it
-// belongs to, read under one lock.
 func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattool.PreviewWorkspace, error) {
 	if _, err := c.getWorkspaceConn(ctx); err != nil {
 		return chattool.PreviewWorkspace{}, err
@@ -1984,7 +1980,6 @@ func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattoo
 	}
 	c.mu.Unlock()
 
-	// The workspace and owner names are part of the preview hostname.
 	ws, err := c.server.db.GetWorkspaceByID(ctx, preview.WorkspaceID)
 	if err != nil {
 		return chattool.PreviewWorkspace{}, xerrors.Errorf("load workspace: %w", err)

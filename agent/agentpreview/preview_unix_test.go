@@ -15,8 +15,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Opening a FIFO blocks until a writer opens it, so previews must refuse
-// FIFOs instead of opening them.
+// Opening a FIFO blocks until a writer opens it.
 func TestPreviewRejectsFIFOs(t *testing.T) {
 	t.Parallel()
 

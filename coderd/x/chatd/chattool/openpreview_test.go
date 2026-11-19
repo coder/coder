@@ -59,11 +59,9 @@ func TestOpenPreview(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name  string
-		input string
-		// agent replaces the default agent.
-		agent *database.WorkspaceAgent
-		// path is the path the agent is asked to publish.
+		name      string
+		input     string
+		agent     *database.WorkspaceAgent
 		path      string
 		agentPath string
 		openErr   error
@@ -76,16 +74,14 @@ func TestOpenPreview(t *testing.T) {
 			want:  chattool.OpenPreviewResult{Title: "Signup form", Port: 3000, URLPath: "/?folder=/home/coder"},
 		},
 		{
-			// "/" opens the same tab as no URL path.
 			name:  "RootURLPath",
 			input: `{"title":"Editor","port":9,"url_path":"/"}`,
 			want:  chattool.OpenPreviewResult{Title: "Editor", Port: 9},
 		},
 		{
-			name:  "Path",
-			input: `{"title":"Docs site","path":" /home/coder/output/ ","url_path":"/guide/"}`,
-			path:  "/home/coder/output/",
-			// The result stores the path the agent serves, not the input.
+			name:      "Path",
+			input:     `{"title":"Docs site","path":" /home/coder/output/ ","url_path":"/guide/"}`,
+			path:      "/home/coder/output/",
 			agentPath: "/home/coder/output",
 			want: chattool.OpenPreviewResult{
 				Title:     "Docs site",
@@ -186,7 +182,6 @@ func TestOpenPreview(t *testing.T) {
 
 			want := tt.want
 			want.WorkspaceID = workspaceID
-			want.AgentID = agent.ID
 			want.AgentName = agent.Name
 			var result chattool.OpenPreviewResult
 			require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
@@ -226,14 +221,11 @@ func TestOpenPreviewApp(t *testing.T) {
 	require.Equal(t, chattool.OpenPreviewResult{
 		Title:       "Editor",
 		WorkspaceID: build.Workspace.ID,
-		AgentID:     build.Agents[0].ID,
 		AgentName:   build.Agents[0].Name,
 		AppSlug:     "code-server",
 		URLPath:     "/?folder=/home/coder",
 	}, result)
 
-	// Hidden, path-based, external and command apps are not tabs in the
-	// right panel. The error lists the apps that are.
 	for _, slug := range []string{"hidden", "path-app", "missing"} {
 		response := runOpenPreview(t, tool, `{"title":"Editor","app":"`+slug+`"}`)
 		require.True(t, response.IsError, slug)
@@ -243,8 +235,6 @@ func TestOpenPreviewApp(t *testing.T) {
 	}
 }
 
-// Browsers cannot load a hostname whose first label is longer than 63
-// characters, so each target fails before the tab would open.
 func TestOpenPreviewHostnameTooLong(t *testing.T) {
 	t.Parallel()
 

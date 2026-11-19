@@ -778,8 +778,6 @@ func Test_ResolveRequest(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// A public share of the agent API's port must not widen preview
-		// access.
 		_, err := api.Database.UpsertWorkspaceAgentPortShare(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   agentName,
@@ -820,13 +818,10 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, agentID, token.AgentID)
 		require.Equal(t, fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort), token.AppURL)
 
-		// Previews use the owner sharing level.
 		_, token, ok = resolve("")
 		require.False(t, ok)
 		require.Nil(t, token)
 
-		// Without the experiment, preview hostnames find no app. Workspace
-		// proxies get their tokens from this provider, so this covers them too.
 		withoutExperiment := *api.WorkspaceAppsProvider.(*workspaceapps.DBTokenProvider)
 		withoutExperiment.Experiments = nil
 		opts.SignedTokenProvider = &withoutExperiment
@@ -836,7 +831,6 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rw.Code)
 	})
 
-	// Path-based previews would share the dashboard's origin.
 	t.Run("FilePreviewPath", func(t *testing.T) {
 		t.Parallel()
 

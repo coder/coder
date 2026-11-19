@@ -193,13 +193,11 @@ func TestHandleSubdomain(t *testing.T) {
 
 		filePreviewURL := fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort)
 		for _, tc := range []struct {
-			name      string
-			subdomain string
-			appURL    string
-			path      string
-			header    http.Header
-			// wantID is the preview ID the agent API routes the request to,
-			// or empty when the request must not reach the agent.
+			name       string
+			subdomain  string
+			appURL     string
+			path       string
+			header     http.Header
 			wantID     string
 			wantStatus int
 		}{
@@ -224,9 +222,6 @@ func TestHandleSubdomain(t *testing.T) {
 				wantID:     "0123abcd",
 				wantStatus: http.StatusNoContent,
 			},
-			// Paths that climb out of the preview still reach the preview's
-			// route on the agent API, which refuses them, and never another
-			// agent API route.
 			{
 				name:       "DotDot",
 				subdomain:  "preview--0123abcd--agent--workspace--user",
@@ -260,7 +255,6 @@ func TestHandleSubdomain(t *testing.T) {
 				wantStatus: http.StatusNoContent,
 			},
 			{
-				// Only file previews may use the agent API's reserved port.
 				name:       "PortOnAgentAPI",
 				subdomain:  fmt.Sprintf("%d--agent--workspace--user", workspacesdk.AgentHTTPAPIServerPort),
 				appURL:     filePreviewURL,
@@ -271,8 +265,6 @@ func TestHandleSubdomain(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Route like the agent API, which mounts previews under
-				// /api/v0/previews next to its other routes.
 				gotID := make(chan string, 1)
 				previews := chi.NewRouter()
 				previews.Get("/{id}/*", func(rw http.ResponseWriter, r *http.Request) {

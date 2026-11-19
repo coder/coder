@@ -154,8 +154,6 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	aReq.apiKey = apiKey // Update audit request.
 
 	// Lookup workspace app details from DB.
-	// Workspace proxies get their tokens here too, so this also keeps
-	// preview hostnames from routing on proxies while the experiment is off.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database, p.Experiments.Enabled(codersdk.ExperimentOpenPreview))
 	switch {
 	case xerrors.Is(err, sql.ErrNoRows):
