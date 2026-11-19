@@ -41,9 +41,16 @@ type ManifestAPI struct {
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
+	// OnServed is called each time GetManifest returns, whether or not it
+	// succeeded. Optional.
+	OnServed func()
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	if a.OnServed != nil {
+		defer a.OnServed()
+	}
+
 	var (
 		dbApps        []database.WorkspaceApp
 		scripts       []database.GetWorkspaceAgentScriptsByAgentIDsRow

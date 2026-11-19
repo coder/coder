@@ -114,6 +114,24 @@ Although the control plane persists no internal state, it operates as a proxy fo
 Stopping a control plane instance will (momentarily) disconnect any users currently connecting through that instance.
 Adding a new instance is not disruptive, but you should remove instances and perform upgrades during a maintenance window to minimize disruption.
 
+### Connection setup limits
+
+Each control plane instance limits how many workspace agent connections it sets up at the same time.
+A connection counts against the limit only while the instance sets it up, so the limit doesn't cap how many workspace agents stay connected.
+
+A connection over the limit waits in a queue.
+When the queue is full, or the connection has waited 5 to 15&nbsp;seconds, the instance rejects it with HTTP `503` and a `Retry-After` header.
+Workspace agents retry on their own.
+
+| Option                        | Environment variable              | Default |
+|-------------------------------|-----------------------------------|---------|
+| `--agent-connect-concurrency` | `CODER_AGENT_CONNECT_CONCURRENCY` | 64      |
+| `--agent-connect-queue-size`  | `CODER_AGENT_CONNECT_QUEUE_SIZE`  | 2048    |
+
+Set `--agent-connect-concurrency` to `0` to turn off the limit.
+
+To monitor the limit, use `coderd_agents_connect_admission_in_flight`, `coderd_agents_connect_admission_queued`, and `coderd_agents_connect_admission_rejected_total`.
+
 ## Provisioner daemons
 
 ### Locality

@@ -1355,6 +1355,30 @@ Format matches the CSP directive format, e.g. --additional-csp-policy="script-sr
 - CLI flag: [`--additional-csp-policy`](../../reference/cli/server/index.md#--additional-csp-policy)
 - YAML key: `networking.http.additionalCSPPolicy`
 
+#### Agent connect concurrency
+
+Maximum number of workspace agent connections that a replica sets up at the same time.
+Connections over the limit wait in a queue.
+The replica rejects a connection with HTTP 503 and a Retry-After header when the queue is full or the connection waits too long.
+Set to 0 to turn off the limit.
+
+- Type: `int`
+- Environment variable: `CODER_AGENT_CONNECT_CONCURRENCY`
+- CLI flag: [`--agent-connect-concurrency`](../../reference/cli/server/index.md#--agent-connect-concurrency)
+- YAML key: `networking.http.agentConnectConcurrency`
+- Default value: `64`
+
+#### Agent connect queue size
+
+Maximum number of workspace agent connections that wait for their setup to begin.
+Has no effect when --agent-connect-concurrency is 0.
+
+- Type: `int`
+- Environment variable: `CODER_AGENT_CONNECT_QUEUE_SIZE`
+- CLI flag: [`--agent-connect-queue-size`](../../reference/cli/server/index.md#--agent-connect-queue-size)
+- YAML key: `networking.http.agentConnectQueueSize`
+- Default value: `2048`
+
 #### Disable password authentication
 
 Disable password authentication.

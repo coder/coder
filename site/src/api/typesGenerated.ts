@@ -5643,6 +5643,8 @@ export interface DeploymentValues {
 	readonly metrics_cache_refresh_interval?: number;
 	readonly agent_stat_refresh_interval?: number;
 	readonly agent_fallback_troubleshooting_url?: string;
+	readonly agent_connect_concurrency?: number;
+	readonly agent_connect_queue_size?: number;
 	readonly browser_only?: boolean;
 	readonly scim_api_key?: string;
 	readonly scim_use_legacy?: boolean;

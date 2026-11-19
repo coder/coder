@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/admission"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -69,6 +70,11 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	// this default to skip monitoring for unspecified roles.
 	role := r.URL.Query().Get("role")
 	monitorConnection := role == "" || role == "agent"
+	if !monitorConnection {
+		// Only the workspace agent fetches a manifest, so for any other
+		// client the costly part of connecting is already over.
+		admission.Release(ctx)
+	}
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
@@ -194,6 +200,10 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 		ContextDirtyMarker:   contextDirtyMarker,
 		ContextSyncDisabled:  api.DeploymentValues.DisableWorkspaceAgentContextSync.Value(),
+		// Fetching the manifest is the bulk of the database work a new agent
+		// connection causes, so the connection stops counting against the
+		// admission limit once that is done.
+		OnManifestServed: func() { admission.Release(r.Context()) },
 	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{
@@ -209,6 +219,33 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
+}
+
+// newConnectLimiter returns the limiter for one kind of connection setup, or
+// nil, which admits everything, when concurrency is not positive. A connection
+// counts against concurrency from the moment it arrives until its setup is
+// done, which for an agent is when it has fetched its manifest.
+func newConnectLimiter(concurrency, queueSize int64, metrics *admission.Metrics) *admission.Limiter {
+	if concurrency <= 0 {
+		return nil
+	}
+	return admission.New(admission.Options{
+		MaxInFlight: int(concurrency),
+		MaxQueued:   int(max(queueSize, 0)),
+		// Load balancers commonly give up on a response after 30 to 60
+		// seconds, so a queued connection is answered well before that.
+		// docs/install/validate/scale-coder.md states the resulting wait of
+		// 5 to 15 seconds.
+		QueueTimeout: 5 * time.Second,
+		// Agents and clients that redial on a fixed schedule do so 10
+		// seconds after a rejection. Spreading rejections over that long
+		// spreads them across the whole interval.
+		QueueTimeoutJitter: 10 * time.Second,
+		MaxHold:            15 * time.Second,
+		RetryAfterMin:      5 * time.Second,
+		RetryAfterMax:      15 * time.Second,
+		Metrics:            metrics,
+	})
 }
 
 func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
@@ -555,6 +592,8 @@ func checkBuildIsLatest(ctx context.Context, db database.Store, build database.W
 type WorkspaceAgentRPCMetrics struct {
 	logger                  slog.Logger
 	FirstConnectionDuration *prometheus.HistogramVec
+	// Admission reports on admission control of new agent connections.
+	Admission *admission.Metrics
 }
 
 // NewWorkspaceAgentRPCMetrics creates and registers agent connection
@@ -569,8 +608,33 @@ func NewWorkspaceAgentRPCMetrics(reg prometheus.Registerer, logger slog.Logger) 
 			Help:      "Duration from agent creation to first connection in seconds.",
 			Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
 		}, []string{"template_name", "agent_name"}),
+		Admission: &admission.Metrics{
+			InFlight: prometheus.NewGauge(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "agents",
+				Name:      "connect_admission_in_flight",
+				Help:      "Number of workspace agent connections that are being set up. Stays 0 when --agent-connect-concurrency is 0.",
+			}),
+			Queued: prometheus.NewGauge(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "agents",
+				Name:      "connect_admission_queued",
+				Help:      "Number of workspace agent connections waiting for their setup to begin.",
+			}),
+			Rejected: prometheus.NewCounterVec(prometheus.CounterOpts{
+				Namespace: "coderd",
+				Subsystem: "agents",
+				Name:      "connect_admission_rejected_total",
+				Help:      "Number of workspace agent connections rejected, by reason: queue_full (the queue had no room) or queue_timeout (the connection waited too long).",
+			}, []string{"reason"}),
+		},
 	}
-	reg.MustRegister(m.FirstConnectionDuration)
+	reg.MustRegister(
+		m.FirstConnectionDuration,
+		m.Admission.InFlight,
+		m.Admission.Queued,
+		m.Admission.Rejected,
+	)
 	return m
 }
 

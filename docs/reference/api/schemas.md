@@ -8464,6 +8464,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "host": "string",
       "port": "string"
     },
+    "agent_connect_concurrency": 0,
+    "agent_connect_queue_size": 0,
     "agent_fallback_troubleshooting_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -9104,6 +9106,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "host": "string",
     "port": "string"
   },
+  "agent_connect_concurrency": 0,
+  "agent_connect_queue_size": 0,
   "agent_fallback_troubleshooting_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -9633,6 +9637,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `access_url`                                   | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
 | `additional_csp_policy`                        | array of string                                                                                      | false    |              |                                                                           |
 | `address`                                      | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                       |
+| `agent_connect_concurrency`                    | integer                                                                                              | false    |              |                                                                           |
+| `agent_connect_queue_size`                     | integer                                                                                              | false    |              |                                                                           |
 | `agent_fallback_troubleshooting_url`           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
 | `agent_stat_refresh_interval`                  | integer                                                                                              | false    |              |                                                                           |
 | `ai`                                           | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                           |
