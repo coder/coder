@@ -4,6 +4,10 @@ title: Upgrade best practices
 
 This guide provides best practices for upgrading Coder, along with troubleshooting steps for common issues encountered during upgrades, particularly with database migrations in high availability (HA) deployments.
 
+> [!WARNING]
+> Coder does not officially support zero-downtime upgrades.
+> Plan every upgrade knowing that there will be downtime.
+
 ## Before you upgrade
 
 > [!TIP]
@@ -15,8 +19,8 @@ This guide provides best practices for upgrading Coder, along with troubleshooti
   Plan your maintenance window when the fewest developers are actively using their workspaces.
 - **The larger the version jump, the more migrations will run.**
   If you are upgrading across multiple minor versions, expect longer migration times.
-- **Large upgrades should complete in minutes** (typically 4-7&nbsp;minutes).
-  If your upgrade is taking significantly longer, there might be an issue requiring investigation.
+- **Expect large upgrades to complete in under 15&nbsp;minutes.**
+  If your upgrade takes longer than an hour, there might be an issue requiring investigation.
 - **Check for known issues affecting your upgrade path.**
   Some version upgrades have known issues that might require a larger maintenance window or additional steps.
   For example, upgrades from v2.26.0 to v2.27.8 might encounter issues with the `api_keys` table.
@@ -34,14 +38,20 @@ For production deployments running multiple replicas (HA), active connections fr
    Before running `helm upgrade`, scale your Coder deployment down to eliminate database connection contention from existing pods.
 
    - **Scale to zero** for a clean cutover with no active database connections when the upgrade starts.
-     This momentarily prevents application access to the database, allowing migrations to acquire locks immediately:
+     Scaling to zero causes full downtime: Coder is unavailable until the upgrade completes.
+     With no old pods connected to the database, migrations can acquire locks immediately:
 
      ```sh
      kubectl scale deployment coder --replicas=0
      ```
 
-   - **Scale to one** if you prefer to minimize downtime.
-     This keeps one pod running but eliminates contention from multiple replicas:
+   - **Scale to one** to keep one pod running during the upgrade.
+     Scaling to one eliminates contention from multiple replicas.
+
+     > [!WARNING]
+     > Coder does not officially support zero-downtime upgrades, so scaling to one is not a supported upgrade strategy.
+     > You can choose to scale to one at your own risk.
+     > The pod that keeps running can still prevent the new pod from acquiring necessary locks, and the upgrade might fail.
 
      ```sh
      kubectl scale deployment coder --replicas=1
@@ -170,7 +180,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
 If you encounter any of the following issues, contact [Coder support](../../../support/index.md):
 
 - Locking issues that cannot be mitigated by the steps in this guide
-- Migrations taking significantly longer than expected (more than 15&nbsp;minutes) without evidence of lock contention, which might indicate database resource constraints requiring investigation
+- Migrations taking significantly longer than expected (more than an hour) without evidence of lock contention, which might indicate database resource constraints requiring investigation
 - Resource consumption issues (excessive memory, CPU, or out-of-memory (OOM) kills) during upgrades
 - Any other upgrade problems not covered by this documentation
 
