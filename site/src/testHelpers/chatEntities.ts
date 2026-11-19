@@ -238,6 +238,7 @@ export const MockChatMessage: ChatMessage = {
 
 /** A stored open_preview tool result for a port on MockWorkspaceAgent. */
 export const MockOpenPreviewResult = {
+	kind: "port",
 	title: "Docs site",
 	workspace_id: MockWorkspace.id,
 	agent_name: MockWorkspaceAgent.name,

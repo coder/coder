@@ -25,6 +25,10 @@ func TestAgentOpenPreviewIntegration(t *testing.T) {
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
+	_, err := conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: filepath.Join(root, "missing.html")})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, workspacesdk.ErrPreviewsUnsupported)
+
 	publication, err := conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: selected})
 	require.NoError(t, err)
 	require.Equal(t, selected, publication.Path)

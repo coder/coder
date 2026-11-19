@@ -72,14 +72,19 @@ export const isValidPort = (value: unknown): value is number =>
 	value >= 1 &&
 	value <= 65535;
 
-/** Reports whether value is a file preview ID, which goes into a hostname. */
-export const isFilePreviewID = (value: unknown): value is string =>
-	typeof value === "string" && /^[0-9a-f]{8}$/.test(value);
+/**
+ * Reports whether value is at most 63 lowercase letters, digits, and interior
+ * hyphens, so it cannot add a dot, slash, or port to a hostname it goes into.
+ */
+export const isHostnameLabel = (value: unknown): value is string =>
+	typeof value === "string" &&
+	value.length <= 63 &&
+	/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value);
 
-/** The URL the workspace agent serves a file preview at. */
+/** The URL the workspace agent serves a file preview at, from its slug. */
 export const filePreviewURL = (
 	host: string,
-	previewId: string,
+	slug: string,
 	agentName: string,
 	workspaceName: string,
 	username: string,
@@ -88,7 +93,7 @@ export const filePreviewURL = (
 ): string => {
 	return subdomainURL(
 		host,
-		`preview--${previewId}--${agentName}--${workspaceName}--${username}`,
+		`${slug}--${agentName}--${workspaceName}--${username}`,
 		pathname,
 		search,
 	);

@@ -9,7 +9,7 @@ import {
 } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
-import { isFilePreviewID, isValidPort } from "#/utils/portForward";
+import { isHostnameLabel, isValidPort } from "#/utils/portForward";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
 /**
@@ -73,7 +73,7 @@ export type UserRightPanelTab =
 			kind: "file_preview";
 			label: string;
 			agentId: string;
-			previewId: string;
+			slug: string;
 			urlPath?: string;
 	  };
 
@@ -91,6 +91,7 @@ type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
 	workspaceAgent: WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	openPreviewEnabled: boolean;
 };
 
 export function isUserRightPanelTab(
@@ -141,7 +142,7 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.label === "string" &&
 			typeof record.agentId === "string" &&
-			isFilePreviewID(record.previewId) &&
+			isHostnameLabel(record.slug) &&
 			hasValidURLPath
 		);
 	}
@@ -151,28 +152,22 @@ export function isUserRightPanelTab(
 
 export function validateUserRightPanelTabs(
 	tabs: readonly UserRightPanelTab[],
-	{
-		workspace,
-		workspaceAgent,
-		wildcardHostname,
-	}: ValidateUserRightPanelTabsOptions,
+	options: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
-	return tabs.filter((tab) =>
-		isUserRightPanelTabAvailable(tab, {
-			workspace,
-			workspaceAgent,
-			wildcardHostname,
-		}),
-	);
+	return tabs.filter((tab) => isUserRightPanelTabAvailable(tab, options));
 }
 
-/** Reports whether the workspace can still show the tab. */
+/**
+ * Reports whether the tab can still be shown, given the workspace and the
+ * enabled experiments.
+ */
 export function isUserRightPanelTabAvailable(
 	tab: WithoutID<UserRightPanelTab>,
 	{
 		workspace,
 		workspaceAgent,
 		wildcardHostname,
+		openPreviewEnabled,
 	}: ValidateUserRightPanelTabsOptions,
 ): boolean {
 	if (tab.kind === "terminal") {
@@ -203,6 +198,7 @@ export function isUserRightPanelTabAvailable(
 		}
 		case "file_preview":
 			return (
+				openPreviewEnabled &&
 				findWorkspaceAgent(workspace, tab.agentId) !== undefined &&
 				wildcardHostname.trim() !== ""
 			);
@@ -241,7 +237,7 @@ export function showsSameFrame(
 			return (
 				tab.kind === "file_preview" &&
 				tab.agentId === target.agentId &&
-				tab.previewId === target.previewId &&
+				tab.slug === target.slug &&
 				tab.urlPath === target.urlPath
 			);
 		default: {

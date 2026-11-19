@@ -72,7 +72,7 @@ describe("port forward URL", () => {
 	it("file preview at a path and query", () => {
 		const url = filePreviewURL(
 			proxyHostWildcard,
-			"0123abcd",
+			"preview--0123abcd",
 			sampleAgent,
 			sampleWorkspace,
 			sampleUsername,

@@ -3079,6 +3079,7 @@ export const OpenPreviewAppCompleted: Story = {
 		args: { title: "VS Code", app: "code-server" },
 		result: {
 			...MockOpenPreviewResult,
+			kind: "app",
 			title: "VS Code",
 			port: undefined,
 			app_slug: "code-server",

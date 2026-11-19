@@ -1,33 +1,27 @@
 package agentpreview
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // API publishes workspace files as previews and serves them.
 type API struct {
-	logger slog.Logger
-
-	mu        sync.RWMutex
-	idsByPath map[string]string
-	previews  map[string]preview
+	mu       sync.RWMutex
+	previews map[appurl.PreviewID]preview
 }
 
 // NewAPI creates a preview API handler.
-func NewAPI(logger slog.Logger) *API {
-	return &API{
-		logger:    logger,
-		idsByPath: make(map[string]string),
-		previews:  make(map[string]preview),
-	}
+func NewAPI() *API {
+	return &API{previews: make(map[appurl.PreviewID]preview)}
 }
 
 // Routes returns the handler that publishes previews and serves them under
@@ -48,14 +42,18 @@ func (api *API) handlePublish(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, path, err := api.publish(req.Path)
+	published, err := api.publish(req.Path)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		status := http.StatusBadRequest
+		if errors.Is(err, errIDTaken) {
+			status = http.StatusConflict
+		}
+		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: "Could not open preview.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.OpenPreviewResponse{ID: id, Path: path})
+	httpapi.Write(ctx, rw, http.StatusOK, published)
 }

@@ -841,15 +841,16 @@ describe("AgentChatPage", () => {
 				button: "Open preview",
 				result: {
 					...MockOpenPreviewResult,
+					kind: "file",
 					port: undefined,
-					preview_id: "0123abcd",
+					preview_slug: "preview--0123abcd",
 					url_path: "/docs/a.html",
 				},
 				tab: {
 					kind: "file_preview",
 					label: MockOpenPreviewResult.title,
 					agentId: mockPreviewAgent.id,
-					previewId: "0123abcd",
+					slug: "preview--0123abcd",
 					urlPath: "/docs/a.html",
 				},
 			},
@@ -858,6 +859,7 @@ describe("AgentChatPage", () => {
 				button: "Open app",
 				result: {
 					...MockOpenPreviewResult,
+					kind: "app",
 					port: undefined,
 					app_slug: mockCodeServerApp.slug,
 					url_path: "/?folder=/home/coder",
@@ -942,6 +944,31 @@ describe("AgentChatPage", () => {
 			);
 		});
 
+		it("opens the tab of a new result while the user's message is still sending", async () => {
+			const page = renderPreviewChat({});
+			const sent = createDeferred<TypesGen.CreateChatMessageResponse>();
+			const createChatMessage = vi
+				.spyOn(API.experimental, "createChatMessage")
+				.mockReturnValue(sent.promise);
+			await page.user.click(
+				await screen.findByRole("textbox", { name: "Chat message" }),
+			);
+			await page.user.paste("Show me the docs");
+			await page.user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
+
+			await page.publish(previewExchange(20, MockOpenPreviewResult));
+
+			await waitFor(() =>
+				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([
+					expect.objectContaining({
+						kind: "port",
+						port: MockOpenPreviewResult.port,
+					}),
+				]),
+			);
+		});
+
 		it("opens the Browser tab for an agent-browser result", async () => {
 			const page = renderPreviewChat({});
 			await waitForLoadedChat();
@@ -949,6 +976,7 @@ describe("AgentChatPage", () => {
 			await page.publish(
 				previewExchange(20, {
 					...MockOpenPreviewResult,
+					kind: "app",
 					port: undefined,
 					app_slug: AGENT_BROWSER_APP_SLUG,
 				}),
@@ -971,7 +999,11 @@ describe("AgentChatPage", () => {
 			{ name: "from another agent", result: { agent_name: "other-agent" } },
 			{
 				name: "for a path-based app",
-				result: { port: undefined, app_slug: MockWorkspaceApp.slug },
+				result: {
+					kind: "app",
+					port: undefined,
+					app_slug: MockWorkspaceApp.slug,
+				},
 			},
 		])(
 			"does not open a new result's tab $name",

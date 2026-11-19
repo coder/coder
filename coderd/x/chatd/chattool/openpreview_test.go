@@ -28,26 +28,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestIsPreviewURLPath(t *testing.T) {
-	t.Parallel()
-
-	for path, want := range map[string]bool{
-		"/":                             true,
-		"/docs/index.html":              true,
-		"/?folder=/home/coder/coder":    true,
-		"/" + strings.Repeat("a", 2047): true,
-		"/" + strings.Repeat("a", 2048): false,
-		"docs":                          false,
-		// Browsers read a leading // or /\ as another host.
-		"//evil.example":  false,
-		"/\\evil.example": false,
-		"/a#b":            false,
-		"/a\u0007b":       false,
-	} {
-		require.Equal(t, want, chattool.IsPreviewURLPath(path), path)
-	}
-}
-
 func TestOpenPreview(t *testing.T) {
 	t.Parallel()
 
@@ -64,6 +44,7 @@ func TestOpenPreview(t *testing.T) {
 		agent     *database.WorkspaceAgent
 		path      string
 		agentPath string
+		agentFile bool
 		openErr   error
 		want      chattool.OpenPreviewResult
 		wantError string
@@ -71,12 +52,12 @@ func TestOpenPreview(t *testing.T) {
 		{
 			name:  "Port",
 			input: `{"title":"  Signup form  ","port":3000,"url_path":" /?folder=/home/coder "}`,
-			want:  chattool.OpenPreviewResult{Title: "Signup form", Port: 3000, URLPath: "/?folder=/home/coder"},
+			want:  chattool.OpenPreviewResult{Kind: chattool.OpenPreviewKindPort, Title: "Signup form", Port: 3000, URLPath: "/?folder=/home/coder"},
 		},
 		{
 			name:  "RootURLPath",
 			input: `{"title":"Editor","port":9,"url_path":"/"}`,
-			want:  chattool.OpenPreviewResult{Title: "Editor", Port: 9},
+			want:  chattool.OpenPreviewResult{Kind: chattool.OpenPreviewKindPort, Title: "Editor", Port: 9},
 		},
 		{
 			name:      "Path",
@@ -84,11 +65,34 @@ func TestOpenPreview(t *testing.T) {
 			path:      "/home/coder/output/",
 			agentPath: "/home/coder/output",
 			want: chattool.OpenPreviewResult{
-				Title:     "Docs site",
-				PreviewID: "0123abcd",
-				Path:      "/home/coder/output",
-				URLPath:   "/guide/",
+				Kind:        chattool.OpenPreviewKindFile,
+				Title:       "Docs site",
+				PreviewSlug: "preview--0123abcd",
+				Path:        "/home/coder/output",
+				URLPath:     "/guide/",
 			},
+		},
+		{
+			name:      "FileWithQuery",
+			input:     `{"title":"Report","path":"/home/coder/report.html","url_path":"/?page=2"}`,
+			path:      "/home/coder/report.html",
+			agentPath: "/home/coder/report.html",
+			agentFile: true,
+			want: chattool.OpenPreviewResult{
+				Kind:        chattool.OpenPreviewKindFile,
+				Title:       "Report",
+				PreviewSlug: "preview--0123abcd",
+				Path:        "/home/coder/report.html",
+				URLPath:     "/?page=2",
+			},
+		},
+		{
+			name:      "FileWithPath",
+			input:     `{"title":"Report","path":"/home/coder/report.html","url_path":"/other.html"}`,
+			path:      "/home/coder/report.html",
+			agentPath: "/home/coder/report.html",
+			agentFile: true,
+			wantError: "a file preview serves only its file",
 		},
 		{
 			name:  "AgentError",
@@ -106,7 +110,7 @@ func TestOpenPreview(t *testing.T) {
 			name:      "OutdatedAgent",
 			input:     `{"title":"Docs site","path":"/home/coder/output"}`,
 			path:      "/home/coder/output",
-			openErr:   codersdk.NewTestError(http.StatusNotFound, "POST", "http://[fd7a::1]:4/api/v0/previews"),
+			openErr:   workspacesdk.ErrPreviewsUnsupported,
 			wantError: "the workspace agent is outdated",
 		},
 		{
@@ -140,11 +144,6 @@ func TestOpenPreview(t *testing.T) {
 			agent:     &database.WorkspaceAgent{ID: agent.ID, Name: agent.Name},
 			wantError: "does not allow port forwarding",
 		},
-		{
-			name:      "InvalidURLPath",
-			input:     `{"title":"App","port":3000,"url_path":"//evil.example"}`,
-			wantError: "url_path must start with a single /",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -152,7 +151,7 @@ func TestOpenPreview(t *testing.T) {
 			conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 			if tt.path != "" {
 				conn.EXPECT().OpenPreview(gomock.Any(), workspacesdk.OpenPreviewRequest{Path: tt.path}).
-					Return(workspacesdk.OpenPreviewResponse{ID: "0123abcd", Path: tt.agentPath}, tt.openErr)
+					Return(workspacesdk.OpenPreviewResponse{ID: "0123abcd", Path: tt.agentPath, File: tt.agentFile}, tt.openErr)
 			}
 			workspaceAgent := agent
 			if tt.agent != nil {
@@ -190,6 +189,48 @@ func TestOpenPreview(t *testing.T) {
 	}
 }
 
+func TestOpenPreviewURLPath(t *testing.T) {
+	t.Parallel()
+
+	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
+		AppHostname: "*.apps.example.com",
+		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
+			return chattool.PreviewWorkspace{
+				WorkspaceID:   uuid.New(),
+				WorkspaceName: "dev",
+				OwnerName:     "alice",
+				Agent: database.WorkspaceAgent{
+					Name:        "main",
+					DisplayApps: []database.DisplayApp{database.DisplayAppPortForwardingHelper},
+				},
+			}, nil
+		},
+	})
+
+	for urlPath, valid := range map[string]bool{
+		"/docs/index.html":              true,
+		"/?folder=/home/coder/coder":    true,
+		"/" + strings.Repeat("a", 2047): true,
+		"/" + strings.Repeat("a", 2048): false,
+		"docs":                          false,
+		// Browsers read a leading // or /\ as another host.
+		"//evil.example":  false,
+		"/\\evil.example": false,
+		"/a#b":            false,
+		"/a\u0007b":       false,
+	} {
+		input, err := json.Marshal(chattool.OpenPreviewArgs{Title: "App", Port: new(3000), URLPath: urlPath})
+		require.NoError(t, err)
+		response := runOpenPreview(t, tool, string(input))
+		if valid {
+			require.False(t, response.IsError, urlPath)
+			continue
+		}
+		require.True(t, response.IsError, urlPath)
+		require.Contains(t, response.Content, "url_path must start with a single /", urlPath)
+	}
+}
+
 func TestOpenPreviewApp(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +260,7 @@ func TestOpenPreviewApp(t *testing.T) {
 	var result chattool.OpenPreviewResult
 	require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
 	require.Equal(t, chattool.OpenPreviewResult{
+		Kind:        chattool.OpenPreviewKindApp,
 		Title:       "Editor",
 		WorkspaceID: build.Workspace.ID,
 		AgentName:   build.Agents[0].Name,

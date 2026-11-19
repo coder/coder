@@ -60,7 +60,7 @@ describe("right-panel tab validation", () => {
 			kind: "file_preview",
 			label: "Docs",
 			agentId: MockWorkspaceAgent.id,
-			previewId: "0123abcd",
+			slug: "preview--0123abcd",
 		},
 	];
 
@@ -70,6 +70,7 @@ describe("right-panel tab validation", () => {
 				workspace: MockWorkspace,
 				workspaceAgent: MockWorkspaceAgent,
 				wildcardHostname: "*.apps.example.com",
+				openPreviewEnabled: true,
 			}),
 		).toEqual(tabs);
 	});
@@ -79,6 +80,7 @@ describe("right-panel tab validation", () => {
 			workspace: MockWorkspace,
 			workspaceAgent: undefined,
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
@@ -89,10 +91,24 @@ describe("right-panel tab validation", () => {
 			workspace: MockWorkspace,
 			workspaceAgent: MockWorkspaceAgent,
 			wildcardHostname: "",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual(
 			tabs.filter((tab) => tab.kind !== "port" && tab.kind !== "file_preview"),
+		);
+	});
+
+	it("drops file preview tabs when the open-preview experiment is off", () => {
+		const validated = validateUserRightPanelTabs(tabs, {
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: false,
+		});
+
+		expect(validated).toEqual(
+			tabs.filter((tab) => tab.kind !== "file_preview"),
 		);
 	});
 
@@ -108,6 +124,7 @@ describe("right-panel tab validation", () => {
 			workspace: buildWorkspace([agent]),
 			workspaceAgent: agent,
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
@@ -128,6 +145,7 @@ describe("right-panel tab validation", () => {
 				workspace: MockWorkspace,
 				workspaceAgent: MockWorkspaceAgent,
 				wildcardHostname: "*.apps.example.com",
+				openPreviewEnabled: true,
 			},
 		);
 
@@ -149,6 +167,7 @@ describe("right-panel tab validation", () => {
 			workspace,
 			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual([]);
@@ -171,6 +190,7 @@ describe("right-panel tab validation", () => {
 			workspace,
 			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual([]);
@@ -288,7 +308,7 @@ describe("right-panel tab storage", () => {
 				kind: "file_preview",
 				label: "Docs",
 				agentId: MockWorkspaceAgent.id,
-				previewId: "0123abcd",
+				slug: "preview--0123abcd",
 				urlPath: "/a.html",
 			},
 		];
@@ -307,7 +327,7 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
 	});
 
-	it("ignores file preview tabs whose ID could change the hostname", () => {
+	it("ignores file preview tabs whose slug could change the hostname", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
 			JSON.stringify([
@@ -316,7 +336,7 @@ describe("right-panel tab storage", () => {
 					kind: "file_preview",
 					label: "Docs",
 					agentId: MockWorkspaceAgent.id,
-					previewId: "evil.example.com/",
+					slug: "evil.example.com/",
 				},
 			]),
 		);
