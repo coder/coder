@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	getProvisionerDaemonsKey,
 	permittedOrganizations,
@@ -10,6 +11,7 @@ import {
 	MockOrganization,
 	MockOrganization2,
 	MockProvisioner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
@@ -138,5 +140,52 @@ export const MissingNameError: Story = {
 		);
 		await canvas.findByText("Please enter a template id.");
 		await expect(args.onCreate).not.toHaveBeenCalled();
+	},
+};
+
+// A failed organizations request replaces the field with a retryable error.
+export const OrganizationsLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockRejectedValue(
+			mockApiError({ message: "Unable to fetch organizations." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+// A create rejected for a duplicate ID restores the submitted values and shows
+// the error on the ID field.
+export const DuplicateIdError: Story = {
+	args: {
+		initialValues: {
+			organization_id: MockDefaultOrganization.id,
+			name: "docker",
+			display_name: "Docker Containers",
+			description: "Run workspaces as Docker containers",
+			icon: "/icon/docker.svg",
+		},
+		createError: {
+			isAxiosError: true,
+			response: {
+				status: 409,
+				data: {
+					message:
+						"A template with this name already exists in the organization.",
+				},
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
 	},
 };
