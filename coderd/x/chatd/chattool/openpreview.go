@@ -33,7 +33,6 @@ const (
 type OpenPreviewResult struct {
 	Title       string    `json:"title"`
 	WorkspaceID uuid.UUID `json:"workspace_id"`
-	AgentID     uuid.UUID `json:"agent_id"`
 	AgentName   string    `json:"agent_name"`
 	// Exactly one of Port, PreviewID, or AppSlug identifies the target on the
 	// agent.
@@ -135,7 +134,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			result := OpenPreviewResult{
 				Title:       title,
 				WorkspaceID: workspace.WorkspaceID,
-				AgentID:     workspace.Agent.ID,
 				AgentName:   workspace.Agent.Name,
 				URLPath:     urlPath,
 			}

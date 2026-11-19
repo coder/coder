@@ -182,7 +182,6 @@ func TestOpenPreview(t *testing.T) {
 
 			want := tt.want
 			want.WorkspaceID = workspaceID
-			want.AgentID = agent.ID
 			want.AgentName = agent.Name
 			var result chattool.OpenPreviewResult
 			require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
@@ -222,7 +221,6 @@ func TestOpenPreviewApp(t *testing.T) {
 	require.Equal(t, chattool.OpenPreviewResult{
 		Title:       "Editor",
 		WorkspaceID: build.Workspace.ID,
-		AgentID:     build.Agents[0].ID,
 		AgentName:   build.Agents[0].Name,
 		AppSlug:     "code-server",
 		URLPath:     "/?folder=/home/coder",
