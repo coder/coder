@@ -30,3 +30,19 @@ export const truncateURI = (uri: string) => {
 		return uri;
 	}
 };
+
+/**
+ * Splits a path and query, such as "/docs?page=2", at its first "?". Setting
+ * the parts on a URL one at a time keeps its origin.
+ */
+export const splitURLPath = (
+	urlPath: string,
+): { pathname: string; search: string } => {
+	const queryStart = urlPath.indexOf("?");
+	return queryStart === -1
+		? { pathname: urlPath, search: "" }
+		: {
+				pathname: urlPath.slice(0, queryStart),
+				search: urlPath.slice(queryStart),
+			};
+};

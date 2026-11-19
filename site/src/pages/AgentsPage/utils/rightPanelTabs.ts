@@ -9,6 +9,7 @@ import {
 } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
+import { isFilePreviewID, isValidPort } from "#/utils/portForward";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
 /**
@@ -56,6 +57,8 @@ export type UserRightPanelTab =
 			label: string;
 			appId: string;
 			agentId: string;
+			/** Path and query the app opens at, such as "/?folder=/home". */
+			urlPath?: string;
 	  }
 	| {
 			id: string;
@@ -64,7 +67,26 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
+			urlPath?: string;
+	  }
+	| {
+			id: string;
+			kind: "file_preview";
+			label: string;
+			agentId: string;
+			previewId: string;
+			urlPath?: string;
 	  };
+
+type WithoutID<T> = T extends unknown ? Omit<T, "id"> : never;
+
+/** An app, port, or file preview tab before it has an ID. */
+export type NewFrameTab = WithoutID<
+	Extract<
+		UserRightPanelTab,
+		{ kind: "workspace_app" | "port" | "file_preview" }
+	>
+>;
 
 type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
@@ -94,11 +116,15 @@ export function isUserRightPanelTab(
 		);
 	}
 
+	const hasValidURLPath =
+		record.urlPath === undefined || typeof record.urlPath === "string";
+
 	if (record.kind === "workspace_app") {
 		return (
 			typeof record.label === "string" &&
 			typeof record.appId === "string" &&
-			typeof record.agentId === "string"
+			typeof record.agentId === "string" &&
+			hasValidURLPath
 		);
 	}
 
@@ -106,11 +132,18 @@ export function isUserRightPanelTab(
 		return (
 			typeof record.label === "string" &&
 			typeof record.agentId === "string" &&
-			typeof record.port === "number" &&
-			Number.isInteger(record.port) &&
-			record.port >= 1 &&
-			record.port <= 65535 &&
-			(record.protocol === "http" || record.protocol === "https")
+			isValidPort(record.port) &&
+			(record.protocol === "http" || record.protocol === "https") &&
+			hasValidURLPath
+		);
+	}
+
+	if (record.kind === "file_preview") {
+		return (
+			typeof record.label === "string" &&
+			typeof record.agentId === "string" &&
+			isFilePreviewID(record.previewId) &&
+			hasValidURLPath
 		);
 	}
 
@@ -125,16 +158,34 @@ export function validateUserRightPanelTabs(
 		wildcardHostname,
 	}: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
-	return tabs.filter((tab) => {
-		if (tab.kind === "terminal") {
-			return workspace !== undefined && workspaceAgent !== undefined;
-		}
+	return tabs.filter((tab) =>
+		isUserRightPanelTabAvailable(tab, {
+			workspace,
+			workspaceAgent,
+			wildcardHostname,
+		}),
+	);
+}
 
-		if (!workspace) {
-			return false;
-		}
+/** Reports whether the workspace can still show the tab. */
+export function isUserRightPanelTabAvailable(
+	tab: WithoutID<UserRightPanelTab>,
+	{
+		workspace,
+		workspaceAgent,
+		wildcardHostname,
+	}: ValidateUserRightPanelTabsOptions,
+): boolean {
+	if (tab.kind === "terminal") {
+		return workspace !== undefined && workspaceAgent !== undefined;
+	}
 
-		if (tab.kind === "workspace_app") {
+	if (!workspace) {
+		return false;
+	}
+
+	switch (tab.kind) {
+		case "workspace_app": {
 			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
 			// agent-browser already has the built-in Browser tab.
 			return (
@@ -143,12 +194,61 @@ export function validateUserRightPanelTabs(
 				isWorkspaceAppEmbeddable(app)
 			);
 		}
+		case "port": {
+			// Mirror the add-menu gate so a persisted port tab disappears when
+			// the agent stops exposing the port forwarding helper.
+			const agent = findWorkspaceAgent(workspace, tab.agentId);
+			return (
+				agent !== undefined && canShowPortForwarding(agent, wildcardHostname)
+			);
+		}
+		case "file_preview":
+			return (
+				findWorkspaceAgent(workspace, tab.agentId) !== undefined &&
+				wildcardHostname.trim() !== ""
+			);
+		default: {
+			const _exhaustive: never = tab;
+			return _exhaustive;
+		}
+	}
+}
 
-		// Mirror the add-menu gate so a persisted port tab disappears when
-		// the agent stops exposing the port forwarding helper.
-		const agent = findWorkspaceAgent(workspace, tab.agentId);
-		return (
-			agent !== undefined && canShowPortForwarding(agent, wildcardHostname)
-		);
-	});
+/**
+ * Reports whether tab shows the same frame as target, so opening target
+ * focuses tab instead of adding another. A different URL path is another
+ * frame.
+ */
+export function showsSameFrame(
+	tab: UserRightPanelTab,
+	target: NewFrameTab,
+): boolean {
+	switch (target.kind) {
+		case "workspace_app":
+			return (
+				tab.kind === "workspace_app" &&
+				tab.agentId === target.agentId &&
+				tab.appId === target.appId &&
+				tab.urlPath === target.urlPath
+			);
+		case "port":
+			return (
+				tab.kind === "port" &&
+				tab.agentId === target.agentId &&
+				tab.port === target.port &&
+				tab.protocol === target.protocol &&
+				tab.urlPath === target.urlPath
+			);
+		case "file_preview":
+			return (
+				tab.kind === "file_preview" &&
+				tab.agentId === target.agentId &&
+				tab.previewId === target.previewId &&
+				tab.urlPath === target.urlPath
+			);
+		default: {
+			const _exhaustive: never = target;
+			return _exhaustive;
+		}
+	}
 }

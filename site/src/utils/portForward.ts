@@ -22,21 +22,13 @@ export const resolveLocalhostPort = (
 	return protocol === "https:" ? 443 : 80;
 };
 
-export const portForwardURL = (
+const subdomainURL = (
 	host: string,
-	port: number,
-	agentName: string,
-	workspaceName: string,
-	username: string,
-	protocol: WorkspaceAgentPortShareProtocol,
+	subdomain: string,
 	pathname?: string,
 	search?: string,
 ): string => {
 	const { location } = window;
-	const suffix = protocol === "https" ? "s" : "";
-
-	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
-
 	const baseUrl = `${location.protocol}//${host.replace(/\*/g, subdomain)}`;
 	try {
 		const url = new URL(baseUrl);
@@ -52,6 +44,54 @@ export const portForwardURL = (
 		// so the link renders without navigating anywhere.
 		return "#";
 	}
+};
+
+export const portForwardURL = (
+	host: string,
+	port: number,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+	protocol: WorkspaceAgentPortShareProtocol,
+	pathname?: string,
+	search?: string,
+): string => {
+	const suffix = protocol === "https" ? "s" : "";
+	return subdomainURL(
+		host,
+		`${port}${suffix}--${agentName}--${workspaceName}--${username}`,
+		pathname,
+		search,
+	);
+};
+
+/** Reports whether value is a TCP port number, from 1 to 65535. */
+export const isValidPort = (value: unknown): value is number =>
+	typeof value === "number" &&
+	Number.isInteger(value) &&
+	value >= 1 &&
+	value <= 65535;
+
+/** Reports whether value is a file preview ID, which goes into a hostname. */
+export const isFilePreviewID = (value: unknown): value is string =>
+	typeof value === "string" && /^[0-9a-f]{8}$/.test(value);
+
+/** The URL the workspace agent serves a file preview at. */
+export const filePreviewURL = (
+	host: string,
+	previewId: string,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+	pathname?: string,
+	search?: string,
+): string => {
+	return subdomainURL(
+		host,
+		`preview--${previewId}--${agentName}--${workspaceName}--${username}`,
+		pathname,
+		search,
+	);
 };
 
 /**

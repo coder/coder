@@ -55,6 +55,13 @@ describe("right-panel tab validation", () => {
 			port: 3000,
 			protocol: "http",
 		},
+		{
+			id: "file-preview-docs",
+			kind: "file_preview",
+			label: "Docs",
+			agentId: MockWorkspaceAgent.id,
+			previewId: "0123abcd",
+		},
 	];
 
 	it("keeps tabs that still match the workspace and wildcard host", () => {
@@ -77,14 +84,16 @@ describe("right-panel tab validation", () => {
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
 	});
 
-	it("drops port tabs when wildcard access is unavailable", () => {
+	it("drops port and file preview tabs when wildcard access is unavailable", () => {
 		const validated = validateUserRightPanelTabs(tabs, {
 			workspace: MockWorkspace,
 			workspaceAgent: MockWorkspaceAgent,
 			wildcardHostname: "",
 		});
 
-		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
+		expect(validated).toEqual(
+			tabs.filter((tab) => tab.kind !== "port" && tab.kind !== "file_preview"),
+		);
 	});
 
 	it("drops port tabs when the agent no longer exposes the port forwarding helper", () => {
@@ -263,7 +272,7 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
 	});
 
-	it("persists port tabs", () => {
+	it("persists port and file preview tabs with their URL paths", () => {
 		const tabs: UserRightPanelTab[] = [
 			{
 				id: "port-3000",
@@ -272,6 +281,15 @@ describe("right-panel tab storage", () => {
 				agentId: MockWorkspaceAgent.id,
 				port: 3000,
 				protocol: "http",
+				urlPath: "/docs?page=2",
+			},
+			{
+				id: "file-preview-docs",
+				kind: "file_preview",
+				label: "Docs",
+				agentId: MockWorkspaceAgent.id,
+				previewId: "0123abcd",
+				urlPath: "/a.html",
 			},
 		];
 
@@ -284,6 +302,23 @@ describe("right-panel tab storage", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
 			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
+		);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
+	});
+
+	it("ignores file preview tabs whose ID could change the hostname", () => {
+		localStorage.setItem(
+			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			JSON.stringify([
+				{
+					id: "file-preview-bad",
+					kind: "file_preview",
+					label: "Docs",
+					agentId: MockWorkspaceAgent.id,
+					previewId: "evil.example.com/",
+				},
+			]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);

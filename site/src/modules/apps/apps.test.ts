@@ -234,6 +234,22 @@ describe("getAppHref", () => {
 		expect(href).toBe("http://hellocoder.apps-host.tld/");
 	});
 
+	it("opens a subdomain app at a path and query", () => {
+		const app = {
+			...MockWorkspaceApp,
+			subdomain: true,
+			subdomain_name: "hellocoder",
+		};
+		const href = getAppHref(app, {
+			host: "*.apps-host.tld",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			path: "/path-base",
+			urlPath: "/?folder=/home/coder",
+		});
+		expect(href).toBe("http://hellocoder.apps-host.tld/?folder=/home/coder");
+	});
+
 	it("returns a path when app has a subdomain but no subdomain name", () => {
 		const app = {
 			...MockWorkspaceApp,

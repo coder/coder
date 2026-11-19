@@ -11,7 +11,7 @@ import type {
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
-import { MockUserOwner } from "./entities";
+import { MockUserOwner, MockWorkspace, MockWorkspaceAgent } from "./entities";
 
 export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
@@ -234,6 +234,15 @@ export const MockChatMessage: ChatMessage = {
 	created_at: MOCK_TIMESTAMP,
 	role: "user",
 	content: [{ type: "text", text: "Hello" }],
+};
+
+/** A stored open_preview tool result for a port on MockWorkspaceAgent. */
+export const MockOpenPreviewResult = {
+	title: "Docs site",
+	workspace_id: MockWorkspace.id,
+	agent_id: MockWorkspaceAgent.id,
+	agent_name: MockWorkspaceAgent.name,
+	port: 3000,
 };
 
 export const MockChatFileMetadata: ChatFileMetadata = {

@@ -4,6 +4,7 @@ import type {
 	WorkspaceApp,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { splitURLPath } from "#/utils/uri";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.
@@ -126,11 +127,13 @@ type GetAppHrefParams = {
 	agent: WorkspaceAgent;
 	token?: string;
 	accessUrl?: string;
+	/** Path and query a subdomain app opens at, such as "/?folder=/home". */
+	urlPath?: string;
 };
 
 export const getAppHref = (
 	app: WorkspaceApp,
-	{ path, token, workspace, agent, host, accessUrl }: GetAppHrefParams,
+	{ path, token, workspace, agent, host, accessUrl, urlPath }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
 		// Sub-agent apps never get a token; `coder open app` refuses them too.
@@ -156,7 +159,9 @@ export const getAppHref = (
 	if (host && app.subdomain && app.subdomain_name) {
 		const baseUrl = `${location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
-		url.pathname = "/";
+		const { pathname, search } = splitURLPath(urlPath ?? "/");
+		url.pathname = pathname;
+		url.search = search;
 		return url.toString();
 	}
 

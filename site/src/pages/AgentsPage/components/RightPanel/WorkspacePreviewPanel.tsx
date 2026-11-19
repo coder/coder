@@ -2,24 +2,26 @@ import { ExternalLinkIcon, NetworkIcon } from "lucide-react";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
-import { portForwardURL } from "#/utils/portForward";
+import { filePreviewURL, portForwardURL } from "#/utils/portForward";
+import { splitURLPath } from "#/utils/uri";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
-export const PortPreviewPanel: React.FC<{
+/** Shows a forwarded port or a file preview that the workspace agent serves. */
+export const WorkspacePreviewPanel: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
-	tab: Extract<UserRightPanelTab, { kind: "port" }>;
+	tab: Extract<UserRightPanelTab, { kind: "port" | "file_preview" }>;
 }> = ({ workspace, agent, host, tab }) => {
-	const url = portForwardURL(
+	const url = getPreviewURL({ workspace, agent, host, tab });
+	const openLabel =
+		tab.kind === "port" ? "Open port in new tab" : "Open preview in new tab";
+	const unavailableMessage = getUnavailableMessage({
 		host,
-		tab.port,
-		agent.name,
-		workspace.name,
-		workspace.owner_name,
-		tab.protocol,
-	);
-	const unavailableMessage = getUnavailableMessage({ host, agent, url });
+		agent,
+		url,
+		kindLabel: tab.kind === "port" ? "Port" : "File",
+	});
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -30,12 +32,7 @@ export const PortPreviewPanel: React.FC<{
 				</span>
 				<div className="flex-1" />
 				{unavailableMessage ? (
-					<Button
-						size="icon"
-						variant="subtle"
-						disabled
-						aria-label="Open port in new tab"
-					>
+					<Button size="icon" variant="subtle" disabled aria-label={openLabel}>
 						<ExternalLinkIcon />
 					</Button>
 				) : (
@@ -44,7 +41,7 @@ export const PortPreviewPanel: React.FC<{
 							href={url}
 							target="_blank"
 							rel="noreferrer"
-							aria-label="Open port in new tab"
+							aria-label={openLabel}
 						>
 							<ExternalLinkIcon />
 						</a>
@@ -62,20 +59,63 @@ export const PortPreviewPanel: React.FC<{
 	);
 };
 
+function getPreviewURL({
+	workspace,
+	agent,
+	host,
+	tab,
+}: {
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+	host: string;
+	tab: Extract<UserRightPanelTab, { kind: "port" | "file_preview" }>;
+}): string {
+	const { pathname, search } = splitURLPath(tab.urlPath ?? "");
+	switch (tab.kind) {
+		case "port":
+			return portForwardURL(
+				host,
+				tab.port,
+				agent.name,
+				workspace.name,
+				workspace.owner_name,
+				tab.protocol,
+				pathname,
+				search,
+			);
+		case "file_preview":
+			return filePreviewURL(
+				host,
+				tab.previewId,
+				agent.name,
+				workspace.name,
+				workspace.owner_name,
+				pathname,
+				search,
+			);
+		default: {
+			const _exhaustive: never = tab;
+			return _exhaustive;
+		}
+	}
+}
+
 function getUnavailableMessage({
 	host,
 	agent,
 	url,
+	kindLabel,
 }: {
 	host: string;
 	agent: WorkspaceAgent;
 	url: string;
+	kindLabel: string;
 }): string | undefined {
 	if (host.trim() === "") {
-		return "Port previews require a wildcard access URL.";
+		return `${kindLabel} previews require a wildcard access URL.`;
 	}
 	if (agent.status !== "connected") {
-		return "Port preview will be available once the workspace agent reconnects.";
+		return `${kindLabel} preview will be available once the workspace agent reconnects.`;
 	}
 	if (url === "#") {
 		return "The wildcard access URL produced an invalid preview URL. Check the deployment's wildcard access URL configuration.";

@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { defaultUrlTransform } from "streamdown";
@@ -13,6 +13,7 @@ import {
 	MockACPSpawnArgs,
 	MockACPWaitResult,
 } from "#/testHelpers/acp";
+import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
@@ -29,6 +30,7 @@ import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
+import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -331,6 +333,11 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: {},
 		providerExecuted: true,
 		foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+	},
+	{
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: MockOpenPreviewResult,
 	},
 	{
 		name: "unknown_tool",
@@ -3039,6 +3046,57 @@ export const StopWorkspaceBuildFailed: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+// ---------------------------------------------------------------------------
+// open_preview stories
+// ---------------------------------------------------------------------------
+
+const withPreviewOpenAction: Decorator = (Story) => (
+	<PreviewPanelContext value={{ getOpenAction: () => fn() }}>
+		<Story />
+	</PreviewPanelContext>
+);
+
+export const OpenPreviewRunning: Story = {
+	args: {
+		name: "open_preview",
+		status: "running",
+		args: { title: "Docs site", port: "3000" },
+		result: undefined,
+	},
+};
+
+export const OpenPreviewCompleted: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: MockOpenPreviewResult,
+	},
+	decorators: [withPreviewOpenAction],
+};
+
+export const OpenPreviewAppCompleted: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "VS Code", app: "code-server" },
+		result: {
+			...MockOpenPreviewResult,
+			title: "VS Code",
+			port: undefined,
+			app_slug: "code-server",
+		},
+	},
+	decorators: [withPreviewOpenAction],
+};
+
+export const OpenPreviewError: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: { error: "port must be between 9 and 65535" },
+		isError: true,
 	},
 };
 

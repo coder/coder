@@ -193,6 +193,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
+		openPreviewEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
