@@ -82,10 +82,7 @@ export const parseOpenPreviewResult = (
 		workspaceId: rec.workspace_id,
 		agentName: rec.agent_name,
 		target,
-		urlPath:
-			rec.url_path === undefined || rec.url_path === "/"
-				? undefined
-				: rec.url_path,
+		urlPath: rec.url_path,
 	};
 };
 

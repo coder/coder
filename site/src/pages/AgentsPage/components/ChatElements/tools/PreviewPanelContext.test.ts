@@ -3,18 +3,6 @@ import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
 import { parseOpenPreviewResult } from "./PreviewPanelContext";
 
 describe("parseOpenPreviewResult", () => {
-	it("opens a url_path of / at the root", () => {
-		expect(
-			parseOpenPreviewResult({ ...MockOpenPreviewResult, url_path: "/" }),
-		).toEqual({
-			title: MockOpenPreviewResult.title,
-			workspaceId: MockOpenPreviewResult.workspace_id,
-			agentName: MockOpenPreviewResult.agent_name,
-			target: { kind: "port", port: MockOpenPreviewResult.port },
-			urlPath: undefined,
-		});
-	});
-
 	it.each([
 		{ name: "an error", value: { error: "port must be set" } },
 		{ name: "no target", value: { ...MockOpenPreviewResult, port: undefined } },
