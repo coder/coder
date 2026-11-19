@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -136,8 +137,9 @@ const rowHeights: Record<string, number> = {
 	"message:2": 300,
 	"message:4": 600,
 };
-// A pending row's ID is chosen at the click, so rows not listed are the sent
-// message, as a pending row and once stored.
+// A pending row's ID is chosen at the click, so the rows that are neither
+// listed nor the live reply are the sent message, as a pending row and once
+// stored.
 const sentRowHeight = 40;
 
 describe("ChatMessageScroller after a send", () => {
@@ -152,7 +154,10 @@ describe("ChatMessageScroller after a send", () => {
 	let scrollToEnd: ReturnType<typeof useMessageScroller>["scrollToEnd"];
 	// AgentChatPage takes scrollToEnd for submitChatTurn from the same hook.
 	const CaptureScrollToEnd: React.FC = () => {
-		({ scrollToEnd } = useMessageScroller());
+		const { scrollToEnd: scrollerScrollToEnd } = useMessageScroller();
+		useEffect(() => {
+			scrollToEnd = scrollerScrollToEnd;
+		}, [scrollerScrollToEnd]);
 		return null;
 	};
 
