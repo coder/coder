@@ -281,7 +281,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			accountCreatorName: "coder",
 		})
 		return err
-	}, nil)
+	}, firstUserSetupTxOptions())
 	if errors.Is(err, errFirstUserExists) {
 		api.Logger.Warn(ctx, "refused a first user request because another request created the first user at the same time",
 			slog.F("remote_addr", r.RemoteAddr))

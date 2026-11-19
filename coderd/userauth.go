@@ -2063,7 +2063,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		return nil
-	}, nil)
+	}, firstUserSetupTxOptions())
 	if err != nil {
 		return nil, database.User{}, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}

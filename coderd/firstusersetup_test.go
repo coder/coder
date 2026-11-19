@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v43/github"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -141,6 +143,20 @@ func holdFirstUserSetupLock(ctx context.Context, t *testing.T, db database.Store
 		unlockOnce()
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
 	}
+}
+
+// setDefaultRepeatableRead makes repeatable read the default isolation
+// level of this test's database.
+func setDefaultRepeatableRead(t *testing.T, sqlDB *sql.DB) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	var name string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT current_database()").Scan(&name))
+	_, err := sqlDB.ExecContext(ctx, "ALTER DATABASE "+pq.QuoteIdentifier(name)+" SET default_transaction_isolation = 'repeatable read'")
+	require.NoError(t, err)
+	// The setting applies to new connections only, so stop reusing
+	// the connections that were opened before it.
+	sqlDB.SetMaxIdleConns(0)
 }
 
 // requireLockWaiters waits until Postgres reports the given number of
@@ -313,6 +329,69 @@ func TestFirstUserSetup_Lock(t *testing.T) {
 
 		release()
 		require.Equal(t, http.StatusCreated, testutil.TryReceive(ctx, t, status))
+	})
+
+	// A Postgres server can make repeatable read its default. The count
+	// under the lock must still see a user committed during the wait.
+	t.Run("ServerDefaultRepeatableRead", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			// request returns the status of one first user attempt.
+			request    func(ctx context.Context, client *codersdk.Client) (int, error)
+			wantStatus int
+		}{
+			{
+				name: "Password",
+				request: func(ctx context.Context, client *codersdk.Client) (int, error) {
+					return createFirstUserStatus(ctx, client, firstUserRequest(1))
+				},
+				wantStatus: http.StatusConflict,
+			},
+			{
+				name: "OAuth",
+				request: func(ctx context.Context, client *codersdk.Client) (int, error) {
+					return githubCallbackStatus(ctx, client.URL)
+				},
+				wantStatus: http.StatusForbidden,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				setDefaultRepeatableRead(t, sqlDB)
+				client := coderdtest.New(t, &coderdtest.Options{
+					Database:           db,
+					Pubsub:             ps,
+					GithubOAuth2Config: githubSignupConfig(false),
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				release := holdFirstUserSetupLock(ctx, t, db)
+
+				type result struct {
+					status int
+					err    error
+				}
+				results := make(chan result, 1)
+				go func() {
+					status, err := tc.request(ctx, client)
+					results <- result{status: status, err: err}
+				}()
+
+				requireLockWaiters(ctx, t, sqlDB, 1)
+				dbgen.User(t, db, database.User{})
+				release()
+
+				res := testutil.TryReceive(ctx, t, results)
+				require.NoError(t, res.err)
+				require.Equal(t, tc.wantStatus, res.status)
+				//nolint:gocritic // The test reads the user count.
+				userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
+				require.NoError(t, err)
+				require.EqualValues(t, 1, userCount)
+			})
+		}
 	})
 
 	t.Run("ClientGivesUp", func(t *testing.T) {
