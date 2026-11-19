@@ -1285,14 +1285,83 @@ func TestAIBridgeInterceptionOrganizationSource(t *testing.T) {
 	}
 }
 
-func TestOrganizationAISpendUsers_UnknownDimension(t *testing.T) {
+func TestOrganizationAISpendUsers(t *testing.T) {
 	t.Parallel()
 
-	_, err := db2sdk.OrganizationAISpendUsers([]database.ListOrganizationAISpendUsersRow{{
-		UserID:        uuid.New(),
-		Dimension:     "region",
-		DimensionName: "us-east-1",
-	}})
+	aliceID := uuid.MustParse("5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b")
+	// aliceRow holds the user columns that every row of alice repeats.
+	aliceRow := database.ListOrganizationAISpendUsersRow{
+		UserID:     aliceID,
+		Username:   "alice",
+		Name:       "Alice Liddell",
+		CostMicros: 1500,
+	}
+	withDimension := func(dimension, name string, costMicros int64, hasUnpricedUsage bool) database.ListOrganizationAISpendUsersRow {
+		row := aliceRow
+		row.Dimension = dimension
+		row.DimensionName = name
+		row.DimensionCostMicros = costMicros
+		row.DimensionHasUnpricedUsage = hasUnpricedUsage
+		return row
+	}
+	anthropicRow := withDimension("provider", "anthropic-prod", 1500, true)
+	anthropicRow.ProviderDisplayName = "Anthropic"
+	anthropicRow.ProviderType = "anthropic"
 
-	require.ErrorContains(t, err, `unknown AI spend dimension "region"`)
+	cases := []struct {
+		name    string
+		rows    []database.ListOrganizationAISpendUsersRow
+		want    []codersdk.OrganizationAISpendUser
+		wantErr string
+	}{
+		{
+			// The rows of one user are grouped into one user, with a list for
+			// each dimension.
+			name: "GroupsDimensionsByUser",
+			rows: []database.ListOrganizationAISpendUsersRow{
+				anthropicRow,
+				withDimension("model", "claude-opus-4-6", 1000, false),
+				withDimension("model", "gpt-4o", 500, true),
+				withDimension("client", "Claude Code", 1500, true),
+			},
+			want: []codersdk.OrganizationAISpendUser{{
+				UserID:     aliceID,
+				Username:   "alice",
+				Name:       "Alice Liddell",
+				CostMicros: 1500,
+				ProviderSpend: []codersdk.OrganizationAISpendProvider{
+					{Name: "anthropic-prod", DisplayName: "Anthropic", Type: codersdk.AIProviderTypeAnthropic, CostMicros: 1500, HasUnpricedUsage: true},
+				},
+				ModelSpend: []codersdk.OrganizationAISpendModel{
+					{Name: "claude-opus-4-6", CostMicros: 1000},
+					{Name: "gpt-4o", CostMicros: 500, HasUnpricedUsage: true},
+				},
+				ClientSpend: []codersdk.OrganizationAISpendClient{
+					{Name: "Claude Code", CostMicros: 1500, HasUnpricedUsage: true},
+				},
+			}},
+			wantErr: "",
+		},
+		{
+			// A dimension the converter does not know fails the conversion.
+			name:    "UnknownDimension",
+			rows:    []database.ListOrganizationAISpendUsersRow{withDimension("region", "us-east-1", 1500, false)},
+			want:    nil,
+			wantErr: `unknown AI spend dimension "region"`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := db2sdk.OrganizationAISpendUsers(tc.rows)
+
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
