@@ -839,6 +839,12 @@ jobs:
       - name: ls build
         run: ls -lh build
 
+      - name: Authenticate to Google Cloud (release artifacts)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_RELEASE_ARTIFACTS_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_RELEASE_ARTIFACTS_SERVICE_ACCOUNT }}
+
       - name: Publish Coder CLI binaries and detached signatures to GCS
         if: ${{ !inputs.dry_run }}
         run: |
