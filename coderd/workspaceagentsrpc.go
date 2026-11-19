@@ -123,6 +123,8 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer mux.Close()
+	untrack := api.agentRPCConns.add(func() { _ = mux.Close() })
+	defer untrack()
 
 	logger.Debug(ctx, "accepting agent RPC connection",
 		slog.F("agent_id", workspaceAgent.ID),
