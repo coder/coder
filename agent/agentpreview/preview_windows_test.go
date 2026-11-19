@@ -36,7 +36,7 @@ func TestPreviewRejectsShortNames(t *testing.T) {
 		t.Skip("the volume does not create short names")
 	}
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	id := publish(t, handler, root).ID
 	response := serve(t, handler, http.MethodGet, "/"+id+"/"+short+"/token")
 	require.Equal(t, http.StatusNotFound, response.Code)

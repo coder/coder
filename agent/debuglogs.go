@@ -21,9 +21,6 @@ const (
 	activeAgentLogName        = "coder-agent.log"
 	debugLogsActiveMaxBytes   = 10 * 1024 * 1024
 	debugLogsCombinedMaxBytes = 100 * 1024 * 1024
-	// debugLogsWriteTimeout gives slow links well over the server's 20s
-	// WriteTimeout to stream the combined logs.
-	debugLogsWriteTimeout = 5 * time.Minute
 )
 
 // coderAgentRotatedLogPattern matches lumberjack's rotated filenames, e.g.
@@ -56,12 +53,6 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	if !hasAfter {
 		a.writeActiveDebugLog(w, r, root)
 		return
-	}
-
-	// Streaming the combined logs can exceed the server's 20s WriteTimeout,
-	// so extend the deadline for this response.
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(debugLogsWriteTimeout)); err != nil {
-		a.logger.Warn(r.Context(), "extend debug log write deadline", slog.Error(err))
 	}
 
 	// Open the required active log before the 200 so failures return 500.

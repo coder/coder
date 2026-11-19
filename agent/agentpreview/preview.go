@@ -19,8 +19,6 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-const previewWriteTimeout = 5 * time.Minute
-
 // windowsUnsafeNameChars are characters that let a requested name reach
 // another file on Windows: a backslash is a path separator, a colon names an
 // alternate data stream, and a tilde appears in short names such as HIDDEN~1
@@ -106,9 +104,6 @@ func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	if err := http.NewResponseController(rw).SetWriteDeadline(time.Now().Add(previewWriteTimeout)); err != nil {
-		api.logger.Warn(r.Context(), "extend preview write deadline", slog.Error(err))
-	}
 	http.ServeContent(rw, r, name, time.Time{}, f)
 }
 

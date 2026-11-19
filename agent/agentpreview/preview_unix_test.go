@@ -24,7 +24,7 @@ func TestPreviewRejectsFIFOs(t *testing.T) {
 	require.NoError(t, unix.Mkfifo(filepath.Join(root, "pipe"), 0o600))
 	require.NoError(t, unix.Mkfifo(filepath.Join(root, "pipe.html"), 0o600))
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	id := publish(t, handler, root).ID
 	response := serve(t, handler, http.MethodGet, "/"+id+"/pipe")
 	require.Equal(t, http.StatusNotFound, response.Code)

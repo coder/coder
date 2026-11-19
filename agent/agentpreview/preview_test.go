@@ -25,7 +25,7 @@ func TestPreviewFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(selected, []byte("<h1>first</h1>"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "private.html"), []byte("private"), 0o600))
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	published := publish(t, handler, selected)
 	require.Equal(t, selected, published.Path)
 
@@ -75,7 +75,7 @@ func TestPreviewDirectory(t *testing.T) {
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.txt"), []byte("outside"), 0o600))
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	id := publish(t, handler, root).ID
 
 	// Only Windows reads a tilde as part of a short name such as HIDDEN~1.
@@ -114,7 +114,7 @@ func TestPreviewRebuiltDirectory(t *testing.T) {
 	require.NoError(t, os.Mkdir(root, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("old build"), 0o600))
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	id := publish(t, handler, root).ID
 
 	require.NoError(t, os.RemoveAll(root))
@@ -145,7 +145,7 @@ func TestPreviewSymlinks(t *testing.T) {
 	require.NoError(t, os.Symlink("index.html", filepath.Join(root, "alias.html")))
 	require.NoError(t, os.Symlink(".git", filepath.Join(root, "repo")))
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	id := publish(t, handler, root).ID
 	for _, path := range []string{"/escape.txt", "/alias.html", "/repo/config"} {
 		response := serve(t, handler, http.MethodGet, "/"+id+path)
@@ -161,7 +161,7 @@ func TestPreviewInvalidPublications(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "page.htm"), []byte("page"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "PAGE.HTML"), []byte("page"), 0o600))
 
-	handler := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	handler := agentpreview.NewAPI().Routes()
 	for _, name := range []string{
 		"page.html",
 		filepath.Join(root, "missing.html"),
@@ -184,10 +184,10 @@ func TestPreviewIDsAcrossRestarts(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(name), 0o600))
 	}
 
-	before := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	before := agentpreview.NewAPI().Routes()
 	oldID := publish(t, before, filepath.Join(root, "a.html")).ID
 
-	after := agentpreview.NewAPI(testutil.Logger(t)).Routes()
+	after := agentpreview.NewAPI().Routes()
 	publish(t, after, filepath.Join(root, "b.html"))
 
 	response := serve(t, after, http.MethodGet, "/"+oldID+"/")
