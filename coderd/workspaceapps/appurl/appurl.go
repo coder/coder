@@ -156,6 +156,12 @@ func IsPreviewID(id string) bool {
 	return previewIDRegex.MatchString(id)
 }
 
+// PreviewSlug returns the app slug of file preview id, e.g.
+// "preview--0123abcd".
+func PreviewSlug(id string) string {
+	return previewSlugPrefix + id
+}
+
 // ParsePreviewSlug returns the file preview ID in a preview slug, e.g. ID
 // "0123abcd" for slug "preview--0123abcd".
 func ParsePreviewSlug(slug string) (string, bool) {

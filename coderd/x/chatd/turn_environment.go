@@ -1908,26 +1908,25 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				return nil, err
 			}
 			chatSnapshot = updatedChat
-
-			c.mu.Lock()
-			c.agent = switchedAgent
-			c.agentLoaded = true
-			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
-			c.mu.Unlock()
+			agent = switchedAgent
 		}
 
+		c.mu.Lock()
 		if _, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID); !workspaceMatches {
+			c.mu.Unlock()
 			if agentRelease != nil {
 				agentRelease()
 			}
 			c.clearCachedWorkspaceState()
 			continue
 		}
-
-		c.mu.Lock()
+		// Cache the agent with the conn so readers never pair a conn with an
+		// agent that a concurrent call cleared or switched.
 		if c.conn == nil {
 			c.conn = agentConn
 			c.releaseConn = agentRelease
+			c.agent = agent
+			c.agentLoaded = true
 			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 
 			var ancestorIDs []string
@@ -1964,6 +1963,35 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	}
 
 	return nil, xerrors.New("chat workspace changed while connecting")
+}
+
+// getPreviewWorkspace returns the cached conn with the workspace and agent it
+// belongs to, read under one lock.
+func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattool.PreviewWorkspace, error) {
+	if _, err := c.getWorkspaceConn(ctx); err != nil {
+		return chattool.PreviewWorkspace{}, err
+	}
+
+	c.mu.Lock()
+	if c.conn == nil || !nullUUIDEqual(c.cachedWorkspaceID, c.currentChatSnapshot().WorkspaceID) {
+		c.mu.Unlock()
+		return chattool.PreviewWorkspace{}, xerrors.New("chat workspace changed while connecting")
+	}
+	preview := chattool.PreviewWorkspace{
+		Conn:        c.conn,
+		WorkspaceID: c.cachedWorkspaceID.UUID,
+		Agent:       c.agent,
+	}
+	c.mu.Unlock()
+
+	// The workspace and owner names are part of the preview hostname.
+	ws, err := c.server.db.GetWorkspaceByID(ctx, preview.WorkspaceID)
+	if err != nil {
+		return chattool.PreviewWorkspace{}, xerrors.Errorf("load workspace: %w", err)
+	}
+	preview.WorkspaceName = ws.Name
+	preview.OwnerName = ws.OwnerUsername
+	return preview, nil
 }
 
 func isExploreSubagentMode(mode database.NullChatMode) bool {
@@ -2552,6 +2580,15 @@ func (p *Server) appendRootChatTools(
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+
+	if p.previewAppHostname != "" && p.experiments.Enabled(codersdk.ExperimentOpenPreview) {
+		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
+			AppHostname:         p.previewAppHostname,
+			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
+			DB:                  p.db,
+			OwnerID:             opts.chat.OwnerID,
+		}))
 	}
 
 	tools = append(tools,
