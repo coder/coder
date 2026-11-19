@@ -107,17 +107,17 @@ type Healthcheck struct {
 }
 
 type WorkspaceAppStatus struct {
-	ID          uuid.UUID               `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents.apps.statuses"`
-	CreatedAt   time.Time               `json:"created_at" format:"date-time" wsrelated:"latest_build.resources.agents.apps.statuses"`
-	WorkspaceID uuid.UUID               `json:"workspace_id" format:"uuid" wsrelated:"latest_build.resources.agents.apps.statuses"`
-	AgentID     uuid.UUID               `json:"agent_id" format:"uuid" wsrelated:"latest_build.resources.agents.apps.statuses"`
-	AppID       uuid.UUID               `json:"app_id" format:"uuid" wsrelated:"latest_build.resources.agents.apps.statuses"`
-	State       WorkspaceAppStatusState `json:"state" wsrelated:"latest_build.resources.agents.apps.statuses"`
-	Message     string                  `json:"message" wsrelated:"latest_build.resources.agents.apps.statuses"`
+	ID          uuid.UUID               `json:"id" format:"uuid"`
+	CreatedAt   time.Time               `json:"created_at" format:"date-time"`
+	WorkspaceID uuid.UUID               `json:"workspace_id" format:"uuid"`
+	AgentID     uuid.UUID               `json:"agent_id" format:"uuid"`
+	AppID       uuid.UUID               `json:"app_id" format:"uuid"`
+	State       WorkspaceAppStatusState `json:"state"`
+	Message     string                  `json:"message"`
 	// URI is the URI of the resource that the status is for.
 	// e.g. https://github.com/org/repo/pull/123
 	// e.g. file:///path/to/file
-	URI string `json:"uri" wsrelated:"latest_build.resources.agents.apps.statuses"`
+	URI string `json:"uri"`
 
 	// Deprecated: This field is unused and will be removed in a future version.
 	// Icon is an external URL to an icon that will be rendered in the UI.
