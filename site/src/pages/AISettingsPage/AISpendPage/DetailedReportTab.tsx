@@ -1,6 +1,7 @@
 import { DownloadIcon, PlayIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { DetailedReportFilter } from "./DetailedReportFilter";
 import { SpendDaysPicker } from "./SpendDaysPicker";
 import type { SpendDays } from "./spendDays";
 
@@ -8,12 +9,19 @@ type DetailedReportTabProps = {
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	filter: string;
+	onFilterChange: (filter: string) => void;
+	/** The filter options come from AI Gateway endpoints that need read access to every session. */
+	canFilter: boolean;
 };
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	now,
 	days,
 	onDaysChange,
+	filter,
+	onFilterChange,
+	canFilter,
 }) => {
 	return (
 		<div className="flex flex-col gap-6">
@@ -27,6 +35,9 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 				</p>
 			</section>
 			<div className="flex flex-wrap items-center gap-3">
+				{canFilter && (
+					<DetailedReportFilter value={filter} onChange={onFilterChange} />
+				)}
 				<SpendDaysPicker now={now} days={days} onDaysChange={onDaysChange} />
 				{/* TODO(AIGOV-731): run the report for the picked days. */}
 				<Button disabled>

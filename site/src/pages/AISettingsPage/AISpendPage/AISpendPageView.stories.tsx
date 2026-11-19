@@ -47,6 +47,8 @@ const meta = {
 		organizationsError: null,
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
+		reportFilter: "",
+		onReportFilterChange: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
 		unpricedModels: MockUnpricedAIModels.models,
