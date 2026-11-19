@@ -24,7 +24,10 @@ import (
 var transportErrorPrefix = regexp.MustCompile(`^[A-Z]+ "[^"]+": \d{3} `)
 
 type providerErrorDetails struct {
-	detail     string
+	detail string
+	// code is the error.code value from a JSON error response body, such
+	// as aibridge's budget_exceeded.
+	code       string
 	statusCode int
 	retryAfter time.Duration
 }
@@ -37,6 +40,7 @@ func extractProviderErrorDetails(err error) providerErrorDetails {
 
 	return providerErrorDetails{
 		detail:     providerErrorDetail(providerErr),
+		code:       providerErrorResponseCode(providerErr.ResponseBody),
 		statusCode: providerErr.StatusCode,
 		retryAfter: retryAfterFromHeaders(providerErr.ResponseHeaders),
 	}
@@ -57,7 +61,7 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 // used by many providers and the nested `{"error":{"message":...}}`
 // envelope. When the extracted message is itself an SDK-formatted transport
 // error wrapper, the clean inner provider message is returned. For
-// non-JSON text/plain bodies (e.g. aibridge's budget errors) it returns
+// non-JSON text/plain bodies (e.g. aibridge's routing errors) it returns
 // the trimmed first line of the body; the result surfaces in the
 // user-facing detail, so other content types (proxy HTML, opaque bodies)
 // and valid JSON without an extractable message yield nothing.
@@ -74,6 +78,30 @@ func providerErrorResponseMessage(responseDump []byte) string {
 	}
 	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
 	return strings.TrimSpace(line)
+}
+
+// providerErrorResponseCode extracts the string error.code from a provider
+// error response body after stripping any dumped HTTP status line and
+// headers. It returns "" when the body has no string code.
+func providerErrorResponseCode(responseDump []byte) string {
+	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
+		return ""
+	}
+	body, _ := readResponseDump(responseDump)
+	var env struct {
+		Error struct {
+			Code json.RawMessage `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return ""
+	}
+	// OpenAI sends a null or non-string code for some errors.
+	var code string
+	if err := json.Unmarshal(env.Error.Code, &code); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(code)
 }
 
 // unwrapTransportErrorMessage extracts the clean provider message from an

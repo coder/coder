@@ -337,7 +337,9 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 					SpendLimitMicros: new(int64(1_000)),
 				}, nil)
 			},
-			expectedErr:    xerrors.New("AI budget of"),
+			// The error is in the OpenAI format for this path and carries the
+			// stable code.
+			expectedErr:    xerrors.New(`"code":"budget_exceeded"`),
 			expectedStatus: http.StatusForbidden,
 		},
 		{

@@ -163,26 +163,16 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
-			name: "AIBudget403ClassifiesAsUsageLimit",
-			err:  xerrors.New("status 403: AI budget of US$5.00 exceeded. Please contact an administrator for more details."),
-			want: chaterror.ClassifiedError{
-				Message:    "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
-				Detail:     "status 403: AI budget of US$5.00 exceeded. Please contact an administrator for more details.",
-				Kind:       codersdk.ChatErrorKindUsageLimit,
-				Provider:   "",
-				Retryable:  false,
-				StatusCode: 403,
-			},
-		},
-		{
 			// The SDK message reduces to a bare status line, so the
-			// text/plain body is the only usage-limit signal.
-			name: "AIBudget403PlainTextBodyClassifiesAsUsageLimit",
+			// budget_exceeded code in the JSON body is the only usage-limit
+			// signal.
+			name: "AIBudget403JSONBodyClassifiesAsUsageLimit",
 			err: testProviderError(
 				`POST "http://coder-aibridge/v1/messages": 403 Forbidden`,
 				403,
 				nil,
-				[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nAI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+				[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\n\r\n"+
+					`{"type":"error","error":{"type":"permission_error","message":"AI budget of US$10.00 exceeded. Please contact an administrator for more details.","code":"budget_exceeded"}}`),
 			),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
@@ -578,7 +568,6 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "QuotaLiteral", err: "quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "BillingLiteral", err: "billing", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "InsufficientQuotaLiteral", err: "insufficient_quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
-		{name: "AIBudgetExceededLiteral", err: "status 403: AI budget of US$10.00 exceeded", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "AIBudgetCheckFailedLiteral", err: "status 500: internal server error checking user AI budget", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: true},
 		{name: "PaymentRequiredLiteral", err: "payment required", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "ForbiddenLiteral", err: "forbidden", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
@@ -1511,29 +1500,22 @@ func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
 }
 
-func TestClassify_AnthropicPlainTextBudgetBody(t *testing.T) {
+func TestClassify_OpenAIBudgetExceededCode(t *testing.T) {
 	t.Parallel()
 
-	// aibridge returns its budget error as a plain-text 403. The Anthropic
-	// adapter's Message is the SDK transport string without the body, so
-	// the budget text appears only in the dumped ResponseBody. Classify
-	// must still report a usage limit, not auth.
+	// Classify must detect the budget error from the code alone, whatever
+	// the message says, in the OpenAI format too.
 	classified := chaterror.Classify(testProviderError(
-		`POST "https://api.example.com/v1/messages": 403 Forbidden`,
+		`POST "https://api.example.com/v1/chat/completions": 403 Forbidden`,
 		403,
 		nil,
-		[]byte("HTTP/1.1 403 Forbidden\r\n"+
-			"Content-Type: text/plain; charset=utf-8\r\n"+
-			"X-Content-Type-Options: nosniff\r\n"+
-			"\r\n"+
-			"AI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+		[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\n\r\n"+
+			`{"error":{"type":"permission_error","message":"Spending cap reached.","code":"budget_exceeded"}}`),
 	))
 
 	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
 	require.False(t, classified.Retryable)
-	require.Equal(t,
-		"AI budget of US$10.00 exceeded. Please contact an administrator for more details.",
-		classified.Detail)
+	require.Equal(t, "Spending cap reached.", classified.Detail)
 }
 
 func TestClassify_ProviderResponseDumps(t *testing.T) {
@@ -1610,10 +1592,10 @@ func TestClassify_ProviderResponseDumps(t *testing.T) {
 				"Content-Type: text/plain; charset=utf-8\r\n" +
 				"Transfer-Encoding: chunked\r\n" +
 				"\r\n" +
-				"16\r\nAI budget of US$10.00 \r\n" +
-				"9\r\nexceeded.\r\n" +
+				"f\r\nquota exceeded \r\n" +
+				"d\r\nfor this key.\r\n" +
 				"0\r\n\r\n"),
-			wantDetail:    "AI budget of US$10.00 exceeded.",
+			wantDetail:    "quota exceeded for this key.",
 			wantKind:      codersdk.ChatErrorKindUsageLimit,
 			wantRetryable: false,
 		},

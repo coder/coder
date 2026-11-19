@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/coderd/x/googleopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -197,7 +198,8 @@ func Classify(err error) ClassifiedError {
 	providerDisabledMatch := containsAny(combinedText, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(combinedText, overloadedPatterns...)
-	usageLimitMatch := containsAny(combinedText, usageLimitAnyStatusPatterns...) ||
+	usageLimitMatch := structured.code == routing.ErrorCodeBudgetExceeded ||
+		containsAny(combinedText, usageLimitAnyStatusPatterns...) ||
 		(statusCode != 429 && containsAny(combinedText, usageLimitPatterns...))
 	authStrong := statusCode == 401 || containsAny(combinedText, authStrongPatterns...)
 	authWeak := statusCode == 403 || containsAny(combinedText, authWeakPatterns...)
