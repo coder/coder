@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import range from "lodash/range";
 import {
 	type DeploymentConfig,
@@ -2834,6 +2835,24 @@ export const mockApiError = ({
 		},
 	},
 });
+
+/**
+ * Builds a real `AxiosError` with an API error body, for code that needs the
+ * HTTP status or an `Error` instance.
+ */
+export const mockAxiosError = ({
+	status,
+	...input
+}: MockAPIInput & { status: number }): AxiosError => {
+	const data = mockApiError(input).response.data;
+	return new AxiosError(data.message, undefined, undefined, null, {
+		status,
+		statusText: "",
+		data,
+		headers: {},
+		config: { headers: new AxiosHeaders() },
+	});
+};
 
 /** Like `mockApiError`, but an `Error`, as `useQuery` returns. */
 export const mockApiQueryError = (input: MockAPIInput = {}): Error =>

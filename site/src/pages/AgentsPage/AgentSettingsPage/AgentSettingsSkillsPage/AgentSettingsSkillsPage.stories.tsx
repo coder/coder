@@ -81,6 +81,22 @@ export const OrganizationSkills: Story = {
 	},
 };
 
+export const NoOrganizationSkills: Story = {
+	parameters: {
+		queries: [
+			{ key: userSkills().queryKey, data: [] },
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: [],
+			},
+			{
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
+				data: MockOrganizationSkillPreferences,
+			},
+		],
+	},
+};
+
 const mockMemberControlsPreferences: OrganizationSkillPreferences = {
 	...MockOrganizationSkillPreferences,
 	members_can_disable_skills: true,
