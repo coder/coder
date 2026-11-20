@@ -13,9 +13,16 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useId, useState } from "react";
-import { useIsMutating, useMutation, useQueryClient } from "react-query";
+import {
+	type UseQueryResult,
+	useIsMutating,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import { archivedChatProject } from "#/api/queries/chatProjects";
 import {
 	archiveAndDeleteChat,
 	archiveAndDeleteChatKey,
@@ -141,6 +148,11 @@ type ChatActionsMenuItemsProps = {
 	readonly onMarkUnread?: () => void;
 	readonly onArchiveAgent: () => void;
 	readonly onUnarchiveAgent: () => void;
+	/**
+	 * A chat comes back only with its project, so unarchiving waits until the
+	 * project is known to be active.
+	 */
+	readonly unarchiveBlockedReason: UnarchiveBlockedReason | undefined;
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
@@ -161,6 +173,7 @@ type ChatActionsMenuProps = Omit<
 	| "SubTrigger"
 	| "SubContent"
 	| "onArchiveAndDeleteWorkspace"
+	| "unarchiveBlockedReason"
 > & {
 	readonly children: React.ReactNode;
 	readonly variant?: "dropdown" | "context";
@@ -186,6 +199,21 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
 	const isArchiving =
 		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
+	// A chat doesn't carry its project's archive state, so look the project
+	// up among archived ones. The server's 409 still covers a stale list.
+	const isProjectLookupNeeded =
+		items.canManage &&
+		chat.archived &&
+		Boolean(chat.project_id) &&
+		getParentChatID(chat) === undefined;
+	const archivedProjectQuery = useQuery({
+		...archivedChatProject(chat.project_id),
+		enabled: isProjectLookupNeeded,
+	});
+	const unarchiveBlockedReason = getUnarchiveBlockedReason(
+		isProjectLookupNeeded,
+		archivedProjectQuery,
+	);
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
@@ -253,10 +281,17 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		}
 	};
 
+	const retryFailedProjectLookup = (open: boolean) => {
+		if (open && unarchiveBlockedReason === "projectCheckFailed") {
+			void archivedProjectQuery.refetch();
+		}
+	};
+
 	const menuItems = (
 		<ChatActionsMenuItems
 			{...items}
 			isArchiving={items.isArchiving || isArchiving}
+			unarchiveBlockedReason={unarchiveBlockedReason}
 			onArchiveAndDeleteWorkspace={requestArchiveAndDelete}
 			Item={variant === "context" ? ContextMenuItem : DropdownMenuItem}
 			Separator={
@@ -275,7 +310,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	return (
 		<>
 			{variant === "context" ? (
-				<ContextMenu>
+				<ContextMenu onOpenChange={retryFailedProjectLookup}>
 					<ContextMenuTrigger asChild disabled={disabled}>
 						{children}
 					</ContextMenuTrigger>
@@ -284,7 +319,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 					</ContextMenuContent>
 				</ContextMenu>
 			) : (
-				<DropdownMenu>
+				<DropdownMenu onOpenChange={retryFailedProjectLookup}>
 					{/* The move dialog finds this trigger to return focus to it. */}
 					<DropdownMenuTrigger
 						asChild
@@ -320,6 +355,53 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	);
 };
 
+type UnarchiveBlockedReason =
+	| "projectArchived"
+	| "checkingProject"
+	| "projectCheckFailed";
+
+const unarchiveBlockedHints: Record<UnarchiveBlockedReason, string> = {
+	projectArchived: "Unarchive the project before restoring this chat.",
+	checkingProject: "Checking whether the project is archived.",
+	projectCheckFailed:
+		"Couldn't check whether the project is archived. Reopen this menu to retry.",
+};
+
+const getUnarchiveBlockedReason = (
+	isProjectLookupNeeded: boolean,
+	query: Pick<
+		UseQueryResult<TypesGen.ChatProject | null>,
+		"data" | "isError" | "isFetching"
+	>,
+): UnarchiveBlockedReason | undefined => {
+	if (!isProjectLookupNeeded) {
+		return undefined;
+	}
+	// Cached data is stale while a refetch runs or after one fails, since the
+	// project may have been archived or unarchived in the meantime.
+	if (query.isFetching) {
+		return "checkingProject";
+	}
+	if (query.isError) {
+		return "projectCheckFailed";
+	}
+	if (query.data) {
+		return "projectArchived";
+	}
+	return query.data === null ? undefined : "checkingProject";
+};
+
+type MenuItemHintProps = {
+	readonly id: string;
+	readonly children: React.ReactNode;
+};
+
+const MenuItemHint: React.FC<MenuItemHintProps> = ({ id, children }) => (
+	<div id={id} className="max-w-56 px-2 py-1.5 text-xs text-content-secondary">
+		{children}
+	</div>
+);
+
 const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	chat,
 	canManage,
@@ -336,6 +418,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onMarkUnread,
 	onArchiveAgent,
 	onUnarchiveAgent,
+	unarchiveBlockedReason,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
 	prStatuses,
@@ -368,6 +451,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		: showSubagentsToggle;
 	const branch = chat.diff_status?.head_branch;
 	const archiveBlockedHintId = useId();
+	const unarchiveBlockedHintId = useId();
 	const isArchiveBlocked = archiveBlockedReason !== undefined;
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
@@ -487,10 +571,21 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 			{isArchived ? (
 				showUnarchiveAction && (
 					<>
-						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+						<Item
+							aria-describedby={
+								unarchiveBlockedReason ? unarchiveBlockedHintId : undefined
+							}
+							disabled={isArchiving || unarchiveBlockedReason !== undefined}
+							onSelect={onUnarchiveAgent}
+						>
 							<ArchiveRestoreIcon className="size-3.5" />
 							Unarchive agent
 						</Item>
+						{unarchiveBlockedReason && (
+							<MenuItemHint id={unarchiveBlockedHintId}>
+								{unarchiveBlockedHints[unarchiveBlockedReason]}
+							</MenuItemHint>
+						)}
 						{subagentToggle}
 						{readToggle}
 					</>
@@ -546,14 +641,11 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 					)}
 					{isArchiveBlocked && (
-						<div
-							id={archiveBlockedHintId}
-							className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
-						>
+						<MenuItemHint id={archiveBlockedHintId}>
 							{archiveBlockedReason === "paused"
 								? "Finish editing the queued message first."
 								: "Interrupt or wait for the agent to finish first."}
-						</div>
+						</MenuItemHint>
 					)}
 				</>
 			)}
