@@ -10,10 +10,6 @@ describe("parseOpenPreviewResult", () => {
 			value: { ...MockOpenPreviewResult, preview_slug: undefined },
 		},
 		{
-			name: "an unknown kind",
-			value: { ...MockOpenPreviewResult, kind: "tunnel" },
-		},
-		{
 			name: "a preview slug outside the preview grammar",
 			value: { ...MockOpenPreviewResult, preview_slug: "evil.example.com/" },
 		},

@@ -40,7 +40,6 @@ export const parseOpenPreviewResult = (
 	const rec = asRecord(result);
 	if (
 		!rec ||
-		(rec.kind !== "port" && rec.kind !== "file") ||
 		!isPreviewTitle(rec.title) ||
 		typeof rec.workspace_id !== "string" ||
 		typeof rec.agent_name !== "string" ||
