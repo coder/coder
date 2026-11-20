@@ -92,18 +92,8 @@ const (
 	scenarioRejectOutstandingToolCall scenario = "reject_outstanding_tool_call"
 )
 
-var allowedTransitions = sync.OnceValue(func() map[chatstate.ExecutionState][]chatstate.Transition {
-	allowed := make(map[chatstate.ExecutionState][]chatstate.Transition)
-	for _, tc := range matrixCases() {
-		if tc.assertFailure == nil {
-			allowed[tc.from] = append(allowed[tc.from], tc.transition)
-		}
-	}
-	return allowed
-})
-
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
-	return slices.Contains(allowedTransitions()[from], tr)
+	return slices.Contains(allowedExecutionTransitionsFrom(from), tr)
 }
 
 // expectedErrorForDisallowed returns the sentinel chatstate package
@@ -453,10 +443,11 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 // Case-level transition matrix spec.
 //
 // Each entry in matrixCases is one positive (transition, from, want)
-// triple; scenario is a readability-and-semantic suffix for the
-// subtest name that distinguishes multiple cases sharing the same
-// triple. Every (transition, from) pair without a passing case is a
-// disallowed combination.
+// triple. The coverage key is (transition, from, want); scenario is a
+// readability-and-semantic suffix for the subtest name that
+// distinguishes multiple cases sharing the same coverage key.
+// Disallowed combinations are enumerated separately from
+// allowedExecutionTransitionsFrom and AllowedExecutionTransitionOutputs.
 
 type transitionCaseResult struct {
 	setProject              chatstate.SetProjectResult
@@ -497,7 +488,8 @@ type transitionCaseSpec struct {
 	want       chatstate.ExecutionState
 	// scenario is a semantic label appended to the subtest name
 	// when the same (transition, from, want) key needs to run more
-	// than once. It is part of the duplicate-detection key.
+	// than once. It is not part of the coverage key but is part of
+	// the duplicate-detection key.
 	scenario scenario
 
 	seed          seederFn
@@ -506,8 +498,17 @@ type transitionCaseSpec struct {
 	assertFailure func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error)
 }
 
-// fullCaseKey is used for duplicate detection: two cases must not
-// share the same full key.
+// caseKey is the unit of coverage for positive cases. scenario is
+// intentionally not part of the key so cases with different scenarios
+// can still satisfy the same coverage cell.
+type caseKey struct {
+	transition chatstate.Transition
+	from       chatstate.ExecutionState
+	want       chatstate.ExecutionState
+}
+
+// fullCaseKey extends caseKey with scenario. Used for duplicate
+// detection: two cases must not share the same full key.
 type fullCaseKey struct {
 	transition chatstate.Transition
 	from       chatstate.ExecutionState
@@ -532,6 +533,10 @@ const (
 )
 
 func (s queueShape) isMulti() bool { return s == queueShapeMulti }
+
+func (s transitionCaseSpec) key() caseKey {
+	return caseKey{transition: s.transition, from: s.from, want: s.want}
+}
 
 func (s transitionCaseSpec) fullKey() fullCaseKey {
 	return fullCaseKey{
@@ -718,12 +723,14 @@ func runDisallowedCase(t *testing.T, f *testFixture, tr chatstate.Transition, fr
 // TestTransitionMatrix_AllCombinations is the single entry point for
 // the case-level transition matrix coverage. Each positive case in
 // matrixCases() is one (transition, from, want) triple with a focused
-// effect assertion. Every other non-CreateChat (transition, from) pair
-// is a disallowed combination and must surface the right sentinel
-// error, so a pair that transition.go admits needs a positive case.
+// effect assertion. Disallowed combinations are enumerated from
+// transition.go to confirm every non-CreateChat (transition, from)
+// pair outside the allowed set surfaces the right sentinel error.
 //
-// After all parallel subtests complete the test verifies that every
-// disallowed (transition, from) pair was exercised exactly once.
+// After all parallel subtests complete the test verifies that the
+// positive coverage matches AllowedExecutionTransitionOutputs (no
+// missing key, no unexpected key) and that every disallowed
+// (transition, from) pair was exercised exactly once.
 //
 // Input-specific rejection tests live in TestTransitionInputValidation
 // and are intentionally not part of this matrix entry point so the
@@ -735,9 +742,10 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	fixture := newTestFixture(t)
 	cases := matrixCases()
 
-	// Detect duplicate full keys and duplicate subtest names. Two
-	// cases may share the same (transition, from, want) only when
-	// their scenarios differ.
+	// Detect duplicate full keys and duplicate subtest names. The
+	// coverage key intentionally ignores scenario, so two cases may
+	// share the same (transition, from, want) only when their
+	// scenarios differ.
 	seenFullKeys := make(map[fullCaseKey]string, len(cases))
 	seenNames := make(map[string]struct{}, len(cases))
 	for _, tc := range cases {
@@ -751,6 +759,21 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 			t.Fatalf("duplicate matrix subtest name %s", name)
 		}
 		seenNames[name] = struct{}{}
+	}
+
+	// Build the expected positive set from the matrix in
+	// transition.go. CreateChat is intentionally excluded because
+	// it is not exercised via ChatMachine.Update.
+	expectedPositive := make(map[caseKey]struct{})
+	for _, from := range allExecutionStates {
+		for _, tr := range allowedExecutionTransitionsFrom(from) {
+			if tr == chatstate.TransitionCreateChat {
+				continue
+			}
+			for _, to := range chatstate.AllowedExecutionTransitionOutputs(from, tr) {
+				expectedPositive[caseKey{transition: tr, from: from, want: to}] = struct{}{}
+			}
+		}
 	}
 
 	// Build the expected disallowed set: for each non-CreateChat
@@ -768,15 +791,40 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 		}
 	}
 
-	// actualDisallowed is mutated under mu from parallel subtests.
-	// The final comparison runs in t.Cleanup, which fires only after
-	// every parallel child finishes.
+	// Validate that every case in matrixCases describes a
+	// (transition, from, want) combination that the matrix actually
+	// admits. This guards against typos in matrixCases wiring up
+	// nonsense cases that happen to compile.
+	for _, tc := range cases {
+		if tc.assertFailure != nil {
+			continue
+		}
+		key := tc.key()
+		_, ok := expectedPositive[key]
+		require.True(t, ok,
+			"case %s is not in the allowed (transition, from, want) set", tc.subtestName())
+	}
+
+	// actualPositive and actualDisallowed are mutated under mu from
+	// parallel subtests. The final comparison runs in t.Cleanup,
+	// which fires only after every parallel child finishes.
 	var mu sync.Mutex
+	actualPositive := make(map[caseKey]struct{}, len(expectedPositive))
 	actualDisallowed := make(map[disallowedCaseKey]struct{}, len(expectedDisallowed))
 
 	t.Cleanup(func() {
 		mu.Lock()
 		defer mu.Unlock()
+		for k := range expectedPositive {
+			if _, ok := actualPositive[k]; !ok {
+				t.Errorf("matrix coverage: missing positive case %+v", k)
+			}
+		}
+		for k := range actualPositive {
+			if _, ok := expectedPositive[k]; !ok {
+				t.Errorf("matrix coverage: unexpected positive case %+v", k)
+			}
+		}
 		for k := range expectedDisallowed {
 			if _, ok := actualDisallowed[k]; !ok {
 				t.Errorf("matrix coverage: missing disallowed case %+v", k)
@@ -796,6 +844,11 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 			tc := tc
 			t.Run(tc.subtestName(), func(t *testing.T) {
 				t.Parallel()
+				if tc.assertFailure == nil {
+					mu.Lock()
+					actualPositive[tc.key()] = struct{}{}
+					mu.Unlock()
+				}
 				f := *fixture
 				f.Pub = newRecordingPubsub()
 				runPositiveCase(t, &f, tc)
