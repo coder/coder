@@ -23,6 +23,7 @@ it("links a user to their AI session logs for the same period", async () => {
 						topSpenderDetailsError={null}
 						organizationName="Coder"
 						canViewSessions
+						onOpenDetailedReport={() => {}}
 					/>
 				),
 			},
@@ -81,6 +82,7 @@ it("counts a model priced after some of its usage as unpriced", async () => {
 						topSpenderDetailsError={null}
 						organizationName="Coder"
 						canViewSessions
+						onOpenDetailedReport={() => {}}
 					/>
 				),
 			},

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
@@ -159,4 +159,25 @@ it("requests no spend for an organization the viewer cannot see", async () => {
 	await screen.findByRole("combobox", { name: "Organization" });
 	expect(overviewSpy).not.toHaveBeenCalled();
 	expect(unpricedModelsSpy).not.toHaveBeenCalled();
+});
+
+it("keeps the selected tab in the URL", async () => {
+	const user = userEvent.setup();
+	const { searchParam } = renderAISpendPage();
+	await user.click(await screen.findByRole("tab", { name: "Detailed report" }));
+	expect(
+		await screen.findByRole("heading", { name: "Generate a detailed report" }),
+	).toBeInTheDocument();
+	expect(searchParam("tab")).toBe("detailed-report");
+});
+
+it("shares the picked days between the tabs", async () => {
+	const user = userEvent.setup();
+	renderAISpendPage("startDate=2026-03-01&endDate=2026-03-03");
+	await user.click(await screen.findByRole("tab", { name: "Detailed report" }));
+	expect(
+		within(
+			await screen.findByRole("tabpanel", { name: "Detailed report" }),
+		).getByRole("button", { name: /Mar 1, 2026/ }),
+	).toBeInTheDocument();
 });

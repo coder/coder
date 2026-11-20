@@ -42,6 +42,7 @@ type TopSpendersCardProps = {
 	organizationName: string;
 	/** The sessions page needs read access to every user's sessions. */
 	canViewSessions: boolean;
+	onOpenDetailedReport: () => void;
 };
 
 export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
@@ -50,6 +51,7 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 	topSpenderDetailsError,
 	organizationName,
 	canViewSessions,
+	onOpenDetailedReport,
 }) => {
 	const titleId = useId();
 	const summary = overview && summarizeTopSpenders(overview);
@@ -78,8 +80,7 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 				{summary && (
 					<p className="m-0 text-sm text-content-secondary">{summary}</p>
 				)}
-				{/* TODO(AIGOV-731): open the Detailed report tab once it is built. */}
-				<Button variant="outline" size="sm" disabled>
+				<Button variant="outline" size="sm" onClick={onOpenDetailedReport}>
 					Detailed report
 				</Button>
 			</div>
