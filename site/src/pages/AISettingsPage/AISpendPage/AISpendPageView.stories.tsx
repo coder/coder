@@ -5,7 +5,6 @@ import {
 	MockOrganization2,
 	MockOrganizationAISpendOverview,
 	MockUnpricedAIModels,
-	mockApiError,
 	mockApiQueryError,
 } from "#/testHelpers/entities";
 import { AISpendPageView } from "./AISpendPageView";
@@ -62,7 +61,9 @@ export const DatePickerOpen: Story = {
 /** A failed refetch keeps the cached spend on screen. */
 export const OverviewRefetchError: Story = {
 	args: {
-		overviewError: mockApiError({ message: "Unable to refresh AI spend." }),
+		overviewError: mockApiQueryError({
+			message: "Unable to refresh AI spend.",
+		}),
 	},
 };
 

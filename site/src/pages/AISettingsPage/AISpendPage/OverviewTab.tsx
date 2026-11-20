@@ -44,7 +44,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 				/>
 			</div>
 			{overviewError !== null && <ErrorAlert error={overviewError} />}
-			{(overview !== undefined || overviewError == null) && (
+			{(overview !== undefined || overviewError === null) && (
 				<div className="grid gap-6 lg:grid-cols-2">
 					<div className="flex flex-col gap-6">
 						<TotalSpendCard
