@@ -1980,16 +1980,10 @@ func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattoo
 	if err != nil {
 		return chattool.PreviewWorkspace{}, err
 	}
-	ws, err := c.server.db.GetWorkspaceByID(ctx, binding.workspaceID)
-	if err != nil {
-		return chattool.PreviewWorkspace{}, xerrors.Errorf("load workspace: %w", err)
-	}
 	return chattool.PreviewWorkspace{
-		Conn:          binding.conn,
-		WorkspaceID:   binding.workspaceID,
-		WorkspaceName: ws.Name,
-		OwnerName:     ws.OwnerUsername,
-		Agent:         binding.agent,
+		Conn:        binding.conn,
+		WorkspaceID: binding.workspaceID,
+		Agent:       binding.agent,
 	}, nil
 }
 
@@ -2583,7 +2577,7 @@ func (p *Server) appendRootChatTools(
 
 	if p.experiments.Enabled(codersdk.ExperimentOpenPreview) {
 		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
-			Hosting:             p.previewHosting,
+			PreviewsAvailable:   p.previewsAvailable,
 			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
 		}))
 	}

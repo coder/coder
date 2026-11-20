@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -53,18 +52,16 @@ type OpenPreviewResult struct {
 
 // PreviewWorkspace is the workspace agent a preview opens on.
 type PreviewWorkspace struct {
-	Conn          workspacesdk.AgentConn
-	WorkspaceID   uuid.UUID
-	WorkspaceName string
-	OwnerName     string
-	Agent         database.WorkspaceAgent
+	Conn        workspacesdk.AgentConn
+	WorkspaceID uuid.UUID
+	Agent       database.WorkspaceAgent
 }
 
 // OpenPreviewOptions configures the open_preview tool.
 type OpenPreviewOptions struct {
-	// Hosting is how the primary serves previews. Nil means the deployment
-	// has no wildcard app hostname, so nothing can be previewed.
-	Hosting             *previewhost.Hosting
+	// PreviewsAvailable is false when the deployment has no wildcard app
+	// hostname, so nothing can be previewed.
+	PreviewsAvailable   bool
 	GetPreviewWorkspace func(context.Context) (PreviewWorkspace, error)
 }
 
@@ -140,7 +137,7 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			"Port and path previews may load only from their own address, so a page that loads scripts, styles, or fonts from a CDN or another server breaks; bundle them instead. "+
 			"The user opens the preview from the chat with a click.",
 		func(ctx context.Context, args OpenPreviewArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.Hosting == nil {
+			if !options.PreviewsAvailable {
 				return fantasy.NewTextErrorResponse("previews need a wildcard app hostname, which this deployment does not have; tell the user an administrator can set one"), nil
 			}
 			req, err := parseOpenPreviewArgs(args)
@@ -160,7 +157,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				AgentName:   workspace.Agent.Name,
 				URLPath:     req.urlPath,
 			}
-			var slug string
 			switch req.kind {
 			case OpenPreviewKindPort:
 				if !slices.Contains(workspace.Agent.DisplayApps, database.DisplayAppPortForwardingHelper) {
@@ -168,7 +164,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				}
 				result.Port = req.port
 				result.PreviewSlug = appurl.PreviewSlugPrefix + strconv.Itoa(req.port)
-				slug = result.PreviewSlug
 			case OpenPreviewKindFile:
 				preview, err := workspace.Conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: req.path})
 				if errors.Is(err, workspacesdk.ErrPreviewsUnsupported) {
@@ -182,17 +177,6 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				}
 				result.PreviewSlug = preview.ID.Slug()
 				result.Path = preview.Path
-				slug = result.PreviewSlug
-			}
-
-			_, err = options.Hosting.URL(appurl.ApplicationURL{
-				AppSlugOrPort: slug,
-				AgentName:     workspace.Agent.Name,
-				WorkspaceName: workspace.WorkspaceName,
-				Username:      workspace.OwnerName,
-			}, "")
-			if err != nil {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("%s, so the browser cannot load it. Tell the user the agent, workspace, and owner names are too long; a shorter workspace name fixes it", err)), nil
 			}
 			return marshalToolResponse(result), nil
 		},
