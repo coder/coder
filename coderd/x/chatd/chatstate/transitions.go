@@ -72,6 +72,8 @@ type CreateChatResult struct {
 //   - When RootChatID is set, the root chat must exist and must not be
 //     archived; otherwise CreateChat returns [ErrChatNotFound] or
 //     [ErrChatFamilyArchived].
+//   - When ProjectID is set, the project must not be archived; otherwise
+//     CreateChat returns [ErrChatProjectArchived].
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -149,6 +151,11 @@ func insertChat(
 			}
 			if root.Archived {
 				return ErrChatFamilyArchived
+			}
+		}
+		if input.ProjectID.Valid {
+			if err := requireChatProjectNotArchived(ctx, store, input.ProjectID.UUID); err != nil {
+				return err
 			}
 		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
