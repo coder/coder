@@ -192,14 +192,19 @@ viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
 like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
 lines of output, so you might have to scroll up to find it.
 
+The setup page asks for a setup token, whichever URL you use.
+Copy it from the line that starts with `Setup token:` in the same output.
+
 ## Step 3: Initial setup
 
 1. Create your admin account:
+   - Setup token: Copy it from the line that starts with `Setup token:` in the `coder server` output.
    - Email: `your.email@example.com`
    - Password: Choose a strong password.
 
-   You can also choose to **Continue with GitHub** instead of creating an admin
-   account. Coder automatically grants admin permissions to the first user that signs in.
+   Coder automatically grants admin permissions to the first user.
+   To sign in with GitHub later, create the account with your GitHub account's primary email.
+   After setup, switch the account to GitHub sign-in under **Account** > **Security**.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
