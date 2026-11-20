@@ -312,7 +312,10 @@ func fetch(store database.Store, fileID uuid.UUID) (CacheEntryValue, error) {
 		}
 	default:
 		// Assume '"application/x-tar"' as the default mimetype.
-		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+		files, err = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+		if err != nil {
+			return CacheEntryValue{}, xerrors.Errorf("failed to read tar file: %w", err)
+		}
 	}
 
 	return CacheEntryValue{

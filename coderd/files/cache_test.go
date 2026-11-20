@@ -38,7 +38,7 @@ func TestCancelledFetch(t *testing.T) {
 	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
 		return database.File{
 			ID:   fileID,
-			Data: make([]byte, 100),
+			Data: make([]byte, 1024),
 		}, nil
 	})
 
@@ -64,7 +64,7 @@ func TestCancelledConcurrentFetch(t *testing.T) {
 	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
 		return database.File{
 			ID:   fileID,
-			Data: make([]byte, 100),
+			Data: make([]byte, 1024),
 		}, nil
 	})
 
@@ -199,7 +199,7 @@ func TestConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := dbauthz.AsFileReader(t.Context())
 
-	const fileSize = 10
+	const fileSize = 1024
 	var fetches atomic.Int64
 	reg := prometheus.NewRegistry()
 
@@ -259,7 +259,7 @@ func TestRelease(t *testing.T) {
 	t.Parallel()
 	ctx := dbauthz.AsFileReader(t.Context())
 
-	const fileSize = 10
+	const fileSize = 1024
 	reg := prometheus.NewRegistry()
 	dbM := dbmock.NewMockStore(gomock.NewController(t))
 	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
