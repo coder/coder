@@ -705,15 +705,15 @@ func (w *wrappedListener) getDials() int {
 }
 
 // closedPort returns a loopback port that refuses connections. The port is
-// below the range the OS assigns from, so a test that listens on port 0
-// cannot be given it before this test dials it.
+// below the OS ephemeral port range, so a listener on port 0 cannot be given
+// it before the caller dials it.
 func closedPort(ctx context.Context, t *testing.T) int {
 	t.Helper()
 
 	var dialer net.Dialer
 	for port := 20000; port < 30000; port++ {
 		open := false
-		// The agent retries on the IPv6 loopback address when IPv4 refuses.
+		// The agent retries on ::1 when its dial to 127.0.0.1 fails.
 		for _, host := range []string{"127.0.0.1", "::1"} {
 			conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 			if err == nil {
