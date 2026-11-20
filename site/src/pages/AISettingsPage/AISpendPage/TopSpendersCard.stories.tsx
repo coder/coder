@@ -88,6 +88,8 @@ const meta = {
 	args: {
 		overview: mockBusyOverview,
 		topSpenderDetails: mockTopSpenders,
+		topSpenderDetailsError: null,
+		organizationName: "Coder",
 		canViewSessions: true,
 	},
 	decorators: [
@@ -132,6 +134,17 @@ export const UnpricedModelsTooltipOpen: Story = {
 	},
 };
 
+export const CostDetailsOpen: Story = {
+	play: async () => {
+		await userEvent.click(
+			screen.getByRole("button", { name: "Open menu for Jane Doe" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Cost details" }),
+		);
+	},
+};
+
 /** The warnings follow once the users' details load. */
 export const UnpricedModelsLoading: Story = {
 	args: { topSpenderDetails: undefined },
@@ -164,6 +177,11 @@ export const UserWithoutName: Story = {
 
 export const NoSessionAccess: Story = {
 	args: { canViewSessions: false },
+	play: async () => {
+		await userEvent.click(
+			screen.getByRole("button", { name: "Open menu for Jane Doe" }),
+		);
+	},
 };
 
 export const LongName: Story = {

@@ -28,6 +28,8 @@ type OverviewTabProps = {
 	unpricedModels: readonly UnpricedAIModel[] | undefined;
 	isUnpricedModelsLoading: boolean;
 	topSpenderDetails: readonly OrganizationAISpendUser[] | undefined;
+	topSpenderDetailsError: Error | null;
+	organizationName: string;
 	canViewSessions: boolean;
 };
 
@@ -40,6 +42,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	unpricedModels,
 	isUnpricedModelsLoading,
 	topSpenderDetails,
+	topSpenderDetailsError,
+	organizationName,
 	canViewSessions,
 }) => {
 	return (
@@ -83,6 +87,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 					<TopSpendersCard
 						overview={overview}
 						topSpenderDetails={topSpenderDetails}
+						topSpenderDetailsError={topSpenderDetailsError}
+						organizationName={organizationName}
 						canViewSessions={canViewSessions}
 					/>
 				</div>

@@ -119,6 +119,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				unpricedModels={unpricedModelsQuery.data?.models}
 				isUnpricedModelsLoading={unpricedModelsQuery.isLoading}
 				topSpenderDetails={topSpenderDetailsQuery.data?.users}
+				topSpenderDetailsError={topSpenderDetailsQuery.error}
 				canViewSessions={permissions.viewAnyAIBridgeInterception}
 			/>
 		</>

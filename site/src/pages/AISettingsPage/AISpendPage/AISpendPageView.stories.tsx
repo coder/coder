@@ -50,6 +50,7 @@ const meta = {
 		unpricedModels: MockUnpricedAIModels.models,
 		isUnpricedModelsLoading: false,
 		topSpenderDetails: mockTopSpenderDetails,
+		topSpenderDetailsError: null,
 		canViewSessions: true,
 	},
 } satisfies Meta<typeof AISpendPageView>;

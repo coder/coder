@@ -20,6 +20,8 @@ it("links a user to their AI session logs for the same period", async () => {
 					<TopSpendersCard
 						overview={MockOrganizationAISpendOverview}
 						topSpenderDetails={undefined}
+						topSpenderDetailsError={null}
+						organizationName="Coder"
 						canViewSessions
 					/>
 				),
@@ -76,6 +78,8 @@ it("counts a model priced after some of its usage as unpriced", async () => {
 							},
 							MockOrganizationAISpendReport.users[1],
 						]}
+						topSpenderDetailsError={null}
+						organizationName="Coder"
 						canViewSessions
 					/>
 				),
