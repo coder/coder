@@ -110,6 +110,10 @@ If your dev container takes a long time to start:
    Commands in `postStartCommand` run on every container start.
    Commands in `postCreateCommand` run once per build, so they execute again after each rebuild.
 
+   The dev container is ready after the command set by [`waitFor`](https://containers.dev/implementors/json_reference/#-lifecycle-scripts-) finishes, which is `updateContentCommand` by default.
+   Later commands, such as `postCreateCommand` and `postStartCommand`, run in the background.
+   To make the dev container ready sooner, move slow setup into a later command or set `waitFor` to an earlier one, such as `onCreateCommand`.
+
 <a id="getting-more-help"></a>
 
 ## Get more help
