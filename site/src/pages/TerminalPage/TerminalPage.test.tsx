@@ -431,7 +431,7 @@ describe("TerminalPage", () => {
 
 			await waitFor(() => {
 				expect(document.title).toBe(
-					`My App - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+					`My App (${MockWorkspaceAgent.name}) - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
 				);
 			});
 			const icons = document.head.querySelectorAll('link[rel~="icon"]');
@@ -457,11 +457,25 @@ describe("TerminalPage", () => {
 
 			await waitFor(() => {
 				expect(document.title).toBe(
-					`Terminal - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+					`Terminal (${MockWorkspaceAgent.name}) - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
 				);
 			});
 			expect([...document.head.querySelectorAll('link[rel~="icon"]')]).toEqual(
 				staticIcons,
+			);
+		});
+	});
+
+	it("updates document title when shell sets title via escape sequence", async () => {
+		const ws = createWorkspaceTerminalWebSocket();
+		await renderTerminal();
+		await ws.nextMessage;
+
+		ws.send("\x1b]0;my-custom-title\x07");
+
+		await waitFor(() => {
+			expect(document.title).toBe(
+				`my-custom-title - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
 			);
 		});
 	});
@@ -472,7 +486,7 @@ describe("TerminalPage", () => {
 
 		await waitFor(() => {
 			expect(document.title).toBe(
-				`Terminal - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+				`Terminal (${MockWorkspaceAgent.name}) - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
 			);
 		});
 		expect(document.head.querySelector('link[rel="icon"]')).toBeNull();
