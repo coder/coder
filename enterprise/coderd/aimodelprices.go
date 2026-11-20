@@ -405,13 +405,25 @@ func (api *API) organizationUnpricedAIModels(rw http.ResponseWriter, r *http.Req
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	// Every row carries the count, so a page past the last model has no row to
+	// carry it. Read it from the first page instead.
+	counted := rows
+	if len(rows) == 0 && page.Offset > 0 {
+		params.LimitOpt, params.OffsetOpt = 1, 0
+		counted, err = api.Database.GetUnpricedAIModels(ctx, params)
+		if err != nil {
+			logger.Error(ctx, "failed to count unpriced AI models", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
 
 	resp := codersdk.UnpricedAIModels{
 		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
 		Models:              slice.List(rows, db2sdk.UnpricedAIModel),
 	}
-	if len(rows) > 0 {
-		resp.Count = rows[0].Count
+	if len(counted) > 0 {
+		resp.Count = counted[0].Count
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

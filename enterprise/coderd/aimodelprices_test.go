@@ -753,6 +753,12 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1},
 				want: []codersdk.UnpricedAIModel{otherModel},
 			},
+			{
+				// The count is still returned when the page has no models.
+				name: "PastLastModel",
+				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 2},
+				want: []codersdk.UnpricedAIModel{},
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
