@@ -70,7 +70,7 @@ const SummaryProvider: React.FC<{ children: React.ReactNode }> = ({
 );
 
 /** Whether rows here render as one-line summaries. */
-export const useToolCallSummary = () => useContext(ToolCallSummaryContext);
+export const useInToolCallSummary = () => useContext(ToolCallSummaryContext);
 
 // Some renderer branches render no `ToolCall.Header`, so emitting the
 // badge here rather than in the header keeps attribution on those cards.
@@ -80,10 +80,10 @@ const PolicyProvider: React.FC<{
 	children: React.ReactNode;
 }> = ({ hookRewritten, children }) => {
 	const badgeId = useId();
-	const summary = useContext(ToolCallSummaryContext);
+	const inSummary = useInToolCallSummary();
 	return (
 		<ToolPolicyContext.Provider value={{ hookRewritten }}>
-			{hookRewritten && !summary ? (
+			{hookRewritten && !inSummary ? (
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
@@ -173,8 +173,8 @@ const Root: React.FC<ToolCallRootProps> = ({
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const expanded = view !== "collapsed";
-	const summary = useContext(ToolCallSummaryContext);
-	const collapsible = hasContent && !summary;
+	const inSummary = useInToolCallSummary();
+	const collapsible = hasContent && !inSummary;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
@@ -236,18 +236,18 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 }) => {
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
 	const { hookRewritten } = useContext(ToolPolicyContext);
-	const summary = useContext(ToolCallSummaryContext);
+	const inSummary = useInToolCallSummary();
 	const resolvedAriaLabel =
 		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
 	const buttonAriaLabel =
 		resolvedAriaLabel && hookRewritten
 			? `${resolvedAriaLabel}, modified by policy`
 			: resolvedAriaLabel;
-	if (summary || (!collapsible && !alwaysButton)) {
+	if (inSummary || (!collapsible && !alwaysButton)) {
 		return (
 			<HeaderRow className={cn("min-w-0", className)}>
 				{children}
-				{summary && hookRewritten && (
+				{inSummary && hookRewritten && (
 					<ShieldIcon
 						role="img"
 						aria-label="Modified by policy"
@@ -398,7 +398,7 @@ const HeaderActions: React.FC<{
 	children: React.ReactNode;
 	className?: string;
 }> = ({ children, className }) => {
-	if (useContext(ToolCallSummaryContext)) {
+	if (useInToolCallSummary()) {
 		return null;
 	}
 	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;

@@ -20,6 +20,12 @@ import {
 	WorkingBlockDisclosure,
 } from "./WorkingBlockDisclosure";
 
+const mockLiveWorkingBlock = {
+	...MockWorkingBlock,
+	isLive: true,
+	endedAt: undefined,
+};
+
 const ControlledDisclosure = (
 	props: Partial<React.ComponentProps<typeof WorkingBlockDisclosure>>,
 ) => {
@@ -68,11 +74,7 @@ describe("WorkingBlockDisclosure", () => {
 		vi.setSystemTime(FIXTURE_NOW);
 
 		try {
-			render(
-				<ControlledDisclosure
-					block={{ ...MockWorkingBlock, isLive: true, endedAt: undefined }}
-				/>,
-			);
+			render(<ControlledDisclosure block={mockLiveWorkingBlock} />);
 			screen.getByRole("button", { name: "Working for 12s (2 steps)" });
 
 			act(() => {
@@ -89,30 +91,28 @@ type BlockRowProps = {
 	expandedHeight: number;
 	defaultExpanded?: boolean;
 	width?: number;
-	/** A live block, collapsed to its summary and a peek at its steps. */
-	live?: boolean;
+	/** A live block that shows its peek while collapsed. */
+	peek?: boolean;
 };
 
 const BlockRow: React.FC<BlockRowProps> = ({
 	expandedHeight,
 	defaultExpanded = false,
 	width,
-	live = false,
+	peek,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
+	const collapsedHeight = peek ? 134 : 40;
 	return (
 		<MessageScroller.Item
 			messageId="block"
-			data-height={expanded ? expandedHeight : 40}
+			data-height={expanded ? expandedHeight : collapsedHeight}
 			data-width={width}
 		>
 			<ControlledDisclosure
 				expanded={expanded}
 				onExpandedChange={setExpanded}
-				{...(live && {
-					block: { ...MockWorkingBlock, isLive: true, endedAt: undefined },
-					peek: true,
-				})}
+				{...(peek !== undefined && { block: mockLiveWorkingBlock, peek })}
 			/>
 		</MessageScroller.Item>
 	);
@@ -153,16 +153,16 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	setupMessageScrollerLayout();
 
 	it.each([
-		["its summary", false, () => summaryButton()],
+		["its summary", undefined, () => summaryButton()],
 		// The peek unmounts as the block expands.
 		["its peek", true, () => screen.getByText("Read src/main.ts")],
 	])(
 		"scrolls to the end of a block that expands past the view from %s",
-		async (_name, live, target) => {
+		async (_name, peek, target) => {
 			const user = userEvent.setup();
 			renderTranscript([
 				history,
-				<BlockRow key="block" expandedHeight={300} live={live} />,
+				<BlockRow key="block" expandedHeight={300} peek={peek} />,
 				row("answer", 100),
 			]);
 
@@ -347,6 +347,23 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		await update([history, prompt, blockRow, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
+	it("keeps an anchored turn in place in the commit where its block's peek ends", async () => {
+		const update = renderTranscript([history]);
+		const turn = (peek: boolean) => [
+			history,
+			prompt,
+			<BlockRow key="block" expandedHeight={300} peek={peek} />,
+			row("reply", 40),
+		];
+		await update(turn(true));
+		await flushLayout();
+		const anchoredScrollTop = viewport().scrollTop;
+
+		await update(turn(false));
+
+		expect(viewport().scrollTop).toBe(anchoredScrollTop);
 	});
 
 	it("keeps the reader in place when the last block collapses", async () => {

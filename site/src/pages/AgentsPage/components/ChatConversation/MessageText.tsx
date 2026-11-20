@@ -138,7 +138,7 @@ export const ReasoningDisclosure = memo<{
  * when it stops. Smoothing can hold streamed text back for a few frames
  * after its block renders.
  */
-export const ResponseTextShownContext = createContext<
+export const ResponseTextShownChangeContext = createContext<
 	((shown: boolean) => void) | undefined
 >(undefined);
 
@@ -155,9 +155,9 @@ export const ResponseBlock = memo<{
 		bypassSmoothing: !isStreaming,
 		streamKey,
 	});
-	const onTextShown = useContext(ResponseTextShownContext);
+	const onTextShownChange = useContext(ResponseTextShownChangeContext);
 	const reportTextShown = useEffectEvent((shown: boolean) =>
-		onTextShown?.(shown),
+		onTextShownChange?.(shown),
 	);
 	const shown = visibleText !== "";
 	useLayoutEffect(() => {

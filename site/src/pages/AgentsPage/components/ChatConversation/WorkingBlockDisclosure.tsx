@@ -108,7 +108,7 @@ type WorkingBlockContentProps = {
 	 * In the peek the block's height does not follow its rows, so a prepend
 	 * has no growth to scroll by.
 	 */
-	preview?: boolean;
+	inPeek?: boolean;
 	children: React.ReactNode;
 };
 
@@ -123,7 +123,7 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 
 	getSnapshotBeforeUpdate(previous: WorkingBlockContentProps): number | null {
 		if (
-			this.props.preview ||
+			this.props.inPeek ||
 			!didPrependIntoBlock(previous.memberIds, this.props.memberIds)
 		) {
 			return null;
@@ -174,14 +174,11 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
-	/**
-	 * Shows the newest rows of the collapsed block under its summary row,
-	 * until a reply after the block renders its text.
-	 */
+	/** Shows the newest rows of the collapsed block under its summary row. */
 	peek: boolean;
 	/**
-	 * Whether a peek that does not show may start: not once a reply follows
-	 * the block, even before its text renders.
+	 * Whether a peek that does not show may start. One that shows stays
+	 * until `peek` turns false.
 	 */
 	peekCanStart: boolean;
 	children: React.ReactNode;
@@ -201,9 +198,9 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	peekCanStart,
 	children,
 }) => {
-	// A reply whose text has not rendered yet keeps a peek that shows, so the
-	// text replaces the rows in one frame, but starts none.
 	const canShowPeek = peek && !expanded;
+	// Whether the peek showed at the last render, so one that shows can
+	// stay after `peekCanStart` turns false.
 	const [peekShown, setPeekShown] = useState(canShowPeek && peekCanStart);
 	const showPeek = canShowPeek && (peekShown || peekCanStart);
 	if (showPeek !== peekShown) {
@@ -267,7 +264,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 					growIn={formedFresh && !hasExpanded}
 					onExpand={expandFromPeek}
 				>
-					<WorkingBlockContent memberIds={block.memberIds} preview>
+					<WorkingBlockContent memberIds={block.memberIds} inPeek>
 						{children}
 					</WorkingBlockContent>
 				</WorkingBlockPeek>
