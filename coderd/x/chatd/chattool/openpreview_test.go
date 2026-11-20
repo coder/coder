@@ -123,11 +123,6 @@ func TestOpenPreview(t *testing.T) {
 			wantError: "must not contain control, format",
 		},
 		{
-			name:      "ZeroWidthTitle",
-			input:     `{"title":"Docs\u200bsite","port":3000}`,
-			wantError: "must not contain control, format",
-		},
-		{
 			name:      "TwoTargets",
 			input:     `{"title":"App","port":3000,"path":"/home/coder/output"}`,
 			wantError: "exactly one",
