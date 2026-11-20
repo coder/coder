@@ -78,7 +78,7 @@ func (h *Hosting) Covers(host string) bool {
 	if i := strings.LastIndex(subdomain, "---"); i >= 0 {
 		subdomain = subdomain[i+len("---"):]
 	}
-	return appurl.HasPreviewSlugPrefix(subdomain)
+	return strings.HasPrefix(subdomain, appurl.PreviewSlugPrefix)
 }
 
 // Parse returns the app and target that a preview host of h names.

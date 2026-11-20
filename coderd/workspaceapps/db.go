@@ -163,7 +163,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// would set the cookie for the whole app wildcard, and the wrapper's
 	// frame-src blocks its cross-origin hop anyway.
 	if isPreview && apiKey == nil {
-		writePreviewSignedOut(rw, r)
+		writePreviewError(rw, r, p.DashboardURL, http.StatusUnauthorized, "Reopen this preview from Coder to sign in again.")
 		return nil, "", false
 	}
 
