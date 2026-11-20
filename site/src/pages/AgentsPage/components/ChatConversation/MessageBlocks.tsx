@@ -11,7 +11,7 @@ import {
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
-import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { ToolCall, useToolCallSummary } from "../ChatElements/tools/ToolCall";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -110,6 +110,9 @@ export const BlockList: React.FC<BlockListProps> = ({
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
+	// One-line summaries keep only the step rows: reasoning and tools.
+	const summary = useToolCallSummary();
+	const desktopPreviews = showDesktopPreviews && !summary;
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -137,6 +140,14 @@ export const BlockList: React.FC<BlockListProps> = ({
 	return (
 		<>
 			{displayBlocks.map((block, index) => {
+				if (
+					summary &&
+					block.type !== "thinking" &&
+					block.type !== "tool" &&
+					block.type !== "tool-group"
+				) {
+					return null;
+				}
 				switch (block.type) {
 					case "response":
 						return (
@@ -233,7 +244,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
+								showDesktopPreviews={desktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
@@ -298,7 +309,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
+					showDesktopPreviews={desktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
 					}

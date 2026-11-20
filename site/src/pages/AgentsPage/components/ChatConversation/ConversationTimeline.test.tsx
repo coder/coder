@@ -426,7 +426,9 @@ describe("ConversationTimeline working blocks", () => {
 		});
 
 		await user.click(
-			screen.getByRole("button", { name: "Working for at least 12s" }),
+			screen.getByRole("button", {
+				name: "Working for at least 12s (2 steps or more)",
+			}),
 		);
 		const copyCommand = focusCopyCommand(2);
 
@@ -529,7 +531,9 @@ describe("ConversationTimeline working blocks", () => {
 		const { rerenderStage } = renderTimeline(stage([mockLiveStep]));
 
 		await user.click(
-			screen.getByRole("button", { name: "Working for at least 8s" }),
+			screen.getByRole("button", {
+				name: "Working for at least 8s (1 step or more)",
+			}),
 		);
 		const copyCommand = focusCopyCommand(5);
 
@@ -569,7 +573,9 @@ describe("ConversationTimeline live working blocks", () => {
 			...buildStreamRenderState([note]),
 		});
 
-		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		const summary = screen.getByRole("button", {
+			name: "Working for 12s (1 step)",
+		});
 		summary.focus();
 		const liveAssistant = screen.getByTestId("chat-message-live-assistant");
 
@@ -594,7 +600,9 @@ describe("ConversationTimeline live working blocks", () => {
 			streamingStage(MockWorkingMessages.slice(0, 1), "first", 1),
 		);
 
-		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		const summary = screen.getByRole("button", {
+			name: "Working for 12s (1 step)",
+		});
 		await user.click(summary);
 
 		rerenderStage(streamingStage(MockWorkingMessages.slice(0, 3), "second", 5));
@@ -626,7 +634,7 @@ describe("ConversationTimeline live working blocks", () => {
 			...buildStreamRenderState([reasoning]),
 		});
 
-		await user.click(screen.getByRole("button", { name: "Working for 12s" }));
+		await user.click(screen.getByRole("button", { name: /^Working for 12s/ }));
 		const thinking = await screen.findByRole("button", {
 			name: /Summarizing/,
 		});
@@ -688,7 +696,9 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 		});
 
-		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		const summary = screen.getByRole("button", {
+			name: "Working for 12s (2 steps)",
+		});
 		summary.focus();
 
 		rerenderStage({
@@ -725,7 +735,7 @@ describe("ConversationTimeline live working blocks", () => {
 		});
 
 		const summary = screen.getByRole("button", {
-			name: "Working for at least 12s",
+			name: "Working for at least 12s (2 steps or more)",
 		});
 		await user.click(summary);
 
