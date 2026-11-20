@@ -958,7 +958,6 @@ func New(options *Options) *API {
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
 				BuildWorkspace:                 api.chatBuildWorkspace,
-				AccessControlStore:             options.AccessControlStore,
 				RenderTemplateParameters:       api.chatRenderTemplateParameters,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				HookDispatcher:                 hookDispatcher,

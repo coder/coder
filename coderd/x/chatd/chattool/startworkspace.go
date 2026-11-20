@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -12,7 +11,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
@@ -23,15 +21,12 @@ const activeVersionRetryInstructions = "The workspace needs the template's activ
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
-	OwnerID uuid.UUID
-	BuildFn BuildWorkspaceFn
-	// AccessControlStore decides whether a template requires its active
-	// version. Nil means no template does.
-	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
-	AgentConnFn        AgentConnFunc
-	WorkspaceMu        *sync.Mutex
-	OnChatUpdated      func(database.Chat)
-	Logger             slog.Logger
+	OwnerID       uuid.UUID
+	BuildFn       BuildWorkspaceFn
+	AgentConnFn   AgentConnFunc
+	WorkspaceMu   *sync.Mutex
+	OnChatUpdated func(database.Chat)
+	Logger        slog.Logger
 }
 
 type startWorkspaceArgs struct {
@@ -162,7 +157,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			activeVersionID, err := requiredActiveVersion(ownerCtx, db, options.AccessControlStore, ws.TemplateID)
+			activeVersionID, err := requiredActiveVersion(ownerCtx, db, ws.TemplateID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("start workspace: %w", err).Error(),
@@ -248,20 +243,12 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 // requiredActiveVersion returns the template's active version when the
 // template requires workspaces to use it, and uuid.Nil otherwise.
-func requiredActiveVersion(
-	ctx context.Context,
-	db database.Store,
-	accessControlStore *atomic.Pointer[dbauthz.AccessControlStore],
-	templateID uuid.UUID,
-) (uuid.UUID, error) {
-	if accessControlStore == nil {
-		return uuid.Nil, nil
-	}
+func requiredActiveVersion(ctx context.Context, db database.Store, templateID uuid.UUID) (uuid.UUID, error) {
 	template, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("get template: %w", err)
 	}
-	if !(*accessControlStore.Load()).GetTemplateAccessControl(template).RequireActiveVersion {
+	if !template.RequireActiveVersion {
 		return uuid.Nil, nil
 	}
 	return template.ActiveVersionID, nil
