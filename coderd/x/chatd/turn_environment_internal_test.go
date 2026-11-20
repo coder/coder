@@ -853,11 +853,16 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
-	)
-	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+	newServer := func(experiments ...codersdk.Experiment) *Server {
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}, experiments...)),
+		)
+		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+		return server
+	}
+	server := newServer(codersdk.ExperimentOpenPreview)
+	noExperimentServer := newServer()
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
@@ -883,6 +888,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		// replaceMCP sends a follow-up message that asks to replace the
 		// MCP selection before the next turn is prepared.
 		replaceMCP bool
+		server     *Server
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -893,17 +899,24 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:   "Root",
 			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
 			want: append([]string{
-				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
+				"write_file", "edit_files", "open_preview", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
 		},
 		{
+			name:     "RootWithoutExperiment",
+			server:   noExperimentServer,
+			prompt:   []string{advisorGuidance, acpSubagentPromptBlock},
+			want:     []string{"create_workspace", chatadvisor.ToolName},
+			dontWant: []string{"open_preview"},
+		},
+		{
 			name:     "GeneralChild",
 			child:    true,
 			want:     []string{"read_file", "write_file", "edit_files", "execute"},
-			dontWant: append([]string{"ask_user_question", chatadvisor.ToolName}, rootOnlyTools...),
+			dontWant: append([]string{"ask_user_question", "open_preview", chatadvisor.ToolName}, rootOnlyTools...),
 		},
 		{
 			name:     "PlanRoot",
@@ -915,7 +928,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
 			},
 			dontWant: []string{
-				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"open_preview", "blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -935,7 +948,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			prompt: []string{exploreOverlay},
 			want:   []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
-				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
+				"write_file", "edit_files", "open_preview", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
 				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
@@ -1031,7 +1044,11 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				require.Len(t, messages, len(created.InitialMessages)+1)
 			}
 
-			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+			turnServer := server
+			if tt.server != nil {
+				turnServer = tt.server
+			}
+			env, err := turnServer.buildTurnEnvironment(ctx, generationPrepareInput{
 				Chat:     chat,
 				Messages: messages,
 			})

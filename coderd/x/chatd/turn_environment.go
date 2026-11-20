@@ -1782,19 +1782,31 @@ func (c *turnWorkspaceContext) externalAgentPreflightError(
 	return newChatExternalAgentUnavailableError(agent)
 }
 
+type workspaceBinding struct {
+	conn        workspacesdk.AgentConn
+	agent       database.WorkspaceAgent
+	workspaceID uuid.UUID
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
+	binding, err := c.getWorkspaceBinding(ctx)
+	return binding.conn, err
+}
+
+func (c *turnWorkspaceContext) getWorkspaceBinding(ctx context.Context) (workspaceBinding, error) {
 	if c.server.agentConnFn == nil {
-		return nil, xerrors.New("workspace agent connector is not configured")
+		return workspaceBinding{}, xerrors.New("workspace agent connector is not configured")
 	}
 
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
-		// Capture agentID in the same lock section as
+		// Capture the binding in the same lock section as
 		// currentConn to prevent a TOCTOU race with
 		// concurrent clearCachedWorkspaceState calls.
-		agentID := c.agent.ID
+		binding := workspaceBinding{conn: currentConn, agent: c.agent, workspaceID: c.cachedWorkspaceID.UUID}
 		c.mu.Unlock()
+		agentID := binding.agent.ID
 
 		// Status check on cache hit: re-fetch the agent
 		// row so we see the latest heartbeat rather than
@@ -1820,7 +1832,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				}
 			}
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
-			return currentConn, nil
+			return binding, nil
 		}
 		if staleRelease != nil {
 			staleRelease()
@@ -1828,10 +1840,10 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
-			return nil, err
+			return workspaceBinding{}, err
 		}
 		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
-			return nil, err
+			return workspaceBinding{}, err
 		}
 
 		// Wrap the dial in a timeout to bound the time spent
@@ -1864,7 +1876,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		if err != nil {
 			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
 				c.clearCachedWorkspaceState()
-				return nil, err
+				return workspaceBinding{}, err
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
@@ -1872,9 +1884,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// the runner can recognize cancellation.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
-				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
+				return workspaceBinding{}, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
 			}
-			return nil, err
+			return workspaceBinding{}, err
 		}
 		agentConn := dialResult.Conn
 		agentRelease := dialResult.Release
@@ -1884,7 +1896,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if agentRelease != nil {
 					agentRelease()
 				}
-				return nil, xerrors.Errorf("get latest workspace build: %w", err)
+				return workspaceBinding{}, xerrors.Errorf("get latest workspace build: %w", err)
 			}
 
 			switchedAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, dialResult.AgentID)
@@ -1892,7 +1904,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if agentRelease != nil {
 					agentRelease()
 				}
-				return nil, xerrors.Errorf("get workspace agent by id: %w", err)
+				return workspaceBinding{}, xerrors.Errorf("get workspace agent by id: %w", err)
 			}
 
 			updatedChat, err := c.persistBuildAgentBinding(
@@ -1905,29 +1917,26 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if agentRelease != nil {
 					agentRelease()
 				}
-				return nil, err
+				return workspaceBinding{}, err
 			}
 			chatSnapshot = updatedChat
-
-			c.mu.Lock()
-			c.agent = switchedAgent
-			c.agentLoaded = true
-			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
-			c.mu.Unlock()
+			agent = switchedAgent
 		}
 
+		c.mu.Lock()
 		if _, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID); !workspaceMatches {
+			c.mu.Unlock()
 			if agentRelease != nil {
 				agentRelease()
 			}
 			c.clearCachedWorkspaceState()
 			continue
 		}
-
-		c.mu.Lock()
 		if c.conn == nil {
 			c.conn = agentConn
 			c.releaseConn = agentRelease
+			c.agent = agent
+			c.agentLoaded = true
 			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 
 			var ancestorIDs []string
@@ -1951,19 +1960,31 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				slog.F("agent_id", dialResult.AgentID),
 			)
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
-			return agentConn, nil
+			return workspaceBinding{conn: agentConn, agent: agent, workspaceID: chatSnapshot.WorkspaceID.UUID}, nil
 		}
-		currentConn = c.conn
+		binding = workspaceBinding{conn: c.conn, agent: c.agent, workspaceID: c.cachedWorkspaceID.UUID}
 		c.mu.Unlock()
 
 		if agentRelease != nil {
 			agentRelease()
 		}
 		c.trackWorkspaceUsage(ctx, chatSnapshot)
-		return currentConn, nil
+		return binding, nil
 	}
 
-	return nil, xerrors.New("chat workspace changed while connecting")
+	return workspaceBinding{}, xerrors.New("chat workspace changed while connecting")
+}
+
+func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattool.PreviewWorkspace, error) {
+	binding, err := c.getWorkspaceBinding(ctx)
+	if err != nil {
+		return chattool.PreviewWorkspace{}, err
+	}
+	return chattool.PreviewWorkspace{
+		Conn:        binding.conn,
+		WorkspaceID: binding.workspaceID,
+		Agent:       binding.agent,
+	}, nil
 }
 
 func isExploreSubagentMode(mode database.NullChatMode) bool {
@@ -2554,6 +2575,13 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
+	if p.experiments.Enabled(codersdk.ExperimentOpenPreview) {
+		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
+			PreviewsAvailable:   p.previewsAvailable,
+			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
+		}))
+	}
+
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID: opts.chat.OwnerID,
@@ -2624,6 +2652,12 @@ func appendDynamicTools(
 	dynamicToolNames, err := parseDynamicToolNames(raw)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("parse dynamic tool names: %w", err)
+	}
+	// The dashboard trusts open_preview results, so the name stays reserved
+	// in turns without the built-in tool too.
+	if dynamicToolNames[chattool.OpenPreviewToolName] {
+		logger.Warn(ctx, "dropping dynamic tool with a reserved name", slog.F("tool_name", chattool.OpenPreviewToolName))
+		delete(dynamicToolNames, chattool.OpenPreviewToolName)
 	}
 	if len(dynamicToolNames) == 0 {
 		return tools, dynamicToolNames, nil
