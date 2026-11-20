@@ -83,6 +83,8 @@ github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/
 github.com/DataDog/gostackparse v0.7.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
+github.com/EhabY/ssh v0.0.0-20261120110116-56f3dfcf4f9a h1:NLwVRF/JiC129jGCz5nHrJwX6nPONX1N+vP2yEctWQU=
+github.com/EhabY/ssh v0.0.0-20261120110116-56f3dfcf4f9a/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.62.0 h1:5y2LR2pripbccOte6BpZ+guv5O5W0OQIfKvUYZrGaAQ=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.62.0/go.mod h1:b3f7EifFRqkVt142USoGIP62uUeZm7ALCPrs1ZjWXYo=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0.62.0 h1:tRsXhJnn0w0TNwJpVrB94wsrimzjWKFzdQlUhRdNUzc=
@@ -351,8 +353,6 @@ github.com/coder/safedial v0.2.0 h1:IG35U/WWRArDloE2MO0zduGzUW3HMo5M5CCuGiYd5oU=
 github.com/coder/safedial v0.2.0/go.mod h1:dPolEtkX5xQQkni+xMKClGAuwmSUe+p092Yrj436lqs=
 github.com/coder/serpent v0.15.0 h1:jobR7DnPsxzEMD0cRiailwlY+4v6HAPS/8emIgBpaIU=
 github.com/coder/serpent v0.15.0/go.mod h1:7OIvFBYMd+OqarMy5einBl8AtRr8LliopVU7pyrwucY=
-github.com/coder/ssh v0.0.0-20231128192721-70855dedb788 h1:YoUSJ19E8AtuUFVYBpXuOD6a/zVP3rcxezNsoDseTUw=
-github.com/coder/ssh v0.0.0-20231128192721-70855dedb788/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30 h1:TK4MPsYs7y46V1P3ayL/lrIs7dssyTMs1vq424ZKtb4=
 github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30/go.mod h1:VBQbGaS5sjdbJ1dBNoF19LlCcTFbiubNu15ZVReWPpw=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=

@@ -25,6 +25,13 @@ These events are reported by workspace agents, and their receipt by the control 
 Agent-reported events do not identify the Coder user who connected.
 To attribute SSH and IDE activity to a user, correlate them with tunnel events for the same workspace and agent.
 
+An SSH connection is recorded as disconnected when it closes.
+If a client stops answering the agent's keep-alives, for example after a crash or power loss, the agent closes the connection after `CODER_AGENT_SSH_MAX_TIMEOUT` and records a network error.
+The default of 72&nbsp;hours lets sessions survive device sleep.
+Lower it to close these connections sooner, at the cost of dropping sessions on devices that sleep for longer.
+A client that reconnects on its own can set both `CODER_SSH_CLIENT_ALIVE_INTERVAL` (in seconds, raised to 5 if lower) and `CODER_SSH_CLIENT_ALIVE_COUNT_MAX` in its session environment to shorten that timeout for its connection.
+The agent then sends a keep-alive every interval and closes the connection after that many go unanswered, like OpenSSH's `ClientAliveInterval` and `ClientAliveCountMax`.
+
 The Coder CLI attaches a client session ID to the SSH and reconnecting pseudo-terminal (PTY) connections it opens.
 Tools that launch the CLI, such as IDE extensions, can reuse one ID across launches to group their connections.
 The client sets the ID, so it isn't guaranteed to be unique, and connections that share one can overlap or have gaps.

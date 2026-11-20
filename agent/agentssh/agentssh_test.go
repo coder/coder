@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -683,6 +684,79 @@ func TestSSHShutdownReason(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSSHServer_KeepAliveClosesSilentConnection(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("test command requires a POSIX shell")
+	}
+	for _, tc := range []struct {
+		name       string
+		maxTimeout time.Duration
+		env        map[string]string
+	}{
+		{name: "AgentKeepAlive", maxTimeout: 3 * time.Second},
+		{name: "ClientKeepAlive", env: map[string]string{
+			agentssh.ClientAliveIntervalEnvironmentVariable: "5",
+			agentssh.ClientAliveCountMaxEnvironmentVariable: "1",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			reporter := &testConnectionReporter{}
+			s, err := agentssh.NewServer(ctx, testutil.Logger(t), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, &agentssh.Config{
+				ConnectionReporter: reporter,
+				MaxTimeout:         tc.maxTimeout,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = s.Close() })
+			require.NoError(t, s.UpdateHostSigner(42))
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			go func() { _ = s.Serve(ln) }()
+
+			conn, err := net.Dial("tcp", ln.Addr().String())
+			require.NoError(t, err)
+			silent := &silentConn{Conn: conn}
+			sshConn, channels, requests, err := ssh.NewClientConn(silent, "localhost:22", &ssh.ClientConfig{
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // This is a test.
+			})
+			require.NoError(t, err)
+			client := ssh.NewClient(sshConn, channels, requests)
+			t.Cleanup(func() { _ = client.Close() })
+			session, err := client.NewSession()
+			require.NoError(t, err)
+			for k, v := range tc.env {
+				require.NoError(t, session.Setenv(k, v))
+			}
+			stdout := expecter.NewAttachedToSSHSession(t, session)
+			require.NoError(t, session.Start("echo ready; exec sleep 120"))
+			stdout.ExpectMatch(ctx, "ready")
+
+			silent.silent.Store(true)
+			require.Eventually(t, func() bool {
+				reporter.mu.Lock()
+				defer reporter.mu.Unlock()
+				return len(reporter.disconnects) == 1
+			}, testutil.WaitLong, testutil.IntervalFast)
+			require.Equal(t, string(codersdk.DisconnectReasonNetworkError), reporter.disconnects[0].Reason)
+		})
+	}
+}
+
+// silentConn drops writes once silent is set, like a client that vanished.
+type silentConn struct {
+	net.Conn
+	silent atomic.Bool
+}
+
+func (c *silentConn) Write(b []byte) (int, error) {
+	if c.silent.Load() {
+		return len(b), nil
+	}
+	return c.Conn.Write(b)
 }
 
 func sshClient(t *testing.T, addr string) *ssh.Client {
