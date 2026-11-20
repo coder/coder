@@ -66,7 +66,8 @@ The `chat` span carries the model call's details:
 The `execute_tool` span carries `gen_ai.tool.name`, `gen_ai.tool.call.id`, and `gen_ai.tool.type`.
 The tool type is `function` for built-in Coder Agents tools and `extension` for other tools, such as tools from MCP servers.
 
-The operation name, provider, model, and tool attributes are set when the span starts, so samplers can use them.
+On `chat` and `execute_tool` spans, the operation name, provider, model, and tool attributes are set when the span starts, so samplers can use them.
+The `invoke_agent coder` span starts before the turn selects a model, so samplers see its operation name and chat attributes but not `gen_ai.provider.name`.
 A failed span has an error status and an `error.type` attribute.
 A tool call that returns an error result, such as an MCP server that cannot be reached, ends with `error.type` set to `tool_error`.
 
